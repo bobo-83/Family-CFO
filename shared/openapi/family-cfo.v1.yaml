@@ -239,6 +239,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Recommendation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
   /chat/messages:
     post:
       tags:

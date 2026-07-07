@@ -423,3 +423,66 @@ def record_calculation(
             )
         )
     return calculation_id
+
+
+# --- Scenarios and recommendations ---------------------------------------------
+
+
+def create_scenario(
+    engine: Engine,
+    household_id: str,
+    created_by_user_id: str,
+    name: str,
+    description: str | None,
+    input_json: dict[str, Any],
+) -> str:
+    scenario_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.scenarios).values(
+                id=scenario_id,
+                household_id=household_id,
+                created_by_user_id=created_by_user_id,
+                name=name,
+                description=description,
+                input_json=input_json,
+                created_at=utcnow(),
+            )
+        )
+    return scenario_id
+
+
+def create_recommendation(
+    engine: Engine,
+    household_id: str,
+    scenario_id: str | None,
+    answer: str,
+    assumptions: list[str],
+    impacts: list[dict[str, Any]],
+    tradeoffs: list[str],
+    alternatives: list[str],
+    confidence: float,
+    calculation_refs: list[str],
+    warnings: list[str],
+    explanation_source: str,
+) -> str:
+    recommendation_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.recommendations).values(
+                id=recommendation_id,
+                household_id=household_id,
+                scenario_id=scenario_id,
+                answer=answer,
+                assumptions_json=assumptions,
+                impacts_json=impacts,
+                tradeoffs_json=tradeoffs,
+                alternatives_json=alternatives,
+                confidence=confidence,
+                calculation_refs_json=calculation_refs,
+                warnings_json=warnings,
+                explanation_source=explanation_source,
+                created_at=utcnow(),
+            )
+        )
+    return recommendation_id

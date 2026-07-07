@@ -46,6 +46,23 @@ Not implemented in M2:
 - Scenario calculation logic (only the `scenarios` table shape is persisted, for M3 to build on).
 - Mobile pairing, chat, purchase advisor, imports, reports, and AI runtime behavior.
 
+## M3 Scope
+
+Implemented:
+
+- `POST /api/v1/advisor/purchase`: given `item` and `price` (plus optional `merchant`, `description`, `source`, `confidence`, `user_question`), persists the request as a `scenarios` row, runs `calculate_purchase_impact` (see `services/financial-engine/README.md`) against the household's current financial context, and returns a `Recommendation` — `answer`, `assumptions`, `impacts`, `tradeoffs`, `alternatives`, `confidence`, `calculation_refs`, `warnings` — persisted as a `recommendations` row linked to that scenario.
+- `calculation_refs` always cites the `financial_calculations` row backing the numbers in `answer`; nothing in the response is a fabricated numeric claim.
+- `family_cfo_api/explanation.py`: an `ExplanationAdapter` interface plus `DeterministicExplanationAdapter`, a no-model implementation that renders calculation outputs as plain sentences. M4 will add a vLLM-backed adapter behind the same interface without changing the advisor route (ADR 0007).
+- Available to every household role (owner, adult, viewer, child) — asking "can I afford this" doesn't require the write-capable roles goal creation does.
+- Purchase item, merchant, and price are never written to logs (see `apps/api/src/family_cfo_api/api/advisor.py`); only household id, calculation id, and recommendation id are logged.
+
+Not implemented in M3:
+
+- Any real LLM call — that is M4's `ExplanationAdapter` implementation.
+- Debt payoff impact calculation (no interest/payment data in the M2 schema; the response includes a warning instead).
+- Multi-item or recurring-purchase scenarios, or any scenario/recommendation history, editing, or deletion API.
+- Chat integration.
+
 ### Auth Flow
 
 ```bash
@@ -154,7 +171,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`). `make migrate` applies all of them.
 
 ## Fixtures
 

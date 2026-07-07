@@ -15,7 +15,14 @@ down_revision: str | None = "0013_scenarios"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-CALCULATION_TYPES = ("net_worth", "cash_flow", "budget_summary", "emergency_fund", "goal_progress")
+CALCULATION_TYPES = (
+    "net_worth",
+    "cash_flow",
+    "budget_summary",
+    "emergency_fund",
+    "goal_progress",
+    "purchase_impact",
+)
 
 
 def upgrade() -> None:

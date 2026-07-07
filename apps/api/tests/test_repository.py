@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import fixtures, models, repository, security
@@ -127,3 +127,43 @@ def test_auth_session_rejects_expired_token(demo_engine: Engine) -> None:
 
 def test_auth_session_rejects_unknown_token(demo_engine: Engine) -> None:
     assert repository.get_session_context(demo_engine, security.hash_token("nope")) is None
+
+
+def test_create_scenario_and_recommendation_round_trip(demo_engine: Engine) -> None:
+    scenario_id = repository.create_scenario(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        created_by_user_id=fixtures.DEMO_USER_ID,
+        name="Purchase: a new laptop",
+        description=None,
+        input_json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    recommendation_id = repository.create_recommendation(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        scenario_id=scenario_id,
+        answer="Buying a new laptop would leave your net worth at USD 1,000.00.",
+        assumptions=["The purchase is paid in cash."],
+        impacts=[{"area": "net_worth", "summary": "...", "amount": None}],
+        tradeoffs=["Paying in cash avoids interest."],
+        alternatives=["Delay the purchase."],
+        confidence=0.75,
+        calculation_refs=["financial_calculations:abc123"],
+        warnings=[],
+        explanation_source="deterministic_stub",
+    )
+
+    with demo_engine.connect() as conn:
+        scenario_row = conn.execute(
+            select(models.scenarios).where(models.scenarios.c.id == scenario_id)
+        ).mappings().first()
+        recommendation_row = conn.execute(
+            select(models.recommendations).where(models.recommendations.c.id == recommendation_id)
+        ).mappings().first()
+
+    assert scenario_row is not None
+    assert scenario_row["name"] == "Purchase: a new laptop"
+    assert recommendation_row is not None
+    assert recommendation_row["scenario_id"] == scenario_id
+    assert recommendation_row["confidence"] == 0.75

@@ -21,6 +21,8 @@ AccountType = Literal[
 ]
 GoalType = Literal["emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other"]
 RecurringFrequency = Literal["weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"]
+PurchaseSource = Literal["manual", "mobile_vision", "receipt", "product_photo"]
+ImpactArea = Literal["cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"]
 
 
 class HealthResponse(BaseModel):
@@ -133,4 +135,32 @@ class BillListResponse(BaseModel):
 
 class IncomeListResponse(BaseModel):
     income: list[IncomeSource]
+
+
+class PurchaseAdvisorRequest(BaseModel):
+    merchant: str | None = None
+    item: str
+    description: str | None = None
+    price: Money
+    source: PurchaseSource | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    user_question: str | None = None
+
+
+class Impact(BaseModel):
+    area: ImpactArea
+    summary: str
+    amount: Money | None = None
+
+
+class Recommendation(BaseModel):
+    id: str
+    answer: str
+    assumptions: list[str]
+    impacts: list[Impact]
+    tradeoffs: list[str]
+    alternatives: list[str]
+    confidence: float = Field(ge=0, le=1)
+    calculation_refs: list[str]
+    warnings: list[str] = Field(default_factory=list)
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from family_cfo_api.api.accounts import router as accounts_router
+from family_cfo_api.api.advisor import router as advisor_router
 from family_cfo_api.api.auth import router as auth_router
 from family_cfo_api.api.bills import router as bills_router
 from family_cfo_api.api.goals import router as goals_router
@@ -18,4 +19,5 @@ api_router.include_router(transactions_router)
 api_router.include_router(bills_router)
 api_router.include_router(income_router)
 api_router.include_router(goals_router)
+api_router.include_router(advisor_router)
 

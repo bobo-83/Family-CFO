@@ -158,38 +158,38 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M3 scope.
-- [ ] Define M3 non-goals.
-- [ ] Confirm purchase advisor request and recommendation response in OpenAPI.
-- [ ] Define scenario input persistence.
-- [ ] Define deterministic purchase impact calculations.
-- [ ] Define LLM explanation adapter stub behavior.
-- [ ] Define security impact for recommendation data and prompts.
-- [ ] Define M3 unit and integration test expectations.
-- [ ] Define M3 documentation updates.
+- [x] Define M3 scope.
+- [x] Define M3 non-goals.
+- [x] Confirm purchase advisor request and recommendation response in OpenAPI.
+- [x] Define scenario input persistence.
+- [x] Define deterministic purchase impact calculations.
+- [x] Define LLM explanation adapter stub behavior.
+- [x] Define security impact for recommendation data and prompts.
+- [x] Define M3 unit and integration test expectations.
+- [x] Define M3 documentation updates.
 
 ### Implementation
 
-- [ ] Create scenario persistence model and migration.
-- [ ] Implement purchase scenario input validation.
-- [ ] Implement purchase impact calculation using the financial engine.
-- [ ] Calculate discretionary cash flow impact.
-- [ ] Calculate emergency fund impact.
-- [ ] Calculate debt payoff impact where data exists.
-- [ ] Calculate savings goal impact where data exists.
-- [ ] Calculate net worth impact.
-- [ ] Generate recommendation response with answer, assumptions, impacts, tradeoffs, alternatives, confidence, warnings, and calculation references.
-- [ ] Add LLM explanation adapter interface.
-- [ ] Add deterministic no-model explanation stub.
-- [ ] Ensure numeric recommendation claims cite calculation references.
-- [ ] Persist recommendation records.
-- [ ] Implement `POST /api/v1/advisor/purchase`.
-- [ ] Add unit tests for purchase impact calculations.
-- [ ] Add unit tests for recommendation response structure.
-- [ ] Add integration tests for purchase advisor API.
-- [ ] Add prompt and response redaction tests for logged data.
-- [ ] Update API README and financial engine docs.
-- [ ] Run verification commands.
+- [x] Create scenario persistence model and migration. (`scenarios` table added in M2; `recommendations` table added in M3 migration `0015`.)
+- [x] Implement purchase scenario input validation. (Non-positive price and currency mismatch return `400`.)
+- [x] Implement purchase impact calculation using the financial engine.
+- [x] Calculate discretionary cash flow impact.
+- [x] Calculate emergency fund impact.
+- [x] Calculate debt payoff impact where data exists. (No interest/payment data exists in the M2 schema, so this surfaces as a documented warning rather than a fabricated number — see the M3 Non-Goals and "Backlog: Debt Payoff and Retirement Projections" below.)
+- [x] Calculate savings goal impact where data exists. (Top-priority goal only.)
+- [x] Calculate net worth impact.
+- [x] Generate recommendation response with answer, assumptions, impacts, tradeoffs, alternatives, confidence, warnings, and calculation references.
+- [x] Add LLM explanation adapter interface.
+- [x] Add deterministic no-model explanation stub.
+- [x] Ensure numeric recommendation claims cite calculation references.
+- [x] Persist recommendation records.
+- [x] Implement `POST /api/v1/advisor/purchase`.
+- [x] Add unit tests for purchase impact calculations.
+- [x] Add unit tests for recommendation response structure.
+- [x] Add integration tests for purchase advisor API.
+- [x] Add prompt and response redaction tests for logged data.
+- [x] Update API README and financial engine docs.
+- [x] Run verification commands.
 - [ ] Commit M3 purchase advisor changes.
 
 ## M4: Local AI Runtime
@@ -405,6 +405,17 @@ Rules:
 - [ ] Document restore procedure.
 - [ ] Run verification commands.
 - [ ] Commit M8 reports and backups changes.
+
+## Backlog: Debt Payoff and Retirement Projections
+
+The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). The domain model (`docs/specs/03-domain-model.md`) lists "Refinance a mortgage" and "Accelerate debt payoff" as scenario examples. No milestone from M3 through M8 currently owns building this — it was silently dropped from M3's scope rather than deferred to a tracked task. This section tracks it until it is assigned to a milestone.
+
+- [x] Add a deterministic `calculate_debt_payoff` calculation to the financial engine, unit tested with mocked `DebtInput` values (balance, annual interest rate, minimum payment, optional extra payment). This does not require database changes — it is a pure function like every other engine calculation.
+- [ ] Add `annual_interest_rate` and `minimum_payment` columns (or a separate `debt_terms` table) to `accounts` for liability account types, with a migration.
+- [ ] Wire `calculate_debt_payoff` into the purchase advisor's `debt` impact once account-level interest/payment data is persisted, replacing today's warning-only placeholder.
+- [ ] Add a `calculate_retirement_projection` calculation to the financial engine.
+- [ ] Add a general scenario-planning API (beyond the purchase advisor) covering "can we retire at 55" and "should we refinance" style questions, per the PRD's Scenario Planning journey.
+- [ ] Assign the remaining items above to a specific milestone.
 
 ## Release Readiness
 

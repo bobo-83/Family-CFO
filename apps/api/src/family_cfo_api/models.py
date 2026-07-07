@@ -7,6 +7,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -37,8 +38,16 @@ ACCOUNT_TYPES = (
 )
 RECURRING_FREQUENCIES = ("weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual")
 GOAL_TYPES = ("emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other")
-CALCULATION_TYPES = ("net_worth", "cash_flow", "budget_summary", "emergency_fund", "goal_progress")
+CALCULATION_TYPES = (
+    "net_worth",
+    "cash_flow",
+    "budget_summary",
+    "emergency_fund",
+    "goal_progress",
+    "purchase_impact",
+)
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
+EXPLANATION_SOURCES = ("deterministic_stub",)
 
 
 def _uuid_pk(name: str = "id") -> Column:
@@ -47,6 +56,10 @@ def _uuid_pk(name: str = "id") -> Column:
 
 def _currency_column(name: str = "currency") -> Column:
     return Column(name, String(CURRENCY_LENGTH), nullable=False)
+
+
+def _sql_in(values: tuple[str, ...]) -> str:
+    return "(" + ", ".join(f"'{value}'" for value in values) + ")"
 
 
 households = Table(
@@ -79,7 +92,7 @@ household_memberships = Table(
     Column("user_id", String(36), ForeignKey("users.id"), nullable=False),
     Column("role", String(20), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"role in {HOUSEHOLD_ROLES!r}", name="ck_household_memberships_role"),
+    CheckConstraint(f"role in {_sql_in(HOUSEHOLD_ROLES)}", name="ck_household_memberships_role"),
     UniqueConstraint("household_id", "user_id", name="uq_household_memberships_household_user"),
 )
 
@@ -105,7 +118,7 @@ accounts = Table(
     _currency_column(),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"type in {ACCOUNT_TYPES!r}", name="ck_accounts_type"),
+    CheckConstraint(f"type in {_sql_in(ACCOUNT_TYPES)}", name="ck_accounts_type"),
 )
 
 account_balances = Table(
@@ -143,7 +156,7 @@ transactions = Table(
     Column("import_source", String(30), nullable=True),
     Column("review_state", String(20), nullable=False, server_default="reviewed"),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"review_state in {TRANSACTION_REVIEW_STATES!r}", name="ck_transactions_review_state"),
+    CheckConstraint(f"review_state in {_sql_in(TRANSACTION_REVIEW_STATES)}", name="ck_transactions_review_state"),
 )
 
 bills = Table(
@@ -160,7 +173,7 @@ bills = Table(
     Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"frequency in {RECURRING_FREQUENCIES!r}", name="ck_bills_frequency"),
+    CheckConstraint(f"frequency in {_sql_in(RECURRING_FREQUENCIES)}", name="ck_bills_frequency"),
 )
 
 income_sources = Table(
@@ -174,7 +187,7 @@ income_sources = Table(
     Column("frequency", String(20), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"frequency in {RECURRING_FREQUENCIES!r}", name="ck_income_sources_frequency"),
+    CheckConstraint(f"frequency in {_sql_in(RECURRING_FREQUENCIES)}", name="ck_income_sources_frequency"),
 )
 
 goals = Table(
@@ -191,7 +204,7 @@ goals = Table(
     Column("priority", Integer, nullable=False, server_default="3"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"type in {GOAL_TYPES!r}", name="ck_goals_type"),
+    CheckConstraint(f"type in {_sql_in(GOAL_TYPES)}", name="ck_goals_type"),
     CheckConstraint("priority between 1 and 5", name="ck_goals_priority"),
 )
 
@@ -219,5 +232,27 @@ financial_calculations = Table(
     Column("warnings_json", JSON, nullable=False),
     Column("outputs_json", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"calculation_type in {CALCULATION_TYPES!r}", name="ck_financial_calculations_type"),
+    CheckConstraint(f"calculation_type in {_sql_in(CALCULATION_TYPES)}", name="ck_financial_calculations_type"),
+)
+
+recommendations = Table(
+    "recommendations",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("scenario_id", String(36), ForeignKey("scenarios.id"), nullable=True),
+    Column("answer", Text, nullable=False),
+    Column("assumptions_json", JSON, nullable=False),
+    Column("impacts_json", JSON, nullable=False),
+    Column("tradeoffs_json", JSON, nullable=False),
+    Column("alternatives_json", JSON, nullable=False),
+    Column("confidence", Float, nullable=False),
+    Column("calculation_refs_json", JSON, nullable=False),
+    Column("warnings_json", JSON, nullable=False),
+    Column("explanation_source", String(30), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}", name="ck_recommendations_explanation_source"
+    ),
+    CheckConstraint("confidence >= 0 and confidence <= 1", name="ck_recommendations_confidence_range"),
 )
