@@ -16,6 +16,10 @@ Family CFO uses specification-driven development. Implementation begins only aft
 10. [Docker Spec](./10-docker-spec.md)
 11. [Milestone Roadmap](./11-milestone-roadmap.md)
 
+## Task Tracking
+
+Implementation tasks are tracked in [Implementation Tasks](./12-implementation-tasks.md).
+
 ## Acceptance State
 
 Initial state: draft.

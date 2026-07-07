@@ -11,7 +11,8 @@ Codex is expected to work one milestone at a time.
 5. Add integration tests for component boundaries.
 6. Update documentation.
 7. Run verification commands.
-8. Commit with a clear message when requested or when the workflow calls for it.
+8. Check off completed tasks in `docs/specs/12-implementation-tasks.md`.
+9. Commit with a clear message when requested or when the workflow calls for it.
 
 ## Constraints
 

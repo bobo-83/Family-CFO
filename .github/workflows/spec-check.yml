@@ -24,4 +24,5 @@ jobs:
           test -f docs/specs/09-angular-dashboard-spec.md
           test -f docs/specs/10-docker-spec.md
           test -f docs/specs/11-milestone-roadmap.md
+          test -f docs/specs/12-implementation-tasks.md
           test -f shared/openapi/family-cfo.v1.yaml

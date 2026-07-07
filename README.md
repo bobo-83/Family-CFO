@@ -37,6 +37,8 @@ The first development gate is the Spec Kit:
 
 Implementation should begin only after these documents are reviewed and accepted.
 
+Project tasks are tracked in [docs/specs/12-implementation-tasks.md](./docs/specs/12-implementation-tasks.md).
+
 ## Monorepo Layout
 
 ```text
