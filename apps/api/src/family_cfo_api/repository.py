@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import models
@@ -465,6 +465,8 @@ def create_recommendation(
     calculation_refs: list[str],
     warnings: list[str],
     explanation_source: str,
+    model_version: str | None = None,
+    prompt_version: str | None = None,
 ) -> str:
     recommendation_id = new_id()
     with engine.begin() as conn:
@@ -482,7 +484,82 @@ def create_recommendation(
                 calculation_refs_json=calculation_refs,
                 warnings_json=warnings,
                 explanation_source=explanation_source,
+                model_version=model_version,
+                prompt_version=prompt_version,
                 created_at=utcnow(),
             )
         )
     return recommendation_id
+
+
+# --- AI runtime configuration ---------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AiRuntimeConfigRecord:
+    household_id: str
+    provider: str
+    base_url: str
+    model: str
+    enabled: bool
+
+
+def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigRecord | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.ai_runtime_configs).where(
+                models.ai_runtime_configs.c.household_id == household_id
+            )
+        ).mappings().first()
+
+    if row is None:
+        return None
+
+    return AiRuntimeConfigRecord(
+        household_id=row["household_id"],
+        provider=row["provider"],
+        base_url=row["base_url"],
+        model=row["model"],
+        enabled=bool(row["enabled"]),
+    )
+
+
+def upsert_ai_runtime_config(
+    engine: Engine,
+    household_id: str,
+    provider: str,
+    base_url: str,
+    model: str,
+    enabled: bool,
+) -> AiRuntimeConfigRecord:
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.ai_runtime_configs.c.id).where(
+                models.ai_runtime_configs.c.household_id == household_id
+            )
+        ).first()
+
+        if existing is None:
+            conn.execute(
+                insert(models.ai_runtime_configs).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    provider=provider,
+                    base_url=base_url,
+                    model=model,
+                    enabled=enabled,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        else:
+            conn.execute(
+                update(models.ai_runtime_configs)
+                .where(models.ai_runtime_configs.c.household_id == household_id)
+                .values(provider=provider, base_url=base_url, model=model, enabled=enabled, updated_at=now)
+            )
+
+    return AiRuntimeConfigRecord(
+        household_id=household_id, provider=provider, base_url=base_url, model=model, enabled=enabled
+    )

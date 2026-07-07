@@ -1,9 +1,39 @@
 import logging
 
 import pytest
+from family_cfo_ai_orchestrator import RuntimeCompletion
 from sqlalchemy import select
 
 from family_cfo_api import fixtures, models
+
+
+class _StubVllmAdapter:
+    def __init__(self, response_text: str, model: str = "stub-model") -> None:
+        self._response_text = response_text
+        self._model = model
+
+    def __call__(self, _base_url: str, _model: str) -> "_StubVllmAdapter":
+        return self
+
+    def complete(self, _messages, *, temperature: float = 0.2, max_tokens: int = 400) -> RuntimeCompletion:
+        return RuntimeCompletion(text=self._response_text, model=self._model, raw={})
+
+    def close(self) -> None:
+        pass
+
+
+async def _enable_runtime(demo_client, demo_token) -> None:
+    response = await demo_client.put(
+        "/api/v1/ai/runtime",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "provider": "vllm",
+            "base_url": "http://vllm.local:8000",
+            "model": "stub-model",
+            "enabled": True,
+        },
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.anyio
@@ -115,3 +145,97 @@ async def test_analyze_purchase_persists_scenario_and_recommendation(demo_engine
     assert len(recommendation_rows) == 1
     assert recommendation_rows[0]["scenario_id"] == scenario_rows[0]["id"]
     assert recommendation_rows[0]["explanation_source"] == "deterministic_stub"
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_uses_llm_when_runtime_enabled(
+    demo_client, demo_token, demo_engine, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "family_cfo_api.api.advisor.VLLMAdapter",
+        _StubVllmAdapter("Buying a new laptop for USD 1,500.00 is well within your budget."),
+    )
+    await _enable_runtime(demo_client, demo_token)
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Buying a new laptop for USD 1,500.00 is well within your budget."
+
+    with demo_engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.recommendations).order_by(models.recommendations.c.created_at.desc())
+            )
+            .mappings()
+            .first()
+        )
+
+    assert row["explanation_source"] == "llm"
+    assert row["model_version"] == "stub-model"
+    assert row["prompt_version"] == "purchase-advisor-v1"
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_falls_back_to_deterministic_on_guardrail_violation(
+    demo_client, demo_token, demo_engine, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "family_cfo_api.api.advisor.VLLMAdapter",
+        _StubVllmAdapter("This purchase carries a fabricated 42.7% hidden risk premium."),
+    )
+    await _enable_runtime(demo_client, demo_token)
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    assert response.status_code == 200
+    assert "42.7" not in response.json()["answer"]
+
+    with demo_engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.recommendations).order_by(models.recommendations.c.created_at.desc())
+            )
+            .mappings()
+            .first()
+        )
+
+    assert row["explanation_source"] == "deterministic_stub"
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_disabled_runtime_uses_deterministic_stub(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "family_cfo_api.api.advisor.VLLMAdapter",
+        _StubVllmAdapter("this should never be called"),
+    )
+    response = await demo_client.put(
+        "/api/v1/ai/runtime",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "provider": "vllm",
+            "base_url": "http://vllm.local:8000",
+            "model": "stub-model",
+            "enabled": False,
+        },
+    )
+    assert response.status_code == 200
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    assert response.status_code == 200
+    assert "this should never be called" not in response.json()["answer"]

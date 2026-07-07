@@ -26,6 +26,7 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 - M1 backend skeleton: accepted for implementation.
 - M2 financial context and deterministic engine: implemented (cash flow and budget summary calculations are not yet exposed through an API endpoint; transaction/bill/income write APIs remain out of scope).
 - M3 purchase advisor: implemented (deterministic explanation stub only; no real LLM call). Debt payoff/retirement projection is tracked as backlog, not owned by any milestone yet — see `docs/specs/12-implementation-tasks.md`.
+- M4 local AI runtime: implemented (vLLM adapter only; no Ollama/llama.cpp adapters, no real vLLM deployment — tests mock the HTTP layer).
 
 Before coding a milestone, update the relevant documents with:
 

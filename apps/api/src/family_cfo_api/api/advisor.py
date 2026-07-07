@@ -1,5 +1,6 @@
 import logging
 
+from family_cfo_ai_orchestrator import VLLMAdapter
 from fastapi import APIRouter, Depends, HTTPException
 from family_cfo_financial_engine import Money as EngineMoney
 from sqlalchemy.engine import Engine
@@ -8,20 +9,35 @@ from family_cfo_api import finance_service, repository
 from family_cfo_api.deps import get_current_session, get_engine
 from family_cfo_api.explanation import (
     DeterministicExplanationAdapter,
+    ExplanationAdapter,
     PurchaseExplanationContext,
     format_money,
 )
+from family_cfo_api.llm_explanation import LlmExplanationAdapter
 from family_cfo_api.schemas import ErrorResponse, Impact, PurchaseAdvisorRequest, Recommendation
 from family_cfo_api.schemas import Money as MoneySchema
 
 router = APIRouter(tags=["Advisor"])
 logger = logging.getLogger(__name__)
 
-_explanation_adapter = DeterministicExplanationAdapter()
-
 _MIN_CONFIDENCE = 0.4
 _BASE_CONFIDENCE = 0.9
 _CONFIDENCE_PENALTY_PER_WARNING = 0.15
+
+# Providers with a shipped RuntimeAdapter. Other configured providers fall
+# back to the deterministic stub until their adapters exist (M4 non-goals).
+_SUPPORTED_LLM_PROVIDERS = {"vllm"}
+
+
+def _select_explanation_adapter(
+    engine: Engine, household_id: str
+) -> tuple[ExplanationAdapter, VLLMAdapter | None]:
+    config = repository.get_ai_runtime_config(engine, household_id)
+    if config is None or not config.enabled or config.provider not in _SUPPORTED_LLM_PROVIDERS:
+        return DeterministicExplanationAdapter(), None
+
+    runtime_client = VLLMAdapter(config.base_url, config.model)
+    return LlmExplanationAdapter(runtime_client, model_version=config.model), runtime_client
 
 
 def _build_impacts(outputs: dict, warnings: list[str]) -> list[Impact]:
@@ -152,23 +168,27 @@ async def analyze_purchase(
     tradeoffs, alternatives = _build_tradeoffs_and_alternatives(exceeds_liquid_balance)
     calculation_refs = [f"financial_calculations:{calculation_id}"]
 
-    answer = _explanation_adapter.explain_purchase(
-        PurchaseExplanationContext(
-            item=payload.item,
-            price=price,
-            net_worth_after=result.outputs["net_worth_after"],
-            emergency_fund_months_before=result.outputs["emergency_fund_months_before"],
-            emergency_fund_months_after=result.outputs["emergency_fund_months_after"],
-            discretionary_months_consumed=result.outputs["discretionary_months_consumed"],
-            warnings=result.warnings,
-        )
+    explanation_context = PurchaseExplanationContext(
+        item=payload.item,
+        price=price,
+        net_worth_after=result.outputs["net_worth_after"],
+        emergency_fund_months_before=result.outputs["emergency_fund_months_before"],
+        emergency_fund_months_after=result.outputs["emergency_fund_months_after"],
+        discretionary_months_consumed=result.outputs["discretionary_months_consumed"],
+        warnings=result.warnings,
     )
+    explanation_adapter, runtime_client = _select_explanation_adapter(engine, session.household_id)
+    try:
+        explanation = explanation_adapter.explain_purchase(explanation_context)
+    finally:
+        if runtime_client is not None:
+            runtime_client.close()
 
     recommendation_id = repository.create_recommendation(
         engine,
         household_id=session.household_id,
         scenario_id=scenario_id,
-        answer=answer,
+        answer=explanation.text,
         assumptions=result.assumptions,
         impacts=[impact.model_dump(mode="json") for impact in impacts],
         tradeoffs=tradeoffs,
@@ -176,19 +196,23 @@ async def analyze_purchase(
         confidence=confidence,
         calculation_refs=calculation_refs,
         warnings=result.warnings,
-        explanation_source=_explanation_adapter.source,
+        explanation_source=explanation.source,
+        model_version=explanation.model_version,
+        prompt_version=explanation.prompt_version,
     )
 
     logger.info(
-        "purchase advisor recommendation created household_id=%s calculation_id=%s recommendation_id=%s",
+        "purchase advisor recommendation created household_id=%s calculation_id=%s "
+        "recommendation_id=%s explanation_source=%s",
         session.household_id,
         calculation_id,
         recommendation_id,
+        explanation.source,
     )
 
     return Recommendation(
         id=recommendation_id,
-        answer=answer,
+        answer=explanation.text,
         assumptions=result.assumptions,
         impacts=impacts,
         tradeoffs=tradeoffs,

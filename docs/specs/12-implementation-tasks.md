@@ -196,37 +196,37 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M4 scope.
-- [ ] Define M4 non-goals.
-- [ ] Define AI runtime adapter interface.
-- [ ] Define vLLM configuration requirements.
-- [ ] Define model and prompt version tracking.
-- [ ] Define guardrail behavior for missing calculation references and hallucinated financial facts.
-- [ ] Define data retention expectations for prompts and model responses.
-- [ ] Define M4 unit and integration test expectations.
-- [ ] Define M4 documentation updates.
+- [x] Define M4 scope.
+- [x] Define M4 non-goals.
+- [x] Define AI runtime adapter interface.
+- [x] Define vLLM configuration requirements.
+- [x] Define model and prompt version tracking.
+- [x] Define guardrail behavior for missing calculation references and hallucinated financial facts.
+- [x] Define data retention expectations for prompts and model responses.
+- [x] Define M4 unit and integration test expectations.
+- [x] Define M4 documentation updates.
 
 ### Implementation
 
-- [ ] Create AI orchestrator package or service boundary.
-- [ ] Add AI runtime adapter interface.
-- [ ] Add vLLM adapter behind the runtime interface.
-- [ ] Add OpenAI-compatible request and response mapping.
-- [ ] Add runtime timeout and retry policy.
-- [ ] Add runtime configuration persistence.
-- [ ] Implement `GET /api/v1/ai/runtime`.
-- [ ] Implement `PUT /api/v1/ai/runtime`.
-- [ ] Track model version with recommendation records.
-- [ ] Track prompt version with recommendation records.
-- [ ] Add prompt template versioning.
-- [ ] Add guardrail that rejects numeric claims without calculation references.
-- [ ] Add guardrail that exposes missing information instead of inventing facts.
-- [ ] Add adapter contract tests.
-- [ ] Add vLLM adapter tests with mocked runtime responses.
-- [ ] Add recommendation guardrail tests.
-- [ ] Document supported runtime configuration.
-- [ ] Update threat model if prompt retention or runtime exposure changes.
-- [ ] Run verification commands.
+- [x] Create AI orchestrator package or service boundary.
+- [x] Add AI runtime adapter interface.
+- [x] Add vLLM adapter behind the runtime interface.
+- [x] Add OpenAI-compatible request and response mapping.
+- [x] Add runtime timeout and retry policy.
+- [x] Add runtime configuration persistence.
+- [x] Implement `GET /api/v1/ai/runtime`.
+- [x] Implement `PUT /api/v1/ai/runtime`.
+- [x] Track model version with recommendation records.
+- [x] Track prompt version with recommendation records.
+- [x] Add prompt template versioning.
+- [x] Add guardrail that rejects numeric claims without calculation references. (String-based unattributed-number check; see `services/ai-orchestrator/README.md` for its limitations.)
+- [x] Add guardrail that exposes missing information instead of inventing facts. (Falls back to the deterministic stub — which only states facts already computed — rather than an unvalidated model claim.)
+- [x] Add adapter contract tests.
+- [x] Add vLLM adapter tests with mocked runtime responses.
+- [x] Add recommendation guardrail tests.
+- [x] Document supported runtime configuration.
+- [x] Update threat model if prompt retention or runtime exposure changes.
+- [x] Run verification commands.
 - [ ] Commit M4 local AI runtime changes.
 
 ## M5: Angular Dashboard

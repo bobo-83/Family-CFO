@@ -349,6 +349,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiRuntimeConfig"
+        "401":
+          $ref: "#/components/responses/Error"
     put:
       tags:
         - AI Runtime
@@ -369,6 +371,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AiRuntimeConfig"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:

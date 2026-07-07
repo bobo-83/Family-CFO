@@ -17,14 +17,23 @@ class PurchaseExplanationContext:
     warnings: list[str]
 
 
+@dataclass(frozen=True, slots=True)
+class ExplanationResult:
+    text: str
+    source: str
+    model_version: str | None = None
+    prompt_version: str | None = None
+
+
 class ExplanationAdapter(Protocol):
     """The seam between deterministic calculation output and prose explanation.
 
-    M3 ships only ``DeterministicExplanationAdapter``. M4 adds a vLLM-backed
-    adapter behind this same interface (ADR 0007), without changing callers.
+    M3 ships only ``DeterministicExplanationAdapter``. M4 adds
+    ``LlmExplanationAdapter`` behind this same interface (ADR 0007), without
+    changing callers.
     """
 
-    def explain_purchase(self, context: PurchaseExplanationContext) -> str: ...
+    def explain_purchase(self, context: PurchaseExplanationContext) -> ExplanationResult: ...
 
 
 def format_money(amount: Money) -> str:
@@ -38,7 +47,7 @@ class DeterministicExplanationAdapter:
 
     source = "deterministic_stub"
 
-    def explain_purchase(self, context: PurchaseExplanationContext) -> str:
+    def explain_purchase(self, context: PurchaseExplanationContext) -> ExplanationResult:
         sentences = [
             f"Buying {context.item} for {format_money(context.price)} would leave "
             f"your net worth at {format_money(context.net_worth_after)}."
@@ -63,4 +72,4 @@ class DeterministicExplanationAdapter:
         if context.warnings:
             sentences.append("Note: " + " ".join(context.warnings))
 
-        return " ".join(sentences)
+        return ExplanationResult(text=" ".join(sentences), source=self.source)

@@ -23,13 +23,15 @@ def test_explain_purchase_includes_net_worth_and_emergency_fund_sentences() -> N
         warnings=[],
     )
 
-    answer = adapter.explain_purchase(context)
+    result = adapter.explain_purchase(context)
 
-    assert "a new laptop" in answer
-    assert "USD 1,500.00" in answer
-    assert "9.6" in answer and "8.9" in answer
-    assert "0.4" in answer
-    assert "Note:" not in answer
+    assert result.source == "deterministic_stub"
+    assert result.model_version is None
+    assert "a new laptop" in result.text
+    assert "USD 1,500.00" in result.text
+    assert "9.6" in result.text and "8.9" in result.text
+    assert "0.4" in result.text
+    assert "Note:" not in result.text
 
 
 def test_explain_purchase_appends_warnings() -> None:
@@ -44,6 +46,6 @@ def test_explain_purchase_appends_warnings() -> None:
         warnings=["purchase price exceeds available liquid balance"],
     )
 
-    answer = adapter.explain_purchase(context)
+    result = adapter.explain_purchase(context)
 
-    assert "Note: purchase price exceeds available liquid balance" in answer
+    assert "Note: purchase price exceeds available liquid balance" in result.text

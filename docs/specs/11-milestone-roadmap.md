@@ -190,6 +190,51 @@
 - Prompt and model version tracking
 - Guardrail tests
 
+### Scope
+
+- Add an `ai-orchestrator` package (`family_cfo_ai_orchestrator`) with a `RuntimeAdapter` protocol, a `VLLMAdapter` implementation calling an OpenAI-compatible `/v1/chat/completions` endpoint over HTTP with a configurable timeout and retry policy, versioned prompt templates, and guardrail utilities — all independent of `apps/api` and `family_cfo_financial_engine` so the runtime stays replaceable (ADR 0004, ADR 0007).
+- Add `GET /api/v1/ai/runtime` and `PUT /api/v1/ai/runtime`, backed by a new household-scoped `ai_runtime_configs` table.
+- Add `LlmExplanationAdapter` in `apps/api`, conforming to M3's `ExplanationAdapter` interface, that builds a prompt from purchase-impact facts, calls the configured `RuntimeAdapter`, validates the response against the guardrails, and falls back to M3's `DeterministicExplanationAdapter` (with a warning) on timeout, adapter error, or guardrail violation.
+- Track `model_version` and `prompt_version` on each `recommendations` row.
+- Wire the purchase advisor route to use `LlmExplanationAdapter` only when the household has an `ai_runtime_configs` row with `enabled = true`; otherwise it keeps using the deterministic stub exactly as in M3, so self-hosted deployments with no runtime configured see no behavior change.
+
+### Non-Goals
+
+- No actual vLLM (or other runtime) deployment, container, or Compose service — that is M8/Release Readiness Docker work. M4 only needs a runtime reachable over HTTP for real use; tests mock the HTTP layer.
+- No chat endpoint or conversation history; the runtime adapter is exercised only through the purchase advisor for now.
+- No API-key/secret storage for cloud-hosted OpenAI-compatible endpoints — cloud AI calls for sensitive data require the explicit opt-in ADR the security model reserves for a future decision (`docs/specs/06-security-model.md`), which is out of scope here.
+- No persistence of raw prompts or raw model completions — only the final, guardrail-validated explanation text (already covered by `recommendations.answer`) plus `model_version`/`prompt_version` metadata are stored, consistent with the security model's prompt-redaction expectations.
+- No Ollama or llama.cpp adapters yet; the interface is designed for them but only the vLLM adapter ships in M4.
+
+### API Behavior
+
+- `GET /api/v1/ai/runtime` requires `bearerAuth` and is available to every household role; it returns the household's current config or a default disabled config if none has been set.
+- `PUT /api/v1/ai/runtime` requires `bearerAuth` and is limited to the `owner` role (`403` otherwise) — changing which runtime a household's financial data is sent to is a higher-sensitivity action than goal creation.
+- Both routes use the existing `AiRuntimeConfig` schema (`provider`, `base_url`, `model`, `enabled`) already defined in the shared OpenAPI contract.
+
+### Data Model Changes
+
+- Add `ai_runtime_configs`: `id`, `household_id` (FK, unique — one active config per household), `provider` (`CHECK` constrained to `vllm`, `ollama`, `llama_cpp`, `openai_compatible`), `base_url`, `model`, `enabled`, `created_at`, `updated_at`.
+- Add nullable `model_version` and `prompt_version` columns to `recommendations` via an additive migration (`ADD COLUMN`, no constraint rewrite needed).
+
+### Security Impact
+
+- `base_url` is expected to point at a private, self-hosted runtime; the security model already requires vLLM be private by default (`docs/specs/10-docker-spec.md` scope, enforced later in Release Readiness).
+- Guardrails reject any generated explanation containing a numeric claim that doesn't trace back to the calculation's own outputs, and the system falls back to the deterministic stub rather than surfacing an unvalidated LLM response.
+- No raw prompt or raw model response is logged or persisted; only household id, model, prompt version, and pass/fail guardrail outcome are logged.
+- `PUT /api/v1/ai/runtime` is owner-only, consistent with role-based authorization already established in M2.
+
+### Test Expectations
+
+- `ai-orchestrator`: contract tests for `RuntimeAdapter` covering a successful completion, an HTTP timeout, and a non-2xx response, all against a mocked transport (no real vLLM server); guardrail unit tests for the unattributed-numeric-claim detector.
+- `apps/api`: integration tests for `GET`/`PUT /api/v1/ai/runtime` covering the authenticated success path, `401`, and `403` for non-owner `PUT`; tests for `LlmExplanationAdapter` covering the guardrail-pass path, the guardrail-fail fallback path, and the adapter-error fallback path, using a mocked `RuntimeAdapter` — no real vLLM server required anywhere in the test suite.
+
+### Documentation Impact
+
+- Document the `RuntimeAdapter` interface and guardrail behavior in `services/ai-orchestrator/README.md`.
+- Document the runtime config API and the guardrail fallback behavior in `apps/api/README.md`.
+- Update the implementation task checklist as M4 tasks complete.
+
 ## M5: Angular Dashboard
 
 - Onboarding

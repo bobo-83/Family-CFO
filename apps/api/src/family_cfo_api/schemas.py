@@ -23,6 +23,7 @@ GoalType = Literal["emergency_fund", "vacation", "retirement", "college", "vehic
 RecurringFrequency = Literal["weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"]
 PurchaseSource = Literal["manual", "mobile_vision", "receipt", "product_photo"]
 ImpactArea = Literal["cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"]
+AiRuntimeProvider = Literal["vllm", "ollama", "llama_cpp", "openai_compatible"]
 
 
 class HealthResponse(BaseModel):
@@ -163,4 +164,11 @@ class Recommendation(BaseModel):
     confidence: float = Field(ge=0, le=1)
     calculation_refs: list[str]
     warnings: list[str] = Field(default_factory=list)
+
+
+class AiRuntimeConfig(BaseModel):
+    provider: AiRuntimeProvider
+    base_url: str
+    model: str
+    enabled: bool = True
 

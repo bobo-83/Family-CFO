@@ -56,6 +56,8 @@ Controls:
 - Confidence and assumptions
 - Missing-data disclosure
 - No autonomous transactions or trades
+- Guardrail validation of generated explanations: any numeric claim not traceable to the calculation's own outputs causes the system to fall back to the deterministic explanation rather than surface the unvalidated model response (implemented M4, `services/ai-orchestrator/src/family_cfo_ai_orchestrator/guardrails.py`)
+- Raw prompts and raw model completions are never logged or persisted; only the guardrail-validated explanation text, model version, and prompt version are stored
 
 ### Backup Exposure
 

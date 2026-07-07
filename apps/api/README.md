@@ -63,6 +63,23 @@ Not implemented in M3:
 - Multi-item or recurring-purchase scenarios, or any scenario/recommendation history, editing, or deletion API.
 - Chat integration.
 
+## M4 Scope
+
+Implemented:
+
+- `GET /api/v1/ai/runtime` and `PUT /api/v1/ai/runtime`, backed by a household-scoped `ai_runtime_configs` row. `GET` is available to every household role; `PUT` is limited to `owner` (`403` otherwise). A household with no config returns a disabled default — no household starts sending financial context to any runtime without an explicit opt-in.
+- `family_cfo_api/llm_explanation.py`: `LlmExplanationAdapter`, an `ExplanationAdapter` implementation that builds a prompt from purchase-impact facts via `family_cfo_ai_orchestrator`, calls the configured `RuntimeAdapter`, and validates the response against the guardrails. On adapter error (timeout, non-2xx, malformed response) or a guardrail violation, it falls back to M3's `DeterministicExplanationAdapter` — the advisor route never surfaces an unvalidated LLM response and never hard-fails when the runtime is unreachable.
+- `POST /api/v1/advisor/purchase` now selects between `LlmExplanationAdapter` and `DeterministicExplanationAdapter` per request, based on whether the household has an `ai_runtime_configs` row with `enabled = true` and a supported `provider` (`vllm` only, for now). Self-hosted deployments with no runtime configured see no behavior change from M3.
+- `recommendations.model_version` and `recommendations.prompt_version` are populated when the LLM path is used, and left `null` for the deterministic stub.
+- No raw prompt or raw model response is logged; the advisor route logs only household id, calculation id, recommendation id, and which `explanation_source` was used.
+
+Not implemented in M4:
+
+- Any real vLLM deployment or Docker Compose service — Release Readiness/M8 work. Tests mock the HTTP layer; there is no vLLM server anywhere in this repo or its CI.
+- Ollama or llama.cpp adapters (the `RuntimeAdapter` interface supports them; only `VLLMAdapter` ships).
+- Chat endpoint or conversation history.
+- API-key/secret storage for cloud-hosted OpenAI-compatible endpoints.
+
 ### Auth Flow
 
 ```bash
@@ -89,7 +106,7 @@ python3 -m venv .venv
 make install
 ```
 
-`make install` also installs the sibling `family-cfo-financial-engine` package from `services/financial-engine` in editable mode, since the API depends on it for M2 calculations but the two are not published packages.
+`make install` also installs the sibling `family-cfo-financial-engine` and `family-cfo-ai-orchestrator` packages from `services/financial-engine` and `services/ai-orchestrator` in editable mode, since the API depends on both but neither is a published package.
 
 Optional local configuration reference:
 
@@ -171,7 +188,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`). `make migrate` applies all of them.
 
 ## Fixtures
 

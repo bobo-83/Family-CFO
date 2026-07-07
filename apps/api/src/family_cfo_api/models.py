@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -47,7 +48,8 @@ CALCULATION_TYPES = (
     "purchase_impact",
 )
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
-EXPLANATION_SOURCES = ("deterministic_stub",)
+EXPLANATION_SOURCES = ("deterministic_stub", "llm")
+AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
 
 
 def _uuid_pk(name: str = "id") -> Column:
@@ -250,9 +252,25 @@ recommendations = Table(
     Column("calculation_refs_json", JSON, nullable=False),
     Column("warnings_json", JSON, nullable=False),
     Column("explanation_source", String(30), nullable=False),
+    Column("model_version", String(100), nullable=True),
+    Column("prompt_version", String(50), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
         f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}", name="ck_recommendations_explanation_source"
     ),
     CheckConstraint("confidence >= 0 and confidence <= 1", name="ck_recommendations_confidence_range"),
+)
+
+ai_runtime_configs = Table(
+    "ai_runtime_configs",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False, unique=True),
+    Column("provider", String(30), nullable=False),
+    Column("base_url", String(255), nullable=False),
+    Column("model", String(100), nullable=False),
+    Column("enabled", Boolean, nullable=False, server_default="0"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(f"provider in {_sql_in(AI_RUNTIME_PROVIDERS)}", name="ck_ai_runtime_configs_provider"),
 )
