@@ -22,7 +22,8 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 
 ## Acceptance State
 
-Initial state: draft.
+- M0 repository and specification baseline: accepted.
+- M1 backend skeleton: accepted for implementation.
 
 Before coding a milestone, update the relevant documents with:
 

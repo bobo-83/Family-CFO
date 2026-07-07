@@ -18,6 +18,51 @@
 - Migration tooling
 - Test harness
 
+### Scope
+
+- Add the initial FastAPI application under `apps/api`.
+- Expose `GET /api/v1/health` as an unauthenticated liveness endpoint.
+- Add application configuration, logging redaction hooks, PostgreSQL connection plumbing, Alembic migration tooling, and a pytest harness.
+- Add an OpenAPI generation command and a contract check for routes implemented during M1.
+
+### Non-Goals
+
+- No household, account, transaction, goal, recommendation, import, report, authentication, pairing, or AI runtime product behavior.
+- No financial calculations.
+- No production Docker deployment.
+- No generated Swift or Angular clients.
+
+### API Behavior
+
+- `GET /api/v1/health` returns the `HealthResponse` shape from `shared/openapi/family-cfo.v1.yaml`.
+- The health endpoint returns `status` and `version`.
+- The route is unauthenticated.
+- Structured API errors use the common `{ "error": { "code", "message", "details" } }` shape.
+
+### Data Model Changes
+
+- M1 adds migration tooling and an empty baseline migration only.
+- M1 does not create product tables.
+- PostgreSQL connection configuration is added for development, tests, and future migrations.
+
+### Security Impact
+
+- The health endpoint exposes only service status and version.
+- Local development configuration must not require committed credentials.
+- Logging must include redaction hooks for credentials, tokens, secrets, and raw sensitive data.
+
+### Test Expectations
+
+- Unit tests cover health response construction.
+- Integration tests cover `GET /api/v1/health`.
+- Contract tests verify implemented FastAPI routes remain represented in the shared OpenAPI contract.
+- Tests must not require a running PostgreSQL server.
+
+### Documentation Impact
+
+- Document API setup, run, test, lint, OpenAPI, and migration commands.
+- Update the implementation task checklist as M1 tasks complete.
+
 ## M2: Financial Context and Deterministic Engine
 
 - Household, accounts, balances, transactions, bills, income, and goals

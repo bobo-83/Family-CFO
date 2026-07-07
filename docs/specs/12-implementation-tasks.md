@@ -44,46 +44,46 @@ Rules:
 - [x] Draft Docker spec.
 - [x] Draft milestone roadmap.
 - [x] Add CI check for required spec files.
-- [ ] Review and accept the complete Spec Kit.
-- [ ] Record accepted Spec Kit state in the spec index.
+- [x] Review and accept the complete Spec Kit.
+- [x] Record accepted Spec Kit state in the spec index.
 
 ## M1: Backend Skeleton
 
 ### Spec Gate
 
-- [ ] Define M1 scope.
-- [ ] Define M1 non-goals.
-- [ ] Confirm health endpoint behavior in OpenAPI.
-- [ ] Define database connection behavior for development and tests.
-- [ ] Define migration tooling expectations.
-- [ ] Define security impact for unauthenticated health checks and local development configuration.
-- [ ] Define M1 unit and integration test expectations.
-- [ ] Define M1 documentation updates.
+- [x] Define M1 scope.
+- [x] Define M1 non-goals.
+- [x] Confirm health endpoint behavior in OpenAPI.
+- [x] Define database connection behavior for development and tests.
+- [x] Define migration tooling expectations.
+- [x] Define security impact for unauthenticated health checks and local development configuration.
+- [x] Define M1 unit and integration test expectations.
+- [x] Define M1 documentation updates.
 
 ### Implementation
 
-- [ ] Add Python project metadata for the API app.
-- [ ] Add FastAPI application entry point.
-- [ ] Add `/api/v1` route prefix.
-- [ ] Implement `GET /api/v1/health`.
-- [ ] Return health response matching `HealthResponse` in OpenAPI.
-- [ ] Add structured error response foundation.
-- [ ] Add application configuration loading.
-- [ ] Add logging configuration with sensitive-data redaction hooks.
-- [ ] Add PostgreSQL connection settings.
-- [ ] Add database connectivity check.
-- [ ] Add migration tooling.
-- [ ] Add initial empty migration baseline.
-- [ ] Add pytest test harness.
-- [ ] Add unit tests for health response shape.
-- [ ] Add integration test for `GET /api/v1/health`.
-- [ ] Add OpenAPI generation command.
-- [ ] Add contract drift check against `shared/openapi/family-cfo.v1.yaml`.
-- [ ] Add API lint, format, and test commands.
-- [ ] Update API README with run, test, and migration commands.
-- [ ] Update development workflow docs if commands change.
-- [ ] Run verification commands.
-- [ ] Commit M1 backend skeleton changes.
+- [x] Add Python project metadata for the API app.
+- [x] Add FastAPI application entry point.
+- [x] Add `/api/v1` route prefix.
+- [x] Implement `GET /api/v1/health`.
+- [x] Return health response matching `HealthResponse` in OpenAPI.
+- [x] Add structured error response foundation.
+- [x] Add application configuration loading.
+- [x] Add logging configuration with sensitive-data redaction hooks.
+- [x] Add PostgreSQL connection settings.
+- [x] Add database connectivity check.
+- [x] Add migration tooling.
+- [x] Add initial empty migration baseline.
+- [x] Add pytest test harness.
+- [x] Add unit tests for health response shape.
+- [x] Add integration test for `GET /api/v1/health`.
+- [x] Add OpenAPI generation command.
+- [x] Add contract drift check against `shared/openapi/family-cfo.v1.yaml`.
+- [x] Add API lint, format, and test commands.
+- [x] Update API README with run, test, and migration commands.
+- [x] Update development workflow docs if commands change.
+- [x] Run verification commands.
+- [x] Commit M1 backend skeleton changes.
 
 ## M2: Financial Context and Deterministic Engine
 

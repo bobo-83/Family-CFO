@@ -14,6 +14,10 @@ Codex is expected to work one milestone at a time.
 8. Check off completed tasks in `docs/specs/12-implementation-tasks.md`.
 9. Commit with a clear message when requested or when the workflow calls for it.
 
+## Command Docs
+
+Component-specific run, test, lint, migration, and generation commands live in the component README files. For the backend API, use `apps/api/README.md`.
+
 ## Constraints
 
 - Do not bypass the financial engine for calculations.
