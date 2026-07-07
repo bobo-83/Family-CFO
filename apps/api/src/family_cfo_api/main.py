@@ -5,8 +5,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from sqlalchemy.engine import Engine
+
 from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
+from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
@@ -21,7 +24,7 @@ def error_response(code: str, message: str, details: dict[str, Any] | None = Non
     ).model_dump()
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
@@ -32,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url="/api/v1/docs",
         redoc_url=None,
     )
+    app.state.db_engine = engine or create_database_engine(settings.database_url)
     app.include_router(api_router)
 
     @app.exception_handler(HTTPException)

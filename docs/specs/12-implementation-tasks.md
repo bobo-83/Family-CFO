@@ -89,69 +89,69 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M2 scope.
-- [ ] Define M2 non-goals.
-- [ ] Expand domain model for households, users, accounts, balances, transactions, bills, income, goals, and scenarios.
-- [ ] Update OpenAPI for any M2 endpoints not already covered.
-- [ ] Define database tables, indexes, constraints, and relationship rules for M2 entities.
-- [ ] Define role and authorization expectations for financial context endpoints.
-- [ ] Define audit requirements for deterministic calculations.
-- [ ] Define money precision and currency handling rules.
-- [ ] Define M2 unit and integration test expectations.
-- [ ] Define M2 documentation updates.
+- [x] Define M2 scope.
+- [x] Define M2 non-goals.
+- [x] Expand domain model for households, users, accounts, balances, transactions, bills, income, goals, and scenarios.
+- [x] Update OpenAPI for any M2 endpoints not already covered.
+- [x] Define database tables, indexes, constraints, and relationship rules for M2 entities.
+- [x] Define role and authorization expectations for financial context endpoints.
+- [x] Define audit requirements for deterministic calculations.
+- [x] Define money precision and currency handling rules.
+- [x] Define M2 unit and integration test expectations.
+- [x] Define M2 documentation updates.
 
 ### Data Model and Persistence
 
-- [ ] Create migrations for households.
-- [ ] Create migrations for users.
-- [ ] Create migrations for household memberships.
-- [ ] Create migrations for auth sessions.
-- [ ] Create migrations for accounts.
-- [ ] Create migrations for account balances.
-- [ ] Create migrations for transactions.
-- [ ] Create migrations for transaction categories.
-- [ ] Create migrations for bills.
-- [ ] Create migrations for income sources.
-- [ ] Create migrations for goals.
-- [ ] Create migrations for scenarios.
-- [ ] Create migrations for financial calculations.
-- [ ] Add database constraints that prevent floating-point persisted money.
-- [ ] Add synthetic database fixtures.
-- [ ] Add migration rollback tests where practical.
+- [x] Create migrations for households.
+- [x] Create migrations for users.
+- [x] Create migrations for household memberships.
+- [x] Create migrations for auth sessions.
+- [x] Create migrations for accounts.
+- [x] Create migrations for account balances.
+- [x] Create migrations for transactions.
+- [x] Create migrations for transaction categories.
+- [x] Create migrations for bills.
+- [x] Create migrations for income sources.
+- [x] Create migrations for goals.
+- [x] Create migrations for scenarios.
+- [x] Create migrations for financial calculations.
+- [x] Add database constraints that prevent floating-point persisted money.
+- [x] Add synthetic database fixtures.
+- [x] Add migration rollback tests where practical.
 
 ### Backend APIs
 
-- [ ] Implement local authentication foundation needed for protected routes.
-- [ ] Implement household context read API.
-- [ ] Implement account list API.
-- [ ] Implement goal list API.
-- [ ] Implement goal create API.
-- [ ] Add transaction APIs if accepted into M2 OpenAPI scope.
-- [ ] Add bill APIs if accepted into M2 OpenAPI scope.
-- [ ] Add income APIs if accepted into M2 OpenAPI scope.
-- [ ] Add repository tests for financial context persistence.
-- [ ] Add API integration tests for protected financial context routes.
+- [x] Implement local authentication foundation needed for protected routes.
+- [x] Implement household context read API.
+- [x] Implement account list API.
+- [x] Implement goal list API.
+- [x] Implement goal create API.
+- [x] Add transaction APIs if accepted into M2 OpenAPI scope. (Read-only list API; create/update/delete remain out of scope per the M2 spec gate.)
+- [x] Add bill APIs if accepted into M2 OpenAPI scope. (Read-only list API.)
+- [x] Add income APIs if accepted into M2 OpenAPI scope. (Read-only list API.)
+- [x] Add repository tests for financial context persistence.
+- [x] Add API integration tests for protected financial context routes.
 
 ### Financial Engine
 
-- [ ] Add deterministic financial engine package or service boundary.
-- [ ] Add money value type using integer minor units and explicit currency.
-- [ ] Add calculation result contract with inputs, assumptions, version, warnings, and outputs.
-- [ ] Implement net worth calculation.
-- [ ] Implement cash flow calculation.
-- [ ] Implement budget summary calculation.
-- [ ] Implement emergency fund months calculation.
-- [ ] Implement savings goal progress calculation.
-- [ ] Add unit tests for money precision.
-- [ ] Add unit tests for currency mismatch handling.
-- [ ] Add unit tests for net worth calculation.
-- [ ] Add unit tests for cash flow calculation.
-- [ ] Add unit tests for budget calculation.
-- [ ] Add unit tests for emergency fund calculation.
-- [ ] Add unit tests for goal progress calculation.
-- [ ] Persist calculation audit records.
-- [ ] Document financial engine contracts and limitations.
-- [ ] Run verification commands.
+- [x] Add deterministic financial engine package or service boundary.
+- [x] Add money value type using integer minor units and explicit currency.
+- [x] Add calculation result contract with inputs, assumptions, version, warnings, and outputs.
+- [x] Implement net worth calculation.
+- [x] Implement cash flow calculation.
+- [x] Implement budget summary calculation.
+- [x] Implement emergency fund months calculation.
+- [x] Implement savings goal progress calculation.
+- [x] Add unit tests for money precision.
+- [x] Add unit tests for currency mismatch handling.
+- [x] Add unit tests for net worth calculation.
+- [x] Add unit tests for cash flow calculation.
+- [x] Add unit tests for budget calculation.
+- [x] Add unit tests for emergency fund calculation.
+- [x] Add unit tests for goal progress calculation.
+- [x] Persist calculation audit records.
+- [x] Document financial engine contracts and limitations.
+- [x] Run verification commands.
 - [ ] Commit M2 financial context and engine changes.
 
 ## M3: Purchase Advisor

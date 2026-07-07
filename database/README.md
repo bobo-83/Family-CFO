@@ -17,4 +17,8 @@ cd apps/api
 make migrate
 ```
 
-M1 includes an empty baseline migration only. Product tables start in later milestones after their specs are accepted.
+M1 includes an empty baseline migration only. M2 adds the first product tables: `households`, `users`, `household_memberships`, `auth_sessions`, `accounts`, `account_balances`, `transactions`, `transaction_categories`, `bills`, `income_sources`, `goals`, `scenarios`, and `financial_calculations`.
+
+## Money Storage
+
+Every money column is a signed integer `*_minor` column (e.g. `amount_minor`, `balance_minor`, `target_minor`) paired with a 3-character `currency` column. No financial amount is ever stored as a floating-point or numeric/decimal column — see `docs/specs/03-domain-model.md` for the full money rules and `services/financial-engine` for the `Money` value type application code uses to manipulate these amounts.

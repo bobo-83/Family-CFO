@@ -24,6 +24,7 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 
 - M0 repository and specification baseline: accepted.
 - M1 backend skeleton: accepted for implementation.
+- M2 financial context and deterministic engine: implemented (cash flow and budget summary calculations are not yet exposed through an API endpoint; transaction/bill/income write APIs remain out of scope).
 
 Before coding a milestone, update the relevant documents with:
 

@@ -1,0 +1,42 @@
+"""bills
+
+Revision ID: 0010_bills
+Revises: 0009_transactions
+Create Date: 2026-07-07
+"""
+
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from alembic import op
+
+revision: str = "0010_bills"
+down_revision: str | None = "0009_transactions"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+RECURRING_FREQUENCIES = ("weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual")
+
+
+def upgrade() -> None:
+    op.create_table(
+        "bills",
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("household_id", sa.String(36), sa.ForeignKey("households.id"), nullable=False),
+        sa.Column("account_id", sa.String(36), sa.ForeignKey("accounts.id"), nullable=True),
+        sa.Column("name", sa.String(120), nullable=False),
+        sa.Column("amount_minor", sa.BigInteger, nullable=False),
+        sa.Column("currency", sa.String(3), nullable=False),
+        sa.Column("frequency", sa.String(20), nullable=False),
+        sa.Column("next_due_date", sa.Date, nullable=True),
+        sa.Column(
+            "category_id", sa.String(36), sa.ForeignKey("transaction_categories.id"), nullable=True
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(f"frequency in {RECURRING_FREQUENCIES!r}", name="ck_bills_frequency"),
+    )
+
+
+def downgrade() -> None:
+    op.drop_table("bills")

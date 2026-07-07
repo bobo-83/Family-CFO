@@ -28,15 +28,40 @@ Implemented:
 - Pytest harness
 - OpenAPI generation and implemented-route contract check
 
-Not implemented in M1:
+## M2 Scope
 
-- Authentication
-- Pairing
-- Household financial context
-- Financial calculations
-- AI orchestration
-- Imports
-- Reports
+Implemented:
+
+- Local authentication: `POST /api/v1/auth/sessions` (email/password login backed by `auth_sessions`, opaque bearer tokens hashed at rest).
+- Household context: `GET /api/v1/household`, computed by running the financial engine's net worth and emergency fund calculations against the household's accounts, balances, and bills.
+- `GET /api/v1/accounts`, `GET /api/v1/transactions`, `GET /api/v1/bills`, `GET /api/v1/income` — household-scoped read APIs.
+- `GET /api/v1/goals` and `POST /api/v1/goals` — goal creation is limited to the `owner` and `adult` roles (`403` otherwise).
+- A repository layer (`family_cfo_api/repository.py`) over the M2 tables, and a `finance_service.py` that composes repository data with `family_cfo_financial_engine` calculations and persists an audit row to `financial_calculations` for each computed result.
+- Synthetic demo household fixtures (`family_cfo_api/fixtures.py`) for local development and tests.
+
+Not implemented in M2:
+
+- Account, transaction, bill, income, and scenario write APIs (create/update/delete) beyond goal creation.
+- User registration/invitation or household-membership management APIs.
+- Scenario calculation logic (only the `scenarios` table shape is persisted, for M3 to build on).
+- Mobile pairing, chat, purchase advisor, imports, reports, and AI runtime behavior.
+
+### Auth Flow
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/auth/sessions \
+  -H 'content-type: application/json' \
+  -d '{"email": "demo@family-cfo.local", "password": "demo-password-123"}'
+```
+
+Use the returned `access_token` as a bearer token against protected routes:
+
+```bash
+curl -s http://127.0.0.1:8000/api/v1/household \
+  -H "authorization: Bearer <access_token>"
+```
+
+The demo credentials above only exist once you seed the synthetic fixtures (see Fixtures below); they are not created by any migration.
 
 ## Setup
 
@@ -46,6 +71,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 make install
 ```
+
+`make install` also installs the sibling `family-cfo-financial-engine` package from `services/financial-engine` in editable mode, since the API depends on it for M2 calculations but the two are not published packages.
 
 Optional local configuration reference:
 
@@ -126,3 +153,24 @@ Override the database URL without committing secrets:
 ```bash
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
+
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); `make migrate` applies all of them.
+
+## Fixtures
+
+`family_cfo_api.fixtures` seeds a synthetic demo household — never real financial data — for local development and tests:
+
+```bash
+cd apps/api
+. .venv/bin/activate
+python -c "
+from family_cfo_api.db import create_database_engine
+from family_cfo_api.config import get_settings
+from family_cfo_api import fixtures
+
+engine = create_database_engine(get_settings().database_url)
+fixtures.seed_demo_household(engine)
+"
+```
+
+This creates a demo household owned by `demo@family-cfo.local` (password `demo-password-123`) plus a `viewer@family-cfo.local` account, three accounts, sample transactions, bills, an income source, and a goal. Tests seed the same fixtures against an in-memory SQLite database via the `demo_engine`/`demo_client` fixtures in `tests/conftest.py`, so the test suite never requires a running PostgreSQL server.

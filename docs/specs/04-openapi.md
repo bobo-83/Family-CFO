@@ -22,6 +22,8 @@ Initial contract: `shared/openapi/family-cfo.v1.yaml`.
 - Household context
 - Accounts
 - Transactions
+- Bills
+- Income
 - Goals
 - Purchase advisor
 - Chat

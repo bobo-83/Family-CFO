@@ -11,8 +11,12 @@ servers:
 tags:
   - name: Health
   - name: Pairing
+  - name: Authentication
   - name: Household
   - name: Accounts
+  - name: Transactions
+  - name: Bills
+  - name: Income
   - name: Goals
   - name: Advisor
   - name: Chat
@@ -67,6 +71,27 @@ paths:
                 $ref: "#/components/schemas/DeviceCredential"
         "400":
           $ref: "#/components/responses/Error"
+  /auth/sessions:
+    post:
+      tags:
+        - Authentication
+      operationId: createAuthSession
+      summary: Create a local authentication session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthSessionCreateRequest"
+      responses:
+        "201":
+          description: Authentication session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          $ref: "#/components/responses/Error"
   /household:
     get:
       tags:
@@ -98,14 +123,60 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - accounts
-                properties:
-                  accounts:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AccountListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      operationId: listTransactions
+      summary: List transactions for the household
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /bills:
+    get:
+      tags:
+        - Bills
+      operationId: listBills
+      summary: List recurring bills for the household
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Bills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /income:
+    get:
+      tags:
+        - Income
+      operationId: listIncomeSources
+      summary: List income sources for the household
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Income sources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
   /goals:
     get:
       tags:
@@ -120,14 +191,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - goals
-                properties:
-                  goals:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Goal"
+                $ref: "#/components/schemas/GoalListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
     post:
       tags:
         - Goals
@@ -148,6 +214,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Goal"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /advisor/purchase:
     post:
       tags:
@@ -400,6 +470,167 @@ components:
         expires_at:
           type: string
           format: date-time
+    AuthSessionCreateRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+    AuthSession:
+      type: object
+      required:
+        - access_token
+        - expires_at
+        - household_id
+        - user_id
+        - role
+      properties:
+        access_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        household_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+    HouseholdRole:
+      type: string
+      enum:
+        - owner
+        - adult
+        - viewer
+        - child
+    RecurringFrequency:
+      type: string
+      enum:
+        - weekly
+        - biweekly
+        - semimonthly
+        - monthly
+        - quarterly
+        - annual
+    Transaction:
+      type: object
+      required:
+        - id
+        - account_id
+        - occurred_at
+        - amount
+      properties:
+        id:
+          type: string
+          format: uuid
+        account_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date
+        amount:
+          $ref: "#/components/schemas/Money"
+        merchant:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+    Bill:
+      type: object
+      required:
+        - id
+        - name
+        - amount
+        - frequency
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        next_due_date:
+          type: string
+          format: date
+        account_id:
+          type: string
+          format: uuid
+    IncomeSource:
+      type: object
+      required:
+        - id
+        - name
+        - amount
+        - frequency
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+    AccountListResponse:
+      type: object
+      required:
+        - accounts
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+    TransactionListResponse:
+      type: object
+      required:
+        - transactions
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+    BillListResponse:
+      type: object
+      required:
+        - bills
+      properties:
+        bills:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bill"
+    IncomeListResponse:
+      type: object
+      required:
+        - income
+      properties:
+        income:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeSource"
+    GoalListResponse:
+      type: object
+      required:
+        - goals
+      properties:
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Goal"
     HouseholdContext:
       type: object
       required:

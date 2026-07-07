@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from family_cfo_api import models  # noqa: F401  (registers tables on metadata)
 from family_cfo_api.config import get_settings
 from family_cfo_api.db import metadata
 
