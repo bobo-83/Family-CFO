@@ -1,0 +1,52 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node / Angular
+node_modules/
+.angular/
+.npm/
+coverage/
+
+# Swift / Xcode
+DerivedData/
+.build/
+Packages/
+xcuserdata/
+*.xcuserstate
+
+# Docker / local runtime
+docker/.runtime/
+data/
+postgres-data/
+qdrant-data/
+vllm-cache/
+
+# Generated clients and local artifacts
+generated/
+tmp/

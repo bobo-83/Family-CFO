@@ -1,0 +1,27 @@
+name: Spec Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  required-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required specification files
+        run: |
+          test -f docs/specs/01-prd.md
+          test -f docs/specs/02-adrs.md
+          test -f docs/specs/03-domain-model.md
+          test -f docs/specs/04-openapi.md
+          test -f docs/specs/05-database-schema.md
+          test -f docs/specs/06-security-model.md
+          test -f docs/specs/07-ai-orchestration.md
+          test -f docs/specs/08-mobile-spec.md
+          test -f docs/specs/09-angular-dashboard-spec.md
+          test -f docs/specs/10-docker-spec.md
+          test -f docs/specs/11-milestone-roadmap.md
+          test -f shared/openapi/family-cfo.v1.yaml
