@@ -86,7 +86,10 @@ docker compose --profile vector up -d    # Qdrant (no consumer yet — scaffoldi
 
 For the AI runtime, point a household's config at `http://vllm:8000` from the
 dashboard's **AI Runtime** page. Without it, the purchase advisor and reports
-use the deterministic explanation stub.
+use the deterministic explanation stub. For a step-by-step end-to-end test of
+the agentic chat advisor (model choice, required tool-calling flags, opt-in
+config, and confirming the model engaged), see the
+[AI Advisor guide](./ai-advisor.md).
 
 ## 5. Updates
 

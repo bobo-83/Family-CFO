@@ -1,0 +1,130 @@
+# Testing the AI advisor (agentic tool-calling)
+
+This runbook brings up a local vLLM runtime and exercises the M16 agentic
+advisor (`POST /api/v1/chat/messages`) end-to-end. Without a runtime the chat
+endpoint still works — it returns a deterministic net-worth/emergency-fund
+snapshot — so these steps are only needed to see the model orchestrate the
+financial engine and answer open-ended questions.
+
+See [ADR 0009](../adr/0009-agentic-tool-calling.md) for the design and
+[`apps/api/README.md`](../../apps/api/README.md) (M16 Scope) for the runtime
+behaviour.
+
+## Prerequisites
+
+- An NVIDIA GPU on the host plus the **NVIDIA Container Toolkit** (`nvidia-ctk`);
+  the `vllm` service passes the GPU through via `deploy.resources.reservations`.
+- Enough VRAM/unified memory for the model (the default `Qwen2.5-32B-Instruct`
+  needs ~65 GB in bf16; use a smaller model or a 4-bit quant otherwise).
+- A populated `.env` (copy from `.env.example`). The AI-runtime knobs:
+  `VLLM_MODEL`, `VLLM_TOOL_PARSER`, and `HUGGING_FACE_HUB_TOKEN` (gated models only).
+
+> Architecture caveat: the official `vllm/vllm-openai` image is primarily built
+> for x86_64. On an aarch64 host (Grace/GH200/GB10) confirm the tag has an
+> arm64 + your-GPU build, or pin a CUDA-arm64 tag / build vLLM from source.
+
+## 1. Bring up the stack with the AI profile
+
+The dev overlay publishes the API on `localhost:8000` (no TLS), which is the
+easiest surface for `curl`:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile ai up -d
+```
+
+The first boot downloads the model from HuggingFace into the `model_cache`
+volume — this can take several minutes and many GB. Watch it:
+
+```bash
+docker compose logs -f vllm      # wait for "Application startup complete"
+```
+
+Confirm vLLM is serving and tool-calling is enabled (the model should appear):
+
+```bash
+docker compose exec api curl -s http://vllm:8000/v1/models
+```
+
+## 2. Enable the runtime for the demo household
+
+The runtime is **opt-in per household** and disabled by default. Log in as the
+demo owner and point the config at the in-network vLLM service. Set `model` to
+exactly the `VLLM_MODEL` you deployed.
+
+```bash
+BASE=http://localhost:8000/api/v1
+MODEL=Qwen/Qwen2.5-32B-Instruct
+
+TOKEN=$(curl -s -X POST "$BASE/auth/sessions" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@family-cfo.local","password":"demo-password-123"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+
+curl -s -X PUT "$BASE/ai/runtime" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"provider\":\"vllm\",\"base_url\":\"http://vllm:8000\",\"model\":\"$MODEL\",\"enabled\":true}"
+```
+
+(Updating the runtime requires the `owner` role; the demo user is an owner. You
+can also do this from the dashboard's **AI Runtime** settings page.)
+
+## 3. Ask an open-ended question
+
+```bash
+curl -s -X POST "$BASE/chat/messages" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"message":"If I buy a $1,000 phone instead of investing it at 6% for 20 years, what does it cost me?"}' \
+  | python3 -m json.tool
+```
+
+## 4. Confirm the agentic path actually engaged
+
+A 200 response alone does **not** prove the model ran — a failure falls back to
+the deterministic snapshot. Check which path answered:
+
+- **API logs** show `source=agentic_tool_calling` (vs `deterministic_stub`):
+
+  ```bash
+  docker compose logs api | grep "chat recommendation created" | tail -1
+  ```
+
+- **The stored recommendation** records `explanation_source`:
+
+  ```bash
+  docker compose exec db psql -U family_cfo -d family_cfo \
+    -c "select explanation_source, left(answer, 80) from recommendations order by created_at desc limit 1;"
+  ```
+
+If it fell back to `deterministic_stub`, the usual causes are: the model didn't
+emit `tool_calls` (wrong/missing `--tool-call-parser` for the model family), the
+loop hit its iteration cap, the runtime was unreachable, or the answer contained
+a number that didn't trace to a tool output (grounding guardrail — fails closed
+on purpose). The API logs above name the reason.
+
+## Swapping models
+
+Override in `.env` and restart just the runtime — no rebuild:
+
+```bash
+# .env
+VLLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+VLLM_TOOL_PARSER=hermes
+# For a gated model (e.g. Llama-3.3): also set HUGGING_FACE_HUB_TOKEN and
+# VLLM_TOOL_PARSER=llama3_json
+
+docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile ai up -d vllm
+```
+
+Remember to re-run step 2 with the new `model` string so the household config
+matches what vLLM is serving.
+
+## Testing the logic without a GPU
+
+The tool-calling loop, argument validation, grounding guardrail, and
+deterministic fallback are all covered by tests against a scripted runtime — no
+model or GPU required:
+
+```bash
+cd apps/api && python -m pytest tests/test_chat_agentic.py tests/test_ai_tools.py
+cd services/ai-orchestrator && python -m pytest tests/test_tool_calling.py
+```

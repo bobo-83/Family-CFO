@@ -109,11 +109,36 @@ services:
   vllm:
     image: vllm/vllm-openai:latest
     profiles: [ai]
-    command: ["--model", "${VLLM_MODEL:-meta-llama/Llama-3.2-3B-Instruct}"]
+    # --enable-auto-tool-choice + --tool-call-parser are REQUIRED for the M16
+    # agentic advisor: without them vLLM never emits OpenAI tool_calls, so the
+    # tool-calling loop can't ground any numbers and every chat silently falls
+    # back to the deterministic snapshot. The parser must match the model
+    # family (hermes for Qwen2.5, llama3_json for Llama 3.x).
+    command:
+      - "--model"
+      - "${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser"
+      - "${VLLM_TOOL_PARSER:-hermes}"
+    environment:
+      # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
     volumes:
       - model_cache:/root/.cache/huggingface
     networks: [internal]
     restart: unless-stopped
+    # vLLM needs host IPC (shared memory) for its tensor-parallel workers.
+    ipc: host
+    # Pass the host GPU(s) into the container. Requires the NVIDIA Container
+    # Toolkit on the host (nvidia-ctk). Without this block vLLM cannot see the
+    # GPU and will fail to start.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   # Optional vector store. Off by default and NOT yet wired to anything —
   # scaffolding matching docs/specs/10-docker-spec.md. Retrieval is tracked

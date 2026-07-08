@@ -9,6 +9,9 @@ design specs and decisions, see the [Spec Kit](../specs/README.md) and
 - [Local Development](./local-development.md) — running and building the backend,
   frontend, and service packages outside Docker; migrations and the OpenAPI
   contract.
+- [AI Advisor](./ai-advisor.md) — deploying the local vLLM runtime and testing
+  the agentic tool-calling advisor end-to-end (model choice, tool-calling flags,
+  opt-in config, and how to confirm the model actually engaged).
 - [Backup and Restore](./backup-and-restore.md) — the encryption key, taking
   backups, restoring, and the version-match requirement.
 - [Security Hardening](./security.md) — TLS, sessions, roles, auditing, data at

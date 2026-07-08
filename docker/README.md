@@ -31,7 +31,7 @@ Only `web` is reachable from outside the Docker network. The database, API, and 
 
 ## Optional Services (profiles, off by default)
 
-- **vllm** (`--profile ai`) — a local LLM runtime. Needs a GPU and a multi-GB model download; the app runs fully without it (the purchase advisor and reports fall back to the deterministic explanation stub). Enable it and point a household's AI runtime config at `http://vllm:8000` via `PUT /api/v1/ai/runtime`. Never published to the host.
+- **vllm** (`--profile ai`) — a local LLM runtime. Needs a GPU (passed through via the NVIDIA Container Toolkit) and a multi-GB model download; the app runs fully without it (the purchase advisor, reports, and chat fall back to the deterministic explanation stub). The command enables tool-calling (`--enable-auto-tool-choice --tool-call-parser`), which the M16 agentic chat advisor requires; the model (`VLLM_MODEL`) and parser (`VLLM_TOOL_PARSER`) are set in `.env`. Enable it and point a household's AI runtime config at `http://vllm:8000` via `PUT /api/v1/ai/runtime`. Never published to the host. See the [AI Advisor guide](../docs/guides/ai-advisor.md) for an end-to-end test.
 
   ```bash
   docker compose --profile ai up -d
