@@ -1,0 +1,36 @@
+name: Commit Message
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+            range="$base_sha..$head_sha"
+          elif [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+            range="${{ github.sha }}"
+          else
+            range="${{ github.event.before }}..${{ github.sha }}"
+          fi
+
+          git rev-list --reverse "$range" | while read -r commit_sha; do
+            echo "Validating $commit_sha"
+            git log --format=%B -n 1 "$commit_sha" > /tmp/commit-message.txt
+            scripts/validate-commit-message.sh /tmp/commit-message.txt
+          done

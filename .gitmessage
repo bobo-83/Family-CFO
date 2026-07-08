@@ -1,0 +1,18 @@
+<type>(<scope>): <short summary>
+
+Why
+- 
+
+What changed
+- 
+
+Verification
+- 
+
+Sensitive data check
+- 
+
+# Types: feat, fix, docs, test, refactor, chore, build, ci
+# Scope: milestone or area, for example m5, api, web, docs, engine
+# Summary: imperative mood, 72 chars or fewer, no trailing period
+# Fill every section with at least one bullet before committing.

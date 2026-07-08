@@ -1,6 +1,6 @@
-# Codex Workflow
+# AI Agent Workflow
 
-Codex is expected to work one milestone at a time.
+Codex, Claude, and other AI coding agents are expected to work one milestone at a time.
 
 ## Standard Loop
 
@@ -13,6 +13,21 @@ Codex is expected to work one milestone at a time.
 7. Run verification commands.
 8. Check off completed tasks in `docs/specs/12-implementation-tasks.md`.
 9. Commit with a clear message when requested or when the workflow calls for it.
+
+## Commit Message Template
+
+This repo includes `.gitmessage`. GitHub Actions validates pushed and pull request
+commit messages against it, so new clones do not require setup for enforcement.
+
+For local validation before committing, run this optional one-time setup per checkout:
+
+```bash
+scripts/setup-git-hooks.sh
+```
+
+The optional local `commit-msg` hook and the CI workflow both use
+`scripts/validate-commit-message.sh`, which checks for a typed subject line plus
+filled `Why`, `What changed`, `Verification`, and `Sensitive data check` sections.
 
 ## Command Docs
 

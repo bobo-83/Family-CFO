@@ -7,7 +7,7 @@ Start here:
 - [Spec Kit](./specs/README.md)
 - [Architecture Decision Records](./adr/)
 - [Security Threat Model](./security/threat-model.md)
-- [Codex Workflow](./development/codex-workflow.md)
+- [AI Agent Workflow](./development/ai-agent-workflow.md)
 
 ## Documentation Rules
 

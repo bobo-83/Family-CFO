@@ -90,7 +90,7 @@ Every feature starts with:
 - Documentation update
 - Commit message
 
-See [AGENTS.md](./AGENTS.md) and [docs/development/codex-workflow.md](./docs/development/codex-workflow.md).
+See [AGENTS.md](./AGENTS.md) and [docs/development/ai-agent-workflow.md](./docs/development/ai-agent-workflow.md).
 
 ## License
 
