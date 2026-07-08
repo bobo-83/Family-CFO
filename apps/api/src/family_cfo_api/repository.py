@@ -372,6 +372,8 @@ class AccountBalanceRecord:
     account_type: str
     currency: str
     balance_minor: int
+    annual_interest_rate: float | None = None
+    minimum_payment_minor: int | None = None
 
 
 def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
@@ -407,6 +409,8 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.accounts.c.type,
             models.accounts.c.currency,
             models.account_balances.c.balance_minor,
+            models.accounts.c.annual_interest_rate,
+            models.accounts.c.minimum_payment_minor,
         )
         .select_from(models.accounts)
         .join(latest_balance, latest_balance.c.account_id == models.accounts.c.id)
@@ -429,6 +433,8 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             account_type=row.type,
             currency=row.currency,
             balance_minor=row.balance_minor,
+            annual_interest_rate=row.annual_interest_rate,
+            minimum_payment_minor=row.minimum_payment_minor,
         )
         for row in rows
     ]
@@ -1867,11 +1873,18 @@ class AccountRecord:
     name: str
     account_type: str
     currency: str
+    annual_interest_rate: float | None = None
+    minimum_payment_minor: int | None = None
 
 
 def _account_record_from_row(row: Any) -> AccountRecord:
     return AccountRecord(
-        id=row["id"], name=row["name"], account_type=row["type"], currency=row["currency"]
+        id=row["id"],
+        name=row["name"],
+        account_type=row["type"],
+        currency=row["currency"],
+        annual_interest_rate=row["annual_interest_rate"],
+        minimum_payment_minor=row["minimum_payment_minor"],
     )
 
 
@@ -1884,8 +1897,80 @@ def get_account(engine: Engine, household_id: str, account_id: str) -> AccountRe
     return _account_record_from_row(row) if row is not None else None
 
 
+LIABILITY_ACCOUNT_TYPES = frozenset(
+    {"credit_card", "mortgage", "auto_loan", "student_loan", "other_liability"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DebtAccountRecord:
+    account_id: str
+    name: str
+    currency: str
+    balance_owed_minor: int  # positive amount owed (abs of the negative balance)
+    annual_interest_rate: float
+    minimum_payment_minor: int
+
+
+def list_liability_accounts(engine: Engine, household_id: str) -> list[AccountRecord]:
+    """All liability-type accounts in the household (with or without debt terms)."""
+    query = (
+        select(models.accounts)
+        .where(
+            models.accounts.c.household_id == household_id,
+            models.accounts.c.type.in_(tuple(LIABILITY_ACCOUNT_TYPES)),
+        )
+        .order_by(models.accounts.c.name)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_account_record_from_row(row) for row in rows]
+
+
+def list_debts_with_terms(engine: Engine, household_id: str) -> list[DebtAccountRecord]:
+    """Liability accounts that carry both debt terms and a latest balance, ready for payoff modeling."""
+    balances = {b.account_id: b for b in list_account_balances(engine, household_id)}
+    debts: list[DebtAccountRecord] = []
+    for account in list_liability_accounts(engine, household_id):
+        if account.annual_interest_rate is None or account.minimum_payment_minor is None:
+            continue
+        balance = balances.get(account.id)
+        if balance is None or balance.balance_minor >= 0:
+            continue
+        debts.append(
+            DebtAccountRecord(
+                account_id=account.id,
+                name=account.name,
+                currency=account.currency,
+                balance_owed_minor=abs(balance.balance_minor),
+                annual_interest_rate=account.annual_interest_rate,
+                minimum_payment_minor=account.minimum_payment_minor,
+            )
+        )
+    return debts
+
+
+def count_liabilities_without_terms(engine: Engine, household_id: str) -> int:
+    """Liability accounts (with a balance owed) that lack debt terms and so can't be modeled."""
+    balances = {b.account_id: b for b in list_account_balances(engine, household_id)}
+    count = 0
+    for account in list_liability_accounts(engine, household_id):
+        balance = balances.get(account.id)
+        if balance is None or balance.balance_minor >= 0:
+            continue
+        if account.annual_interest_rate is None or account.minimum_payment_minor is None:
+            count += 1
+    return count
+
+
 def create_account(
-    engine: Engine, household_id: str, name: str, account_type: str, currency: str
+    engine: Engine,
+    household_id: str,
+    name: str,
+    account_type: str,
+    currency: str,
+    annual_interest_rate: float | None = None,
+    minimum_payment_minor: int | None = None,
 ) -> AccountRecord:
     account_id = new_id()
     now = utcnow()
@@ -1897,11 +1982,20 @@ def create_account(
                 name=name,
                 type=account_type,
                 currency=currency,
+                annual_interest_rate=annual_interest_rate,
+                minimum_payment_minor=minimum_payment_minor,
                 created_at=now,
                 updated_at=now,
             )
         )
-    return AccountRecord(id=account_id, name=name, account_type=account_type, currency=currency)
+    return AccountRecord(
+        id=account_id,
+        name=name,
+        account_type=account_type,
+        currency=currency,
+        annual_interest_rate=annual_interest_rate,
+        minimum_payment_minor=minimum_payment_minor,
+    )
 
 
 def update_account(
@@ -1910,12 +2004,18 @@ def update_account(
     account_id: str,
     name: str | None = None,
     account_type: str | None = None,
+    annual_interest_rate: float | None = None,
+    minimum_payment_minor: int | None = None,
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
         values["name"] = name
     if account_type is not None:
         values["type"] = account_type
+    if annual_interest_rate is not None:
+        values["annual_interest_rate"] = annual_interest_rate
+    if minimum_payment_minor is not None:
+        values["minimum_payment_minor"] = minimum_payment_minor
     with engine.begin() as conn:
         result = conn.execute(
             update(models.accounts)

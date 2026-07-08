@@ -1,24 +1,102 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from family_cfo_financial_engine import (
     AccountBalance,
     CalculationResult,
+    DebtInput,
     GoalInput,
     Money,
     PurchaseImpactInputs,
     RecurringAmount,
+    RetirementInput,
     calculate_cash_flow,
+    calculate_debt_payoff,
     calculate_emergency_fund_months,
     calculate_net_worth,
     calculate_purchase_impact,
+    calculate_retirement_projection,
 )
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
 
 LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
+
+
+@dataclass(frozen=True, slots=True)
+class DebtOutlook:
+    """Aggregated debt-payoff outlook across the household's liability accounts with terms."""
+
+    modeled_count: int
+    unmodeled_count: int
+    total_interest_remaining: Money | None
+    longest_months: int | None
+    calculation_refs: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+def compute_debt_outlook(engine: Engine, household_id: str, currency: str) -> DebtOutlook:
+    """Run calculate_debt_payoff over each liability account that carries terms.
+
+    Only debts in the household base currency are aggregated (the app is
+    single-currency per household); a debt in another currency, or one whose
+    payment never clears the balance, is surfaced as unmodeled/warned rather
+    than folded into a misleading total.
+    """
+    debts = repository.list_debts_with_terms(engine, household_id)
+    unmodeled = repository.count_liabilities_without_terms(engine, household_id)
+
+    refs: list[str] = []
+    warnings: list[str] = []
+    total_interest = Money.zero(currency)
+    total_known = True
+    longest = 0
+    modeled = 0
+
+    for debt in debts:
+        if debt.currency != currency:
+            unmodeled += 1
+            continue
+        result = calculate_debt_payoff(
+            DebtInput(
+                debt_id=debt.account_id,
+                name=debt.name,
+                balance=Money(debt.balance_owed_minor, debt.currency),
+                annual_interest_rate=debt.annual_interest_rate,
+                minimum_payment=Money(debt.minimum_payment_minor, debt.currency),
+            )
+        )
+        calc_id = _persist(engine, household_id, result)
+        refs.append(f"financial_calculations:{calc_id}")
+        modeled += 1
+        months = result.outputs["months_to_payoff"]
+        interest = result.outputs["total_interest_paid"]
+        if months is None or interest is None:
+            total_known = False
+            warnings.extend(result.warnings)
+        else:
+            longest = max(longest, months)
+            total_interest += interest
+
+    return DebtOutlook(
+        modeled_count=modeled,
+        unmodeled_count=unmodeled,
+        total_interest_remaining=total_interest if (modeled and total_known) else None,
+        longest_months=longest if (modeled and total_known) else None,
+        calculation_refs=refs,
+        warnings=warnings,
+    )
+
+
+def compute_retirement_projection(
+    engine: Engine, household_id: str, inputs: RetirementInput
+) -> tuple[CalculationResult, str]:
+    result = calculate_retirement_projection(inputs)
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
 
 
 def compute_net_worth(engine: Engine, household_id: str, currency: str) -> CalculationResult:

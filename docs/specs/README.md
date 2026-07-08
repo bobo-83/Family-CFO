@@ -44,6 +44,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M13 security hardening: implemented. HTTPS/TLS at the web tier (nginx on 443, HTTP→HTTPS redirect, security headers, self-signed cert bootstrap + bring-your-own), session logout and token rotation (`DELETE`/`POST /api/v1/auth/sessions[/refresh]`), configurable session TTL, a consolidated security test suite (authz matrix, redaction, no-telemetry), and CI hardening (gitleaks secret scanning, pip-audit dependency audit, and the service/web suites + client-drift check wired into CI). ADR 0008 resolves the four threat-model open questions (DB encryption, cert provisioning, backup-key recovery, external-AI opt-in). Verified end-to-end over TLS. Reverse proxy/monitoring/rate-limiting remain future Release-Readiness work.
 
+- M14 debt payoff and retirement projections: implemented. Persists per-account debt terms (`accounts.annual_interest_rate`/`minimum_payment_minor`), makes the purchase advisor's `debt` impact real via `calculate_debt_payoff` (replacing the warning-only placeholder), adds `calculate_retirement_projection`, and a `POST /api/v1/advisor/retirement` scenario endpoint returning a grounded recommendation. Closes most of the M3-deferred debt/retirement backlog; an open-ended scenario-planning API remains backlog.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

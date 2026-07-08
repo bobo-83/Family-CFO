@@ -54,6 +54,8 @@ CALCULATION_TYPES = (
     "emergency_fund",
     "goal_progress",
     "purchase_impact",
+    "debt_payoff",
+    "retirement_projection",
 )
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
 EXPLANATION_SOURCES = ("deterministic_stub", "llm")
@@ -159,6 +161,10 @@ accounts = Table(
     Column("name", String(120), nullable=False),
     Column("type", String(30), nullable=False),
     _currency_column(),
+    # Debt terms, meaningful only for liability account types (M14). Nullable —
+    # an account without both set is not modeled for payoff.
+    Column("annual_interest_rate", Float, nullable=True),
+    Column("minimum_payment_minor", BigInteger, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"type in {_sql_in(ACCOUNT_TYPES)}", name="ck_accounts_type"),

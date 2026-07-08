@@ -241,6 +241,16 @@ Implemented (backend half; the TLS half lives in `docker/`):
 
 The web tier's HTTPS/TLS termination, security headers, and self-signed-cert bootstrap are in `docker/` (see `docker/README.md`).
 
+## M14 Scope (Debt Payoff and Retirement Projections)
+
+Finishes the M3-deferred debt/retirement backlog.
+
+- Accounts carry optional debt terms — `annual_interest_rate` and `minimum_payment` (liability types). Set them on create/update (`owner`/`adult`); the `Account` read model exposes them.
+- The purchase advisor's `debt` impact is now real: it runs `calculate_debt_payoff` over liability accounts that have terms and reports months-to-payoff and remaining interest, plus a note for debts still lacking terms — replacing the old "cannot be modeled" placeholder.
+- `POST /api/v1/advisor/retirement` projects retirement savings (deterministic monthly compound growth) for a scenario — current age, retirement age, current savings, monthly contribution, expected annual return, optional annual expenses — and returns a grounded `Recommendation`, persisted like the purchase advisor. Any household role; deterministic explanation (no LLM narration — tracked follow-up).
+
+Not implemented in M14: an open-ended scenario-planning API ("should we refinance?") and inflation/tax/drawdown modeling in the retirement projection — see the M14 non-goals in the roadmap.
+
 ## Setup
 
 ```bash
@@ -340,7 +350,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`). `make migrate` applies all of them.
 
 Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
 

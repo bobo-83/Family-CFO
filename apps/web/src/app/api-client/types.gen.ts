@@ -133,6 +133,8 @@ export type Account = {
     name: string;
     type: AccountType;
     balance: Money;
+    annual_interest_rate?: number;
+    minimum_payment?: Money;
 };
 
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
@@ -165,6 +167,15 @@ export type PurchaseAdvisorRequest = {
     source?: 'manual' | 'mobile_vision' | 'receipt' | 'product_photo';
     confidence?: number;
     user_question?: string;
+};
+
+export type RetirementScenarioRequest = {
+    current_age: number;
+    retirement_age: number;
+    current_savings: Money;
+    monthly_contribution: Money;
+    annual_return_rate: number;
+    annual_expenses?: Money;
 };
 
 export type Recommendation = {
@@ -333,11 +344,15 @@ export type AccountCreateRequest = {
     name: string;
     type: AccountType;
     currency: string;
+    annual_interest_rate?: number;
+    minimum_payment?: Money;
 };
 
 export type AccountUpdateRequest = {
     name?: string;
     type?: AccountType;
+    annual_interest_rate?: number;
+    minimum_payment?: Money;
 };
 
 export type AccountBalanceCreateRequest = {
@@ -1478,6 +1493,35 @@ export type AnalyzePurchaseResponses = {
 };
 
 export type AnalyzePurchaseResponse = AnalyzePurchaseResponses[keyof AnalyzePurchaseResponses];
+
+export type AnalyzeRetirementData = {
+    body: RetirementScenarioRequest;
+    path?: never;
+    query?: never;
+    url: '/advisor/retirement';
+};
+
+export type AnalyzeRetirementErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type AnalyzeRetirementError = AnalyzeRetirementErrors[keyof AnalyzeRetirementErrors];
+
+export type AnalyzeRetirementResponses = {
+    /**
+     * Retirement projection recommendation
+     */
+    200: Recommendation;
+};
+
+export type AnalyzeRetirementResponse = AnalyzeRetirementResponses[keyof AnalyzeRetirementResponses];
 
 export type CreateChatMessageData = {
     body: ChatRequest;

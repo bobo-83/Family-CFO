@@ -524,14 +524,13 @@ Rules:
 
 ## Backlog: Debt Payoff and Retirement Projections
 
-The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). The domain model (`docs/specs/03-domain-model.md`) lists "Refinance a mortgage" and "Accelerate debt payoff" as scenario examples. No milestone from M3 through M8 currently owns building this — it was silently dropped from M3's scope rather than deferred to a tracked task. This section tracks it until it is assigned to a milestone.
+The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
 
 - [x] Add a deterministic `calculate_debt_payoff` calculation to the financial engine, unit tested with mocked `DebtInput` values (balance, annual interest rate, minimum payment, optional extra payment). This does not require database changes — it is a pure function like every other engine calculation.
-- [ ] Add `annual_interest_rate` and `minimum_payment` columns (or a separate `debt_terms` table) to `accounts` for liability account types, with a migration.
-- [ ] Wire `calculate_debt_payoff` into the purchase advisor's `debt` impact once account-level interest/payment data is persisted, replacing today's warning-only placeholder.
-- [ ] Add a `calculate_retirement_projection` calculation to the financial engine.
-- [ ] Add a general scenario-planning API (beyond the purchase advisor) covering "can we retire at 55" and "should we refinance" style questions, per the PRD's Scenario Planning journey.
-- [ ] Assign the remaining items above to a specific milestone.
+- [x] Add `annual_interest_rate` and `minimum_payment` columns to `accounts` for liability account types, with a migration. (M14, migration `0029`.)
+- [x] Wire `calculate_debt_payoff` into the purchase advisor's `debt` impact once account-level interest/payment data is persisted, replacing today's warning-only placeholder. (M14.)
+- [x] Add a `calculate_retirement_projection` calculation to the financial engine. (M14.)
+- [ ] Add a general scenario-planning API (beyond the purchase advisor and the M14 retirement endpoint) covering open-ended "should we refinance" style questions, per the PRD's Scenario Planning journey. (Still backlog — M14 delivered the two concrete projections, not an open-ended engine.)
 
 ## Backlog: Annual Report
 

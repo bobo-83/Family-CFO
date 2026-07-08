@@ -823,6 +823,31 @@ paths:
           $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Error"
+  /advisor/retirement:
+    post:
+      tags:
+        - Advisor
+      operationId: analyzeRetirement
+      summary: Project retirement savings for a scenario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetirementScenarioRequest"
+      responses:
+        "200":
+          description: Retirement projection recommendation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recommendation"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
   /chat/messages:
     post:
       tags:
@@ -1613,6 +1638,11 @@ components:
           $ref: "#/components/schemas/AccountType"
         balance:
           $ref: "#/components/schemas/Money"
+        annual_interest_rate:
+          type: number
+          minimum: 0
+        minimum_payment:
+          $ref: "#/components/schemas/Money"
     AccountType:
       type: string
       enum:
@@ -1715,6 +1745,33 @@ components:
           maximum: 1
         user_question:
           type: string
+    RetirementScenarioRequest:
+      type: object
+      required:
+        - current_age
+        - retirement_age
+        - current_savings
+        - monthly_contribution
+        - annual_return_rate
+      properties:
+        current_age:
+          type: integer
+          minimum: 0
+          maximum: 120
+        retirement_age:
+          type: integer
+          minimum: 1
+          maximum: 130
+        current_savings:
+          $ref: "#/components/schemas/Money"
+        monthly_contribution:
+          $ref: "#/components/schemas/Money"
+        annual_return_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+        annual_expenses:
+          $ref: "#/components/schemas/Money"
     Recommendation:
       type: object
       required:
@@ -2170,6 +2227,11 @@ components:
           type: string
           minLength: 3
           maxLength: 3
+        annual_interest_rate:
+          type: number
+          minimum: 0
+        minimum_payment:
+          $ref: "#/components/schemas/Money"
     AccountUpdateRequest:
       type: object
       properties:
@@ -2177,6 +2239,11 @@ components:
           type: string
         type:
           $ref: "#/components/schemas/AccountType"
+        annual_interest_rate:
+          type: number
+          minimum: 0
+        minimum_payment:
+          $ref: "#/components/schemas/Money"
     AccountBalanceCreateRequest:
       type: object
       required:

@@ -905,3 +905,68 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Update `docker/README.md` and `.env.example` with the TLS ports, cert paths/bring-your-own, and `FAMILY_CFO_SESSION_TTL_HOURS`.
 - Update `apps/api/README.md` with the logout/refresh endpoints, and `docs/specs/README.md` Acceptance State with M13.
 - Check off the corresponding "Security and Privacy" and CI items in `docs/specs/12-implementation-tasks.md`.
+
+## M14: Debt Payoff and Retirement Projections
+
+- Persist per-account debt terms
+- Real debt-payoff impact in the purchase advisor
+- Deterministic retirement projection + scenario endpoint
+
+> Context: finally owns the "Backlog: Debt Payoff and Retirement Projections" tracked since M3 (`docs/specs/12-implementation-tasks.md`). The PRD promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey; `calculate_debt_payoff` shipped in M3's backlog but had no persisted inputs and the advisor's `debt` impact is a warning-only placeholder. M14 persists the inputs, makes the debt impact real, and adds retirement projection.
+
+### Scope
+
+- Add nullable `accounts.annual_interest_rate` and `accounts.minimum_payment_minor` columns (only meaningful for liability account types: `credit_card`, `mortgage`, `auto_loan`, `student_loan`, `other_liability`). Account create/update (`owner`/`adult`, from M9) accept them; the `Account` read model exposes them.
+- Wire `calculate_debt_payoff` into the purchase advisor: for each liability account that has both terms set, run the payoff simulation and replace the "cannot be modeled without interest rate and payment data" placeholder with a real `debt` impact — months to payoff and total interest for the household's debts, plus the honest note that paying cash reduces capacity for extra payments. Accounts still missing terms are surfaced as a "add terms to model this debt" note, not silently ignored.
+- Add `calculate_retirement_projection` to the financial engine: a deterministic monthly compound-growth simulation (current savings + monthly contribution, compounding at `annual_return_rate / 12`) to a retirement age, returning the projected balance and, if retirement expenses are supplied, a simple coverage ratio. Pure function, no DB — same shape as every other engine calculation.
+- Add `POST /api/v1/advisor/retirement`: accepts a retirement scenario (current age, retirement age, current savings, monthly contribution, expected annual return, optional annual expenses in retirement), runs the projection, persists a `scenarios` + `recommendations` row, and returns a `Recommendation` (answer/assumptions/impacts/tradeoffs/alternatives/confidence/calculation_refs/warnings), grounded in the calculation.
+
+### Non-Goals
+
+- No general free-form scenario-planning API ("should we refinance?", arbitrary what-ifs). M14 delivers the two concrete PRD projections (debt payoff, retirement); an open-ended scenario engine remains backlog.
+- No LLM narration of the retirement scenario. The purchase advisor and reports route explanations through the guardrailed LLM/deterministic-stub adapter; the retirement endpoint uses a deterministic explanation only (its answer is fully derived from the calculation). Extending the `ExplanationAdapter` with `explain_retirement` is a tracked follow-up, not M14.
+- No amortization schedule, tax treatment, inflation adjustment, Social Security, or drawdown/sequence-of-returns modeling in the retirement projection. It is a single deterministic growth curve with documented assumptions — honest guidance, not financial-planning-grade modeling (matching the PRD's "educational guidance" framing and ADR 0003).
+- No automatic extra-payment optimization or avalanche/snowball strategy selection in the debt impact; M14 reports each debt's payoff outlook, it does not prescribe a paydown order (reasonable follow-up).
+- No Angular UI for the retirement scenario or account debt-terms entry beyond what the existing M11 account form trivially extends; a dedicated planning page is future UI work.
+
+### Debt Payoff Wiring Behavior
+
+- A liability account contributes to the modeled debt impact only when **both** `annual_interest_rate` and `minimum_payment_minor` are set; the balance owed is the absolute value of its (negative) latest balance.
+- Each qualifying debt is run through `calculate_debt_payoff`; the advisor aggregates: total interest remaining across debts, and the longest single payoff horizon. A debt whose payment doesn't cover interest surfaces that calculation's warning rather than a number.
+- Liability accounts without terms produce a non-blocking note ("N debts have no interest/payment terms and were not modeled"), preserving the old honesty without pretending.
+
+### Retirement Projection Behavior
+
+- Inputs: `current_age`, `retirement_age` (> current_age), `current_savings` (Money), `monthly_contribution` (Money), `annual_return_rate` (float ≥ 0), optional `annual_expenses` (Money).
+- Simulation: month-by-month for `(retirement_age - current_age) * 12` months; each month the balance grows by `balance * annual_return_rate / 12` (Decimal, rounded to minor units) and the contribution is added. Integer minor units throughout, never float money.
+- Outputs: `projected_balance` (Money), `months_to_retirement`, and — if `annual_expenses` is given and positive — `years_of_expenses_covered` (projected_balance / annual_expenses, a dimensionless ratio) with a warning if it is below a documented threshold (e.g. < 20 years).
+- Assumptions are recorded on the `CalculationResult` (constant return, constant contribution, no inflation/tax/drawdown).
+
+### API Behavior
+
+- `POST /api/v1/advisor/retirement` requires `bearerAuth`, any household role (like the purchase advisor — asking a projection question doesn't mutate financial state). Validates `retirement_age > current_age` and non-negative amounts/rate (`400` otherwise). Returns `Recommendation`.
+- Account create/update accept the two optional debt-term fields; `PATCH` can set or clear them. Currency of `minimum_payment` follows the account currency.
+
+### Data Model Changes
+
+- `accounts.annual_interest_rate` (nullable float) and `accounts.minimum_payment_minor` (nullable signed integer, minor units, paired with the account's existing `currency`). Additive migration; no rewrite of the M2 accounts table.
+- No new tables. Retirement scenarios reuse the existing `scenarios`/`recommendations` tables (like the purchase advisor).
+
+### Security Impact
+
+- Debt terms are `Sensitive` (financial detail) and covered by the same household-scoped auth and audit as other account writes; account write paths already audit (M9), and setting terms is part of `account.updated`/`account.created`.
+- The retirement endpoint reads only caller-supplied inputs plus (optionally) household context; it persists a recommendation the same way the purchase advisor does and logs only ids.
+
+### Test Expectations
+
+- Engine: unit tests for `calculate_retirement_projection` — growth to a target balance with known inputs, the zero-return case, the expenses-coverage ratio and its low-coverage warning, and input validation.
+- Repository/API: account create/update round-trips the debt-term fields; `Account` exposes them.
+- Advisor: a household with a liability account carrying terms produces a modeled `debt` impact (months/interest, not the placeholder); a household with a liability account missing terms produces the "not modeled" note.
+- Retirement endpoint: a valid scenario returns a grounded `Recommendation` and persists it; `retirement_age <= current_age` is `400`; role/no-auth paths behave like the purchase advisor's.
+- OpenAPI contract check passes with the new endpoint and account fields.
+
+### Documentation Impact
+
+- Update `services/financial-engine/README.md` (retirement projection) and `apps/api/README.md` (M14 scope: debt-term fields, real debt impact, retirement endpoint).
+- Update `database/README.md` (account debt-term columns) and `shared/openapi/family-cfo.v1.yaml` (retirement path + schemas, `Account`/account-request debt-term fields).
+- Mark the "Backlog: Debt Payoff and Retirement Projections" items done except the general scenario-planning API (which stays backlog), and update `docs/specs/README.md` Acceptance State.

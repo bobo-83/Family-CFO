@@ -112,6 +112,8 @@ class Account(BaseModel):
     name: str
     type: AccountType
     balance: Money
+    annual_interest_rate: float | None = None
+    minimum_payment: Money | None = None
 
 
 class Transaction(BaseModel):
@@ -186,6 +188,15 @@ class PurchaseAdvisorRequest(BaseModel):
     source: PurchaseSource | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
     user_question: str | None = None
+
+
+class RetirementScenarioRequest(BaseModel):
+    current_age: int = Field(ge=0, le=120)
+    retirement_age: int = Field(ge=1, le=130)
+    current_savings: Money
+    monthly_contribution: Money
+    annual_return_rate: float = Field(ge=0, le=1)
+    annual_expenses: Money | None = None
 
 
 class Impact(BaseModel):
@@ -354,11 +365,15 @@ class AccountCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     type: AccountType
     currency: str = Field(min_length=3, max_length=3)
+    annual_interest_rate: float | None = Field(default=None, ge=0)
+    minimum_payment: Money | None = None
 
 
 class AccountUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     type: AccountType | None = None
+    annual_interest_rate: float | None = Field(default=None, ge=0)
+    minimum_payment: Money | None = None
 
 
 class AccountBalanceCreateRequest(BaseModel):

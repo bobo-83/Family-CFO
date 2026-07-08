@@ -16,12 +16,18 @@ from family_cfo_api.schemas import Money as MoneySchema
 router = APIRouter(tags=["Accounts"])
 
 
+def _min_payment(currency: str, minor: int | None) -> MoneySchema | None:
+    return None if minor is None else MoneySchema(amount_minor=minor, currency=currency)
+
+
 def _account_schema(record: repository.AccountRecord, balance_minor: int) -> Account:
     return Account(
         id=record.id,
         name=record.name,
         type=record.account_type,
         balance=MoneySchema(amount_minor=balance_minor, currency=record.currency),
+        annual_interest_rate=record.annual_interest_rate,
+        minimum_payment=_min_payment(record.currency, record.minimum_payment_minor),
     )
 
 
@@ -44,6 +50,8 @@ async def list_accounts(
                 name=balance.name,
                 type=balance.account_type,
                 balance=MoneySchema(amount_minor=balance.balance_minor, currency=balance.currency),
+                annual_interest_rate=balance.annual_interest_rate,
+                minimum_payment=_min_payment(balance.currency, balance.minimum_payment_minor),
             )
             for balance in balances
         ]
@@ -66,12 +74,20 @@ async def create_account(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Account:
+    if payload.minimum_payment is not None and payload.minimum_payment.currency != payload.currency:
+        raise HTTPException(
+            status_code=400, detail=f"minimum_payment currency must be {payload.currency}"
+        )
     record = repository.create_account(
         engine,
         household_id=session.household_id,
         name=payload.name,
         account_type=payload.type,
         currency=payload.currency,
+        annual_interest_rate=payload.annual_interest_rate,
+        minimum_payment_minor=(
+            payload.minimum_payment.amount_minor if payload.minimum_payment is not None else None
+        ),
     )
     audit.write_audit(
         engine,
@@ -102,10 +118,26 @@ async def update_account(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Account:
-    if repository.get_account(engine, session.household_id, account_id) is None:
+    existing = repository.get_account(engine, session.household_id, account_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Account not found")
+    if (
+        payload.minimum_payment is not None
+        and payload.minimum_payment.currency != existing.currency
+    ):
+        raise HTTPException(
+            status_code=400, detail=f"minimum_payment currency must be {existing.currency}"
+        )
     repository.update_account(
-        engine, session.household_id, account_id, name=payload.name, account_type=payload.type
+        engine,
+        session.household_id,
+        account_id,
+        name=payload.name,
+        account_type=payload.type,
+        annual_interest_rate=payload.annual_interest_rate,
+        minimum_payment_minor=(
+            payload.minimum_payment.amount_minor if payload.minimum_payment is not None else None
+        ),
     )
     audit.write_audit(
         engine,
