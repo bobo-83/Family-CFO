@@ -18,6 +18,12 @@ This repository is optimized for AI coding agents and human maintainers.
 - Keep AI runtimes, vector stores, OCR engines, authentication, and financial modules replaceable.
 - OpenAPI is the source of truth for backend clients.
 
+## Platform Constraints
+
+- Do not implement, scaffold, generate, or modify Swift/iOS app code from a Linux environment.
+- On Linux, iOS work is limited to specifications, documentation, API contracts, CI planning, and review.
+- Swift/iOS implementation requires a macOS environment with the Swift toolchain and Xcode available.
+
 ## Expected Change Shape
 
 Each feature should include:
