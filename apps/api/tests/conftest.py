@@ -27,7 +27,53 @@ def demo_settings(tmp_path) -> Settings:
         version="0.1.0",
         health_check_database=False,
         import_staging_dir=str(tmp_path / "import-staging"),
+        backup_dir=str(tmp_path / "backups"),
+        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
     )
+
+
+@pytest.fixture
+def demo_file_engine(tmp_path) -> Engine:
+    """A file-based (not `:memory:`) SQLite engine, for backup/restore tests.
+
+    `SqliteFileBackupAdapter` copies the database file directly, which is
+    only possible when there is a file on disk to copy.
+    """
+    database_path = tmp_path / "family_cfo.sqlite3"
+    engine = create_database_engine(f"sqlite+pysqlite:///{database_path}")
+    fixtures.create_schema(engine)
+    fixtures.seed_demo_household(engine)
+    return engine
+
+
+@pytest.fixture
+def demo_file_settings(tmp_path, demo_file_engine: Engine) -> Settings:
+    database_path = tmp_path / "family_cfo.sqlite3"
+    return Settings(
+        version="0.1.0",
+        health_check_database=False,
+        database_url=f"sqlite+pysqlite:///{database_path}",
+        import_staging_dir=str(tmp_path / "import-staging"),
+        backup_dir=str(tmp_path / "backups"),
+        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+    )
+
+
+@pytest.fixture
+def demo_file_app(demo_file_engine: Engine, demo_file_settings: Settings):
+    return create_app(demo_file_settings, engine=demo_file_engine)
+
+
+@pytest.fixture
+async def demo_file_client(demo_file_app):
+    transport = httpx.ASGITransport(app=demo_file_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+
+@pytest.fixture
+async def demo_file_token(demo_file_client: httpx.AsyncClient) -> str:
+    return await login(demo_file_client, fixtures.DEMO_USER_EMAIL, fixtures.DEMO_USER_PASSWORD)
 
 
 @pytest.fixture
@@ -59,4 +105,3 @@ async def demo_token(demo_client: httpx.AsyncClient) -> str:
 @pytest.fixture
 async def demo_viewer_token(demo_client: httpx.AsyncClient) -> str:
     return await login(demo_client, fixtures.DEMO_VIEWER_EMAIL, fixtures.DEMO_VIEWER_PASSWORD)
-

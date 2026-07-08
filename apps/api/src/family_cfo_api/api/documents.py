@@ -3,7 +3,11 @@ from __future__ import annotations
 import logging
 import os
 
-from family_cfo_ocr_worker import DeterministicOcrAdapter, ExtractionResult, PdfTextExtractionAdapter
+from family_cfo_ocr_worker import (
+    DeterministicOcrAdapter,
+    ExtractionResult,
+    PdfTextExtractionAdapter,
+)
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.engine import Engine
 
@@ -62,7 +66,9 @@ async def list_documents(
     engine: Engine = Depends(get_engine),
 ) -> DocumentListResponse:
     records = repository.list_documents_with_extractions(engine, session.household_id)
-    return DocumentListResponse(documents=[_to_schema(document, extraction) for document, extraction in records])
+    return DocumentListResponse(
+        documents=[_to_schema(document, extraction) for document, extraction in records]
+    )
 
 
 @router.post(

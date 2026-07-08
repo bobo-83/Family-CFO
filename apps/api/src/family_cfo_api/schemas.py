@@ -19,14 +19,21 @@ AccountType = Literal[
     "other_asset",
     "other_liability",
 ]
-GoalType = Literal["emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other"]
+GoalType = Literal[
+    "emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other"
+]
 RecurringFrequency = Literal["weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"]
 PurchaseSource = Literal["manual", "mobile_vision", "receipt", "product_photo"]
-ImpactArea = Literal["cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"]
+ImpactArea = Literal[
+    "cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"
+]
 AiRuntimeProvider = Literal["vllm", "ollama", "llama_cpp", "openai_compatible"]
 ImportSourceType = Literal["csv", "pdf", "ofx", "qfx"]
 ImportStatus = Literal["pending", "processing", "needs_review", "completed", "discarded", "failed"]
 DocumentExtractionType = Literal["pdf_text", "ocr"]
+ReportType = Literal["weekly", "monthly"]
+ExplanationSource = Literal["deterministic_stub", "llm"]
+BackupJobStatus = Literal["pending", "running", "completed", "failed"]
 
 
 class HealthResponse(BaseModel):
@@ -255,3 +262,55 @@ class Document(BaseModel):
 
 class DocumentListResponse(BaseModel):
     documents: list[Document]
+
+
+class ReportGenerateRequest(BaseModel):
+    report_type: ReportType
+
+
+class GoalProgressSummary(BaseModel):
+    goal_id: str
+    name: str
+    percent_complete: float | None = None
+    months_to_completion: int | None = None
+    calculation_ref: str
+
+
+class ReportSummary(BaseModel):
+    wins: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    unusual_spending: list[str] = Field(default_factory=list)
+    recommended_actions: list[str] = Field(default_factory=list)
+    goal_progress: list[GoalProgressSummary] = Field(default_factory=list)
+    net_cash_flow: Money
+    calculation_refs: list[str] = Field(default_factory=list)
+
+
+class Report(BaseModel):
+    id: str
+    report_type: ReportType
+    period_start: date
+    period_end: date
+    summary: ReportSummary
+    explanation_text: str
+    explanation_source: ExplanationSource
+    generated_at: datetime
+
+
+class ReportListResponse(BaseModel):
+    reports: list[Report]
+
+
+class BackupJob(BaseModel):
+    id: str
+    status: BackupJobStatus
+    size_bytes: int | None = None
+    error_message: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+    pruned_at: datetime | None = None
+    created_at: datetime
+
+
+class BackupJobListResponse(BaseModel):
+    backups: list[BackupJob]

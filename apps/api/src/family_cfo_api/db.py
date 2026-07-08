@@ -22,4 +22,3 @@ def create_database_engine(database_url: str) -> Engine:
 def check_database_connection(engine: Engine) -> None:
     with engine.connect() as connection:
         connection.execute(text("select 1"))
-

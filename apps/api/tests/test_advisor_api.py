@@ -15,7 +15,9 @@ class _StubVllmAdapter:
     def __call__(self, _base_url: str, _model: str) -> "_StubVllmAdapter":
         return self
 
-    def complete(self, _messages, *, temperature: float = 0.2, max_tokens: int = 400) -> RuntimeCompletion:
+    def complete(
+        self, _messages, *, temperature: float = 0.2, max_tokens: int = 400
+    ) -> RuntimeCompletion:
         return RuntimeCompletion(text=self._response_text, model=self._model, raw={})
 
     def close(self) -> None:
@@ -122,7 +124,9 @@ async def test_purchase_advisor_never_logs_item_or_price(demo_client, demo_token
 
 
 @pytest.mark.anyio
-async def test_analyze_purchase_persists_scenario_and_recommendation(demo_engine, demo_client, demo_token) -> None:
+async def test_analyze_purchase_persists_scenario_and_recommendation(
+    demo_engine, demo_client, demo_token
+) -> None:
     response = await demo_client.post(
         "/api/v1/advisor/purchase",
         headers={"Authorization": f"Bearer {demo_token}"},
@@ -131,14 +135,24 @@ async def test_analyze_purchase_persists_scenario_and_recommendation(demo_engine
     assert response.status_code == 200
 
     with demo_engine.connect() as conn:
-        scenario_rows = conn.execute(
-            select(models.scenarios).where(models.scenarios.c.household_id == fixtures.DEMO_HOUSEHOLD_ID)
-        ).mappings().all()
-        recommendation_rows = conn.execute(
-            select(models.recommendations).where(
-                models.recommendations.c.household_id == fixtures.DEMO_HOUSEHOLD_ID
+        scenario_rows = (
+            conn.execute(
+                select(models.scenarios).where(
+                    models.scenarios.c.household_id == fixtures.DEMO_HOUSEHOLD_ID
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
+        recommendation_rows = (
+            conn.execute(
+                select(models.recommendations).where(
+                    models.recommendations.c.household_id == fixtures.DEMO_HOUSEHOLD_ID
+                )
+            )
+            .mappings()
+            .all()
+        )
 
     assert len(scenario_rows) == 1
     assert scenario_rows[0]["input_json"]["item"] == "a new laptop"
@@ -152,7 +166,7 @@ async def test_analyze_purchase_uses_llm_when_runtime_enabled(
     demo_client, demo_token, demo_engine, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "family_cfo_api.api.advisor.VLLMAdapter",
+        "family_cfo_api.ai_runtime_selection.VLLMAdapter",
         _StubVllmAdapter("Buying a new laptop for USD 1,500.00 is well within your budget."),
     )
     await _enable_runtime(demo_client, demo_token)
@@ -164,7 +178,10 @@ async def test_analyze_purchase_uses_llm_when_runtime_enabled(
     )
 
     assert response.status_code == 200
-    assert response.json()["answer"] == "Buying a new laptop for USD 1,500.00 is well within your budget."
+    assert (
+        response.json()["answer"]
+        == "Buying a new laptop for USD 1,500.00 is well within your budget."
+    )
 
     with demo_engine.connect() as conn:
         row = (
@@ -185,7 +202,7 @@ async def test_analyze_purchase_falls_back_to_deterministic_on_guardrail_violati
     demo_client, demo_token, demo_engine, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "family_cfo_api.api.advisor.VLLMAdapter",
+        "family_cfo_api.ai_runtime_selection.VLLMAdapter",
         _StubVllmAdapter("This purchase carries a fabricated 42.7% hidden risk premium."),
     )
     await _enable_runtime(demo_client, demo_token)
@@ -216,7 +233,7 @@ async def test_analyze_purchase_disabled_runtime_uses_deterministic_stub(
     demo_client, demo_token, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "family_cfo_api.api.advisor.VLLMAdapter",
+        "family_cfo_api.ai_runtime_selection.VLLMAdapter",
         _StubVllmAdapter("this should never be called"),
     )
     response = await demo_client.put(

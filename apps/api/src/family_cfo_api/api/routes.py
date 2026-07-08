@@ -12,7 +12,9 @@ from family_cfo_api.api.health import router as health_router
 from family_cfo_api.api.household import router as household_router
 from family_cfo_api.api.imports import router as imports_router
 from family_cfo_api.api.income import router as income_router
+from family_cfo_api.api.backups import router as backups_router
 from family_cfo_api.api.pairing import router as pairing_router
+from family_cfo_api.api.reports import router as reports_router
 from family_cfo_api.api.transactions import router as transactions_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -30,3 +32,5 @@ api_router.include_router(ai_runtime_router)
 api_router.include_router(chat_router)
 api_router.include_router(imports_router)
 api_router.include_router(documents_router)
+api_router.include_router(reports_router)
+api_router.include_router(backups_router)

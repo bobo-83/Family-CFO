@@ -23,6 +23,7 @@ tags:
   - name: Imports
   - name: Documents
   - name: Reports
+  - name: Backups
   - name: AI Runtime
 paths:
   /health:
@@ -504,26 +505,135 @@ paths:
       summary: List generated reports
       security:
         - bearerAuth: []
-      parameters:
-        - name: type
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/ReportType"
       responses:
         "200":
           description: Reports
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - reports
-                properties:
-                  reports:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/ReportSummary"
+                $ref: "#/components/schemas/ReportListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /reports/{report_id}:
+    get:
+      tags:
+        - Reports
+      operationId: getReport
+      summary: Get a generated report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /reports/generate:
+    post:
+      tags:
+        - Reports
+      operationId: generateReport
+      summary: Generate (or regenerate) a weekly or monthly report
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportGenerateRequest"
+      responses:
+        "201":
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /backups:
+    get:
+      tags:
+        - Backups
+      operationId: listBackups
+      summary: List backup jobs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Backup jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupJobListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Backups
+      operationId: createBackup
+      summary: Create an on-demand encrypted backup
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Backup created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupJob"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/{backup_id}/restore:
+    post:
+      tags:
+        - Backups
+      operationId: restoreBackup
+      summary: Restore the database and documents from a completed backup (destructive)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Backup restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupJob"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /ai/runtime:
     get:
       tags:
@@ -1219,19 +1329,81 @@ components:
         - pdf
         - ofx
         - qfx
+    ReportType:
+      type: string
+      enum:
+        - weekly
+        - monthly
+    ExplanationSource:
+      type: string
+      enum:
+        - deterministic_stub
+        - llm
+    GoalProgressSummary:
+      type: object
+      required:
+        - goal_id
+        - name
+        - calculation_ref
+      properties:
+        goal_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        percent_complete:
+          type: number
+        months_to_completion:
+          type: integer
+        calculation_ref:
+          type: string
     ReportSummary:
       type: object
       required:
+        - net_cash_flow
+      properties:
+        wins:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        unusual_spending:
+          type: array
+          items:
+            type: string
+        recommended_actions:
+          type: array
+          items:
+            type: string
+        goal_progress:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalProgressSummary"
+        net_cash_flow:
+          $ref: "#/components/schemas/Money"
+        calculation_refs:
+          type: array
+          items:
+            type: string
+    Report:
+      type: object
+      required:
         - id
-        - type
+        - report_type
         - period_start
         - period_end
-        - title
+        - summary
+        - explanation_text
+        - explanation_source
+        - generated_at
       properties:
         id:
           type: string
           format: uuid
-        type:
+        report_type:
           $ref: "#/components/schemas/ReportType"
         period_start:
           type: string
@@ -1239,14 +1411,77 @@ components:
         period_end:
           type: string
           format: date
-        title:
+        summary:
+          $ref: "#/components/schemas/ReportSummary"
+        explanation_text:
           type: string
-    ReportType:
+        explanation_source:
+          $ref: "#/components/schemas/ExplanationSource"
+        generated_at:
+          type: string
+          format: date-time
+    ReportListResponse:
+      type: object
+      required:
+        - reports
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"
+    ReportGenerateRequest:
+      type: object
+      required:
+        - report_type
+      properties:
+        report_type:
+          $ref: "#/components/schemas/ReportType"
+    BackupJobStatus:
       type: string
       enum:
-        - weekly
-        - monthly
-        - annual
+        - pending
+        - running
+        - completed
+        - failed
+    BackupJob:
+      type: object
+      required:
+        - id
+        - status
+        - started_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/BackupJobStatus"
+        size_bytes:
+          type: integer
+          format: int64
+        error_message:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        pruned_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    BackupJobListResponse:
+      type: object
+      required:
+        - backups
+      properties:
+        backups:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackupJob"
     AiRuntimeConfig:
       type: object
       required:

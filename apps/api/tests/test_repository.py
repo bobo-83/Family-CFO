@@ -284,12 +284,20 @@ def test_create_scenario_and_recommendation_round_trip(demo_engine: Engine) -> N
     )
 
     with demo_engine.connect() as conn:
-        scenario_row = conn.execute(
-            select(models.scenarios).where(models.scenarios.c.id == scenario_id)
-        ).mappings().first()
-        recommendation_row = conn.execute(
-            select(models.recommendations).where(models.recommendations.c.id == recommendation_id)
-        ).mappings().first()
+        scenario_row = (
+            conn.execute(select(models.scenarios).where(models.scenarios.c.id == scenario_id))
+            .mappings()
+            .first()
+        )
+        recommendation_row = (
+            conn.execute(
+                select(models.recommendations).where(
+                    models.recommendations.c.id == recommendation_id
+                )
+            )
+            .mappings()
+            .first()
+        )
 
     assert scenario_row is not None
     assert scenario_row["name"] == "Purchase: a new laptop"

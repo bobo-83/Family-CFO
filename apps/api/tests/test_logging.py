@@ -7,4 +7,3 @@ def test_redact_message_removes_sensitive_values() -> None:
     assert redact_message(message) == (
         "token=[REDACTED] password:[REDACTED] api_key=[REDACTED] account=checking"
     )
-

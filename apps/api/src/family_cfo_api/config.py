@@ -6,6 +6,8 @@ from family_cfo_api import __version__
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://family_cfo:family_cfo@localhost:5432/family_cfo"
 DEFAULT_IMPORT_STAGING_DIR = "./data/import-staging"
+DEFAULT_BACKUP_DIR = "./data/backups"
+DEFAULT_BACKUP_RETENTION_COUNT = 7
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -25,6 +27,9 @@ class Settings:
     database_url: str = DEFAULT_DATABASE_URL
     health_check_database: bool = False
     import_staging_dir: str = DEFAULT_IMPORT_STAGING_DIR
+    backup_dir: str = DEFAULT_BACKUP_DIR
+    backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
+    backup_encryption_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -39,10 +44,16 @@ class Settings:
                 cls.health_check_database,
             ),
             import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
+            backup_dir=os.getenv("FAMILY_CFO_BACKUP_DIR", cls.backup_dir),
+            backup_retention_count=int(
+                os.getenv("FAMILY_CFO_BACKUP_RETENTION_COUNT", str(cls.backup_retention_count))
+            ),
+            backup_encryption_key=os.getenv(
+                "FAMILY_CFO_BACKUP_ENCRYPTION_KEY", cls.backup_encryption_key
+            ),
         )
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings.from_env()
-

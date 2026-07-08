@@ -30,6 +30,7 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 - M5 Angular dashboard: implemented (real pages for every M2–M4 API that exists; reports/transactions/imports/backups/users are placeholder shells pending M6/M7/M8).
 - M6 backend/API support: implemented for pairing sessions, paired-device revocation, and bounded deterministic chat, plus the dashboard-side pairing/device-management UI. Swift/iOS implementation remains pending a macOS Swift/Xcode environment per `AGENTS.md`.
 - M7 imports and OCR: implemented (CSV import is real; PDF pipeline does real text extraction but no line-item parsing; no real OCR engine ships — deterministic test adapter only; OFX/QFX are planning-only).
+- M8 reports and backups: implemented for weekly/monthly report generation (real wins/risks/unusual-spending heuristics, real goal progress, narrative explanation via the same guardrail-validated LLM/deterministic-stub pattern as the purchase advisor) and encrypted on-demand/scheduled backups (`BackupAdapter` protocol, real `PgDumpBackupAdapter` command/error-handling tested only — no PostgreSQL server in this environment — and a `SqliteFileBackupAdapter` exercising the same encrypt/retention/restore paths against a real file). No annual report (tracked as backlog); no Angular Reports/Backups page upgrade (still M5 placeholder shells); no backup-key recovery/rotation.
 
 Before coding a milestone, update the relevant documents with:
 

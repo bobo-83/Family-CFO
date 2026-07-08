@@ -34,7 +34,9 @@ async def get_current_session(
     return session
 
 
-def require_role(*allowed_roles: str) -> Callable[[repository.SessionContext], repository.SessionContext]:
+def require_role(
+    *allowed_roles: str,
+) -> Callable[[repository.SessionContext], repository.SessionContext]:
     async def dependency(
         session: repository.SessionContext = Depends(get_current_session),
     ) -> repository.SessionContext:

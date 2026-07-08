@@ -5,7 +5,7 @@ export PYTHONPATH
 .PHONY: install test lint format openapi check-openapi migrate run worker
 
 install:
-	$(PYTHON) -m pip install -e ".[dev]" -e ../../services/financial-engine -e ../../services/ai-orchestrator -e ../../services/ocr-worker -e ../../services/scheduler
+	$(PYTHON) -m pip install -e ".[dev]" -e ../../services/financial-engine -e ../../services/ai-orchestrator -e ../../services/ocr-worker -e ../../services/scheduler -e ../../services/backup
 
 test:
 	$(PYTHON) -m pytest

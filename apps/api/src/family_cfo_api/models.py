@@ -38,7 +38,15 @@ ACCOUNT_TYPES = (
     "other_liability",
 )
 RECURRING_FREQUENCIES = ("weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual")
-GOAL_TYPES = ("emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other")
+GOAL_TYPES = (
+    "emergency_fund",
+    "vacation",
+    "retirement",
+    "college",
+    "vehicle",
+    "renovation",
+    "other",
+)
 CALCULATION_TYPES = (
     "net_worth",
     "cash_flow",
@@ -53,6 +61,8 @@ AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
 IMPORT_SOURCE_TYPES = ("csv", "pdf", "ofx", "qfx")
 IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discarded", "failed")
 DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
+REPORT_TYPES = ("weekly", "monthly")
+BACKUP_JOB_STATUSES = ("pending", "running", "completed", "failed")
 
 
 def _uuid_pk(name: str = "id") -> Column:
@@ -169,7 +179,9 @@ transaction_categories = Table(
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=True),
     Column("name", String(80), nullable=False),
-    Column("parent_category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),
+    Column(
+        "parent_category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True
+    ),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
@@ -186,11 +198,18 @@ transactions = Table(
     Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),
     Column("description", Text, nullable=True),
     Column("import_source", String(30), nullable=True),
-    Column("import_id", String(36), ForeignKey("imports.id", name="fk_transactions_import_id"), nullable=True),
+    Column(
+        "import_id",
+        String(36),
+        ForeignKey("imports.id", name="fk_transactions_import_id"),
+        nullable=True,
+    ),
     Column("possible_duplicate", Boolean, nullable=False, server_default="0"),
     Column("review_state", String(20), nullable=False, server_default="reviewed"),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"review_state in {_sql_in(TRANSACTION_REVIEW_STATES)}", name="ck_transactions_review_state"),
+    CheckConstraint(
+        f"review_state in {_sql_in(TRANSACTION_REVIEW_STATES)}", name="ck_transactions_review_state"
+    ),
 )
 
 bills = Table(
@@ -221,7 +240,9 @@ income_sources = Table(
     Column("frequency", String(20), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"frequency in {_sql_in(RECURRING_FREQUENCIES)}", name="ck_income_sources_frequency"),
+    CheckConstraint(
+        f"frequency in {_sql_in(RECURRING_FREQUENCIES)}", name="ck_income_sources_frequency"
+    ),
 )
 
 goals = Table(
@@ -266,7 +287,9 @@ financial_calculations = Table(
     Column("warnings_json", JSON, nullable=False),
     Column("outputs_json", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"calculation_type in {_sql_in(CALCULATION_TYPES)}", name="ck_financial_calculations_type"),
+    CheckConstraint(
+        f"calculation_type in {_sql_in(CALCULATION_TYPES)}", name="ck_financial_calculations_type"
+    ),
 )
 
 recommendations = Table(
@@ -288,9 +311,12 @@ recommendations = Table(
     Column("prompt_version", String(50), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
-        f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}", name="ck_recommendations_explanation_source"
+        f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}",
+        name="ck_recommendations_explanation_source",
     ),
-    CheckConstraint("confidence >= 0 and confidence <= 1", name="ck_recommendations_confidence_range"),
+    CheckConstraint(
+        "confidence >= 0 and confidence <= 1", name="ck_recommendations_confidence_range"
+    ),
 )
 
 ai_runtime_configs = Table(
@@ -304,7 +330,9 @@ ai_runtime_configs = Table(
     Column("enabled", Boolean, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"provider in {_sql_in(AI_RUNTIME_PROVIDERS)}", name="ck_ai_runtime_configs_provider"),
+    CheckConstraint(
+        f"provider in {_sql_in(AI_RUNTIME_PROVIDERS)}", name="ck_ai_runtime_configs_provider"
+    ),
 )
 
 imports = Table(
@@ -321,7 +349,9 @@ imports = Table(
     Column("retry_count", Integer, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
-    CheckConstraint(f"source_type in {_sql_in(IMPORT_SOURCE_TYPES)}", name="ck_imports_source_type"),
+    CheckConstraint(
+        f"source_type in {_sql_in(IMPORT_SOURCE_TYPES)}", name="ck_imports_source_type"
+    ),
     CheckConstraint(f"status in {_sql_in(IMPORT_STATUSES)}", name="ck_imports_status"),
 )
 
@@ -359,7 +389,50 @@ document_extractions = Table(
     Column("warnings_json", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
-        f"extraction_type in {_sql_in(DOCUMENT_EXTRACTION_TYPES)}", name="ck_document_extractions_type"
+        f"extraction_type in {_sql_in(DOCUMENT_EXTRACTION_TYPES)}",
+        name="ck_document_extractions_type",
     ),
-    CheckConstraint("confidence >= 0 and confidence <= 1", name="ck_document_extractions_confidence_range"),
+    CheckConstraint(
+        "confidence >= 0 and confidence <= 1", name="ck_document_extractions_confidence_range"
+    ),
+)
+
+reports = Table(
+    "reports",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("report_type", String(20), nullable=False),
+    Column("period_start", Date, nullable=False),
+    Column("period_end", Date, nullable=False),
+    Column("summary_json", JSON, nullable=False),
+    Column("explanation_text", Text, nullable=False),
+    Column("explanation_source", String(30), nullable=False),
+    Column("model_version", String(100), nullable=True),
+    Column("prompt_version", String(50), nullable=True),
+    Column("calculation_version", String(20), nullable=False),
+    Column("generated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "household_id", "report_type", "period_start", name="uq_reports_household_type_period"
+    ),
+    CheckConstraint(f"report_type in {_sql_in(REPORT_TYPES)}", name="ck_reports_type"),
+    CheckConstraint(
+        f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}",
+        name="ck_reports_explanation_source",
+    ),
+)
+
+backup_jobs = Table(
+    "backup_jobs",
+    metadata,
+    _uuid_pk(),
+    Column("status", String(20), nullable=False, server_default="pending"),
+    Column("storage_path", String(500), nullable=True),
+    Column("size_bytes", BigInteger, nullable=True),
+    Column("error_message", Text, nullable=True),
+    Column("started_at", DateTime(timezone=True), nullable=False),
+    Column("completed_at", DateTime(timezone=True), nullable=True),
+    Column("pruned_at", DateTime(timezone=True), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(f"status in {_sql_in(BACKUP_JOB_STATUSES)}", name="ck_backup_jobs_status"),
 )

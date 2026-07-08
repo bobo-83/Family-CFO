@@ -517,3 +517,94 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Monthly report
 - Encrypted backups
 - Restore test
+
+### Scope
+
+- Add a `reports` table and a report generation service that reuses existing M2 financial-engine calculations (cash flow, budget summary) and M2/M3 persistence (accounts, goals, transactions) to produce two report types: `weekly` and `monthly`. Each report captures wins, risks, unusual spending, goal progress, and recommended actions, plus a narrative explanation generated through the same `LlmExplanationAdapter`/guardrail-fallback pattern M3/M4 already use for the purchase advisor.
+- Add `POST /api/v1/reports/generate` (on-demand generation) and `GET /api/v1/reports` / `GET /api/v1/reports/{id}` (list/detail).
+- Add a scheduled report job, following M7's `family_cfo_scheduler` pattern exactly: a directly-callable `run_scheduled_reports_once(engine, report_type, ...)` wrapped by the existing `family_cfo_scheduler.Scheduler`'s `IntervalTrigger`-only `Job` abstraction (no new trigger type). It polls daily and generates one report per household per period, idempotent on `(household_id, report_type, period_start)` — so a missed poll (container downtime) self-heals on the next poll instead of requiring true cron semantics.
+- Add a `backup_jobs` table and a `BackupAdapter` protocol (ADR 0007 replaceable-component pattern): one real adapter (`PgDumpBackupAdapter`, shells out to `pg_dump`/`pg_restore`) and one deterministic test adapter (`SqliteFileBackupAdapter`, file-copy based) for exercising the same encrypt/dump/retention/restore code paths in tests without a live PostgreSQL server.
+- Every backup archive (database dump plus a tar of the `FAMILY_CFO_IMPORT_STAGING_DIR` document/import staging tree) is symmetrically encrypted with a Fernet key (`cryptography` package) sourced from `FAMILY_CFO_BACKUP_ENCRYPTION_KEY`; there is no unencrypted-backup code path.
+- Add `POST /api/v1/backups` (on-demand backup, synchronous — same "small self-hosted scale" reasoning M7 used for synchronous document extraction), `GET /api/v1/backups` (list/status), and `POST /api/v1/backups/{id}/restore` (decrypt, restore database and documents from the named backup — a destructive operation by definition).
+- Add a scheduled backup job (daily, via the same worker/scheduler pattern) and a retention policy (`FAMILY_CFO_BACKUP_RETENTION_COUNT`, default 7) that deletes the oldest completed backups once the count is exceeded.
+- Document backup volumes, key handling/generation, and the restore procedure in `database/README.md` and `apps/api/README.md`.
+
+### Non-Goals
+
+- No annual report. The roadmap bullets for M8 name only weekly and monthly; annual is tracked as backlog in `docs/specs/12-implementation-tasks.md` alongside the existing debt-payoff/retirement backlog, the same "narrower than the PRD's aspirational list" scope call M3 made for retirement projections.
+- No Angular "Reports" or "Backups" page upgrade. M5 left both as explicit placeholder shells; this milestone is backend-only, the same split M6 (backend first, dashboard-gap-fix follow-up) and M7 (backend-only, Import Review UI deferred) already used. The dashboard-side work is identified follow-up, not silently dropped.
+- No real PostgreSQL server in this sandboxed development environment. `PgDumpBackupAdapter` is implemented against the real `pg_dump`/`pg_restore` CLI contract (command construction, exit-code/error handling) but is not exercised against a live Postgres instance in CI; `SqliteFileBackupAdapter` exercises the identical encryption/retention/restore seam against a real (if smaller-scope) database file. This is the same "test the seam, not the vendor binary" approach M4 used for vLLM (HTTP layer mocked, no real vLLM deployment) and M7 used for OCR (deterministic adapter, no real Tesseract).
+- No encrypted Qdrant backup. No vector database is used anywhere in this codebase yet (M4's AI orchestrator calls the runtime adapter directly with calculation context, no retrieval/embedding step), so there is nothing to back up; this is a real non-goal, not a deferred one.
+- No backup-key recovery or rotation mechanism. The threat model's open question ("Backup key recovery flow") is not resolved here — M8 requires and documents a key for every backup/restore operation (a genuine new control), but losing `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` makes existing backups permanently unrecoverable, and rotating it only affects backups taken after the rotation. This is documented as an operator responsibility, not silently glossed over.
+- No automatic periodic restore-verification job running against a scratch database in production. Restore correctness is proven by the test suite's real dump-then-restore round trip (`SqliteFileBackupAdapter`), consistent with keeping the self-hosted worker simple (ADR 0006); a production "canary restore" job is a reasonable future addition, not required for M8's "Restore test" bullet.
+- No malware/antivirus scanning of restored files, and no multi-target restore (restore always targets the same database the backup was taken from).
+- No email/webhook alerting on backup failure. `backup_jobs.status`/`error_message` are queryable via `GET /api/v1/backups`, satisfying the "or dashboard status" half of the implementation checklist's "alert or dashboard status" item; a notification channel is future work.
+- No user-configurable report schedule or report content customization. The weekly/monthly cadence is fixed.
+
+### Report Generation Behavior
+
+- Report content is assembled from the same deterministic financial-engine calculations M2/M3 already expose (`calculate_cash_flow`, `calculate_budget_summary`) plus goal progress read from `goals`/`account_balances`. "Wins," "risks," and "unusual spending" are produced by rule-based heuristics over that data (e.g. a budget category under its target is a win; a category exceeding its target or a period-over-period spend increase past a fixed threshold is a risk; a transaction category with no prior spending history above a fixed minor-unit threshold is flagged unusual) — never an LLM guess at the numbers themselves, matching the existing guardrail principle that numeric claims must trace back to a calculation output.
+- "Recommended actions" are deterministic templated strings keyed to which risks/wins fired (mirroring the purchase advisor's deterministic-explanation-stub fallback from M3), not free-form LLM generation.
+- The narrative explanation text wrapping the structured wins/risks/recommendations reuses the M4 `LlmExplanationAdapter` and guardrail validation unchanged: any generated sentence containing a number not traceable to the report's own calculation outputs is discarded in favor of the deterministic template text, exactly as M4 already does for purchase-advisor explanations.
+- A report is keyed by `(household_id, report_type, period_start)`; regenerating the same period is idempotent (updates the existing row) rather than creating duplicates, so the scheduled job can safely run more than once for the same period without operator intervention.
+- `calculate_cash_flow` always normalizes recurring income/bills to a monthly figure (its own existing 12-months-per-year assumption from M2, unchanged here). For a weekly report, that monthly figure is scaled down by a fixed 7/30 fraction before being handed to `calculate_budget_summary` alongside the period's actual category spend, so a weekly report's "remaining"/net cash flow is period-scoped rather than comparing seven days of actual spending against a full month of budgeted income and bills. This 7/30 approximation is recorded as a report assumption, the same way M2's calculations already document their own normalization assumptions.
+
+### Backup Job Lifecycle
+
+1. `pending` — `POST /api/v1/backups` or the scheduled job created the `backup_jobs` row.
+2. `running` — the adapter has started `dump_database`/staging-tree tar/encrypt.
+3. `completed` — the encrypted archive was written to `FAMILY_CFO_BACKUP_DIR`; `size_bytes` and `completed_at` are set.
+4. `failed` — any step raised; `error_message` holds a non-sensitive summary (adapter name and error class, never dump content), matching the `imports.error_message` convention from M7.
+- Retention runs after every successful backup: completed backups beyond `FAMILY_CFO_BACKUP_RETENTION_COUNT` (oldest first) are deleted from disk and marked accordingly; a `failed` backup is never counted toward or deleted by retention, so a run of failures doesn't silently erase the last good backup.
+- A restore reverts the *entire* database, including `backup_jobs` itself: the row for the backup being restored from necessarily reads `running` (its state at the moment the dump was taken), not `completed` (written after). This is an inherent property of a whole-database backup, not a bug -- restoring from backup N always also rolls back any `backup_jobs`/retention bookkeeping that happened after backup N was taken.
+
+### Backup Adapter Interface
+
+- `BackupAdapter` protocol: `dump_database(destination: Path) -> None` and `restore_database(source: Path) -> None`, deliberately narrow (no document-tree handling inside the adapter — that step is identical regardless of database backend, so it lives once in the shared backup service, not duplicated per adapter).
+- `PgDumpBackupAdapter` (real): shells out to `pg_dump --format=custom` / `pg_restore --clean` against `settings.database_url` when it is a `postgresql` URL.
+- `SqliteFileBackupAdapter` (test-only): copies the SQLite database file directly; used only when `settings.database_url` is a file-based `sqlite` URL (never `:memory:`, which cannot be file-copied — backup/restore tests use a `tmp_path` SQLite file, not the in-memory fixture the rest of the suite uses).
+- The backup service selects an adapter from `settings.database_url`'s scheme, the same "replaceable component selected by a settings/content-type value" pattern already used for `RuntimeAdapter` (M4) and `DocumentExtractionAdapter` (M7).
+
+### Encryption and Key Handling
+
+- `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (env var) holds a Fernet key (url-safe base64, 32 bytes — `Fernet.generate_key()` output). It is required at backup and restore time; a missing key raises a configuration error and aborts the job as `failed` rather than writing an unencrypted archive.
+- The encrypted archive bundles the database dump and the document-tree tar as two named entries so a single key encrypts/decrypts both in one operation.
+- Key generation, storage (env file or Docker secret, matching the pattern `docs/specs/10-docker-spec.md` already specifies for other secrets), and the "losing the key means permanent data loss" consequence are documented in `database/README.md`.
+
+### API Behavior
+
+- `POST /api/v1/reports/generate` requires `bearerAuth` and `owner`/`adult` (mutates household state, same bar as goal creation and import apply/discard).
+- `GET /api/v1/reports` and `GET /api/v1/reports/{id}` require `bearerAuth`, any household role.
+- `POST /api/v1/backups`, `GET /api/v1/backups`, and `POST /api/v1/backups/{id}/restore` require `bearerAuth` and `owner` only — matching the stricter bar already used for `PUT /api/v1/ai/runtime` and paired-device revocation, since backup/restore is a whole-household administrative action, not a single-record mutation.
+
+### Data Model Changes
+
+- Add `reports`: `id`, `household_id`, `report_type` (`weekly`/`monthly`), `period_start`, `period_end`, `generated_at`, `summary_json` (wins/risks/unusual_spending/goal_progress/recommended_actions), `explanation_text`, `model_version` (nullable), `prompt_version` (nullable), `calculation_version`.
+- Add `backup_jobs`: `id`, `status` (`pending`/`running`/`completed`/`failed`), `storage_path` (relative path under `FAMILY_CFO_BACKUP_DIR`, portable across environments like `import_files.storage_path`; cleared, not the row deleted, when retention prunes the file), `size_bytes` (nullable until completed), `error_message` (nullable), `started_at`, `completed_at` (nullable), `pruned_at` (nullable — set when retention deletes the on-disk file so `GET /api/v1/backups` still shows prior backup history), `created_at`.
+- Add `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`) and `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`) settings, mirroring the `FAMILY_CFO_IMPORT_STAGING_DIR` configuration pattern from M7.
+
+### Security Impact
+
+- Report content (`summary_json`, `explanation_text`) is `Sensitive` per the security model (transactions/goals/AI conversation-adjacent content) and is logged only by `report_id`/`report_type`/status, never field content, matching the existing prompt/purchase-detail logging convention.
+- Backup archives are `Restricted` (financial documents, bank data by way of the database dump) and are always encrypted at rest; `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` itself is never logged and never persisted to the database.
+- `backup_jobs.error_message` is restricted to adapter/error-class summaries — never raw dump bytes, file paths outside the configured backup directory, or connection strings.
+- Restore is destructive by nature (it replaces the current database and document tree); it is gated to `owner` and documented as such, with no additional in-API confirmation step — the two-step "are you sure" belongs in the (future) dashboard UI, not the API contract.
+
+### Test Expectations
+
+- Financial-engine-adjacent report logic: unit tests for the wins/risks/unusual-spending heuristics against synthetic transaction/goal fixtures, covering at least one case per category (win, risk, unusual, none-triggered).
+- Report generation service: unit tests confirming guardrail fallback (a numeric hallucination in the mocked explanation adapter's output is discarded in favor of the deterministic template, same pattern as the M3/M4 purchase-advisor guardrail tests) and idempotent regeneration for the same `(household_id, report_type, period_start)`.
+- `GET`/`POST /api/v1/reports*`: integration tests for generate/list/detail, role gating (`owner`/`adult` for generate, any role for read), and the OpenAPI contract check.
+- `backup-adapter` unit tests: `SqliteFileBackupAdapter` dump/restore round trip against a `tmp_path` SQLite file (not `:memory:`); `PgDumpBackupAdapter` command-construction/error-handling tests using a stubbed subprocess call (no real `pg_dump` binary required in CI, matching how M4 mocks the vLLM HTTP layer).
+- Encryption tests: a backup archive is unreadable without the key; decrypting with the correct key reproduces the original dump and document tree byte-for-byte.
+- Retention tests: creating more than `FAMILY_CFO_BACKUP_RETENTION_COUNT` completed backups deletes only the oldest excess, never a `failed` job, never more than necessary.
+- Restore verification test (the roadmap's "Restore test" bullet): full round trip — seed synthetic household data, back up, mutate/delete the data, restore, assert the restored data matches the original seed exactly. This is the concrete implementation of that bullet; there is no separate production restore-canary job (see Non-Goals).
+- `POST /api/v1/backups*`: integration tests for on-demand backup, list, restore, and `owner`-only role gating.
+- Scheduler tests: `run_scheduled_reports_once`/the daily backup job tested directly and synchronously (no real APScheduler trigger needs to fire in tests), following the exact pattern `run_pending_imports_once` established in M7.
+
+### Documentation Impact
+
+- Update `database/README.md`: new tables (`reports`, `backup_jobs`), backup volume location, key generation/storage instructions, and the restore procedure.
+- Update `apps/api/README.md`: new endpoints, `FAMILY_CFO_BACKUP_DIR`/`FAMILY_CFO_BACKUP_RETENTION_COUNT`/`FAMILY_CFO_BACKUP_ENCRYPTION_KEY` settings, and the `worker` target's expanded responsibilities (imports + reports + backups).
+- Update `shared/openapi/family-cfo.v1.yaml` with the new `Reports`/`Backups` paths and schemas.
+- Update `docs/specs/README.md`'s Acceptance State with M8's implemented/non-goal summary, following the exact phrasing convention used for M2–M7.

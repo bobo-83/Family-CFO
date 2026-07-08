@@ -9,7 +9,12 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import repository
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
-from family_cfo_api.schemas import ErrorResponse, ImportCreateRequest, ImportListResponse, ImportRecord
+from family_cfo_api.schemas import (
+    ErrorResponse,
+    ImportCreateRequest,
+    ImportListResponse,
+    ImportRecord,
+)
 
 router = APIRouter(tags=["Imports"])
 logger = logging.getLogger(__name__)
@@ -92,7 +97,9 @@ async def upload_import_file(
     if record is None:
         raise HTTPException(status_code=404, detail="Import not found")
     if record.status != "pending":
-        raise HTTPException(status_code=400, detail=f"Import is not awaiting a file (status={record.status})")
+        raise HTTPException(
+            status_code=400, detail=f"Import is not awaiting a file (status={record.status})"
+        )
 
     content = await file.read()
     if not content:

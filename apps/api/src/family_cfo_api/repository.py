@@ -43,9 +43,11 @@ class SessionContext:
 
 def get_user_by_email(engine: Engine, email: str) -> UserRecord | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            select(models.users).where(models.users.c.email == email)
-        ).mappings().first()
+        row = (
+            conn.execute(select(models.users).where(models.users.c.email == email))
+            .mappings()
+            .first()
+        )
 
     if row is None:
         return None
@@ -108,9 +110,13 @@ def create_auth_session(
 
 def get_session_context(engine: Engine, token_hash: str) -> SessionContext | None:
     with engine.connect() as conn:
-        session_row = conn.execute(
-            select(models.auth_sessions).where(models.auth_sessions.c.token_hash == token_hash)
-        ).mappings().first()
+        session_row = (
+            conn.execute(
+                select(models.auth_sessions).where(models.auth_sessions.c.token_hash == token_hash)
+            )
+            .mappings()
+            .first()
+        )
 
         if session_row is None or session_row["revoked_at"] is not None:
             return None
@@ -225,9 +231,15 @@ def confirm_pairing_session(
     auth_session_id = new_id()
 
     with engine.begin() as conn:
-        session = conn.execute(
-            select(models.pairing_sessions).where(models.pairing_sessions.c.id == pairing_session_id)
-        ).mappings().first()
+        session = (
+            conn.execute(
+                select(models.pairing_sessions).where(
+                    models.pairing_sessions.c.id == pairing_session_id
+                )
+            )
+            .mappings()
+            .first()
+        )
 
         if session is None:
             return None
@@ -274,7 +286,9 @@ def confirm_pairing_session(
             )
         )
 
-    return DeviceCredentialRecord(device_id=device_id, access_token=access_token, expires_at=expires_at)
+    return DeviceCredentialRecord(
+        device_id=device_id, access_token=access_token, expires_at=expires_at
+    )
 
 
 def list_paired_devices(engine: Engine, household_id: str) -> list[PairedDeviceRecord]:
@@ -348,14 +362,18 @@ class AccountBalanceRecord:
 
 def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            select(models.households).where(models.households.c.id == household_id)
-        ).mappings().first()
+        row = (
+            conn.execute(select(models.households).where(models.households.c.id == household_id))
+            .mappings()
+            .first()
+        )
 
     if row is None:
         return None
 
-    return HouseholdRecord(id=row["id"], display_name=row["display_name"], base_currency=row["base_currency"])
+    return HouseholdRecord(
+        id=row["id"], display_name=row["display_name"], base_currency=row["base_currency"]
+    )
 
 
 def list_account_balances(engine: Engine, household_id: str) -> list[AccountBalanceRecord]:
@@ -426,7 +444,9 @@ class RecurringRecord:
     frequency: str
 
 
-def list_transactions(engine: Engine, household_id: str, limit: int = 200) -> list[TransactionRecord]:
+def list_transactions(
+    engine: Engine, household_id: str, limit: int = 200
+) -> list[TransactionRecord]:
     query = (
         select(
             models.transactions.c.id,
@@ -567,9 +587,11 @@ def create_goal(
                 updated_at=now,
             )
         )
-        row = conn.execute(
-            select(models.goals).where(models.goals.c.id == goal_id)
-        ).mappings().first()
+        row = (
+            conn.execute(select(models.goals).where(models.goals.c.id == goal_id))
+            .mappings()
+            .first()
+        )
 
     assert row is not None
     return _goal_record_from_row(row)
@@ -700,11 +722,15 @@ class AiRuntimeConfigRecord:
 
 def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigRecord | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            select(models.ai_runtime_configs).where(
-                models.ai_runtime_configs.c.household_id == household_id
+        row = (
+            conn.execute(
+                select(models.ai_runtime_configs).where(
+                    models.ai_runtime_configs.c.household_id == household_id
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
 
     if row is None:
         return None
@@ -751,11 +777,21 @@ def upsert_ai_runtime_config(
             conn.execute(
                 update(models.ai_runtime_configs)
                 .where(models.ai_runtime_configs.c.household_id == household_id)
-                .values(provider=provider, base_url=base_url, model=model, enabled=enabled, updated_at=now)
+                .values(
+                    provider=provider,
+                    base_url=base_url,
+                    model=model,
+                    enabled=enabled,
+                    updated_at=now,
+                )
             )
 
     return AiRuntimeConfigRecord(
-        household_id=household_id, provider=provider, base_url=base_url, model=model, enabled=enabled
+        household_id=household_id,
+        provider=provider,
+        base_url=base_url,
+        model=model,
+        enabled=enabled,
     )
 
 
@@ -825,7 +861,11 @@ def create_import(
                 updated_at=now,
             )
         )
-        row = conn.execute(select(models.imports).where(models.imports.c.id == import_id)).mappings().first()
+        row = (
+            conn.execute(select(models.imports).where(models.imports.c.id == import_id))
+            .mappings()
+            .first()
+        )
 
     assert row is not None
     return _import_record_from_row(row)
@@ -889,7 +929,9 @@ def create_import_file(
 def get_import_file(engine: Engine, import_id: str) -> ImportFileRecord | None:
     with engine.connect() as conn:
         row = (
-            conn.execute(select(models.import_files).where(models.import_files.c.import_id == import_id))
+            conn.execute(
+                select(models.import_files).where(models.import_files.c.import_id == import_id)
+            )
             .mappings()
             .first()
         )
@@ -920,7 +962,9 @@ def update_import_status(
         values["skipped_row_count"] = skipped_row_count
 
     with engine.begin() as conn:
-        conn.execute(update(models.imports).where(models.imports.c.id == import_id).values(**values))
+        conn.execute(
+            update(models.imports).where(models.imports.c.id == import_id).values(**values)
+        )
 
 
 def increment_import_retry_count(engine: Engine, import_id: str) -> int:
@@ -1135,7 +1179,11 @@ def create_document(
         )
 
     return DocumentRecord(
-        id=document_id, household_id=household_id, content_type=content_type, storage_path=storage_path, created_at=now
+        id=document_id,
+        household_id=household_id,
+        content_type=content_type,
+        storage_path=storage_path,
+        created_at=now,
     )
 
 
@@ -1231,3 +1279,312 @@ def list_documents_with_extractions(
         results.append((document, extraction))
 
     return results
+
+
+# --- Reports ---------------------------------------------------------------------
+
+
+def list_transactions_in_range(
+    engine: Engine, household_id: str, start: date, end_exclusive: date
+) -> list[TransactionRecord]:
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.account_id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transaction_categories.c.name.label("category"),
+            models.transactions.c.description,
+        )
+        .select_from(models.transactions)
+        .join(
+            models.transaction_categories,
+            models.transaction_categories.c.id == models.transactions.c.category_id,
+            isouter=True,
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.occurred_at >= start,
+            models.transactions.c.occurred_at < end_exclusive,
+        )
+        .order_by(models.transactions.c.occurred_at)
+    )
+
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+
+    return [
+        TransactionRecord(
+            id=row.id,
+            account_id=row.account_id,
+            occurred_at=row.occurred_at,
+            amount_minor=row.amount_minor,
+            currency=row.currency,
+            merchant=row.merchant,
+            category=row.category,
+            description=row.description,
+        )
+        for row in rows
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class ReportRecord:
+    id: str
+    household_id: str
+    report_type: str
+    period_start: date
+    period_end: date
+    summary: dict[str, Any]
+    explanation_text: str
+    explanation_source: str
+    model_version: str | None
+    prompt_version: str | None
+    calculation_version: str
+    generated_at: datetime
+
+
+def _report_record_from_row(row: Any) -> ReportRecord:
+    return ReportRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        report_type=row["report_type"],
+        period_start=row["period_start"],
+        period_end=row["period_end"],
+        summary=row["summary_json"],
+        explanation_text=row["explanation_text"],
+        explanation_source=row["explanation_source"],
+        model_version=row["model_version"],
+        prompt_version=row["prompt_version"],
+        calculation_version=row["calculation_version"],
+        generated_at=row["generated_at"],
+    )
+
+
+def upsert_report(
+    engine: Engine,
+    household_id: str,
+    report_type: str,
+    period_start: date,
+    period_end: date,
+    summary: dict[str, Any],
+    explanation_text: str,
+    explanation_source: str,
+    calculation_version: str,
+    model_version: str | None = None,
+    prompt_version: str | None = None,
+) -> ReportRecord:
+    """Create or replace the report for this (household, report_type, period_start).
+
+    Regenerating the same period is idempotent (an update, not a duplicate
+    row), so the scheduled job can safely run more than once for the same
+    period without operator intervention.
+    """
+    now = utcnow()
+    with engine.begin() as conn:
+        existing_id = conn.execute(
+            select(models.reports.c.id).where(
+                models.reports.c.household_id == household_id,
+                models.reports.c.report_type == report_type,
+                models.reports.c.period_start == period_start,
+            )
+        ).scalar_one_or_none()
+
+        report_id = existing_id or new_id()
+        values = dict(
+            household_id=household_id,
+            report_type=report_type,
+            period_start=period_start,
+            period_end=period_end,
+            summary_json=summary,
+            explanation_text=explanation_text,
+            explanation_source=explanation_source,
+            model_version=model_version,
+            prompt_version=prompt_version,
+            calculation_version=calculation_version,
+            generated_at=now,
+        )
+
+        if existing_id is not None:
+            conn.execute(
+                update(models.reports).where(models.reports.c.id == existing_id).values(**values)
+            )
+        else:
+            conn.execute(insert(models.reports).values(id=report_id, **values))
+
+    return ReportRecord(
+        id=report_id,
+        household_id=household_id,
+        report_type=report_type,
+        period_start=period_start,
+        period_end=period_end,
+        summary=summary,
+        explanation_text=explanation_text,
+        explanation_source=explanation_source,
+        model_version=model_version,
+        prompt_version=prompt_version,
+        calculation_version=calculation_version,
+        generated_at=now,
+    )
+
+
+def get_report(engine: Engine, household_id: str, report_id: str) -> ReportRecord | None:
+    query = select(models.reports).where(
+        models.reports.c.household_id == household_id, models.reports.c.id == report_id
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _report_record_from_row(row) if row is not None else None
+
+
+def get_report_by_period(
+    engine: Engine, household_id: str, report_type: str, period_start: date
+) -> ReportRecord | None:
+    query = select(models.reports).where(
+        models.reports.c.household_id == household_id,
+        models.reports.c.report_type == report_type,
+        models.reports.c.period_start == period_start,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _report_record_from_row(row) if row is not None else None
+
+
+def list_reports(engine: Engine, household_id: str) -> list[ReportRecord]:
+    query = (
+        select(models.reports)
+        .where(models.reports.c.household_id == household_id)
+        .order_by(models.reports.c.period_start.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_report_record_from_row(row) for row in rows]
+
+
+def list_households(engine: Engine) -> list[str]:
+    query = select(models.households.c.id)
+    with engine.connect() as conn:
+        return [row[0] for row in conn.execute(query).all()]
+
+
+# --- Backups -----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BackupJobRecord:
+    id: str
+    status: str
+    storage_path: str | None
+    size_bytes: int | None
+    error_message: str | None
+    started_at: datetime
+    completed_at: datetime | None
+    pruned_at: datetime | None
+    created_at: datetime
+
+
+def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
+    return BackupJobRecord(
+        id=row["id"],
+        status=row["status"],
+        storage_path=row["storage_path"],
+        size_bytes=row["size_bytes"],
+        error_message=row["error_message"],
+        started_at=row["started_at"],
+        completed_at=row["completed_at"],
+        pruned_at=row["pruned_at"],
+        created_at=row["created_at"],
+    )
+
+
+def create_backup_job(engine: Engine) -> BackupJobRecord:
+    backup_job_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.backup_jobs).values(
+                id=backup_job_id,
+                status="pending",
+                storage_path=None,
+                size_bytes=None,
+                error_message=None,
+                started_at=now,
+                completed_at=None,
+                pruned_at=None,
+                created_at=now,
+            )
+        )
+    return BackupJobRecord(
+        id=backup_job_id,
+        status="pending",
+        storage_path=None,
+        size_bytes=None,
+        error_message=None,
+        started_at=now,
+        completed_at=None,
+        pruned_at=None,
+        created_at=now,
+    )
+
+
+def update_backup_job(
+    engine: Engine,
+    backup_job_id: str,
+    status: str,
+    storage_path: str | None = None,
+    size_bytes: int | None = None,
+    error_message: str | None = None,
+) -> None:
+    values: dict[str, Any] = {"status": status}
+    if storage_path is not None:
+        values["storage_path"] = storage_path
+    if size_bytes is not None:
+        values["size_bytes"] = size_bytes
+    if error_message is not None:
+        values["error_message"] = error_message
+    if status in ("completed", "failed"):
+        values["completed_at"] = utcnow()
+
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.backup_jobs)
+            .where(models.backup_jobs.c.id == backup_job_id)
+            .values(**values)
+        )
+
+
+def get_backup_job(engine: Engine, backup_job_id: str) -> BackupJobRecord | None:
+    query = select(models.backup_jobs).where(models.backup_jobs.c.id == backup_job_id)
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _backup_job_record_from_row(row) if row is not None else None
+
+
+def list_backup_jobs(engine: Engine) -> list[BackupJobRecord]:
+    query = select(models.backup_jobs).order_by(models.backup_jobs.c.created_at.desc())
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_backup_job_record_from_row(row) for row in rows]
+
+
+def list_completed_backup_jobs_for_retention(engine: Engine) -> list[BackupJobRecord]:
+    """Completed, not-yet-pruned backups, oldest first (the order retention deletes in)."""
+    query = (
+        select(models.backup_jobs)
+        .where(models.backup_jobs.c.status == "completed", models.backup_jobs.c.pruned_at.is_(None))
+        .order_by(models.backup_jobs.c.completed_at.asc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_backup_job_record_from_row(row) for row in rows]
+
+
+def mark_backup_job_pruned(engine: Engine, backup_job_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.backup_jobs)
+            .where(models.backup_jobs.c.id == backup_job_id)
+            .values(pruned_at=utcnow(), storage_path=None)
+        )

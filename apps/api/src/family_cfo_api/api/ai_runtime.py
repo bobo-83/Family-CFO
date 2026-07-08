@@ -11,7 +11,9 @@ router = APIRouter(tags=["AI Runtime"])
 # default so no household starts sending financial context to any runtime
 # without an explicit opt-in (local AI first, per README architectural
 # principles).
-_DEFAULT_CONFIG = AiRuntimeConfig(provider="vllm", base_url="http://vllm:8000", model="", enabled=False)
+_DEFAULT_CONFIG = AiRuntimeConfig(
+    provider="vllm", base_url="http://vllm:8000", model="", enabled=False
+)
 
 
 def _to_schema(record: repository.AiRuntimeConfigRecord) -> AiRuntimeConfig:

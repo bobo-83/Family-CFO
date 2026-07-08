@@ -390,49 +390,52 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M8 scope.
-- [ ] Define M8 non-goals.
-- [ ] Define weekly report content.
-- [ ] Define monthly report content.
-- [ ] Define annual report content if included in M8.
-- [ ] Define report generation schedule.
-- [ ] Define encrypted backup format.
-- [ ] Define backup key handling.
-- [ ] Define restore test expectations.
-- [ ] Define M8 security impact.
-- [ ] Define M8 unit and integration test expectations.
-- [ ] Define M8 documentation updates.
+- [x] Define M8 scope.
+- [x] Define M8 non-goals.
+- [x] Define weekly report content.
+- [x] Define monthly report content.
+- [x] Define annual report content if included in M8. (Decided: not included — tracked as backlog below, roadmap bullets name only weekly/monthly.)
+- [x] Define report generation schedule.
+- [x] Define encrypted backup format.
+- [x] Define backup key handling.
+- [x] Define restore test expectations.
+- [x] Define M8 security impact.
+- [x] Define M8 unit and integration test expectations.
+- [x] Define M8 documentation updates.
 
 ### Reports
 
-- [ ] Create migrations for reports.
-- [ ] Implement report generation service.
-- [ ] Implement weekly report generator.
-- [ ] Implement monthly report generator.
-- [ ] Implement annual report generator if accepted into M8 scope.
-- [ ] Include wins, risks, unusual spending, goal progress, and recommended actions in reports.
-- [ ] Attach explanation text to calculation references.
-- [ ] Implement `GET /api/v1/reports`.
-- [ ] Add scheduled report job.
-- [ ] Add report unit tests.
-- [ ] Add report API integration tests.
-- [ ] Add report scheduler tests.
+- [x] Create migrations for reports.
+- [x] Implement report generation service.
+- [x] Implement weekly report generator.
+- [x] Implement monthly report generator.
+- [x] Implement annual report generator if accepted into M8 scope. (Not accepted into scope — see backlog.)
+- [x] Include wins, risks, unusual spending, goal progress, and recommended actions in reports.
+- [x] Attach explanation text to calculation references.
+- [x] Implement `POST /api/v1/reports/generate`, `GET /api/v1/reports`, `GET /api/v1/reports/{id}`.
+- [x] Add scheduled report job.
+- [x] Add report unit tests.
+- [x] Add report API integration tests.
+- [x] Add report scheduler tests.
 
 ### Backups
 
-- [ ] Create migrations for backup jobs.
-- [ ] Implement backup job persistence.
-- [ ] Implement encrypted PostgreSQL backup.
-- [ ] Implement encrypted document backup.
-- [ ] Implement encrypted Qdrant backup if vector data is used.
-- [ ] Implement backup retention policy.
-- [ ] Implement backup restore workflow.
-- [ ] Add restore verification test.
-- [ ] Add backup failure alert or dashboard status.
-- [ ] Document backup volumes.
-- [ ] Document backup key handling.
-- [ ] Document restore procedure.
-- [ ] Run verification commands.
+- [x] Create migrations for backup jobs.
+- [x] Implement backup job persistence.
+- [x] Implement `BackupAdapter` protocol, `PgDumpBackupAdapter`, and `SqliteFileBackupAdapter`.
+- [x] Implement encrypted PostgreSQL backup.
+- [x] Implement encrypted document backup.
+- [x] Implement encrypted Qdrant backup if vector data is used. (Non-goal — no vector database exists in this codebase yet.)
+- [x] Implement backup retention policy.
+- [x] Implement backup restore workflow.
+- [x] Add restore verification test.
+- [x] Add backup failure alert or dashboard status. (Dashboard status via `GET /api/v1/backups`; alerting is future work.)
+- [x] Implement `POST /api/v1/backups`, `GET /api/v1/backups`, `POST /api/v1/backups/{id}/restore`.
+- [x] Add scheduled daily backup job.
+- [x] Document backup volumes.
+- [x] Document backup key handling.
+- [x] Document restore procedure.
+- [x] Run verification commands.
 - [ ] Commit M8 reports and backups changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
@@ -445,6 +448,14 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 - [ ] Add a `calculate_retirement_projection` calculation to the financial engine.
 - [ ] Add a general scenario-planning API (beyond the purchase advisor) covering "can we retire at 55" and "should we refinance" style questions, per the PRD's Scenario Planning journey.
 - [ ] Assign the remaining items above to a specific milestone.
+
+## Backlog: Annual Report
+
+The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.
+
+- [ ] Add an `annual` `report_type` to the M8 `reports` table/generation service (same wins/risks/unusual-spending/goal-progress/recommended-actions shape, year-scoped instead of week/month-scoped).
+- [ ] Add a scheduled annual report job (e.g. January 1st) once the above lands.
+- [ ] Assign to a specific milestone.
 
 ## Release Readiness
 

@@ -40,7 +40,11 @@ async def test_viewer_cannot_create_goal(demo_client, demo_viewer_token) -> None
 async def test_create_goal_requires_authentication(demo_client) -> None:
     response = await demo_client.post(
         "/api/v1/goals",
-        json={"name": "New car", "type": "vehicle", "target": {"amount_minor": 1, "currency": "USD"}},
+        json={
+            "name": "New car",
+            "type": "vehicle",
+            "target": {"amount_minor": 1, "currency": "USD"},
+        },
     )
 
     assert response.status_code == 401

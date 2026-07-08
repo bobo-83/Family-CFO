@@ -15,7 +15,9 @@ async def test_create_import_requires_authentication(demo_client) -> None:
 
 
 @pytest.mark.anyio
-async def test_full_csv_import_lifecycle(demo_client, demo_token, demo_engine, demo_settings) -> None:
+async def test_full_csv_import_lifecycle(
+    demo_client, demo_token, demo_engine, demo_settings
+) -> None:
     create_response = await demo_client.post(
         "/api/v1/imports",
         headers={"Authorization": f"Bearer {demo_token}"},
@@ -38,7 +40,9 @@ async def test_full_csv_import_lifecycle(demo_client, demo_token, demo_engine, d
     assert upload_response.status_code == 202
 
     # No scheduler runs in tests; invoke the job function directly.
-    processed = import_processing.run_pending_imports_once(demo_engine, demo_settings.import_staging_dir)
+    processed = import_processing.run_pending_imports_once(
+        demo_engine, demo_settings.import_staging_dir
+    )
     assert processed == 1
 
     list_response = await demo_client.get(
@@ -92,11 +96,15 @@ async def test_discard_import_removes_pending_transactions(
     transactions_response = await demo_client.get(
         "/api/v1/transactions", headers={"Authorization": f"Bearer {demo_token}"}
     )
-    assert not any(t["merchant"] == "Snack Shop" for t in transactions_response.json()["transactions"])
+    assert not any(
+        t["merchant"] == "Snack Shop" for t in transactions_response.json()["transactions"]
+    )
 
 
 @pytest.mark.anyio
-async def test_viewer_cannot_apply_or_discard_imports(demo_client, demo_token, demo_viewer_token) -> None:
+async def test_viewer_cannot_apply_or_discard_imports(
+    demo_client, demo_token, demo_viewer_token
+) -> None:
     create_response = await demo_client.post(
         "/api/v1/imports",
         headers={"Authorization": f"Bearer {demo_token}"},
@@ -105,12 +113,14 @@ async def test_viewer_cannot_apply_or_discard_imports(demo_client, demo_token, d
     import_id = create_response.json()["id"]
 
     apply_response = await demo_client.post(
-        f"/api/v1/imports/{import_id}/apply", headers={"Authorization": f"Bearer {demo_viewer_token}"}
+        f"/api/v1/imports/{import_id}/apply",
+        headers={"Authorization": f"Bearer {demo_viewer_token}"},
     )
     assert apply_response.status_code == 403
 
     discard_response = await demo_client.post(
-        f"/api/v1/imports/{import_id}/discard", headers={"Authorization": f"Bearer {demo_viewer_token}"}
+        f"/api/v1/imports/{import_id}/discard",
+        headers={"Authorization": f"Bearer {demo_viewer_token}"},
     )
     assert discard_response.status_code == 403
 

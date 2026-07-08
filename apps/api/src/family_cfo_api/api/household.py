@@ -24,7 +24,9 @@ async def get_household_context(
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
 
-    net_worth_result = finance_service.compute_net_worth(engine, household.id, household.base_currency)
+    net_worth_result = finance_service.compute_net_worth(
+        engine, household.id, household.base_currency
+    )
     emergency_fund_result = finance_service.compute_emergency_fund(
         engine, household.id, household.base_currency
     )

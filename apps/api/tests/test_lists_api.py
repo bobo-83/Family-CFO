@@ -11,7 +11,9 @@ LIST_ENDPOINTS = [
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(("path", "key", "expected_count"), LIST_ENDPOINTS)
-async def test_list_endpoint_requires_authentication(demo_client, path, key, expected_count) -> None:
+async def test_list_endpoint_requires_authentication(
+    demo_client, path, key, expected_count
+) -> None:
     response = await demo_client.get(path)
 
     assert response.status_code == 401

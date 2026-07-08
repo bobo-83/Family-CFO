@@ -5,4 +5,3 @@ def test_check_database_connection_executes_probe() -> None:
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
 
     check_database_connection(engine)
-

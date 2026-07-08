@@ -166,5 +166,7 @@ async def revoke_paired_device(
     if not revoked:
         raise HTTPException(status_code=404, detail="Paired device not found")
 
-    logger.info("paired device revoked household_id=%s device_id=%s", session.household_id, device_id)
+    logger.info(
+        "paired device revoked household_id=%s device_id=%s", session.household_id, device_id
+    )
     return Response(status_code=204)

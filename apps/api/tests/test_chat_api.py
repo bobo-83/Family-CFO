@@ -28,13 +28,21 @@ async def test_chat_returns_calculation_referenced_recommendation(
     assert body["conversation_id"]
     assert recommendation["id"]
     assert len(recommendation["calculation_refs"]) == 2
-    assert all(ref.startswith("financial_calculations:") for ref in recommendation["calculation_refs"])
+    assert all(
+        ref.startswith("financial_calculations:") for ref in recommendation["calculation_refs"]
+    )
     assert recommendation["impacts"][0]["area"] == "net_worth"
 
     with demo_engine.connect() as conn:
-        stored = conn.execute(
-            select(models.recommendations).where(models.recommendations.c.id == recommendation["id"])
-        ).mappings().first()
+        stored = (
+            conn.execute(
+                select(models.recommendations).where(
+                    models.recommendations.c.id == recommendation["id"]
+                )
+            )
+            .mappings()
+            .first()
+        )
         scenario_count = len(conn.execute(select(models.scenarios)).all())
 
     assert stored is not None

@@ -1,9 +1,10 @@
 from family_cfo_ai_orchestrator.guardrails import (
     find_unattributed_numbers,
     known_values_from_facts,
+    known_values_from_report_facts,
     validate_recommendation,
 )
-from family_cfo_ai_orchestrator.prompts import PurchaseFacts
+from family_cfo_ai_orchestrator.prompts import PurchaseFacts, ReportFacts
 
 
 def _facts() -> PurchaseFacts:
@@ -14,6 +15,17 @@ def _facts() -> PurchaseFacts:
         emergency_fund_months_before=9.6,
         emergency_fund_months_after=8.9,
         discretionary_months_consumed=0.4,
+    )
+
+
+def _report_facts() -> ReportFacts:
+    return ReportFacts(
+        report_type="weekly",
+        period_start="2026-06-29",
+        period_end="2026-07-05",
+        net_cash_flow_display="USD 500.00",
+        wins=["You stayed within budget with USD 500.00 remaining."],
+        risks=["Groceries spending rose from USD 100.00 to USD 200.00."],
     )
 
 
@@ -61,3 +73,30 @@ def test_find_unattributed_numbers_normalizes_thousands_separators() -> None:
     violations = find_unattributed_numbers("The price was USD 1,500.00.", known)
 
     assert violations == []
+
+
+def test_known_values_from_report_facts_extracts_all_report_numbers() -> None:
+    known = known_values_from_report_facts(_report_facts())
+
+    assert "500.00" in known
+    assert "100.00" in known
+    assert "200.00" in known
+
+
+def test_validate_recommendation_passes_for_grounded_report_text() -> None:
+    known = known_values_from_report_facts(_report_facts())
+    text = "Your weekly report shows USD 500.00 remaining after Groceries rose to USD 200.00."
+
+    result = validate_recommendation(text, known)
+
+    assert result.passed
+
+
+def test_validate_recommendation_fails_for_invented_report_number() -> None:
+    known = known_values_from_report_facts(_report_facts())
+    text = "Your savings rate improved by 42% this week."
+
+    result = validate_recommendation(text, known)
+
+    assert not result.passed
+    assert "42" in result.violations

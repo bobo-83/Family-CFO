@@ -146,6 +146,36 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/imports/$IMPORT_ID/file" \
 
 Nothing happens to the file until the worker runs (`make worker` or `family-cfo-worker`). Once it has, `GET /api/v1/imports` shows `status: needs_review`, and the parsed rows appear as `pending` transactions.
 
+## M8 Scope
+
+Implemented:
+
+- `POST /api/v1/reports/generate` (`owner`/`adult`) generates or regenerates a `weekly` or `monthly` report for the caller's household, reusing `calculate_cash_flow`/`calculate_budget_summary`/`calculate_goal_progress` (see `services/financial-engine/README.md`) against the report's period. Regenerating the same `(household_id, report_type, period_start)` updates the existing row instead of creating a duplicate. `GET /api/v1/reports` and `GET /api/v1/reports/{id}` are available to every household role.
+- Report content is wins/risks/unusual-spending (rule-based heuristics over category spend, never an LLM guess at the numbers) plus goal progress and a narrative `explanation_text` produced by the same `LlmExplanationAdapter`/guardrail-fallback/`DeterministicExplanationAdapter` pattern M3/M4 already use for the purchase advisor (`family_cfo_api/report_generation.py`, `family_cfo_api/ai_runtime_selection.py` — the latter factors the adapter-selection logic the purchase advisor used to keep privately, now shared between both features).
+- `POST /api/v1/backups`, `GET /api/v1/backups`, and `POST /api/v1/backups/{id}/restore` are `owner`-only (a whole-household administrative action, the same bar as `PUT /api/v1/ai/runtime`). A backup bundles an encrypted database dump plus a tar of the import/document staging tree into one archive (`family_cfo_api/backup_processing.py`, `services/backup`'s `family_cfo_backup` package — `BackupAdapter` protocol, `PgDumpBackupAdapter` real/`SqliteFileBackupAdapter` test-only, ADR 0007). Every backup is Fernet-encrypted; there is no unencrypted-backup code path, and a missing `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` fails the backup job rather than writing plaintext.
+- Restore fully replaces the current database and document tree from a backup archive — a destructive operation by definition, gated to `owner`, with no additional API-level confirmation step (that belongs in a future dashboard UI). Restoring also reverts `backup_jobs`' own bookkeeping to its state at dump time; see the M8 section of `docs/specs/11-milestone-roadmap.md` for why.
+- `family-cfo-worker` now also polls hourly for weekly/monthly reports not yet generated for the current period (skipping households already covered, so a missed poll self-heals without re-calling the AI runtime) and runs a backup once a day, applying `FAMILY_CFO_BACKUP_RETENTION_COUNT` retention (oldest completed backups pruned first) after each successful run.
+
+Not implemented in M8:
+
+- An annual report — the roadmap named only weekly/monthly; tracked as backlog in `docs/specs/12-implementation-tasks.md`.
+- Any Angular "Reports"/"Backups" page upgrade — those remain M5's placeholder shells (same backend-first split M6 and M7 used).
+- A real PostgreSQL server in this sandboxed environment; `PgDumpBackupAdapter` is command/error-handling tested only (no `pg_dump`/`pg_restore` binary here). `SqliteFileBackupAdapter` exercises the identical encrypt/dump/retention/restore code paths against a real file.
+- Backup-key recovery or rotation, and any automatic periodic restore-canary job in production — see the M8 Non-Goals in the roadmap doc.
+
+### Reports and Backups Flow
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/reports/generate \
+  -H "authorization: Bearer <access_token>" -H 'content-type: application/json' \
+  -d '{"report_type": "weekly"}'
+
+curl -s -X POST http://127.0.0.1:8000/api/v1/backups \
+  -H "authorization: Bearer <access_token>"
+```
+
+`FAMILY_CFO_BACKUP_ENCRYPTION_KEY` must be a Fernet key (`python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`). Losing it makes existing backups permanently unrecoverable — there is no recovery mechanism.
+
 ## Setup
 
 ```bash
@@ -155,7 +185,7 @@ python3 -m venv .venv
 make install
 ```
 
-`make install` also installs the sibling `family-cfo-financial-engine`, `family-cfo-ai-orchestrator`, `family-cfo-ocr-worker`, and `family-cfo-scheduler` packages from `services/` in editable mode, since the API depends on all four but none is a published package.
+`make install` also installs the sibling `family-cfo-financial-engine`, `family-cfo-ai-orchestrator`, `family-cfo-ocr-worker`, `family-cfo-scheduler`, and `family-cfo-backup` packages from `services/` in editable mode, since the API depends on all five but none is a published package.
 
 Optional local configuration reference:
 
@@ -188,7 +218,7 @@ Expected response:
 }
 ```
 
-Run the background import-processing worker (a separate process from the API server):
+Run the background worker (a separate process from the API server) — polls for pending imports every 30 seconds, weekly/monthly reports hourly, and runs a backup once a day:
 
 ```bash
 cd apps/api
@@ -245,9 +275,9 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`). `make migrate` applies all of them.
 
-Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk.
+Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
 
 ## Fixtures
 

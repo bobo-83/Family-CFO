@@ -31,7 +31,8 @@ def compute_net_worth_with_ref(
 ) -> tuple[CalculationResult, str]:
     balances = repository.list_account_balances(engine, household_id)
     engine_balances = [
-        AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency)) for b in balances
+        AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency))
+        for b in balances
     ]
 
     result = calculate_net_worth(engine_balances, currency)
@@ -65,7 +66,8 @@ def compute_purchase_impact(
 ) -> tuple[CalculationResult, str]:
     balances = repository.list_account_balances(engine, household_id)
     engine_balances = [
-        AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency)) for b in balances
+        AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency))
+        for b in balances
     ]
     net_worth_result = calculate_net_worth(engine_balances, currency)
 
@@ -82,7 +84,9 @@ def compute_purchase_impact(
         RecurringAmount(bill.name, Money(bill.amount_minor, bill.currency), bill.frequency)
         for bill in repository.list_bills(engine, household_id)
     ]
-    cash_flow_result = calculate_cash_flow(income_amounts, bill_amounts, Money.zero(currency), currency)
+    cash_flow_result = calculate_cash_flow(
+        income_amounts, bill_amounts, Money.zero(currency), currency
+    )
 
     goals = repository.list_goals(engine, household_id)
     top_goal = None
@@ -114,7 +118,9 @@ def _monthly_bill_total(engine: Engine, household_id: str, currency: str) -> Mon
     bills = repository.list_bills(engine, household_id)
     total = Money.zero(currency)
     for bill in bills:
-        recurring = RecurringAmount(bill.name, Money(bill.amount_minor, bill.currency), bill.frequency)
+        recurring = RecurringAmount(
+            bill.name, Money(bill.amount_minor, bill.currency), bill.frequency
+        )
         total += recurring.monthly_amount()
 
     return total

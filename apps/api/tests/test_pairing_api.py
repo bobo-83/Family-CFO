@@ -110,7 +110,9 @@ async def test_revoke_paired_device_invalidates_device_token(demo_client, demo_t
 
 
 @pytest.mark.anyio
-async def test_viewer_cannot_revoke_paired_device(demo_client, demo_token, demo_viewer_token) -> None:
+async def test_viewer_cannot_revoke_paired_device(
+    demo_client, demo_token, demo_viewer_token
+) -> None:
     created = await demo_client.post(
         "/api/v1/pairing/sessions",
         headers={"Authorization": f"Bearer {demo_token}"},

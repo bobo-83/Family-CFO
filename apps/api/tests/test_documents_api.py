@@ -3,7 +3,9 @@ import pytest
 
 @pytest.mark.anyio
 async def test_create_document_requires_authentication(demo_client) -> None:
-    response = await demo_client.post("/api/v1/documents", files={"file": ("x.pdf", b"data", "application/pdf")})
+    response = await demo_client.post(
+        "/api/v1/documents", files={"file": ("x.pdf", b"data", "application/pdf")}
+    )
 
     assert response.status_code == 401
 

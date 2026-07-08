@@ -62,3 +62,59 @@ def build_purchase_explanation_prompt(facts: PurchaseFacts) -> list[RuntimeMessa
         RuntimeMessage(role="system", content=_SYSTEM_PROMPT),
         RuntimeMessage(role="user", content=user_prompt),
     ]
+
+
+REPORT_EXPLANATION_PROMPT_VERSION = "report-explanation-v1"
+
+_REPORT_SYSTEM_PROMPT = (
+    "You are a financial report narrator for a self-hosted household finance app. "
+    "Only reference the numeric facts listed below. Never invent balances, percentages, or "
+    "figures that are not present in the facts. Respond in 2-4 plain sentences."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ReportFacts:
+    report_type: str
+    period_start: str
+    period_end: str
+    net_cash_flow_display: str
+    wins: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
+    unusual_spending: list[str] = field(default_factory=list)
+    recommended_actions: list[str] = field(default_factory=list)
+
+
+def report_fact_lines(facts: ReportFacts) -> list[str]:
+    """The exact fact strings sent to the model.
+
+    Guardrail validation reuses this so "known" numbers can never drift from
+    what was actually sent in the prompt.
+    """
+    fact_lines = [
+        f"Report type: {facts.report_type}",
+        f"Period: {facts.period_start} to {facts.period_end}",
+        f"Net cash flow: {facts.net_cash_flow_display}",
+    ]
+
+    if facts.wins:
+        fact_lines.append("Wins: " + "; ".join(facts.wins))
+    if facts.risks:
+        fact_lines.append("Risks: " + "; ".join(facts.risks))
+    if facts.unusual_spending:
+        fact_lines.append("Unusual spending: " + "; ".join(facts.unusual_spending))
+    if facts.recommended_actions:
+        fact_lines.append("Recommended actions: " + "; ".join(facts.recommended_actions))
+
+    return fact_lines
+
+
+def build_report_explanation_prompt(facts: ReportFacts) -> list[RuntimeMessage]:
+    user_prompt = "Narrate this financial report using only these facts:\n" + "\n".join(
+        report_fact_lines(facts)
+    )
+
+    return [
+        RuntimeMessage(role="system", content=_REPORT_SYSTEM_PROMPT),
+        RuntimeMessage(role="user", content=user_prompt),
+    ]

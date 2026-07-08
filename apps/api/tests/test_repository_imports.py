@@ -101,7 +101,11 @@ def test_list_processable_imports_requires_a_file(demo_engine: Engine) -> None:
 
 def test_transaction_exists_detects_matching_row(demo_engine: Engine) -> None:
     assert not repository.transaction_exists(
-        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, fixtures.DEMO_CHECKING_ACCOUNT_ID, date(2026, 1, 1), -1234
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        fixtures.DEMO_CHECKING_ACCOUNT_ID,
+        date(2026, 1, 1),
+        -1234,
     )
 
     repository.create_transaction(
@@ -119,13 +123,21 @@ def test_transaction_exists_detects_matching_row(demo_engine: Engine) -> None:
     )
 
     assert repository.transaction_exists(
-        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, fixtures.DEMO_CHECKING_ACCOUNT_ID, date(2026, 1, 1), -1234
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        fixtures.DEMO_CHECKING_ACCOUNT_ID,
+        date(2026, 1, 1),
+        -1234,
     )
 
 
 def test_apply_import_marks_pending_transactions_reviewed(demo_engine: Engine) -> None:
     import_record = repository.create_import(
-        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, fixtures.DEMO_CHECKING_ACCOUNT_ID, "csv", "statement.csv"
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        fixtures.DEMO_CHECKING_ACCOUNT_ID,
+        "csv",
+        "statement.csv",
     )
     repository.create_transaction(
         demo_engine,
@@ -141,7 +153,9 @@ def test_apply_import_marks_pending_transactions_reviewed(demo_engine: Engine) -
         review_state="pending",
     )
 
-    updated_count = repository.apply_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id)
+    updated_count = repository.apply_import(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id
+    )
 
     assert updated_count == 1
     applied = repository.get_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id)
@@ -151,7 +165,11 @@ def test_apply_import_marks_pending_transactions_reviewed(demo_engine: Engine) -
 
 def test_discard_import_deletes_pending_transactions(demo_engine: Engine) -> None:
     import_record = repository.create_import(
-        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, fixtures.DEMO_CHECKING_ACCOUNT_ID, "csv", "statement.csv"
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        fixtures.DEMO_CHECKING_ACCOUNT_ID,
+        "csv",
+        "statement.csv",
     )
     repository.create_transaction(
         demo_engine,
@@ -167,7 +185,9 @@ def test_discard_import_deletes_pending_transactions(demo_engine: Engine) -> Non
         review_state="pending",
     )
 
-    deleted_count = repository.discard_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id)
+    deleted_count = repository.discard_import(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id
+    )
 
     assert deleted_count == 1
     discarded = repository.get_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id)

@@ -35,7 +35,9 @@ async def create_auth_session(
 
     token = security.generate_access_token()
     expires_at = repository.utcnow() + SESSION_TTL
-    repository.create_auth_session(engine, user.id, household_id, security.hash_token(token), expires_at)
+    repository.create_auth_session(
+        engine, user.id, household_id, security.hash_token(token), expires_at
+    )
 
     return AuthSession(
         access_token=token,

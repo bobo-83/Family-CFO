@@ -133,14 +133,10 @@ def check_implemented_routes(
                     continue
 
                 shared_schema = (
-                    shared_response.get("content", {})
-                    .get("application/json", {})
-                    .get("schema")
+                    shared_response.get("content", {}).get("application/json", {}).get("schema")
                 )
                 generated_schema = (
-                    generated_response.get("content", {})
-                    .get("application/json", {})
-                    .get("schema")
+                    generated_response.get("content", {}).get("application/json", {}).get("schema")
                 )
 
                 if shared_schema and generated_schema:
@@ -195,4 +191,3 @@ def check_openapi(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(check_openapi())
-

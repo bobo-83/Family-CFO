@@ -4,11 +4,15 @@ import logging
 
 from family_cfo_ai_orchestrator import (
     PURCHASE_EXPLANATION_PROMPT_VERSION,
+    REPORT_EXPLANATION_PROMPT_VERSION,
     PurchaseFacts,
+    ReportFacts,
     RuntimeAdapter,
     RuntimeUnavailableError,
     build_purchase_explanation_prompt,
+    build_report_explanation_prompt,
     known_values_from_facts,
+    known_values_from_report_facts,
     validate_recommendation,
 )
 
@@ -16,6 +20,7 @@ from family_cfo_api.explanation import (
     DeterministicExplanationAdapter,
     ExplanationResult,
     PurchaseExplanationContext,
+    ReportExplanationContext,
     format_money,
 )
 
@@ -66,4 +71,40 @@ class LlmExplanationAdapter:
             source="llm",
             model_version=completion.model or self._model_version,
             prompt_version=PURCHASE_EXPLANATION_PROMPT_VERSION,
+        )
+
+    def explain_report(self, context: ReportExplanationContext) -> ExplanationResult:
+        facts = ReportFacts(
+            report_type=context.report_type,
+            period_start=context.period_start,
+            period_end=context.period_end,
+            net_cash_flow_display=format_money(context.net_cash_flow),
+            wins=context.wins,
+            risks=context.risks,
+            unusual_spending=context.unusual_spending,
+            recommended_actions=context.recommended_actions,
+        )
+        messages = build_report_explanation_prompt(facts)
+
+        try:
+            completion = self._runtime_adapter.complete(messages)
+        except RuntimeUnavailableError:
+            logger.warning(
+                "ai runtime unavailable; falling back to deterministic report explanation"
+            )
+            return self._fallback.explain_report(context)
+
+        known_values = known_values_from_report_facts(facts)
+        guardrail = validate_recommendation(completion.text, known_values)
+        if not guardrail.passed:
+            logger.warning(
+                "ai runtime report response failed guardrail validation; falling back to deterministic explanation"
+            )
+            return self._fallback.explain_report(context)
+
+        return ExplanationResult(
+            text=completion.text,
+            source="llm",
+            model_version=completion.model or self._model_version,
+            prompt_version=REPORT_EXPLANATION_PROMPT_VERSION,
         )

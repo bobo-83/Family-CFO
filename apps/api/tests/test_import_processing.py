@@ -15,7 +15,11 @@ def _stage_file(staging_dir: str, import_id: str, filename: str, content: bytes)
 
 
 def _create_pending_import_with_file(
-    demo_engine: Engine, staging_dir: str, content: bytes, filename: str = "statement.csv", source_type: str = "csv"
+    demo_engine: Engine,
+    staging_dir: str,
+    content: bytes,
+    filename: str = "statement.csv",
+    source_type: str = "csv",
 ) -> repository.ImportRecord:
     import_record = repository.create_import(
         demo_engine,
@@ -35,9 +39,13 @@ def _create_pending_import_with_file(
     return import_record
 
 
-def test_processes_a_valid_csv_and_creates_pending_transactions(demo_engine: Engine, tmp_path) -> None:
+def test_processes_a_valid_csv_and_creates_pending_transactions(
+    demo_engine: Engine, tmp_path
+) -> None:
     staging_dir = str(tmp_path)
-    csv_content = b"date,amount,description\n2026-01-05,-42.50,Grocery Store\n2026-01-06,-10.00,Coffee Shop\n"
+    csv_content = (
+        b"date,amount,description\n2026-01-05,-42.50,Grocery Store\n2026-01-06,-10.00,Coffee Shop\n"
+    )
     import_record = _create_pending_import_with_file(demo_engine, staging_dir, csv_content)
 
     processed = import_processing.run_pending_imports_once(demo_engine, staging_dir)
@@ -79,10 +87,14 @@ def test_flags_but_still_inserts_probable_duplicates(demo_engine: Engine, tmp_pa
     staging_dir = str(tmp_path)
     csv_content = b"date,amount,description\n2026-01-05,-42.50,Grocery Store\n"
 
-    first_import = _create_pending_import_with_file(demo_engine, staging_dir, csv_content, filename="a.csv")
+    first_import = _create_pending_import_with_file(
+        demo_engine, staging_dir, csv_content, filename="a.csv"
+    )
     import_processing.run_pending_imports_once(demo_engine, staging_dir)
 
-    second_import = _create_pending_import_with_file(demo_engine, staging_dir, csv_content, filename="b.csv")
+    second_import = _create_pending_import_with_file(
+        demo_engine, staging_dir, csv_content, filename="b.csv"
+    )
     import_processing.run_pending_imports_once(demo_engine, staging_dir)
 
     assert first_import.id != second_import.id
@@ -91,7 +103,9 @@ def test_flags_but_still_inserts_probable_duplicates(demo_engine: Engine, tmp_pa
     assert len(grocery_rows) == 2
 
 
-def test_pdf_import_creates_a_document_extraction_not_transactions(demo_engine: Engine, tmp_path) -> None:
+def test_pdf_import_creates_a_document_extraction_not_transactions(
+    demo_engine: Engine, tmp_path
+) -> None:
     from fpdf import FPDF
 
     pdf = FPDF()

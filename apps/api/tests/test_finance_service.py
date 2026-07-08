@@ -16,11 +16,15 @@ def test_compute_net_worth_persists_audit_record(demo_engine: Engine) -> None:
     finance_service.compute_net_worth(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD")
 
     with demo_engine.connect() as conn:
-        rows = conn.execute(
-            select(models.financial_calculations).where(
-                models.financial_calculations.c.calculation_type == "net_worth"
+        rows = (
+            conn.execute(
+                select(models.financial_calculations).where(
+                    models.financial_calculations.c.calculation_type == "net_worth"
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
     assert len(rows) == 1
     assert rows[0]["household_id"] == fixtures.DEMO_HOUSEHOLD_ID

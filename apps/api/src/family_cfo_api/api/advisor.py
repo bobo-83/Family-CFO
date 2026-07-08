@@ -1,19 +1,13 @@
 import logging
 
-from family_cfo_ai_orchestrator import VLLMAdapter
 from fastapi import APIRouter, Depends, HTTPException
 from family_cfo_financial_engine import Money as EngineMoney
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import finance_service, repository
+from family_cfo_api.ai_runtime_selection import select_explanation_adapter
 from family_cfo_api.deps import get_current_session, get_engine
-from family_cfo_api.explanation import (
-    DeterministicExplanationAdapter,
-    ExplanationAdapter,
-    PurchaseExplanationContext,
-    format_money,
-)
-from family_cfo_api.llm_explanation import LlmExplanationAdapter
+from family_cfo_api.explanation import PurchaseExplanationContext, format_money
 from family_cfo_api.schemas import ErrorResponse, Impact, PurchaseAdvisorRequest, Recommendation
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -23,21 +17,6 @@ logger = logging.getLogger(__name__)
 _MIN_CONFIDENCE = 0.4
 _BASE_CONFIDENCE = 0.9
 _CONFIDENCE_PENALTY_PER_WARNING = 0.15
-
-# Providers with a shipped RuntimeAdapter. Other configured providers fall
-# back to the deterministic stub until their adapters exist (M4 non-goals).
-_SUPPORTED_LLM_PROVIDERS = {"vllm"}
-
-
-def _select_explanation_adapter(
-    engine: Engine, household_id: str
-) -> tuple[ExplanationAdapter, VLLMAdapter | None]:
-    config = repository.get_ai_runtime_config(engine, household_id)
-    if config is None or not config.enabled or config.provider not in _SUPPORTED_LLM_PROVIDERS:
-        return DeterministicExplanationAdapter(), None
-
-    runtime_client = VLLMAdapter(config.base_url, config.model)
-    return LlmExplanationAdapter(runtime_client, model_version=config.model), runtime_client
 
 
 def _build_impacts(outputs: dict, warnings: list[str]) -> list[Impact]:
@@ -177,7 +156,7 @@ async def analyze_purchase(
         discretionary_months_consumed=result.outputs["discretionary_months_consumed"],
         warnings=result.warnings,
     )
-    explanation_adapter, runtime_client = _select_explanation_adapter(engine, session.household_id)
+    explanation_adapter, runtime_client = select_explanation_adapter(engine, session.household_id)
     try:
         explanation = explanation_adapter.explain_purchase(explanation_context)
     finally:

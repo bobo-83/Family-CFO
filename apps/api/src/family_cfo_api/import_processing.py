@@ -87,7 +87,9 @@ def _process_csv(engine: Engine, import_record: repository.ImportRecord, file_by
             possible_duplicate=possible_duplicate,
         )
 
-    repository.update_import_status(engine, import_record.id, status="needs_review", skipped_row_count=skipped)
+    repository.update_import_status(
+        engine, import_record.id, status="needs_review", skipped_row_count=skipped
+    )
 
 
 def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
@@ -120,7 +122,10 @@ def _read_staged_file(staging_dir: str, storage_path: str) -> bytes:
 
 
 def _process_one_import(
-    engine: Engine, import_record: repository.ImportRecord, file_record: repository.ImportFileRecord, staging_dir: str
+    engine: Engine,
+    import_record: repository.ImportRecord,
+    file_record: repository.ImportFileRecord,
+    staging_dir: str,
 ) -> None:
     file_bytes = _read_staged_file(staging_dir, file_record.storage_path)
 
@@ -129,7 +134,9 @@ def _process_one_import(
     elif import_record.source_type == "pdf":
         _process_pdf(engine, import_record, file_bytes)
     else:
-        raise ValueError(f"no processor for source_type {import_record.source_type!r} yet (OFX/QFX planning only)")
+        raise ValueError(
+            f"no processor for source_type {import_record.source_type!r} yet (OFX/QFX planning only)"
+        )
 
 
 def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
@@ -143,12 +150,16 @@ def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
         repository.update_import_status(engine, import_record.id, status="processing")
 
         def attempt(
-            engine: Engine = engine, import_record: repository.ImportRecord = import_record, file_record: repository.ImportFileRecord = file_record
+            engine: Engine = engine,
+            import_record: repository.ImportRecord = import_record,
+            file_record: repository.ImportFileRecord = file_record,
         ) -> None:
             _process_one_import(engine, import_record, file_record, staging_dir)
 
         def on_attempt_failure(
-            error: Exception, attempt_number: int, import_record: repository.ImportRecord = import_record
+            error: Exception,
+            attempt_number: int,
+            import_record: repository.ImportRecord = import_record,
         ) -> None:
             logger.warning(
                 "import processing attempt failed import_id=%s attempt=%s error_type=%s",
@@ -159,11 +170,16 @@ def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
             repository.increment_import_retry_count(engine, import_record.id)
 
         try:
-            run_with_retry(attempt, RetryPolicy(max_attempts=MAX_IMPORT_ATTEMPTS), on_attempt_failure)
+            run_with_retry(
+                attempt, RetryPolicy(max_attempts=MAX_IMPORT_ATTEMPTS), on_attempt_failure
+            )
             processed += 1
         except RetryExhaustedError as exc:
             repository.update_import_status(
-                engine, import_record.id, status="failed", error_message=f"{type(exc.last_error).__name__}: retries exhausted"
+                engine,
+                import_record.id,
+                status="failed",
+                error_message=f"{type(exc.last_error).__name__}: retries exhausted",
             )
 
     return processed

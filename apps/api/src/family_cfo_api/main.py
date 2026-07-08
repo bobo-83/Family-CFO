@@ -14,7 +14,9 @@ from family_cfo_api.logging import configure_logging
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
 
-def error_response(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
+def error_response(
+    code: str, message: str, details: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return ErrorResponse(
         error=ApiError(
             code=code,
@@ -54,7 +56,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     ) -> JSONResponse:
         return JSONResponse(
             status_code=422,
-            content=error_response("validation_error", "Request validation failed", {"errors": exc.errors()}),
+            content=error_response(
+                "validation_error", "Request validation failed", {"errors": exc.errors()}
+            ),
         )
 
     return app
@@ -70,4 +74,3 @@ def main() -> None:
         port=8000,
         reload=False,
     )
-
