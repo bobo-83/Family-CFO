@@ -284,6 +284,24 @@ Rules:
 
 ### Implementation
 
+#### Backend API Support (Linux-safe)
+
+- [x] Create migrations for pairing sessions and paired devices.
+- [x] Add nullable `auth_sessions.device_id` for device-backed session revocation.
+- [x] Implement `POST /api/v1/pairing/sessions`.
+- [x] Implement `POST /api/v1/pairing/confirm`.
+- [x] Implement `GET /api/v1/pairing/devices`.
+- [x] Implement `DELETE /api/v1/pairing/devices/{device_id}`.
+- [x] Implement bounded deterministic `POST /api/v1/chat/messages`.
+- [x] Update OpenAPI for M6 pairing, paired-device, and chat behavior.
+- [x] Regenerate the Angular client from OpenAPI.
+- [x] Add repository tests for pairing lifecycle and paired-device revocation.
+- [x] Add API integration tests for pairing, paired-device revocation, and chat.
+- [x] Update API and database documentation for M6 backend support.
+- [x] Run backend verification commands for M6 backend support.
+
+#### iPhone App Implementation (requires macOS)
+
 - [ ] Add SwiftUI project scaffold under `apps/ios`.
 - [ ] Add generated Swift API client workflow from OpenAPI.
 - [ ] Add app navigation shell.

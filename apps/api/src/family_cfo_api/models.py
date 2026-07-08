@@ -98,12 +98,39 @@ household_memberships = Table(
     UniqueConstraint("household_id", "user_id", name="uq_household_memberships_household_user"),
 )
 
+pairing_sessions = Table(
+    "pairing_sessions",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
+    Column("qr_payload", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("confirmed_at", DateTime(timezone=True), nullable=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+)
+
+paired_devices = Table(
+    "paired_devices",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("user_id", String(36), ForeignKey("users.id"), nullable=False),
+    Column("name", String(120), nullable=False),
+    Column("public_key", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("last_seen_at", DateTime(timezone=True), nullable=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+)
+
 auth_sessions = Table(
     "auth_sessions",
     metadata,
     _uuid_pk(),
     Column("user_id", String(36), ForeignKey("users.id"), nullable=False),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("device_id", String(36), ForeignKey("paired_devices.id"), nullable=True),
     Column("token_hash", String(128), nullable=False, unique=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("expires_at", DateTime(timezone=True), nullable=False),

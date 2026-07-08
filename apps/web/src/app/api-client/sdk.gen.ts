@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AnalyzePurchaseData, AnalyzePurchaseErrors, AnalyzePurchaseResponses, ConfirmPairingData, ConfirmPairingErrors, ConfirmPairingResponses, CreateAuthSessionData, CreateAuthSessionErrors, CreateAuthSessionResponses, CreateChatMessageData, CreateChatMessageResponses, CreateGoalData, CreateGoalErrors, CreateGoalResponses, CreateImportData, CreateImportResponses, CreatePairingSessionData, CreatePairingSessionResponses, GetAiRuntimeConfigData, GetAiRuntimeConfigErrors, GetAiRuntimeConfigResponses, GetHealthData, GetHealthResponses, GetHouseholdContextData, GetHouseholdContextErrors, GetHouseholdContextResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBillsData, ListBillsErrors, ListBillsResponses, ListGoalsData, ListGoalsErrors, ListGoalsResponses, ListImportsData, ListImportsResponses, ListIncomeSourcesData, ListIncomeSourcesErrors, ListIncomeSourcesResponses, ListReportsData, ListReportsResponses, ListTransactionsData, ListTransactionsErrors, ListTransactionsResponses, UpdateAiRuntimeConfigData, UpdateAiRuntimeConfigErrors, UpdateAiRuntimeConfigResponses } from './types.gen';
+import type { AnalyzePurchaseData, AnalyzePurchaseErrors, AnalyzePurchaseResponses, ConfirmPairingData, ConfirmPairingErrors, ConfirmPairingResponses, CreateAuthSessionData, CreateAuthSessionErrors, CreateAuthSessionResponses, CreateChatMessageData, CreateChatMessageErrors, CreateChatMessageResponses, CreateGoalData, CreateGoalErrors, CreateGoalResponses, CreateImportData, CreateImportResponses, CreatePairingSessionData, CreatePairingSessionErrors, CreatePairingSessionResponses, GetAiRuntimeConfigData, GetAiRuntimeConfigErrors, GetAiRuntimeConfigResponses, GetHealthData, GetHealthResponses, GetHouseholdContextData, GetHouseholdContextErrors, GetHouseholdContextResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBillsData, ListBillsErrors, ListBillsResponses, ListGoalsData, ListGoalsErrors, ListGoalsResponses, ListImportsData, ListImportsResponses, ListIncomeSourcesData, ListIncomeSourcesErrors, ListIncomeSourcesResponses, ListPairedDevicesData, ListPairedDevicesErrors, ListPairedDevicesResponses, ListReportsData, ListReportsResponses, ListTransactionsData, ListTransactionsErrors, ListTransactionsResponses, RevokePairedDeviceData, RevokePairedDeviceErrors, RevokePairedDeviceResponses, UpdateAiRuntimeConfigData, UpdateAiRuntimeConfigErrors, UpdateAiRuntimeConfigResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -26,7 +26,11 @@ export const getHealth = <ThrowOnError extends boolean = false>(options?: Option
 /**
  * Create a short-lived pairing session for a device
  */
-export const createPairingSession = <ThrowOnError extends boolean = false>(options?: Options<CreatePairingSessionData, ThrowOnError>): RequestResult<CreatePairingSessionResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CreatePairingSessionResponses, unknown, ThrowOnError>({ url: '/pairing/sessions', ...options });
+export const createPairingSession = <ThrowOnError extends boolean = false>(options?: Options<CreatePairingSessionData, ThrowOnError>): RequestResult<CreatePairingSessionResponses, CreatePairingSessionErrors, ThrowOnError> => (options?.client ?? client).post<CreatePairingSessionResponses, CreatePairingSessionErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/pairing/sessions',
+    ...options
+});
 
 /**
  * Confirm mobile device pairing
@@ -38,6 +42,24 @@ export const confirmPairing = <ThrowOnError extends boolean = false>(options: Op
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List paired devices
+ */
+export const listPairedDevices = <ThrowOnError extends boolean = false>(options?: Options<ListPairedDevicesData, ThrowOnError>): RequestResult<ListPairedDevicesResponses, ListPairedDevicesErrors, ThrowOnError> => (options?.client ?? client).get<ListPairedDevicesResponses, ListPairedDevicesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/pairing/devices',
+    ...options
+});
+
+/**
+ * Revoke a paired device
+ */
+export const revokePairedDevice = <ThrowOnError extends boolean = false>(options: Options<RevokePairedDeviceData, ThrowOnError>): RequestResult<RevokePairedDeviceResponses, RevokePairedDeviceErrors, ThrowOnError> => (options.client ?? client).delete<RevokePairedDeviceResponses, RevokePairedDeviceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/pairing/devices/{device_id}',
+    ...options
 });
 
 /**
@@ -135,7 +157,7 @@ export const analyzePurchase = <ThrowOnError extends boolean = false>(options: O
 /**
  * Send a message to the financial advisor
  */
-export const createChatMessage = <ThrowOnError extends boolean = false>(options: Options<CreateChatMessageData, ThrowOnError>): RequestResult<CreateChatMessageResponses, unknown, ThrowOnError> => (options.client ?? client).post<CreateChatMessageResponses, unknown, ThrowOnError>({
+export const createChatMessage = <ThrowOnError extends boolean = false>(options: Options<CreateChatMessageData, ThrowOnError>): RequestResult<CreateChatMessageResponses, CreateChatMessageErrors, ThrowOnError> => (options.client ?? client).post<CreateChatMessageResponses, CreateChatMessageErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/chat/messages',
     ...options,

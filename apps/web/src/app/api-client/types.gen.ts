@@ -45,6 +45,18 @@ export type DeviceCredential = {
     expires_at: string;
 };
 
+export type PairedDevice = {
+    id: string;
+    name: string;
+    created_at: string;
+    last_seen_at?: string | null;
+    revoked_at?: string | null;
+};
+
+export type PairedDeviceListResponse = {
+    devices: Array<PairedDevice>;
+};
+
 export type AuthSessionCreateRequest = {
     email: string;
     password: string;
@@ -239,6 +251,19 @@ export type CreatePairingSessionData = {
     url: '/pairing/sessions';
 };
 
+export type CreatePairingSessionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreatePairingSessionError = CreatePairingSessionErrors[keyof CreatePairingSessionErrors];
+
 export type CreatePairingSessionResponses = {
     /**
      * Pairing session created
@@ -272,6 +297,66 @@ export type ConfirmPairingResponses = {
 };
 
 export type ConfirmPairingResponse = ConfirmPairingResponses[keyof ConfirmPairingResponses];
+
+export type ListPairedDevicesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/pairing/devices';
+};
+
+export type ListPairedDevicesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListPairedDevicesError = ListPairedDevicesErrors[keyof ListPairedDevicesErrors];
+
+export type ListPairedDevicesResponses = {
+    /**
+     * Paired devices
+     */
+    200: PairedDeviceListResponse;
+};
+
+export type ListPairedDevicesResponse = ListPairedDevicesResponses[keyof ListPairedDevicesResponses];
+
+export type RevokePairedDeviceData = {
+    body?: never;
+    path: {
+        device_id: string;
+    };
+    query?: never;
+    url: '/pairing/devices/{device_id}';
+};
+
+export type RevokePairedDeviceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type RevokePairedDeviceError = RevokePairedDeviceErrors[keyof RevokePairedDeviceErrors];
+
+export type RevokePairedDeviceResponses = {
+    /**
+     * Paired device revoked
+     */
+    204: void;
+};
+
+export type RevokePairedDeviceResponse = RevokePairedDeviceResponses[keyof RevokePairedDeviceResponses];
 
 export type CreateAuthSessionData = {
     body: AuthSessionCreateRequest;
@@ -512,6 +597,15 @@ export type CreateChatMessageData = {
     query?: never;
     url: '/chat/messages';
 };
+
+export type CreateChatMessageErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type CreateChatMessageError = CreateChatMessageErrors[keyof CreateChatMessageErrors];
 
 export type CreateChatMessageResponses = {
     /**

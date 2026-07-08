@@ -22,17 +22,31 @@ LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
 
 
 def compute_net_worth(engine: Engine, household_id: str, currency: str) -> CalculationResult:
+    result, _calculation_id = compute_net_worth_with_ref(engine, household_id, currency)
+    return result
+
+
+def compute_net_worth_with_ref(
+    engine: Engine, household_id: str, currency: str
+) -> tuple[CalculationResult, str]:
     balances = repository.list_account_balances(engine, household_id)
     engine_balances = [
         AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency)) for b in balances
     ]
 
     result = calculate_net_worth(engine_balances, currency)
-    _persist(engine, household_id, result)
-    return result
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
 
 
 def compute_emergency_fund(engine: Engine, household_id: str, currency: str) -> CalculationResult:
+    result, _calculation_id = compute_emergency_fund_with_ref(engine, household_id, currency)
+    return result
+
+
+def compute_emergency_fund_with_ref(
+    engine: Engine, household_id: str, currency: str
+) -> tuple[CalculationResult, str]:
     balances = repository.list_account_balances(engine, household_id)
     liquid_balance = Money.zero(currency)
     for balance in balances:
@@ -42,8 +56,8 @@ def compute_emergency_fund(engine: Engine, household_id: str, currency: str) -> 
     monthly_bills = _monthly_bill_total(engine, household_id, currency)
 
     result = calculate_emergency_fund_months(liquid_balance, monthly_bills)
-    _persist(engine, household_id, result)
-    return result
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
 
 
 def compute_purchase_impact(

@@ -59,6 +59,36 @@ class AuthSession(BaseModel):
     role: HouseholdRole
 
 
+class PairingSession(BaseModel):
+    id: str
+    qr_payload: str
+    expires_at: datetime
+
+
+class PairingConfirmRequest(BaseModel):
+    pairing_session_id: str
+    device_name: str = Field(min_length=1, max_length=120)
+    device_public_key: str = Field(min_length=1)
+
+
+class DeviceCredential(BaseModel):
+    device_id: str
+    access_token: str
+    expires_at: datetime
+
+
+class PairedDevice(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+    last_seen_at: datetime | None = None
+    revoked_at: datetime | None = None
+
+
+class PairedDeviceListResponse(BaseModel):
+    devices: list[PairedDevice]
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -166,9 +196,18 @@ class Recommendation(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ChatRequest(BaseModel):
+    conversation_id: str | None = None
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class ChatResponse(BaseModel):
+    conversation_id: str
+    recommendation: Recommendation
+
+
 class AiRuntimeConfig(BaseModel):
     provider: AiRuntimeProvider
     base_url: str
     model: str
     enabled: bool = True
-

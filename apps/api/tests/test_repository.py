@@ -129,6 +129,135 @@ def test_auth_session_rejects_unknown_token(demo_engine: Engine) -> None:
     assert repository.get_session_context(demo_engine, security.hash_token("nope")) is None
 
 
+def test_pairing_session_confirm_creates_device_backed_session(demo_engine: Engine) -> None:
+    pairing_session_id = repository.new_id()
+    token = security.generate_access_token()
+    expires_at = repository.utcnow() + timedelta(hours=1)
+    repository.create_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        created_by_user_id=fixtures.DEMO_USER_ID,
+        qr_payload="{}",
+        expires_at=expires_at,
+    )
+
+    credential = repository.confirm_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        device_name="Alex's iPhone",
+        device_public_key="public-key",
+        access_token=token,
+        token_hash=security.hash_token(token),
+        expires_at=expires_at,
+    )
+
+    assert credential is not None
+    assert credential.access_token == token
+    session = repository.get_session_context(demo_engine, security.hash_token(token))
+    assert session is not None
+    assert session.household_id == fixtures.DEMO_HOUSEHOLD_ID
+
+    devices = repository.list_paired_devices(demo_engine, fixtures.DEMO_HOUSEHOLD_ID)
+    assert [device.name for device in devices] == ["Alex's iPhone"]
+
+
+def test_pairing_session_cannot_be_confirmed_twice(demo_engine: Engine) -> None:
+    pairing_session_id = repository.new_id()
+    expires_at = repository.utcnow() + timedelta(hours=1)
+    repository.create_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        created_by_user_id=fixtures.DEMO_USER_ID,
+        qr_payload="{}",
+        expires_at=expires_at,
+    )
+    first_token = security.generate_access_token()
+    second_token = security.generate_access_token()
+
+    first = repository.confirm_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        device_name="First iPhone",
+        device_public_key="first-public-key",
+        access_token=first_token,
+        token_hash=security.hash_token(first_token),
+        expires_at=expires_at,
+    )
+    second = repository.confirm_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        device_name="Second iPhone",
+        device_public_key="second-public-key",
+        access_token=second_token,
+        token_hash=security.hash_token(second_token),
+        expires_at=expires_at,
+    )
+
+    assert first is not None
+    assert second is None
+
+
+def test_expired_pairing_session_cannot_be_confirmed(demo_engine: Engine) -> None:
+    pairing_session_id = repository.new_id()
+    expires_at = repository.utcnow() - timedelta(minutes=1)
+    token = security.generate_access_token()
+    repository.create_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        created_by_user_id=fixtures.DEMO_USER_ID,
+        qr_payload="{}",
+        expires_at=expires_at,
+    )
+
+    credential = repository.confirm_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        device_name="Expired iPhone",
+        device_public_key="public-key",
+        access_token=token,
+        token_hash=security.hash_token(token),
+        expires_at=repository.utcnow() + timedelta(hours=1),
+    )
+
+    assert credential is None
+
+
+def test_revoke_paired_device_revokes_device_sessions(demo_engine: Engine) -> None:
+    pairing_session_id = repository.new_id()
+    token = security.generate_access_token()
+    expires_at = repository.utcnow() + timedelta(hours=1)
+    repository.create_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        created_by_user_id=fixtures.DEMO_USER_ID,
+        qr_payload="{}",
+        expires_at=expires_at,
+    )
+    credential = repository.confirm_pairing_session(
+        demo_engine,
+        pairing_session_id=pairing_session_id,
+        device_name="Revoked iPhone",
+        device_public_key="public-key",
+        access_token=token,
+        token_hash=security.hash_token(token),
+        expires_at=expires_at,
+    )
+    assert credential is not None
+
+    revoked = repository.revoke_paired_device(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        credential.device_id,
+    )
+
+    assert revoked is True
+    assert repository.get_session_context(demo_engine, security.hash_token(token)) is None
+
+
 def test_create_scenario_and_recommendation_round_trip(demo_engine: Engine) -> None:
     scenario_id = repository.create_scenario(
         demo_engine,

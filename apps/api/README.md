@@ -80,6 +80,23 @@ Not implemented in M4:
 - Chat endpoint or conversation history.
 - API-key/secret storage for cloud-hosted OpenAI-compatible endpoints.
 
+## M6 Backend Support
+
+Implemented:
+
+- `POST /api/v1/pairing/sessions`: authenticated `owner`/`adult` users can create a 10-minute pairing session. The returned QR payload contains non-secret server and household display metadata plus the pairing session id; it never contains a bearer token.
+- `POST /api/v1/pairing/confirm`: a mobile client can exchange a valid, unexpired, single-use pairing session id plus device name/public key for a device-backed bearer token. Raw tokens are returned once and only token hashes are stored.
+- `GET /api/v1/pairing/devices`: authenticated household users can list paired devices without public keys or token hashes.
+- `DELETE /api/v1/pairing/devices/{device_id}`: `owner` users can revoke a paired device. Revocation also revokes active auth sessions issued for that device.
+- `POST /api/v1/chat/messages`: authenticated users can request a bounded deterministic household snapshot. M6 chat computes net worth and emergency fund coverage, persists a recommendation row with calculation references, and does not persist raw chat messages.
+- The shared OpenAPI contract and generated Angular client now include paired-device listing/revocation, auth requirements for pairing session creation, and chat `401` errors.
+
+Not implemented in this Linux-backed M6 slice:
+
+- SwiftUI app code, Swift client generation, QR scanning, Keychain storage, Face ID, camera capture UI, Vision extraction, or iOS tests. Per `AGENTS.md`, those require macOS with Swift/Xcode.
+- General-purpose conversational memory or raw chat history persistence.
+- Raw photo/document upload endpoints.
+
 ### Auth Flow
 
 ```bash
@@ -168,7 +185,7 @@ Check implemented routes against the shared contract:
 make check-openapi
 ```
 
-The shared contract remains `shared/openapi/family-cfo.v1.yaml`. M1 only checks routes implemented by the FastAPI app.
+The shared contract remains `shared/openapi/family-cfo.v1.yaml`. Implemented FastAPI routes must exist in that shared contract before client generation.
 
 ## Migrations
 
@@ -188,7 +205,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`). `make migrate` applies all of them.
 
 ## Fixtures
 

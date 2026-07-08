@@ -8,11 +8,11 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import repository, security
 
 
-def get_engine(request: Request) -> Engine:
+async def get_engine(request: Request) -> Engine:
     return request.app.state.db_engine
 
 
-def get_current_session(
+async def get_current_session(
     request: Request,
     engine: Engine = Depends(get_engine),
 ) -> repository.SessionContext:
@@ -30,7 +30,7 @@ def get_current_session(
 
 
 def require_role(*allowed_roles: str) -> Callable[[repository.SessionContext], repository.SessionContext]:
-    def dependency(
+    async def dependency(
         session: repository.SessionContext = Depends(get_current_session),
     ) -> repository.SessionContext:
         if session.role not in allowed_roles:

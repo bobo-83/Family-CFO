@@ -87,6 +87,7 @@ def create_auth_session(
     household_id: str,
     token_hash: str,
     expires_at: datetime,
+    device_id: str | None = None,
 ) -> str:
     session_id = new_id()
     with engine.begin() as conn:
@@ -95,6 +96,7 @@ def create_auth_session(
                 id=session_id,
                 user_id=user_id,
                 household_id=household_id,
+                device_id=device_id,
                 token_hash=token_hash,
                 created_at=utcnow(),
                 expires_at=expires_at,
@@ -116,6 +118,16 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
         if _as_aware(session_row["expires_at"]) < utcnow():
             return None
 
+        if session_row["device_id"] is not None:
+            device_row = conn.execute(
+                select(models.paired_devices.c.revoked_at).where(
+                    models.paired_devices.c.id == session_row["device_id"],
+                    models.paired_devices.c.household_id == session_row["household_id"],
+                )
+            ).first()
+            if device_row is None or device_row[0] is not None:
+                return None
+
         role_row = conn.execute(
             select(models.household_memberships.c.role).where(
                 models.household_memberships.c.household_id == session_row["household_id"],
@@ -131,6 +143,188 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
         household_id=session_row["household_id"],
         role=role_row[0],
     )
+
+
+# --- Pairing and devices ------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PairingSessionRecord:
+    id: str
+    household_id: str
+    created_by_user_id: str
+    qr_payload: str
+    expires_at: datetime
+    confirmed_at: datetime | None
+    revoked_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class PairedDeviceRecord:
+    id: str
+    household_id: str
+    user_id: str
+    name: str
+    created_at: datetime
+    last_seen_at: datetime | None
+    revoked_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceCredentialRecord:
+    device_id: str
+    access_token: str
+    expires_at: datetime
+
+
+def create_pairing_session(
+    engine: Engine,
+    pairing_session_id: str,
+    household_id: str,
+    created_by_user_id: str,
+    qr_payload: str,
+    expires_at: datetime,
+) -> PairingSessionRecord:
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.pairing_sessions).values(
+                id=pairing_session_id,
+                household_id=household_id,
+                created_by_user_id=created_by_user_id,
+                qr_payload=qr_payload,
+                created_at=now,
+                expires_at=expires_at,
+                confirmed_at=None,
+                revoked_at=None,
+            )
+        )
+
+    return PairingSessionRecord(
+        id=pairing_session_id,
+        household_id=household_id,
+        created_by_user_id=created_by_user_id,
+        qr_payload=qr_payload,
+        expires_at=expires_at,
+        confirmed_at=None,
+        revoked_at=None,
+    )
+
+
+def confirm_pairing_session(
+    engine: Engine,
+    pairing_session_id: str,
+    device_name: str,
+    device_public_key: str,
+    access_token: str,
+    token_hash: str,
+    expires_at: datetime,
+) -> DeviceCredentialRecord | None:
+    now = utcnow()
+    device_id = new_id()
+    auth_session_id = new_id()
+
+    with engine.begin() as conn:
+        session = conn.execute(
+            select(models.pairing_sessions).where(models.pairing_sessions.c.id == pairing_session_id)
+        ).mappings().first()
+
+        if session is None:
+            return None
+        if session["revoked_at"] is not None or session["confirmed_at"] is not None:
+            return None
+        if _as_aware(session["expires_at"]) < now:
+            return None
+
+        claimed = conn.execute(
+            update(models.pairing_sessions)
+            .where(
+                models.pairing_sessions.c.id == pairing_session_id,
+                models.pairing_sessions.c.confirmed_at.is_(None),
+                models.pairing_sessions.c.revoked_at.is_(None),
+                models.pairing_sessions.c.expires_at >= now,
+            )
+            .values(confirmed_at=now)
+        )
+        if claimed.rowcount == 0:
+            return None
+
+        conn.execute(
+            insert(models.paired_devices).values(
+                id=device_id,
+                household_id=session["household_id"],
+                user_id=session["created_by_user_id"],
+                name=device_name,
+                public_key=device_public_key,
+                created_at=now,
+                last_seen_at=None,
+                revoked_at=None,
+            )
+        )
+        conn.execute(
+            insert(models.auth_sessions).values(
+                id=auth_session_id,
+                user_id=session["created_by_user_id"],
+                household_id=session["household_id"],
+                device_id=device_id,
+                token_hash=token_hash,
+                created_at=now,
+                expires_at=expires_at,
+                revoked_at=None,
+            )
+        )
+
+    return DeviceCredentialRecord(device_id=device_id, access_token=access_token, expires_at=expires_at)
+
+
+def list_paired_devices(engine: Engine, household_id: str) -> list[PairedDeviceRecord]:
+    query = (
+        select(models.paired_devices)
+        .where(models.paired_devices.c.household_id == household_id)
+        .order_by(models.paired_devices.c.created_at.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    return [
+        PairedDeviceRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            user_id=row["user_id"],
+            name=row["name"],
+            created_at=row["created_at"],
+            last_seen_at=row["last_seen_at"],
+            revoked_at=row["revoked_at"],
+        )
+        for row in rows
+    ]
+
+
+def revoke_paired_device(engine: Engine, household_id: str, device_id: str) -> bool:
+    now = utcnow()
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.paired_devices)
+            .where(
+                models.paired_devices.c.id == device_id,
+                models.paired_devices.c.household_id == household_id,
+                models.paired_devices.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        if result.rowcount == 0:
+            return False
+
+        conn.execute(
+            update(models.auth_sessions)
+            .where(
+                models.auth_sessions.c.device_id == device_id,
+                models.auth_sessions.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+
+    return True
 
 
 # --- Household and accounts ---------------------------------------------------
