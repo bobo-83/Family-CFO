@@ -152,7 +152,7 @@ Rules:
 - [x] Persist calculation audit records.
 - [x] Document financial engine contracts and limitations.
 - [x] Run verification commands.
-- [ ] Commit M2 financial context and engine changes.
+- [x] Commit M2 financial context and engine changes. (`1490f67`)
 
 ## M3: Purchase Advisor
 
@@ -190,7 +190,7 @@ Rules:
 - [x] Add prompt and response redaction tests for logged data.
 - [x] Update API README and financial engine docs.
 - [x] Run verification commands.
-- [ ] Commit M3 purchase advisor changes.
+- [x] Commit M3 purchase advisor changes. (`dc356fa`)
 
 ## M4: Local AI Runtime
 
@@ -227,7 +227,7 @@ Rules:
 - [x] Document supported runtime configuration.
 - [x] Update threat model if prompt retention or runtime exposure changes.
 - [x] Run verification commands.
-- [ ] Commit M4 local AI runtime changes.
+- [x] Commit M4 local AI runtime changes. (`01d6661`)
 
 ## M5: Angular Dashboard
 
@@ -266,13 +266,13 @@ Rules:
 - [x] Add end-to-end smoke test for onboarding and health connectivity. (`e2e/onboarding.spec.ts`, 3 Playwright tests, verified passing against a real backend.)
 - [x] Update web README with development commands.
 - [x] Run verification commands.
-- [ ] Commit M5 Angular dashboard changes.
+- [x] Commit M5 Angular dashboard changes. (`eb71999`)
 
 ## M6: iPhone App
 
 ### Spec Gate
 
-- [ ] Define M6 scope.
+- [x] Define M6 scope. (See `docs/specs/11-milestone-roadmap.md`.)
 - [ ] Define M6 non-goals.
 - [ ] Define pairing flow details.
 - [ ] Define generated Swift client workflow.

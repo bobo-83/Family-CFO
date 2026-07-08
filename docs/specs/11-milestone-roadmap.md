@@ -299,6 +299,16 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 - Structured image output
 - Face ID local unlock
 
+### Scope
+
+- Add a SwiftUI iPhone app scaffold under `apps/ios` with an app navigation shell and a generated Swift client derived from `shared/openapi/family-cfo.v1.yaml`.
+- Implement the mobile pairing path from the existing mobile and security specs: QR scan, server identity and household confirmation, pairing confirmation API call, secure device credential storage, and revocation handling surfaced to the app.
+- Implement the backend support M6 needs for OpenAPI-defined pairing and chat behavior that is not yet shipped, keeping OpenAPI as the source of truth before generating the Swift client.
+- Add Face ID local unlock around stored mobile credentials where available; server authorization remains token-based and revocable.
+- Add a chat UI backed by the local Family CFO API and AI orchestration path, with financial claims grounded in deterministic calculation references rather than mobile-only calculations.
+- Add camera, receipt, and store-item capture flows that use Apple Vision where available to turn images into structured JSON, including source and confidence metadata, before sending data to the server when an accepted endpoint exists.
+- Keep raw photos on device when structured extraction is sufficient, and add focused tests plus iOS documentation for pairing, unlock, chat, capture, generated-client request mapping, and credential-storage seams.
+
 ## M7: Imports and OCR
 
 - CSV import
