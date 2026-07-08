@@ -309,6 +309,86 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 - Add camera, receipt, and store-item capture flows that use Apple Vision where available to turn images into structured JSON, including source and confidence metadata, before sending data to the server when an accepted endpoint exists.
 - Keep raw photos on device when structured extraction is sufficient, and add focused tests plus iOS documentation for pairing, unlock, chat, capture, generated-client request mapping, and credential-storage seams.
 
+### Non-Goals
+
+- No App Store release, signing, provisioning profile management, push notification service, or production mobile distribution.
+- No user registration, household invitation, membership management, or role editing from mobile.
+- No mobile-side financial calculations; the iPhone can capture structured inputs but all financial reasoning remains server-side and deterministic.
+- No general-purpose conversational AI or persisted conversation history. M6 chat returns a bounded recommendation-style response grounded in existing financial calculations; broader conversational memory belongs to a later milestone.
+- No raw photo upload requirement. Uploading images is deferred unless a future import/document endpoint explicitly accepts binary documents; M6 sends structured JSON where possible.
+- No Android, iPad-specific layout, watchOS, widgets, notifications, or offline-first financial data cache.
+
+### API Behavior
+
+- `POST /api/v1/pairing/sessions` requires bearer auth and is limited to `owner` and `adult` roles. It creates a short-lived pairing session for the caller's household and returns a QR payload containing the session id and non-secret server/household display metadata.
+- `POST /api/v1/pairing/confirm` accepts a pairing session id, device name, and device public key. It rejects unknown, expired, confirmed, or revoked sessions with `400`; on success it creates a paired device record and an opaque bearer session scoped to that device.
+- `GET /api/v1/pairing/devices` requires bearer auth and returns the household's paired devices without token hashes or public-key secrets.
+- `DELETE /api/v1/pairing/devices/{device_id}` requires the `owner` role, marks the paired device revoked, and revokes active auth sessions issued for that device.
+- `POST /api/v1/chat/messages` requires bearer auth. It accepts a message and optional conversation id, computes the household's current net worth and emergency fund context, persists a recommendation row with calculation references, and returns `ChatResponse`.
+- The M6 chat response does not persist raw user messages and does not expose unvalidated LLM output. Numeric claims cite `financial_calculations` rows.
+
+### Data Model Changes
+
+- Add `pairing_sessions`: `id`, `household_id`, `created_by_user_id`, `qr_payload`, `created_at`, `expires_at`, `confirmed_at`, and `revoked_at`.
+- Add `paired_devices`: `id`, `household_id`, `user_id`, `name`, `public_key`, `created_at`, `last_seen_at`, and `revoked_at`.
+- Add nullable `device_id` to `auth_sessions` so revoking a paired device can revoke sessions issued through pairing without affecting normal password sessions.
+- No chat message table is added in M6 because raw conversation history is explicitly out of scope.
+
+### Pairing Flow Details
+
+- Dashboard creates a pairing session after the user is authenticated as `owner` or `adult`.
+- The QR payload contains the API base path, pairing session id, household id, household display name, and expiration timestamp. It does not contain an access token or reusable secret.
+- The iPhone scans the QR code, shows server and household confirmation, generates or loads a device public key, and calls `POST /api/v1/pairing/confirm`.
+- The server stores only the device public key and a hash of the issued bearer token. The raw token is returned once and then stored by the app in Keychain.
+- Pairing sessions expire after a short TTL and are single-use.
+
+### Generated Swift Client Workflow
+
+- The shared OpenAPI contract remains the source of truth. Any M6 API shape changes land in `shared/openapi/family-cfo.v1.yaml` before app client code changes.
+- The iOS scaffold includes a repeatable generation command under `apps/ios/Scripts` that reads the shared OpenAPI contract and writes the checked-in Swift API surface under `apps/ios/Sources/FamilyCFOApp/API/Generated`.
+- Generated Swift files carry a header stating they should not be hand-edited. Hand-written app services wrap the generated client for token injection, error mapping, and test doubles.
+
+### Secure Credential Storage Expectations
+
+- Pairing access tokens are stored only in Keychain using a Keychain abstraction that can be replaced in tests.
+- Tokens are never stored in `UserDefaults`, logs, fixtures, source files, screenshots, or generated previews.
+- The app sends credentials only in the `Authorization: Bearer <token>` header over the configured local server URL.
+- Logging in app code must not include tokens, QR payload contents, raw receipt text, image data, or household financial values.
+
+### Face ID Local Unlock Behavior
+
+- Face ID or device passcode protects access to the locally stored token where available through `LocalAuthentication`.
+- If biometric authentication is unavailable, the app can fall back to device passcode or require re-pairing; it must not silently bypass local unlock after a protected token exists.
+- Local unlock gates app access only. Server authorization remains controlled by bearer-token validity and paired-device revocation.
+
+### Camera Capture and Structured Image Output Rules
+
+- Capture flows cover receipt and store-item use cases. The app may use Apple Vision to extract merchant, item, price, currency, source, confidence, and optional user question.
+- Structured purchase captures map to the existing purchase advisor request shape using `source` values such as `mobile_vision`, `receipt`, or `product_photo`.
+- The app sends structured JSON to the server when confidence is high enough for user review; otherwise it keeps the image on device and asks the user to edit or confirm fields.
+- Raw photos stay on device unless a later accepted import/document endpoint explicitly requires document upload.
+
+### Security Impact
+
+- Pairing creates bearer credentials equivalent to a local auth session, so the flow is restricted to authenticated household users and supports owner-driven revocation.
+- Device public keys, pairing secrets, and bearer tokens are `Restricted`; device names and QR display metadata are `Internal`; captured purchase fields are `Sensitive`.
+- Pairing and chat logs include only non-sensitive identifiers such as household id, pairing session id, device id, recommendation id, and calculation id.
+- The mobile app remains a client of server-side deterministic calculations; LLM output, if used in later chat work, must pass the same attribution guardrails established in M4.
+
+### Test Expectations
+
+- Backend repository tests cover pairing-session lifecycle, device creation, and device revocation revoking device-backed auth sessions.
+- Backend API tests cover pairing session creation, pairing confirmation, device list/revocation, chat success, `401` unauthenticated paths, `403` role restrictions, and invalid/expired pairing sessions.
+- OpenAPI contract tests continue to verify every implemented FastAPI route exists in the shared contract.
+- iOS unit tests, run on macOS with the Swift toolchain, cover generated-client request mapping, token injection, Keychain abstraction behavior, local unlock state, QR payload parsing, chat request flow, and capture-to-purchase-request mapping.
+- This Linux development environment does not provide Swift or Xcode, so local verification here is limited to backend tests, OpenAPI checks, generated-source consistency checks, and documentation validation.
+
+### Documentation Impact
+
+- Update `apps/api/README.md` with pairing, paired-device revocation, and chat endpoint behavior.
+- Update `apps/ios/README.md` with setup, generated-client, testing, pairing, Face ID, chat, and capture development notes.
+- Update the implementation task checklist as M6 tasks complete.
+
 ## M7: Imports and OCR
 
 - CSV import

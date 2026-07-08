@@ -273,14 +273,14 @@ Rules:
 ### Spec Gate
 
 - [x] Define M6 scope. (See `docs/specs/11-milestone-roadmap.md`.)
-- [ ] Define M6 non-goals.
-- [ ] Define pairing flow details.
-- [ ] Define generated Swift client workflow.
-- [ ] Define secure credential storage expectations.
-- [ ] Define Face ID local unlock behavior.
-- [ ] Define camera capture and structured image output rules.
-- [ ] Define M6 unit and integration test expectations.
-- [ ] Define M6 documentation updates.
+- [x] Define M6 non-goals. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define pairing flow details. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define generated Swift client workflow. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define secure credential storage expectations. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define Face ID local unlock behavior. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define camera capture and structured image output rules. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define M6 unit and integration test expectations. (See `docs/specs/11-milestone-roadmap.md`.)
+- [x] Define M6 documentation updates. (See `docs/specs/11-milestone-roadmap.md`.)
 
 ### Implementation
 
