@@ -22,6 +22,11 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 
 ## Acceptance State
 
+**Release 0.1.0** — M1–M13 implemented and verified; feature-complete backend,
+dashboard, containerized deployment, and security hardening. Deferrals (iOS app,
+real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
+`docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md) to run it.
+
 - M0 repository and specification baseline: accepted.
 - M1 backend skeleton: accepted for implementation.
 - M2 financial context and deterministic engine: implemented (cash flow and budget summary calculations are not yet exposed through an API endpoint; transaction/bill/income write APIs remain out of scope).

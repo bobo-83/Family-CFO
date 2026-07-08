@@ -567,6 +567,31 @@ export type RevokePairedDeviceResponses = {
 
 export type RevokePairedDeviceResponse = RevokePairedDeviceResponses[keyof RevokePairedDeviceResponses];
 
+export type DeleteAuthSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/sessions';
+};
+
+export type DeleteAuthSessionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type DeleteAuthSessionError = DeleteAuthSessionErrors[keyof DeleteAuthSessionErrors];
+
+export type DeleteAuthSessionResponses = {
+    /**
+     * Session revoked
+     */
+    204: void;
+};
+
+export type DeleteAuthSessionResponse = DeleteAuthSessionResponses[keyof DeleteAuthSessionResponses];
+
 export type CreateAuthSessionData = {
     body: AuthSessionCreateRequest;
     path?: never;
@@ -591,6 +616,31 @@ export type CreateAuthSessionResponses = {
 };
 
 export type CreateAuthSessionResponse = CreateAuthSessionResponses[keyof CreateAuthSessionResponses];
+
+export type RefreshAuthSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/sessions/refresh';
+};
+
+export type RefreshAuthSessionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type RefreshAuthSessionError = RefreshAuthSessionErrors[keyof RefreshAuthSessionErrors];
+
+export type RefreshAuthSessionResponses = {
+    /**
+     * New session issued; the old token is now invalid
+     */
+    200: AuthSession;
+};
+
+export type RefreshAuthSessionResponse = RefreshAuthSessionResponses[keyof RefreshAuthSessionResponses];
 
 export type CreateHouseholdData = {
     body?: never;

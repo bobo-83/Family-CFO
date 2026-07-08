@@ -4,6 +4,8 @@ Documentation is part of the product surface for Family CFO.
 
 Start here:
 
+- [Guides](./guides/README.md) — deployment, local development, backup/restore, security, troubleshooting
+- [Release Checklist](./RELEASE-CHECKLIST.md)
 - [Spec Kit](./specs/README.md)
 - [Architecture Decision Records](./adr/)
 - [Security Threat Model](./security/threat-model.md)

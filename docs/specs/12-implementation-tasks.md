@@ -624,28 +624,28 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 
 ### Documentation
 
-- [ ] Update root README with implemented setup path.
-- [ ] Add local development quickstart.
-- [ ] Add home-server deployment guide.
-- [ ] Add onboarding guide.
-- [ ] Add API development guide.
-- [ ] Add database migration guide.
-- [ ] Add financial engine guide.
-- [ ] Add AI runtime configuration guide.
-- [ ] Add import guide.
-- [ ] Add backup and restore guide.
-- [ ] Add security hardening guide.
-- [ ] Add troubleshooting guide.
-- [ ] Add release checklist.
+- [x] Update root README with implemented setup path. (Docker quickstart added.)
+- [x] Add local development quickstart. (`docs/guides/local-development.md`.)
+- [x] Add home-server deployment guide. (`docs/guides/deployment.md`.)
+- [x] Add onboarding guide. (First-run household setup in the deployment guide.)
+- [x] Add API development guide. (`docs/guides/local-development.md` + `apps/api/README.md`.)
+- [x] Add database migration guide. (Migration section in the local-development guide + `database/README.md`.)
+- [x] Add financial engine guide. (Services section in the local-development guide + `services/financial-engine/README.md`.)
+- [x] Add AI runtime configuration guide. (Deployment guide "optional services" + `apps/api/README.md` M4 scope.)
+- [x] Add import guide. (Deployment guide + Imports troubleshooting + `apps/api/README.md` M7 scope.)
+- [x] Add backup and restore guide. (`docs/guides/backup-and-restore.md`.)
+- [x] Add security hardening guide. (`docs/guides/security.md`.)
+- [x] Add troubleshooting guide. (`docs/guides/troubleshooting.md`.)
+- [x] Add release checklist. (`docs/RELEASE-CHECKLIST.md`.)
 
-### Final Acceptance
+### Final Acceptance (0.1.0)
 
-- [ ] Verify all milestone tasks are complete or explicitly deferred.
-- [ ] Verify all accepted specs match implemented behavior.
-- [ ] Verify all OpenAPI endpoints match backend behavior.
-- [ ] Verify generated clients build against current OpenAPI.
-- [ ] Verify no sensitive sample data is committed.
-- [ ] Verify Docker deployment works from a clean checkout.
-- [ ] Verify backup restore works from a clean environment.
-- [ ] Verify documentation is current.
-- [ ] Tag first release.
+- [x] Verify all milestone tasks are complete or explicitly deferred. (M1–M13 done; deferrals listed in `docs/RELEASE-CHECKLIST.md` and the backlog sections above.)
+- [x] Verify all accepted specs match implemented behavior. (Acceptance State in `docs/specs/README.md` current through M13.)
+- [x] Verify all OpenAPI endpoints match backend behavior. (`make check-openapi` passes.)
+- [x] Verify generated clients build against current OpenAPI. (Angular client regenerated with no drift; `npm run build`/`npm test` pass. Swift client is deferred with the iOS app.)
+- [x] Verify no sensitive sample data is committed. (Only `.env.example`/synthetic fixtures tracked; secret scan clean.)
+- [x] Verify Docker deployment works from a clean checkout. (`docker compose up -d --build` brings all core services healthy; TLS health verified.)
+- [x] Verify backup restore works from a clean environment. (Full round trip verified on real PostgreSQL in M12.)
+- [x] Verify documentation is current. (Guides, READMEs, ADRs, and Acceptance State updated.)
+- [x] Tag first release. (`v0.1.0`.)
