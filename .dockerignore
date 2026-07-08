@@ -1,0 +1,20 @@
+# Keep the build context lean and avoid copying host virtualenvs / build output
+# into images (which would shadow the clean installs).
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.ruff_cache/
+**/node_modules/
+apps/web/dist/
+apps/web/.angular/
+**/dist/
+.git/
+.env
+data/
+postgres-data/
+qdrant-data/
+docker/.runtime/
+apps/ios/
+*.sqlite3

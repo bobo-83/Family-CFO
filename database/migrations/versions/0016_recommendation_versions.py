@@ -1,6 +1,6 @@
 """recommendations model and prompt version tracking
 
-Revision ID: 0016_recommendations_model_prompt_version
+Revision ID: 0016_recommendation_versions
 Revises: 0015_recommendations
 Create Date: 2026-07-07
 """
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0016_recommendations_model_prompt_version"
+revision: str = "0016_recommendation_versions"
 down_revision: str | None = "0015_recommendations"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

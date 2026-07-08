@@ -1,0 +1,38 @@
+# Local-development overrides for the Family CFO stack.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Publishes the API port for curl/tests, turns on DEBUG logging, and bind-mounts
+# the API source with uvicorn --reload so backend edits reload without a rebuild.
+# (PYTHONPATH puts the mounted source ahead of the installed package on sys.path.)
+name: family-cfo
+
+services:
+  api:
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      FAMILY_CFO_LOG_LEVEL: DEBUG
+      PYTHONPATH: /app/apps/api/src
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./database/migrations:/app/database/migrations
+      - import_staging:/data/import-staging
+      - backups:/data/backups
+    command:
+      - /bin/sh
+      - -c
+      - >
+        until pg_isready -h db -p 5432 -U ${POSTGRES_USER:-family_cfo} >/dev/null 2>&1; do sleep 1; done;
+        cd /app/apps/api && python -m alembic -c alembic.ini upgrade head &&
+        exec python -m uvicorn family_cfo_api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    environment:
+      FAMILY_CFO_LOG_LEVEL: DEBUG
+      PYTHONPATH: /app/apps/api/src
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./database/migrations:/app/database/migrations
+      - import_staging:/data/import-staging
+      - backups:/data/backups

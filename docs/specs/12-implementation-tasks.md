@@ -578,26 +578,26 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [ ] Add secret scanning to CI.
 - [ ] Add dependency vulnerability checks.
 
-### Docker and Deployment
+### Docker and Deployment (M12)
 
-- [ ] Add Dockerfile for API.
-- [ ] Add Dockerfile for Angular dashboard.
-- [ ] Add Dockerfile for worker.
-- [ ] Add Docker Compose service for web.
-- [ ] Add Docker Compose service for API.
-- [ ] Add Docker Compose service for PostgreSQL.
-- [ ] Add Docker Compose service for Qdrant.
-- [ ] Add Docker Compose service for vLLM.
-- [ ] Add Docker Compose service for worker.
-- [ ] Add development Compose profile.
-- [ ] Add home-server Compose profile.
-- [ ] Configure private Docker network.
-- [ ] Expose only intended UI and API ports.
-- [ ] Keep vLLM private by default.
-- [ ] Document environment variables and secrets.
-- [ ] Document persistent volumes.
-- [ ] Test `docker compose up -d`.
-- [ ] Test backup and restore in Docker environment.
+- [x] Add Dockerfile for API.
+- [x] Add Dockerfile for Angular dashboard.
+- [x] Add Dockerfile for worker. (Shares `docker/api.Dockerfile` with a second entrypoint.)
+- [x] Add Docker Compose service for web.
+- [x] Add Docker Compose service for API.
+- [x] Add Docker Compose service for PostgreSQL.
+- [x] Add Docker Compose service for Qdrant. (Behind `--profile vector`; honest scaffolding, no consumer yet.)
+- [x] Add Docker Compose service for vLLM. (Behind `--profile ai`; off by default.)
+- [x] Add Docker Compose service for worker.
+- [x] Add development Compose profile. (`docker-compose.dev.yml` override.)
+- [x] Add home-server Compose profile. (Base `docker-compose.yml`.)
+- [x] Configure private Docker network.
+- [x] Expose only intended UI and API ports. (Only `web` publishes a port by default; API port only in the dev override.)
+- [x] Keep vLLM private by default.
+- [x] Document environment variables and secrets. (`.env.example`, `docker/README.md`.)
+- [x] Document persistent volumes.
+- [x] Test `docker compose up -d`. (Core stack verified healthy end-to-end on real PostgreSQL — bootstrap → account → balance → household context round-trip through the web proxy.)
+- [x] Test backup and restore in Docker environment. (Verified against real PostgreSQL 17 in the container: created an account with a balance, took a backup, deleted the account, restored, and confirmed it came back byte-for-byte. This exercised M8's `PgDumpBackupAdapter` against real Postgres for the first time and caught a pg_dump/pg_restore major-version-match requirement, now handled by pinning the DB image to match the client.)
 
 ### Contracts and Generated Clients
 

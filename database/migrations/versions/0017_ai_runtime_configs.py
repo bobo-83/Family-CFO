@@ -1,7 +1,7 @@
 """ai_runtime_configs
 
 Revision ID: 0017_ai_runtime_configs
-Revises: 0016_recommendations_model_prompt_version
+Revises: 0016_recommendation_versions
 Create Date: 2026-07-07
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0017_ai_runtime_configs"
-down_revision: str | None = "0016_recommendations_model_prompt_version"
+down_revision: str | None = "0016_recommendation_versions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

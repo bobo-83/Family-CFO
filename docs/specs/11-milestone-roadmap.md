@@ -786,3 +786,61 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Update `apps/web/README.md` with the now-real pages and how to run the expanded e2e smoke test.
 - Update `docs/specs/README.md` Acceptance State: the M5 note that "reports/transactions/imports/backups/users are placeholder shells" is superseded by M11.
 - No `shared/openapi` change expected (frontend-only); if a mismatch forces one, it lands in the contract before the client is regenerated.
+
+## M12: Docker Deployment and Home-Server Packaging
+
+- `docker compose up -d` runs the stack
+- Core services containerized; heavy AI/vector services opt-in
+- Migrations run on startup; secrets via env file
+
+> Context: implements the `docs/specs/10-docker-spec.md` plan and the "Docker and Deployment" Release-Readiness checklist in `docs/specs/12-implementation-tasks.md`. It is the packaging that makes every prior milestone actually runnable on a home server.
+
+### Scope
+
+- Containerize the three code images the app needs: `api` (FastAPI/uvicorn), `worker` (the background jobs process, same image as `api` with a different command), and `web` (Angular built to static files, served by nginx which also proxies `/api` to the API container). All three build from a repo-root context so the sibling `services/*` packages, `apps/api`, and `database/migrations` are available.
+- Add `docker-compose.yml` (repo root) defining the **core** stack — `db` (PostgreSQL), `api`, `worker`, `web` — that comes up with a plain `docker compose up -d`, plus a `docker-compose.dev.yml` override for local development (source bind-mounts, `--reload`, direct API port exposure).
+- The `api` container's entrypoint waits for PostgreSQL to accept connections, runs `alembic upgrade head`, then starts uvicorn. The `worker` waits for the database and for the API to have migrated, then starts. Only the `api` runs migrations, so there is no migration race between `api` and `worker`.
+- Secrets and configuration come from a `.env` file (repo root, gitignored) with a committed `.env.example` template — the Postgres password, the `FAMILY_CFO_BACKUP_ENCRYPTION_KEY`, and the derived `FAMILY_CFO_DATABASE_URL`. No secret is baked into an image or committed.
+- Named volumes for the persistent data the spec lists: `postgres_data`, `backups`, and `import_staging` (the last two shared by `api` and `worker` so uploads staged by the API are visible to the worker and backups are written to a durable location).
+- A private bridge network; only the `web` container publishes a host port by default. The `api` port is published only in the dev override (for `curl`/tests), not in the home-server base file.
+
+### Non-Goals
+
+- **vLLM and Qdrant do not run by default.** Both are defined but behind Compose **profiles** (`--profile ai` for `vllm`, `--profile vector` for `qdrant`), off unless explicitly requested:
+  - `vllm` is a real, wire-able opt-in — it needs a GPU and a multi-gigabyte model download, and the app runs fully without it (the purchase advisor and reports fall back to the deterministic explanation stub). A household enables it by pointing its AI runtime config at `http://vllm:8000` (`PUT /api/v1/ai/runtime`). It is never published to the host.
+  - `qdrant` is **honest scaffolding only** — it matches the Docker spec's planned `family-cfo-vector` container, but nothing in the codebase connects to it yet (the vector-store/retrieval work is tracked backlog). It is profile-gated and documented as having no consumer, rather than pretending it is wired up (the same honesty the M5 placeholder shells used).
+- No reverse proxy, TLS/HTTPS termination, monitoring, or the "Backup" sidecar container — those are the Docker spec's "Future Containers" and remain Release-Readiness security work (HTTPS is a separate tracked item). The `web` container serves plain HTTP; a home-server operator is expected to front it with their own TLS proxy until that milestone lands.
+- No image publishing to a registry, no multi-arch build, no Kubernetes/Swarm manifests — a single-host `docker compose` deployment is the target (ADR 0006).
+- No production-grade Postgres tuning, connection pooler (PgBouncer), or read replicas — a single Postgres container with a named volume is the home-server scale.
+
+### Image Design
+
+- `docker/api.Dockerfile`: `python:3.12-slim`; copies `services/*`, `apps/api`, and `database/` preserving the repo layout under `/app` (so `apps/api/alembic.ini`'s `%(here)s/../../database/migrations` path stays valid), installs the API and the five service packages non-editable, and ships `docker/entrypoint-api.sh` / `docker/entrypoint-worker.sh`. One image, two entrypoints.
+- `docker/web.Dockerfile`: multi-stage — `node` stage runs `npm ci && npm run build`, then `nginx:alpine` serves `dist/web` and proxies `/api/` to `http://api:8000` via `docker/web-nginx.conf`. The generated client's default `/api/v1` base path works unchanged behind that proxy.
+- Entrypoints use a small `pg_isready`/TCP wait loop (no extra dependency) before migrating/starting.
+
+### Data Model Changes
+
+- None. M12 is packaging only; no schema, API, or contract changes.
+
+### Security Impact
+
+- No secrets in images or the compose file — all injected from the gitignored `.env`; `.env.example` documents them with placeholder values only.
+- vLLM is never published to the host (private network only), matching the spec's "vLLM should not be exposed publicly by default."
+- The API port is unpublished in the home-server base file; only `web` is reachable from outside the Docker network. The database, worker, and (optional) vLLM/Qdrant are internal-only.
+- HTTPS is explicitly out of scope (tracked separately); the compose file serves HTTP and the docs tell operators to front it with TLS.
+
+### Test Expectations
+
+- `docker compose config` validates (both the base file and the base+dev override compose).
+- The `api` and `web` images build successfully from a clean context.
+- The core stack (`db` + `api` + `worker` + `web`) comes up with `docker compose up -d`; the API becomes healthy (`GET /api/v1/health` through the `web` proxy returns `{"status":"ok"}`), migrations have run (a protected route works after seeding), and a real request round-trips against the containerized Postgres.
+- vLLM/Qdrant are **not** built or started in verification (GPU/无consumer); their compose definitions are validated by `docker compose config` only. This is the same "validate the seam, don't run the vendor heavyweight" approach M4 (no real vLLM) and M8 (no real Postgres in unit tests) already used.
+
+### Documentation Impact
+
+- Rewrite `docker/README.md` with the real services, profiles, the `up`/dev commands, and the volume list.
+- Update the root `README.md` and `apps/api`/`apps/web` READMEs with the `docker compose` quickstart.
+- Add `.env.example` documenting every required variable.
+- Check off the "Docker and Deployment" items in `docs/specs/12-implementation-tasks.md` that M12 completes; leave reverse-proxy/monitoring/backup-sidecar unchecked (Future Containers).
+- Update `docs/specs/README.md` Acceptance State with M12.

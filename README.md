@@ -79,6 +79,17 @@ docs/                  Product, architecture, security, and workflow specs
 - Storage: PostgreSQL.
 - Deployment: Docker Compose.
 
+## Running with Docker
+
+The whole stack runs on a home server with Docker Compose:
+
+```bash
+cp .env.example .env      # then edit .env — at minimum set POSTGRES_PASSWORD
+docker compose up -d
+```
+
+The dashboard is then at `http://localhost:8080`. The core stack is PostgreSQL, the API, the background worker, and the nginx-served dashboard; the API runs database migrations on startup. The optional local LLM (vLLM) and vector store (Qdrant) are behind Compose profiles and off by default. See [docker/README.md](./docker/README.md) for profiles, the development override, volumes, and secrets.
+
 ## Development Workflow
 
 Every feature starts with:
