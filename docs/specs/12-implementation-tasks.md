@@ -477,7 +477,7 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 ### Contracts and Generated Clients
 
 - [ ] Add OpenAPI linting to CI.
-- [ ] Add backend OpenAPI drift check to CI.
+- [x] Add backend OpenAPI drift check to CI.
 - [ ] Add Angular client generation check to CI.
 - [ ] Add Swift client generation check to CI.
 - [ ] Document generated client regeneration workflow.
@@ -485,9 +485,9 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 
 ### Quality Gates
 
-- [ ] Add backend linting to CI.
-- [ ] Add backend unit tests to CI.
-- [ ] Add backend integration tests to CI.
+- [x] Add backend linting to CI.
+- [x] Add backend unit tests to CI.
+- [x] Add backend integration tests to CI.
 - [ ] Add financial engine unit tests to CI.
 - [ ] Add AI orchestrator tests to CI.
 - [ ] Add worker tests to CI.
