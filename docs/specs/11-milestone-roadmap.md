@@ -1007,3 +1007,70 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - Update `apps/api/README.md` (annual report), `shared/openapi/family-cfo.v1.yaml` (`ReportType` enum), `docs/specs/README.md` Acceptance State, and mark the "Backlog: Annual Report" items done.
+
+## M16: Agentic Tool-Calling (Conversational Advisor)
+
+- Expose the deterministic engine calculations as callable tools
+- A tool-calling loop so the local model can answer open-ended questions
+- Guardrails move to validating tool arguments; answers stay grounded
+
+> Context: implements [ADR 0009](../adr/0009-agentic-tool-calling.md). Open-ended questions ("if I buy this $1,000 phone, how many years of retirement does it cost me?") cannot be a per-question API. The model orchestrates deterministic tools and narrates grounded results; it never computes numbers or supplies facts itself. Extends "the LLM explains, the engine calculates" (ADR 0003) to a multi-step flow.
+
+### Scope
+
+- Add a **tool-descriptor layer** exposing the financial-engine calculations as tools (JSON-schema described): net worth, cash flow, budget summary, emergency fund, goal progress, purchase impact, debt payoff, retirement projection, plus a new `future_value` / opportunity-cost primitive in the engine. Each tool is a thin wrapper: validate arguments, run the existing deterministic calculation, return a structured result. No calculation logic changes.
+- Extend `VLLMAdapter` (and the `RuntimeAdapter` seam) with **tool/function-calling**: pass the tool schemas, parse the model's `tool_calls`, and support a bounded multi-turn loop (model → tool calls → execute → results → model → final answer).
+- Add a **tool-calling orchestration loop** in `services/ai-orchestrator` that drives that exchange with a hard iteration cap, executes requested tools through the descriptor layer, feeds results back, and returns the final narration plus the trace of tools/args used.
+- Upgrade `POST /api/v1/chat/messages` to route through the tool-calling loop **when the household has an enabled tool-calling-capable runtime**, persisting the turn via M10 conversations. With no model (the default), it keeps the existing bounded deterministic snapshot — so behaviour is unchanged for deployments without vLLM.
+- Every figure in the final answer must trace to a tool output; the response cites the `financial_calculations` rows the tools persisted, same grounding contract as the purchase advisor.
+
+### Non-Goals
+
+- **No tool may mutate state or move money.** M16 tools are read/compute only (query + deterministic calculation). Write actions (create a transaction, change a goal) via tools are explicitly out of scope — a safety boundary, revisited only under a future ADR.
+- **No external/cloud model** (ADR 0008) — tool-calling runs against the same opt-in local vLLM.
+- **No document/vector retrieval.** Tools query structured data (Postgres/engine) only; semantic search over documents/conversation is the separate vector-store backlog. The model is not given raw document text to interpret.
+- **No real vLLM in tests/CI.** The loop is tested against a stubbed runtime that emits scripted `tool_calls` (the same "mock the runtime, not the vendor" approach M4 used). Real-model tool-selection reliability is a deployment/verification concern, not something a unit test pins down.
+- **Not an unbounded tool set.** A fixed, curated set of calculation tools ships; new tools are added deliberately, not generated.
+- No change to the structured `/advisor/*` and `/reports/generate` endpoints — they remain fast deterministic paths and the fallback.
+
+### Tool Library (initial)
+
+- Read tools (household-scoped, no args beyond context): `get_net_worth`, `get_cash_flow`, `get_budget_summary`, `get_emergency_fund`, `list_goals_progress`, `get_debt_outlook`.
+- Compute tools (caller/model-supplied args, validated): `project_purchase_impact`, `project_retirement`, `future_value` (opportunity cost of an amount grown at a rate for N years), `debt_payoff` (for supplied terms).
+- Each returns a structured result and persists a `financial_calculations` row so the answer stays auditable.
+
+### Tool-Calling Loop and Trust Boundary
+
+- The loop has a hard maximum iteration count; exceeding it falls back to the deterministic snapshot with a "could not complete" note rather than looping or fabricating.
+- **The trust boundary is tool arguments, not output text.** Before executing a tool the system validates argument types, numeric ranges, currency (must match the household/account), and that any referenced entity id belongs to the caller's household. Invalid arguments are rejected and returned to the model to correct, never executed blindly.
+- Tool **outputs are authoritative**; the final narration is still checked so every figure it states traces to a tool output (the M4 guardrail principle, re-homed).
+- **Facts the model cannot compute are never guessed.** If a required input is missing (e.g. retirement cost of living), the tool signals "missing input" and the model asks the user rather than inventing a value; the response surfaces the question instead of a fabricated number.
+
+### API Behavior
+
+- `POST /api/v1/chat/messages` (unchanged auth: any household role) gains tool-calling when an enabled capable runtime exists; response shape (`ChatResponse` with a grounded `Recommendation`) is unchanged, so the contract and Angular client are unaffected. Conversation persistence (M10) is reused.
+- No new endpoint and no request-shape change are expected. If the trace of tool calls is surfaced, it is additive/optional on the response and lands in the OpenAPI contract first.
+
+### Data Model Changes
+
+- None expected. Reuses `conversations`/`conversation_messages` (M10), `recommendations`, `scenarios`, and `financial_calculations`. If a persisted tool-call trace proves worth storing, it is an additive migration scoped at implementation time, not assumed here.
+
+### Security Impact
+
+- Tools are read/compute only and strictly household-scoped; argument validation prevents a model from reaching another household's data via a forged id.
+- No household data leaves the box (local model, ADR 0008); raw prompts/tool exchanges are not persisted beyond the guardrail-validated answer, consistent with M4.
+- The no-mutation boundary means a misbehaving model cannot change financial records through this path.
+
+### Test Expectations
+
+- Engine: unit tests for the new `future_value`/opportunity-cost primitive (known-input growth, zero-rate, validation).
+- Tool descriptors: each tool validates arguments (type/range/currency/household ownership) and returns the expected structured result; a forged cross-household id is rejected.
+- Tool-calling loop (stubbed runtime): a scripted multi-step exchange (e.g. the phone-vs-retirement question → `future_value` then a retirement ratio) executes the right tools with validated args and produces an answer whose numbers all trace to tool outputs; the iteration cap and the missing-fact "ask back" path are covered; the no-model fallback returns the deterministic snapshot.
+- API: `POST /chat/messages` with a tool-calling runtime configured persists the conversation and returns a grounded recommendation; role/no-auth paths unchanged.
+- OpenAPI contract check passes.
+
+### Documentation Impact
+
+- Update `services/ai-orchestrator/README.md` (tool-calling loop, tool descriptors), `apps/api/README.md` (chat gains tool-calling when a model is enabled), and `services/financial-engine/README.md` (future-value primitive).
+- Reference ADR 0009; update `docs/specs/README.md` Acceptance State.
+- Update `shared/openapi/family-cfo.v1.yaml` only if the response gains an optional tool-call trace.

@@ -522,6 +522,26 @@ Rules:
 - [x] Run frontend verification commands.
 - [x] Commit M11 changes.
 
+## M16: Agentic Tool-Calling (Conversational Advisor)
+
+### Spec Gate
+
+- [x] Define M16 scope, non-goals, tool library, and the tool-calling loop / trust boundary. (See `docs/specs/11-milestone-roadmap.md` and ADR 0009.)
+- [x] Define M16 API behavior, data model, security, test, and documentation impact.
+
+### Implementation
+
+- [ ] Add a `future_value` / opportunity-cost calculation to the financial engine with unit tests.
+- [ ] Add a tool-descriptor layer: JSON-schema descriptors + argument validation (type/range/currency/household ownership) wrapping the engine calculations.
+- [ ] Extend `VLLMAdapter`/`RuntimeAdapter` with tool/function-calling (pass tool schemas, parse `tool_calls`).
+- [ ] Build the tool-calling orchestration loop (bounded iterations, execute tools, feed results back, extract grounded final answer, missing-fact "ask back").
+- [ ] Route `POST /api/v1/chat/messages` through the loop when an enabled tool-calling runtime exists; keep the deterministic snapshot fallback otherwise; persist via M10 conversations.
+- [ ] Extend guardrails to validate tool arguments and to verify the final answer's figures trace to tool outputs.
+- [ ] Add tests: engine primitive; per-tool argument validation incl. cross-household rejection; stubbed-runtime multi-step loop; iteration cap; missing-fact path; no-model fallback; chat API integration.
+- [ ] Update docs (ai-orchestrator, apps/api, financial-engine READMEs; acceptance state) and OpenAPI if a tool-call trace is surfaced.
+- [ ] Run verification commands.
+- [ ] Commit M16 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
@@ -530,7 +550,7 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 - [x] Add `annual_interest_rate` and `minimum_payment` columns to `accounts` for liability account types, with a migration. (M14, migration `0029`.)
 - [x] Wire `calculate_debt_payoff` into the purchase advisor's `debt` impact once account-level interest/payment data is persisted, replacing today's warning-only placeholder. (M14.)
 - [x] Add a `calculate_retirement_projection` calculation to the financial engine. (M14.)
-- [ ] Add a general scenario-planning API (beyond the purchase advisor and the M14 retirement endpoint) covering open-ended "should we refinance" style questions, per the PRD's Scenario Planning journey. (Still backlog — M14 delivered the two concrete projections, not an open-ended engine.)
+- [~] Open-ended scenario questions ("should we refinance?", "how many years of retirement does this purchase cost me?") are **not** a per-question API — that does not scale. The accepted direction is **agentic tool-calling** ([ADR 0009](../adr/0009-agentic-tool-calling.md)), now owned by **M16** (spec gate accepted, implementation pending): the local model orchestrates the deterministic engine calculations (exposed as tools) and narrates grounded results.
 
 ## Backlog: Annual Report
 

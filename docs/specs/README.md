@@ -48,6 +48,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M15 annual report: implemented. Adds `annual` as a third report type (prior calendar year, 12× monthly normalization) reusing the M8 report content and narrative, plus a scheduled annual generation job. Closes the "Backlog: Annual Report" item; the PRD's weekly/monthly/annual reports are now all delivered.
 
+- M16 agentic tool-calling (conversational advisor): spec accepted (backed by ADR 0009), implementation pending. Exposes the deterministic engine calculations as callable tools the local model orchestrates to answer open-ended questions, with the guardrail trust boundary moving to tool-argument validation and every figure still tracing to a tool output. Read/compute-only tools; local-model-only; no per-question API.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

@@ -84,3 +84,26 @@ Every AI recommendation must expose:
 - The LLM must cite calculation outputs when making numeric claims.
 - Financial advice must be framed as educational guidance unless a future legal review changes this policy.
 - The system must not autonomously move money or make trades.
+
+## Agentic Tool-Calling (planned; see ADR 0009)
+
+The initial implementation is **compute-then-narrate**: the app computes with the
+financial engine and the LLM only rephrases the results. To answer open-ended
+questions ("if I buy this, how many years of retirement does it cost me?") without
+an endpoint per question, the direction — recorded in
+[ADR 0009](../adr/0009-agentic-tool-calling.md) — is **agentic tool-calling**:
+
+- The financial-engine calculations become callable **tools** (described by JSON
+  schemas). The model decomposes a question and orchestrates tool calls; it never
+  computes numbers or supplies facts itself.
+- Every figure in an answer traces to a tool output (which queries Postgres / runs
+  the engine). The guardrail principle is unchanged; the trust boundary moves to
+  validating the model's **tool arguments**.
+- Facts the model cannot compute (cost of living, market rates, balances) come
+  from the user or a data-source tool — never a model guess; a missing required
+  fact is asked back, not fabricated.
+- The structured endpoints (`/advisor/*`, `/reports/generate`) remain as fast
+  deterministic paths and the fallback when no model is configured.
+
+This extends "the LLM explains, the financial engine calculates" to a multi-step
+flow; it does not weaken it.

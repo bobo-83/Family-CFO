@@ -12,6 +12,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0006: Use Docker Compose for the home server](../adr/0006-docker-compose-home-server.md)
 - [0007: Require replaceable component interfaces](../adr/0007-replaceable-component-interfaces.md)
 - [0008: Security hardening decisions](../adr/0008-security-hardening-decisions.md)
+- [0009: Agentic tool-calling over deterministic financial primitives](../adr/0009-agentic-tool-calling.md)
 
 ## ADR Rules
 
