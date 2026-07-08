@@ -39,5 +39,11 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
 
-      - name: Audit Python dependencies for known vulnerabilities
-        run: pip-audit
+      - name: Audit third-party Python dependencies for known vulnerabilities
+        # Audit only third-party dependencies. The workspace's own packages
+        # (family-cfo-*) are installed editable and are not on PyPI, so
+        # pip-audit cannot look them up; excluding them keeps the audit focused
+        # on dependencies we don't control.
+        run: |
+          pip freeze | grep -viE "family[-_]cfo|^-e |@ file://" > /tmp/thirdparty-requirements.txt
+          pip-audit -r /tmp/thirdparty-requirements.txt
