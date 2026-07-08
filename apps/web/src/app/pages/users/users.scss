@@ -1,0 +1,99 @@
+h2 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.device-list {
+  list-style: none;
+  padding: 0;
+  max-width: 32rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.device-list__item {
+  background: white;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.device-list__name {
+  font-weight: 600;
+}
+
+.device-list__meta {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.device-list__revoked {
+  font-size: 0.8rem;
+  color: #5b6472;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.device-list__revoke {
+  border: 1px solid #b3261e;
+  color: #b3261e;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.pairing-card {
+  background: white;
+  border-radius: 10px;
+  padding: 1.25rem;
+  max-width: 22rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+
+  img {
+    border-radius: 6px;
+  }
+}
+
+.pairing-card__payload {
+  font-family: monospace;
+  font-size: 0.7rem;
+  word-break: break-all;
+  color: #5b6472;
+  text-align: center;
+}
+
+.pairing-card__expiry {
+  font-size: 0.85rem;
+  color: #5b6472;
+}
+
+button[type='button'] {
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #2a5adf;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

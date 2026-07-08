@@ -2,10 +2,13 @@ import { Injectable } from '@angular/core';
 import {
   createAuthSession,
   createGoal,
+  createPairingSession,
   getAiRuntimeConfig,
   getHouseholdContext,
   listAccounts,
   listGoals,
+  listPairedDevices,
+  revokePairedDevice,
   updateAiRuntimeConfig,
   type AiRuntimeConfig,
   type AuthSessionCreateRequest,
@@ -48,5 +51,17 @@ export class ApiService {
 
   updateAiRuntimeConfig(body: AiRuntimeConfig) {
     return updateAiRuntimeConfig({ body });
+  }
+
+  createPairingSession() {
+    return createPairingSession();
+  }
+
+  listPairedDevices() {
+    return listPairedDevices();
+  }
+
+  revokePairedDevice(deviceId: string) {
+    return revokePairedDevice({ path: { device_id: deviceId } });
   }
 }

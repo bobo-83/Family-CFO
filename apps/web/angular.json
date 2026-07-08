@@ -29,7 +29,8 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": ["src/styles.scss"],
+            "allowedCommonJsDependencies": ["qrcode"]
           },
           "configurations": {
             "production": {

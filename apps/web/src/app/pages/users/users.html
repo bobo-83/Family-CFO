@@ -1,0 +1,78 @@
+<h1>Users &amp; Devices</h1>
+<p class="page-empty">
+  Household membership management arrives with a future milestone. Paired-device pairing and
+  revocation are implemented here; scanning the code below requires the iPhone app (M6, macOS
+  only).
+</p>
+
+<h2>Paired devices</h2>
+
+@switch (devices.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ devices.error() }}</p>
+  }
+  @default {
+    @if (devices.value(); as deviceList) {
+      @if (deviceList.length === 0) {
+        <p class="page-empty">No paired devices yet.</p>
+      } @else {
+        <ul class="device-list">
+          @for (device of deviceList; track device.id) {
+            <li class="device-list__item">
+              <div>
+                <div class="device-list__name">{{ device.name }}</div>
+                <div class="device-list__meta">
+                  Paired {{ device.created_at | date: 'medium' }}
+                  @if (device.last_seen_at) {
+                    · Last seen {{ device.last_seen_at | date: 'medium' }}
+                  }
+                </div>
+              </div>
+              @if (device.revoked_at) {
+                <span class="device-list__revoked">Revoked</span>
+              } @else if (canRevokeDevices()) {
+                <button
+                  type="button"
+                  class="device-list__revoke"
+                  [disabled]="revokingId() === device.id"
+                  (click)="revokeDevice(device.id)"
+                >
+                  {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+}
+
+@if (revokeError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+}
+
+<h2>Pair a new device</h2>
+
+@if (canPairDevices()) {
+  @if (pairingSession(); as session) {
+    <div class="pairing-card">
+      <img [src]="session.qrImageDataUrl" alt="Pairing QR code" width="240" height="240" />
+      <p class="pairing-card__payload">{{ session.qrPayload }}</p>
+      <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
+      <button type="button" (click)="dismissPairing()">Done</button>
+    </div>
+  } @else {
+    <button type="button" [disabled]="pairing()" (click)="pairDevice()">
+      {{ pairing() ? 'Creating session…' : 'Pair a device' }}
+    </button>
+    @if (pairingError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+  }
+} @else {
+  <p class="page-empty">Only the household owner or an adult member can pair a new device.</p>
+}

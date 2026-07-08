@@ -300,6 +300,17 @@ Rules:
 - [x] Update API and database documentation for M6 backend support.
 - [x] Run backend verification commands for M6 backend support.
 
+#### Dashboard Integration (Linux-safe)
+
+- [x] Add `createPairingSession`, `listPairedDevices`, `revokePairedDevice` to `ApiService`.
+- [x] Add a client-side QR code renderer for the pairing `qr_payload`.
+- [x] Implement the "Pair a device" flow on the Users & Devices page (owner/adult), showing the QR code, raw payload, and expiration.
+- [x] Implement the paired-device list and revoke action (owner only) on the Users & Devices page.
+- [x] Add unit tests for the pairing and device-revocation flows, including the role-restricted paths.
+- [x] Update `apps/web/README.md` with the pairing/device-management dashboard behavior.
+- [x] Run frontend verification commands for the dashboard integration slice. (Build, 26 Vitest unit tests, and a live end-to-end smoke test against a real backend — session creation, QR rendering, simulated mobile confirmation, list, and revoke all verified.)
+- [ ] Commit M6 dashboard integration changes.
+
 #### iPhone App Implementation (requires macOS)
 
 - [ ] Add SwiftUI project scaffold under `apps/ios`.

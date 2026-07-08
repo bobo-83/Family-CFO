@@ -308,6 +308,7 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 - Add a chat UI backed by the local Family CFO API and AI orchestration path, with financial claims grounded in deterministic calculation references rather than mobile-only calculations.
 - Add camera, receipt, and store-item capture flows that use Apple Vision where available to turn images into structured JSON, including source and confidence metadata, before sending data to the server when an accepted endpoint exists.
 - Keep raw photos on device when structured extraction is sufficient, and add focused tests plus iOS documentation for pairing, unlock, chat, capture, generated-client request mapping, and credential-storage seams.
+- Implement the dashboard side of pairing (session creation, QR display, paired-device list and revocation) in the Angular app — Linux-buildable, unlike the rest of M6 — since the mobile app cannot pair without something generating the QR code it scans.
 
 ### Non-Goals
 
@@ -341,6 +342,14 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 - The iPhone scans the QR code, shows server and household confirmation, generates or loads a device public key, and calls `POST /api/v1/pairing/confirm`.
 - The server stores only the device public key and a hash of the issued bearer token. The raw token is returned once and then stored by the app in Keychain.
 - Pairing sessions expire after a short TTL and are single-use.
+
+### Dashboard Integration (Linux-safe)
+
+This spec's Pairing Flow Details says "Dashboard creates a pairing session," but that was never assigned to an implementation task — a gap surfaced during review, not part of the original M6 scope. Tracked here since it is Angular work (Linux-buildable) even though the rest of M6 is iOS-only.
+
+- The Angular "Users & Devices" page (`apps/web`, added as a placeholder shell in M5) gets a real implementation: a "Pair a device" action calling `POST /api/v1/pairing/sessions` (visible to `owner`/`adult`, per that endpoint's role restriction) that renders the returned `qr_payload` as a scannable QR code plus its raw text and expiration time, and a paired-device list calling `GET /api/v1/pairing/devices` with a revoke action calling `DELETE /api/v1/pairing/devices/{device_id}` (visible to `owner` only, per that endpoint's role restriction).
+- QR rendering is client-side only (a pure-JS QR code generator); the payload itself is already non-secret per the Pairing Flow Details above, so no new data leaves the browser beyond the existing API call.
+- This does not include a QR *scanner* — the dashboard displays a code for the iPhone app to scan; scanning is inherently iOS's job, unavailable on Linux and out of scope here.
 
 ### Generated Swift Client Workflow
 
@@ -382,11 +391,13 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 - OpenAPI contract tests continue to verify every implemented FastAPI route exists in the shared contract.
 - iOS unit tests, run on macOS with the Swift toolchain, cover generated-client request mapping, token injection, Keychain abstraction behavior, local unlock state, QR payload parsing, chat request flow, and capture-to-purchase-request mapping.
 - This Linux development environment does not provide Swift or Xcode, so local verification here is limited to backend tests, OpenAPI checks, generated-source consistency checks, and documentation validation.
+- Dashboard unit tests cover the pairing-session creation flow (including the `403` non-owner/adult path), the paired-device list, and the revoke action (including the `403` non-owner path), following the `ApiService`-DI mocking pattern established in M5.
 
 ### Documentation Impact
 
 - Update `apps/api/README.md` with pairing, paired-device revocation, and chat endpoint behavior.
 - Update `apps/ios/README.md` with setup, generated-client, testing, pairing, Face ID, chat, and capture development notes.
+- Update `apps/web/README.md` with the pairing/device-management dashboard behavior.
 - Update the implementation task checklist as M6 tasks complete.
 
 ## M7: Imports and OCR
