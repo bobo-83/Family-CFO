@@ -506,21 +506,21 @@ Rules:
 
 ### Implementation
 
-- [ ] Regenerate the Angular OpenAPI client for the M9 (and any M10) shapes.
-- [ ] Add `ApiService` wrapper methods for the new write/read endpoints.
-- [ ] Upgrade the Accounts page with create/edit/delete and record-balance actions.
-- [ ] Build the real Transactions page (list + create/edit/delete, plus bill/income management).
-- [ ] Build the real Imports review page (register, upload, status, apply/discard, documents).
-- [ ] Build the real Reports page (generate + list/detail rendering).
-- [ ] Build the real Backups page (list, create, restore with confirmation).
-- [ ] Add member management to the Users & Devices page (list/create/role-edit/remove).
-- [ ] Gate write actions in the UI to the matching roles.
-- [ ] Convert money major→minor units in entry forms.
-- [ ] Add Vitest tests for each page (happy path + role-gated controls + money conversion + restore confirm).
-- [ ] Extend the Playwright e2e smoke test (login → create account → add transaction → generate report → list).
-- [ ] Update `apps/web/README.md` and `docs/specs/README.md`.
-- [ ] Run frontend verification commands.
-- [ ] Commit M11 changes.
+- [x] Regenerate the Angular OpenAPI client for the M9 (and any M10) shapes.
+- [x] Add `ApiService` wrapper methods for the new write/read endpoints.
+- [x] Upgrade the Accounts page with create/edit/delete and record-balance actions.
+- [x] Build the real Transactions page (list + create/edit/delete, plus bill/income management).
+- [x] Build the real Imports review page (register, upload, status, apply/discard, documents).
+- [x] Build the real Reports page (generate + list/detail rendering).
+- [x] Build the real Backups page (list, create, restore with confirmation).
+- [x] Add member management to the Users & Devices page (list/create/role-edit/remove).
+- [x] Gate write actions in the UI to the matching roles.
+- [x] Convert money major→minor units in entry forms.
+- [x] Add Vitest tests for each page (happy path + role-gated controls + money conversion + restore confirm).
+- [x] Extend the Playwright e2e smoke test (login → create account → add transaction → generate report → list).
+- [x] Update `apps/web/README.md` and `docs/specs/README.md`.
+- [x] Run frontend verification commands.
+- [x] Commit M11 changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
 

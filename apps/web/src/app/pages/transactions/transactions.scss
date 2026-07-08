@@ -1,0 +1,48 @@
+.txn-form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 28rem;
+  margin-bottom: 2rem;
+
+  label {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  &__error {
+    color: #b00020;
+  }
+}
+
+.txn-note {
+  color: #5b6472;
+  margin-bottom: 1.5rem;
+}
+
+.txn-error {
+  color: #b00020;
+}
+
+.txn-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid #e4e7ec;
+  }
+
+  &__amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__delete {
+    color: #b00020;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+}

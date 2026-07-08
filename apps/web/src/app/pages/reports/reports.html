@@ -1,0 +1,68 @@
+<h1>Reports</h1>
+
+@if (canGenerate()) {
+  <div class="reports-actions">
+    <button type="button" [disabled]="generating()" (click)="generate('weekly')">
+      Generate weekly report
+    </button>
+    <button type="button" [disabled]="generating()" (click)="generate('monthly')">
+      Generate monthly report
+    </button>
+  </div>
+  @if (generateError()) {
+    <p class="reports-error">{{ generateError() }}</p>
+  }
+} @else {
+  <p class="reports-note">Only the household owner or an adult member can generate reports.</p>
+}
+
+@if (reports.isLoading()) {
+  <p>Loading reports…</p>
+} @else if (reports.error()) {
+  <p class="reports-error">{{ reports.error() }}</p>
+} @else {
+  @for (report of reports.value() ?? []; track report.id) {
+    <article class="report-card">
+      <header>
+        <h2>{{ report.report_type | titlecase }} report</h2>
+        <span>{{ report.period_start }} – {{ report.period_end }}</span>
+      </header>
+      <p class="report-card__net">Net cash flow: {{ formatMoney(report.summary.net_cash_flow) }}</p>
+      <p class="report-card__narrative">{{ report.explanation_text }}</p>
+      @if (report.summary.wins?.length) {
+        <h3>Wins</h3>
+        <ul>
+          @for (win of report.summary.wins; track win) {
+            <li>{{ win }}</li>
+          }
+        </ul>
+      }
+      @if (report.summary.risks?.length) {
+        <h3>Risks</h3>
+        <ul>
+          @for (risk of report.summary.risks; track risk) {
+            <li>{{ risk }}</li>
+          }
+        </ul>
+      }
+      @if (report.summary.unusual_spending?.length) {
+        <h3>Unusual spending</h3>
+        <ul>
+          @for (item of report.summary.unusual_spending; track item) {
+            <li>{{ item }}</li>
+          }
+        </ul>
+      }
+      @if (report.summary.recommended_actions?.length) {
+        <h3>Recommended actions</h3>
+        <ul>
+          @for (action of report.summary.recommended_actions; track action) {
+            <li>{{ action }}</li>
+          }
+        </ul>
+      }
+    </article>
+  } @empty {
+    <p>No reports generated yet.</p>
+  }
+}

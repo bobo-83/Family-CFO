@@ -33,6 +33,19 @@ M6 is primarily the iPhone app, which cannot be built from Linux (see `AGENTS.md
 - There is no QR *scanner* here — the dashboard only displays the code; scanning it is the iPhone app's job (M6, macOS-only, not built in this environment).
 - Verified end-to-end against a real backend: session creation renders a real QR image, and a device paired via `POST /api/v1/pairing/confirm` (simulating what the iPhone app will call) appears in the list and can be revoked.
 
+## M11 Scope (Dashboard Data Entry and Review)
+
+Turns the M5 placeholder shells into real pages, now that their backends (M7 imports, M8 reports/backups) and the M9 write APIs exist. All write actions are gated in the UI to the same roles the API enforces — the UI gating is convenience, not the security boundary.
+
+- **Accounts** (`owner`/`adult` to write): create/delete accounts and record balances, alongside the existing list.
+- **Transactions** (`owner`/`adult`): manual add/delete plus the list, with money entered in major units and converted to integer minor units before sending.
+- **Imports** (`owner`/`adult`): register a CSV/PDF import, upload the file, watch status, and apply/discard a `needs_review` import. Processing happens in the background worker, so status moves from `pending` to `needs_review` out of band.
+- **Reports** (`owner`/`adult` to generate): generate weekly/monthly reports and render each report's wins/risks/unusual-spending/recommended-actions and narrative.
+- **Backups** (`owner` only): create a backup, list backup jobs, and restore — with a confirmation dialog stating that restore replaces all current data.
+- **Users & Devices** (`owner` for members): the M6 pairing/device half now sits alongside real member management (list, add, change role, remove).
+
+Not implemented in M11 (tracked backlog): a dashboard **chat** page (M10 persists conversations at the API layer but ships no UI) and a first-run **household setup wizard** around `POST /api/v1/households` (the API exists after M9; M5 onboarding remains login-only).
+
 ## Stack
 
 Standalone components (no `NgModule`s), Angular signals and the built-in `resource()` API for async data, zoneless change detection, plain SCSS. No server-side rendering — this is a single-page app served behind the FastAPI backend.
@@ -73,7 +86,7 @@ npx prettier --write .
 npm run e2e
 ```
 
-Runs `e2e/onboarding.spec.ts` against a running dev server (`npm start`) and a running, fixture-seeded API backend on `http://localhost:8000` — it is not part of `npm test` and does not start either server itself. Override the target with `E2E_BASE_URL`.
+Runs `e2e/onboarding.spec.ts` and `e2e/data-entry.spec.ts` (M11: login → create account → add transaction → generate report) against a running dev server (`npm start`) and a running, fixture-seeded API backend on `http://localhost:8000` — they are not part of `npm test` and do not start either server themselves. Override the target with `E2E_BASE_URL`.
 
 ## Generated API Client
 

@@ -1,0 +1,81 @@
+<h1>Imports</h1>
+
+@if (canReview()) {
+  <form class="import-form" [formGroup]="form" (ngSubmit)="submit()">
+    <h2>Import a statement</h2>
+    <label>
+      Format
+      <select formControlName="sourceType">
+        <option value="csv">CSV</option>
+        <option value="pdf">PDF</option>
+      </select>
+    </label>
+    <label>
+      Account
+      <select formControlName="accountId">
+        <option value="" disabled>Select an account</option>
+        @for (account of accounts.value() ?? []; track account.id) {
+          <option [value]="account.id">{{ account.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      File
+      <input type="file" (change)="onFileSelected($event)" />
+    </label>
+    <button type="submit" [disabled]="submitting()">Upload for processing</button>
+    <p class="import-form__hint">
+      Uploaded files are processed by the background worker; status updates from
+      <em>pending</em> to <em>needs_review</em> once parsed.
+    </p>
+    @if (submitError()) {
+      <p class="import-form__error">{{ submitError() }}</p>
+    }
+  </form>
+} @else {
+  <p class="import-note">Only the household owner or an adult member can manage imports.</p>
+}
+
+@if (imports.isLoading()) {
+  <p>Loading imports…</p>
+} @else if (imports.error()) {
+  <p class="import-error">{{ imports.error() }}</p>
+} @else {
+  <table class="import-table">
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Skipped</th>
+        @if (canReview()) {
+          <th></th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (record of imports.value() ?? []; track record.id) {
+        <tr>
+          <td>{{ record.filename }}</td>
+          <td>{{ record.source_type }}</td>
+          <td>{{ record.status }}</td>
+          <td>{{ record.skipped_row_count }}</td>
+          @if (canReview()) {
+            <td>
+              @if (record.status === 'needs_review') {
+                <button type="button" (click)="apply(record.id)">Apply</button>
+                <button type="button" class="import-table__discard" (click)="discard(record.id)">
+                  Discard
+                </button>
+              }
+            </td>
+          }
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="5">No imports yet.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

@@ -1,0 +1,23 @@
+.backups-actions {
+  margin-bottom: 1rem;
+}
+
+.backups-note {
+  color: #5b6472;
+}
+
+.backups-error {
+  color: #b00020;
+}
+
+.backups-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid #e4e7ec;
+  }
+}

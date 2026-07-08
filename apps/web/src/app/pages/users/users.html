@@ -1,9 +1,84 @@
 <h1>Users &amp; Devices</h1>
 <p class="page-empty">
-  Household membership management arrives with a future milestone. Paired-device pairing and
-  revocation are implemented here; scanning the code below requires the iPhone app (M6, macOS
-  only).
+  Manage household members and paired devices. Scanning the pairing code below requires the iPhone
+  app (M6, macOS only).
 </p>
+
+<h2>Household members</h2>
+
+@switch (members.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ members.error() }}</p>
+  }
+  @default {
+    <ul class="member-list">
+      @for (member of members.value() ?? []; track member.user_id) {
+        <li class="member-list__item">
+          <div>
+            <div class="member-list__name">{{ member.display_name }}</div>
+            <div class="member-list__meta">{{ member.email }} · {{ member.role }}</div>
+          </div>
+          @if (canManageMembers()) {
+            <div class="member-list__actions">
+              <select
+                [value]="member.role"
+                (change)="changeRole(member.user_id, $any($event.target).value)"
+              >
+                @for (role of memberRoles; track role) {
+                  <option [value]="role">{{ role }}</option>
+                }
+              </select>
+              <button
+                type="button"
+                class="member-list__remove"
+                (click)="removeMember(member.user_id)"
+              >
+                Remove
+              </button>
+            </div>
+          }
+        </li>
+      } @empty {
+        <li>No members.</li>
+      }
+    </ul>
+  }
+}
+
+@if (canManageMembers()) {
+  <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
+    <h3>Add a member</h3>
+    <label>
+      Email
+      <input type="email" formControlName="email" />
+    </label>
+    <label>
+      Display name
+      <input type="text" formControlName="displayName" />
+    </label>
+    <label>
+      Password
+      <input type="password" formControlName="password" />
+    </label>
+    <label>
+      Role
+      <select formControlName="role">
+        @for (role of memberRoles; track role) {
+          <option [value]="role">{{ role }}</option>
+        }
+      </select>
+    </label>
+    <button type="submit" [disabled]="memberSubmitting()">Add member</button>
+    @if (memberError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+  </form>
+} @else {
+  <p class="page-empty">Only the household owner can manage members.</p>
+}
 
 <h2>Paired devices</h2>
 

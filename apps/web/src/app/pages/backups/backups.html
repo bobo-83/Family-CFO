@@ -1,0 +1,49 @@
+<h1>Backups</h1>
+
+@if (isOwner()) {
+  <div class="backups-actions">
+    <button type="button" [disabled]="busy()" (click)="createBackup()">Create backup now</button>
+  </div>
+  @if (actionError()) {
+    <p class="backups-error">{{ actionError() }}</p>
+  }
+
+  @if (backups.isLoading()) {
+    <p>Loading backups…</p>
+  } @else if (backups.error()) {
+    <p class="backups-error">{{ backups.error() }}</p>
+  } @else {
+    <table class="backups-table">
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Status</th>
+          <th>Size (bytes)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (backup of backups.value() ?? []; track backup.id) {
+          <tr>
+            <td>{{ backup.created_at }}</td>
+            <td>{{ backup.status }}{{ backup.pruned_at ? ' (pruned)' : '' }}</td>
+            <td>{{ backup.size_bytes ?? '—' }}</td>
+            <td>
+              @if (backup.status === 'completed' && !backup.pruned_at) {
+                <button type="button" [disabled]="busy()" (click)="restore(backup.id)">
+                  Restore
+                </button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4">No backups yet.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+} @else {
+  <p class="backups-note">Only the household owner can manage backups.</p>
+}

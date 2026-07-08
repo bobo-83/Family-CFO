@@ -1,6 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, resource, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import QRCode from 'qrcode';
+import type { HouseholdRole } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -11,21 +13,90 @@ interface PairingSessionView {
   expiresAt: string;
 }
 
+const MEMBER_ROLES: HouseholdRole[] = ['owner', 'adult', 'viewer', 'child'];
+
 @Component({
   selector: 'app-users',
-  imports: [DatePipe],
+  imports: [DatePipe, ReactiveFormsModule],
   templateUrl: './users.html',
   styleUrl: './users.scss',
 })
 export class Users {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly formBuilder = inject(FormBuilder);
 
+  protected readonly memberRoles = MEMBER_ROLES;
   protected readonly canPairDevices = () => {
     const role = this.auth.role();
     return role === 'owner' || role === 'adult';
   };
   protected readonly canRevokeDevices = () => this.auth.role() === 'owner';
+  protected readonly canManageMembers = () => this.auth.role() === 'owner';
+
+  protected readonly members = resource({
+    loader: async () => {
+      const { data, error } = await this.api.listMembers();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load members.'));
+      }
+      return data.members;
+    },
+  });
+
+  protected readonly memberForm = this.formBuilder.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
+    displayName: ['', Validators.required],
+    role: ['adult' as HouseholdRole, Validators.required],
+  });
+
+  protected readonly memberSubmitting = signal(false);
+  protected readonly memberError = signal<string | null>(null);
+
+  protected async addMember(): Promise<void> {
+    if (this.memberForm.invalid || this.memberSubmitting()) {
+      this.memberForm.markAllAsTouched();
+      return;
+    }
+    this.memberSubmitting.set(true);
+    this.memberError.set(null);
+    const { email, password, displayName, role } = this.memberForm.getRawValue();
+    const { error } = await this.api.createMember({
+      email,
+      password,
+      display_name: displayName,
+      role,
+    });
+    this.memberSubmitting.set(false);
+    if (error) {
+      this.memberError.set(apiErrorMessage(error, 'Failed to add member.'));
+      return;
+    }
+    this.memberForm.reset({ email: '', password: '', displayName: '', role: 'adult' });
+    this.members.reload();
+  }
+
+  protected async changeRole(userId: string, role: HouseholdRole): Promise<void> {
+    const { error } = await this.api.updateMemberRole(userId, { role });
+    if (error) {
+      this.memberError.set(apiErrorMessage(error, 'Failed to change role.'));
+      return;
+    }
+    this.members.reload();
+  }
+
+  protected async removeMember(userId: string): Promise<void> {
+    if (!confirm('Remove this member? Their active sessions will be revoked.')) {
+      return;
+    }
+    const { error } = await this.api.deleteMember(userId);
+    if (error) {
+      this.memberError.set(apiErrorMessage(error, 'Failed to remove member.'));
+      return;
+    }
+    this.members.reload();
+  }
 
   protected readonly devices = resource({
     loader: async () => {

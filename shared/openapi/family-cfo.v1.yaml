@@ -1593,7 +1593,7 @@ components:
         - brokerage
         - retirement
         - hsa
-        - 529
+        - "529"
         - mortgage
         - auto_loan
         - student_loan

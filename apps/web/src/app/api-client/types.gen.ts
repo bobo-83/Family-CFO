@@ -135,7 +135,7 @@ export type Account = {
     balance: Money;
 };
 
-export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | 529 | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
+export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
 
 export type Goal = {
     id: string;
@@ -205,21 +205,230 @@ export type ImportRecord = {
     id: string;
     source_type: ImportSourceType;
     filename: string;
-    status: 'pending' | 'processing' | 'needs_review' | 'completed' | 'failed';
+    status: 'pending' | 'processing' | 'needs_review' | 'completed' | 'discarded' | 'failed';
+    error_message?: string;
+    skipped_row_count?: number;
     created_at: string;
+};
+
+export type ImportListResponse = {
+    imports: Array<ImportRecord>;
+};
+
+export type Document = {
+    id: string;
+    content_type: string;
+    created_at: string;
+    extraction?: DocumentExtraction;
+};
+
+export type DocumentExtraction = {
+    id: string;
+    extraction_type: 'pdf_text' | 'ocr';
+    text: string;
+    structured_fields: {
+        [key: string]: unknown;
+    };
+    confidence: number;
+    warnings: Array<string>;
+    created_at: string;
+};
+
+export type DocumentListResponse = {
+    documents: Array<Document>;
 };
 
 export type ImportSourceType = 'csv' | 'pdf' | 'ofx' | 'qfx';
 
-export type ReportSummary = {
-    id: string;
-    type: ReportType;
-    period_start: string;
-    period_end: string;
-    title: string;
+export type ReportType = 'weekly' | 'monthly';
+
+export type ExplanationSource = 'deterministic_stub' | 'llm';
+
+export type GoalProgressSummary = {
+    goal_id: string;
+    name: string;
+    percent_complete?: number;
+    months_to_completion?: number;
+    calculation_ref: string;
 };
 
-export type ReportType = 'weekly' | 'monthly' | 'annual';
+export type ReportSummary = {
+    wins?: Array<string>;
+    risks?: Array<string>;
+    unusual_spending?: Array<string>;
+    recommended_actions?: Array<string>;
+    goal_progress?: Array<GoalProgressSummary>;
+    net_cash_flow: Money;
+    calculation_refs?: Array<string>;
+};
+
+export type Report = {
+    id: string;
+    report_type: ReportType;
+    period_start: string;
+    period_end: string;
+    summary: ReportSummary;
+    explanation_text: string;
+    explanation_source: ExplanationSource;
+    generated_at: string;
+};
+
+export type ReportListResponse = {
+    reports: Array<Report>;
+};
+
+export type ReportGenerateRequest = {
+    report_type: ReportType;
+};
+
+export type BackupJobStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export type BackupJob = {
+    id: string;
+    status: BackupJobStatus;
+    size_bytes?: number;
+    error_message?: string;
+    started_at: string;
+    completed_at?: string;
+    pruned_at?: string;
+    created_at: string;
+};
+
+export type BackupJobListResponse = {
+    backups: Array<BackupJob>;
+};
+
+export type HouseholdCreateRequest = {
+    display_name: string;
+    base_currency: string;
+    owner_email: string;
+    owner_password: string;
+    owner_display_name: string;
+};
+
+export type Member = {
+    user_id: string;
+    email: string;
+    display_name: string;
+    role: HouseholdRole;
+    created_at: string;
+};
+
+export type MemberListResponse = {
+    members: Array<Member>;
+};
+
+export type MemberCreateRequest = {
+    email: string;
+    password: string;
+    display_name: string;
+    role: HouseholdRole;
+};
+
+export type MemberRoleUpdateRequest = {
+    role: HouseholdRole;
+};
+
+export type AccountCreateRequest = {
+    name: string;
+    type: AccountType;
+    currency: string;
+};
+
+export type AccountUpdateRequest = {
+    name?: string;
+    type?: AccountType;
+};
+
+export type AccountBalanceCreateRequest = {
+    balance: Money;
+};
+
+export type TransactionCreateRequest = {
+    account_id: string;
+    occurred_at: string;
+    amount: Money;
+    merchant?: string;
+    description?: string;
+};
+
+export type TransactionUpdateRequest = {
+    account_id?: string;
+    occurred_at?: string;
+    amount?: Money;
+    merchant?: string;
+    description?: string;
+};
+
+export type BillCreateRequest = {
+    name: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+    account_id?: string;
+    next_due_date?: string;
+};
+
+export type BillUpdateRequest = {
+    name?: string;
+    amount?: Money;
+    frequency?: RecurringFrequency;
+    next_due_date?: string;
+};
+
+export type IncomeCreateRequest = {
+    name: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+};
+
+export type IncomeUpdateRequest = {
+    name?: string;
+    amount?: Money;
+    frequency?: RecurringFrequency;
+};
+
+export type AuditEvent = {
+    id: string;
+    actor_user_id?: string;
+    action: string;
+    entity_type: string;
+    entity_id?: string;
+    summary: string;
+    created_at: string;
+};
+
+export type AuditEventListResponse = {
+    events: Array<AuditEvent>;
+};
+
+export type Conversation = {
+    id: string;
+    title: string;
+    created_at: string;
+    updated_at: string;
+    message_count?: number;
+};
+
+export type ConversationListResponse = {
+    conversations: Array<Conversation>;
+};
+
+export type ConversationMessage = {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    recommendation_id?: string;
+    sequence: number;
+    created_at: string;
+};
+
+export type ConversationDetail = {
+    id: string;
+    title: string;
+    created_at: string;
+    updated_at: string;
+    messages: Array<ConversationMessage>;
+};
 
 export type AiRuntimeConfig = {
     provider: 'vllm' | 'ollama' | 'llama_cpp' | 'openai_compatible';
@@ -383,6 +592,31 @@ export type CreateAuthSessionResponses = {
 
 export type CreateAuthSessionResponse = CreateAuthSessionResponses[keyof CreateAuthSessionResponses];
 
+export type CreateHouseholdData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/households';
+};
+
+export type CreateHouseholdErrors = {
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateHouseholdError = CreateHouseholdErrors[keyof CreateHouseholdErrors];
+
+export type CreateHouseholdResponses = {
+    /**
+     * Household created; returns an authenticated session for the new owner
+     */
+    201: AuthSession;
+};
+
+export type CreateHouseholdResponse = CreateHouseholdResponses[keyof CreateHouseholdResponses];
+
 export type GetHouseholdContextData = {
     body?: never;
     path?: never;
@@ -407,6 +641,171 @@ export type GetHouseholdContextResponses = {
 };
 
 export type GetHouseholdContextResponse = GetHouseholdContextResponses[keyof GetHouseholdContextResponses];
+
+export type ListMembersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/members';
+};
+
+export type ListMembersErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListMembersError = ListMembersErrors[keyof ListMembersErrors];
+
+export type ListMembersResponses = {
+    /**
+     * Household members
+     */
+    200: MemberListResponse;
+};
+
+export type ListMembersResponse = ListMembersResponses[keyof ListMembersResponses];
+
+export type CreateMemberData = {
+    body: MemberCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/household/members';
+};
+
+export type CreateMemberErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateMemberError = CreateMemberErrors[keyof CreateMemberErrors];
+
+export type CreateMemberResponses = {
+    /**
+     * Member added
+     */
+    201: Member;
+};
+
+export type CreateMemberResponse = CreateMemberResponses[keyof CreateMemberResponses];
+
+export type DeleteMemberData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/household/members/{user_id}';
+};
+
+export type DeleteMemberErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type DeleteMemberError = DeleteMemberErrors[keyof DeleteMemberErrors];
+
+export type DeleteMemberResponses = {
+    /**
+     * Member removed
+     */
+    204: void;
+};
+
+export type DeleteMemberResponse = DeleteMemberResponses[keyof DeleteMemberResponses];
+
+export type UpdateMemberRoleData = {
+    body: MemberRoleUpdateRequest;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/household/members/{user_id}';
+};
+
+export type UpdateMemberRoleErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type UpdateMemberRoleError = UpdateMemberRoleErrors[keyof UpdateMemberRoleErrors];
+
+export type UpdateMemberRoleResponses = {
+    /**
+     * Member role changed
+     */
+    200: Member;
+};
+
+export type UpdateMemberRoleResponse = UpdateMemberRoleResponses[keyof UpdateMemberRoleResponses];
+
+export type ListAuditEventsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/audit';
+};
+
+export type ListAuditEventsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors];
+
+export type ListAuditEventsResponses = {
+    /**
+     * Audit events
+     */
+    200: AuditEventListResponse;
+};
+
+export type ListAuditEventsResponse = ListAuditEventsResponses[keyof ListAuditEventsResponses];
 
 export type ListAccountsData = {
     body?: never;
@@ -433,6 +832,144 @@ export type ListAccountsResponses = {
 
 export type ListAccountsResponse = ListAccountsResponses[keyof ListAccountsResponses];
 
+export type CreateAccountData = {
+    body: AccountCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/accounts';
+};
+
+export type CreateAccountErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateAccountError = CreateAccountErrors[keyof CreateAccountErrors];
+
+export type CreateAccountResponses = {
+    /**
+     * Account created
+     */
+    201: Account;
+};
+
+export type CreateAccountResponse = CreateAccountResponses[keyof CreateAccountResponses];
+
+export type DeleteAccountData = {
+    body?: never;
+    path: {
+        account_id: string;
+    };
+    query?: never;
+    url: '/accounts/{account_id}';
+};
+
+export type DeleteAccountErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type DeleteAccountError = DeleteAccountErrors[keyof DeleteAccountErrors];
+
+export type DeleteAccountResponses = {
+    /**
+     * Account deleted
+     */
+    204: void;
+};
+
+export type DeleteAccountResponse = DeleteAccountResponses[keyof DeleteAccountResponses];
+
+export type UpdateAccountData = {
+    body: AccountUpdateRequest;
+    path: {
+        account_id: string;
+    };
+    query?: never;
+    url: '/accounts/{account_id}';
+};
+
+export type UpdateAccountErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAccountError = UpdateAccountErrors[keyof UpdateAccountErrors];
+
+export type UpdateAccountResponses = {
+    /**
+     * Account updated
+     */
+    200: Account;
+};
+
+export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
+
+export type RecordAccountBalanceData = {
+    body: AccountBalanceCreateRequest;
+    path: {
+        account_id: string;
+    };
+    query?: never;
+    url: '/accounts/{account_id}/balances';
+};
+
+export type RecordAccountBalanceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type RecordAccountBalanceError = RecordAccountBalanceErrors[keyof RecordAccountBalanceErrors];
+
+export type RecordAccountBalanceResponses = {
+    /**
+     * Balance recorded
+     */
+    201: Account;
+};
+
+export type RecordAccountBalanceResponse = RecordAccountBalanceResponses[keyof RecordAccountBalanceResponses];
+
 export type ListTransactionsData = {
     body?: never;
     path?: never;
@@ -457,6 +994,109 @@ export type ListTransactionsResponses = {
 };
 
 export type ListTransactionsResponse = ListTransactionsResponses[keyof ListTransactionsResponses];
+
+export type CreateTransactionData = {
+    body: TransactionCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/transactions';
+};
+
+export type CreateTransactionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type CreateTransactionError = CreateTransactionErrors[keyof CreateTransactionErrors];
+
+export type CreateTransactionResponses = {
+    /**
+     * Transaction created
+     */
+    201: Transaction;
+};
+
+export type CreateTransactionResponse = CreateTransactionResponses[keyof CreateTransactionResponses];
+
+export type DeleteTransactionData = {
+    body?: never;
+    path: {
+        transaction_id: string;
+    };
+    query?: never;
+    url: '/transactions/{transaction_id}';
+};
+
+export type DeleteTransactionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteTransactionError = DeleteTransactionErrors[keyof DeleteTransactionErrors];
+
+export type DeleteTransactionResponses = {
+    /**
+     * Transaction deleted
+     */
+    204: void;
+};
+
+export type DeleteTransactionResponse = DeleteTransactionResponses[keyof DeleteTransactionResponses];
+
+export type UpdateTransactionData = {
+    body: TransactionUpdateRequest;
+    path: {
+        transaction_id: string;
+    };
+    query?: never;
+    url: '/transactions/{transaction_id}';
+};
+
+export type UpdateTransactionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateTransactionError = UpdateTransactionErrors[keyof UpdateTransactionErrors];
+
+export type UpdateTransactionResponses = {
+    /**
+     * Transaction updated
+     */
+    200: Transaction;
+};
+
+export type UpdateTransactionResponse = UpdateTransactionResponses[keyof UpdateTransactionResponses];
 
 export type ListBillsData = {
     body?: never;
@@ -483,6 +1123,105 @@ export type ListBillsResponses = {
 
 export type ListBillsResponse = ListBillsResponses[keyof ListBillsResponses];
 
+export type CreateBillData = {
+    body: BillCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/bills';
+};
+
+export type CreateBillErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateBillError = CreateBillErrors[keyof CreateBillErrors];
+
+export type CreateBillResponses = {
+    /**
+     * Bill created
+     */
+    201: Bill;
+};
+
+export type CreateBillResponse = CreateBillResponses[keyof CreateBillResponses];
+
+export type DeleteBillData = {
+    body?: never;
+    path: {
+        bill_id: string;
+    };
+    query?: never;
+    url: '/bills/{bill_id}';
+};
+
+export type DeleteBillErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteBillError = DeleteBillErrors[keyof DeleteBillErrors];
+
+export type DeleteBillResponses = {
+    /**
+     * Bill deleted
+     */
+    204: void;
+};
+
+export type DeleteBillResponse = DeleteBillResponses[keyof DeleteBillResponses];
+
+export type UpdateBillData = {
+    body: BillUpdateRequest;
+    path: {
+        bill_id: string;
+    };
+    query?: never;
+    url: '/bills/{bill_id}';
+};
+
+export type UpdateBillErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateBillError = UpdateBillErrors[keyof UpdateBillErrors];
+
+export type UpdateBillResponses = {
+    /**
+     * Bill updated
+     */
+    200: Bill;
+};
+
+export type UpdateBillResponse = UpdateBillResponses[keyof UpdateBillResponses];
+
 export type ListIncomeSourcesData = {
     body?: never;
     path?: never;
@@ -507,6 +1246,105 @@ export type ListIncomeSourcesResponses = {
 };
 
 export type ListIncomeSourcesResponse = ListIncomeSourcesResponses[keyof ListIncomeSourcesResponses];
+
+export type CreateIncomeSourceData = {
+    body: IncomeCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/income';
+};
+
+export type CreateIncomeSourceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateIncomeSourceError = CreateIncomeSourceErrors[keyof CreateIncomeSourceErrors];
+
+export type CreateIncomeSourceResponses = {
+    /**
+     * Income source created
+     */
+    201: IncomeSource;
+};
+
+export type CreateIncomeSourceResponse = CreateIncomeSourceResponses[keyof CreateIncomeSourceResponses];
+
+export type DeleteIncomeSourceData = {
+    body?: never;
+    path: {
+        income_id: string;
+    };
+    query?: never;
+    url: '/income/{income_id}';
+};
+
+export type DeleteIncomeSourceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteIncomeSourceError = DeleteIncomeSourceErrors[keyof DeleteIncomeSourceErrors];
+
+export type DeleteIncomeSourceResponses = {
+    /**
+     * Income source deleted
+     */
+    204: void;
+};
+
+export type DeleteIncomeSourceResponse = DeleteIncomeSourceResponses[keyof DeleteIncomeSourceResponses];
+
+export type UpdateIncomeSourceData = {
+    body: IncomeUpdateRequest;
+    path: {
+        income_id: string;
+    };
+    query?: never;
+    url: '/income/{income_id}';
+};
+
+export type UpdateIncomeSourceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateIncomeSourceError = UpdateIncomeSourceErrors[keyof UpdateIncomeSourceErrors];
+
+export type UpdateIncomeSourceResponses = {
+    /**
+     * Income source updated
+     */
+    200: IncomeSource;
+};
+
+export type UpdateIncomeSourceResponse = UpdateIncomeSourceResponses[keyof UpdateIncomeSourceResponses];
 
 export type ListGoalsData = {
     body?: never;
@@ -616,6 +1454,97 @@ export type CreateChatMessageResponses = {
 
 export type CreateChatMessageResponse = CreateChatMessageResponses[keyof CreateChatMessageResponses];
 
+export type ListConversationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/conversations';
+};
+
+export type ListConversationsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListConversationsError = ListConversationsErrors[keyof ListConversationsErrors];
+
+export type ListConversationsResponses = {
+    /**
+     * Conversations
+     */
+    200: ConversationListResponse;
+};
+
+export type ListConversationsResponse = ListConversationsResponses[keyof ListConversationsResponses];
+
+export type DeleteConversationData = {
+    body?: never;
+    path: {
+        conversation_id: string;
+    };
+    query?: never;
+    url: '/conversations/{conversation_id}';
+};
+
+export type DeleteConversationErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteConversationError = DeleteConversationErrors[keyof DeleteConversationErrors];
+
+export type DeleteConversationResponses = {
+    /**
+     * Conversation deleted
+     */
+    204: void;
+};
+
+export type DeleteConversationResponse = DeleteConversationResponses[keyof DeleteConversationResponses];
+
+export type GetConversationData = {
+    body?: never;
+    path: {
+        conversation_id: string;
+    };
+    query?: never;
+    url: '/conversations/{conversation_id}';
+};
+
+export type GetConversationErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetConversationError = GetConversationErrors[keyof GetConversationErrors];
+
+export type GetConversationResponses = {
+    /**
+     * Conversation detail
+     */
+    200: ConversationDetail;
+};
+
+export type GetConversationResponse = GetConversationResponses[keyof GetConversationResponses];
+
 export type ListImportsData = {
     body?: never;
     path?: never;
@@ -623,13 +1552,20 @@ export type ListImportsData = {
     url: '/imports';
 };
 
+export type ListImportsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListImportsError = ListImportsErrors[keyof ListImportsErrors];
+
 export type ListImportsResponses = {
     /**
      * Import jobs
      */
-    200: {
-        imports: Array<ImportRecord>;
-    };
+    200: ImportListResponse;
 };
 
 export type ListImportsResponse = ListImportsResponses[keyof ListImportsResponses];
@@ -641,34 +1577,372 @@ export type CreateImportData = {
     url: '/imports';
 };
 
+export type CreateImportErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type CreateImportError = CreateImportErrors[keyof CreateImportErrors];
+
 export type CreateImportResponses = {
     /**
-     * Import accepted
+     * Import registered
      */
-    202: ImportRecord;
+    201: ImportRecord;
 };
 
 export type CreateImportResponse = CreateImportResponses[keyof CreateImportResponses];
 
+export type UploadImportFileData = {
+    body: {
+        file: Blob | File;
+    };
+    path: {
+        import_id: string;
+    };
+    query?: never;
+    url: '/imports/{import_id}/file';
+};
+
+export type UploadImportFileErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UploadImportFileError = UploadImportFileErrors[keyof UploadImportFileErrors];
+
+export type UploadImportFileResponses = {
+    /**
+     * File staged for background processing
+     */
+    202: ImportRecord;
+};
+
+export type UploadImportFileResponse = UploadImportFileResponses[keyof UploadImportFileResponses];
+
+export type ApplyImportData = {
+    body?: never;
+    path: {
+        import_id: string;
+    };
+    query?: never;
+    url: '/imports/{import_id}/apply';
+};
+
+export type ApplyImportErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type ApplyImportError = ApplyImportErrors[keyof ApplyImportErrors];
+
+export type ApplyImportResponses = {
+    /**
+     * Import applied
+     */
+    200: ImportRecord;
+};
+
+export type ApplyImportResponse = ApplyImportResponses[keyof ApplyImportResponses];
+
+export type DiscardImportData = {
+    body?: never;
+    path: {
+        import_id: string;
+    };
+    query?: never;
+    url: '/imports/{import_id}/discard';
+};
+
+export type DiscardImportErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DiscardImportError = DiscardImportErrors[keyof DiscardImportErrors];
+
+export type DiscardImportResponses = {
+    /**
+     * Import discarded
+     */
+    200: ImportRecord;
+};
+
+export type DiscardImportResponse = DiscardImportResponses[keyof DiscardImportResponses];
+
+export type ListDocumentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/documents';
+};
+
+export type ListDocumentsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListDocumentsError = ListDocumentsErrors[keyof ListDocumentsErrors];
+
+export type ListDocumentsResponses = {
+    /**
+     * Documents
+     */
+    200: DocumentListResponse;
+};
+
+export type ListDocumentsResponse = ListDocumentsResponses[keyof ListDocumentsResponses];
+
+export type CreateDocumentData = {
+    body: {
+        file: Blob | File;
+    };
+    path?: never;
+    query?: never;
+    url: '/documents';
+};
+
+export type CreateDocumentErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type CreateDocumentError = CreateDocumentErrors[keyof CreateDocumentErrors];
+
+export type CreateDocumentResponses = {
+    /**
+     * Document created and extracted
+     */
+    201: Document;
+};
+
+export type CreateDocumentResponse = CreateDocumentResponses[keyof CreateDocumentResponses];
+
 export type ListReportsData = {
     body?: never;
     path?: never;
-    query?: {
-        type?: ReportType;
-    };
+    query?: never;
     url: '/reports';
 };
+
+export type ListReportsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListReportsError = ListReportsErrors[keyof ListReportsErrors];
 
 export type ListReportsResponses = {
     /**
      * Reports
      */
-    200: {
-        reports: Array<ReportSummary>;
-    };
+    200: ReportListResponse;
 };
 
 export type ListReportsResponse = ListReportsResponses[keyof ListReportsResponses];
+
+export type GetReportData = {
+    body?: never;
+    path: {
+        report_id: string;
+    };
+    query?: never;
+    url: '/reports/{report_id}';
+};
+
+export type GetReportErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetReportError = GetReportErrors[keyof GetReportErrors];
+
+export type GetReportResponses = {
+    /**
+     * Report
+     */
+    200: Report;
+};
+
+export type GetReportResponse = GetReportResponses[keyof GetReportResponses];
+
+export type GenerateReportData = {
+    body: ReportGenerateRequest;
+    path?: never;
+    query?: never;
+    url: '/reports/generate';
+};
+
+export type GenerateReportErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GenerateReportError = GenerateReportErrors[keyof GenerateReportErrors];
+
+export type GenerateReportResponses = {
+    /**
+     * Report generated
+     */
+    201: Report;
+};
+
+export type GenerateReportResponse = GenerateReportResponses[keyof GenerateReportResponses];
+
+export type ListBackupsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups';
+};
+
+export type ListBackupsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListBackupsError = ListBackupsErrors[keyof ListBackupsErrors];
+
+export type ListBackupsResponses = {
+    /**
+     * Backup jobs
+     */
+    200: BackupJobListResponse;
+};
+
+export type ListBackupsResponse = ListBackupsResponses[keyof ListBackupsResponses];
+
+export type CreateBackupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups';
+};
+
+export type CreateBackupErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateBackupError = CreateBackupErrors[keyof CreateBackupErrors];
+
+export type CreateBackupResponses = {
+    /**
+     * Backup created
+     */
+    201: BackupJob;
+};
+
+export type CreateBackupResponse = CreateBackupResponses[keyof CreateBackupResponses];
+
+export type RestoreBackupData = {
+    body?: never;
+    path: {
+        backup_id: string;
+    };
+    query?: never;
+    url: '/backups/{backup_id}/restore';
+};
+
+export type RestoreBackupErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type RestoreBackupError = RestoreBackupErrors[keyof RestoreBackupErrors];
+
+export type RestoreBackupResponses = {
+    /**
+     * Backup restored
+     */
+    200: BackupJob;
+};
+
+export type RestoreBackupResponse = RestoreBackupResponses[keyof RestoreBackupResponses];
 
 export type GetAiRuntimeConfigData = {
     body?: never;
