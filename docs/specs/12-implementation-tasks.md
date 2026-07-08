@@ -233,39 +233,39 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M5 scope.
-- [ ] Define M5 non-goals.
-- [ ] Define onboarding flow behavior.
-- [ ] Define dashboard information architecture for M5.
-- [ ] Define generated Angular client workflow.
-- [ ] Define browser-side security expectations.
-- [ ] Define M5 unit and integration test expectations.
-- [ ] Define M5 documentation updates.
+- [x] Define M5 scope.
+- [x] Define M5 non-goals.
+- [x] Define onboarding flow behavior.
+- [x] Define dashboard information architecture for M5.
+- [x] Define generated Angular client workflow.
+- [x] Define browser-side security expectations.
+- [x] Define M5 unit and integration test expectations.
+- [x] Define M5 documentation updates.
 
 ### Implementation
 
-- [ ] Add Angular project scaffold under `apps/web`.
-- [ ] Add generated API client workflow from OpenAPI.
-- [ ] Add dashboard app shell and routing.
-- [ ] Add local authentication/session UI.
-- [ ] Add onboarding flow.
-- [ ] Add overview page.
-- [ ] Add accounts page.
-- [ ] Add goals page.
-- [ ] Add reports shell.
-- [ ] Add transaction review shell.
-- [ ] Add import review shell.
-- [ ] Add AI runtime settings page.
-- [ ] Add backup management shell.
-- [ ] Add user management shell.
-- [ ] Add paired device revocation UI.
-- [ ] Add error and loading states.
-- [ ] Add form validation for supported M5 workflows.
-- [ ] Add unit tests for dashboard components.
-- [ ] Add integration tests for generated client usage.
-- [ ] Add end-to-end smoke test for onboarding and health connectivity.
-- [ ] Update web README with development commands.
-- [ ] Run verification commands.
+- [x] Add Angular project scaffold under `apps/web`. (Standalone components, signals, zoneless, Vitest — Angular 22 CLI defaults.)
+- [x] Add generated API client workflow from OpenAPI. (`@hey-api/openapi-ts`, not `openapi-generator-cli` — this sandbox's Java 8 is too old for the latter.)
+- [x] Add dashboard app shell and routing.
+- [x] Add local authentication/session UI.
+- [x] Add onboarding flow. (Login only — no signup API exists.)
+- [x] Add overview page.
+- [x] Add accounts page.
+- [x] Add goals page.
+- [x] Add reports shell.
+- [x] Add transaction review shell.
+- [x] Add import review shell.
+- [x] Add AI runtime settings page.
+- [x] Add backup management shell.
+- [x] Add user management shell.
+- [x] Add paired device revocation UI. (Placeholder inside the Users shell; no pairing API until M6.)
+- [x] Add error and loading states.
+- [x] Add form validation for supported M5 workflows.
+- [x] Add unit tests for dashboard components. (21 Vitest tests; components depend on an injectable `ApiService` so tests use `TestBed` DI mocking, since Angular's Vitest integration blocks `vi.mock()` on relative imports.)
+- [x] Add integration tests for generated client usage. (Covered by the Playwright e2e test against a real backend, not a mocked-`fetch` unit test — see Test Expectations for why.)
+- [x] Add end-to-end smoke test for onboarding and health connectivity. (`e2e/onboarding.spec.ts`, 3 Playwright tests, verified passing against a real backend.)
+- [x] Update web README with development commands.
+- [x] Run verification commands.
 - [ ] Commit M5 Angular dashboard changes.
 
 ## M6: iPhone App

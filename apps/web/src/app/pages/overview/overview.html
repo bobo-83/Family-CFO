@@ -1,0 +1,34 @@
+<h1>Overview</h1>
+
+@switch (household.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ household.error() }}</p>
+  }
+  @default {
+    @if (household.value(); as context) {
+      <div class="overview__cards">
+        <div class="overview__card">
+          <span class="overview__label">Household</span>
+          <span class="overview__value">{{ context.display_name }}</span>
+        </div>
+        <div class="overview__card">
+          <span class="overview__label">Net worth</span>
+          <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
+        </div>
+        <div class="overview__card">
+          <span class="overview__label">Emergency fund</span>
+          <span class="overview__value">
+            @if (context.emergency_fund_months !== null && context.emergency_fund_months !== undefined) {
+              {{ context.emergency_fund_months | number: '1.1-1' }} months
+            } @else {
+              Not enough data
+            }
+          </span>
+        </div>
+      </div>
+    }
+  }
+}

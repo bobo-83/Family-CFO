@@ -1,0 +1,46 @@
+import { Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
+
+@Component({
+  selector: 'app-login',
+  imports: [ReactiveFormsModule],
+  templateUrl: './login.html',
+  styleUrl: './login.scss',
+})
+export class Login {
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly formBuilder = inject(FormBuilder);
+
+  protected readonly form = this.formBuilder.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
+  });
+
+  protected readonly submitting = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
+
+  protected async submit(): Promise<void> {
+    if (this.form.invalid || this.submitting()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.submitting.set(true);
+    this.errorMessage.set(null);
+
+    const { email, password } = this.form.getRawValue();
+    const result = await this.auth.login(email, password);
+
+    this.submitting.set(false);
+
+    if (!result.ok) {
+      this.errorMessage.set(result.errorMessage ?? 'Login failed.');
+      return;
+    }
+
+    await this.router.navigateByUrl('/overview');
+  }
+}

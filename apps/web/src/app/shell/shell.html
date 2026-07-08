@@ -1,0 +1,24 @@
+<div class="shell">
+  <aside class="shell__nav">
+    <div class="shell__brand">Family CFO</div>
+    <nav>
+      @for (item of navItems; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="shell__nav-link--active"
+          class="shell__nav-link"
+          >{{ item.label }}</a
+        >
+      }
+    </nav>
+    <div class="shell__footer">
+      @if (role(); as currentRole) {
+        <span class="shell__role">Role: {{ currentRole }}</span>
+      }
+      <button type="button" class="shell__logout" (click)="logout()">Log out</button>
+    </div>
+  </aside>
+  <main class="shell__content">
+    <router-outlet />
+  </main>
+</div>

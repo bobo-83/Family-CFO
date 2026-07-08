@@ -1,0 +1,57 @@
+<h1>AI Runtime</h1>
+<p class="page-empty">
+  Configure a self-hosted, OpenAI-compatible runtime for AI-generated purchase explanations. When
+  disabled, or when nothing is configured, explanations are generated deterministically from
+  calculation output only — no household data ever leaves this server.
+</p>
+
+@switch (config.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ config.error() }}</p>
+  }
+  @default {
+    @if (isOwner()) {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="ai-runtime-form">
+        <label>
+          <span>Provider</span>
+          <select formControlName="provider">
+            @for (provider of providers; track provider) {
+              <option [value]="provider">{{ provider }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          <span>Base URL</span>
+          <input type="text" formControlName="base_url" placeholder="http://vllm:8000" />
+        </label>
+
+        <label>
+          <span>Model</span>
+          <input type="text" formControlName="model" placeholder="llama-3-8b-instruct" />
+        </label>
+
+        <label class="ai-runtime-form__checkbox">
+          <input type="checkbox" formControlName="enabled" />
+          <span>Enabled</span>
+        </label>
+
+        @if (submitError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+        @if (submitSuccess()) {
+          <p class="ai-runtime-form__success">Saved.</p>
+        }
+
+        <button type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Saving…' : 'Save' }}
+        </button>
+      </form>
+    } @else {
+      <p class="page-empty">Only the household owner can change the AI runtime configuration.</p>
+    }
+  }
+}

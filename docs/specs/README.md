@@ -27,6 +27,7 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 - M2 financial context and deterministic engine: implemented (cash flow and budget summary calculations are not yet exposed through an API endpoint; transaction/bill/income write APIs remain out of scope).
 - M3 purchase advisor: implemented (deterministic explanation stub only; no real LLM call). Debt payoff/retirement projection is tracked as backlog, not owned by any milestone yet — see `docs/specs/12-implementation-tasks.md`.
 - M4 local AI runtime: implemented (vLLM adapter only; no Ollama/llama.cpp adapters, no real vLLM deployment — tests mock the HTTP layer).
+- M5 Angular dashboard: implemented (real pages for every M2–M4 API that exists; reports/transactions/imports/backups/users are placeholder shells pending M6/M7/M8).
 
 Before coding a milestone, update the relevant documents with:
 

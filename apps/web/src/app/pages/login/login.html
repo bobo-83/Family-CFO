@@ -1,0 +1,35 @@
+<div class="login">
+  <div class="login__card">
+    <h1>Family CFO</h1>
+    <p class="login__subtitle">
+      Sign in to your self-hosted household instance. There is no public sign-up — accounts are
+      created by the household owner.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label class="login__field">
+        <span>Email</span>
+        <input type="email" formControlName="email" autocomplete="username" />
+        @if (form.controls.email.invalid && form.controls.email.touched) {
+          <span class="login__error">Enter a valid email address.</span>
+        }
+      </label>
+
+      <label class="login__field">
+        <span>Password</span>
+        <input type="password" formControlName="password" autocomplete="current-password" />
+        @if (form.controls.password.invalid && form.controls.password.touched) {
+          <span class="login__error">Password must be at least 8 characters.</span>
+        }
+      </label>
+
+      @if (errorMessage(); as message) {
+        <p class="login__error login__error--banner" role="alert">{{ message }}</p>
+      }
+
+      <button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+  </div>
+</div>

@@ -243,6 +243,54 @@
 - Import review
 - AI runtime settings
 
+### Scope
+
+- Add an Angular project under `apps/web`: standalone components (no `NgModule`s), Angular signals for local component state, plain SCSS for styling, no server-side rendering — a self-hosted single-page app served behind the FastAPI backend.
+- Add a generated TypeScript client from `shared/openapi/family-cfo.v1.yaml` (`@hey-api/openapi-ts` with the `@hey-api/client-fetch` runtime — TypeScript-native, no JVM required; this sandbox's Java 8 is too old for modern `openapi-generator-cli`), regenerated via an npm script, never hand-edited.
+- Add an app shell (nav + routed content), a login page against `POST /api/v1/auth/sessions`, token storage, a generated-client request interceptor attaching the bearer token, and an auth guard. The generated client (`@hey-api/client-fetch`) calls `fetch()` directly rather than Angular's `HttpClient`, so token attachment uses the client's own `interceptors.request.use()` hook, not an Angular `HttpInterceptor`.
+- Add real, backend-integrated pages for every M2–M4 read/write API that exists today: onboarding/login, overview (`GET /household`), accounts (`GET /accounts`), goals (`GET`/`POST /goals`), and AI runtime settings (`GET`/`PUT /api/v1/ai/runtime`).
+- Add explicitly-labeled shell pages, reachable from the nav, for capabilities whose backend doesn't exist yet: reports, transaction review, import review, backup management, user management, and paired-device revocation. Each shell states which future milestone will make it real (M6 pairing/revocation, M7 imports, M8 reports/backups); this is honest scaffolding, not simulated functionality.
+- Add loading and error states as a shared pattern (a small signal-based "resource" wrapper) used by every backend-integrated page, and client-side form validation for the login and goal-creation forms.
+
+### Non-Goals
+
+- No user registration/signup UI — M2 has no signup API; onboarding authenticates against the seeded demo household, same limitation already documented in `apps/api/README.md`.
+- No real functionality behind the shell pages (reports, transaction/import review, backup management, user management, device revocation) — they render a labeled placeholder, nothing more, until their backend milestones land.
+- No purchase advisor UI — not part of M5's page list; the dashboard doesn't yet expose the M3 advisor or M4 AI explanation path.
+- No dark mode, i18n, or design system beyond plain SCSS; visual polish is deferred.
+- No production Docker image for the dashboard — that is Release Readiness Docker work (`docs/specs/10-docker-spec.md`).
+
+### Onboarding Flow
+
+Onboarding is a login screen, not a signup wizard: a welcome message explaining this is a self-hosted instance, an email/password form posting to `POST /api/v1/auth/sessions`, and on success a redirect to the overview page. A failed login shows the structured API error's `message`. This matches M2's actual auth surface — there is no account-creation flow to onboard into yet.
+
+### Dashboard Information Architecture
+
+Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts, Goals, Reports (shell), Transactions (shell), Imports (shell), AI Runtime (real), Backups (shell), Users (shell). Paired-device revocation lives inside a Settings-adjacent shell page rather than its own nav entry, since it has no backend until M6.
+
+### Generated Client Workflow
+
+`npm run generate:client` runs `@hey-api/openapi-ts` against `shared/openapi/family-cfo.v1.yaml`, writing into `apps/web/src/app/api-client/`. The generated directory is committed (not gitignored) so `npm ci` alone is sufficient to build, consistent with treating the OpenAPI contract as source of truth without requiring a code-generation step in CI for M5. Regenerate and commit whenever the shared contract changes.
+
+### Browser-Side Security Expectations
+
+- The bearer token is held in memory (a signal-based auth service) and persisted to `localStorage` only so a page refresh doesn't force re-login; this is a self-hosted single-tenant dashboard, not a target for XSS-heavy multi-tenant threat models, but no token is ever logged to the browser console.
+- The client's request interceptor attaches the token only to requests made through the generated client (always same-origin `/api/v1/...`), never to arbitrary URLs.
+- A `401` response from any API call clears the stored token and redirects to login.
+- No inline `eval`, no third-party analytics or telemetry scripts, consistent with the project's no-telemetry principle.
+
+### Test Expectations
+
+- Unit tests via Vitest (the Angular 22 CLI default — jsdom-based, no browser required) for the token store, the auth service, the auth guard, and each backend-integrated page component (login, overview, accounts, goals, AI runtime settings), covering the loading, success, and error-state rendering. Angular's Vitest integration does not support `vi.mock()` on relative imports ("Please use Angular TestBed for mocking dependencies"), so components depend on an injectable `ApiService` wrapping the generated client's SDK functions rather than importing them directly — tests substitute `ApiService` via `TestBed`'s DI, not module mocking.
+- Request-shape correctness against the OpenAPI contract, and the client interceptor's bearer-token attachment and 401-clears-session behavior, are validated by the end-to-end Playwright test below against a real backend rather than by mocking `fetch()` in a unit test — an attempt at the latter hit an unresolved environment quirk in Angular 22's Vitest builder where `globalThis.fetch` spies in non-`TestBed` test files never observed the generated client's calls. The real-backend test is strictly stronger evidence for this specific behavior anyway.
+- One end-to-end Playwright smoke test covering login against a running backend and confirming the overview page renders household data — the "onboarding and health connectivity" smoke test the implementation checklist calls for. It is not part of the default `npm test` run; it requires the API server (and thus is documented as an opt-in script), since spinning up Postgres/Alembic in the same pass this milestone touches is out of scope.
+- This sandbox has no system Chrome; the Playwright e2e test runs against a Playwright-managed headless Chromium (`npx playwright install chromium` once), documented in `apps/web/README.md`. Unit tests need no browser at all.
+
+### Documentation Impact
+
+- Add `apps/web/README.md` with setup, run, test, lint, and client-generation commands.
+- Update the implementation task checklist as M5 tasks complete.
+
 ## M6: iPhone App
 
 - Pairing

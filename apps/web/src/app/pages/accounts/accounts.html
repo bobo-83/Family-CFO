@@ -1,0 +1,36 @@
+<h1>Accounts</h1>
+
+@switch (accounts.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ accounts.error() }}</p>
+  }
+  @default {
+    @if (accounts.value(); as accountList) {
+      @if (accountList.length === 0) {
+        <p class="page-empty">No accounts yet.</p>
+      } @else {
+        <table class="accounts-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (account of accountList; track account.id) {
+              <tr>
+                <td>{{ account.name }}</td>
+                <td>{{ account.type }}</td>
+                <td>{{ formatMoney(account.balance) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+.accounts-table {
+  width: 100%;
+  max-width: 48rem;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #eceff2;
+  }
+
+  th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5b6472;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+}

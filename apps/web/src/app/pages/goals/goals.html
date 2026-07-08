@@ -1,0 +1,68 @@
+<h1>Goals</h1>
+
+@switch (goals.status()) {
+  @case ('loading') {
+    <p>Loading…</p>
+  }
+  @case ('error') {
+    <p class="page-error" role="alert">{{ goals.error() }}</p>
+  }
+  @default {
+    @if (goals.value(); as goalList) {
+      @if (goalList.length === 0) {
+        <p class="page-empty">No goals yet.</p>
+      } @else {
+        <ul class="goal-list">
+          @for (goal of goalList; track goal.id) {
+            <li class="goal-list__item">
+              <div class="goal-list__name">{{ goal.name }}</div>
+              <div class="goal-list__type">{{ goal.type }}</div>
+              <div class="goal-list__amounts">
+                {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+}
+
+@if (canCreateGoals()) {
+  <h2>Add a goal</h2>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="goal-form">
+    <label>
+      <span>Name</span>
+      <input type="text" formControlName="name" />
+    </label>
+
+    <label>
+      <span>Type</span>
+      <select formControlName="type">
+        @for (type of goalTypes; track type) {
+          <option [value]="type">{{ type }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      <span>Target amount (USD)</span>
+      <input type="number" step="0.01" min="0.01" formControlName="targetAmount" />
+    </label>
+
+    <label>
+      <span>Priority (1 = highest)</span>
+      <input type="number" step="1" min="1" max="5" formControlName="priority" />
+    </label>
+
+    @if (submitError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Saving…' : 'Add goal' }}
+    </button>
+  </form>
+} @else {
+  <p class="page-empty">Only the household owner or an adult member can add goals.</p>
+}

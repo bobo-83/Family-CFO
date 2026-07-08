@@ -1,0 +1,70 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.shell__nav {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1b2430;
+  color: #e6e9ef;
+  padding: 1.25rem 1rem;
+}
+
+.shell__brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+}
+
+.shell__nav-link {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  margin-bottom: 0.25rem;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &--active {
+    background: rgba(255, 255, 255, 0.16);
+    font-weight: 600;
+  }
+}
+
+.shell__footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.shell__role {
+  opacity: 0.75;
+}
+
+.shell__logout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.shell__content {
+  flex: 1;
+  padding: 2rem;
+  background: #f5f6f8;
+  overflow-y: auto;
+}
