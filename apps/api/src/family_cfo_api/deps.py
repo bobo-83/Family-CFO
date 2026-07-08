@@ -17,15 +17,20 @@ async def get_app_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+async def get_bearer_token(request: Request) -> str:
+    """The raw bearer token from the Authorization header (401 if absent)."""
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    return token
+
+
 async def get_current_session(
     request: Request,
     engine: Engine = Depends(get_engine),
 ) -> repository.SessionContext:
-    authorization = request.headers.get("authorization", "")
-    scheme, _, token = authorization.partition(" ")
-
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    token = await get_bearer_token(request)
 
     session = repository.get_session_context(engine, security.hash_token(token))
     if session is None:

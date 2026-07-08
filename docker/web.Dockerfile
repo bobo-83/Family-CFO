@@ -14,6 +14,11 @@ COPY apps/web/ ./
 RUN npm run build
 
 FROM nginx:alpine
+# openssl generates the self-signed cert at first start when none is mounted.
+RUN apk add --no-cache openssl
 COPY docker/web-nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
+RUN chmod +x /usr/local/bin/web-entrypoint.sh
 COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 80 443
+CMD ["/usr/local/bin/web-entrypoint.sh"]

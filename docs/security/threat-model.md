@@ -69,9 +69,12 @@ Controls:
 - Restore testing
 - Documented key handling
 
-## Open Questions
+## Resolved Decisions
 
-- Exact database encryption approach.
-- Local certificate provisioning strategy.
-- Backup key recovery flow.
-- Whether optional external AI providers will ever be supported through explicit opt-in.
+The four questions that were open through M0–M12 are resolved in
+[ADR 0008: Security Hardening Decisions](../adr/0008-security-hardening-decisions.md):
+
+- **Database encryption at rest** — host/volume responsibility (encrypted disk), not app-layer column encryption; portable backups are separately encrypted at the app layer (M8).
+- **Local certificate provisioning** — the web container self-signs on first start; operators bring their own cert (mount `/etc/nginx/certs`) or front the stack with an external TLS proxy. No built-in ACME by default (M13).
+- **Backup key recovery** — operator-managed, no recovery by design; losing the key loses the backups. Documented as intentional.
+- **External AI providers** — local-only default; cloud/external AI is unsupported and can only be enabled through a future explicit opt-in ADR that supersedes ADR 0008.

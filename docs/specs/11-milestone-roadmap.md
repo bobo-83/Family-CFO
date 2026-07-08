@@ -844,3 +844,64 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Add `.env.example` documenting every required variable.
 - Check off the "Docker and Deployment" items in `docs/specs/12-implementation-tasks.md` that M12 completes; leave reverse-proxy/monitoring/backup-sidecar unchecked (Future Containers).
 - Update `docs/specs/README.md` Acceptance State with M12.
+
+## M13: Security Hardening
+
+- HTTPS/TLS at the web tier
+- Session logout and token rotation
+- Threat-model open questions resolved (ADR 0008)
+- Security test coverage and CI scanning
+
+> Context: the first tranche of the "Security and Privacy" Release-Readiness checklist (`docs/specs/12-implementation-tasks.md`). M12 ships plain HTTP and the threat model still lists four open questions; M13 closes the app-to-server transport gap, adds session lifecycle controls, and records the security decisions as an ADR.
+
+### Scope
+
+- **HTTPS/TLS.** The `web` (nginx) container terminates TLS on 443, redirects HTTP (80) to HTTPS, and adds security response headers (HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, a conservative `Content-Security-Policy`). An entrypoint generates a self-signed certificate on first start if none is provided, and an operator can bring their own by mounting a cert/key over `/etc/nginx/certs` (the documented path for a real deployment, alongside fronting with an external TLS proxy). Compose publishes 443.
+- **Session logout + token rotation.** Add `DELETE /api/v1/auth/sessions` (log out — revoke the caller's current session) and `POST /api/v1/auth/sessions/refresh` (rotate — revoke the current token and issue a fresh one with a new TTL). Session expiration is already enforced by `get_session_context` (expired or revoked tokens resolve to `401`); M13 makes the TTL configurable (`FAMILY_CFO_SESSION_TTL_HOURS`) and adds explicit tests for expiry, revocation-on-logout, and rotation-invalidates-the-old-token.
+- **Security decisions as an ADR.** Add ADR 0008 resolving the threat model's four open questions, and update `docs/security/threat-model.md` to point at it instead of listing them as open.
+- **Consolidated security tests.** A `test_security.py` covering the role-based authorization matrix (viewer/child blocked from writes; adult vs owner boundaries), paired-device revocation invalidating device sessions, logging redaction (a password/token in a log line is `[REDACTED]`), and a no-telemetry assertion (the codebase opens no outbound analytics/telemetry connection — grep-level guard plus the documented no-telemetry stance).
+- **CI hardening.** Add secret scanning (gitleaks) and a Python dependency vulnerability audit (`pip-audit`) as CI workflows, and wire the currently-uncovered suites (financial-engine, ai-orchestrator, ocr-worker, scheduler, backup, and the Angular unit tests) into CI so every package is gated.
+
+### Non-Goals
+
+- **No public-CA/ACME certificate automation** (Let's Encrypt/certbot). A home server behind a dynamic IP or on a LAN can't always complete an ACME challenge; M13 ships a self-signed default and a bring-your-own-cert mount, and documents fronting with an external TLS proxy (Caddy/Traefik/nginx) for a public deployment. Automated cert renewal is future work.
+- **No database encryption-at-rest implemented in the app layer.** ADR 0008 resolves the *open question* by assigning it: at-rest encryption is the host/volume's responsibility (LUKS/encrypted volume) for a self-hosted box, not per-column app encryption, which would break the deterministic-money and audit requirements. This is a documented decision, not a new code path.
+- **No backup-key recovery mechanism.** ADR 0008 records the decision that the backup key is operator-managed with no recovery by design (losing it means losing the backups) — consistent with what M8 already documents; M13 formalizes it rather than building key escrow.
+- **No OAuth/OIDC/SSO, MFA, or password-reset flows.** Local password auth plus revocable sessions/devices remains the model (ADR 0002-era decision); federated identity is out of scope.
+- **No rate limiting, WAF, fail2ban, or intrusion detection.** Those belong to the reverse-proxy/monitoring "Future Containers" tranche, not M13.
+- **No mutual-TLS or client-certificate auth**, and no HTTP Strict Transport Security preload-list submission (HSTS header is set, but preloading is an operator choice on a real domain).
+
+### API Behavior
+
+- `DELETE /api/v1/auth/sessions` requires `bearerAuth`; it revokes the session backing the presented token and returns `204`. A subsequent request with that token is `401`.
+- `POST /api/v1/auth/sessions/refresh` requires `bearerAuth`; it revokes the current session and returns a new `AuthSession` (new token, new `expires_at`). The old token no longer authenticates.
+- Both re-read the bearer token from the `Authorization` header (a new `get_bearer_token` dependency) so they can act on the exact session presented, not just the resolved `SessionContext`.
+- No change to existing routes; these are additive.
+
+### Data Model Changes
+
+- None. `auth_sessions` already has `revoked_at` and `expires_at`; logout sets `revoked_at`, refresh revokes the old row and inserts a new one. No migration.
+
+### Security Impact
+
+- TLS closes the "Local Network Attacker interception" threat the threat model names — app-to-server traffic is encrypted end to end at the web tier.
+- Token rotation and logout close the "Compromised Device" gap: a user (or owner, via existing device revocation) can invalidate a leaked token immediately rather than waiting out the TTL.
+- The security-header set mitigates clickjacking (`X-Frame-Options`), MIME sniffing (`nosniff`), and mixed-content/injection (CSP) against the dashboard.
+- The self-signed default means the first-run experience shows a browser warning; documented clearly, with bring-your-own-cert and external-proxy paths for production trust.
+- ADR 0008 converts four unresolved threat-model questions into recorded, reviewable decisions.
+
+### Test Expectations
+
+- Auth lifecycle: login → refresh returns a new token and the old token is now `401`; login → logout makes the token `401`; an expired session (seeded with a past `expires_at`) is `401`.
+- Security matrix (`test_security.py`): a `viewer` is `403` on representative writes across accounts/transactions/bills/income/members/backups; an `adult` is allowed household-data writes but `403` on owner-only member/backup actions; device revocation invalidates that device's session.
+- Redaction: a log record containing `password=hunter2` / `token=abc` is emitted as `[REDACTED]`; a no-telemetry test asserts the app defines no telemetry/analytics client and makes no outbound call on a normal request path.
+- Docker: the built web image serves HTTPS (self-signed) on 443 with the expected security headers, and HTTP redirects to HTTPS. Verified with `curl -k`.
+- CI YAML validates; the new workflows install and run their scanners/suites.
+
+### Documentation Impact
+
+- Add ADR 0008 and update `docs/adr` index (`docs/specs/02-adrs.md`).
+- Update `docs/security/threat-model.md` (open questions → resolved, pointing at ADR 0008) and `docs/specs/06-security-model.md` if control language changes.
+- Update `docker/README.md` and `.env.example` with the TLS ports, cert paths/bring-your-own, and `FAMILY_CFO_SESSION_TTL_HOURS`.
+- Update `apps/api/README.md` with the logout/refresh endpoints, and `docs/specs/README.md` Acceptance State with M13.
+- Check off the corresponding "Security and Privacy" and CI items in `docs/specs/12-implementation-tasks.md`.

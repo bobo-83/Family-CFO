@@ -143,6 +143,35 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "401":
           $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Authentication
+      operationId: deleteAuthSession
+      summary: Log out (revoke the current session)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Session revoked
+        "401":
+          $ref: "#/components/responses/Error"
+  /auth/sessions/refresh:
+    post:
+      tags:
+        - Authentication
+      operationId: refreshAuthSession
+      summary: Rotate the current session token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: New session issued; the old token is now invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          $ref: "#/components/responses/Error"
   /households:
     post:
       tags:

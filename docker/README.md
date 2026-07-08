@@ -7,7 +7,16 @@ cp .env.example .env      # then edit .env — at minimum set POSTGRES_PASSWORD
 docker compose up -d
 ```
 
-The dashboard is then at `http://localhost:8080` (override with `WEB_PORT`).
+The dashboard is then at `https://localhost:8443` (override with `WEB_TLS_PORT`); plain HTTP on `WEB_PORT` (8080) redirects to HTTPS.
+
+## TLS / HTTPS
+
+The `web` container terminates TLS and adds security headers (HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`). On first start it generates a **self-signed** certificate (so you get working HTTPS immediately, with the expected browser warning). For a real deployment, either:
+
+- mount your own certificate/key as `tls.crt` / `tls.key` into the `web_certs` volume (at `/etc/nginx/certs`), or
+- front the stack with your own TLS reverse proxy (Caddy/Traefik/nginx) terminating a publicly-trusted certificate.
+
+Automated public-CA issuance (ACME/Let's Encrypt) is intentionally not built in — see [ADR 0008](../docs/adr/0008-security-hardening-decisions.md).
 
 ## Core Services (default)
 

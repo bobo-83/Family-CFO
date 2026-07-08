@@ -562,21 +562,21 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 
 ## Release Readiness
 
-### Security and Privacy
+### Security and Privacy (M13)
 
-- [ ] Resolve threat model open question for database encryption.
-- [ ] Resolve threat model open question for local certificate provisioning.
-- [ ] Resolve threat model open question for backup key recovery.
-- [ ] Decide whether optional external AI providers are allowed only through a future explicit opt-in ADR.
-- [ ] Add HTTPS configuration for app-to-server communication.
-- [ ] Add token rotation.
-- [ ] Add session expiration enforcement.
-- [ ] Add role-based authorization tests.
-- [ ] Add paired device revocation tests.
-- [ ] Add structured logging redaction tests.
-- [ ] Add no-telemetry verification.
-- [ ] Add secret scanning to CI.
-- [ ] Add dependency vulnerability checks.
+- [x] Resolve threat model open question for database encryption. (ADR 0008: host/volume encryption, not app-layer.)
+- [x] Resolve threat model open question for local certificate provisioning. (ADR 0008: self-signed default + bring-your-own / external proxy.)
+- [x] Resolve threat model open question for backup key recovery. (ADR 0008: operator-managed, no recovery by design.)
+- [x] Decide whether optional external AI providers are allowed only through a future explicit opt-in ADR. (ADR 0008: local-only default; cloud only via a future superseding ADR.)
+- [x] Add HTTPS configuration for app-to-server communication. (nginx TLS on 443, HTTP→HTTPS redirect, security headers, self-signed cert bootstrap; verified `curl -k` end-to-end.)
+- [x] Add token rotation. (`POST /api/v1/auth/sessions/refresh` — revokes the old token, issues a new one.)
+- [x] Add session expiration enforcement. (Already enforced by `get_session_context`; `FAMILY_CFO_SESSION_TTL_HOURS` made configurable and an explicit expiry test added.)
+- [x] Add role-based authorization tests. (`test_security.py` viewer/adult/owner matrix.)
+- [x] Add paired device revocation tests. (`test_pairing_api.py`; referenced from `test_security.py`.)
+- [x] Add structured logging redaction tests. (`test_logging.py` + `test_security.py` through the handler.)
+- [x] Add no-telemetry verification. (`test_security.py` first-party-source scan for telemetry/analytics SDKs.)
+- [x] Add secret scanning to CI. (`.github/workflows/security.yml` — gitleaks.)
+- [x] Add dependency vulnerability checks. (`.github/workflows/security.yml` — pip-audit.)
 
 ### Docker and Deployment (M12)
 
@@ -603,7 +603,7 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 
 - [ ] Add OpenAPI linting to CI.
 - [x] Add backend OpenAPI drift check to CI.
-- [ ] Add Angular client generation check to CI.
+- [x] Add Angular client generation check to CI. (`web.yml` fails if the committed client is stale vs. the OpenAPI contract.)
 - [ ] Add Swift client generation check to CI.
 - [ ] Document generated client regeneration workflow.
 - [ ] Ensure clients do not hand-maintain DTOs that should come from OpenAPI.
@@ -613,10 +613,10 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [x] Add backend linting to CI.
 - [x] Add backend unit tests to CI.
 - [x] Add backend integration tests to CI.
-- [ ] Add financial engine unit tests to CI.
-- [ ] Add AI orchestrator tests to CI.
-- [ ] Add worker tests to CI.
-- [ ] Add Angular linting and tests to CI.
+- [x] Add financial engine unit tests to CI. (`services.yml` matrix.)
+- [x] Add AI orchestrator tests to CI. (`services.yml` matrix.)
+- [x] Add worker tests to CI. (`services.yml` matrix covers ocr-worker, scheduler, and backup.)
+- [x] Add Angular linting and tests to CI. (`web.yml` — build + Vitest.)
 - [ ] Add iOS test instructions and CI plan.
 - [ ] Add end-to-end smoke test for local deployment.
 - [ ] Add synthetic fixture policy check.

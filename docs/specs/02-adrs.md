@@ -11,6 +11,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0005: Use OpenAPI as the client contract source of truth](../adr/0005-openapi-source-of-truth.md)
 - [0006: Use Docker Compose for the home server](../adr/0006-docker-compose-home-server.md)
 - [0007: Require replaceable component interfaces](../adr/0007-replaceable-component-interfaces.md)
+- [0008: Security hardening decisions](../adr/0008-security-hardening-decisions.md)
 
 ## ADR Rules
 

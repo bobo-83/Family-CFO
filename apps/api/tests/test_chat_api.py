@@ -70,7 +70,9 @@ async def test_chat_appends_to_an_existing_conversation(demo_client, demo_token)
 
 
 @pytest.mark.anyio
-async def test_chat_with_unknown_conversation_id_starts_a_new_thread(demo_client, demo_token) -> None:
+async def test_chat_with_unknown_conversation_id_starts_a_new_thread(
+    demo_client, demo_token
+) -> None:
     # An unknown/other-household id cannot be appended to; a new conversation is started instead.
     unknown_id = "77777777-7777-7777-7777-777777777777"
     response = await demo_client.post(

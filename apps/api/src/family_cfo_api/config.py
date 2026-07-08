@@ -30,6 +30,7 @@ class Settings:
     backup_dir: str = DEFAULT_BACKUP_DIR
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
     backup_encryption_key: str | None = None
+    session_ttl_hours: int = 12
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -50,6 +51,9 @@ class Settings:
             ),
             backup_encryption_key=os.getenv(
                 "FAMILY_CFO_BACKUP_ENCRYPTION_KEY", cls.backup_encryption_key
+            ),
+            session_ttl_hours=int(
+                os.getenv("FAMILY_CFO_SESSION_TTL_HOURS", str(cls.session_ttl_hours))
             ),
         )
 

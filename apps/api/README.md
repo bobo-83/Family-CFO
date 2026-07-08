@@ -230,6 +230,17 @@ Not implemented in M10:
 - No raw-prompt persistence — only the user message and the guardrail-validated assistant answer are stored, same M4 rule.
 - No dashboard chat UI (tracked as backlog; M11 covers the four M5 shells only).
 
+## M13 Scope (Security Hardening)
+
+Implemented (backend half; the TLS half lives in `docker/`):
+
+- `POST /api/v1/auth/sessions/refresh` (bearer) rotates the session: it revokes the presented token and returns a fresh `AuthSession`. The old token is immediately `401`.
+- `DELETE /api/v1/auth/sessions` (bearer) logs out — revokes the presented token (`204`).
+- Session expiration is enforced by `get_session_context` (expired/revoked tokens are `401`); the TTL is configurable via `FAMILY_CFO_SESSION_TTL_HOURS` (default 12).
+- Consolidated security tests in `tests/test_security.py`: the viewer/adult/owner authorization matrix, logging redaction through the handler, and a no-telemetry scan of first-party source. See also ADR 0008 (`docs/adr/0008-security-hardening-decisions.md`) for the resolved threat-model decisions.
+
+The web tier's HTTPS/TLS termination, security headers, and self-signed-cert bootstrap are in `docker/` (see `docker/README.md`).
+
 ## Setup
 
 ```bash

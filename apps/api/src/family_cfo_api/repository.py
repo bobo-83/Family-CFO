@@ -108,6 +108,20 @@ def create_auth_session(
     return session_id
 
 
+def revoke_auth_session(engine: Engine, token_hash: str) -> bool:
+    """Revoke the (unrevoked) session backing a token. Returns True if one was revoked."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.auth_sessions)
+            .where(
+                models.auth_sessions.c.token_hash == token_hash,
+                models.auth_sessions.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=utcnow())
+        )
+    return result.rowcount > 0
+
+
 def get_session_context(engine: Engine, token_hash: str) -> SessionContext | None:
     with engine.connect() as conn:
         session_row = (

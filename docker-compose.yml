@@ -85,7 +85,17 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
+      # HTTP (redirects to HTTPS) and HTTPS. The dashboard is at
+      # https://localhost:${WEB_TLS_PORT}.
       - "${WEB_PORT:-8080}:80"
+      - "${WEB_TLS_PORT:-8443}:443"
+    environment:
+      TLS_CERT_CN: ${TLS_CERT_CN:-family-cfo.local}
+    volumes:
+      # Bring-your-own certificate: mount a directory with tls.crt / tls.key to
+      # replace the self-signed default (see ADR 0008). Uses a named volume by
+      # default so the generated self-signed cert persists across restarts.
+      - web_certs:/etc/nginx/certs
     depends_on:
       api:
         condition: service_healthy
@@ -123,6 +133,7 @@ volumes:
   backups:
   model_cache:
   qdrant_data:
+  web_certs:
 
 networks:
   internal:
