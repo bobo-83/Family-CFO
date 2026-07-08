@@ -51,13 +51,33 @@ async def test_chat_returns_calculation_referenced_recommendation(
 
 
 @pytest.mark.anyio
-async def test_chat_preserves_supplied_conversation_id(demo_client, demo_token) -> None:
-    conversation_id = "77777777-7777-7777-7777-777777777777"
+async def test_chat_appends_to_an_existing_conversation(demo_client, demo_token) -> None:
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    # M10: a first call creates a real conversation; a follow-up with that id appends to it.
+    first = await demo_client.post(
+        "/api/v1/chat/messages", headers=headers, json={"message": "Start"}
+    )
+    conversation_id = first.json()["conversation_id"]
+
     response = await demo_client.post(
         "/api/v1/chat/messages",
-        headers={"Authorization": f"Bearer {demo_token}"},
+        headers=headers,
         json={"conversation_id": conversation_id, "message": "Continue"},
     )
 
     assert response.status_code == 200
     assert response.json()["conversation_id"] == conversation_id
+
+
+@pytest.mark.anyio
+async def test_chat_with_unknown_conversation_id_starts_a_new_thread(demo_client, demo_token) -> None:
+    # An unknown/other-household id cannot be appended to; a new conversation is started instead.
+    unknown_id = "77777777-7777-7777-7777-777777777777"
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"conversation_id": unknown_id, "message": "Continue"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["conversation_id"] != unknown_id

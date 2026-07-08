@@ -20,10 +20,12 @@ tags:
   - name: Goals
   - name: Advisor
   - name: Chat
+  - name: Conversations
   - name: Imports
   - name: Documents
   - name: Reports
   - name: Backups
+  - name: Audit
   - name: AI Runtime
 paths:
   /health:
@@ -141,6 +143,21 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "401":
           $ref: "#/components/responses/Error"
+  /households:
+    post:
+      tags:
+        - Household
+      operationId: createHousehold
+      summary: Bootstrap a household with its first owner (self-hosted first-run setup)
+      responses:
+        "201":
+          description: Household created; returns an authenticated session for the new owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "409":
+          $ref: "#/components/responses/Error"
   /household:
     get:
       tags:
@@ -157,6 +174,129 @@ paths:
               schema:
                 $ref: "#/components/schemas/HouseholdContext"
         "401":
+          $ref: "#/components/responses/Error"
+  /household/members:
+    get:
+      tags:
+        - Household
+      operationId: listMembers
+      summary: List household members
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Household members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Household
+      operationId: createMember
+      summary: Add a household member
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberCreateRequest"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /household/members/{user_id}:
+    patch:
+      tags:
+        - Household
+      operationId: updateMemberRole
+      summary: Change a member's role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRoleUpdateRequest"
+      responses:
+        "200":
+          description: Member role changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Household
+      operationId: deleteMember
+      summary: Remove a household member
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Member removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /audit:
+    get:
+      tags:
+        - Audit
+      operationId: listAuditEvents
+      summary: List the household's audit events
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
   /accounts:
     get:
@@ -175,6 +315,123 @@ paths:
                 $ref: "#/components/schemas/AccountListResponse"
         "401":
           $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Accounts
+      operationId: createAccount
+      summary: Create an account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountCreateRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /accounts/{account_id}:
+    patch:
+      tags:
+        - Accounts
+      operationId: updateAccount
+      summary: Update an account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdateRequest"
+      responses:
+        "200":
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Accounts
+      operationId: deleteAccount
+      summary: Delete an account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Account deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /accounts/{account_id}/balances:
+    post:
+      tags:
+        - Accounts
+      operationId: recordAccountBalance
+      summary: Record a new balance for an account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountBalanceCreateRequest"
+      responses:
+        "201":
+          description: Balance recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /transactions:
     get:
       tags:
@@ -191,6 +448,89 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionListResponse"
         "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Transactions
+      operationId: createTransaction
+      summary: Manually create a transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionCreateRequest"
+      responses:
+        "201":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /transactions/{transaction_id}:
+    patch:
+      tags:
+        - Transactions
+      operationId: updateTransaction
+      summary: Update a transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpdateRequest"
+      responses:
+        "200":
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Transactions
+      operationId: deleteTransaction
+      summary: Delete a transaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Transaction deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
   /bills:
     get:
@@ -209,6 +549,87 @@ paths:
                 $ref: "#/components/schemas/BillListResponse"
         "401":
           $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Bills
+      operationId: createBill
+      summary: Create a recurring bill
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillCreateRequest"
+      responses:
+        "201":
+          description: Bill created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /bills/{bill_id}:
+    patch:
+      tags:
+        - Bills
+      operationId: updateBill
+      summary: Update a recurring bill
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillUpdateRequest"
+      responses:
+        "200":
+          description: Bill updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bill"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Bills
+      operationId: deleteBill
+      summary: Delete a recurring bill
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Bill deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /income:
     get:
       tags:
@@ -225,6 +646,87 @@ paths:
               schema:
                 $ref: "#/components/schemas/IncomeListResponse"
         "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Income
+      operationId: createIncomeSource
+      summary: Create an income source
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeCreateRequest"
+      responses:
+        "201":
+          description: Income source created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeSource"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /income/{income_id}:
+    patch:
+      tags:
+        - Income
+      operationId: updateIncomeSource
+      summary: Update an income source
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: income_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeUpdateRequest"
+      responses:
+        "200":
+          description: Income source updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeSource"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Income
+      operationId: deleteIncomeSource
+      summary: Delete an income source
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: income_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Income source deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
   /goals:
     get:
@@ -314,6 +816,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
+          $ref: "#/components/responses/Error"
+  /conversations:
+    get:
+      tags:
+        - Conversations
+      operationId: listConversations
+      summary: List chat conversations for the household
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /conversations/{conversation_id}:
+    get:
+      tags:
+        - Conversations
+      operationId: getConversation
+      summary: Get a conversation and its message thread
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Conversation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Conversations
+      operationId: deleteConversation
+      summary: Delete a conversation and its messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Conversation deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
   /imports:
     get:
@@ -1482,6 +2050,315 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BackupJob"
+    HouseholdCreateRequest:
+      type: object
+      required:
+        - display_name
+        - base_currency
+        - owner_email
+        - owner_password
+        - owner_display_name
+      properties:
+        display_name:
+          type: string
+        base_currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        owner_email:
+          type: string
+        owner_password:
+          type: string
+          minLength: 8
+        owner_display_name:
+          type: string
+    Member:
+      type: object
+      required:
+        - user_id
+        - email
+        - display_name
+        - role
+        - created_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+        created_at:
+          type: string
+          format: date-time
+    MemberListResponse:
+      type: object
+      required:
+        - members
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/Member"
+    MemberCreateRequest:
+      type: object
+      required:
+        - email
+        - password
+        - display_name
+        - role
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        display_name:
+          type: string
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+    MemberRoleUpdateRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+    AccountCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+        - currency
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/AccountType"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+    AccountUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/AccountType"
+    AccountBalanceCreateRequest:
+      type: object
+      required:
+        - balance
+      properties:
+        balance:
+          $ref: "#/components/schemas/Money"
+    TransactionCreateRequest:
+      type: object
+      required:
+        - account_id
+        - occurred_at
+        - amount
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date
+        amount:
+          $ref: "#/components/schemas/Money"
+        merchant:
+          type: string
+        description:
+          type: string
+    TransactionUpdateRequest:
+      type: object
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date
+        amount:
+          $ref: "#/components/schemas/Money"
+        merchant:
+          type: string
+        description:
+          type: string
+    BillCreateRequest:
+      type: object
+      required:
+        - name
+        - amount
+        - frequency
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        account_id:
+          type: string
+          format: uuid
+        next_due_date:
+          type: string
+          format: date
+    BillUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        next_due_date:
+          type: string
+          format: date
+    IncomeCreateRequest:
+      type: object
+      required:
+        - name
+        - amount
+        - frequency
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+    IncomeUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+    AuditEvent:
+      type: object
+      required:
+        - id
+        - action
+        - entity_type
+        - summary
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor_user_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        summary:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    AuditEventListResponse:
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+    Conversation:
+      type: object
+      required:
+        - id
+        - title
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+          minimum: 0
+    ConversationListResponse:
+      type: object
+      required:
+        - conversations
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+    ConversationMessage:
+      type: object
+      required:
+        - id
+        - role
+        - content
+        - sequence
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+        content:
+          type: string
+        recommendation_id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    ConversationDetail:
+      type: object
+      required:
+        - id
+        - title
+        - created_at
+        - updated_at
+        - messages
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationMessage"
     AiRuntimeConfig:
       type: object
       required:

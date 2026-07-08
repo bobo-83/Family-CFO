@@ -309,7 +309,7 @@ Rules:
 - [x] Add unit tests for the pairing and device-revocation flows, including the role-restricted paths.
 - [x] Update `apps/web/README.md` with the pairing/device-management dashboard behavior.
 - [x] Run frontend verification commands for the dashboard integration slice. (Build, 26 Vitest unit tests, and a live end-to-end smoke test against a real backend — session creation, QR rendering, simulated mobile confirmation, list, and revoke all verified.)
-- [ ] Commit M6 dashboard integration changes.
+- [x] Commit M6 dashboard integration changes. (Committed in `4f1bce0`.)
 
 #### iPhone App Implementation (requires macOS)
 
@@ -436,7 +436,91 @@ Rules:
 - [x] Document backup key handling.
 - [x] Document restore procedure.
 - [x] Run verification commands.
-- [ ] Commit M8 reports and backups changes.
+- [x] Commit M8 reports and backups changes. (Committed in `a02f430`.)
+
+## M9: Household Setup, Data Management, and Audit
+
+### Spec Gate
+
+- [x] Define M9 scope, non-goals, and referential-integrity/delete behavior.
+- [x] Define M9 API behavior and role gating.
+- [x] Define M9 data model changes (`audit_events`).
+- [x] Define M9 security impact.
+- [x] Define M9 test expectations.
+- [x] Define M9 documentation updates.
+
+### Implementation
+
+- [x] Create migration for `audit_events`.
+- [x] Add `audit_events` model and repository (create + list).
+- [x] Add an audit helper that writes a non-sensitive row per sensitive mutation.
+- [x] Implement `POST /api/v1/households` bootstrap (household + owner + membership + session).
+- [x] Implement membership management: `GET`/`POST /api/v1/household/members`, `PATCH`/`DELETE /api/v1/household/members/{user_id}` with last-owner/self-demotion guards.
+- [x] Implement account writes: `POST`/`PATCH`/`DELETE /api/v1/accounts` and `POST /api/v1/accounts/{id}/balances`.
+- [x] Implement transaction writes: `POST`/`PATCH`/`DELETE /api/v1/transactions`.
+- [x] Implement bill writes: `POST`/`PATCH`/`DELETE /api/v1/bills`.
+- [x] Implement income writes: `POST`/`PATCH`/`DELETE /api/v1/income`.
+- [x] Implement `GET /api/v1/audit` (owner only).
+- [x] Enforce referential-integrity `409` conflicts (account in use, last owner).
+- [x] Update `shared/openapi/family-cfo.v1.yaml` with write paths and new schemas.
+- [x] Add repository unit tests (writes, balance append, membership guards, audit rows).
+- [x] Add API integration tests (create/read/update/delete, role gating, `404`/`409`, bootstrap, audit non-sensitivity).
+- [x] Update `apps/api/README.md` and `database/README.md`.
+- [x] Add a tracked follow-up item for extending audit coverage to pre-M9 mutations.
+- [x] Run verification commands.
+- [x] Commit M9 changes.
+
+## M10: Conversation History
+
+### Spec Gate
+
+- [x] Define M10 scope, non-goals, and conversation/message behavior.
+- [x] Define M10 API behavior and role gating.
+- [x] Define M10 data model changes (`conversations`, `conversation_messages`).
+- [x] Define M10 security impact.
+- [x] Define M10 test expectations.
+- [x] Define M10 documentation updates.
+
+### Implementation
+
+- [x] Create migrations for `conversations` and `conversation_messages`.
+- [x] Add models and repository (create conversation, append message, list, get, delete).
+- [x] Persist user + assistant turns in `POST /api/v1/chat/messages`, creating/appending a conversation.
+- [x] Link assistant messages to their `recommendation_id`.
+- [x] Implement `GET /api/v1/conversations` and `GET /api/v1/conversations/{id}`.
+- [x] Implement `DELETE /api/v1/conversations/{id}` (owner/adult).
+- [x] Update `shared/openapi/family-cfo.v1.yaml` with the `Conversations` paths and schemas.
+- [x] Add repository unit tests (create-on-first, append, ordering, delete-cascade, scoping).
+- [x] Add API integration tests (thread lifecycle, grounding link, cross-household `404`, role gating).
+- [x] Update `apps/api/README.md` and `database/README.md`.
+- [x] Run verification commands.
+- [x] Commit M10 changes.
+
+## M11: Dashboard Data Entry and Review UIs
+
+### Spec Gate
+
+- [x] Define M11 scope, non-goals, and UI behavior/role gating.
+- [x] Define M11 test expectations.
+- [x] Define M11 documentation updates.
+
+### Implementation
+
+- [ ] Regenerate the Angular OpenAPI client for the M9 (and any M10) shapes.
+- [ ] Add `ApiService` wrapper methods for the new write/read endpoints.
+- [ ] Upgrade the Accounts page with create/edit/delete and record-balance actions.
+- [ ] Build the real Transactions page (list + create/edit/delete, plus bill/income management).
+- [ ] Build the real Imports review page (register, upload, status, apply/discard, documents).
+- [ ] Build the real Reports page (generate + list/detail rendering).
+- [ ] Build the real Backups page (list, create, restore with confirmation).
+- [ ] Add member management to the Users & Devices page (list/create/role-edit/remove).
+- [ ] Gate write actions in the UI to the matching roles.
+- [ ] Convert money major→minor units in entry forms.
+- [ ] Add Vitest tests for each page (happy path + role-gated controls + money conversion + restore confirm).
+- [ ] Extend the Playwright e2e smoke test (login → create account → add transaction → generate report → list).
+- [ ] Update `apps/web/README.md` and `docs/specs/README.md`.
+- [ ] Run frontend verification commands.
+- [ ] Commit M11 changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
 
@@ -455,6 +539,25 @@ The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as 
 
 - [ ] Add an `annual` `report_type` to the M8 `reports` table/generation service (same wins/risks/unusual-spending/goal-progress/recommended-actions shape, year-scoped instead of week/month-scoped).
 - [ ] Add a scheduled annual report job (e.g. January 1st) once the above lands.
+- [ ] Assign to a specific milestone.
+
+## Backlog: Deferred Follow-Ups from the Post-M8 Audit
+
+These were explicitly deferred (not dropped) by M9/M10/M11 non-goals. Tracked here so nothing is undocumented.
+
+- [ ] Extend `audit_events` coverage beyond M9's own mutations to all pre-existing sensitive mutation points (auth login, pairing confirm, paired-device revoke, AI-runtime config change, import apply/discard, report generation, backup create/restore). M9 introduces the table and audits the writes it adds; this generalizes it.
+- [ ] Add a dashboard **chat UI** page backed by the M6/M10 chat and conversation-history APIs (M10 persists threads at the API layer but ships no UI; M11 covers only the four M5 shells).
+- [ ] Add a first-run **household setup wizard** UI around `POST /api/v1/households` (M9 adds the bootstrap API; M5 onboarding remains login-only; M11 non-goals defer the wizard UX).
+- [ ] Add optional first-run bootstrap lockout (refuse `POST /api/v1/households` once any household exists) for deployments that want it — M9 leaves bootstrap open for the trusted-local-network case.
+- [ ] Feed prior conversation turns back into the model as context (true multi-turn memory) — M10 persists history but does not change what the assistant computes; this interacts with the real-vLLM/retrieval work.
+
+## Backlog: Vector Store and Retrieval
+
+The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qdrant) container, ADR 0007 lists "Vector database" as a replaceable component, and the AI-orchestration spec names "relevant retrieved context" as a reasoning input — but no milestone ever introduced a vector store, embeddings, or retrieval. The AI orchestrator calls the runtime directly with calculation context and no retrieval step, and M8 explicitly non-goaled Qdrant backup because no vector data exists. Tracked here until scoped into a milestone.
+
+- [ ] Decide whether retrieval-augmented context is in scope for v1 or deferred post-release (it has no consumer until real multi-turn chat exists).
+- [ ] If in scope: add a `VectorStoreAdapter` seam (ADR 0007), a Qdrant-backed implementation, an embedding step, and wire retrieved context into the AI orchestration path.
+- [ ] Add encrypted Qdrant backup to M8's backup pipeline once vector data exists (M8 non-goaled it precisely because it does not yet).
 - [ ] Assign to a specific milestone.
 
 ## Release Readiness

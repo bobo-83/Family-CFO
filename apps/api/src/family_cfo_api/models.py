@@ -63,6 +63,7 @@ IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discar
 DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
 REPORT_TYPES = ("weekly", "monthly")
 BACKUP_JOB_STATUSES = ("pending", "running", "completed", "failed")
+CONVERSATION_MESSAGE_ROLES = ("user", "assistant")
 
 
 def _uuid_pk(name: str = "id") -> Column:
@@ -435,4 +436,43 @@ backup_jobs = Table(
     Column("pruned_at", DateTime(timezone=True), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"status in {_sql_in(BACKUP_JOB_STATUSES)}", name="ck_backup_jobs_status"),
+)
+
+audit_events = Table(
+    "audit_events",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("actor_user_id", String(36), ForeignKey("users.id"), nullable=True),
+    Column("action", String(60), nullable=False),
+    Column("entity_type", String(40), nullable=False),
+    Column("entity_id", String(36), nullable=True),
+    Column("summary", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+conversations = Table(
+    "conversations",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
+    Column("title", String(200), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+conversation_messages = Table(
+    "conversation_messages",
+    metadata,
+    _uuid_pk(),
+    Column("conversation_id", String(36), ForeignKey("conversations.id"), nullable=False),
+    Column("role", String(20), nullable=False),
+    Column("content", Text, nullable=False),
+    Column("recommendation_id", String(36), ForeignKey("recommendations.id"), nullable=True),
+    Column("sequence", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"role in {_sql_in(CONVERSATION_MESSAGE_ROLES)}", name="ck_conversation_messages_role"
+    ),
 )

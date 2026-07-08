@@ -314,3 +314,143 @@ class BackupJob(BaseModel):
 
 class BackupJobListResponse(BaseModel):
     backups: list[BackupJob]
+
+
+# --- M9: household setup, data management, and audit --------------------------
+
+
+class HouseholdCreateRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=120)
+    base_currency: str = Field(min_length=3, max_length=3)
+    owner_email: str = Field(min_length=3)
+    owner_password: str = Field(min_length=8)
+    owner_display_name: str = Field(min_length=1, max_length=120)
+
+
+class Member(BaseModel):
+    user_id: str
+    email: str
+    display_name: str
+    role: HouseholdRole
+    created_at: datetime
+
+
+class MemberListResponse(BaseModel):
+    members: list[Member]
+
+
+class MemberCreateRequest(BaseModel):
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=8)
+    display_name: str = Field(min_length=1, max_length=120)
+    role: HouseholdRole
+
+
+class MemberRoleUpdateRequest(BaseModel):
+    role: HouseholdRole
+
+
+class AccountCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    type: AccountType
+    currency: str = Field(min_length=3, max_length=3)
+
+
+class AccountUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    type: AccountType | None = None
+
+
+class AccountBalanceCreateRequest(BaseModel):
+    balance: Money
+
+
+class TransactionCreateRequest(BaseModel):
+    account_id: str
+    occurred_at: date
+    amount: Money
+    merchant: str | None = None
+    description: str | None = None
+
+
+class TransactionUpdateRequest(BaseModel):
+    account_id: str | None = None
+    occurred_at: date | None = None
+    amount: Money | None = None
+    merchant: str | None = None
+    description: str | None = None
+
+
+class BillCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    amount: Money
+    frequency: RecurringFrequency
+    account_id: str | None = None
+    next_due_date: date | None = None
+
+
+class BillUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    amount: Money | None = None
+    frequency: RecurringFrequency | None = None
+    next_due_date: date | None = None
+
+
+class IncomeCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    amount: Money
+    frequency: RecurringFrequency
+
+
+class IncomeUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    amount: Money | None = None
+    frequency: RecurringFrequency | None = None
+
+
+class AuditEvent(BaseModel):
+    id: str
+    actor_user_id: str | None = None
+    action: str
+    entity_type: str
+    entity_id: str | None = None
+    summary: str
+    created_at: datetime
+
+
+class AuditEventListResponse(BaseModel):
+    events: list[AuditEvent]
+
+
+# --- M10: conversation history -----------------------------------------------
+
+ConversationMessageRole = Literal["user", "assistant"]
+
+
+class Conversation(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+
+class ConversationListResponse(BaseModel):
+    conversations: list[Conversation]
+
+
+class ConversationMessage(BaseModel):
+    id: str
+    role: ConversationMessageRole
+    content: str
+    recommendation_id: str | None = None
+    sequence: int
+    created_at: datetime
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    messages: list[ConversationMessage]

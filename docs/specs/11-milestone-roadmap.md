@@ -608,3 +608,181 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Update `apps/api/README.md`: new endpoints, `FAMILY_CFO_BACKUP_DIR`/`FAMILY_CFO_BACKUP_RETENTION_COUNT`/`FAMILY_CFO_BACKUP_ENCRYPTION_KEY` settings, and the `worker` target's expanded responsibilities (imports + reports + backups).
 - Update `shared/openapi/family-cfo.v1.yaml` with the new `Reports`/`Backups` paths and schemas.
 - Update `docs/specs/README.md`'s Acceptance State with M8's implemented/non-goal summary, following the exact phrasing convention used for M2–M7.
+
+## M9: Household Setup, Data Management, and Audit
+
+- Household/owner bootstrap and membership management
+- Account, transaction, bill, and income write APIs
+- `audit_events` for every sensitive mutation
+
+> Context: this milestone closes a gap surfaced during a post-M8 spec-kit audit, not part of the original roadmap. M2 deferred "account, transaction, bill, income write APIs" and "user registration/household-membership management" to its non-goals, and the schema spec (`docs/specs/05-database-schema.md`) lists an `audit_events` table, but no milestone owned any of it — the product could only be populated via CSV import or seeded fixtures, and nothing wrote the promised audit log. M9 makes the app writable and auditable through the API.
+
+### Scope
+
+- Bootstrap a self-hosted instance: `POST /api/v1/households` creates a household, its first `owner` user, and the owning membership in one call, then returns an `AuthSession` (the same shape `POST /api/v1/auth/sessions` returns) so first-run setup can proceed without seeded fixtures. This is the "onboarding is currently login-only, there is no signup" limitation M5 documented, now resolved at the API layer.
+- Household membership management (`owner` only): `POST /api/v1/household/members` creates an additional user (`adult`/`viewer`/`child`) with a membership, `PATCH /api/v1/household/members/{user_id}` edits a member's role, `DELETE /api/v1/household/members/{user_id}` removes a membership (and revokes that user's active auth sessions, mirroring paired-device revocation from M6). `GET /api/v1/household/members` lists members for any household role.
+- Account writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/accounts`, plus `POST /api/v1/accounts/{id}/balances` to record a new `account_balances` row (balances are append-only history, consistent with how M2 already reads "latest balance per account"; there is no balance update/delete).
+- Transaction writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/transactions` for manual entry, editing, and removal. Manually-created transactions default to `review_state = 'reviewed'` (a human is entering them directly, unlike a CSV import's `pending` rows) and carry `import_source = null`.
+- Bill writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/bills`.
+- Income writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/income`.
+- Add the `audit_events` table and write an audit row for every sensitive mutation introduced here (create/update/delete of accounts, balances, transactions, bills, income, members, role changes, plus household bootstrap). Expose `GET /api/v1/audit` (`owner` only). Audit rows record actor, action, entity type/id, and a non-sensitive summary — never the raw financial values or credentials that changed.
+
+### Non-Goals
+
+- No general scenario-planning write API ("can we retire at 55", "should we refinance"). Scenarios are still created only internally by the purchase advisor; a user-facing scenario CRUD/planning API remains backlog (`docs/specs/12-implementation-tasks.md`), unchanged by M9. This keeps M9 focused on the concrete household-data resources M2 deferred, not the open-ended planning surface.
+- No public/open registration or multi-tenant SaaS semantics. `POST /api/v1/households` is a self-hosted bootstrap for a trusted local network (ADR 0006); it is not rate-limited, email-verified, or CAPTCHA-gated, and the deployment is expected to sit behind the same private network the rest of the stack does. A future milestone can add first-run lockout (refuse bootstrap once any household exists) if a deployment needs it — noted, not built here.
+- No retroactive audit backfill for mutations that already happened before M9 (auth logins, pairing, AI-runtime changes, imports apply/discard, report generation, backups). M9 introduces the `audit_events` table and audits the mutations it adds; extending audit coverage to the other existing mutation points is a tracked follow-up (see Documentation Impact), not silently assumed done.
+- No soft-delete/undo or per-field change history. Deletes are hard deletes; the audit row records that a delete happened and the entity id, not a full before/after snapshot (that is the domain of backups/restore from M8, not the audit log).
+- No password reset, email flows, or self-service credential rotation for members — the `owner` sets a member's initial password at creation, and rotation is Release-Readiness security work.
+- No Angular UI for any of this — that is M11. M9 is backend + OpenAPI only, the same backend-first split M6/M7/M8 used.
+
+### Referential Integrity and Delete Behavior
+
+- Deleting an account is rejected with `409` if any transaction, bill (via `account_id`), or import references it — the caller must reassign or delete those first. This avoids orphaning financial history behind a silent cascade.
+- Deleting a transaction that belongs to an import is allowed (it is just a row); the import's `apply`/`discard` lifecycle from M7 is unaffected.
+- Deleting a member who is the household's last `owner` is rejected with `409` — a household must always have at least one owner. A member cannot delete or role-demote themselves out of the last-owner position.
+- `PATCH` endpoints accept partial updates (only the provided fields change) and validate currency/type/enum values the same way the M2 read models and CHECK constraints already do.
+
+### API Behavior
+
+- All write endpoints require `bearerAuth`. Household-data writes (accounts, transactions, bills, income) require `owner`/`adult` (the same bar M2 set for goal creation); membership management and `GET /api/v1/audit` require `owner` (the same bar M4/M6/M8 set for admin actions). `POST /api/v1/households` is unauthenticated (it is the bootstrap that creates the first credential).
+- Every mutation returns the created/updated resource in the same schema its M2 read endpoint already uses (e.g. `POST /api/v1/accounts` returns `Account`); deletes return `204`.
+- All new list/detail reads reuse the existing M2 response schemas; new create requests get `*CreateRequest` schemas and updates get `*UpdateRequest` schemas (all-optional fields) in the shared OpenAPI contract.
+- Structured `{ "error": { "code", "message", "details" } }` errors as everywhere else; `409` for the referential-integrity conflicts above, `404` for unknown ids, `403` for role violations.
+
+### Data Model Changes
+
+- Add `audit_events`: `id`, `household_id`, `actor_user_id` (nullable — the household-bootstrap actor does not exist until the same transaction), `action` (e.g. `account.created`, `member.role_changed`), `entity_type`, `entity_id` (nullable), `summary` (non-sensitive text), `created_at`.
+- No new columns on existing tables. `transactions`, `bills`, `income_sources`, `accounts`, `account_balances`, `households`, `users`, `household_memberships` already have every column these writes need (M1–M2 schema); M9 only adds write paths over them plus the one new audit table.
+
+### Security Impact
+
+- Write authorization is enforced by the same `require_role` dependency used since M2; the last-owner and self-demotion guards prevent a household from locking itself out or escalating privilege.
+- Audit rows are `Internal` per the security model and must never contain `Restricted`/`Sensitive` values — no amounts, balances, passwords, or tokens; only ids, action names, and a short non-sensitive summary. This is asserted by a test.
+- Member creation sets a password hash via the existing `security.hash_password`; raw passwords are never logged or stored, consistent with M2 auth.
+- Household bootstrap creates a credential from an unauthenticated call; this is acceptable only because the deployment is a trusted local network (ADR 0006), and the non-goal above records the "lock bootstrap after first household" option for deployments that need it.
+
+### Test Expectations
+
+- Repository unit tests for each new create/update/delete, the append-only balance insert, membership role changes, and the last-owner/self-demotion guards.
+- API integration tests per resource: create→read-back, update, delete, `403` for the wrong role, `404` for unknown ids, and the `409` referential-integrity/last-owner conflicts.
+- Household bootstrap test: `POST /api/v1/households` with no auth creates household+owner+membership and returns a working session that can immediately call a protected route.
+- Audit tests: a mutation writes exactly one `audit_events` row with the right `action`/`entity_type`; a test asserts no audit `summary` contains a known sensitive value (amount/password) seeded into the mutation.
+- OpenAPI contract check continues to pass with the new paths/schemas.
+
+### Documentation Impact
+
+- Update `apps/api/README.md` with an "M9 Scope" section: the write endpoints, the bootstrap flow (replacing the "login-only, no signup" caveat), membership management, and audit.
+- Update `database/README.md` with the `audit_events` table and note that extending audit coverage to pre-M9 mutation points (auth, pairing, imports apply/discard, reports, backups) is tracked follow-up.
+- Update `shared/openapi/family-cfo.v1.yaml` with the new write paths, `*CreateRequest`/`*UpdateRequest` schemas, `AuditEvent`/`AuditEventListResponse`, and household/member schemas.
+- Update `docs/specs/README.md` Acceptance State with M9's summary.
+- Add a tracked Release-Readiness/backlog item for "extend audit coverage to all sensitive mutations" so the partial coverage is not silently forgotten.
+
+## M10: Conversation History
+
+- `conversations` + `conversation_messages` persistence
+- Chat turns stored and re-readable
+- Conversation list and detail APIs
+
+> Context: another gap surfaced by the post-M8 audit. The schema spec lists `conversations` and `conversation_messages`, the domain model names "Conversation" as an aggregate boundary, and both M4 and M6 explicitly deferred conversation history to "a later milestone" — but no later milestone existed. M6 chat computes a bounded response per call and persists only a `recommendations` row, discarding the message thread. M10 adds the promised persistence so a household can revisit past chats.
+
+### Scope
+
+- Add `conversations` (a titled thread owned by a household) and `conversation_messages` (the ordered user/assistant turns within it).
+- Change `POST /api/v1/chat/messages` (from M6) to persist the thread: when called with no `conversation_id`, create a new conversation (titled from the first message, truncated) and store the user message plus the assistant response; when called with an existing `conversation_id`, append to it. The response shape (`ChatResponse`) is unchanged, so the M6 contract and the Angular client keep working — M10 is additive.
+- Add `GET /api/v1/conversations` (list the household's conversations, newest first, with title/timestamps/message count) and `GET /api/v1/conversations/{id}` (the full ordered message thread), both available to any household role.
+- Store the assistant turn's `recommendation_id` on the assistant message so a stored turn still links to its `recommendations` audit row (the numeric grounding M6 already produces), keeping the "every numeric claim traces to a calculation" guarantee intact across history.
+- Add `DELETE /api/v1/conversations/{id}` (`owner`/`adult`) so a household can remove a thread (and its messages) — the privacy escape hatch for "don't keep this."
+
+### Non-Goals
+
+- No change to *what* the assistant computes. M10 persists the same bounded, deterministic-grounded response M6 already returns; it does not add multi-turn context-carrying, retrieval, memory, or free-form conversational reasoning. Feeding prior turns back into the model as context is explicitly future work (it interacts with the vLLM/retrieval work that has no real runtime yet).
+- No vector store / embeddings / semantic search over history — that is the still-unscoped Qdrant work, tracked separately, not introduced here.
+- No editing of stored messages (append-only thread; delete-whole-conversation is the only mutation besides appending).
+- No Angular chat UI — the dashboard has no chat page today, and adding one is out of M10's backend-only scope (it can be folded into M11 or a later UI pass; noted, not silently dropped).
+- No raw-prompt or raw-model-output persistence beyond the already-guardrail-validated assistant text — the same M4 rule (never persist raw prompts/completions) still holds; `conversation_messages` stores the user's message and the validated assistant answer, not the internal prompt.
+
+### Conversation and Message Behavior
+
+- A `conversation` has a `title` (derived from the first user message, truncated to a fixed length), `created_at`, and `updated_at` (bumped on each new turn so the list can sort by recency).
+- A `conversation_message` has a `role` (`user`/`assistant`), `content` (text), an optional `recommendation_id` (set on assistant turns), a monotonic `sequence` within the conversation, and `created_at`.
+- Both user message and assistant response for a single `POST /chat/messages` call are written in one transaction, so a thread never ends on a dangling user message with no answer.
+- Deleting a conversation hard-deletes its messages; the linked `recommendations` rows are left intact (they are the audit trail and may be referenced elsewhere) — only the conversational wrapper is removed.
+
+### API Behavior
+
+- `POST /api/v1/chat/messages` (unchanged auth: any household role) now additionally persists the thread and includes the (possibly newly-created) `conversation_id` in `ChatResponse` — which the field already carries, so no schema change to the response.
+- `GET /api/v1/conversations` and `GET /api/v1/conversations/{id}` require `bearerAuth`, any household role, household-scoped.
+- `DELETE /api/v1/conversations/{id}` requires `owner`/`adult`; returns `204`; `404` for unknown/other-household ids.
+
+### Data Model Changes
+
+- Add `conversations`: `id`, `household_id`, `created_by_user_id`, `title`, `created_at`, `updated_at`.
+- Add `conversation_messages`: `id`, `conversation_id`, `role` (`user`/`assistant`), `content`, `recommendation_id` (nullable FK to `recommendations`), `sequence`, `created_at`.
+- No changes to existing tables.
+
+### Security Impact
+
+- Conversation content is `Sensitive` (AI conversation history, per the security model) and is household-scoped on every read/delete; a household can never read another household's threads.
+- Logging references only `conversation_id`/`message_id`/`recommendation_id`, never message content — same convention as M4 prompts and M7 file contents.
+- `DELETE` gives the household a concrete way to purge stored chat, supporting the privacy-first posture.
+
+### Test Expectations
+
+- Repository tests: create-conversation-on-first-message, append-on-existing, `sequence` ordering, delete cascades messages, household scoping.
+- API tests: a first `POST /chat/messages` creates a conversation and returns its id; a second call with that id appends; `GET /conversations` lists it; `GET /conversations/{id}` returns both turns in order with the assistant turn carrying a `recommendation_id`; `DELETE` removes it and a subsequent `GET` is `404`; cross-household access is `404`; role gating on delete.
+- A test asserts the assistant message's `recommendation_id` resolves to a real `recommendations` row (grounding preserved).
+- OpenAPI contract check passes with the new `Conversations` paths/schemas.
+
+### Documentation Impact
+
+- Update `apps/api/README.md` with an "M10 Scope" section describing persisted chat and the conversation endpoints, and updating the M6 chat description to note threads are now stored.
+- Update `database/README.md` with the `conversations`/`conversation_messages` tables.
+- Update `shared/openapi/family-cfo.v1.yaml` with the `Conversations` tag, paths, and `Conversation`/`ConversationMessage`/`ConversationListResponse`/`ConversationDetail` schemas.
+- Update `docs/specs/README.md` Acceptance State with M10's summary.
+
+## M11: Dashboard Data Entry and Review UIs
+
+- Real Angular pages replacing the placeholder shells
+- Data-entry forms for the M9 write APIs
+- Review UIs for imports, reports, and backups
+
+> Context: the final gap from the post-M8 audit. M5 shipped four pages — Transactions, Imports, Reports, Backups — as explicit placeholder shells, and M7/M8 each deferred "the Angular page upgrade" as "identified follow-up work," but no milestone ever owned turning those shells into real UIs. M11 does, now that their backends (M7 imports, M8 reports/backups) and their write APIs (M9) exist.
+
+### Scope
+
+- **Transactions** (`apps/web` Transactions page): replace the shell with a real transaction list (paged, from `GET /api/v1/transactions`) plus create/edit/delete forms backed by the M9 transaction write APIs, and account/bill/income management surfaced from the same page group so a household can actually enter its data from the dashboard. Manual entry is gated in the UI to `owner`/`adult` (matching the API), with read-only display for `viewer`.
+- **Accounts data entry**: extend the existing real M5 Accounts page with create/edit/delete and "record balance" actions (M9 account writes + `POST /accounts/{id}/balances`), rather than a separate page.
+- **Imports review** (Imports page): replace the shell with the real import lifecycle UI — register an import, upload a CSV/PDF file, watch status, and review the resulting pending transactions with apply/discard (`owner`/`adult`), plus a documents/extraction view. This is the "Import Review page upgrade" M7 deferred.
+- **Reports** (Reports page): replace the shell with generate (weekly/monthly, `owner`/`adult`) and a report list/detail rendering wins/risks/unusual-spending/goal-progress/recommended-actions and the narrative explanation. This is the "Reports page upgrade" M8 deferred.
+- **Backups** (Backups page): replace the shell with the real backup list, create-backup, and restore actions (`owner` only), with a confirmation dialog on restore (the destructive-action confirmation M8 said "belongs in the dashboard UI").
+- **Household members** (Users & Devices page): extend the existing M6 pairing/device page with member list/create/role-edit/remove (M9 membership APIs, `owner`), so the "Users" half of that page becomes real alongside the already-real "Devices" half.
+- Regenerate the Angular OpenAPI client so all the M9 write and M10 (if surfaced) shapes are available, and add every new `ApiService` wrapper method following the established M5 DI-testable pattern.
+
+### Non-Goals
+
+- No chat UI. M10 persists conversations at the API layer, but a dashboard chat page is not in M11 (the dashboard has never had one); it is noted as future UI work, not silently dropped. M11 covers the four shells M5 explicitly created plus the data-entry the write APIs unlock.
+- No onboarding/first-run *setup wizard* UI around `POST /api/v1/households`. M5's onboarding is a login screen; wiring a full self-hosted "create your household" wizard is a distinct UX effort deferred to a later UI pass (the API exists after M9; the wizard is future work) — recorded here, not assumed.
+- No new backend endpoints — M11 is frontend-only against M7/M8/M9 APIs. Any shape mismatch found during UI work is fixed in the shared OpenAPI contract first (source of truth), then the client regenerated, but no new server behavior is added.
+- No redesign of the M5 shell/navigation or the already-real Overview/Goals/AI Runtime pages beyond adding the new actions.
+- No charts/visualizations beyond what cleanly renders the existing structured data (tables, status badges, the report summary lists). Rich dashboards/graphs are a later polish pass.
+
+### UI Behavior and Role Gating
+
+- Every write action is gated in the UI to the same roles the API enforces (`owner`/`adult` for household-data writes, `owner` for members/backups), and the API remains the real authority — the UI gating is convenience, not the security boundary (a `viewer` who forges a request still gets `403`).
+- Forms validate money as major-unit input and convert to integer minor units before sending (never floats reaching the API), consistent with the `Money` contract everywhere else.
+- Destructive actions (delete transaction/account/bill/income/member, discard import, restore backup) show a confirmation step; restore's confirmation states plainly that it replaces all current data.
+- Loading/empty/error states use the same patterns M5 established (the `resource()` API and structured-error message rendering).
+
+### Test Expectations
+
+- Vitest component/unit tests for each new page's happy path and its role-gated controls (a `viewer` sees read-only; `owner`/`adult` see the write actions), using the `ApiService`-DI mocking pattern from M5 (no `vi.mock()` on relative imports).
+- Tests for the money major→minor conversion in the entry forms and for the restore confirmation gate.
+- At least one Playwright end-to-end smoke test (opt-in, against a running backend, following M5's `e2e/onboarding.spec.ts` precedent) covering: log in, create an account, add a manual transaction, generate a report, and see it listed.
+- `npm run build` and `npm test` clean; the generated client matches the current OpenAPI.
+
+### Documentation Impact
+
+- Update `apps/web/README.md` with the now-real pages and how to run the expanded e2e smoke test.
+- Update `docs/specs/README.md` Acceptance State: the M5 note that "reports/transactions/imports/backups/users are placeholder shells" is superseded by M11.
+- No `shared/openapi` change expected (frontend-only); if a mismatch forces one, it lands in the contract before the client is regenerated.

@@ -176,6 +176,60 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/backups \
 
 `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` must be a Fernet key (`python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`). Losing it makes existing backups permanently unrecoverable — there is no recovery mechanism.
 
+## M9 Scope
+
+Closes the M2-deferred write-API gap and the unbuilt `audit_events` table (surfaced by the post-M8 spec-kit audit). Backend + OpenAPI only; the dashboard UI for these is M11.
+
+Implemented:
+
+- `POST /api/v1/households` — unauthenticated self-hosted bootstrap that creates a household, its first `owner` user, and membership, and returns a working `AuthSession`. This resolves the "onboarding is login-only, there is no signup" limitation M5 documented. It is deliberately open for a trusted local network (ADR 0006); a first-run lockout option is tracked as backlog.
+- Membership management (`owner` only): `GET`/`POST /api/v1/household/members`, `PATCH`/`DELETE /api/v1/household/members/{user_id}`. A household can never drop below one owner (last-owner demote/delete → `409`), and removing a member revokes their active auth sessions (mirroring M6 device revocation).
+- Account writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/accounts` and `POST /api/v1/accounts/{id}/balances` (balances are append-only history). Deleting an account referenced by a transaction, bill, or import returns `409`.
+- Transaction writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/transactions` for manual entry (defaults to `review_state = "reviewed"`, `import_source = null`). Amount currency must match the account.
+- Bill and income writes (`owner`/`adult`): `POST`/`PATCH`/`DELETE /api/v1/bills` and `/api/v1/income`.
+- `audit_events` table + `GET /api/v1/audit` (`owner` only): every write above records a non-sensitive audit row (actor, action, entity type/id, summary) via `family_cfo_api/audit.py`. Summaries never contain amounts, balances, passwords, or tokens — asserted by a test.
+
+Not implemented in M9:
+
+- No general scenario-planning write API — scenarios are still created only by the purchase advisor; a user-facing scenario CRUD remains backlog.
+- No public/open registration semantics, password reset, or credential rotation — Release-Readiness security work.
+- No retroactive audit backfill for pre-M9 mutations (auth, pairing, imports apply/discard, reports, backups) — tracked as a backlog follow-up.
+- No Angular UI — that is M11.
+
+### Household Bootstrap and Data Entry Flow
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/v1/households \
+  -H 'content-type: application/json' \
+  -d '{"display_name":"My Home","base_currency":"USD","owner_email":"me@example.com","owner_password":"change-me-123","owner_display_name":"Me"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+ACCOUNT=$(curl -s -X POST http://127.0.0.1:8000/api/v1/accounts \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Checking","type":"checking","currency":"USD"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+curl -s -X POST "http://127.0.0.1:8000/api/v1/accounts/$ACCOUNT/balances" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"balance":{"amount_minor":500000,"currency":"USD"}}'
+```
+
+## M10 Scope
+
+Closes the unbuilt `conversations`/`conversation_messages` gap that M4/M6 deferred to "a later milestone" that did not exist. Additive to M6 chat — the `ChatResponse` shape is unchanged.
+
+Implemented:
+
+- `POST /api/v1/chat/messages` now persists the thread: with no `conversation_id` (or an unknown one) it creates a conversation titled from the first message; with an existing owned `conversation_id` it appends. Both the user message and the assistant answer are written in one transaction, and the assistant message carries the `recommendation_id` so a stored turn still links to its grounding `recommendations` row.
+- `GET /api/v1/conversations` (any role) lists the household's conversations, newest first, with a `message_count`; `GET /api/v1/conversations/{id}` (any role) returns the ordered message thread.
+- `DELETE /api/v1/conversations/{id}` (`owner`/`adult`) hard-deletes a conversation and its messages — the privacy escape hatch — leaving the linked `recommendations` audit rows intact.
+
+Not implemented in M10:
+
+- No change to what the assistant computes: still the bounded, deterministic-grounded M6 snapshot. No multi-turn context-carrying, retrieval, or memory (tracked as backlog).
+- No raw-prompt persistence — only the user message and the guardrail-validated assistant answer are stored, same M4 rule.
+- No dashboard chat UI (tracked as backlog; M11 covers the four M5 shells only).
+
 ## Setup
 
 ```bash
@@ -275,7 +329,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`). `make migrate` applies all of them.
 
 Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
 

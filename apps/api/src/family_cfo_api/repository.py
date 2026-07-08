@@ -1588,3 +1588,864 @@ def mark_backup_job_pruned(engine: Engine, backup_job_id: str) -> None:
             .where(models.backup_jobs.c.id == backup_job_id)
             .values(pruned_at=utcnow(), storage_path=None)
         )
+
+
+# --- Audit events ------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AuditEventRecord:
+    id: str
+    household_id: str
+    actor_user_id: str | None
+    action: str
+    entity_type: str
+    entity_id: str | None
+    summary: str
+    created_at: datetime
+
+
+def record_audit_event(
+    engine: Engine,
+    household_id: str,
+    actor_user_id: str | None,
+    action: str,
+    entity_type: str,
+    entity_id: str | None,
+    summary: str,
+) -> str:
+    audit_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.audit_events).values(
+                id=audit_id,
+                household_id=household_id,
+                actor_user_id=actor_user_id,
+                action=action,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                summary=summary,
+                created_at=utcnow(),
+            )
+        )
+    return audit_id
+
+
+def list_audit_events(
+    engine: Engine, household_id: str, limit: int = 200
+) -> list[AuditEventRecord]:
+    query = (
+        select(models.audit_events)
+        .where(models.audit_events.c.household_id == household_id)
+        .order_by(models.audit_events.c.created_at.desc())
+        .limit(limit)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        AuditEventRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            actor_user_id=row["actor_user_id"],
+            action=row["action"],
+            entity_type=row["entity_type"],
+            entity_id=row["entity_id"],
+            summary=row["summary"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+# --- Household bootstrap and membership --------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapResult:
+    household_id: str
+    user_id: str
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemberRecord:
+    user_id: str
+    email: str
+    display_name: str
+    role: str
+    created_at: datetime
+
+
+def user_email_exists(engine: Engine, email: str) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(select(models.users.c.id).where(models.users.c.email == email)).first()
+    return row is not None
+
+
+def create_household_with_owner(
+    engine: Engine,
+    display_name: str,
+    base_currency: str,
+    owner_email: str,
+    owner_password_hash: str,
+    owner_display_name: str,
+) -> BootstrapResult:
+    household_id = new_id()
+    user_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.households).values(
+                id=household_id,
+                display_name=display_name,
+                base_currency=base_currency,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        conn.execute(
+            insert(models.users).values(
+                id=user_id,
+                email=owner_email,
+                password_hash=owner_password_hash,
+                display_name=owner_display_name,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        conn.execute(
+            insert(models.household_memberships).values(
+                id=new_id(),
+                household_id=household_id,
+                user_id=user_id,
+                role="owner",
+                created_at=now,
+            )
+        )
+    return BootstrapResult(household_id=household_id, user_id=user_id, role="owner")
+
+
+def list_members(engine: Engine, household_id: str) -> list[MemberRecord]:
+    query = (
+        select(
+            models.users.c.id.label("user_id"),
+            models.users.c.email,
+            models.users.c.display_name,
+            models.household_memberships.c.role,
+            models.household_memberships.c.created_at,
+        )
+        .select_from(models.household_memberships)
+        .join(models.users, models.users.c.id == models.household_memberships.c.user_id)
+        .where(models.household_memberships.c.household_id == household_id)
+        .order_by(models.household_memberships.c.created_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        MemberRecord(
+            user_id=row["user_id"],
+            email=row["email"],
+            display_name=row["display_name"],
+            role=row["role"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def get_member(engine: Engine, household_id: str, user_id: str) -> MemberRecord | None:
+    for member in list_members(engine, household_id):
+        if member.user_id == user_id:
+            return member
+    return None
+
+
+def count_household_owners(engine: Engine, household_id: str) -> int:
+    with engine.connect() as conn:
+        return int(
+            conn.execute(
+                select(func.count())
+                .select_from(models.household_memberships)
+                .where(
+                    models.household_memberships.c.household_id == household_id,
+                    models.household_memberships.c.role == "owner",
+                )
+            ).scalar_one()
+        )
+
+
+def create_member(
+    engine: Engine,
+    household_id: str,
+    email: str,
+    password_hash: str,
+    display_name: str,
+    role: str,
+) -> MemberRecord:
+    user_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.users).values(
+                id=user_id,
+                email=email,
+                password_hash=password_hash,
+                display_name=display_name,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        conn.execute(
+            insert(models.household_memberships).values(
+                id=new_id(),
+                household_id=household_id,
+                user_id=user_id,
+                role=role,
+                created_at=now,
+            )
+        )
+    return MemberRecord(
+        user_id=user_id, email=email, display_name=display_name, role=role, created_at=now
+    )
+
+
+def update_member_role(engine: Engine, household_id: str, user_id: str, role: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.household_memberships)
+            .where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.user_id == user_id,
+            )
+            .values(role=role)
+        )
+    return result.rowcount > 0
+
+
+def delete_member(engine: Engine, household_id: str, user_id: str) -> bool:
+    now = utcnow()
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.household_memberships).where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.user_id == user_id,
+            )
+        )
+        if result.rowcount > 0:
+            conn.execute(
+                update(models.auth_sessions)
+                .where(
+                    models.auth_sessions.c.user_id == user_id,
+                    models.auth_sessions.c.household_id == household_id,
+                    models.auth_sessions.c.revoked_at.is_(None),
+                )
+                .values(revoked_at=now)
+            )
+    return result.rowcount > 0
+
+
+# --- Account writes ----------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AccountRecord:
+    id: str
+    name: str
+    account_type: str
+    currency: str
+
+
+def _account_record_from_row(row: Any) -> AccountRecord:
+    return AccountRecord(
+        id=row["id"], name=row["name"], account_type=row["type"], currency=row["currency"]
+    )
+
+
+def get_account(engine: Engine, household_id: str, account_id: str) -> AccountRecord | None:
+    query = select(models.accounts).where(
+        models.accounts.c.household_id == household_id, models.accounts.c.id == account_id
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _account_record_from_row(row) if row is not None else None
+
+
+def create_account(
+    engine: Engine, household_id: str, name: str, account_type: str, currency: str
+) -> AccountRecord:
+    account_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.accounts).values(
+                id=account_id,
+                household_id=household_id,
+                name=name,
+                type=account_type,
+                currency=currency,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return AccountRecord(id=account_id, name=name, account_type=account_type, currency=currency)
+
+
+def update_account(
+    engine: Engine,
+    household_id: str,
+    account_id: str,
+    name: str | None = None,
+    account_type: str | None = None,
+) -> bool:
+    values: dict[str, Any] = {"updated_at": utcnow()}
+    if name is not None:
+        values["name"] = name
+    if account_type is not None:
+        values["type"] = account_type
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.accounts)
+            .where(
+                models.accounts.c.household_id == household_id, models.accounts.c.id == account_id
+            )
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def account_in_use(engine: Engine, account_id: str) -> bool:
+    with engine.connect() as conn:
+        for table in (models.transactions, models.bills, models.imports):
+            row = conn.execute(
+                select(table.c.id).where(table.c.account_id == account_id).limit(1)
+            ).first()
+            if row is not None:
+                return True
+    return False
+
+
+def delete_account(engine: Engine, household_id: str, account_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.account_balances).where(
+                models.account_balances.c.account_id == account_id
+            )
+        )
+        result = conn.execute(
+            delete(models.accounts).where(
+                models.accounts.c.household_id == household_id,
+                models.accounts.c.id == account_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def get_latest_balance_minor(engine: Engine, account_id: str) -> int:
+    """Latest recorded balance for an account, or 0 if none has been recorded yet."""
+    latest = (
+        select(models.account_balances.c.balance_minor)
+        .where(models.account_balances.c.account_id == account_id)
+        .order_by(models.account_balances.c.as_of.desc())
+        .limit(1)
+    )
+    with engine.connect() as conn:
+        row = conn.execute(latest).first()
+    return int(row[0]) if row is not None else 0
+
+
+def record_account_balance(engine: Engine, account_id: str, balance_minor: int) -> str:
+    balance_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.account_balances).values(
+                id=balance_id,
+                account_id=account_id,
+                balance_minor=balance_minor,
+                as_of=now,
+                created_at=now,
+            )
+        )
+    return balance_id
+
+
+# --- Transaction writes ------------------------------------------------------
+
+
+def get_transaction(
+    engine: Engine, household_id: str, transaction_id: str
+) -> TransactionRecord | None:
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.account_id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transaction_categories.c.name.label("category"),
+            models.transactions.c.description,
+        )
+        .select_from(models.transactions)
+        .join(
+            models.transaction_categories,
+            models.transaction_categories.c.id == models.transactions.c.category_id,
+            isouter=True,
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.id == transaction_id,
+        )
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).first()
+    if row is None:
+        return None
+    return TransactionRecord(
+        id=row.id,
+        account_id=row.account_id,
+        occurred_at=row.occurred_at,
+        amount_minor=row.amount_minor,
+        currency=row.currency,
+        merchant=row.merchant,
+        category=row.category,
+        description=row.description,
+    )
+
+
+def update_transaction(
+    engine: Engine,
+    household_id: str,
+    transaction_id: str,
+    account_id: str | None = None,
+    occurred_at: date | None = None,
+    amount_minor: int | None = None,
+    currency: str | None = None,
+    merchant: str | None = None,
+    description: str | None = None,
+) -> bool:
+    values: dict[str, Any] = {}
+    if account_id is not None:
+        values["account_id"] = account_id
+    if occurred_at is not None:
+        values["occurred_at"] = occurred_at
+    if amount_minor is not None:
+        values["amount_minor"] = amount_minor
+    if currency is not None:
+        values["currency"] = currency
+    if merchant is not None:
+        values["merchant"] = merchant
+    if description is not None:
+        values["description"] = description
+    if not values:
+        return get_transaction(engine, household_id, transaction_id) is not None
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def delete_transaction(engine: Engine, household_id: str, transaction_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.transactions).where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+# --- Bill writes -------------------------------------------------------------
+
+
+def _recurring_record_from_row(row: Any) -> RecurringRecord:
+    return RecurringRecord(
+        id=row["id"],
+        name=row["name"],
+        amount_minor=row["amount_minor"],
+        currency=row["currency"],
+        frequency=row["frequency"],
+    )
+
+
+def get_bill(engine: Engine, household_id: str, bill_id: str) -> RecurringRecord | None:
+    query = select(models.bills).where(
+        models.bills.c.household_id == household_id, models.bills.c.id == bill_id
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _recurring_record_from_row(row) if row is not None else None
+
+
+def create_bill(
+    engine: Engine,
+    household_id: str,
+    name: str,
+    amount_minor: int,
+    currency: str,
+    frequency: str,
+    account_id: str | None = None,
+    next_due_date: date | None = None,
+) -> RecurringRecord:
+    bill_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.bills).values(
+                id=bill_id,
+                household_id=household_id,
+                account_id=account_id,
+                name=name,
+                amount_minor=amount_minor,
+                currency=currency,
+                frequency=frequency,
+                next_due_date=next_due_date,
+                category_id=None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return RecurringRecord(
+        id=bill_id, name=name, amount_minor=amount_minor, currency=currency, frequency=frequency
+    )
+
+
+def update_bill(
+    engine: Engine,
+    household_id: str,
+    bill_id: str,
+    name: str | None = None,
+    amount_minor: int | None = None,
+    currency: str | None = None,
+    frequency: str | None = None,
+    next_due_date: date | None = None,
+) -> bool:
+    values: dict[str, Any] = {"updated_at": utcnow()}
+    if name is not None:
+        values["name"] = name
+    if amount_minor is not None:
+        values["amount_minor"] = amount_minor
+    if currency is not None:
+        values["currency"] = currency
+    if frequency is not None:
+        values["frequency"] = frequency
+    if next_due_date is not None:
+        values["next_due_date"] = next_due_date
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.bills)
+            .where(models.bills.c.household_id == household_id, models.bills.c.id == bill_id)
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def delete_bill(engine: Engine, household_id: str, bill_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.bills).where(
+                models.bills.c.household_id == household_id, models.bills.c.id == bill_id
+            )
+        )
+    return result.rowcount > 0
+
+
+# --- Income writes -----------------------------------------------------------
+
+
+def get_income_source(engine: Engine, household_id: str, income_id: str) -> RecurringRecord | None:
+    query = select(models.income_sources).where(
+        models.income_sources.c.household_id == household_id,
+        models.income_sources.c.id == income_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _recurring_record_from_row(row) if row is not None else None
+
+
+def create_income_source(
+    engine: Engine,
+    household_id: str,
+    name: str,
+    amount_minor: int,
+    currency: str,
+    frequency: str,
+) -> RecurringRecord:
+    income_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.income_sources).values(
+                id=income_id,
+                household_id=household_id,
+                name=name,
+                amount_minor=amount_minor,
+                currency=currency,
+                frequency=frequency,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return RecurringRecord(
+        id=income_id, name=name, amount_minor=amount_minor, currency=currency, frequency=frequency
+    )
+
+
+def update_income_source(
+    engine: Engine,
+    household_id: str,
+    income_id: str,
+    name: str | None = None,
+    amount_minor: int | None = None,
+    currency: str | None = None,
+    frequency: str | None = None,
+) -> bool:
+    values: dict[str, Any] = {"updated_at": utcnow()}
+    if name is not None:
+        values["name"] = name
+    if amount_minor is not None:
+        values["amount_minor"] = amount_minor
+    if currency is not None:
+        values["currency"] = currency
+    if frequency is not None:
+        values["frequency"] = frequency
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.income_sources)
+            .where(
+                models.income_sources.c.household_id == household_id,
+                models.income_sources.c.id == income_id,
+            )
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def delete_income_source(engine: Engine, household_id: str, income_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.income_sources).where(
+                models.income_sources.c.household_id == household_id,
+                models.income_sources.c.id == income_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+# --- Conversations (M10) -----------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationRecord:
+    id: str
+    household_id: str
+    created_by_user_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationMessageRecord:
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    recommendation_id: str | None
+    sequence: int
+    created_at: datetime
+
+
+def create_conversation(
+    engine: Engine, household_id: str, created_by_user_id: str, title: str
+) -> ConversationRecord:
+    conversation_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.conversations).values(
+                id=conversation_id,
+                household_id=household_id,
+                created_by_user_id=created_by_user_id,
+                title=title,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return ConversationRecord(
+        id=conversation_id,
+        household_id=household_id,
+        created_by_user_id=created_by_user_id,
+        title=title,
+        created_at=now,
+        updated_at=now,
+        message_count=0,
+    )
+
+
+def get_conversation(
+    engine: Engine, household_id: str, conversation_id: str
+) -> ConversationRecord | None:
+    query = select(models.conversations).where(
+        models.conversations.c.household_id == household_id,
+        models.conversations.c.id == conversation_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+        if row is None:
+            return None
+        count = conn.execute(
+            select(func.count())
+            .select_from(models.conversation_messages)
+            .where(models.conversation_messages.c.conversation_id == conversation_id)
+        ).scalar_one()
+    return ConversationRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        created_by_user_id=row["created_by_user_id"],
+        title=row["title"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        message_count=int(count),
+    )
+
+
+def list_conversations(engine: Engine, household_id: str) -> list[ConversationRecord]:
+    message_counts = (
+        select(
+            models.conversation_messages.c.conversation_id,
+            func.count().label("message_count"),
+        )
+        .group_by(models.conversation_messages.c.conversation_id)
+        .subquery()
+    )
+    query = (
+        select(
+            models.conversations.c.id,
+            models.conversations.c.household_id,
+            models.conversations.c.created_by_user_id,
+            models.conversations.c.title,
+            models.conversations.c.created_at,
+            models.conversations.c.updated_at,
+            func.coalesce(message_counts.c.message_count, 0).label("message_count"),
+        )
+        .select_from(models.conversations)
+        .join(
+            message_counts,
+            message_counts.c.conversation_id == models.conversations.c.id,
+            isouter=True,
+        )
+        .where(models.conversations.c.household_id == household_id)
+        .order_by(models.conversations.c.updated_at.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        ConversationRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            created_by_user_id=row["created_by_user_id"],
+            title=row["title"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            message_count=int(row["message_count"]),
+        )
+        for row in rows
+    ]
+
+
+def list_conversation_messages(
+    engine: Engine, conversation_id: str
+) -> list[ConversationMessageRecord]:
+    query = (
+        select(models.conversation_messages)
+        .where(models.conversation_messages.c.conversation_id == conversation_id)
+        .order_by(models.conversation_messages.c.sequence)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        ConversationMessageRecord(
+            id=row["id"],
+            conversation_id=row["conversation_id"],
+            role=row["role"],
+            content=row["content"],
+            recommendation_id=row["recommendation_id"],
+            sequence=row["sequence"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def append_conversation_turn(
+    engine: Engine,
+    conversation_id: str,
+    user_content: str,
+    assistant_content: str,
+    recommendation_id: str,
+) -> None:
+    """Append a user message and its assistant answer as one atomic turn."""
+    now = utcnow()
+    with engine.begin() as conn:
+        next_sequence = conn.execute(
+            select(func.coalesce(func.max(models.conversation_messages.c.sequence), 0)).where(
+                models.conversation_messages.c.conversation_id == conversation_id
+            )
+        ).scalar_one()
+        conn.execute(
+            insert(models.conversation_messages).values(
+                id=new_id(),
+                conversation_id=conversation_id,
+                role="user",
+                content=user_content,
+                recommendation_id=None,
+                sequence=next_sequence + 1,
+                created_at=now,
+            )
+        )
+        conn.execute(
+            insert(models.conversation_messages).values(
+                id=new_id(),
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content,
+                recommendation_id=recommendation_id,
+                sequence=next_sequence + 2,
+                created_at=now,
+            )
+        )
+        conn.execute(
+            update(models.conversations)
+            .where(models.conversations.c.id == conversation_id)
+            .values(updated_at=now)
+        )
+
+
+def delete_conversation(engine: Engine, household_id: str, conversation_id: str) -> bool:
+    with engine.begin() as conn:
+        owned = conn.execute(
+            select(models.conversations.c.id).where(
+                models.conversations.c.household_id == household_id,
+                models.conversations.c.id == conversation_id,
+            )
+        ).first()
+        if owned is None:
+            return False
+        conn.execute(
+            delete(models.conversation_messages).where(
+                models.conversation_messages.c.conversation_id == conversation_id
+            )
+        )
+        conn.execute(
+            delete(models.conversations).where(models.conversations.c.id == conversation_id)
+        )
+    return True

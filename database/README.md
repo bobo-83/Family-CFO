@@ -26,6 +26,8 @@ Later migrations add:
 - M6 backend support: `pairing_sessions`, `paired_devices`, and nullable `auth_sessions.device_id` for device-backed session revocation
 - M7: `imports`, `import_files`, `documents`, `document_extractions`, and nullable `transactions.import_id`/`transactions.possible_duplicate`
 - M8: `reports` and `backup_jobs`
+- M9: `audit_events`
+- M10: `conversations` and `conversation_messages`
 
 ## Money Storage
 
@@ -56,3 +58,7 @@ Set it via an environment file or Docker secret (matching the pattern `docs/spec
 ### Restore Procedure
 
 `POST /api/v1/backups/{id}/restore` (`owner` only) decrypts the named archive and replaces the *entire* current database and staging directory with its contents — this is destructive by definition, and also reverts `backup_jobs`' own bookkeeping to its state at dump time (the row for the backup being restored from reads `running`, not `completed`, since the dump necessarily precedes that status update — an inherent property of backing up the whole database, not a bug). There is no API-level confirmation step; a dashboard confirmation dialog is future work.
+
+## Audit Events
+
+`audit_events` (M9) records a non-sensitive row for every sensitive mutation made through the write APIs (account/transaction/bill/income CRUD, membership changes, household bootstrap): `actor_user_id`, `action` (e.g. `account.created`), `entity_type`, `entity_id`, and a short `summary`. Audit rows are `Internal` per the security model and must never contain `Restricted`/`Sensitive` values — no amounts, balances, passwords, or tokens (enforced by `family_cfo_api/audit.py` and asserted by tests). M9 audits the mutations it introduces; extending coverage to the other existing mutation points (auth login, pairing, imports apply/discard, reports, backups) is a tracked backlog follow-up.

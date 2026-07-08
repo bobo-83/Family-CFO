@@ -14,6 +14,8 @@ from family_cfo_api.schemas import Money as MoneySchema
 router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
 
+_TITLE_MAX_LENGTH = 80
+
 
 def _dedupe(values: list[str]) -> list[str]:
     seen: set[str] = set()
@@ -88,7 +90,25 @@ async def create_chat_message(
         warnings=warnings,
         explanation_source="deterministic_stub",
     )
-    conversation_id = payload.conversation_id or repository.new_id()
+
+    # M10: persist the thread. A missing/unknown conversation_id starts a new
+    # conversation titled from the first message; an existing one is appended to.
+    conversation = None
+    if payload.conversation_id is not None:
+        conversation = repository.get_conversation(engine, household.id, payload.conversation_id)
+    if conversation is None:
+        title = payload.message.strip()[:_TITLE_MAX_LENGTH] or "Conversation"
+        conversation = repository.create_conversation(
+            engine, household_id=household.id, created_by_user_id=session.user_id, title=title
+        )
+    repository.append_conversation_turn(
+        engine,
+        conversation_id=conversation.id,
+        user_content=payload.message,
+        assistant_content=answer,
+        recommendation_id=recommendation_id,
+    )
+    conversation_id = conversation.id
 
     logger.info(
         "chat recommendation created household_id=%s recommendation_id=%s conversation_id=%s",
