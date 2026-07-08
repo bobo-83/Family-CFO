@@ -36,6 +36,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         redoc_url=None,
     )
     app.state.db_engine = engine or create_database_engine(settings.database_url)
+    app.state.settings = settings
     app.include_router(api_router)
 
     @app.exception_handler(HTTPException)

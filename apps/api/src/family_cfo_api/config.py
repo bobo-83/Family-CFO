@@ -5,6 +5,7 @@ import os
 from family_cfo_api import __version__
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://family_cfo:family_cfo@localhost:5432/family_cfo"
+DEFAULT_IMPORT_STAGING_DIR = "./data/import-staging"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -23,6 +24,7 @@ class Settings:
     log_level: str = "INFO"
     database_url: str = DEFAULT_DATABASE_URL
     health_check_database: bool = False
+    import_staging_dir: str = DEFAULT_IMPORT_STAGING_DIR
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -36,6 +38,7 @@ class Settings:
                 "FAMILY_CFO_HEALTH_CHECK_DATABASE",
                 cls.health_check_database,
             ),
+            import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
         )
 
 

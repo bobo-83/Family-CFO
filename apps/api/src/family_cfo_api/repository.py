@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import models
@@ -757,3 +757,477 @@ def upsert_ai_runtime_config(
     return AiRuntimeConfigRecord(
         household_id=household_id, provider=provider, base_url=base_url, model=model, enabled=enabled
     )
+
+
+# --- Imports ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ImportRecord:
+    id: str
+    household_id: str
+    account_id: str | None
+    source_type: str
+    filename: str
+    status: str
+    error_message: str | None
+    skipped_row_count: int
+    retry_count: int
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ImportFileRecord:
+    id: str
+    import_id: str
+    storage_path: str
+    content_type: str
+    size_bytes: int
+
+
+def _import_record_from_row(row: Any) -> ImportRecord:
+    return ImportRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        account_id=row["account_id"],
+        source_type=row["source_type"],
+        filename=row["filename"],
+        status=row["status"],
+        error_message=row["error_message"],
+        skipped_row_count=row["skipped_row_count"],
+        retry_count=row["retry_count"],
+        created_at=row["created_at"],
+    )
+
+
+def create_import(
+    engine: Engine,
+    household_id: str,
+    account_id: str | None,
+    source_type: str,
+    filename: str,
+) -> ImportRecord:
+    import_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.imports).values(
+                id=import_id,
+                household_id=household_id,
+                account_id=account_id,
+                source_type=source_type,
+                filename=filename,
+                status="pending",
+                error_message=None,
+                skipped_row_count=0,
+                retry_count=0,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        row = conn.execute(select(models.imports).where(models.imports.c.id == import_id)).mappings().first()
+
+    assert row is not None
+    return _import_record_from_row(row)
+
+
+def get_import(engine: Engine, household_id: str, import_id: str) -> ImportRecord | None:
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.imports).where(
+                    models.imports.c.id == import_id, models.imports.c.household_id == household_id
+                )
+            )
+            .mappings()
+            .first()
+        )
+
+    return _import_record_from_row(row) if row is not None else None
+
+
+def list_imports(engine: Engine, household_id: str) -> list[ImportRecord]:
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(models.imports)
+                .where(models.imports.c.household_id == household_id)
+                .order_by(models.imports.c.created_at.desc())
+            )
+            .mappings()
+            .all()
+        )
+
+    return [_import_record_from_row(row) for row in rows]
+
+
+def create_import_file(
+    engine: Engine, import_id: str, storage_path: str, content_type: str, size_bytes: int
+) -> ImportFileRecord:
+    file_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.import_files).values(
+                id=file_id,
+                import_id=import_id,
+                storage_path=storage_path,
+                content_type=content_type,
+                size_bytes=size_bytes,
+                created_at=utcnow(),
+            )
+        )
+
+    return ImportFileRecord(
+        id=file_id,
+        import_id=import_id,
+        storage_path=storage_path,
+        content_type=content_type,
+        size_bytes=size_bytes,
+    )
+
+
+def get_import_file(engine: Engine, import_id: str) -> ImportFileRecord | None:
+    with engine.connect() as conn:
+        row = (
+            conn.execute(select(models.import_files).where(models.import_files.c.import_id == import_id))
+            .mappings()
+            .first()
+        )
+
+    if row is None:
+        return None
+
+    return ImportFileRecord(
+        id=row["id"],
+        import_id=row["import_id"],
+        storage_path=row["storage_path"],
+        content_type=row["content_type"],
+        size_bytes=row["size_bytes"],
+    )
+
+
+def update_import_status(
+    engine: Engine,
+    import_id: str,
+    status: str,
+    error_message: str | None = None,
+    skipped_row_count: int | None = None,
+) -> None:
+    values: dict[str, Any] = {"status": status, "updated_at": utcnow()}
+    if error_message is not None:
+        values["error_message"] = error_message
+    if skipped_row_count is not None:
+        values["skipped_row_count"] = skipped_row_count
+
+    with engine.begin() as conn:
+        conn.execute(update(models.imports).where(models.imports.c.id == import_id).values(**values))
+
+
+def increment_import_retry_count(engine: Engine, import_id: str) -> int:
+    with engine.begin() as conn:
+        current = conn.execute(
+            select(models.imports.c.retry_count).where(models.imports.c.id == import_id)
+        ).scalar_one()
+        new_count = current + 1
+        conn.execute(
+            update(models.imports)
+            .where(models.imports.c.id == import_id)
+            .values(retry_count=new_count, updated_at=utcnow())
+        )
+
+    return new_count
+
+
+def list_processable_imports(engine: Engine) -> list[tuple[ImportRecord, ImportFileRecord]]:
+    """Every household's pending imports that have an uploaded file, for the worker to process.
+
+    Runs outside any single household's request context, so it is
+    deliberately not household-scoped.
+    """
+    query = (
+        select(
+            models.imports.c.id.label("import_id"),
+            models.imports.c.household_id,
+            models.imports.c.account_id,
+            models.imports.c.source_type,
+            models.imports.c.filename,
+            models.imports.c.status,
+            models.imports.c.error_message,
+            models.imports.c.skipped_row_count,
+            models.imports.c.retry_count,
+            models.imports.c.created_at,
+            models.import_files.c.id.label("file_id"),
+            models.import_files.c.storage_path,
+            models.import_files.c.content_type,
+            models.import_files.c.size_bytes,
+        )
+        .select_from(models.imports)
+        .join(models.import_files, models.import_files.c.import_id == models.imports.c.id)
+        .where(models.imports.c.status == "pending")
+    )
+
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    results: list[tuple[ImportRecord, ImportFileRecord]] = []
+    for row in rows:
+        import_record = ImportRecord(
+            id=row["import_id"],
+            household_id=row["household_id"],
+            account_id=row["account_id"],
+            source_type=row["source_type"],
+            filename=row["filename"],
+            status=row["status"],
+            error_message=row["error_message"],
+            skipped_row_count=row["skipped_row_count"],
+            retry_count=row["retry_count"],
+            created_at=row["created_at"],
+        )
+        file_record = ImportFileRecord(
+            id=row["file_id"],
+            import_id=row["import_id"],
+            storage_path=row["storage_path"],
+            content_type=row["content_type"],
+            size_bytes=row["size_bytes"],
+        )
+        results.append((import_record, file_record))
+
+    return results
+
+
+def transaction_exists(
+    engine: Engine, household_id: str, account_id: str, occurred_at: date, amount_minor: int
+) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.transactions.c.id).where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.account_id == account_id,
+                models.transactions.c.occurred_at == occurred_at,
+                models.transactions.c.amount_minor == amount_minor,
+            )
+        ).first()
+
+    return row is not None
+
+
+def create_transaction(
+    engine: Engine,
+    household_id: str,
+    account_id: str,
+    occurred_at: date,
+    amount_minor: int,
+    currency: str,
+    merchant: str | None,
+    description: str | None,
+    import_source: str | None,
+    import_id: str | None,
+    review_state: str,
+    possible_duplicate: bool = False,
+) -> str:
+    transaction_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.transactions).values(
+                id=transaction_id,
+                household_id=household_id,
+                account_id=account_id,
+                occurred_at=occurred_at,
+                amount_minor=amount_minor,
+                currency=currency,
+                merchant=merchant,
+                category_id=None,
+                description=description,
+                import_source=import_source,
+                import_id=import_id,
+                possible_duplicate=possible_duplicate,
+                review_state=review_state,
+                created_at=utcnow(),
+            )
+        )
+
+    return transaction_id
+
+
+def apply_import(engine: Engine, household_id: str, import_id: str) -> int:
+    """Mark every pending transaction from this import as reviewed. Returns the count updated."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.import_id == import_id,
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.review_state == "pending",
+            )
+            .values(review_state="reviewed")
+        )
+        conn.execute(
+            update(models.imports)
+            .where(models.imports.c.id == import_id, models.imports.c.household_id == household_id)
+            .values(status="completed", updated_at=utcnow())
+        )
+
+    return result.rowcount
+
+
+def discard_import(engine: Engine, household_id: str, import_id: str) -> int:
+    """Delete every pending transaction from this import. Returns the count deleted."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.transactions).where(
+                models.transactions.c.import_id == import_id,
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.review_state == "pending",
+            )
+        )
+        conn.execute(
+            update(models.imports)
+            .where(models.imports.c.id == import_id, models.imports.c.household_id == household_id)
+            .values(status="discarded", updated_at=utcnow())
+        )
+
+    return result.rowcount
+
+
+# --- Documents ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentRecord:
+    id: str
+    household_id: str
+    content_type: str
+    storage_path: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentExtractionRecord:
+    id: str
+    document_id: str
+    extraction_type: str
+    text: str
+    structured_fields: dict[str, Any]
+    confidence: float
+    warnings: list[str]
+    created_at: datetime
+
+
+def create_document(
+    engine: Engine,
+    household_id: str,
+    content_type: str,
+    storage_path: str,
+    import_id: str | None = None,
+) -> DocumentRecord:
+    document_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.documents).values(
+                id=document_id,
+                household_id=household_id,
+                import_id=import_id,
+                content_type=content_type,
+                storage_path=storage_path,
+                created_at=now,
+            )
+        )
+
+    return DocumentRecord(
+        id=document_id, household_id=household_id, content_type=content_type, storage_path=storage_path, created_at=now
+    )
+
+
+def create_document_extraction(
+    engine: Engine,
+    document_id: str,
+    extraction_type: str,
+    text: str,
+    structured_fields: dict[str, Any],
+    confidence: float,
+    warnings: list[str],
+) -> DocumentExtractionRecord:
+    extraction_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.document_extractions).values(
+                id=extraction_id,
+                document_id=document_id,
+                extraction_type=extraction_type,
+                text=text,
+                structured_fields_json=structured_fields,
+                confidence=confidence,
+                warnings_json=warnings,
+                created_at=now,
+            )
+        )
+
+    return DocumentExtractionRecord(
+        id=extraction_id,
+        document_id=document_id,
+        extraction_type=extraction_type,
+        text=text,
+        structured_fields=structured_fields,
+        confidence=confidence,
+        warnings=warnings,
+        created_at=now,
+    )
+
+
+def list_documents_with_extractions(
+    engine: Engine, household_id: str
+) -> list[tuple[DocumentRecord, DocumentExtractionRecord | None]]:
+    query = (
+        select(
+            models.documents.c.id.label("document_id"),
+            models.documents.c.household_id,
+            models.documents.c.content_type,
+            models.documents.c.storage_path,
+            models.documents.c.created_at.label("document_created_at"),
+            models.document_extractions.c.id.label("extraction_id"),
+            models.document_extractions.c.extraction_type,
+            models.document_extractions.c.text,
+            models.document_extractions.c.structured_fields_json,
+            models.document_extractions.c.confidence,
+            models.document_extractions.c.warnings_json,
+            models.document_extractions.c.created_at.label("extraction_created_at"),
+        )
+        .select_from(models.documents)
+        .join(
+            models.document_extractions,
+            models.document_extractions.c.document_id == models.documents.c.id,
+            isouter=True,
+        )
+        .where(models.documents.c.household_id == household_id)
+        .order_by(models.documents.c.created_at.desc())
+    )
+
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    results: list[tuple[DocumentRecord, DocumentExtractionRecord | None]] = []
+    for row in rows:
+        document = DocumentRecord(
+            id=row["document_id"],
+            household_id=row["household_id"],
+            content_type=row["content_type"],
+            storage_path=row["storage_path"],
+            created_at=row["document_created_at"],
+        )
+        extraction = None
+        if row["extraction_id"] is not None:
+            extraction = DocumentExtractionRecord(
+                id=row["extraction_id"],
+                document_id=row["document_id"],
+                extraction_type=row["extraction_type"],
+                text=row["text"],
+                structured_fields=row["structured_fields_json"],
+                confidence=row["confidence"],
+                warnings=row["warnings_json"],
+                created_at=row["extraction_created_at"],
+            )
+        results.append((document, extraction))
+
+    return results

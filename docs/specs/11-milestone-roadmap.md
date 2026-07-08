@@ -408,6 +408,109 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Review queue
 - Worker scheduling
 
+### Scope
+
+- Add `imports`/`import_files` tables and a CSV import pipeline: register an import (`POST /api/v1/imports`), upload the file to staging storage (`POST /api/v1/imports/{id}/file`), parse and map CSV rows into `transactions` with `review_state = 'pending'`, flagging likely duplicates, then let the caller confirm (`POST /api/v1/imports/{id}/apply`, flips to `reviewed`) or discard (`POST /api/v1/imports/{id}/discard`, deletes the pending rows) the whole import.
+- Add `documents`/`document_extractions` tables and a `POST /api/v1/documents` endpoint for single-document extraction (a receipt image or a PDF statement), separate from the CSV import pipeline: it produces a structured extraction record for review, but never writes directly to `transactions` — that linkage (e.g. into the purchase advisor) is future work.
+- Add a `family_cfo_ocr_worker` package (`services/ocr-worker`) with a `DocumentExtractionAdapter` protocol, one real adapter (`PdfTextExtractionAdapter`, using `pypdf` — pure Python, no system binary) and one deterministic test adapter for image content (`DeterministicOcrAdapter`, matches known fixture bytes to fixed structured output; no real OCR engine is wired up).
+- Add a `family_cfo_scheduler` package (`services/scheduler`) with an import-processing job function callable directly (for synchronous tests) and wrapped by an APScheduler interval trigger for real background polling, plus bounded retry/failure handling.
+- Add OFX and QFX *planning only* — no parser, no endpoint. Document the target shape so a future milestone can implement it against a settled plan instead of starting from nothing.
+
+### Non-Goals
+
+- No real OCR engine (Tesseract, Apple Vision, cloud OCR). The adapter interface and a deterministic test adapter ship now; a real image-OCR adapter is future work behind the same interface (ADR 0007). This sandbox has no Tesseract binary and OCR accuracy isn't something a spec gate can pin down deterministically anyway.
+- No OFX or QFX parsing — planning documentation only.
+- No automatic creation of `transactions` from PDF or image extraction; only CSV import writes to `transactions`. Structured extraction from a receipt/PDF is surfaced for a human (or a future milestone) to act on.
+- No Angular "Import Review" page upgrade — M5 left it as an explicit placeholder shell, and this milestone is backend-only, the same split M6 used (Linux-safe backend now, UI as identified follow-up work).
+- No document storage encryption-at-rest beyond the filesystem's own guarantees; the database schema spec already flags database/backup encryption as an open threat-model question, and staged import files inherit that same open question rather than resolving it here.
+- No malware/antivirus scanning of uploaded files.
+- No multi-file batch upload; one file per import.
+
+### Import Job Lifecycle
+
+1. `pending` — `POST /api/v1/imports` created the row; no file uploaded yet.
+2. `pending` (still) — `POST /api/v1/imports/{id}/file` stored the file to staging and created `import_files`; the scheduler has not yet picked it up. (A separate `has_file` derived check, not a new status, distinguishes "no file yet" from "file uploaded, awaiting processing" — both are `pending`.)
+3. `processing` — the scheduler job has started parsing.
+4. `needs_review` — parsing succeeded; rows exist in `transactions` with `review_state = 'pending'`, or a `document_extractions` row exists (for `documents`, this is the terminal state — there is no `apply` for `documents`).
+5. `completed` — `POST /api/v1/imports/{id}/apply` marked the import's pending transactions `reviewed`.
+6. `discarded` — `POST /api/v1/imports/{id}/discard` deleted the import's pending transactions.
+7. `failed` — parsing raised an error; `imports.error_message` holds a non-sensitive summary (never raw file content).
+
+### CSV Import Schema and Mapping Behavior
+
+- Expected columns (header row required, case-insensitive matching): `date`, `amount`, `description`/`merchant`, optional `category`. Amounts are parsed as decimal strings and converted to integer minor units via the same `Decimal`-based rounding approach the financial engine uses — never `float`.
+- Rows that fail to parse (bad date, non-numeric amount) are skipped and counted in a `skipped_row_count` surfaced on the import record; they do not fail the whole import.
+- Duplicate detection: a parsed row is flagged (not silently dropped) as a probable duplicate when an existing `transactions` row in the same household matches on `(account_id, occurred_at, amount_minor)`. Flagged rows still get inserted as `pending` so the reviewer decides — M7 does not auto-drop anything a human hasn't seen.
+
+### PDF Pipeline Behavior
+
+- `PdfTextExtractionAdapter` extracts raw text per page via `pypdf` — a real, deterministic operation on text-based PDFs (not scanned images; a scanned PDF yields little or no text, surfaced as a low-confidence result rather than an error).
+- The adapter does not attempt statement-specific line-item parsing (vendor formats vary too much for a heuristic to be trustworthy); it returns raw text plus a naive "possible total" regex match as a low-confidence hint, not a committed number.
+- PDFs uploaded through `POST /api/v1/documents` produce a `document_extractions` row; PDFs are not a supported `imports` `source_type` transaction path in M7 (only CSV writes transactions), even though `ImportSourceType` already includes `pdf` from the M0 baseline contract — that value now means "register intent to import a PDF statement," which the review queue still exposes as a raw-text extraction for a human to act on, not an automatic parse into transactions.
+
+### OFX and QFX Planning
+
+- Target shape (for a future milestone): both are structured, bank-defined formats (unlike freeform CSV), so parsing can be a real deterministic parser (no OCR/heuristics needed) once implemented — likely via the `ofxparse` library or a hand-rolled SGML/XML reader for OFX, and a compatible reader for QFX (a Quicken-flavored OFX variant).
+- They would slot into the same `imports`/`import_files`/review-queue pipeline as CSV, differing only in the parser selected by `source_type`.
+- No code lands in M7; this section exists so that future work starts from a settled plan instead of scratch.
+
+### OCR Adapter Interface
+
+- `DocumentExtractionAdapter` protocol: `extract(content: bytes, content_type: str) -> ExtractionResult`, where `ExtractionResult` carries `text`, `structured_fields: dict`, `confidence: float`, and `warnings: list[str]` — deliberately mirroring the financial engine's `CalculationResult` and the AI orchestrator's `RuntimeCompletion` shape (inputs/outputs/confidence/warnings) for consistency across the codebase's adapter patterns.
+- `PdfTextExtractionAdapter` (real) handles `application/pdf`.
+- `DeterministicOcrAdapter` (test-only) handles `image/*`: constructed with a fixture registry (`dict[bytes, ExtractionResult]`); known content returns its registered result, unknown content returns a fixed "OCR not available; manual entry required" result with `confidence = 0.0` and a warning — never a fabricated guess.
+- Document API route selects an adapter by `content_type`, matching the same "replaceable component" pattern as `RuntimeAdapter` (M4) and the financial engine (ADR 0007).
+
+### Review Queue Behavior
+
+- Imported transactions never affect financial-engine calculations differently based on `review_state` — M2's calculations already read all transactions in a household regardless of state, so "before it affects financial state" specifically means before a human confirms it belongs (`apply`), not before the system trusts the numbers. This is a deliberate scope boundary: M7 does not add review-state filtering to the financial engine; that's a reasonable follow-up if pending-but-wrong imported rows turn out to skew net worth/cash flow in practice.
+- `discard` is the safety valve for a bad import (wrong account, garbled CSV) — it removes every `pending` transaction tied to that `import_id` in one action rather than requiring row-by-row deletion.
+
+### Worker Scheduling Expectations
+
+- `run_pending_imports_once(engine)` is the core unit: finds `imports` rows with status `pending` and an uploaded file, processes each via the appropriate parser, and updates status. It has no scheduling logic itself, so tests call it directly and synchronously — no real scheduler needs to run for tests to be deterministic.
+- `family_cfo_scheduler`'s `Worker` wraps that function in an APScheduler `IntervalTrigger` for real deployments (Docker Compose, later milestone) and adds bounded retry: a failed job increments `imports.retry_count`, and after 3 attempts the import moves to `failed` rather than retrying forever.
+- No message broker (Redis/RabbitMQ) — APScheduler runs in-process against the same database, consistent with keeping the self-hosted deployment simple (ADR 0006).
+- CSV processing is not fully transactional: rows are inserted one at a time, not as a single all-or-nothing batch, so a retry after a partial failure can re-process rows already inserted by the failed attempt. This is deliberately bounded rather than silent — the existing duplicate-detection check runs on every insert attempt including retries, so a re-inserted row surfaces as `possible_duplicate = true` for a human to resolve via `discard`, the same safety net as any other duplicate. True per-row idempotency (a processing ledger) is future work if this proves to matter in practice.
+
+### API Behavior
+
+- `POST /api/v1/imports` requires `bearerAuth`, any household role, and returns `201` with the created `ImportRecord` (`status: pending`).
+- `POST /api/v1/imports/{id}/file` requires `bearerAuth`, accepts `multipart/form-data`, and returns `202` — processing is asynchronous (the scheduler, not the request, parses the file).
+- `GET /api/v1/imports` requires `bearerAuth`, any household role, returns the household's imports.
+- `POST /api/v1/imports/{id}/apply` and `POST /api/v1/imports/{id}/discard` require `bearerAuth` and are limited to `owner`/`adult` (same rationale as goal creation: these mutate household financial data).
+- `POST /api/v1/documents` requires `bearerAuth`, any household role, accepts `multipart/form-data`, and returns the created `document` plus its `document_extractions` result synchronously (extraction is fast and local — no worker hop needed for a single document).
+- `GET /api/v1/documents` requires `bearerAuth`, any household role.
+
+### Data Model Changes
+
+- Add `imports`: `id`, `household_id`, `account_id` (nullable FK), `source_type` (`csv`/`pdf`/`ofx`/`qfx`), `filename`, `status` (`pending`/`processing`/`needs_review`/`completed`/`discarded`/`failed` — adds `discarded` to the M0-baseline enum), `error_message` (nullable), `skipped_row_count`, `retry_count`, `created_at`, `updated_at`.
+- Add `import_files`: `id`, `import_id`, `storage_path`, `content_type`, `size_bytes`, `created_at`.
+- Add `documents`: `id`, `household_id`, `content_type`, `storage_path`, `created_at`.
+- Add `document_extractions`: `id`, `document_id`, `extraction_type` (`pdf_text`/`ocr`), `text`, `structured_fields_json`, `confidence`, `warnings_json`, `created_at`.
+- Staged files live on local disk under a configurable directory (`FAMILY_CFO_IMPORT_STAGING_DIR`), matching the Docker spec's planned "Import staging" volume; `storage_path` is a relative path within that directory, never an absolute host path, so it stays portable across environments.
+- Add a nullable `transactions.import_id` foreign key (additive migration, not a rewrite of M2's original `transactions` migration) so `apply`/`discard` can scope their bulk update/delete to exactly the rows a given import created, rather than every `pending` transaction in the household.
+
+### Security Impact
+
+- Uploaded file bytes and extracted document text are `Restricted`/`Sensitive` per the security model (financial documents, receipts) — never logged. Log lines reference only `import_id`/`document_id`, byte counts, and status, matching the pattern already established for prompts (M4) and purchase details (M3).
+- Staging storage and extracted text inherit the existing open threat-model question about database/backup encryption rather than resolving it — noted explicitly as a non-goal above, not silently skipped.
+- `apply`/`discard` are role-gated the same way goal creation is, since both mutate household financial records.
+
+### Test Expectations
+
+- `ocr-worker`: unit tests for `PdfTextExtractionAdapter` against `fpdf2`-generated synthetic PDF fixtures (dev-only dependency, never a runtime one) covering normal text extraction and a fixture with no extractable text (low-confidence path). Unit tests for `DeterministicOcrAdapter` covering the known-fixture path and the unknown-content fallback.
+- `scheduler`: unit tests for `run_pending_imports_once` covering successful CSV processing, a malformed-row-skips-not-fails case, duplicate flagging, and the retry-then-fail-after-3-attempts path — all against an in-memory SQLite engine, no real scheduler thread involved.
+- `apps/api`: repository tests for import/document persistence; API integration tests for the full CSV lifecycle (`create` → `upload file` → synchronously invoke the job function, since there's no running scheduler in tests → `apply`/`discard`), `401`/`403` paths, and a document upload/extraction round trip.
+- A redaction test confirms uploaded file contents and extracted document text never appear in log output, following the same pattern as M3's purchase-advisor redaction test.
+
+### Documentation Impact
+
+- Update `apps/api/README.md` with the imports/documents API surface and staging-directory configuration.
+- Add `services/ocr-worker/README.md` and `services/scheduler/README.md` documenting the adapter interface, the real vs. deterministic-test adapters, and the worker's retry behavior.
+- Update `database/README.md` with the new tables and the staging-directory convention.
+- Update the implementation task checklist as M7 tasks complete.
+
 ## M8: Reports and Backups
 
 - Weekly report

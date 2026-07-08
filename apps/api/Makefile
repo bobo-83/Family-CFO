@@ -2,10 +2,10 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 PYTHONPATH := src
 export PYTHONPATH
 
-.PHONY: install test lint format openapi check-openapi migrate run
+.PHONY: install test lint format openapi check-openapi migrate run worker
 
 install:
-	$(PYTHON) -m pip install -e ".[dev]" -e ../../services/financial-engine -e ../../services/ai-orchestrator
+	$(PYTHON) -m pip install -e ".[dev]" -e ../../services/financial-engine -e ../../services/ai-orchestrator -e ../../services/ocr-worker -e ../../services/scheduler
 
 test:
 	$(PYTHON) -m pytest
@@ -27,3 +27,6 @@ migrate:
 
 run:
 	$(PYTHON) -m uvicorn family_cfo_api.main:app --reload --host 0.0.0.0 --port 8000
+
+worker:
+	$(PYTHON) -m family_cfo_api.worker_main

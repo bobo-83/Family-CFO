@@ -24,7 +24,12 @@ Later migrations add:
 - M3: `recommendations`
 - M4: `recommendations.model_version`, `recommendations.prompt_version`, and `ai_runtime_configs`
 - M6 backend support: `pairing_sessions`, `paired_devices`, and nullable `auth_sessions.device_id` for device-backed session revocation
+- M7: `imports`, `import_files`, `documents`, `document_extractions`, and nullable `transactions.import_id`/`transactions.possible_duplicate`
 
 ## Money Storage
 
 Every money column is a signed integer `*_minor` column (e.g. `amount_minor`, `balance_minor`, `target_minor`) paired with a 3-character `currency` column. No financial amount is ever stored as a floating-point or numeric/decimal column — see `docs/specs/03-domain-model.md` for the full money rules and `services/financial-engine` for the `Money` value type application code uses to manipulate these amounts.
+
+## Import and Document Staging
+
+Uploaded import/document files are not stored in the database — `import_files.storage_path` and `documents.storage_path` are relative paths within a local directory controlled by `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`), matching the "Import staging" volume planned in `docs/specs/10-docker-spec.md`. Paths are always relative so they stay portable across environments; never commit real staged files (synthetic fixtures only, per `AGENTS.md`).

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "family-cfo-scheduler"
+version = "0.1.0"
+description = "Generic background job scheduling and retry policy for Family CFO"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "APScheduler>=3.10,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0,<8.5",
+  "ruff>=0.6,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

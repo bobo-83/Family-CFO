@@ -22,8 +22,17 @@ def demo_engine() -> Engine:
 
 
 @pytest.fixture
-def demo_app(demo_engine: Engine):
-    return create_app(Settings(version="0.1.0", health_check_database=False), engine=demo_engine)
+def demo_settings(tmp_path) -> Settings:
+    return Settings(
+        version="0.1.0",
+        health_check_database=False,
+        import_staging_dir=str(tmp_path / "import-staging"),
+    )
+
+
+@pytest.fixture
+def demo_app(demo_engine: Engine, demo_settings: Settings):
+    return create_app(demo_settings, engine=demo_engine)
 
 
 @pytest.fixture

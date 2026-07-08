@@ -341,49 +341,49 @@ Rules:
 
 ### Spec Gate
 
-- [ ] Define M7 scope.
-- [ ] Define M7 non-goals.
-- [ ] Define import job lifecycle.
-- [ ] Define CSV import schema and mapping behavior.
-- [ ] Define PDF pipeline behavior.
-- [ ] Define OFX and QFX planning scope.
-- [ ] Define OCR adapter interface.
-- [ ] Define review queue behavior before imported data affects financial state.
-- [ ] Define worker scheduling expectations.
-- [ ] Define security impact for document storage, extraction, and logs.
-- [ ] Define M7 unit and integration test expectations.
-- [ ] Define M7 documentation updates.
+- [x] Define M7 scope.
+- [x] Define M7 non-goals.
+- [x] Define import job lifecycle.
+- [x] Define CSV import schema and mapping behavior.
+- [x] Define PDF pipeline behavior.
+- [x] Define OFX and QFX planning scope.
+- [x] Define OCR adapter interface.
+- [x] Define review queue behavior before imported data affects financial state.
+- [x] Define worker scheduling expectations.
+- [x] Define security impact for document storage, extraction, and logs.
+- [x] Define M7 unit and integration test expectations.
+- [x] Define M7 documentation updates.
 
 ### Implementation
 
-- [ ] Create migrations for imports.
-- [ ] Create migrations for import files.
-- [ ] Create migrations for documents.
-- [ ] Create migrations for document extractions.
-- [ ] Add import staging storage.
-- [ ] Implement `GET /api/v1/imports`.
-- [ ] Implement `POST /api/v1/imports`.
-- [ ] Add CSV parser with synthetic fixtures.
-- [ ] Add CSV mapping and validation.
-- [ ] Add CSV import preview.
-- [ ] Add import review queue persistence.
-- [ ] Add reviewed import apply workflow.
-- [ ] Add duplicate transaction detection.
-- [ ] Add PDF ingestion pipeline.
-- [ ] Add OCR engine adapter interface.
-- [ ] Add first OCR adapter or deterministic test adapter.
-- [ ] Add structured extraction confidence scoring.
-- [ ] Add OFX planning documentation.
-- [ ] Add QFX planning documentation.
-- [ ] Add background worker service scaffold.
-- [ ] Add scheduled job runner.
-- [ ] Add worker retry and failure handling.
-- [ ] Add worker integration tests.
-- [ ] Add import API integration tests.
-- [ ] Add OCR adapter contract tests.
-- [ ] Add log redaction tests for document contents.
-- [ ] Update import and worker documentation.
-- [ ] Run verification commands.
+- [x] Create migrations for imports. (`0019`)
+- [x] Create migrations for import files. (`0020`)
+- [x] Create migrations for documents. (`0021`, includes `import_id` for PDF-import-linked documents)
+- [x] Create migrations for document extractions. (`0022`)
+- [x] Add import staging storage. (Local disk under `FAMILY_CFO_IMPORT_STAGING_DIR`; also added `transactions.import_id`/`possible_duplicate` via `0023`, an additive migration not a rewrite of M2's original `transactions` migration.)
+- [x] Implement `GET /api/v1/imports`.
+- [x] Implement `POST /api/v1/imports`.
+- [x] Add CSV parser with synthetic fixtures.
+- [x] Add CSV mapping and validation.
+- [x] Add CSV import preview. (No separate pre-commit preview endpoint: parsed rows are written directly as `pending`-review transactions, which *are* the preview — see the M7 Import Job Lifecycle in the roadmap doc for this scope decision.)
+- [x] Add import review queue persistence. (`transactions.review_state`, already added in M2, now populated by imports.)
+- [x] Add reviewed import apply workflow. (`POST /api/v1/imports/{id}/apply`.)
+- [x] Add duplicate transaction detection. (Flagged via `possible_duplicate`, not silently dropped.)
+- [x] Add PDF ingestion pipeline. (Real text extraction via `pypdf`; produces a `document_extractions` row, not transactions.)
+- [x] Add OCR engine adapter interface. (`DocumentExtractionAdapter` in `family_cfo_ocr_worker`.)
+- [x] Add first OCR adapter or deterministic test adapter. (`DeterministicOcrAdapter` — no real OCR engine ships in M7, by design; see the M7 Non-Goals.)
+- [x] Add structured extraction confidence scoring. (`ExtractionResult.confidence`.)
+- [x] Add OFX planning documentation. (See "OFX and QFX Planning" in the roadmap doc.)
+- [x] Add QFX planning documentation. (Same section.)
+- [x] Add background worker service scaffold. (`family_cfo_scheduler` package.)
+- [x] Add scheduled job runner. (`Scheduler`/`Job`, wired to the import job via `family-cfo-worker`.)
+- [x] Add worker retry and failure handling. (`RetryPolicy`/`run_with_retry`, 3 attempts then `status = "failed"`.)
+- [x] Add worker integration tests.
+- [x] Add import API integration tests.
+- [x] Add OCR adapter contract tests.
+- [x] Add log redaction tests for document contents.
+- [x] Update import and worker documentation.
+- [x] Run verification commands.
 - [ ] Commit M7 imports and OCR changes.
 
 ## M8: Reports and Backups

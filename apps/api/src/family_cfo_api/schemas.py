@@ -24,6 +24,9 @@ RecurringFrequency = Literal["weekly", "biweekly", "semimonthly", "monthly", "qu
 PurchaseSource = Literal["manual", "mobile_vision", "receipt", "product_photo"]
 ImpactArea = Literal["cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"]
 AiRuntimeProvider = Literal["vllm", "ollama", "llama_cpp", "openai_compatible"]
+ImportSourceType = Literal["csv", "pdf", "ofx", "qfx"]
+ImportStatus = Literal["pending", "processing", "needs_review", "completed", "discarded", "failed"]
+DocumentExtractionType = Literal["pdf_text", "ocr"]
 
 
 class HealthResponse(BaseModel):
@@ -211,3 +214,44 @@ class AiRuntimeConfig(BaseModel):
     base_url: str
     model: str
     enabled: bool = True
+
+
+class ImportCreateRequest(BaseModel):
+    source_type: ImportSourceType
+    filename: str
+    account_id: str | None = None
+
+
+class ImportRecord(BaseModel):
+    id: str
+    source_type: ImportSourceType
+    filename: str
+    status: ImportStatus
+    error_message: str | None = None
+    skipped_row_count: int = 0
+    created_at: datetime
+
+
+class ImportListResponse(BaseModel):
+    imports: list[ImportRecord]
+
+
+class DocumentExtraction(BaseModel):
+    id: str
+    extraction_type: DocumentExtractionType
+    text: str
+    structured_fields: dict[str, Any]
+    confidence: float = Field(ge=0, le=1)
+    warnings: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class Document(BaseModel):
+    id: str
+    content_type: str
+    created_at: datetime
+    extraction: DocumentExtraction | None = None
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[Document]

@@ -95,7 +95,7 @@ Not implemented in this Linux-backed M6 slice:
 
 - SwiftUI app code, Swift client generation, QR scanning, Keychain storage, Face ID, camera capture UI, Vision extraction, or iOS tests. Per `AGENTS.md`, those require macOS with Swift/Xcode.
 - General-purpose conversational memory or raw chat history persistence.
-- Raw photo/document upload endpoints.
+- Raw photo/document upload endpoints — these exist now, added in M7 below.
 
 ### Auth Flow
 
@@ -114,6 +114,38 @@ curl -s http://127.0.0.1:8000/api/v1/household \
 
 The demo credentials above only exist once you seed the synthetic fixtures (see Fixtures below); they are not created by any migration.
 
+## M7 Scope
+
+Implemented:
+
+- `POST /api/v1/imports` registers an import (`source_type`, `filename`, optional `account_id`); `POST /api/v1/imports/{id}/file` (multipart) stages the uploaded file to `FAMILY_CFO_IMPORT_STAGING_DIR` and returns `202` — processing is asynchronous, done by the worker (`family-cfo-worker`, see below), not the request.
+- CSV imports are parsed and written to `transactions` with `review_state = "pending"`; malformed rows are skipped and counted (`skipped_row_count`), not fatal. A row matching an existing transaction on `(account_id, occurred_at, amount_minor)` is still inserted, flagged `possible_duplicate = true` for a human to resolve — never silently dropped.
+- `POST /api/v1/imports/{id}/apply` (`owner`/`adult`) marks that import's pending transactions reviewed; `POST /api/v1/imports/{id}/discard` (`owner`/`adult`) deletes them. Both are scoped to the import via `transactions.import_id`, not "every pending transaction in the household."
+- PDF imports extract raw text via `family_cfo_ocr_worker.PdfTextExtractionAdapter` (real, `pypdf`-based) into a linked `document_extractions` row for human review; they do **not** automatically create transactions — only CSV does.
+- `POST /api/v1/documents` (multipart) is a synchronous single-document extraction endpoint (no worker hop) for receipts/PDFs uploaded outside the import flow. PDFs use the same real adapter; images use `family_cfo_ocr_worker.DeterministicOcrAdapter`, which has **no real OCR engine wired up** — every image upload returns a fixed `confidence = 0.0` "not available" result today. `GET /api/v1/documents` lists uploads with their extraction.
+- `family-cfo-worker`: a separate long-running process (not started by the API server) that polls for pending imports every 30 seconds and processes them, with bounded retry (3 attempts, then `status = "failed"`) via `family_cfo_scheduler`.
+
+Not implemented in M7:
+
+- OFX/QFX parsing — planning documentation only (`docs/specs/11-milestone-roadmap.md`).
+- A real OCR engine (Tesseract, Apple Vision, cloud OCR) — see `services/ocr-worker/README.md`.
+- Any Angular "Import Review"/"Transaction Review" page upgrade; those remain M5's placeholder shells.
+- Full CSV-processing transactional atomicity: a retried import can re-insert rows the failed attempt already committed, surfaced as `possible_duplicate` for review rather than silently duplicated. See the M7 Worker Scheduling Expectations in the roadmap doc for why this is a deliberate, bounded tradeoff.
+
+### Imports Flow
+
+```bash
+IMPORT_ID=$(curl -s -X POST http://127.0.0.1:8000/api/v1/imports \
+  -H "authorization: Bearer <access_token>" -H 'content-type: application/json' \
+  -d '{"source_type": "csv", "filename": "statement.csv", "account_id": "<account_id>"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+curl -s -X POST "http://127.0.0.1:8000/api/v1/imports/$IMPORT_ID/file" \
+  -H "authorization: Bearer <access_token>" -F "file=@statement.csv;type=text/csv"
+```
+
+Nothing happens to the file until the worker runs (`make worker` or `family-cfo-worker`). Once it has, `GET /api/v1/imports` shows `status: needs_review`, and the parsed rows appear as `pending` transactions.
+
 ## Setup
 
 ```bash
@@ -123,7 +155,7 @@ python3 -m venv .venv
 make install
 ```
 
-`make install` also installs the sibling `family-cfo-financial-engine` and `family-cfo-ai-orchestrator` packages from `services/financial-engine` and `services/ai-orchestrator` in editable mode, since the API depends on both but neither is a published package.
+`make install` also installs the sibling `family-cfo-financial-engine`, `family-cfo-ai-orchestrator`, `family-cfo-ocr-worker`, and `family-cfo-scheduler` packages from `services/` in editable mode, since the API depends on all four but none is a published package.
 
 Optional local configuration reference:
 
@@ -154,6 +186,14 @@ Expected response:
   "status": "ok",
   "version": "0.1.0"
 }
+```
+
+Run the background import-processing worker (a separate process from the API server):
+
+```bash
+cd apps/api
+. .venv/bin/activate
+make worker
 ```
 
 ## Test and Lint
@@ -205,7 +245,9 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`). `make migrate` applies all of them.
+
+Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk.
 
 ## Fixtures
 

@@ -6,10 +6,15 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository, security
+from family_cfo_api.config import Settings
 
 
 async def get_engine(request: Request) -> Engine:
     return request.app.state.db_engine
+
+
+async def get_app_settings(request: Request) -> Settings:
+    return request.app.state.settings
 
 
 async def get_current_session(

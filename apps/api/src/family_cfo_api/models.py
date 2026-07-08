@@ -50,6 +50,9 @@ CALCULATION_TYPES = (
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
 EXPLANATION_SOURCES = ("deterministic_stub", "llm")
 AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
+IMPORT_SOURCE_TYPES = ("csv", "pdf", "ofx", "qfx")
+IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discarded", "failed")
+DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
 
 
 def _uuid_pk(name: str = "id") -> Column:
@@ -183,6 +186,8 @@ transactions = Table(
     Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),
     Column("description", Text, nullable=True),
     Column("import_source", String(30), nullable=True),
+    Column("import_id", String(36), ForeignKey("imports.id", name="fk_transactions_import_id"), nullable=True),
+    Column("possible_duplicate", Boolean, nullable=False, server_default="0"),
     Column("review_state", String(20), nullable=False, server_default="reviewed"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"review_state in {_sql_in(TRANSACTION_REVIEW_STATES)}", name="ck_transactions_review_state"),
@@ -300,4 +305,61 @@ ai_runtime_configs = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"provider in {_sql_in(AI_RUNTIME_PROVIDERS)}", name="ck_ai_runtime_configs_provider"),
+)
+
+imports = Table(
+    "imports",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("account_id", String(36), ForeignKey("accounts.id"), nullable=True),
+    Column("source_type", String(20), nullable=False),
+    Column("filename", String(255), nullable=False),
+    Column("status", String(20), nullable=False, server_default="pending"),
+    Column("error_message", Text, nullable=True),
+    Column("skipped_row_count", Integer, nullable=False, server_default="0"),
+    Column("retry_count", Integer, nullable=False, server_default="0"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(f"source_type in {_sql_in(IMPORT_SOURCE_TYPES)}", name="ck_imports_source_type"),
+    CheckConstraint(f"status in {_sql_in(IMPORT_STATUSES)}", name="ck_imports_status"),
+)
+
+import_files = Table(
+    "import_files",
+    metadata,
+    _uuid_pk(),
+    Column("import_id", String(36), ForeignKey("imports.id"), nullable=False, unique=True),
+    Column("storage_path", String(500), nullable=False),
+    Column("content_type", String(100), nullable=False),
+    Column("size_bytes", BigInteger, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+documents = Table(
+    "documents",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("import_id", String(36), ForeignKey("imports.id"), nullable=True),
+    Column("content_type", String(100), nullable=False),
+    Column("storage_path", String(500), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+document_extractions = Table(
+    "document_extractions",
+    metadata,
+    _uuid_pk(),
+    Column("document_id", String(36), ForeignKey("documents.id"), nullable=False, unique=True),
+    Column("extraction_type", String(20), nullable=False),
+    Column("text", Text, nullable=False),
+    Column("structured_fields_json", JSON, nullable=False),
+    Column("confidence", Float, nullable=False),
+    Column("warnings_json", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"extraction_type in {_sql_in(DOCUMENT_EXTRACTION_TYPES)}", name="ck_document_extractions_type"
+    ),
+    CheckConstraint("confidence >= 0 and confidence <= 1", name="ck_document_extractions_confidence_range"),
 )

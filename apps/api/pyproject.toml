@@ -12,6 +12,7 @@ dependencies = [
   "alembic>=1.13,<1.19",
   "fastapi>=0.115,<0.116",
   "psycopg[binary]>=3.2,<3.4",
+  "python-multipart>=0.0.9,<0.1",
   "PyYAML>=6.0,<7",
   "SQLAlchemy>=2.0,<2.1",
   "uvicorn[standard]>=0.30,<0.51",
@@ -19,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "fpdf2>=2.8,<3",
   "httpx>=0.27,<0.28",
   "pytest>=8.0,<8.5",
   "ruff>=0.6,<1",
@@ -28,6 +30,7 @@ dev = [
 family-cfo-api = "family_cfo_api.main:main"
 family-cfo-openapi = "family_cfo_api.tools.openapi:generate_openapi"
 family-cfo-check-openapi = "family_cfo_api.tools.openapi:check_openapi"
+family-cfo-worker = "family_cfo_api.worker_main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

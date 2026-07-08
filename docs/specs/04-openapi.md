@@ -29,6 +29,7 @@ Initial contract: `shared/openapi/family-cfo.v1.yaml`.
 - Chat
 - Reports
 - Imports
+- Documents
 - AI runtime configuration
 
 ## Error Shape
