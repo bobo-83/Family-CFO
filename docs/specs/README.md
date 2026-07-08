@@ -46,6 +46,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M14 debt payoff and retirement projections: implemented. Persists per-account debt terms (`accounts.annual_interest_rate`/`minimum_payment_minor`), makes the purchase advisor's `debt` impact real via `calculate_debt_payoff` (replacing the warning-only placeholder), adds `calculate_retirement_projection`, and a `POST /api/v1/advisor/retirement` scenario endpoint returning a grounded recommendation. Closes most of the M3-deferred debt/retirement backlog; an open-ended scenario-planning API remains backlog.
 
+- M15 annual report: implemented. Adds `annual` as a third report type (prior calendar year, 12× monthly normalization) reusing the M8 report content and narrative, plus a scheduled annual generation job. Closes the "Backlog: Annual Report" item; the PRD's weekly/monthly/annual reports are now all delivered.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

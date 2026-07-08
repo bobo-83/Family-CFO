@@ -970,3 +970,40 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Update `services/financial-engine/README.md` (retirement projection) and `apps/api/README.md` (M14 scope: debt-term fields, real debt impact, retirement endpoint).
 - Update `database/README.md` (account debt-term columns) and `shared/openapi/family-cfo.v1.yaml` (retirement path + schemas, `Account`/account-request debt-term fields).
 - Mark the "Backlog: Debt Payoff and Retirement Projections" items done except the general scenario-planning API (which stays backlog), and update `docs/specs/README.md` Acceptance State.
+
+## M15: Annual Report
+
+- Add `annual` as a third report type
+- Prior-calendar-year period, 12× monthly normalization
+- Scheduled annual generation
+
+> Context: closes the "Backlog: Annual Report" item. The PRD lists "weekly, monthly, and annual reports"; M8 shipped weekly/monthly and scoped annual out. M15 is a thin extension of M8's proven report machinery — the same wins/risks/unusual-spending/goal-progress/recommended-actions shape and the same guardrail-validated narrative — over a yearly period.
+
+### Scope
+
+- Add `annual` to the report types (`reports.report_type` CHECK, the `REPORT_TYPES` tuple, and the `ReportType` API literal), via an additive migration that rebuilds the `ck_reports_type` constraint.
+- `compute_report_period("annual", ref)` covers the **prior calendar year** (Jan 1 of last year through Dec 31 of last year), mirroring how `monthly` covers the prior calendar month — never the in-progress year.
+- Scale the financial engine's monthly income/bills figures **up by 12** for the annual budget summary (a year is 12 months), the counterpart to `weekly`'s 7/30 down-scale, recorded as a report assumption.
+- Add a scheduled annual generation job to `family-cfo-worker` using the same idempotent, poll-and-skip pattern as the weekly/monthly jobs (`run_scheduled_reports_once("annual", ...)`), so a missed poll self-heals.
+- `POST /api/v1/reports/generate` accepts `annual`; `GET /api/v1/reports*` return annual reports unchanged (no shape change).
+
+### Non-Goals
+
+- No new report content, sections, or schema fields — annual reuses the M8 `ReportSummary` exactly. Year-specific analytics (e.g. tax-year rollups, YoY trend charts) are not in scope.
+- No Angular change beyond the reports page trivially listing whatever the API returns (it already renders any `report_type`); a dedicated annual view is not built.
+- No back-generation of historical annual reports for prior years; the scheduler and endpoint generate the most recent completed year on request.
+
+### Data Model Changes
+
+- Rebuild `ck_reports_type` to `('weekly','monthly','annual')` (migration; reversible). No new columns or tables.
+
+### Test Expectations
+
+- `compute_report_period("annual", ...)` returns the prior calendar year; the 12× up-scaling is exercised; a generated annual report persists with `report_type = "annual"` and the expected summary shape.
+- API: `POST /api/v1/reports/generate` with `annual` returns `201` and lists; role gating unchanged (`owner`/`adult` to generate).
+- Scheduler: `run_scheduled_reports_once("annual")` generates once and is idempotent on the second run.
+- Migration up/down/up cycle; OpenAPI contract check passes.
+
+### Documentation Impact
+
+- Update `apps/api/README.md` (annual report), `shared/openapi/family-cfo.v1.yaml` (`ReportType` enum), `docs/specs/README.md` Acceptance State, and mark the "Backlog: Annual Report" items done.

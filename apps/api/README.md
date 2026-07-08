@@ -241,6 +241,10 @@ Implemented (backend half; the TLS half lives in `docker/`):
 
 The web tier's HTTPS/TLS termination, security headers, and self-signed-cert bootstrap are in `docker/` (see `docker/README.md`).
 
+## M15 Scope (Annual Report)
+
+Adds `annual` as a third report type alongside weekly/monthly (`POST /api/v1/reports/generate`, the scheduled worker job, and `ReportType`). An annual report covers the **prior calendar year**, scales the engine's monthly income/bills figures up by 12, and reuses the M8 report content and narrative exactly. Migration `0030` widens the `reports` type check.
+
 ## M14 Scope (Debt Payoff and Retirement Projections)
 
 Finishes the M3-deferred debt/retirement backlog.
@@ -350,7 +354,7 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`); M15 adds `annual` to the reports type check (`0030`). `make migrate` applies all of them.
 
 Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
 

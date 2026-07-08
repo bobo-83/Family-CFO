@@ -9,6 +9,19 @@ async def test_generate_report_requires_authentication(demo_client) -> None:
 
 
 @pytest.mark.anyio
+async def test_generate_annual_report(demo_client, demo_token) -> None:
+    response = await demo_client.post(
+        "/api/v1/reports/generate",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"report_type": "annual"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["report_type"] == "annual"
+    assert "net_cash_flow" in body["summary"]
+
+
+@pytest.mark.anyio
 async def test_generate_and_list_and_get_report(demo_client, demo_token) -> None:
     generate_response = await demo_client.post(
         "/api/v1/reports/generate",

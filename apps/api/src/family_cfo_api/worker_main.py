@@ -39,6 +39,9 @@ def main() -> None:
     def generate_monthly_reports() -> None:
         report_generation.run_scheduled_reports_once(engine, "monthly")
 
+    def generate_annual_reports() -> None:
+        report_generation.run_scheduled_reports_once(engine, "annual")
+
     def run_daily_backup() -> None:
         backup_processing.run_backup_once(
             engine,
@@ -68,6 +71,13 @@ def main() -> None:
         Job(
             name="generate-monthly-reports",
             func=generate_monthly_reports,
+            interval_seconds=REPORT_POLL_INTERVAL_SECONDS,
+        )
+    )
+    scheduler.add_job(
+        Job(
+            name="generate-annual-reports",
+            func=generate_annual_reports,
             interval_seconds=REPORT_POLL_INTERVAL_SECONDS,
         )
     )

@@ -33,6 +33,63 @@ def test_compute_report_period_monthly_handles_january_year_rollover() -> None:
     assert period.end_exclusive == date(2030, 1, 1)
 
 
+def test_compute_report_period_annual_covers_prior_calendar_year() -> None:
+    period = report_generation.compute_report_period("annual", date(2030, 6, 15))
+
+    assert period.start == date(2029, 1, 1)
+    assert period.end_exclusive == date(2030, 1, 1)
+
+
+def test_annual_scaling_is_twelve_times_monthly() -> None:
+    monthly = Money(100_000, "USD")
+    assert report_generation._scale_for_report_type(monthly, "annual") == Money(1_200_000, "USD")
+
+
+def test_generate_annual_report_persists_with_annual_type(demo_engine: Engine) -> None:
+    # A transaction inside the prior calendar year (2029).
+    with demo_engine.begin() as conn:
+        conn.execute(
+            insert(models.transactions).values(
+                id=repository.new_id(),
+                household_id=fixtures.DEMO_HOUSEHOLD_ID,
+                account_id=fixtures.DEMO_CHECKING_ACCOUNT_ID,
+                occurred_at=date(2029, 6, 1),
+                amount_minor=-40_000,
+                currency="USD",
+                merchant="Airline",
+                category_id=fixtures.DEMO_GROCERIES_CATEGORY_ID,
+                description=None,
+                import_source=None,
+                review_state="reviewed",
+                created_at=repository.utcnow(),
+            )
+        )
+
+    record = report_generation.generate_report(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        "annual",
+        DeterministicExplanationAdapter(),
+        reference_date=date(2030, 3, 8),
+    )
+
+    assert record.report_type == "annual"
+    assert record.period_start == date(2029, 1, 1)
+    assert record.period_end == date(2029, 12, 31)
+    assert "net_cash_flow" in record.summary
+
+
+def test_run_scheduled_annual_reports_is_idempotent(demo_engine: Engine) -> None:
+    first = report_generation.run_scheduled_reports_once(
+        demo_engine, "annual", reference_date=date(2030, 3, 8)
+    )
+    second = report_generation.run_scheduled_reports_once(
+        demo_engine, "annual", reference_date=date(2030, 3, 8)
+    )
+    assert first == 1
+    assert second == 0
+
+
 def _seed_report_transactions(engine: Engine) -> None:
     travel_category_id = repository.new_id()
     with engine.begin() as conn:

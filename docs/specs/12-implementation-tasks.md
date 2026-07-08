@@ -536,9 +536,9 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.
 
-- [ ] Add an `annual` `report_type` to the M8 `reports` table/generation service (same wins/risks/unusual-spending/goal-progress/recommended-actions shape, year-scoped instead of week/month-scoped).
-- [ ] Add a scheduled annual report job (e.g. January 1st) once the above lands.
-- [ ] Assign to a specific milestone.
+- [x] Add an `annual` `report_type` to the M8 `reports` table/generation service (same wins/risks/unusual-spending/goal-progress/recommended-actions shape, year-scoped instead of week/month-scoped). (M15.)
+- [x] Add a scheduled annual report job (e.g. January 1st) once the above lands. (M15.)
+- [x] Assign to a specific milestone. (M15.)
 
 ## Backlog: Deferred Follow-Ups from the Post-M8 Audit
 

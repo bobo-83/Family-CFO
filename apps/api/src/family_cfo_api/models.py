@@ -63,7 +63,7 @@ AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
 IMPORT_SOURCE_TYPES = ("csv", "pdf", "ofx", "qfx")
 IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discarded", "failed")
 DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
-REPORT_TYPES = ("weekly", "monthly")
+REPORT_TYPES = ("weekly", "monthly", "annual")
 BACKUP_JOB_STATUSES = ("pending", "running", "completed", "failed")
 CONVERSATION_MESSAGE_ROLES = ("user", "assistant")
 

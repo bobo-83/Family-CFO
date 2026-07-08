@@ -1,7 +1,6 @@
 import pytest
 
 
-
 @pytest.mark.anyio
 async def test_account_debt_terms_round_trip(demo_client, demo_token) -> None:
     headers = {"Authorization": f"Bearer {demo_token}"}

@@ -21,7 +21,7 @@ from family_cfo_api.ai_runtime_selection import select_explanation_adapter
 from family_cfo_api.explanation import ExplanationAdapter, ReportExplanationContext, format_money
 
 REPORT_CALCULATION_VERSION = "1.0.0"
-REPORT_TYPES = ("weekly", "monthly")
+REPORT_TYPES = ("weekly", "monthly", "annual")
 
 # A new spending category above this threshold is "unusual" rather than noise. Fixed and
 # documented, not a calibrated/learned value -- there is no model to calibrate against yet.
@@ -47,6 +47,10 @@ def compute_report_period(report_type: str, reference_date: date) -> ReportPerio
             start = end_exclusive.replace(year=end_exclusive.year - 1, month=12)
         else:
             start = end_exclusive.replace(month=end_exclusive.month - 1)
+    elif report_type == "annual":
+        # The most recently completed calendar year.
+        end_exclusive = date(reference_date.year, 1, 1)
+        start = date(reference_date.year - 1, 1, 1)
     else:
         raise ValueError(f"unsupported report_type: {report_type!r}")
 
@@ -59,16 +63,18 @@ def _previous_period(period: ReportPeriod) -> ReportPeriod:
 
 
 def _scale_for_report_type(amount: Money, report_type: str) -> Money:
-    """Scale a `calculate_cash_flow` monthly figure down to the report's period.
+    """Scale a `calculate_cash_flow` monthly figure to the report's period.
 
-    A week is treated as a fixed 7/30 fraction of a month -- an approximation
-    recorded as a report assumption, the same way the financial engine's own
-    12-months-per-year normalization is documented as an assumption.
+    Monthly is 1x, weekly is a fixed 7/30 fraction, annual is 12x -- all
+    approximations recorded as report assumptions, the same way the financial
+    engine's own 12-months-per-year normalization is documented.
     """
     if report_type == "monthly":
         return amount
     if report_type == "weekly":
         return amount.scale(7, 30)
+    if report_type == "annual":
+        return amount.scale(12, 1)
     raise ValueError(f"unsupported report_type: {report_type!r}")
 
 

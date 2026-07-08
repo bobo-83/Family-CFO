@@ -31,7 +31,7 @@ AiRuntimeProvider = Literal["vllm", "ollama", "llama_cpp", "openai_compatible"]
 ImportSourceType = Literal["csv", "pdf", "ofx", "qfx"]
 ImportStatus = Literal["pending", "processing", "needs_review", "completed", "discarded", "failed"]
 DocumentExtractionType = Literal["pdf_text", "ocr"]
-ReportType = Literal["weekly", "monthly"]
+ReportType = Literal["weekly", "monthly", "annual"]
 ExplanationSource = Literal["deterministic_stub", "llm"]
 BackupJobStatus = Literal["pending", "running", "completed", "failed"]
 

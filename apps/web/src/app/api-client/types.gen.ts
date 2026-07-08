@@ -251,7 +251,7 @@ export type DocumentListResponse = {
 
 export type ImportSourceType = 'csv' | 'pdf' | 'ofx' | 'qfx';
 
-export type ReportType = 'weekly' | 'monthly';
+export type ReportType = 'weekly' | 'monthly' | 'annual';
 
 export type ExplanationSource = 'deterministic_stub' | 'llm';
 

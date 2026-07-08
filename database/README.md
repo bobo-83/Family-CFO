@@ -29,6 +29,7 @@ Later migrations add:
 - M9: `audit_events`
 - M10: `conversations` and `conversation_messages`
 - M14: nullable `accounts.annual_interest_rate`/`accounts.minimum_payment_minor`, and `debt_payoff`/`retirement_projection` added to the `financial_calculations` type check
+- M15: `annual` added to the `reports` type check
 
 ## Money Storage
 

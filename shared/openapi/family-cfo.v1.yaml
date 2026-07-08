@@ -1988,6 +1988,7 @@ components:
       enum:
         - weekly
         - monthly
+        - annual
     ExplanationSource:
       type: string
       enum:
