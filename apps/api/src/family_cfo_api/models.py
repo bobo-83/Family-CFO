@@ -56,9 +56,10 @@ CALCULATION_TYPES = (
     "purchase_impact",
     "debt_payoff",
     "retirement_projection",
+    "future_value",
 )
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
-EXPLANATION_SOURCES = ("deterministic_stub", "llm")
+EXPLANATION_SOURCES = ("deterministic_stub", "llm", "agentic_tool_calling")
 AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
 IMPORT_SOURCE_TYPES = ("csv", "pdf", "ofx", "qfx")
 IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discarded", "failed")

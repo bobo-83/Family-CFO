@@ -27,3 +27,17 @@ def select_explanation_adapter(
 
     runtime_client = VLLMAdapter(config.base_url, config.model)
     return LlmExplanationAdapter(runtime_client, model_version=config.model), runtime_client
+
+
+def select_tool_runtime(engine: Engine, household_id: str) -> VLLMAdapter | None:
+    """Return a tool-calling runtime for the household, or None to fall back deterministically.
+
+    Used by the agentic chat advisor (M16). A runtime exists only when the
+    household has an enabled config with a supported provider; otherwise the
+    caller answers from the deterministic snapshot. The caller owns closing the
+    returned client.
+    """
+    config = repository.get_ai_runtime_config(engine, household_id)
+    if config is None or not config.enabled or config.provider not in SUPPORTED_LLM_PROVIDERS:
+        return None
+    return VLLMAdapter(config.base_url, config.model)

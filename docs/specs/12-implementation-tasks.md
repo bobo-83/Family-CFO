@@ -531,15 +531,15 @@ Rules:
 
 ### Implementation
 
-- [ ] Add a `future_value` / opportunity-cost calculation to the financial engine with unit tests.
-- [ ] Add a tool-descriptor layer: JSON-schema descriptors + argument validation (type/range/currency/household ownership) wrapping the engine calculations.
-- [ ] Extend `VLLMAdapter`/`RuntimeAdapter` with tool/function-calling (pass tool schemas, parse `tool_calls`).
-- [ ] Build the tool-calling orchestration loop (bounded iterations, execute tools, feed results back, extract grounded final answer, missing-fact "ask back").
-- [ ] Route `POST /api/v1/chat/messages` through the loop when an enabled tool-calling runtime exists; keep the deterministic snapshot fallback otherwise; persist via M10 conversations.
-- [ ] Extend guardrails to validate tool arguments and to verify the final answer's figures trace to tool outputs.
-- [ ] Add tests: engine primitive; per-tool argument validation incl. cross-household rejection; stubbed-runtime multi-step loop; iteration cap; missing-fact path; no-model fallback; chat API integration.
-- [ ] Update docs (ai-orchestrator, apps/api, financial-engine READMEs; acceptance state) and OpenAPI if a tool-call trace is surfaced.
-- [ ] Run verification commands.
+- [x] Add a `future_value` / opportunity-cost calculation to the financial engine with unit tests. (`services/financial-engine/.../future_value.py`, migration `0031`.)
+- [x] Add a tool-descriptor layer: JSON-schema descriptors + argument validation (type/range/currency; household scoping via context, no model-supplied entity ids) wrapping the engine calculations. (`apps/api/.../ai_tools.py`.)
+- [x] Extend `VLLMAdapter`/`RuntimeAdapter` with tool/function-calling (pass tool schemas, parse `tool_calls`). (`services/ai-orchestrator/.../runtime.py`, `vllm_adapter.py`.)
+- [x] Build the tool-calling orchestration loop (bounded iterations, execute tools, feed results back, extract grounded final answer, missing-fact "ask back"). (`services/ai-orchestrator/.../tool_calling.py`.)
+- [x] Route `POST /api/v1/chat/messages` through the loop when an enabled tool-calling runtime exists; keep the deterministic snapshot fallback otherwise; persist via M10 conversations. (`apps/api/.../api/chat.py`.)
+- [x] Extend guardrails to validate tool arguments (in `ai_tools.py`) and to verify the final answer's figures trace to tool outputs (`grounded_values` + `validate_recommendation`; fails closed to the deterministic snapshot).
+- [x] Add tests: engine primitive; per-tool argument validation incl. foreign-currency rejection; stubbed-runtime multi-step loop; iteration cap; missing-fact path; no-model + ungrounded-number fallback; chat API integration.
+- [x] Update docs (ai-orchestrator, apps/api, financial-engine READMEs; acceptance state).
+- [x] Run verification commands.
 - [ ] Commit M16 changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
@@ -550,7 +550,7 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 - [x] Add `annual_interest_rate` and `minimum_payment` columns to `accounts` for liability account types, with a migration. (M14, migration `0029`.)
 - [x] Wire `calculate_debt_payoff` into the purchase advisor's `debt` impact once account-level interest/payment data is persisted, replacing today's warning-only placeholder. (M14.)
 - [x] Add a `calculate_retirement_projection` calculation to the financial engine. (M14.)
-- [~] Open-ended scenario questions ("should we refinance?", "how many years of retirement does this purchase cost me?") are **not** a per-question API — that does not scale. The accepted direction is **agentic tool-calling** ([ADR 0009](../adr/0009-agentic-tool-calling.md)), now owned by **M16** (spec gate accepted, implementation pending): the local model orchestrates the deterministic engine calculations (exposed as tools) and narrates grounded results.
+- [x] Open-ended scenario questions ("should we refinance?", "how many years of retirement does this purchase cost me?") are **not** a per-question API — that does not scale. The accepted direction is **agentic tool-calling** ([ADR 0009](../adr/0009-agentic-tool-calling.md)), delivered by **M16**: the local model orchestrates the deterministic engine calculations (exposed as tools) and narrates grounded results.
 
 ## Backlog: Annual Report
 

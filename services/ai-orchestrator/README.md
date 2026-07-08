@@ -15,6 +15,15 @@ Implemented as the `family_cfo_ai_orchestrator` package. It has no dependency on
 - `prompts.py`: versioned prompt templates. `PURCHASE_EXPLANATION_PROMPT_VERSION` and `build_purchase_explanation_prompt(facts: PurchaseFacts)` render a system + user message pair that lists only the numeric facts the caller supplies — the prompt itself instructs the model not to invent figures.
 - `guardrails.py`: `validate_recommendation(text, known_values)` extracts numeric substrings from generated text and flags any that don't appear in `known_values`. `known_values_from_facts(facts)` derives that set from the exact fact strings sent in the prompt, so guardrail validation can never drift from what the model was actually told. This is a conservative, string-based check — it exists to catch invented figures, not to validate arithmetic, and false positives are expected to fail closed into a deterministic fallback rather than risk a fabricated number reaching a user.
 
+## M16 Scope — Agentic Tool-Calling
+
+Extends the runtime seam so the local model can orchestrate the deterministic engine (ADR 0009). No calculation logic lives here — the app owns the tool implementations; this package only carries the transport and the loop.
+
+- `RuntimeAdapter.complete_with_tools(messages, tools, ...) -> RuntimeToolCompletion`: sends the tool schemas (`ToolSpec`) and either returns the model's `tool_calls` (`ToolCall`) to run or a final text answer. `VLLMAdapter` implements it against the OpenAI-compatible `tools`/`tool_calls` fields. `RuntimeMessage` gained `tool_calls` (assistant turn) and `tool_call_id` (tool-result turn).
+- `run_tool_calling_loop(runtime, messages, tools, execute_tool, *, max_iterations)`: drives a bounded model↔tool exchange — request tools, execute each via the app-supplied `execute_tool` callback, feed results back, repeat until the model returns a final answer or the iteration cap is hit. Returns `ToolCallingResult(answer, completed, tool_calls)`; `completed=False` signals the caller to fall back deterministically. `RuntimeUnavailableError` propagates.
+- The `execute_tool` callback must never raise for bad arguments or missing facts — it returns a structured `{"error": ...}` / `{"error": "missing_input", ...}` payload that is fed back so the model corrects itself or asks the user.
+- `extract_numbers`/`validate_recommendation` are reused by the app to verify every figure in the final answer traces to a tool-call trace value (grounding), failing closed to the deterministic snapshot otherwise.
+
 ## Assumptions and Limitations
 
 - Only the vLLM adapter ships; Ollama and llama.cpp adapters are future work behind the same `RuntimeAdapter` interface.

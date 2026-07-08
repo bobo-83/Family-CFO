@@ -1,13 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
 @dataclass(frozen=True, slots=True)
+class ToolCall:
+    """A tool invocation requested by the model."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeMessage:
-    role: str
-    content: str
+    role: str  # "system" | "user" | "assistant" | "tool"
+    content: str = ""
+    # Set on an assistant message that requested tool calls.
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    # Set on a "tool" message carrying a tool's result back to the model.
+    tool_call_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +28,29 @@ class RuntimeCompletion:
     text: str
     model: str
     raw: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolSpec:
+    """A tool the model may call, described by a JSON-schema parameter object."""
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeToolCompletion:
+    """One turn of a tool-calling exchange: either tool calls to run, or a final answer."""
+
+    tool_calls: list[ToolCall]
+    text: str
+    model: str
+    raw: dict[str, Any]
+
+    @property
+    def wants_tools(self) -> bool:
+        return bool(self.tool_calls)
 
 
 class RuntimeUnavailableError(RuntimeError):
@@ -36,3 +72,12 @@ class RuntimeAdapter(Protocol):
         temperature: float = 0.2,
         max_tokens: int = 400,
     ) -> RuntimeCompletion: ...
+
+    def complete_with_tools(
+        self,
+        messages: list[RuntimeMessage],
+        tools: list[ToolSpec],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 400,
+    ) -> RuntimeToolCompletion: ...

@@ -255,6 +255,16 @@ Finishes the M3-deferred debt/retirement backlog.
 
 Not implemented in M14: an open-ended scenario-planning API ("should we refinance?") and inflation/tax/drawdown modeling in the retirement projection — see the M14 non-goals in the roadmap.
 
+## M16 Scope (Agentic Tool-Calling)
+
+`POST /api/v1/chat/messages` becomes an open-ended conversational advisor when a tool-calling runtime is enabled — the answer to a per-question API that doesn't scale (ADR 0009). The local model orchestrates the deterministic engine instead of guessing.
+
+- `family_cfo_api/ai_tools.py`: the tool library exposed to the model — read tools (`get_net_worth`, `get_emergency_fund`, `get_debt_outlook`) and compute tools (`project_purchase_impact`, `future_value`, `project_retirement`, `debt_payoff`). Each is a thin wrapper: **validate arguments** (type/range/currency), run the existing deterministic calculation, persist a `financial_calculations` row, and return a structured result with a `calculation_ref`. This module is the trust boundary — read tools are scoped to the caller's household from the session (the model never supplies an entity id), and bad arguments/missing facts return `{"error": ...}` payloads (never raised) so the model corrects itself or asks the user.
+- The route runs `run_tool_calling_loop` (ai-orchestrator) against the household's runtime, then a grounding guardrail (`grounded_values` + `validate_recommendation`): any figure in the final answer that doesn't trace to a tool-call trace value fails closed to the deterministic snapshot. The loop not converging, the runtime being unavailable, or no runtime configured (the default) all fall back the same way — so deployments without vLLM see the unchanged M6/M10 deterministic snapshot.
+- Recommendations from this path are persisted with `explanation_source = "agentic_tool_calling"` and cite the tools' `financial_calculations` rows; the turn is stored via M10 conversations. No raw prompt or model response is logged — only household id, recommendation id, conversation id, and the `explanation_source`.
+
+Not implemented in M16: tools that mutate state or move money (read/compute only), external/cloud models, and document/vector retrieval — see the M16 non-goals in the roadmap.
+
 ## Setup
 
 ```bash

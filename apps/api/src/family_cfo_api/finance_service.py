@@ -7,6 +7,7 @@ from family_cfo_financial_engine import (
     AccountBalance,
     CalculationResult,
     DebtInput,
+    FutureValueInput,
     GoalInput,
     Money,
     PurchaseImpactInputs,
@@ -15,6 +16,7 @@ from family_cfo_financial_engine import (
     calculate_cash_flow,
     calculate_debt_payoff,
     calculate_emergency_fund_months,
+    calculate_future_value,
     calculate_net_worth,
     calculate_purchase_impact,
     calculate_retirement_projection,
@@ -95,6 +97,22 @@ def compute_retirement_projection(
     engine: Engine, household_id: str, inputs: RetirementInput
 ) -> tuple[CalculationResult, str]:
     result = calculate_retirement_projection(inputs)
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
+
+
+def compute_future_value(
+    engine: Engine, household_id: str, inputs: FutureValueInput
+) -> tuple[CalculationResult, str]:
+    result = calculate_future_value(inputs)
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
+
+
+def compute_debt_payoff(
+    engine: Engine, household_id: str, debt: DebtInput
+) -> tuple[CalculationResult, str]:
+    result = calculate_debt_payoff(debt)
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 

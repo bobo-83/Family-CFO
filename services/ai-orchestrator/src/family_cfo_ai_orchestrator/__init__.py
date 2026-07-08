@@ -1,5 +1,6 @@
 from family_cfo_ai_orchestrator.guardrails import (
     GuardrailResult,
+    extract_numbers,
     find_unattributed_numbers,
     known_values_from_facts,
     known_values_from_report_facts,
@@ -17,7 +18,15 @@ from family_cfo_ai_orchestrator.runtime import (
     RuntimeAdapter,
     RuntimeCompletion,
     RuntimeMessage,
+    RuntimeToolCompletion,
     RuntimeUnavailableError,
+    ToolCall,
+    ToolSpec,
+)
+from family_cfo_ai_orchestrator.tool_calling import (
+    ToolCallingResult,
+    ToolCallRecord,
+    run_tool_calling_loop,
 )
 from family_cfo_ai_orchestrator.vllm_adapter import VLLMAdapter
 
@@ -30,13 +39,20 @@ __all__ = [
     "RuntimeAdapter",
     "RuntimeCompletion",
     "RuntimeMessage",
+    "RuntimeToolCompletion",
     "RuntimeUnavailableError",
+    "ToolCall",
+    "ToolCallRecord",
+    "extract_numbers",
+    "ToolCallingResult",
+    "ToolSpec",
     "VLLMAdapter",
     "build_purchase_explanation_prompt",
     "build_report_explanation_prompt",
     "find_unattributed_numbers",
     "known_values_from_facts",
     "known_values_from_report_facts",
+    "run_tool_calling_loop",
     "validate_recommendation",
 ]
 

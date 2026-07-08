@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service, repository
+from family_cfo_ai_orchestrator import (
+    RuntimeMessage,
+    RuntimeUnavailableError,
+    run_tool_calling_loop,
+    validate_recommendation,
+)
+
+from family_cfo_api import ai_tools, finance_service, repository
+from family_cfo_api.ai_runtime_selection import select_tool_runtime
 from family_cfo_api.deps import get_current_session, get_engine
 from family_cfo_api.explanation import format_money
 from family_cfo_api.schemas import ChatRequest, ChatResponse, ErrorResponse, Impact, Recommendation
@@ -27,22 +36,23 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
-@router.post(
-    "/chat/messages",
-    operation_id="createChatMessage",
-    response_model=ChatResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
-    summary="Send a message to the financial advisor",
-)
-async def create_chat_message(
-    payload: ChatRequest,
-    session: repository.SessionContext = Depends(get_current_session),
-    engine: Engine = Depends(get_engine),
-) -> ChatResponse:
-    household = repository.get_household(engine, session.household_id)
-    if household is None:
-        raise HTTPException(status_code=404, detail="Household not found")
+@dataclass(slots=True)
+class _Answer:
+    """The fields needed to persist a recommendation and build the response."""
 
+    answer: str
+    assumptions: list[str] = field(default_factory=list)
+    impacts: list[Impact] = field(default_factory=list)
+    tradeoffs: list[str] = field(default_factory=list)
+    alternatives: list[str] = field(default_factory=list)
+    confidence: float = 0.8
+    calculation_refs: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    explanation_source: str = "deterministic_stub"
+
+
+def _deterministic_answer(engine: Engine, household: repository.HouseholdRecord) -> _Answer:
+    """The always-available fallback: a snapshot of net worth and emergency-fund coverage."""
     net_worth_result, net_worth_calculation_id = finance_service.compute_net_worth_with_ref(
         engine, household.id, household.base_currency
     )
@@ -59,36 +69,127 @@ async def create_chat_message(
     )
     answer = (
         f"Current household snapshot: net worth is {format_money(net_worth)}. "
-        f"{emergency_text} M6 chat is limited to deterministic household context; "
-        "purchase questions should use the purchase advisor workflow."
+        f"{emergency_text} This answer is a deterministic snapshot; enable a local "
+        "AI runtime for open-ended questions."
+    )
+    warnings = _dedupe([*net_worth_result.warnings, *emergency_result.warnings])
+    return _Answer(
+        answer=answer,
+        assumptions=_dedupe([*net_worth_result.assumptions, *emergency_result.assumptions]),
+        impacts=[
+            Impact(
+                area="net_worth",
+                summary=f"Current net worth is {format_money(net_worth)}.",
+                amount=MoneySchema(**net_worth.to_dict()),
+            ),
+            Impact(area="emergency_fund", summary=emergency_text),
+        ],
+        tradeoffs=["The chat endpoint answers from current stored household context only."],
+        alternatives=["Use the purchase advisor for item-specific affordability analysis."],
+        confidence=0.75 if warnings else 0.85,
+        calculation_refs=[
+            f"financial_calculations:{net_worth_calculation_id}",
+            f"financial_calculations:{emergency_calculation_id}",
+        ],
+        warnings=warnings,
+        explanation_source="deterministic_stub",
     )
 
-    impacts = [
-        Impact(
-            area="net_worth",
-            summary=f"Current net worth is {format_money(net_worth)}.",
-            amount=MoneySchema(**net_worth.to_dict()),
-        ),
-        Impact(area="emergency_fund", summary=emergency_text),
+
+def _try_agentic_answer(
+    engine: Engine, household: repository.HouseholdRecord, message: str
+) -> _Answer | None:
+    """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
+
+    Falls back (returns None) when no runtime is configured, the runtime is
+    unavailable, the loop does not converge within its iteration cap, or the
+    final answer contains a number not grounded in a tool result (ADR 0009).
+    """
+    runtime = select_tool_runtime(engine, household.id)
+    if runtime is None:
+        return None
+
+    tools = ai_tools.build_tools()
+    executor = ai_tools.build_executor(engine, household.id, household.base_currency)
+    messages = [
+        RuntimeMessage(role="system", content=ai_tools.TOOL_SYSTEM_PROMPT),
+        RuntimeMessage(role="user", content=message),
     ]
-    calculation_refs = [
-        f"financial_calculations:{net_worth_calculation_id}",
-        f"financial_calculations:{emergency_calculation_id}",
-    ]
-    warnings = _dedupe([*net_worth_result.warnings, *emergency_result.warnings])
+    try:
+        result = run_tool_calling_loop(runtime, messages, tools, executor)
+    except RuntimeUnavailableError:
+        logger.warning("agentic chat runtime unavailable; falling back to deterministic snapshot")
+        return None
+    finally:
+        runtime.close()
+
+    if not result.completed or result.answer is None:
+        logger.warning("agentic chat loop did not converge; falling back to deterministic snapshot")
+        return None
+
+    guardrail = validate_recommendation(result.answer, ai_tools.grounded_values(result))
+    if not guardrail.passed:
+        logger.warning(
+            "agentic chat answer had ungrounded numbers %s; falling back", guardrail.violations
+        )
+        return None
+
+    refs: list[str] = []
+    assumptions: list[str] = []
+    warnings: list[str] = []
+    for record in result.tool_calls:
+        ref = record.result.get("calculation_ref")
+        if isinstance(ref, str):
+            refs.append(ref)
+        assumptions.extend(record.result.get("assumptions", []) or [])
+        warnings.extend(record.result.get("warnings", []) or [])
+
+    return _Answer(
+        answer=result.answer,
+        assumptions=_dedupe(assumptions),
+        impacts=[],
+        tradeoffs=["Produced by the local AI model using deterministic financial tools."],
+        alternatives=[],
+        confidence=0.8,
+        calculation_refs=_dedupe(refs),
+        warnings=_dedupe(warnings),
+        explanation_source="agentic_tool_calling",
+    )
+
+
+@router.post(
+    "/chat/messages",
+    operation_id="createChatMessage",
+    response_model=ChatResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Send a message to the financial advisor",
+)
+async def create_chat_message(
+    payload: ChatRequest,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> ChatResponse:
+    household = repository.get_household(engine, session.household_id)
+    if household is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    answer = _try_agentic_answer(engine, household, payload.message) or _deterministic_answer(
+        engine, household
+    )
+
     recommendation_id = repository.create_recommendation(
         engine,
         household_id=household.id,
         scenario_id=None,
-        answer=answer,
-        assumptions=_dedupe([*net_worth_result.assumptions, *emergency_result.assumptions]),
-        impacts=[impact.model_dump(mode="json") for impact in impacts],
-        tradeoffs=["The chat endpoint answers from current stored household context only."],
-        alternatives=["Use the purchase advisor for item-specific affordability analysis."],
-        confidence=0.75 if warnings else 0.85,
-        calculation_refs=calculation_refs,
-        warnings=warnings,
-        explanation_source="deterministic_stub",
+        answer=answer.answer,
+        assumptions=answer.assumptions,
+        impacts=[impact.model_dump(mode="json") for impact in answer.impacts],
+        tradeoffs=answer.tradeoffs,
+        alternatives=answer.alternatives,
+        confidence=answer.confidence,
+        calculation_refs=answer.calculation_refs,
+        warnings=answer.warnings,
+        explanation_source=answer.explanation_source,
     )
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new
@@ -105,29 +206,29 @@ async def create_chat_message(
         engine,
         conversation_id=conversation.id,
         user_content=payload.message,
-        assistant_content=answer,
+        assistant_content=answer.answer,
         recommendation_id=recommendation_id,
     )
-    conversation_id = conversation.id
 
     logger.info(
-        "chat recommendation created household_id=%s recommendation_id=%s conversation_id=%s",
+        "chat recommendation created household_id=%s recommendation_id=%s conversation_id=%s source=%s",
         household.id,
         recommendation_id,
-        conversation_id,
+        conversation.id,
+        answer.explanation_source,
     )
 
     return ChatResponse(
-        conversation_id=conversation_id,
+        conversation_id=conversation.id,
         recommendation=Recommendation(
             id=recommendation_id,
-            answer=answer,
-            assumptions=_dedupe([*net_worth_result.assumptions, *emergency_result.assumptions]),
-            impacts=impacts,
-            tradeoffs=["The chat endpoint answers from current stored household context only."],
-            alternatives=["Use the purchase advisor for item-specific affordability analysis."],
-            confidence=0.75 if warnings else 0.85,
-            calculation_refs=calculation_refs,
-            warnings=warnings,
+            answer=answer.answer,
+            assumptions=answer.assumptions,
+            impacts=answer.impacts,
+            tradeoffs=answer.tradeoffs,
+            alternatives=answer.alternatives,
+            confidence=answer.confidence,
+            calculation_refs=answer.calculation_refs,
+            warnings=answer.warnings,
         ),
     )
