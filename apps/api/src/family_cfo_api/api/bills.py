@@ -21,6 +21,7 @@ def _to_schema(record: repository.RecurringRecord) -> Bill:
         name=record.name,
         amount=MoneySchema(amount_minor=record.amount_minor, currency=record.currency),
         frequency=record.frequency,
+        next_due_date=record.next_due_date,
     )
 
 

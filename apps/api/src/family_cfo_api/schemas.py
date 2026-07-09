@@ -123,6 +123,16 @@ class AssetCategoryTotal(BaseModel):
     total: Money
 
 
+class UpcomingBill(BaseModel):
+    """M39: a bill due within the overview look-ahead window."""
+
+    id: str
+    name: str
+    amount: Money
+    due_date: date
+    days_until: int
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -134,6 +144,7 @@ class HouseholdContext(BaseModel):
     monthly_cash_flow: MonthlyCashFlow | None = None
     asset_breakdown: list[AssetCategoryTotal] = Field(default_factory=list)
     total_debt: Money | None = None
+    upcoming_bills: list[UpcomingBill] = Field(default_factory=list)
 
 
 class Account(BaseModel):

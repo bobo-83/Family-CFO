@@ -18,7 +18,12 @@
       <li class="bill-list__item">
         <div class="bill-list__main">
           <div class="bill-list__name">{{ bill.name }}</div>
-          <div class="bill-list__frequency">{{ bill.frequency }}</div>
+          <div class="bill-list__frequency">
+            {{ bill.frequency }}
+            @if (bill.next_due_date) {
+              · next due {{ bill.next_due_date | date: 'MMM d, y' }}
+            }
+          </div>
         </div>
         <div class="bill-list__amount">{{ formatMoney(bill.amount) }}</div>
         @if (canWrite()) {
@@ -56,6 +61,11 @@
           <option [value]="frequency">{{ frequency }}</option>
         }
       </select>
+    </label>
+
+    <label>
+      <span>Next due date (optional)</span>
+      <input type="date" formControlName="nextDueDate" />
     </label>
 
     @if (submitError(); as message) {

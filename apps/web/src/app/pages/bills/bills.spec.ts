@@ -102,10 +102,13 @@ describe('Bills', () => {
     const host = fixture.nativeElement as HTMLElement;
     const nameInput = host.querySelector('input[formcontrolname="name"]') as HTMLInputElement;
     const amountInput = host.querySelector('input[formcontrolname="amount"]') as HTMLInputElement;
+    const dueInput = host.querySelector('input[formcontrolname="nextDueDate"]') as HTMLInputElement;
     nameInput.value = 'Internet';
     nameInput.dispatchEvent(new Event('input'));
     amountInput.value = '80';
     amountInput.dispatchEvent(new Event('input'));
+    dueInput.value = '2026-07-20';
+    dueInput.dispatchEvent(new Event('input'));
 
     host.querySelector('form')!.dispatchEvent(new Event('submit'));
     await fixture.whenStable();
@@ -115,6 +118,7 @@ describe('Bills', () => {
       name: 'Internet',
       amount: { amount_minor: 8_000, currency: 'USD' },
       frequency: 'monthly',
+      next_due_date: '2026-07-20',
     });
     expect(apiMock.listBills).toHaveBeenCalledTimes(2);
     expect(host.textContent).toContain('Internet');

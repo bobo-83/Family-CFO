@@ -9,6 +9,7 @@ from family_cfo_api.schemas import (
     ErrorResponse,
     HouseholdContext,
     MonthlyCashFlow,
+    UpcomingBill,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -98,6 +99,16 @@ async def get_household_context(
     income = finance_service.monthly_income_total(engine, household.id, currency)
     bills = finance_service.monthly_bill_total(engine, household.id, currency)
     asset_breakdown, total_debt = _asset_and_debt_summary(engine, household.id, currency)
+    upcoming = [
+        UpcomingBill(
+            id=bill.id,
+            name=bill.name,
+            amount=MoneySchema(amount_minor=bill.amount.amount_minor, currency=bill.amount.currency),
+            due_date=bill.due_date,
+            days_until=bill.days_until,
+        )
+        for bill in finance_service.upcoming_bills(engine, household.id, currency)
+    ]
 
     return HouseholdContext(
         household_id=household.id,
@@ -115,4 +126,5 @@ async def get_household_context(
         ),
         asset_breakdown=asset_breakdown,
         total_debt=total_debt,
+        upcoming_bills=upcoming,
     )
