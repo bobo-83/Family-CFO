@@ -2,6 +2,7 @@ import { Component, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Recommendation } from '../../api-client';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 
@@ -52,7 +53,14 @@ const EXAMPLE_PROMPTS = [
 })
 export class Chat {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+
+  /** Conversation deletion mirrors the API's role gate (owner/adult). */
+  protected readonly canDeleteConversations = () => {
+    const role = this.auth.role();
+    return role === 'owner' || role === 'adult';
+  };
 
   protected readonly examplePrompts = EXAMPLE_PROMPTS;
   protected readonly formatMoney = formatMoney;
@@ -133,6 +141,26 @@ export class Chat {
     this.errorMessage.set(null);
     this.attachedImage.set(null);
     this.form.reset({ message: '' });
+  }
+
+  protected async deleteConversation(id: string, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (!window.confirm('Delete this conversation and its messages? This cannot be undone.')) {
+      return;
+    }
+    const { error } = await this.api.deleteConversation(id);
+    if (error) {
+      this.errorMessage.set(apiErrorMessage(error, 'Failed to delete the conversation.'));
+      return;
+    }
+    if (this.conversationId() === id) {
+      this.startNewConversation();
+    }
+    this.conversations.reload();
+  }
+
+  protected formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
   protected async openConversation(id: string): Promise<void> {

@@ -60,14 +60,28 @@
       <button type="button" class="chat__new" (click)="startNewConversation()">+ New conversation</button>
       @if (conversations.value(); as list) {
         @for (conv of list; track conv.id) {
-          <button
-            type="button"
-            class="chat__conv"
-            [class.chat__conv--active]="conv.id === conversationId()"
-            (click)="openConversation(conv.id)"
-          >
-            {{ conv.title }}
-          </button>
+          <div class="chat__conv-item">
+            <button
+              type="button"
+              class="chat__conv"
+              [class.chat__conv--active]="conv.id === conversationId()"
+              (click)="openConversation(conv.id)"
+            >
+              <span class="chat__conv-title">{{ conv.title }}</span>
+              <span class="chat__conv-date">{{ formatDate(conv.updated_at) }}</span>
+            </button>
+            @if (canDeleteConversations()) {
+              <button
+                type="button"
+                class="chat__conv-delete"
+                (click)="deleteConversation(conv.id, $event)"
+                [attr.aria-label]="'Delete conversation ' + conv.title"
+                title="Delete conversation"
+              >
+                🗑
+              </button>
+            }
+          </div>
         } @empty {
           <p class="chat__history-empty">No past conversations yet.</p>
         }

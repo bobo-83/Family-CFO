@@ -1351,3 +1351,20 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Test Expectations
 
 - API: agentic answer response carries `answered_by` = model id and persists model_version; deterministic answer carries null. Web: caption rendering both ways. Contract green; suites green.
+
+
+## M26: Chat Usability Pass (Mobile Zoom, History Management)
+
+- Stop iOS zooming when focusing the chat input; let users delete conversations from the chat page; make the history list legible.
+
+### Scope
+
+- `touch-action: manipulation` on interactive elements (kills iOS double-tap zoom) + explicit 16px on the chat input (belt for focus-zoom); the existing (M10) `DELETE /conversations/{id}` gets a UI: a delete button per history item with confirmation, role-aware (owner/adult — matching the API), clearing the thread when the open conversation is deleted; history items restyled as cards (title + last-updated date, higher contrast).
+
+### Non-Goals
+
+- No viewport `maximum-scale` lock (harms Android pinch-zoom accessibility); no bulk delete/archival; no API changes.
+
+### Test Expectations
+
+- Web: delete calls the endpoint + reloads the list; deleting the open conversation clears the thread; delete hidden for viewer/child. Suites green.

@@ -675,6 +675,11 @@ Rules:
 - [x] Spec gate (roadmap).
 - [x] Persist model_version on chat recommendations; `answered_by` + `photo_described_by` in contract + response (photo attribution also persisted as an assumption line); UI caption showing chat model and photo-reader model; tests (226 api / 63 web); deployed; committed.
 
+## M26: Chat Usability Pass
+
+- [x] Spec gate (roadmap).
+- [x] Zoom hardening (touch-action: manipulation globally + explicit 16px chat input); conversation delete UI with confirm + owner/adult gating (existing M10 endpoint) clearing the open thread; history restyled as cards with title + date; tests (66 web); deployed; committed.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

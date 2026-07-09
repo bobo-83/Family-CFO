@@ -90,21 +90,58 @@
   color: var(--color-accent);
 }
 
+.chat__conv-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
 .chat__conv {
+  flex: 1;
+  min-width: 0;
   text-align: left;
-  padding: 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: #f5f6f8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   cursor: pointer;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  box-shadow: var(--shadow-sm);
 
   &--active {
     border-color: var(--color-accent);
-    background: #eaf0ff;
+    background: var(--color-accent-soft);
+  }
+}
+
+.chat__conv-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat__conv-date {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.chat__conv-delete {
+  flex-shrink: 0;
+  width: 1.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 0.85rem;
+
+  &:hover {
+    background: var(--color-danger-soft);
   }
 }
 
@@ -251,6 +288,7 @@
     padding: 0.6rem 0.7rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+    font-size: 16px; /* <16px triggers iOS focus-zoom — keep explicit here */
   }
 
   button {

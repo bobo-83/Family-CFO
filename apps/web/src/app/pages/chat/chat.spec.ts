@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { Chat } from './chat';
 
 function recommendation(answer: string, confidence = 0.85, answeredBy: string | null = 'Qwen/Qwen2.5-32B-Instruct') {
@@ -25,6 +26,7 @@ describe('Chat', () => {
     listConversations: ReturnType<typeof vi.fn>;
     getConversation: ReturnType<typeof vi.fn>;
     createChatMessage: ReturnType<typeof vi.fn>;
+    deleteConversation: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -35,11 +37,15 @@ describe('Chat', () => {
       listConversations: vi.fn().mockResolvedValue({ data: { conversations: [] } }),
       getConversation: vi.fn(),
       createChatMessage: vi.fn(),
+      deleteConversation: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
       imports: [Chat],
-      providers: [{ provide: ApiService, useValue: apiMock }],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: { role: () => 'owner' } },
+      ],
     }).compileComponents();
   });
 
@@ -183,6 +189,34 @@ describe('Chat', () => {
 
     const caption = (fixture.nativeElement as HTMLElement).querySelector('.chat__source');
     expect(caption?.textContent).toContain('Deterministic calculation');
+  });
+
+  it('deletes a conversation after confirmation and clears the open thread', async () => {
+    apiMock.deleteConversation.mockResolvedValue({ data: undefined });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const component = TestBed.createComponent(Chat).componentInstance;
+    component['conversationId'].set('conv-1');
+    component['turns'].set([{ role: 'user', content: 'hi' }]);
+
+    await component['deleteConversation']('conv-1', new Event('click'));
+
+    expect(apiMock.deleteConversation).toHaveBeenCalledWith('conv-1');
+    expect(component['conversationId']()).toBeNull();
+    expect(component['turns']()).toEqual([]);
+  });
+
+  it('does not delete when the confirmation is dismissed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const component = TestBed.createComponent(Chat).componentInstance;
+
+    await component['deleteConversation']('conv-1', new Event('click'));
+
+    expect(apiMock.deleteConversation).not.toHaveBeenCalled();
+  });
+
+  it('exposes deletion only to owner/adult roles', () => {
+    const component = TestBed.createComponent(Chat).componentInstance;
+    expect(component['canDeleteConversations']()).toBe(true);
   });
 
   it('maps confidence to a label', () => {

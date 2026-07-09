@@ -15,6 +15,7 @@ import {
   createPairingSession,
   createTransaction,
   deleteAccount,
+  deleteConversation,
   deleteBill,
   deleteIncomeSource,
   deleteMember,
@@ -105,6 +106,10 @@ export class ApiService {
 
   getConversation(conversationId: string) {
     return getConversation({ path: { conversation_id: conversationId } });
+  }
+
+  deleteConversation(conversationId: string) {
+    return deleteConversation({ path: { conversation_id: conversationId } });
   }
 
   // --- Accounts ---
