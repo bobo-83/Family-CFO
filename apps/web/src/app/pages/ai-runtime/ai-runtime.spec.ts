@@ -59,6 +59,9 @@ describe('AiRuntime', () => {
     getAiRuntimeStatus: ReturnType<typeof vi.fn>;
     listAiModels: ReturnType<typeof vi.fn>;
     getAiHardwareProfile: ReturnType<typeof vi.fn>;
+    searchAiModels: ReturnType<typeof vi.fn>;
+    applyAiModelSelection: ReturnType<typeof vi.fn>;
+    getAiApplyStatus: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -89,6 +92,9 @@ describe('AiRuntime', () => {
       getAiHardwareProfile: vi.fn().mockResolvedValue(
         response({ gpu_memory_gb: null, system_memory_gb: 120, disk_free_gb: 500, source: 'system' }),
       ),
+      searchAiModels: vi.fn(),
+      applyAiModelSelection: vi.fn(),
+      getAiApplyStatus: vi.fn().mockResolvedValue(response({ state: 'idle', log_tail: '' })),
     };
   });
 
@@ -182,6 +188,78 @@ describe('AiRuntime', () => {
       model: 'llama-3-8b-instruct',
       enabled: true,
     });
+  });
+
+  it('merges HF search results into the picker (curated wins on duplicates)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'mistralai/Mistral-7B-Instruct-v0.3',
+            label: 'Mistral-7B-Instruct-v0.3 (Hugging Face)',
+            role: 'main',
+            parameters_b: 7,
+            est_memory_gb: 15,
+            est_disk_gb: 14,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            gated: false,
+            notes: 'Estimated specs',
+          },
+          // Duplicate of a curated model: must not double up.
+          CATALOG[0],
+        ],
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['searchQuery'].set('mistral');
+    await component['runSearch']();
+
+    const ids = component['mainOptions']().map((m) => m.id);
+    expect(ids).toContain('mistralai/Mistral-7B-Instruct-v0.3');
+    expect(ids.filter((id) => id === 'Qwen/Qwen2.5-32B-Instruct').length).toBe(1);
+  });
+
+  it('apply calls the endpoint and reaches active when the served model matches', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['apply']();
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
+      main_model: 'Qwen/Qwen2.5-32B-Instruct',
+      vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+    });
+    expect(component['applyLive']()?.phase).toBe('working');
+
+    // Manager finishes; the served model already matches the selection.
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response({ state: 'succeeded', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'ok' }),
+    );
+    await component['pollOnce']();
+    await fixture.whenStable();
+    expect(component['applyLive']()?.phase).toBe('active');
+    component['stopPolling']();
+  });
+
+  it('surfaces a failed swap with its log tail', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['apply']();
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response({ state: 'failed', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'boom' }),
+    );
+    await component['pollOnce']();
+    expect(component['applyLive']()?.phase).toBe('failed');
+    expect(component['applyLive']()?.detail).toBe('boom');
   });
 
   it('hides the configuration for a non-owner', async () => {

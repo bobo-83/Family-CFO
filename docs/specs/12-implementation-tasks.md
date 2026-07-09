@@ -643,6 +643,20 @@ Rules:
 - [x] Docs (ADR 0012, AI-advisor guide, acceptance state); verification; live patch.
 - [ ] Commit M22 changes.
 
+## M23: Hugging Face Model Search & One-Click Apply
+
+### Spec Gate
+
+- [x] Define M23 scope, non-goals, and test expectations. (See roadmap and ADR 0013.)
+
+### Implementation
+
+- [x] `services/model-manager` sidecar (validated /swap running swap-model.sh, /status) + Dockerfile + compose entry (socket + project mount, internal-only). Tests (5 pass).
+- [x] API: `GET /ai/models/search` (HF proxy + estimates), `POST /ai/runtime/apply`, `GET /ai/runtime/apply/status`; contract + client regen. Tests (217 api pass).
+- [x] Web AI Runtime: HF search box, Apply button, live apply/status panel with 5s polling. Tests (60 web pass).
+- [x] Docs (ADR 0013, docker README, AI-advisor guide, acceptance state); verification; live deploy.
+- [ ] Commit M23 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

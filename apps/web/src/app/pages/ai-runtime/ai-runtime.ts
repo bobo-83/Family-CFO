@@ -1,6 +1,6 @@
-import { Component, computed, effect, inject, resource, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import type { AiModelInfo, AiRuntimeConfig } from '../../api-client';
+import type { AiModelInfo, AiRuntimeConfig, AiSwapStatus } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -66,10 +66,10 @@ export class AiRuntime {
   protected readonly selectedVisionId = signal<string>('none');
 
   protected readonly mainOptions = computed(() =>
-    (this.catalog.value() ?? []).filter((m) => m.role === 'main' || m.role === 'both'),
+    this.allModels().filter((m) => m.role === 'main' || m.role === 'both'),
   );
   protected readonly visionOptions = computed(() =>
-    (this.catalog.value() ?? []).filter((m) => m.role === 'vision'),
+    this.allModels().filter((m) => m.role === 'vision'),
   );
 
   protected readonly selectedMain = computed<AiModelInfo | null>(
@@ -194,6 +194,116 @@ export class AiRuntime {
     this.status.reload();
   }
 
+  // --- Hugging Face search (ADR 0013) ----------------------------------------
+
+  protected readonly searchQuery = signal('');
+  protected readonly searchResults = signal<AiModelInfo[]>([]);
+  protected readonly searching = signal(false);
+  protected readonly searchError = signal<string | null>(null);
+
+  protected async runSearch(): Promise<void> {
+    const query = this.searchQuery().trim();
+    if (!query || this.searching()) {
+      return;
+    }
+    this.searching.set(true);
+    this.searchError.set(null);
+    const { data, error } = await this.api.searchAiModels(query);
+    this.searching.set(false);
+    if (error || !data) {
+      this.searchError.set(
+        apiErrorMessage(error, 'Hugging Face is unreachable; showing curated models only.'),
+      );
+      return;
+    }
+    this.searchResults.set(data.models);
+  }
+
+  /** Curated catalog + HF results, deduped (curated entries win: checked specs). */
+  private readonly allModels = computed<AiModelInfo[]>(() => {
+    const curated = this.catalog.value() ?? [];
+    const ids = new Set(curated.map((m) => m.id));
+    return [...curated, ...this.searchResults().filter((m) => !ids.has(m.id))];
+  });
+
+  // --- One-click apply + live status (ADR 0013) -------------------------------
+
+  protected readonly applyState = signal<AiSwapStatus | null>(null);
+  protected readonly applying = signal(false);
+  protected readonly applyError = signal<string | null>(null);
+  private applyTimer: ReturnType<typeof setInterval> | null = null;
+
+  protected readonly applyLive = computed(() => {
+    const state = this.applyState();
+    const status = this.status.value();
+    if (!state) {
+      return null;
+    }
+    if (state.state === 'failed') {
+      return { phase: 'failed' as const, detail: state.log_tail };
+    }
+    if (
+      status?.ready &&
+      status.served_model === this.selectedMainId() &&
+      state.state !== 'running'
+    ) {
+      return { phase: 'active' as const, detail: status.served_model ?? '' };
+    }
+    if (state.state === 'running' || state.state === 'succeeded') {
+      // succeeded = containers recreated; the model may still be downloading/loading.
+      return { phase: 'working' as const, detail: 'Downloading / loading the model…' };
+    }
+    return null;
+  });
+
+  protected async apply(): Promise<void> {
+    const main = this.selectedMain();
+    if (!main || this.applying()) {
+      return;
+    }
+    this.applying.set(true);
+    this.applyError.set(null);
+    const vision = this.selectedVision();
+    const { data, error } = await this.api.applyAiModelSelection({
+      main_model: main.id,
+      vision_model: main.supports_vision ? undefined : (vision?.id ?? undefined),
+    });
+    this.applying.set(false);
+    if (error || !data) {
+      this.applyError.set(
+        apiErrorMessage(error, 'Could not start the model swap. Is the model manager running?'),
+      );
+      return;
+    }
+    this.applyState.set(data);
+    this.startPolling();
+  }
+
+  /** Poll swap + serving status every 5s until the selection is active or fails. */
+  protected startPolling(): void {
+    this.stopPolling();
+    this.applyTimer = setInterval(() => void this.pollOnce(), 5000);
+  }
+
+  protected stopPolling(): void {
+    if (this.applyTimer !== null) {
+      clearInterval(this.applyTimer);
+      this.applyTimer = null;
+    }
+  }
+
+  protected async pollOnce(): Promise<void> {
+    const { data } = await this.api.getAiApplyStatus();
+    if (data) {
+      this.applyState.set(data);
+    }
+    this.status.reload();
+    const live = this.applyLive();
+    if (live?.phase === 'active' || live?.phase === 'failed') {
+      this.stopPolling();
+    }
+  }
+
   // --- Advanced (raw) config form -------------------------------------------
 
   protected readonly form = this.formBuilder.nonNullable.group({
@@ -208,6 +318,7 @@ export class AiRuntime {
   protected readonly submitSuccess = signal(false);
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.stopPolling());
     effect(() => {
       const value = this.config.value();
       if (value) {

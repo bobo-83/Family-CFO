@@ -37,6 +37,8 @@ x-api-env: &api-env
   FAMILY_CFO_AI_VISION_MODEL: ${VLLM_VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
   # Hardware planning (ADR 0012): GPU memory if known; blank on unified-memory hosts.
   FAMILY_CFO_GPU_MEMORY_GB: ${FAMILY_CFO_GPU_MEMORY_GB:-}
+  # One-click model apply (ADR 0013); blank disables the in-app Apply button.
+  FAMILY_CFO_MODEL_MANAGER_URL: http://model-manager:8000
 
 services:
   db:
@@ -192,6 +194,20 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # THE one privileged sidecar (ADR 0013): swaps served models on request from
+  # the API (owner-gated) by running scripts/swap-model.sh. Docker socket +
+  # project mount; strict repo-id validation; one operation only. Internal
+  # network, never published. Remove with --scale model-manager=0 to fall back
+  # to the command-line swap flow.
+  model-manager:
+    build:
+      context: services/model-manager
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/project
+    networks: [internal]
+    restart: unless-stopped
 
   # Optional vector store. Off by default and NOT yet wired to anything —
   # scaffolding matching docs/specs/10-docker-spec.md. Retrieval is tracked

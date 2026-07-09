@@ -40,6 +40,8 @@ Only `web` is reachable from outside the Docker network. The database, API, and 
 
 - **vllm-vision** — a small vision model (default Qwen2.5-VL-7B-Instruct) that describes chat photo attachments (ADR 0011). On by default alongside `vllm`; both share the GPU via `VLLM_GPU_FRACTION`/`VLLM_VISION_GPU_FRACTION`. Opt out with `FAMILY_CFO_AI_VISION_ENABLED=false` + `--scale vllm-vision=0`.
 
+- **model-manager** — THE one privileged sidecar (ADR 0013): Docker socket + project mount, exposing a single validated operation (swap served models via `scripts/swap-model.sh`) so the dashboard's **Apply** button works. Internal network only, never published; the owner-gated API is its only caller. Remove with `--scale model-manager=0` to fall back to the CLI swap flow.
+
 - **qdrant** (`--profile vector`) — a vector store matching `docs/specs/10-docker-spec.md`'s planned `family-cfo-vector` container. **Nothing connects to it yet** — retrieval/embeddings are tracked backlog (`docs/specs/12-implementation-tasks.md`). It is honest scaffolding, off unless explicitly enabled.
 
   ```bash
