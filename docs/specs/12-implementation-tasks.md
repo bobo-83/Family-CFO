@@ -712,6 +712,13 @@ Rules:
 
 - [x] Persona layer over the invariant grounding rules (`FAMILY_CFO_AI_TONE`: playful default / professional; unknown -> playful). Also fixed a real guardrail precision bug surfaced in live testing: tool floats like 9.6470588 now ground their rounded forms (9.6 / 9.65 / 10), so honest rounding no longer forces deterministic fallbacks. Tests; live-verified both.
 
+## M32: Single-Household Lockout, Full Audit Coverage & v0.2.0
+
+- [x] Spec gate (roadmap).
+- [x] Bootstrap lockout (403 once a household exists; FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS opt-out; first run unaffected). Tests.
+- [x] Audit events for login, pairing confirm, device revoke, AI config/apply, import apply/discard, report generation, backup create/restore (summaries secret-free, asserted). Tests.
+- [x] Version bumps to 0.2.0 (API + contract + regenerated client), RELEASE-CHECKLIST v0.2.0 section, full cross-package verification (65/24/5/247/67), tag v0.2.0.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
@@ -734,10 +741,10 @@ The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as 
 
 These were explicitly deferred (not dropped) by M9/M10/M11 non-goals. Tracked here so nothing is undocumented.
 
-- [ ] Extend `audit_events` coverage beyond M9's own mutations to all pre-existing sensitive mutation points (auth login, pairing confirm, paired-device revoke, AI-runtime config change, import apply/discard, report generation, backup create/restore). M9 introduces the table and audits the writes it adds; this generalizes it.
+- [x] Extend `audit_events` coverage to all pre-existing sensitive mutation points. (Delivered by M32.)
 - [x] Add a dashboard **chat UI** page backed by the M6/M10 chat and conversation-history APIs. (Delivered by M19; upgraded through M21/M25/M26.)
 - [x] Add a first-run **household setup wizard** UI around `POST /api/v1/households`. (Delivered by M19 as the /signup page.)
-- [ ] Add optional first-run bootstrap lockout (refuse `POST /api/v1/households` once any household exists) for deployments that want it — M9 leaves bootstrap open for the trusted-local-network case.
+- [x] Add optional first-run bootstrap lockout. (Delivered by M32 — locked by default with FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS opt-out.)
 - [x] Feed prior conversation turns back into the model as context (true multi-turn memory). (Delivered by M30: bounded history window + grounded history numbers.)
 
 ## Backlog: Vector Store and Retrieval

@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, repository, security
-from family_cfo_api.deps import get_engine
+from family_cfo_api.config import Settings
+from family_cfo_api.deps import get_app_settings, get_engine
 from family_cfo_api.schemas import AuthSession, ErrorResponse, HouseholdCreateRequest
 
 router = APIRouter(tags=["Household"])
@@ -25,7 +26,17 @@ SESSION_TTL = timedelta(hours=12)
 async def create_household(
     payload: HouseholdCreateRequest,
     engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
 ) -> AuthSession:
+    # M32: single-tenant lockout — this server already belongs to a family.
+    if not settings.allow_multiple_households and repository.any_household_exists(engine):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This server already has a household. Ask its owner to add you "
+                "from the Users page (or set FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS=true)."
+            ),
+        )
     if repository.user_email_exists(engine, payload.owner_email):
         raise HTTPException(status_code=409, detail="Email already in use")
 

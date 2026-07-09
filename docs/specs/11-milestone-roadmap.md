@@ -1400,3 +1400,21 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - ADR 0015; guides (imports/bank sync section); `.env.example` note (backup key doubles as credential key); acceptance state.
+
+## M32: Single-Household Lockout, Full Audit Coverage & v0.2.0
+
+- Close the two remaining security follow-ups from the post-M8 backlog, then cut the second release.
+
+### Scope
+
+- **Bootstrap lockout**: `POST /households` refuses (403) once any household exists — the right default now that `/signup` is public UI on a single-tenant product. Opt-out for multi-household deployments: `FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS=true`. The signup page surfaces the message ("ask the owner to add you from Users").
+- **Audit coverage generalization**: `audit_events` rows for the pre-existing sensitive mutations M9 didn't cover — login, pairing confirm, device revoke, AI runtime config change + model apply, import apply/discard, report generation, backup create/restore. Summaries stay non-sensitive (no amounts/tokens).
+- **v0.2.0**: bump versions (API + contract), refresh `docs/RELEASE-CHECKLIST.md` with the M14–M32 delta and current deferrals, run the release verification, tag and push.
+
+### Non-Goals
+
+- No audit-log UI changes (the M9 viewer already lists events); no retention policy for audit rows; no multi-tenant product direction (the lockout *protects* single-tenancy).
+
+### Test Expectations
+
+- Lockout: second household 403 by default; allowed with the opt-out; first-run unaffected. Audit: representative mutations write events (login, runtime change, backup create). All suites + builds green; migration cycle green; release checklist executed.

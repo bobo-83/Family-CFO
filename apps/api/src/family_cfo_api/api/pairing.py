@@ -7,7 +7,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository, security
+from family_cfo_api import audit, repository, security
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     DeviceCredential,
@@ -125,6 +125,15 @@ async def confirm_pairing(
         payload.pairing_session_id,
         credential.device_id,
     )
+    audit.write_audit(
+        engine,
+        credential.household_id,
+        credential.user_id,
+        "pairing.confirmed",
+        "paired_device",
+        credential.device_id,
+        f"Paired device '{payload.device_name}'",
+    )
 
     return DeviceCredential(
         device_id=credential.device_id,
@@ -170,5 +179,14 @@ async def revoke_paired_device(
 
     logger.info(
         "paired device revoked household_id=%s device_id=%s", session.household_id, device_id
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "pairing.device_revoked",
+        "paired_device",
+        device_id,
+        "Revoked paired device",
     )
     return Response(status_code=204)

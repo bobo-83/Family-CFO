@@ -21,4 +21,6 @@ async def test_get_health_returns_openapi_response_shape() -> None:
         response = await client.get("/api/v1/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "0.1.0"}
+    from family_cfo_api import __version__
+
+    assert response.json() == {"status": "ok", "version": __version__}

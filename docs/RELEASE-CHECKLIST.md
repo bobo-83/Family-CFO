@@ -62,3 +62,18 @@ Documented and intentional, not blockers:
 - Debt-payoff/retirement/scenario planning, annual report, dashboard chat UI,
   first-run setup wizard, extended audit coverage (backlog).
 - Reverse proxy / monitoring / rate limiting ("Future Containers").
+
+---
+
+## Release v0.2.0 (2026-07-09)
+
+Delta since v0.1.0 — seventeen milestones (M14–M32):
+
+- **AI advisor**: agentic tool-calling over the deterministic engine (M16); local AI + turnkey deploy on by default (M17); chat + sign-up UI (M19); photo attachments with describe-then-ground vision routing (M21); live exchange rates + self-hosted price search (M24/M28); conversational memory (M30); per-response model attribution (M25); playful persona over unchanged grounding (M31); AWQ quantization guidance, measured 2.5× (M29).
+- **Model ops**: curated + Hugging Face model picker with hardware-fit planning (M22); one-click apply via the model-manager sidecar (M23); swap-model.sh.
+- **Data**: debt payoff + retirement projections (M14); annual reports (M15); SimpleFIN institution connections with two-tier transaction dedupe incl. the CSV pipeline (M27).
+- **Platform**: dashboard redesign + iPhone-class mobile support (M20/M26); deploy/patch/doctor/e2e scripts with system requirements (M17/M18); security passes — SSRF allowlist, login rate limiting, upload caps, CSPRNG pairing secret, prod docs gating (M18), single-household bootstrap lockout + full audit coverage (M32).
+
+Verification at tag time: financial-engine 65, ai-orchestrator 24, model-manager 5, api 247, web 67 — all green; builds clean; compose config valid; contract in sync; live GB10 deployment serving Qwen2.5-32B-AWQ + Qwen2.5-VL-7B.
+
+Still deferred (tracked in `docs/specs/12-implementation-tasks.md` backlogs): the iOS app (needs macOS), OFX DirectConnect + OFX/QFX parsing, real OCR engine + PDF line-item parsing, vector store/retrieval, multi-currency households, budget management UI, monitoring container, long-conversation summarization.

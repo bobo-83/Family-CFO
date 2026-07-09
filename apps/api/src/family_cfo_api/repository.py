@@ -195,6 +195,8 @@ class DeviceCredentialRecord:
     device_id: str
     access_token: str
     expires_at: datetime
+    household_id: str = ""
+    user_id: str = ""
 
 
 def create_pairing_session(
@@ -301,7 +303,11 @@ def confirm_pairing_session(
         )
 
     return DeviceCredentialRecord(
-        device_id=device_id, access_token=access_token, expires_at=expires_at
+        device_id=device_id,
+        access_token=access_token,
+        expires_at=expires_at,
+        household_id=session["household_id"],
+        user_id=session["created_by_user_id"],
     )
 
 
@@ -2791,3 +2797,9 @@ def create_transaction_deduped(
             )
         )
     return True
+
+
+def any_household_exists(engine: Engine) -> bool:
+    """M32 single-tenant lockout: is this server already claimed by a family?"""
+    with engine.connect() as conn:
+        return conn.execute(select(models.households.c.id).limit(1)).first() is not None

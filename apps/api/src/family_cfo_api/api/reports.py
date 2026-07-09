@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository, report_generation
+from family_cfo_api import audit, repository, report_generation
 from family_cfo_api.ai_runtime_selection import select_explanation_adapter
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
@@ -108,6 +108,15 @@ async def generate_report(
         if runtime_client is not None:
             runtime_client.close()
 
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "report.generated",
+        "report",
+        record.id,
+        f"Generated {payload.report_type} report",
+    )
     logger.info(
         "report generated household_id=%s report_id=%s report_type=%s explanation_source=%s",
         session.household_id,

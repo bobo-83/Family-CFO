@@ -29,6 +29,10 @@ def demo_settings(tmp_path) -> Settings:
         import_staging_dir=str(tmp_path / "import-staging"),
         backup_dir=str(tmp_path / "backups"),
         backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+        # M32 lockout is tested explicitly in test_household_lockout; the shared
+        # fixture allows multiples so pre-existing bootstrap tests keep working
+        # against the seeded demo household.
+        allow_multiple_households=True,
         # Allowlist the base_urls the runtime/advisor tests configure (ADR 0010).
         ai_allowed_base_urls=(
             "http://vllm:8000",

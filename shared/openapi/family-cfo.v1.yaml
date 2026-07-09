@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Family CFO API
-  version: 0.1.0
+  version: 0.2.0
   description: >
     Initial specification for the Family CFO self-hosted backend API.
     This contract is the source of truth for generated Swift and Angular clients.
