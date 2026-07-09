@@ -18,7 +18,11 @@ from family_cfo_ai_orchestrator import (
 )
 
 from family_cfo_api import ai_tools, finance_service, repository
-from family_cfo_api.ai_runtime_selection import select_tool_runtime, select_vision_describer
+from family_cfo_api.ai_runtime_selection import (
+    resolve_ai_config,
+    select_tool_runtime,
+    select_vision_describer,
+)
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine
 from family_cfo_api.explanation import format_money
@@ -43,6 +47,7 @@ class _ImageAnalysis:
     description: str | None
     warning: str | None
     source: str  # "main" | "describer" | "none"
+    described_by: str | None = None  # model id that read the photo
 
 
 def _validate_image(payload: ChatRequest, settings: Settings) -> str | None:
@@ -69,6 +74,11 @@ def _analyze_image(
     describer, source = select_vision_describer(engine, household_id, settings)
     if describer is None:
         return _ImageAnalysis(description=None, warning=_NO_VISION_WARNING, source="none")
+    described_by = (
+        settings.ai_vision_model
+        if source == "describer"
+        else resolve_ai_config(engine, household_id, settings).model
+    )
     try:
         description = describe_image(describer, image_data_url, user_context=message)
     except RuntimeUnavailableError:
@@ -80,7 +90,9 @@ def _analyze_image(
         )
     finally:
         describer.close()
-    return _ImageAnalysis(description=description, warning=None, source=source)
+    return _ImageAnalysis(
+        description=description, warning=None, source=source, described_by=described_by
+    )
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -106,6 +118,8 @@ class _Answer:
     calculation_refs: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     explanation_source: str = "deterministic_stub"
+    # The model id that produced the answer; None for deterministic answers.
+    answered_by: str | None = None
 
 
 def _deterministic_answer(engine: Engine, household: repository.HouseholdRecord) -> _Answer:
@@ -218,6 +232,7 @@ def _try_agentic_answer(
         assumptions.extend(record.result.get("assumptions", []) or [])
         warnings.extend(record.result.get("warnings", []) or [])
 
+    config = resolve_ai_config(engine, household.id, settings)
     return _Answer(
         answer=result.answer,
         assumptions=_dedupe(assumptions),
@@ -228,6 +243,7 @@ def _try_agentic_answer(
         calculation_refs=_dedupe(refs),
         warnings=_dedupe(warnings),
         explanation_source="agentic_tool_calling",
+        answered_by=config.model or None,
     )
 
 
@@ -266,6 +282,12 @@ async def create_chat_message(
 
     if analysis and analysis.warning:
         answer.warnings = _dedupe([*answer.warnings, analysis.warning])
+    photo_described_by = analysis.described_by if analysis and analysis.description else None
+    if photo_described_by:
+        # Persisted in assumptions_json so attribution survives in the audit trail.
+        answer.assumptions = _dedupe(
+            [*answer.assumptions, f"Attached photo was read by the vision model {photo_described_by}."]
+        )
 
     recommendation_id = repository.create_recommendation(
         engine,
@@ -280,6 +302,7 @@ async def create_chat_message(
         calculation_refs=answer.calculation_refs,
         warnings=answer.warnings,
         explanation_source=answer.explanation_source,
+        model_version=answer.answered_by,
     )
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new
@@ -325,5 +348,7 @@ async def create_chat_message(
             confidence=answer.confidence,
             calculation_refs=answer.calculation_refs,
             warnings=answer.warnings,
+            answered_by=answer.answered_by,
+            photo_described_by=photo_described_by,
         ),
     )

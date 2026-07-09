@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { Chat } from './chat';
 
-function recommendation(answer: string, confidence = 0.85) {
+function recommendation(answer: string, confidence = 0.85, answeredBy: string | null = 'Qwen/Qwen2.5-32B-Instruct') {
   return {
     id: 'rec-1',
     answer,
@@ -14,6 +14,8 @@ function recommendation(answer: string, confidence = 0.85) {
     confidence,
     calculation_refs: ['financial_calculations:abc'],
     warnings: [],
+    answered_by: answeredBy,
+    photo_described_by: null as string | null,
   };
 }
 
@@ -138,6 +140,49 @@ describe('Chat', () => {
 
     expect(component['attachedImage']()).toBeNull();
     expect(apiMock.createChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('renders model attribution on assistant turns', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'c', recommendation: recommendation('hi') },
+    });
+    const fixture = TestBed.createComponent(Chat);
+    const component = fixture.componentInstance;
+    component['form'].setValue({ message: 'hi' });
+    await component['send']();
+    fixture.detectChanges();
+
+    const caption = (fixture.nativeElement as HTMLElement).querySelector('.chat__source');
+    expect(caption?.textContent).toContain('Qwen/Qwen2.5-32B-Instruct');
+  });
+
+  it('shows both models when a photo was read', async () => {
+    const rec = recommendation('Fits your budget.');
+    rec.photo_described_by = 'Qwen/Qwen2.5-VL-7B-Instruct';
+    apiMock.createChatMessage.mockResolvedValue({ data: { conversation_id: 'c', recommendation: rec } });
+    const fixture = TestBed.createComponent(Chat);
+    const component = fixture.componentInstance;
+    component['form'].setValue({ message: 'how does this affect my savings?' });
+    await component['send']();
+    fixture.detectChanges();
+
+    const caption = (fixture.nativeElement as HTMLElement).querySelector('.chat__source');
+    expect(caption?.textContent).toContain('photo read by');
+    expect(caption?.textContent).toContain('Qwen/Qwen2.5-VL-7B-Instruct');
+  });
+
+  it('marks deterministic answers as no-AI', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'c', recommendation: recommendation('snapshot', 0.85, null) },
+    });
+    const fixture = TestBed.createComponent(Chat);
+    const component = fixture.componentInstance;
+    component['form'].setValue({ message: 'hi' });
+    await component['send']();
+    fixture.detectChanges();
+
+    const caption = (fixture.nativeElement as HTMLElement).querySelector('.chat__source');
+    expect(caption?.textContent).toContain('Deterministic calculation');
   });
 
   it('maps confidence to a label', () => {

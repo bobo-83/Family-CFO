@@ -1332,3 +1332,22 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - ADR 0014; `.env.example`; docker README (searxng profile); AI-advisor guide; acceptance state.
+
+
+## M25: Per-Response Model Attribution
+
+- Every chat answer states what produced it: the exact model id, or "deterministic calculation".
+
+> Context: `recommendations.model_version` existed (M4) but the chat path never persisted it and the API never exposed it — a user could not tell whether an answer came from the model or the deterministic fallback, nor from *which* model after a swap (M23).
+
+### Scope
+
+- Chat persists `model_version` (the resolved runtime model) on agentic recommendations; additive `answered_by` (nullable) on the `Recommendation` schema — the model id, or null for deterministic answers; chat UI shows a small per-bubble caption ("🤖 <model>" / "🧮 Deterministic calculation").
+
+### Non-Goals
+
+- No backfill of historical recommendations; conversation-history messages (M10) keep content only — attribution shows on live responses and in the recommendations table.
+
+### Test Expectations
+
+- API: agentic answer response carries `answered_by` = model id and persists model_version; deterministic answer carries null. Web: caption rendering both ways. Contract green; suites green.

@@ -215,6 +215,12 @@ class Recommendation(BaseModel):
     confidence: float = Field(ge=0, le=1)
     calculation_refs: list[str]
     warnings: list[str] = Field(default_factory=list)
+    # M25: the model id that produced this answer, or null when it came from
+    # the deterministic calculation path (no AI involved).
+    answered_by: str | None = None
+    # M25: the vision model that read an attached photo (ADR 0011); null when
+    # no photo was attached or it could not be analyzed.
+    photo_described_by: str | None = None
 
 
 ChatImageMediaType = Literal["image/jpeg", "image/png", "image/webp"]

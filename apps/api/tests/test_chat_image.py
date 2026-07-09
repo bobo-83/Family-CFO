@@ -128,3 +128,61 @@ async def test_invalid_base64_rejected(demo_client, demo_token) -> None:
 async def test_image_without_media_type_rejected(demo_client, demo_token) -> None:
     resp = await _post(demo_client, demo_token, image_base64=_IMG)
     assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None:
+    """A photo answer is attributed to BOTH the vision describer and the chat model."""
+    import httpx
+
+    from family_cfo_api.config import Settings
+    from family_cfo_api.main import create_app
+    from family_cfo_ai_orchestrator import RuntimeToolCompletion
+
+    class _Describer:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        chat_module, "select_vision_describer", lambda e, h, s: (_Describer(), "describer")
+    )
+    monkeypatch.setattr(
+        chat_module, "describe_image", lambda runtime, url, user_context="": "A receipt for $42.00."
+    )
+    runtime = _ScriptedRuntime(
+        [RuntimeToolCompletion(tool_calls=[], text="That $42.00 fits your budget.", model="m", raw={})]
+    )
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+
+    settings = Settings(
+        version="0.1.0",
+        health_check_database=False,
+        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+        ai_default_enabled=True,
+        ai_default_model="Qwen/Qwen2.5-32B-Instruct",
+        ai_vision_enabled=True,
+        ai_vision_model="Qwen/Qwen2.5-VL-7B-Instruct",
+    )
+    app = create_app(settings, engine=demo_engine)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        login = await client.post(
+            "/api/v1/auth/sessions",
+            json={"email": "demo@family-cfo.local", "password": "demo-password-123"},
+        )
+        token = login.json()["access_token"]
+        resp = await client.post(
+            "/api/v1/chat/messages",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "message": "How does this affect my savings?",
+                "image_base64": _IMG,
+                "image_media_type": "image/jpeg",
+            },
+        )
+
+    rec = resp.json()["recommendation"]
+    assert rec["answered_by"] == "Qwen/Qwen2.5-32B-Instruct"
+    assert rec["photo_described_by"] == "Qwen/Qwen2.5-VL-7B-Instruct"
+    assert any("Qwen2.5-VL-7B" in a for a in rec["assumptions"])
