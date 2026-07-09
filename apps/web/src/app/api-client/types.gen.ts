@@ -137,6 +137,18 @@ export type Account = {
     minimum_payment?: Money;
     institution?: string;
     last_synced_at?: string;
+    /**
+     * M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount).
+     */
+    emergency_fund_percent?: number;
+    /**
+     * M36: fixed amount of this account reserved for emergencies (exclusive with emergency_fund_percent).
+     */
+    emergency_fund_amount?: Money;
+    /**
+     * M36: derived reservation — percent of the latest balance or the fixed amount, capped at the balance.
+     */
+    emergency_fund_reserved?: Money;
 };
 
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
@@ -368,6 +380,18 @@ export type AccountUpdateRequest = {
     type?: AccountType;
     annual_interest_rate?: number;
     minimum_payment?: Money;
+    /**
+     * M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
+     */
+    emergency_fund_percent?: number;
+    /**
+     * M36: reserve this fixed amount for emergencies. Clears any percent designation. 400 if sent with emergency_fund_percent.
+     */
+    emergency_fund_amount?: Money;
+    /**
+     * M36: remove the emergency-fund designation from this account.
+     */
+    clear_emergency_fund?: boolean;
 };
 
 export type AccountBalanceCreateRequest = {

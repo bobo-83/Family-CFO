@@ -168,9 +168,17 @@ accounts = Table(
     # an account without both set is not modeled for payoff.
     Column("annual_interest_rate", Float, nullable=True),
     Column("minimum_payment_minor", BigInteger, nullable=True),
+    # Emergency fund designation (M36): percent of balance OR a fixed amount,
+    # never both. Reserved money is derived at read time from the latest balance.
+    Column("emergency_fund_percent", Float, nullable=True),
+    Column("emergency_fund_minor", BigInteger, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"type in {_sql_in(ACCOUNT_TYPES)}", name="ck_accounts_type"),
+    CheckConstraint(
+        "emergency_fund_percent IS NULL OR emergency_fund_minor IS NULL",
+        name="ck_accounts_emergency_fund_exclusive",
+    ),
 )
 
 account_balances = Table(

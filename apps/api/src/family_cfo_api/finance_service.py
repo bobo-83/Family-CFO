@@ -146,13 +146,22 @@ def compute_emergency_fund_with_ref(
 ) -> tuple[CalculationResult, str]:
     balances = repository.list_account_balances(engine, household_id)
     liquid_balance = Money.zero(currency)
+    designated_minor = 0
     for balance in balances:
         if balance.account_type in LIQUID_ACCOUNT_TYPES:
             liquid_balance += Money(balance.balance_minor, balance.currency)
+        # M36: user-designated reservations, on any account type.
+        if balance.currency == currency:
+            designated_minor += repository.emergency_fund_reserved_minor(
+                balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
+            )
 
     monthly_bills = _monthly_bill_total(engine, household_id, currency)
 
-    result = calculate_emergency_fund_months(liquid_balance, monthly_bills)
+    # M36: once the family designates emergency-fund money, coverage measures
+    # that fund — not the legacy "all liquid money" approximation.
+    fund_balance = Money(designated_minor, currency) if designated_minor > 0 else liquid_balance
+    result = calculate_emergency_fund_months(fund_balance, monthly_bills)
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 

@@ -1,7 +1,7 @@
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import type { Account, AccountType } from '../../api-client';
+import type { Account, AccountType, AccountUpdateRequest } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -81,8 +81,21 @@ export class Accounts {
     return Accounts.CATEGORY_ORDER.filter((c) => groups.has(c)).map((category) => ({
       category,
       accounts: groups.get(category)!,
+      total: Accounts.rollup(groups.get(category)!),
     }));
   });
+
+  /** Per-group balance rollup (e.g. Debts = sum of all debt), split by currency. */
+  private static rollup(accounts: Account[]): string {
+    const byCurrency = new Map<string, number>();
+    for (const account of accounts) {
+      const { amount_minor, currency } = account.balance;
+      byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount_minor);
+    }
+    return [...byCurrency.entries()]
+      .map(([currency, amount_minor]) => formatMoney({ amount_minor, currency }))
+      .join(' + ');
+  }
 
   protected readonly accounts = resource({
     loader: async () => {
@@ -127,6 +140,61 @@ export class Accounts {
     }
     this.submitting.set(false);
     this.form.reset({ name: '', type: 'checking', currency: 'USD', openingBalance: 0 });
+    this.accounts.reload();
+  }
+
+  /** M36: total money reserved for emergencies across all accounts. */
+  protected readonly emergencyFundTotal = computed(() => {
+    const list = this.accounts.value() ?? [];
+    let minor = 0;
+    let currency: string | null = null;
+    for (const account of list) {
+      if (account.emergency_fund_reserved) {
+        minor += account.emergency_fund_reserved.amount_minor;
+        currency ??= account.emergency_fund_reserved.currency;
+      }
+    }
+    return currency ? formatMoney({ amount_minor: minor, currency }) : null;
+  });
+
+  protected efModeOf(account: Account): 'none' | 'percent' | 'amount' {
+    if (account.emergency_fund_percent != null) return 'percent';
+    if (account.emergency_fund_amount) return 'amount';
+    return 'none';
+  }
+
+  protected efValueOf(account: Account): string {
+    if (account.emergency_fund_percent != null) return String(account.emergency_fund_percent);
+    if (account.emergency_fund_amount) {
+      return (account.emergency_fund_amount.amount_minor / 100).toFixed(2);
+    }
+    return '';
+  }
+
+  /** M36: designate (or clear) this account's emergency-fund share. */
+  protected async setEmergencyFund(account: Account, mode: string, raw: string): Promise<void> {
+    let body: AccountUpdateRequest;
+    if (mode === 'none') {
+      if (this.efModeOf(account) === 'none') return;
+      body = { clear_emergency_fund: true };
+    } else {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0 || raw.trim() === '') return;
+      body =
+        mode === 'percent'
+          ? { emergency_fund_percent: Math.min(value, 100) }
+          : {
+              emergency_fund_amount: {
+                amount_minor: Math.round(value * 100),
+                currency: account.balance.currency,
+              },
+            };
+    }
+    const { error } = await this.api.updateAccount(account.id, body);
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, 'Failed to update emergency fund.'));
+      return;
+    }
     this.accounts.reload();
   }
 

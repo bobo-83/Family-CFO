@@ -62,11 +62,59 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+/* Per-group balance rollup (e.g. Debts = sum of all debt). */
+.accounts-group__total {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-text, inherit);
 }
 
 .accounts-table__manual {
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+
+/* M36: emergency fund designation */
+.accounts-ef-total {
+  margin: 0 0 1rem;
+  color: var(--color-text-muted);
+}
+
+.accounts-table__ef {
+  white-space: nowrap;
+}
+
+.accounts-table__ef-mode,
+.accounts-table__ef-value {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--color-border, #d0d0d0);
+  border-radius: 6px;
+  background: transparent;
+}
+
+.accounts-table__ef-value {
+  width: 5rem;
+  margin-left: 0.3rem;
+}
+
+.accounts-table__ef-value--hidden {
+  display: none;
+}
+
+.accounts-table__ef-reserved {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 /* M35: inline account-type editing */

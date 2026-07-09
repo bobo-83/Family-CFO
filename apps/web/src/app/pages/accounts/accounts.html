@@ -1,5 +1,11 @@
 <h1>Accounts</h1>
 
+@if (emergencyFundTotal(); as reserved) {
+  <p class="accounts-ef-total">
+    🛟 Reserved for emergencies: <strong>{{ reserved }}</strong>
+  </p>
+}
+
 @if (canWrite()) {
   <form class="account-form" [formGroup]="form" (ngSubmit)="submit()">
     <h2>Add an account</h2>
@@ -44,7 +50,10 @@
       } @else {
         @for (group of groupedAccounts(); track group.category) {
           <section class="accounts-group">
-            <h2 class="accounts-group__title">{{ group.category }}</h2>
+            <h2 class="accounts-group__title">
+              {{ group.category }}
+              <span class="accounts-group__total">{{ group.total }}</span>
+            </h2>
             <table class="accounts-table">
               <thead>
                 <tr>
@@ -53,6 +62,7 @@
                   <th>Institution</th>
                   <th>Last synced</th>
                   <th>Balance</th>
+                  <th>Emergency fund</th>
                   @if (canWrite()) {
                     <th></th>
                   }
@@ -95,6 +105,43 @@
                       }
                     </td>
                     <td>{{ formatMoney(account.balance) }}</td>
+                    <td class="accounts-table__ef">
+                      @if (canWrite()) {
+                        <select
+                          #efMode
+                          class="accounts-table__ef-mode"
+                          [value]="efModeOf(account)"
+                          (change)="setEmergencyFund(account, efMode.value, efValue.value)"
+                          aria-label="Emergency fund mode"
+                        >
+                          <option value="none" [selected]="efModeOf(account) === 'none'">—</option>
+                          <option value="percent" [selected]="efModeOf(account) === 'percent'">
+                            % of balance
+                          </option>
+                          <option value="amount" [selected]="efModeOf(account) === 'amount'">
+                            fixed amount
+                          </option>
+                        </select>
+                        <input
+                          #efValue
+                          type="number"
+                          class="accounts-table__ef-value"
+                          min="0"
+                          step="0.01"
+                          [value]="efValueOf(account)"
+                          [class.accounts-table__ef-value--hidden]="efMode.value === 'none'"
+                          (change)="setEmergencyFund(account, efMode.value, efValue.value)"
+                          aria-label="Emergency fund value"
+                        />
+                      }
+                      @if (account.emergency_fund_reserved; as reserved) {
+                        <span class="accounts-table__ef-reserved">
+                          🛟 {{ formatMoney(reserved) }}
+                        </span>
+                      } @else if (!canWrite()) {
+                        —
+                      }
+                    </td>
                     @if (canWrite()) {
                       <td>
                         <button
