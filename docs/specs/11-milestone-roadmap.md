@@ -1250,3 +1250,32 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - ADR 0011; README system-requirements row for the vision model; `.env.example`, docker README, AI-advisor guide (vision section), mobile-spec backlog note; acceptance state.
+
+## M22: Model Selection, Hardware Planning & Status Clarity
+
+- Pick the main model (and a vision model when the main isn't vision-capable) from a curated list in the AI Runtime page, with live hardware-fit feedback.
+- Split the chat status banner so main-model and vision-model states are separately visible; fix the camera-button alignment.
+
+> Context: implements [ADR 0012](../adr/0012-model-selection-and-hardware-planning.md). The API never controls Docker — the UI saves the desired selection and generates the exact `scripts/swap-model.sh` command; selections replace the current models (never additive).
+
+### Scope
+
+- **Catalog**: `GET /ai/models` (curated, backend-owned: id/label/params/est. memory GB/est. disk GB/parser/`supports_vision`/role/gated).
+- **Hardware**: `GET /ai/hardware` (system memory from `/proc/meminfo`, disk free, GPU memory from `FAMILY_CFO_GPU_MEMORY_GB` when provided else null + unified-memory note). Deploy script writes the GPU value when detectable.
+- **Status**: `AiRuntimeStatus.vision_enabled` (additive) so the chat banner can distinguish vision "loading" from "off"; banner shows separate main + vision states; camera button alignment fixed.
+- **AI Runtime page rebuild**: main-model picker; vision picker shown only when the selected main lacks vision (hidden with a "main model handles photos" note otherwise); live required-memory/disk vs available with fit verdict (fits / tight / won't fit, ~15% headroom); save via existing `PUT /ai/runtime`; "selected but not serving" mismatch notice + copyable `swap-model.sh` command.
+- **`scripts/swap-model.sh <main> [vision|none]`**: updates `.env` (`VLLM_MODEL`, `VLLM_TOOL_PARSER`, `VLLM_VISION_MODEL`, `FAMILY_CFO_AI_SUPPORTS_VISION`, `FAMILY_CFO_AI_VISION_ENABLED`) and recreates vllm/vllm-vision/api/worker.
+
+### Non-Goals
+
+- No Docker socket in the API / no one-click restart (ADR 0012); no free-form model ids in the picker (curated list; `.env` remains the escape hatch); no quantized-variant matrix (bf16 estimates only); no cache pruning.
+
+### Test Expectations
+
+- API: catalog shape; hardware profile (env-provided GPU value vs null); status `vision_enabled`; contract green.
+- Web: picker logic (vision section hidden for vision-capable main; requirement totals recompute on selection; fit verdict against mocked hardware; save calls PUT; mismatch notice), banner states. Existing suites green; build clean.
+- `bash -n scripts/swap-model.sh`.
+
+### Documentation Impact
+
+- ADR 0012; AI-advisor guide (swap-model section replaces manual `.env` editing); README pointer; acceptance state.

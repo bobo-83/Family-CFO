@@ -252,6 +252,36 @@ class AiRuntimeStatus(BaseModel):
     # Vision routing (ADR 0011): whether photos can be analyzed, and by what.
     vision_ready: bool = False
     vision_model: str | None = None
+    # Whether a vision path is configured at all (distinguishes "loading" from "off").
+    vision_enabled: bool = False
+
+
+class AiModelInfo(BaseModel):
+    """One curated model option for the runtime picker (ADR 0012, planning data)."""
+
+    id: str
+    label: str
+    role: Literal["main", "vision", "both"]
+    parameters_b: float
+    est_memory_gb: float
+    est_disk_gb: float
+    tool_parser: str | None = None
+    supports_vision: bool
+    gated: bool
+    notes: str = ""
+
+
+class AiModelCatalog(BaseModel):
+    models: list[AiModelInfo]
+
+
+class AiHardwareProfile(BaseModel):
+    """Best-effort hardware facts for model-fit planning (ADR 0012)."""
+
+    gpu_memory_gb: float | None = None
+    system_memory_gb: float | None = None
+    disk_free_gb: float
+    source: str
 
 
 class ImportCreateRequest(BaseModel):

@@ -9,28 +9,42 @@
     @if (aiStatus.isLoading()) {
       <div class="chat__status chat__status--loading">Checking AI status…</div>
     } @else if (aiStatus.value(); as status) {
-      <div
-        class="chat__status"
-        [class.chat__status--active]="status.enabled && status.ready"
-        [class.chat__status--warming]="status.enabled && !status.ready"
-        [class.chat__status--off]="!status.enabled"
-      >
-        <span class="chat__status-dot"></span>
-        @if (status.enabled && status.ready) {
-          <span>
-            AI active — <strong>{{ status.served_model || status.model }}</strong>
-            @if (status.vision_ready) {
-              · 📷 photos supported
-            }
-          </span>
-        } @else if (status.enabled && !status.ready) {
-          <span>AI model loading… deterministic answers until it is ready</span>
-        } @else {
-          <span>AI is off — answers use deterministic calculations</span>
-        }
-        <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()" title="Re-check">
-          ↻
-        </button>
+      <div class="chat__status-group">
+        <!-- Main chat model -->
+        <div
+          class="chat__status"
+          [class.chat__status--active]="status.enabled && status.ready"
+          [class.chat__status--warming]="status.enabled && !status.ready"
+          [class.chat__status--off]="!status.enabled"
+        >
+          <span class="chat__status-dot"></span>
+          @if (status.enabled && status.ready) {
+            <span>Chat model: <strong>{{ status.served_model || status.model }}</strong></span>
+          } @else if (status.enabled && !status.ready) {
+            <span>Chat model loading… deterministic answers until ready</span>
+          } @else {
+            <span>AI off — deterministic answers</span>
+          }
+          <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()" title="Re-check">
+            ↻
+          </button>
+        </div>
+        <!-- Vision (photo) model — its own state, independent of the main model -->
+        <div
+          class="chat__status"
+          [class.chat__status--active]="status.vision_ready"
+          [class.chat__status--warming]="status.vision_enabled && !status.vision_ready"
+          [class.chat__status--off]="!status.vision_enabled"
+        >
+          <span class="chat__status-dot"></span>
+          @if (status.vision_ready) {
+            <span>📷 Photos: <strong>{{ status.vision_model }}</strong></span>
+          } @else if (status.vision_enabled) {
+            <span>📷 Photo model loading…</span>
+          } @else {
+            <span>📷 Photos off</span>
+          }
+        </div>
       </div>
     } @else {
       <div class="chat__status chat__status--off">

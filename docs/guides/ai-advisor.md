@@ -108,7 +108,19 @@ on purpose). The API logs above name the reason.
 
 ## Swapping models
 
-Override in `.env` and restart just the runtime — no rebuild:
+The supported way (updates `.env`, keeps parser/vision settings consistent, and
+recreates the right containers):
+
+```bash
+scripts/swap-model.sh Qwen/Qwen2.5-14B-Instruct                       # keep default vision
+scripts/swap-model.sh Qwen/Qwen2.5-VL-32B-Instruct                    # vision-capable main
+scripts/swap-model.sh Qwen/Qwen2.5-32B-Instruct none                  # no photo analysis
+```
+
+The dashboard's **AI Runtime** page offers the same catalog with live
+hardware-fit feedback and generates this command for you.
+
+Manual alternative — override in `.env` and restart just the runtime:
 
 ```bash
 # .env

@@ -35,6 +35,8 @@ x-api-env: &api-env
   FAMILY_CFO_AI_VISION_ENABLED: ${FAMILY_CFO_AI_VISION_ENABLED:-true}
   FAMILY_CFO_AI_VISION_BASE_URL: http://vllm-vision:8000
   FAMILY_CFO_AI_VISION_MODEL: ${VLLM_VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
+  # Hardware planning (ADR 0012): GPU memory if known; blank on unified-memory hosts.
+  FAMILY_CFO_GPU_MEMORY_GB: ${FAMILY_CFO_GPU_MEMORY_GB:-}
 
 services:
   db:

@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from urllib.parse import urlparse
 
 import httpx
@@ -6,10 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
+from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
-from family_cfo_api.schemas import AiRuntimeConfig, AiRuntimeStatus, ErrorResponse
+from family_cfo_api.schemas import (
+    AiHardwareProfile,
+    AiModelCatalog,
+    AiModelInfo,
+    AiRuntimeConfig,
+    AiRuntimeStatus,
+    ErrorResponse,
+)
 
 router = APIRouter(tags=["AI Runtime"])
 logger = logging.getLogger(__name__)
@@ -103,6 +112,9 @@ async def get_ai_runtime_status(
     settings: Settings = Depends(get_app_settings),
 ) -> AiRuntimeStatus:
     config = resolve_ai_config(engine, session.household_id, settings)
+    vision_enabled = settings.ai_supports_vision or (
+        settings.ai_vision_enabled and bool(settings.ai_vision_model)
+    )
     if not config.is_usable:
         return AiRuntimeStatus(
             enabled=config.enabled,
@@ -115,6 +127,7 @@ async def get_ai_runtime_status(
                 if not config.enabled
                 else "AI runtime is enabled but not fully configured."
             ),
+            vision_enabled=vision_enabled,
         )
 
     ready, served_model = _probe_served_model(config.base_url)
@@ -142,7 +155,34 @@ async def get_ai_runtime_status(
         detail=detail,
         vision_ready=vision_ready,
         vision_model=vision_model,
+        vision_enabled=vision_enabled,
     )
+
+
+@router.get(
+    "/ai/models",
+    operation_id="listAiModels",
+    response_model=AiModelCatalog,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="List the curated model catalog for the runtime picker",
+)
+async def list_ai_models(
+    session: repository.SessionContext = Depends(get_current_session),
+) -> AiModelCatalog:
+    return AiModelCatalog(models=[AiModelInfo(**asdict(model)) for model in MODEL_CATALOG])
+
+
+@router.get(
+    "/ai/hardware",
+    operation_id="getAiHardwareProfile",
+    response_model=AiHardwareProfile,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Report best-effort hardware facts for model-fit planning",
+)
+async def get_ai_hardware_profile(
+    session: repository.SessionContext = Depends(get_current_session),
+) -> AiHardwareProfile:
+    return AiHardwareProfile(**hardware_profile())
 
 
 @router.put(
