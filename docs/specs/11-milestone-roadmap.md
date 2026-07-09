@@ -1306,3 +1306,29 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - ADR 0013; docker README (sidecar + threat note); AI-advisor guide; acceptance state.
+
+## M24: Live-Data Chat Tools
+
+- Let the advisor fetch live public data — currency conversion rates and (optionally) web/price lookups — as grounded tool results.
+
+> Context: implements [ADR 0014](../adr/0014-live-data-tools.md). Live facts enter chat only as M16 tools whose outputs join the grounded set; outbound requests carry no household data (two currency codes, or a search query to the operator's own SearXNG).
+
+### Scope
+
+- **`get_exchange_rate(base, quote)`** tool (keyless `open.er-api.com`, ISO-code validation, structured `lookup_failed` on error) — on by default (`FAMILY_CFO_LIVE_DATA_ENABLED`).
+- **`web_search(query)`** tool via self-hosted SearXNG — registered only when `FAMILY_CFO_SEARXNG_URL` is set; `searxng` compose profile (off by default); bounded query length; top-5 title/snippet/url results.
+- Chat system prompt extended to steer rate/price questions to these tools; tool-result numbers are grounded by the existing M16 trace mechanism (no guardrail changes).
+
+### Non-Goals
+
+- No keyed shopping/price APIs; no caching layer (rates fetched per question); no browsing/scraping beyond SearXNG's JSON results; no UI changes.
+
+### Test Expectations
+
+- Rate tool: happy path (mocked provider), invalid codes (`invalid_arguments`), provider down (`lookup_failed`), disabled → absent from registry.
+- Search tool: registered only when configured; result shaping; error path.
+- Loop integration: a scripted exchange-rate answer passes the guardrail with the fetched number. All suites green.
+
+### Documentation Impact
+
+- ADR 0014; `.env.example`; docker README (searxng profile); AI-advisor guide; acceptance state.

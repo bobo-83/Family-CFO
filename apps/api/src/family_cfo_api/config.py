@@ -69,6 +69,10 @@ class Settings:
     model_manager_url: str = ""
     # Hugging Face Hub base URL for model search (overridable for tests).
     hf_hub_url: str = "https://huggingface.co"
+    # Live-data chat tools (ADR 0014): exchange rates on by default (only ISO
+    # codes leave the box); web_search requires a self-hosted SearXNG URL.
+    live_data_enabled: bool = True
+    searxng_url: str = ""
 
     def allowed_ai_base_urls(self) -> tuple[str, ...]:
         """The effective AI base_url allowlist: configured set, else the default."""
@@ -132,6 +136,8 @@ class Settings:
             max_upload_bytes=int(os.getenv("FAMILY_CFO_MAX_UPLOAD_BYTES", str(cls.max_upload_bytes))),
             model_manager_url=os.getenv("FAMILY_CFO_MODEL_MANAGER_URL", cls.model_manager_url),
             hf_hub_url=os.getenv("FAMILY_CFO_HF_HUB_URL", cls.hf_hub_url),
+            live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),
+            searxng_url=os.getenv("FAMILY_CFO_SEARXNG_URL", cls.searxng_url),
         )
 
 

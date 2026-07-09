@@ -64,6 +64,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M23 Hugging Face model search & one-click apply: implemented (backed by ADR 0013, partially superseding ADR 0012). The AI Runtime page searches HF Hub live (API-proxied, estimated specs labeled as such), and **Apply** downloads/switches the served models via the narrow `model-manager` sidecar (the only Docker-socket holder; single validated swap operation; internal network; removable), with a live status panel polling until the selection is active. The API container remains socket-free; apply is owner-gated.
 
+- M24 live-data chat tools: implemented (backed by ADR 0014). The advisor can fetch live public facts as grounded M16 tools — `get_exchange_rate` (keyless provider, on by default; only two ISO codes leave the box) and `web_search` via a self-hosted SearXNG (`--profile search`, registered only when `FAMILY_CFO_SEARXNG_URL` is set). Failures return structured `lookup_failed` payloads; fetched numbers are grounded via the existing tool-trace mechanism.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

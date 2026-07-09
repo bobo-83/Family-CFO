@@ -159,6 +159,7 @@ def _try_agentic_answer(
     message: str,
     *,
     image_description: str | None = None,
+    settings: Settings | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -170,8 +171,8 @@ def _try_agentic_answer(
     if runtime is None:
         return None
 
-    tools = ai_tools.build_tools()
-    executor = ai_tools.build_executor(engine, household.id, household.base_currency)
+    tools = ai_tools.build_tools(settings)
+    executor = ai_tools.build_executor(engine, household.id, household.base_currency, settings)
     # ADR 0011: the photo enters the loop as its text description only; the
     # description's numbers are grounded below since they trace to the image.
     user_content = message
@@ -194,6 +195,10 @@ def _try_agentic_answer(
         return None
 
     known_values = ai_tools.grounded_values(result)
+    # The user's own figures are legitimate to echo back ("your $2,000") — they
+    # are context, not fabrication. Derived arithmetic must still come from a
+    # tool: a model-computed product is in neither set and fails closed.
+    known_values |= extract_numbers(message)
     if image_description:
         known_values |= extract_numbers(image_description)
     guardrail = validate_recommendation(result.answer, known_values)
@@ -256,6 +261,7 @@ async def create_chat_message(
         household,
         payload.message,
         image_description=analysis.description if analysis else None,
+        settings=settings,
     ) or _deterministic_answer(engine, household)
 
     if analysis and analysis.warning:

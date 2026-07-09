@@ -164,3 +164,20 @@ Both runtimes share the GPU via `VLLM_GPU_FRACTION` (0.60) and
 `VLLM_VISION_GPU_FRACTION` (0.20). To run without vision:
 `FAMILY_CFO_AI_VISION_ENABLED=false` and `docker compose up -d --scale vllm-vision=0`
 — attached photos then get a clear "could not be analyzed" warning.
+
+
+## Live data (exchange rates & prices)
+
+The advisor can fetch live public facts as tools (ADR 0014): currency
+conversion via `get_exchange_rate` (on by default; only the two currency codes
+leave the box) and web/price lookups via `web_search` when you run the
+self-hosted search profile:
+
+```bash
+docker compose --profile search up -d          # SearXNG metasearch
+# .env: FAMILY_CFO_SEARXNG_URL=http://searxng:8080
+```
+
+Ask things like "how much is $2,000 in VND right now?" — the fetched rate
+arrives as a tool result, so the grounding guardrail accepts it; the model
+still cannot invent numbers of its own.
