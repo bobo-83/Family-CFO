@@ -16,6 +16,7 @@ export class Shell {
 
   protected readonly navItems = [
     { path: '/overview', label: 'Overview' },
+    { path: '/chat', label: 'Ask the Advisor' },
     { path: '/accounts', label: 'Accounts' },
     { path: '/goals', label: 'Goals' },
     { path: '/reports', label: 'Reports' },

@@ -1,14 +1,20 @@
+import logging
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
+from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
-from family_cfo_api.schemas import AiRuntimeConfig, ErrorResponse
+from family_cfo_api.schemas import AiRuntimeConfig, AiRuntimeStatus, ErrorResponse
 
 router = APIRouter(tags=["AI Runtime"])
+logger = logging.getLogger(__name__)
+
+_PROBE_TIMEOUT_SECONDS = 2.0
 
 
 def _validate_base_url(base_url: str, settings: Settings) -> None:
@@ -69,6 +75,62 @@ async def get_ai_runtime_config(
 ) -> AiRuntimeConfig:
     record = repository.get_ai_runtime_config(engine, session.household_id)
     return _to_schema(record) if record is not None else _default_config(settings)
+
+
+def _probe_served_model(base_url: str) -> tuple[bool, str | None]:
+    """Ask the runtime for its loaded model; (ready, served_model_id) with a short timeout."""
+    try:
+        response = httpx.get(f"{base_url.rstrip('/')}/v1/models", timeout=_PROBE_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        data = response.json().get("data") or []
+        if data:
+            return True, data[0].get("id")
+        return False, None
+    except (httpx.HTTPError, ValueError, KeyError):
+        return False, None
+
+
+@router.get(
+    "/ai/runtime/status",
+    operation_id="getAiRuntimeStatus",
+    response_model=AiRuntimeStatus,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Report whether the AI runtime is loaded and which model is serving",
+)
+async def get_ai_runtime_status(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> AiRuntimeStatus:
+    config = resolve_ai_config(engine, session.household_id, settings)
+    if not config.is_usable:
+        return AiRuntimeStatus(
+            enabled=config.enabled,
+            provider=config.provider,
+            model=config.model,
+            ready=False,
+            served_model=None,
+            detail=(
+                "AI runtime is disabled; the advisor answers from deterministic calculations."
+                if not config.enabled
+                else "AI runtime is enabled but not fully configured."
+            ),
+        )
+
+    ready, served_model = _probe_served_model(config.base_url)
+    detail = (
+        f"AI model '{served_model or config.model}' is loaded and answering."
+        if ready
+        else "AI model is starting up (still loading); answers are deterministic until it is ready."
+    )
+    return AiRuntimeStatus(
+        enabled=True,
+        provider=config.provider,
+        model=config.model,
+        ready=ready,
+        served_model=served_model,
+        detail=detail,
+    )
 
 
 @router.put(

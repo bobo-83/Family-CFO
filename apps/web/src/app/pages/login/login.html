@@ -2,8 +2,8 @@
   <div class="login__card">
     <h1>Family CFO</h1>
     <p class="login__subtitle">
-      Sign in to your self-hosted household instance. There is no public sign-up — accounts are
-      created by the household owner.
+      Sign in to your self-hosted household instance, or
+      <a routerLink="/signup">create a new household</a> if this is a fresh setup.
     </p>
 
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>

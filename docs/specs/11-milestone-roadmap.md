@@ -1158,3 +1158,34 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - New ADR 0010; update root `README.md` (system requirements + deploy how-to), deployment + AI-advisor guides, `.env.example`, `docker/README.md`, `web-nginx.conf`; acceptance state.
+
+## M19: Dashboard AI Chat & Self Sign-up
+
+- Surface the existing agentic advisor in the dashboard as a conversational **AI Chat** page ("can I afford this?").
+- Add a self-service **sign-up / onboarding** page so a new owner can create their household from the login screen.
+
+> Context: the backend has had the chat/advisor (`POST /chat/messages`, M16) and the first-run household bootstrap (`POST /households`, M9) for a while, and the generated web client already exposes them — but no Angular page called them. This closes that UI gap. Web-only; no API or contract changes.
+
+### Scope
+
+- **AI Chat page** (`/chat`, authed): send a message via `createChatMessage`, render the returned `Recommendation` (answer + assumptions, impacts, tradeoffs, alternatives, confidence, calculation_refs, warnings); keep the thread going with the returned `conversation_id`; a conversation-history list (`listConversations` / `getConversation`, M10) with "New conversation". A nav link is added to the shell. Open-ended affordability questions ("can I afford this $1,000 phone?") go through this page; when no model is loaded the API's deterministic snapshot answers (unchanged behaviour).
+- **AI status banner** (chat page): a new additive `GET /ai/runtime/status` endpoint (operationId `getAiRuntimeStatus`) probes the household's runtime and returns `{enabled, provider, model, ready, served_model, detail}`; the banner shows whether the model is loaded/active and which model is serving. Contract + schema updated and the client regenerated.
+- **Confidence indicator** (chat page): each assistant answer surfaces the `Recommendation.confidence` (already returned by the API) as a High/Medium/Low + percentage chip.
+- **Sign-up page** (`/signup`, public): a form (household display name, base currency, owner name/email/password) that calls `createHousehold`, stores the returned session like login, and enters the app; a link to/from the login page. (Also fixes the shared contract, which was missing the `POST /households` request body.)
+
+### Non-Goals
+
+- No new/changed API endpoints, OpenAPI contract, or database — pure frontend against existing generated client methods.
+- No streaming/token-by-token chat UI (request/response per message is enough; the local model isn't streamed today).
+- No public multi-tenant registration policy — `POST /households` remains a self-hosted first-run bootstrap; exposing it in the UI doesn't change that a self-hosted instance is single-family.
+- iOS/SwiftUI unchanged (built from macOS; out of scope here).
+
+### Test Expectations
+
+- Sign-up: invalid form doesn't submit; a successful `createHousehold` stores auth and navigates; a failure surfaces the error.
+- Chat: sending calls `createChatMessage` with the message (and the current `conversation_id` on follow-ups), appends the user turn and the assistant answer, and renders recommendation details; an API error is surfaced; "New conversation" clears the thread.
+- Vitest component tests mock `ApiService`/`AuthService` per the existing pattern; `npm run lint` and `npm test` pass.
+
+### Documentation Impact
+
+- Update `apps/web/README.md` (new pages) and the login-page copy (which currently says "there is no public sign-up"). Reference from `docs/specs/README.md` Acceptance State.

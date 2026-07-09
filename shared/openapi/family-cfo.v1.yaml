@@ -178,6 +178,12 @@ paths:
         - Household
       operationId: createHousehold
       summary: Bootstrap a household with its first owner (self-hosted first-run setup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseholdCreateRequest"
       responses:
         "201":
           description: Household created; returns an authenticated session for the new owner
@@ -1296,6 +1302,23 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+  /ai/runtime/status:
+    get:
+      tags:
+        - AI Runtime
+      operationId: getAiRuntimeStatus
+      summary: Report whether the AI runtime is loaded and which model is serving
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: AI runtime status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiRuntimeStatus"
+        "401":
           $ref: "#/components/responses/Error"
 components:
   securitySchemes:
@@ -2478,3 +2501,25 @@ components:
         enabled:
           type: boolean
           default: true
+    AiRuntimeStatus:
+      type: object
+      required:
+        - enabled
+        - provider
+        - model
+        - ready
+        - detail
+      properties:
+        enabled:
+          type: boolean
+        provider:
+          type: string
+        model:
+          type: string
+        ready:
+          type: boolean
+        served_model:
+          type: string
+          nullable: true
+        detail:
+          type: string

@@ -579,6 +579,22 @@ Rules:
 - [x] Run verification commands.
 - [ ] Commit M18 changes.
 
+## M19: Dashboard AI Chat & Self Sign-up
+
+### Spec Gate
+
+- [x] Define M19 scope, non-goals, and test expectations. (See `docs/specs/11-milestone-roadmap.md`.)
+
+### Implementation
+
+- [x] Add `GET /ai/runtime/status` (`getAiRuntimeStatus`) probing the runtime; add `AiRuntimeStatus` schema; update shared contract (+ fix the missing `POST /households` request body); regenerate client. Backend tests.
+- [x] Extend `ApiService` with `createHousehold`, `createChatMessage`, `listConversations`, `getConversation`, `getAiRuntimeStatus`; add `AuthService.signup`.
+- [x] Sign-up page (`/signup`, public) + link from login; update login copy.
+- [x] AI Chat page (`/chat`, authed): send message, render recommendation, conversation history, new-conversation; AI status banner; confidence chip; shell nav link.
+- [x] Vitest component tests for both pages; `ng test` (47) + production build type-check pass.
+- [x] Update `apps/web/README.md` and acceptance state.
+- [ ] Commit M19 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
