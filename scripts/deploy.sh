@@ -35,6 +35,17 @@ log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# The address other machines on the network use to reach this host — the source
+# IP of the default route, falling back to the first `hostname -I` address.
+# Published Docker ports bind 0.0.0.0, so the stack is reachable here, not just
+# on localhost.
+detect_host_ip() {
+  local ip
+  ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+  [ -z "$ip" ] && ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  echo "${ip:-localhost}"
+}
+
 ask() { # ask VAR "prompt" "default"
   local __var="$1" __prompt="$2" __default="${3:-}" __reply
   if [[ -n "${!__var:-}" ]]; then return; fi
@@ -107,9 +118,11 @@ if [[ "$TARGET" == "local" ]]; then
   docker compose $COMPOSE_FILES up -d $BUILD_FLAG
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
+  host_ip="$(detect_host_ip)"
   log "Stack is up."
   echo
-  echo "  Dashboard:  https://localhost:${web_tls_port}"
+  echo "  Dashboard:  https://${host_ip}:${web_tls_port}      (reachable from other machines on the network)"
+  echo "              https://localhost:${web_tls_port}     (on this machine)"
   echo "  (self-signed cert — accept the browser warning; see docs/guides/security.md)"
   echo "  Health:     scripts/doctor.sh"
   echo "  Logs:       docker compose $COMPOSE_FILES logs -f"
