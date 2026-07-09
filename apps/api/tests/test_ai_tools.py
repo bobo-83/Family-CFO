@@ -85,3 +85,41 @@ def test_unknown_tool_is_reported(demo_engine: Engine) -> None:
     result = _execute(demo_engine, "delete_everything", {})
 
     assert result["error"] == "unknown_tool"
+
+
+def test_system_prompt_layers_persona_over_invariant_grounding_rules() -> None:
+    from family_cfo_api.config import Settings
+
+    playful = ai_tools.build_system_prompt(Settings(ai_tone="playful"))
+    professional = ai_tools.build_system_prompt(Settings(ai_tone="professional"))
+
+    # Persona differs...
+    assert "cheeky" in playful and "cheeky" not in professional
+    assert "no emoji" in professional
+    # ...but the grounding rules are identical and complete in both tones.
+    for prompt in (playful, professional):
+        assert "ONLY the provided tools" in prompt
+        assert "missing_input" in prompt
+        assert "never include names, account details" in prompt
+    # Unknown tone falls back to playful, never to an empty persona.
+    assert "cheeky" in ai_tools.build_system_prompt(Settings(ai_tone="klingon"))
+
+
+def test_grounded_values_include_rounded_variants() -> None:
+    """A model saying "9.6 months" for a tool's 9.6470588 is honest rounding."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    result = ToolCallingResult(
+        answer="x",
+        completed=True,
+        tool_calls=[
+            ToolCallRecord(
+                name="get_emergency_fund",
+                arguments={},
+                result={"outputs": {"emergency_fund_months": 9.6470588}},
+            )
+        ],
+    )
+    values = ai_tools.grounded_values(result)
+    assert {"9.6470588", "9.6", "9.65", "10"} <= values

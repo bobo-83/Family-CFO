@@ -204,7 +204,7 @@ def _try_agentic_answer(
         for role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]
     ]
     messages = [
-        RuntimeMessage(role="system", content=ai_tools.TOOL_SYSTEM_PROMPT),
+        RuntimeMessage(role="system", content=ai_tools.build_system_prompt(settings)),
         *history_messages,
         RuntimeMessage(role="user", content=user_content),
     ]
