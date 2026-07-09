@@ -22,6 +22,7 @@ export class Shell {
     { path: '/chat', label: 'Ask the Advisor' },
     { path: '/accounts', label: 'Accounts' },
     { path: '/goals', label: 'Goals' },
+    { path: '/bills', label: 'Bills' },
     { path: '/reports', label: 'Reports' },
     { path: '/transactions', label: 'Transactions' },
     { path: '/imports', label: 'Imports' },

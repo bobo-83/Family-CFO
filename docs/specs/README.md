@@ -91,6 +91,8 @@ documented in `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md)
 
 - M36 emergency fund designation: implemented. Accounts can reserve either a percent of their balance or a fixed amount for emergencies (mutually exclusive, migration `0034`); the reservation is derived at read time and capped at the balance. The net-worth tool reports `emergency_fund_reserved` and the grounding rules subtract it from spendable liquid funds; emergency-fund coverage measures the designated fund when one exists. Accounts page: per-row designation editor, page-level reserved total, and per-category balance rollups.
 
+- M37 Bills page: implemented. The `bills` API and its `ApiService` wrapper have existed since M9, but no page or nav entry was ever built — the M11 page sweep covered every other placeholder shell except this one. Practical impact: with no way to enter recurring expenses, the Overview page's emergency-fund coverage always read "Not enough data" (`emergency_fund_months` needs a monthly-bills denominator). New `/bills` page (list, create, delete; role-gated) closes the gap; no API or contract changes were needed.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:
