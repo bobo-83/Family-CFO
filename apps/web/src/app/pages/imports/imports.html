@@ -85,13 +85,15 @@
   <h2>Linked institutions</h2>
   <p class="page-empty">
     Pull statements automatically via <a href="https://beta-bridge.simplefin.org" target="_blank" rel="noopener">SimpleFIN</a>:
-    connect your bank there, then paste the one-time setup token below. Your bank credentials never
-    touch this server, and re-syncing never duplicates transactions.
+    connect your banks there, then paste the one-time setup token below.
+    <strong>One token covers every institution in your SimpleFIN account</strong> — banks you add
+    there later appear automatically on the next sync. Your bank credentials never touch this
+    server, and re-syncing never duplicates transactions.
   </p>
 
   @if (canReview()) {
     <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
-      <input type="text" formControlName="displayName" placeholder="Institution name (e.g. Chase)" />
+      <input type="text" formControlName="displayName" placeholder="Connection name (e.g. SimpleFIN — all banks)" />
       <input type="text" formControlName="setupToken" placeholder="SimpleFIN setup token" />
       <button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
     </form>
