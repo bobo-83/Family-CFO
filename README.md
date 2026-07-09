@@ -153,6 +153,7 @@ plus headroom for the KV cache. Model weights are downloaded once into the
 | Qwen2.5-7B-Instruct | `hermes` | ~16 GB | ~6 GB | ~15 GB | fast; good for smoke tests |
 | Qwen2.5-14B-Instruct | `hermes` | ~30 GB | ~10 GB | ~28 GB | balanced |
 | **Qwen2.5-32B-Instruct** (default) | `hermes` | ~65 GB | ~20 GB | ~62 GB | strong reasoning + tool use, ungated |
+| Qwen2.5-32B-Instruct-AWQ | `hermes` | — | ~22 GB | ~19 GB | 4-bit; ~3–4× faster on bandwidth-limited hardware |
 | Qwen2.5-72B-Instruct | `hermes` | ~145 GB | ~40 GB | ~140 GB | best; usually run 4-bit |
 | Llama-3.3-70B-Instruct | `llama3_json` | ~140 GB | ~40 GB | ~132 GB | gated (needs `HUGGING_FACE_HUB_TOKEN`) |
 | Qwen2.5-VL-7B-Instruct (vision describer) | n/a | ~16 GB | ~6 GB | ~16 GB | describes chat photo attachments (ADR 0011); runs alongside the main model |
@@ -161,6 +162,15 @@ VRAM figures are approximate and depend on context length / KV-cache settings;
 size storage for **at least 1.5×** the weight size to allow for the download plus
 extraction. Set the model with `VLLM_MODEL` and its parser with
 `VLLM_TOOL_PARSER` in `.env` (defaults to Qwen2.5-32B-Instruct / `hermes`).
+
+**Performance note (unified-memory systems like DGX Spark / GB10):** decode
+speed is memory-bandwidth-bound — every generated token reads all the weights.
+Measured on a GB10: 32B bf16 ran at ~3.2 tokens/s; the 4-bit
+**Qwen2.5-32B-Instruct-AWQ** measured ~7.9 tokens/s (~2.5× faster; simple
+questions ~6s end-to-end) with minimal quality loss — the recommended pick on
+such hardware (Runtime page picker, or
+`scripts/swap-model.sh Qwen/Qwen2.5-32B-Instruct-AWQ`). Want near-instant?
+Qwen2.5-14B-Instruct-AWQ trades some reasoning depth for ~3× more speed.
 
 Chat photo attachments run a second small **vision describer** (`vllm-vision`)
 next to the main model; both share the GPU via `VLLM_GPU_FRACTION` (0.60) and
