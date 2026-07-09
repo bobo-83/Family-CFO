@@ -74,6 +74,10 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M28 live price search on by default: implemented (amends ADR 0014). The bundled SearXNG now ships un-profiled with a JSON-enabled config and per-deploy secret, and `FAMILY_CFO_SEARXNG_URL` defaults to it — so price/web lookups work out of the box alongside exchange rates; opt-out documented. Also fixed nginx's 60s proxy timeout cutting off long agentic requests (now 300s). Verified with a real web-searched price question through the live model.
 
+- M29 inference performance: implemented. Diagnosed slow responses (GPU active; memory-bandwidth-bound at 3.2 tok/s for 32B bf16 on unified memory) and moved the recommendation to AWQ 4-bit — measured 7.9 tok/s (~2.5×) live; AWQ options added to the curated catalog.
+
+- M30 conversational memory: implemented. The agentic loop now receives the active conversation's prior turns (bounded window; history numbers grounded), fixing follow-ups that previously lost all context.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

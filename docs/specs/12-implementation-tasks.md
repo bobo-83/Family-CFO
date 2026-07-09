@@ -704,6 +704,10 @@ Rules:
 
 - [x] Diagnosed slow responses: GPU active (verified via nvidia-smi + CUDA/FlashAttention logs); bottleneck = memory bandwidth (measured 3.2 tok/s decoding 65GB bf16 on ~273GB/s unified memory). Swapped the live main model to Qwen2.5-32B-Instruct-AWQ via swap-model.sh (M23 tooling): measured 7.9 tok/s (~2.5×; currency question 6.2s end-to-end, attribution confirming the AWQ model answered). Added 32B-AWQ + 14B-AWQ to the curated catalog with unified-memory guidance; README perf note with measured numbers.
 
+## M30: Conversational Memory
+
+- [x] Prior turns of the active conversation are sent to the model (bounded: last 8 messages, 1500 chars each) so follow-ups have context — M10 persisted the thread but the loop never saw it. History numbers join the grounded set (they passed the guardrail when produced). Tests: history included between system and current message; earlier grounded figures can be echoed without tripping the guardrail. Verified live with the exact reported failure ("Mac mini at Best Buy" → "How about at Apple.com?" now answers in context).
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

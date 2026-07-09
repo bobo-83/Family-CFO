@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 _TITLE_MAX_LENGTH = 80
 
+# Conversational memory (M30): how much of the stored thread the model sees.
+_HISTORY_MAX_MESSAGES = 8
+_HISTORY_MESSAGE_MAX_CHARS = 1500
+
 _NO_VISION_WARNING = (
     "An attached photo could not be analyzed because no vision-capable AI model "
     "is configured; the answer does not consider the image."
@@ -174,6 +178,7 @@ def _try_agentic_answer(
     *,
     image_description: str | None = None,
     settings: Settings | None = None,
+    history: list[tuple[str, str]] | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -192,8 +197,15 @@ def _try_agentic_answer(
     user_content = message
     if image_description:
         user_content = f"{message}\n\n[Attached photo, as described by the vision model: {image_description}]"
+    # M30: prior turns from this conversation give the model memory. Bounded
+    # to the most recent messages, each truncated, to protect the context.
+    history_messages = [
+        RuntimeMessage(role=role, content=content[:_HISTORY_MESSAGE_MAX_CHARS])
+        for role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]
+    ]
     messages = [
         RuntimeMessage(role="system", content=ai_tools.TOOL_SYSTEM_PROMPT),
+        *history_messages,
         RuntimeMessage(role="user", content=user_content),
     ]
     try:
@@ -213,6 +225,10 @@ def _try_agentic_answer(
     # are context, not fabrication. Derived arithmetic must still come from a
     # tool: a model-computed product is in neither set and fails closed.
     known_values |= extract_numbers(message)
+    # Numbers in the included history are grounded too: prior assistant answers
+    # passed the guardrail when they were produced (M30).
+    for _role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]:
+        known_values |= extract_numbers(content)
     if image_description:
         known_values |= extract_numbers(image_description)
     guardrail = validate_recommendation(result.answer, known_values)
@@ -264,6 +280,18 @@ async def create_chat_message(
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
 
+    # M30: resolve the conversation up front so its prior turns become model
+    # memory (an unknown id still starts a fresh thread, as in M10).
+    conversation = None
+    history: list[tuple[str, str]] = []
+    if payload.conversation_id is not None:
+        conversation = repository.get_conversation(engine, household.id, payload.conversation_id)
+        if conversation is not None:
+            history = [
+                (m.role, m.content)
+                for m in repository.list_conversation_messages(engine, conversation.id)
+            ]
+
     # ADR 0011: an attached photo is described (never stored) before the loop.
     analysis = None
     image_data_url = _validate_image(payload, settings)
@@ -278,6 +306,7 @@ async def create_chat_message(
         payload.message,
         image_description=analysis.description if analysis else None,
         settings=settings,
+        history=history,
     ) or _deterministic_answer(engine, household)
 
     if analysis and analysis.warning:
@@ -307,9 +336,6 @@ async def create_chat_message(
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new
     # conversation titled from the first message; an existing one is appended to.
-    conversation = None
-    if payload.conversation_id is not None:
-        conversation = repository.get_conversation(engine, household.id, payload.conversation_id)
     if conversation is None:
         title = payload.message.strip()[:_TITLE_MAX_LENGTH] or "Conversation"
         conversation = repository.create_conversation(
