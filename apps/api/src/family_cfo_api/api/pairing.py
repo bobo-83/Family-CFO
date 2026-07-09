@@ -59,7 +59,9 @@ async def create_pairing_session(
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
 
-    pairing_session_id = repository.new_id()
+    # CSPRNG token, not a uuid4: this id is the QR-borne bearer secret for
+    # unauthenticated /pairing/confirm (ADR 0010).
+    pairing_session_id = security.generate_pairing_secret()
     expires_at = repository.utcnow() + PAIRING_SESSION_TTL
     qr_payload = json.dumps(
         {

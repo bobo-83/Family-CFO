@@ -11,6 +11,7 @@ from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
+from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
 
@@ -30,15 +31,23 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
+    # Swagger UI and the OpenAPI schema are disabled in production to avoid
+    # exposing the API surface (ADR 0010); they remain on in dev/test.
     app = FastAPI(
         title=settings.app_name,
         version=settings.version,
-        openapi_url="/api/v1/openapi.json",
-        docs_url="/api/v1/docs",
+        openapi_url="/api/v1/openapi.json" if settings.docs_enabled else None,
+        docs_url="/api/v1/docs" if settings.docs_enabled else None,
         redoc_url=None,
     )
     app.state.db_engine = engine or create_database_engine(settings.database_url)
     app.state.settings = settings
+    app.state.auth_rate_limiter = AuthRateLimiter(
+        max_attempts=settings.auth_rate_limit_max_attempts,
+        window_seconds=settings.auth_rate_limit_window_seconds,
+        lockout_seconds=settings.auth_rate_limit_lockout_seconds,
+        enabled=settings.auth_rate_limit_enabled,
+    )
     app.include_router(api_router)
 
     @app.exception_handler(HTTPException)
@@ -47,6 +56,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response("http_error", message),
+            # Preserve response headers set on the exception (e.g. Retry-After
+            # on a 429 from the auth rate limiter).
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)

@@ -88,9 +88,12 @@ async def create_document(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> Document:
-    content = await file.read()
+    # Bounded read: never buffer more than the cap + 1 byte to detect overflow.
+    content = await file.read(settings.max_upload_bytes + 1)
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds the maximum allowed size")
 
     content_type = file.content_type or "application/octet-stream"
     extraction_type, result = _extract(content, content_type)

@@ -1113,3 +1113,48 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - Update `docs/specs/10-docker-spec.md` (AI on by default; vLLM not profiled), `.env.example`, `docker/README.md`, and the deployment + AI-advisor guides. Reference this milestone from `docs/specs/README.md` Acceptance State.
+
+## M18: Security Hardening Pass & Deployment Tooling
+
+- Close the findings from a manual security review (SSRF, auth brute-force, upload DoS, pairing-secret entropy, prod docs exposure).
+- Make a turnkey deploy observable and testable: a health "doctor" and a real build+boot e2e; publish system requirements.
+
+> Context: implements [ADR 0010](../adr/0010-security-hardening-and-deploy-tooling.md). Threat model unchanged (single-tenant, self-hosted, ADR 0006/0008) — this raises the floor for the exposed-anyway case without adding operational burden.
+
+### Scope
+
+- **SSRF fix:** allowlist the AI runtime `base_url` (`FAMILY_CFO_AI_ALLOWED_BASE_URLS`, default = the deployment `FAMILY_CFO_AI_BASE_URL`); `PUT /ai/runtime` rejects other hosts/schemes.
+- **Auth throttling:** per-IP + per-account fixed-window limiter with temporary lockout on `POST /auth/sessions` (in-memory, single-instance; configurable, on by default).
+- **Upload cap:** enforce a max upload size in the imports/documents handlers and set `client_max_body_size` in nginx.
+- **Pairing secret:** generate the pairing session id with a CSPRNG token, not `uuid4`.
+- **Prod docs:** disable Swagger UI and `openapi.json` when `FAMILY_CFO_ENV=production`.
+- **`scripts/doctor.sh`:** read-only health report (Docker, containers, API `/health`, web, DB, vLLM `/v1/models`, disk, GPU) with clear pass/fail.
+- **`scripts/e2e-deploy-test.sh`:** real image build + core-stack boot (no vLLM) + login + chat smoke test + teardown.
+- **System requirements:** per-model RAM/VRAM and storage (minimum vs recommended) tables in the root README + deployment guide; deploy-script preflight.
+
+### Non-Goals
+
+- No distributed/shared-store rate limiting (single `api` instance; revisit if multi-instance is ever a goal).
+- No IP-range SSRF denylisting (allowlist chosen instead — see ADR 0010).
+- The e2e test does **not** boot vLLM (multi-GB model + GPU); the AI path stays covered by M16 stubbed-runtime tests and by `doctor.sh` at runtime.
+
+### Data Model Changes
+
+- None. All new controls are settings/middleware; no schema or migration.
+
+### Security Impact
+
+- Removes the owner-triggered SSRF/exfiltration vector; blunts online password guessing; caps upload memory use; strengthens the pairing bearer secret; stops schema disclosure in production. Documented residual: in-memory limiter resets on restart / single-instance only.
+
+### Test Expectations
+
+- SSRF: `PUT /ai/runtime` accepts an allowlisted base_url and 4xx-rejects a non-allowlisted one.
+- Rate limit: repeated bad logins get locked out; a good login within limits still succeeds; lockout is per-account/IP.
+- Upload cap: an over-limit upload is rejected (413/400); an at-limit upload succeeds.
+- Pairing: the generated session id is high-entropy; confirm/expiry/single-use paths unchanged.
+- Docs gating: `/api/v1/docs` returns 404 under `FAMILY_CFO_ENV=production`, served otherwise.
+- Scripts: `bash -n` (and shellcheck where available) for `doctor.sh`/`e2e-deploy-test.sh`; the e2e run is executed for real against the core stack as part of verification.
+
+### Documentation Impact
+
+- New ADR 0010; update root `README.md` (system requirements + deploy how-to), deployment + AI-advisor guides, `.env.example`, `docker/README.md`, `web-nginx.conf`; acceptance state.

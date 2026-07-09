@@ -124,6 +124,10 @@ rollback path is `docker compose run --rm api python -m alembic -c alembic.ini d
 
 ## Operating the stack
 
+- Health: `scripts/doctor.sh` — a read-only report on containers, the API/DB/
+  web/vLLM endpoints, disk, and GPU. Run it any time to answer "is it working?".
+- Smoke test a build: `scripts/e2e-deploy-test.sh` — builds images and boots an
+  isolated core stack (no vLLM), logs in, exercises chat, and tears down.
 - Logs: `docker compose logs -f api` (or `worker`, `web`, `db`).
 - Stop: `docker compose down` (keeps data) / `docker compose down -v` (**deletes
   all data volumes** — only for a full reset).

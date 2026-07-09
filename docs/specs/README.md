@@ -52,6 +52,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M17 turnkey deployment (AI on by default): implemented. Makes the **local** vLLM runtime on by default (via `FAMILY_CFO_AI_*` deployment settings a household inherits until it saves its own config; code default stays off for tests/non-Docker) and removes the `ai` Compose profile so `docker compose up -d` starts the whole stack. Adds `scripts/deploy.sh` for a one-command local/remote (SSH) full-stack deploy. Does not change ADR 0008's external/cloud-AI opt-in stance — only the on-box local model is defaulted on.
 
+- M18 security hardening pass & deployment tooling: implemented (backed by ADR 0010). Closes a manual-review's findings — SSRF allowlist for the AI runtime `base_url`, in-memory brute-force limiter on login, upload size caps (API + nginx), a CSPRNG pairing secret, and production docs gating — and adds `scripts/doctor.sh` (health report) and `scripts/e2e-deploy-test.sh` (real build + core-stack boot + login + chat smoke). All controls have safe defaults; threat model unchanged.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

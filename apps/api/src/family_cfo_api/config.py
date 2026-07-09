@@ -18,6 +18,13 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_csv(name: str) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if not value:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Family CFO API"
@@ -40,6 +47,25 @@ class Settings:
     ai_default_provider: str = "vllm"
     ai_default_base_url: str = "http://vllm:8000"
     ai_default_model: str = ""
+    # SSRF guard: base_urls a household may point its AI runtime at. Empty means
+    # "just the deployment default" (ai_default_base_url) — see ADR 0010.
+    ai_allowed_base_urls: tuple[str, ...] = ()
+    # Brute-force guard on POST /auth/sessions (in-memory, single-instance).
+    auth_rate_limit_enabled: bool = True
+    auth_rate_limit_max_attempts: int = 5
+    auth_rate_limit_window_seconds: int = 300
+    auth_rate_limit_lockout_seconds: int = 900
+    # Max accepted upload size (bytes) for imports/documents.
+    max_upload_bytes: int = 10_000_000
+
+    def allowed_ai_base_urls(self) -> tuple[str, ...]:
+        """The effective AI base_url allowlist: configured set, else the default."""
+        return self.ai_allowed_base_urls or (self.ai_default_base_url,)
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Serve Swagger/openapi.json everywhere except production."""
+        return self.environment.strip().lower() != "production"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -68,6 +94,26 @@ class Settings:
             ai_default_provider=os.getenv("FAMILY_CFO_AI_PROVIDER", cls.ai_default_provider),
             ai_default_base_url=os.getenv("FAMILY_CFO_AI_BASE_URL", cls.ai_default_base_url),
             ai_default_model=os.getenv("FAMILY_CFO_AI_MODEL", cls.ai_default_model),
+            ai_allowed_base_urls=_env_csv("FAMILY_CFO_AI_ALLOWED_BASE_URLS"),
+            auth_rate_limit_enabled=_env_bool(
+                "FAMILY_CFO_AUTH_RATE_LIMIT_ENABLED", cls.auth_rate_limit_enabled
+            ),
+            auth_rate_limit_max_attempts=int(
+                os.getenv("FAMILY_CFO_AUTH_RATE_LIMIT_MAX_ATTEMPTS", str(cls.auth_rate_limit_max_attempts))
+            ),
+            auth_rate_limit_window_seconds=int(
+                os.getenv(
+                    "FAMILY_CFO_AUTH_RATE_LIMIT_WINDOW_SECONDS",
+                    str(cls.auth_rate_limit_window_seconds),
+                )
+            ),
+            auth_rate_limit_lockout_seconds=int(
+                os.getenv(
+                    "FAMILY_CFO_AUTH_RATE_LIMIT_LOCKOUT_SECONDS",
+                    str(cls.auth_rate_limit_lockout_seconds),
+                )
+            ),
+            max_upload_bytes=int(os.getenv("FAMILY_CFO_MAX_UPLOAD_BYTES", str(cls.max_upload_bytes))),
         )
 
 

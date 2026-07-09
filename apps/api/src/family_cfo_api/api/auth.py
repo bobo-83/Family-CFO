@@ -1,11 +1,19 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository, security
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_bearer_token, get_current_session, get_engine
+from family_cfo_api.deps import (
+    client_ip,
+    get_app_settings,
+    get_bearer_token,
+    get_current_session,
+    get_engine,
+    get_rate_limiter,
+)
+from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import AuthSession, AuthSessionCreateRequest, ErrorResponse
 
 router = APIRouter(tags=["Authentication"])
@@ -38,17 +46,33 @@ def _issue_session(
 )
 async def create_auth_session(
     payload: AuthSessionCreateRequest,
+    request: Request,
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
 ) -> AuthSession:
+    # Brute-force guard: throttle by client IP and by target account (ADR 0010).
+    limit_keys = [f"ip:{client_ip(request)}", f"email:{payload.email.lower()}"]
+    retry_after = rate_limiter.retry_after(limit_keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user = repository.get_user_by_email(engine, payload.email)
     if user is None or not security.verify_password(payload.password, user.password_hash):
+        rate_limiter.record_failure(limit_keys)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     household_id = repository.get_primary_household_id(engine, user.id)
     role = household_id and repository.get_membership_role(engine, household_id, user.id)
     if household_id is None or role is None:
+        rate_limiter.record_failure(limit_keys)
         raise HTTPException(status_code=401, detail="User has no household membership")
+
+    rate_limiter.reset(limit_keys)
 
     return _issue_session(engine, user.id, household_id, role, settings.session_ttl_hours)
 

@@ -79,16 +79,76 @@ docs/                  Product, architecture, security, and workflow specs
 - Storage: PostgreSQL.
 - Deployment: Docker Compose.
 
-## Running with Docker
+## Deploying
 
-The whole stack runs on a home server with Docker Compose:
+The whole stack — the Angular dashboard (served over HTTPS by nginx), the API,
+the background worker, PostgreSQL, and the local vLLM AI runtime — runs with
+Docker Compose on a machine you control.
+
+### One-command deploy (local or remote)
 
 ```bash
-cp .env.example .env      # then edit .env — at minimum set POSTGRES_PASSWORD
+scripts/deploy.sh          # interactive: choose local or remote (SSH), then it does the rest
+```
+
+For a remote host it prompts for SSH host/user/port/key, verifies Docker (and the
+NVIDIA Container Toolkit), copies the project, generates a `.env` with random
+secrets on first run, builds, and starts the stack — then prints the dashboard
+URL. See the [Deployment guide](./docs/guides/deployment.md).
+
+### Manual
+
+```bash
+cp .env.example .env       # then edit — at minimum set POSTGRES_PASSWORD
 docker compose up -d
 ```
 
-The dashboard is then at `http://localhost:8080`. The core stack is PostgreSQL, the API, the background worker, and the nginx-served dashboard; the API runs database migrations on startup. The optional local LLM (vLLM) and vector store (Qdrant) are behind Compose profiles and off by default. See [docker/README.md](./docker/README.md) for profiles, the development override, volumes, and secrets.
+The dashboard is then at `https://localhost:8443` (self-signed cert by default —
+accept the browser warning). The API applies database migrations on startup.
+The local vLLM AI runtime is **on by default** and assumes a GPU-capable host;
+to run without it, set `FAMILY_CFO_AI_ENABLED=false` and
+`docker compose up -d --scale vllm=0`.
+
+### Verify and test
+
+```bash
+scripts/doctor.sh          # read-only health report: containers, endpoints, disk, GPU
+scripts/e2e-deploy-test.sh # real build + core-stack boot + login + chat smoke test
+```
+
+See [docker/README.md](./docker/README.md) for the development override, volumes,
+and secrets, and the [AI Advisor guide](./docs/guides/ai-advisor.md) for testing
+the model end-to-end.
+
+## System Requirements
+
+Base stack (PostgreSQL + API + worker + nginx dashboard), **AI disabled**:
+
+| Resource | Minimum | Recommended |
+| --- | --- | --- |
+| CPU | 2 cores | 4+ cores |
+| RAM | 2 GB | 4 GB |
+| Disk | 5 GB | 10 GB+ (grows with statements/backups) |
+| GPU | none | none |
+
+With the **local AI runtime (vLLM) on** you also need a CUDA GPU and the NVIDIA
+Container Toolkit. Requirements are dominated by the model you choose — roughly
+~2× the parameter count in GB of VRAM for `bf16`, or ~0.6× for a 4-bit quant,
+plus headroom for the KV cache. Model weights are downloaded once into the
+`model_cache` volume.
+
+| Model | Tool parser | VRAM (bf16) | VRAM (4-bit) | Disk (weights) | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Qwen2.5-7B-Instruct | `hermes` | ~16 GB | ~6 GB | ~15 GB | fast; good for smoke tests |
+| Qwen2.5-14B-Instruct | `hermes` | ~30 GB | ~10 GB | ~28 GB | balanced |
+| **Qwen2.5-32B-Instruct** (default) | `hermes` | ~65 GB | ~20 GB | ~62 GB | strong reasoning + tool use, ungated |
+| Qwen2.5-72B-Instruct | `hermes` | ~145 GB | ~40 GB | ~140 GB | best; usually run 4-bit |
+| Llama-3.3-70B-Instruct | `llama3_json` | ~140 GB | ~40 GB | ~132 GB | gated (needs `HUGGING_FACE_HUB_TOKEN`) |
+
+VRAM figures are approximate and depend on context length / KV-cache settings;
+size storage for **at least 1.5×** the weight size to allow for the download plus
+extraction. Set the model with `VLLM_MODEL` and its parser with
+`VLLM_TOOL_PARSER` in `.env` (defaults to Qwen2.5-32B-Instruct / `hermes`).
 
 ## Development Workflow
 

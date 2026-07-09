@@ -31,6 +31,31 @@ DENY`, `Referrer-Policy`, a `Content-Security-Policy`).
   invalidates the old one.
 - **Device revocation:** paired mobile devices can be revoked by the owner,
   which also kills that device's sessions.
+- **Brute-force limiter:** `POST /api/v1/auth/sessions` is throttled per-IP and
+  per-account with a temporary lockout (ADR 0010). It is in-memory/single-
+  instance (counters reset on restart, don't span replicas) — defense in depth,
+  not a substitute for fronting an internet-exposed deployment with an
+  authenticating proxy. Tune with `FAMILY_CFO_AUTH_RATE_LIMIT_*`.
+- **Pairing secret:** a pairing session id is a CSPRNG token (not a uuid),
+  single-use, and short-lived; it is the QR-borne bearer secret for the
+  otherwise-unauthenticated `POST /api/v1/pairing/confirm`.
+
+## AI runtime (SSRF guard)
+
+The server sends household context to the configured AI runtime, so the
+`base_url` a household may set (`PUT /api/v1/ai/runtime`) is restricted to an
+allowlist (`FAMILY_CFO_AI_ALLOWED_BASE_URLS`, default = the deployment's
+`FAMILY_CFO_AI_BASE_URL`). Pointing the model at a new URL is a deliberate
+operator edit, not something an owner session can do — this closes an SSRF /
+data-exfiltration path (ADR 0010).
+
+## Uploads and API surface
+
+- **Upload caps:** import/document uploads are bounded at both nginx
+  (`client_max_body_size`) and the API (`FAMILY_CFO_MAX_UPLOAD_BYTES`, default
+  10 MB) to prevent memory-exhaustion DoS. Raise both together if needed.
+- **Docs in production:** set `FAMILY_CFO_ENV=production` to disable the Swagger
+  UI and `openapi.json` so the API surface isn't published.
 
 ## Authorization (roles)
 

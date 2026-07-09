@@ -557,7 +557,27 @@ Rules:
 - [x] Add tests: runtime-selection default/override/unusable cases; existing chat/advisor/ai-runtime tests unchanged; `bash -n scripts/deploy.sh`.
 - [x] Update docs (`10-docker-spec.md`, `.env.example`, `docker/README.md`, deployment + AI-advisor guides, acceptance state).
 - [x] Run verification commands.
-- [ ] Commit M17 changes.
+- [x] Commit M17 changes. (`feat(m17): turnkey deployment with local AI on by default`.)
+
+## M18: Security Hardening Pass & Deployment Tooling
+
+### Spec Gate
+
+- [x] Define M18 scope, non-goals, security impact, and test expectations. (See `docs/specs/11-milestone-roadmap.md` and ADR 0010.)
+
+### Implementation
+
+- [x] SSRF: allowlist AI runtime `base_url` (`FAMILY_CFO_AI_ALLOWED_BASE_URLS`); reject others on `PUT /ai/runtime`. Tests.
+- [x] Auth throttling: per-IP + per-account limiter + lockout on `POST /auth/sessions` (`ratelimit.py`). Tests.
+- [x] Upload cap: bounded read + max bytes in imports/documents handlers + `client_max_body_size` in nginx. Tests.
+- [x] Pairing: CSPRNG pairing session id (`security.generate_pairing_secret`). Test.
+- [x] Prod docs gating: disable Swagger/openapi.json under `FAMILY_CFO_ENV=production`. Test.
+- [x] `scripts/doctor.sh` health report. `bash -n`.
+- [x] `scripts/e2e-deploy-test.sh` real build + core-stack boot + login + chat smoke + teardown; run it for real.
+- [x] System requirements (per-model RAM/VRAM + storage min/recommended) in README + deployment guide; deploy-script preflight.
+- [x] Update docs (ADR 0010, README, guides, `.env.example`, docker README, nginx, acceptance state).
+- [x] Run verification commands.
+- [ ] Commit M18 changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
 

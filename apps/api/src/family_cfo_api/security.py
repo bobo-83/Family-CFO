@@ -35,5 +35,14 @@ def generate_access_token() -> str:
     return secrets.token_urlsafe(TOKEN_BYTES)
 
 
+def generate_pairing_secret() -> str:
+    """A high-entropy id for a pairing session (used as a QR-borne bearer secret).
+
+    A pairing session id travels in the QR payload and is all `POST /pairing/
+    confirm` needs, so it must be an unguessable CSPRNG token, not a uuid4.
+    """
+    return secrets.token_urlsafe(TOKEN_BYTES)
+
+
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

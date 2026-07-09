@@ -67,6 +67,22 @@ render_env() { # render_env <dest-path>
   log "Generated a fresh .env with random POSTGRES_PASSWORD and backup key."
 }
 
+# AI runs by default and needs a GPU; warn early if the host looks unequipped.
+# See the System Requirements table in README.md for per-model RAM/disk.
+preflight_ai_advisory() {
+  local ai="${FAMILY_CFO_AI_ENABLED:-true}"
+  [ "$ai" = "false" ] && return
+  if ! command -v nvidia-smi >/dev/null 2>&1; then
+    warn "AI is on by default but no nvidia-smi was found — the vllm service needs a GPU + NVIDIA Container Toolkit."
+    warn "Run GPU-less with: FAMILY_CFO_AI_ENABLED=false docker compose up -d --scale vllm=0"
+  fi
+  local free_gb
+  free_gb="$(df -Pk . | awk 'NR==2 {print int($4/1024/1024)}')"
+  if [ "${free_gb:-0}" -lt 20 ]; then
+    warn "Only ${free_gb}GB free here — model weights are tens of GB (see README System Requirements)."
+  fi
+}
+
 # --- Target selection --------------------------------------------------------
 ask TARGET "Deploy target — 'local' or 'remote'" "local"
 [[ "$TARGET" == "local" || "$TARGET" == "remote" ]] || die "TARGET must be 'local' or 'remote'."
@@ -84,6 +100,8 @@ if [[ "$TARGET" == "local" ]]; then
     log "Using existing .env"
   fi
 
+  preflight_ai_advisory
+
   log "Building and starting the stack (this pulls the vLLM image + model on first run)…"
   # shellcheck disable=SC2086
   docker compose $COMPOSE_FILES up -d $BUILD_FLAG
@@ -93,6 +111,7 @@ if [[ "$TARGET" == "local" ]]; then
   echo
   echo "  Dashboard:  https://localhost:${web_tls_port}"
   echo "  (self-signed cert — accept the browser warning; see docs/guides/security.md)"
+  echo "  Health:     scripts/doctor.sh"
   echo "  Logs:       docker compose $COMPOSE_FILES logs -f"
   echo "  AI status:  docker compose $COMPOSE_FILES logs -f vllm   # first boot downloads the model"
   exit 0
@@ -159,6 +178,7 @@ log "Deployed."
 echo
 echo "  Dashboard:  https://${SSH_HOST}:${web_tls_port}"
 echo "  (self-signed cert — accept the browser warning; see docs/guides/security.md)"
+echo "  Health:     ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && bash scripts/doctor.sh'"
 echo "  Logs:       ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} logs -f'"
 echo "  AI status:  ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} logs -f vllm'"
 echo

@@ -17,6 +17,18 @@ async def get_app_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+async def get_rate_limiter(request: Request):
+    return request.app.state.auth_rate_limiter
+
+
+def client_ip(request: Request) -> str:
+    """The caller's IP, honouring the reverse proxy's X-Forwarded-For first hop."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 async def get_bearer_token(request: Request) -> str:
     """The raw bearer token from the Authorization header (401 if absent)."""
     authorization = request.headers.get("authorization", "")

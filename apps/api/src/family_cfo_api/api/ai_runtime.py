@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
@@ -7,6 +9,26 @@ from family_cfo_api.deps import get_app_settings, get_current_session, get_engin
 from family_cfo_api.schemas import AiRuntimeConfig, ErrorResponse
 
 router = APIRouter(tags=["AI Runtime"])
+
+
+def _validate_base_url(base_url: str, settings: Settings) -> None:
+    """Reject any base_url outside the deployment allowlist (SSRF guard, ADR 0010).
+
+    The server POSTs household financial context to this URL, so a free-form
+    value would let an owner turn the API into an SSRF/exfiltration proxy.
+    Pointing the model elsewhere is a deliberate operator act (edit
+    FAMILY_CFO_AI_ALLOWED_BASE_URLS), not something a session can do.
+    """
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"}:
+        raise HTTPException(status_code=422, detail="base_url must be an http(s) URL")
+
+    allowed = settings.allowed_ai_base_urls()
+    if base_url.rstrip("/") not in {url.rstrip("/") for url in allowed}:
+        raise HTTPException(
+            status_code=422,
+            detail="base_url is not in the allowed AI runtime list for this deployment",
+        )
 
 
 def _default_config(settings: Settings) -> AiRuntimeConfig:
@@ -63,7 +85,9 @@ async def update_ai_runtime_config(
     payload: AiRuntimeConfig,
     session: repository.SessionContext = Depends(require_role("owner")),
     engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
 ) -> AiRuntimeConfig:
+    _validate_base_url(payload.base_url, settings)
     record = repository.upsert_ai_runtime_config(
         engine,
         household_id=session.household_id,
