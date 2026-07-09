@@ -74,8 +74,9 @@ GROUNDING_RULES = (
     "For affordability questions (a house, a car, any purchase), never treat "
     "net worth as spendable: use get_net_worth's asset_breakdown — retirement "
     "and education funds are NOT available for purchases; base affordability on "
-    "liquid assets (and taxable investments only with a tax caveat), and use "
-    "project_purchase_impact for the cash-flow view. For currency "
+    "liquid assets MINUS emergency_fund_reserved (money the family earmarked "
+    "for emergencies is untouchable; taxable investments only with a tax "
+    "caveat), and use project_purchase_impact for the cash-flow view. For currency "
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
@@ -192,9 +193,14 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
     from family_cfo_api import repository
 
     totals: dict[str, int] = {}
+    emergency_reserved = 0
     for balance in repository.list_account_balances(engine, household_id):
         if balance.currency != currency:
             continue
+        # M36: user-designated emergency reservations (any account, any category).
+        emergency_reserved += repository.emergency_fund_reserved_minor(
+            balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
+        )
         if balance.balance_minor < 0 or balance.account_type not in _CATEGORY_BY_TYPE:
             continue
         category = _CATEGORY_BY_TYPE[balance.account_type]
@@ -202,11 +208,14 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
     payload["asset_breakdown"] = {
         category: _money_out(_Money(minor, currency)) for category, minor in totals.items()
     }
+    payload["emergency_fund_reserved"] = _money_out(_Money(emergency_reserved, currency))
     payload["spendability_note"] = (
         "Only 'liquid' is readily spendable. 'investments' can be sold but may "
         "trigger taxes. 'retirement' and 'education' are NOT available for "
         "purchases (early-withdrawal penalties / different purpose). 'property' "
-        "is illiquid."
+        "is illiquid. 'emergency_fund_reserved' is money the family set aside "
+        "for emergencies — subtract it from liquid funds before judging "
+        "affordability; never suggest spending it on a purchase."
     )
     return payload
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -380,6 +381,8 @@ class AccountBalanceRecord:
     balance_minor: int
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
+    emergency_fund_percent: float | None = None
+    emergency_fund_minor: int | None = None
 
 
 def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
@@ -417,6 +420,8 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.account_balances.c.balance_minor,
             models.accounts.c.annual_interest_rate,
             models.accounts.c.minimum_payment_minor,
+            models.accounts.c.emergency_fund_percent,
+            models.accounts.c.emergency_fund_minor,
         )
         .select_from(models.accounts)
         .join(latest_balance, latest_balance.c.account_id == models.accounts.c.id)
@@ -441,6 +446,8 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             balance_minor=row.balance_minor,
             annual_interest_rate=row.annual_interest_rate,
             minimum_payment_minor=row.minimum_payment_minor,
+            emergency_fund_percent=row.emergency_fund_percent,
+            emergency_fund_minor=row.emergency_fund_minor,
         )
         for row in rows
     ]
@@ -1881,6 +1888,8 @@ class AccountRecord:
     currency: str
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
+    emergency_fund_percent: float | None = None
+    emergency_fund_minor: int | None = None
 
 
 def _account_record_from_row(row: Any) -> AccountRecord:
@@ -1891,6 +1900,8 @@ def _account_record_from_row(row: Any) -> AccountRecord:
         currency=row["currency"],
         annual_interest_rate=row["annual_interest_rate"],
         minimum_payment_minor=row["minimum_payment_minor"],
+        emergency_fund_percent=row["emergency_fund_percent"],
+        emergency_fund_minor=row["emergency_fund_minor"],
     )
 
 
@@ -1901,6 +1912,26 @@ def get_account(engine: Engine, household_id: str, account_id: str) -> AccountRe
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
     return _account_record_from_row(row) if row is not None else None
+
+
+def emergency_fund_reserved_minor(
+    percent: float | None, fixed_minor: int | None, balance_minor: int
+) -> int:
+    """M36: derived emergency-fund reservation for one account.
+
+    Percent of the latest balance (round half-up) or the fixed amount — never
+    negative, never more than the balance. Zero when the account has no
+    designation or a non-positive balance.
+    """
+    available = max(balance_minor, 0)
+    if percent is not None:
+        reserved = int(
+            (Decimal(str(percent)) * available / 100).to_integral_value(rounding=ROUND_HALF_UP)
+        )
+        return min(available, max(reserved, 0))
+    if fixed_minor is not None:
+        return min(available, max(fixed_minor, 0))
+    return 0
 
 
 LIABILITY_ACCOUNT_TYPES = frozenset(
@@ -2012,6 +2043,9 @@ def update_account(
     account_type: str | None = None,
     annual_interest_rate: float | None = None,
     minimum_payment_minor: int | None = None,
+    emergency_fund_percent: float | None = None,
+    emergency_fund_minor: int | None = None,
+    clear_emergency_fund: bool = False,
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
@@ -2022,6 +2056,16 @@ def update_account(
         values["annual_interest_rate"] = annual_interest_rate
     if minimum_payment_minor is not None:
         values["minimum_payment_minor"] = minimum_payment_minor
+    # M36: setting one designation clears the other (mutually exclusive by CHECK).
+    if clear_emergency_fund:
+        values["emergency_fund_percent"] = None
+        values["emergency_fund_minor"] = None
+    elif emergency_fund_percent is not None:
+        values["emergency_fund_percent"] = emergency_fund_percent
+        values["emergency_fund_minor"] = None
+    elif emergency_fund_minor is not None:
+        values["emergency_fund_minor"] = emergency_fund_minor
+        values["emergency_fund_percent"] = None
     with engine.begin() as conn:
         result = conn.execute(
             update(models.accounts)

@@ -117,6 +117,10 @@ class Account(BaseModel):
     # M33: set when the account is fed by a linked institution (M27).
     institution: str | None = None
     last_synced_at: datetime | None = None
+    # M36: emergency-fund designation (percent XOR fixed amount) + derived reservation.
+    emergency_fund_percent: float | None = None
+    emergency_fund_amount: Money | None = None
+    emergency_fund_reserved: Money | None = None
 
 
 class Transaction(BaseModel):
@@ -447,6 +451,10 @@ class AccountUpdateRequest(BaseModel):
     type: AccountType | None = None
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
+    # M36: percent XOR amount; clear_emergency_fund removes the designation.
+    emergency_fund_percent: float | None = Field(default=None, ge=0, le=100)
+    emergency_fund_amount: Money | None = None
+    clear_emergency_fund: bool = False
 
 
 class AccountBalanceCreateRequest(BaseModel):

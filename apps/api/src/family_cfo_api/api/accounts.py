@@ -20,6 +20,22 @@ def _min_payment(currency: str, minor: int | None) -> MoneySchema | None:
     return None if minor is None else MoneySchema(amount_minor=minor, currency=currency)
 
 
+def _emergency_fund_fields(
+    currency: str, percent: float | None, fixed_minor: int | None, balance_minor: int
+) -> dict:
+    """M36: designation + derived reservation for the Account schema."""
+    reserved = repository.emergency_fund_reserved_minor(percent, fixed_minor, balance_minor)
+    return {
+        "emergency_fund_percent": percent,
+        "emergency_fund_amount": _min_payment(currency, fixed_minor),
+        "emergency_fund_reserved": (
+            MoneySchema(amount_minor=reserved, currency=currency)
+            if percent is not None or fixed_minor is not None
+            else None
+        ),
+    }
+
+
 def _account_schema(record: repository.AccountRecord, balance_minor: int) -> Account:
     return Account(
         id=record.id,
@@ -28,6 +44,12 @@ def _account_schema(record: repository.AccountRecord, balance_minor: int) -> Acc
         balance=MoneySchema(amount_minor=balance_minor, currency=record.currency),
         annual_interest_rate=record.annual_interest_rate,
         minimum_payment=_min_payment(record.currency, record.minimum_payment_minor),
+        **_emergency_fund_fields(
+            record.currency,
+            record.emergency_fund_percent,
+            record.emergency_fund_minor,
+            balance_minor,
+        ),
     )
 
 
@@ -55,6 +77,12 @@ async def list_accounts(
                 minimum_payment=_min_payment(balance.currency, balance.minimum_payment_minor),
                 institution=(info := connections.get(balance.account_id)) and info.institution,
                 last_synced_at=info.last_synced_at if info else None,
+                **_emergency_fund_fields(
+                    balance.currency,
+                    balance.emergency_fund_percent,
+                    balance.emergency_fund_minor,
+                    balance.balance_minor,
+                ),
             )
             for balance in balances
         ]
@@ -131,6 +159,20 @@ async def update_account(
         raise HTTPException(
             status_code=400, detail=f"minimum_payment currency must be {existing.currency}"
         )
+    # M36: percent and fixed-amount designations are mutually exclusive.
+    if payload.emergency_fund_percent is not None and payload.emergency_fund_amount is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Set emergency_fund_percent or emergency_fund_amount, not both",
+        )
+    if payload.emergency_fund_amount is not None and (
+        payload.emergency_fund_amount.currency != existing.currency
+        or payload.emergency_fund_amount.amount_minor < 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"emergency_fund_amount must be non-negative {existing.currency}",
+        )
     repository.update_account(
         engine,
         session.household_id,
@@ -141,6 +183,13 @@ async def update_account(
         minimum_payment_minor=(
             payload.minimum_payment.amount_minor if payload.minimum_payment is not None else None
         ),
+        emergency_fund_percent=payload.emergency_fund_percent,
+        emergency_fund_minor=(
+            payload.emergency_fund_amount.amount_minor
+            if payload.emergency_fund_amount is not None
+            else None
+        ),
+        clear_emergency_fund=payload.clear_emergency_fund,
     )
     audit.write_audit(
         engine,

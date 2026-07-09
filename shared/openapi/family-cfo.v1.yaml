@@ -1876,6 +1876,18 @@ components:
           type: string
           format: date-time
           nullable: true
+        emergency_fund_percent:
+          description: "M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount)."
+          type: number
+          minimum: 0
+          maximum: 100
+          nullable: true
+        emergency_fund_amount:
+          description: "M36: fixed amount of this account reserved for emergencies (exclusive with emergency_fund_percent)."
+          $ref: "#/components/schemas/Money"
+        emergency_fund_reserved:
+          description: "M36: derived reservation — percent of the latest balance or the fixed amount, capped at the balance."
+          $ref: "#/components/schemas/Money"
     AccountType:
       type: string
       enum:
@@ -2495,6 +2507,17 @@ components:
           minimum: 0
         minimum_payment:
           $ref: "#/components/schemas/Money"
+        emergency_fund_percent:
+          description: "M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount."
+          type: number
+          minimum: 0
+          maximum: 100
+        emergency_fund_amount:
+          description: "M36: reserve this fixed amount for emergencies. Clears any percent designation. 400 if sent with emergency_fund_percent."
+          $ref: "#/components/schemas/Money"
+        clear_emergency_fund:
+          description: "M36: remove the emergency-fund designation from this account."
+          type: boolean
     AccountBalanceCreateRequest:
       type: object
       required:
