@@ -83,7 +83,9 @@ def test_skips_malformed_rows_without_failing_the_import(demo_engine: Engine, tm
     assert not any(t.merchant in {"Bad Row", "Another Bad Row"} for t in transactions)
 
 
-def test_flags_but_still_inserts_probable_duplicates(demo_engine: Engine, tmp_path) -> None:
+def test_reimporting_the_same_csv_dedupes(demo_engine: Engine, tmp_path) -> None:
+    """ADR 0015: an exact content-hash match is skipped, so re-uploading the
+    same CSV imports nothing new (previously it duplicated every row)."""
     staging_dir = str(tmp_path)
     csv_content = b"date,amount,description\n2026-01-05,-42.50,Grocery Store\n"
 
@@ -100,7 +102,10 @@ def test_flags_but_still_inserts_probable_duplicates(demo_engine: Engine, tmp_pa
     assert first_import.id != second_import.id
     transactions = repository.list_transactions(demo_engine, fixtures.DEMO_HOUSEHOLD_ID)
     grocery_rows = [t for t in transactions if t.merchant == "Grocery Store"]
-    assert len(grocery_rows) == 2
+    assert len(grocery_rows) == 1
+    # The second import recorded the row as skipped, not silently dropped.
+    second = repository.get_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, second_import.id)
+    assert second is not None and second.skipped_row_count == 1
 
 
 def test_pdf_import_creates_a_document_extraction_not_transactions(

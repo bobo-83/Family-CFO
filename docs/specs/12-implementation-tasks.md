@@ -680,6 +680,22 @@ Rules:
 - [x] Spec gate (roadmap).
 - [x] Zoom hardening (touch-action: manipulation globally + explicit 16px chat input); conversation delete UI with confirm + owner/adult gating (existing M10 endpoint) clearing the open thread; history restyled as cards with title + date; tests (66 web); deployed; committed.
 
+## M27: Institution Connections & Transaction Dedupe
+
+### Spec Gate
+
+- [x] Define M27 scope, non-goals, and test expectations. (See roadmap and ADR 0015.)
+
+### Implementation
+
+- [x] Migration 0033: connections tables + transactions.external_id/import_hash + unique index (cycle green via test_migrations).
+- [x] BankConnector protocol + SimpleFINConnector + Fernet credential encryption. Tests (7).
+- [x] Dedupe core (provider-id hard + content-hash fallback) wired into sync AND the CSV pipeline (re-upload now imports 0, reports skipped count).
+- [x] Connection endpoints + sync + auto-account mapping + audit events; contract + client regen. Tests (237 api total).
+- [x] Scheduled daily sync job (worker, same cadence as backups; per-connection errors recorded, others continue).
+- [x] Imports page "Linked institutions" UI (link via setup token, sync-now with counts, unlink with confirm; owner/adult). Tests (67 web total).
+- [x] Docs; verification; live deploy; commit.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

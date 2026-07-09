@@ -91,19 +91,19 @@
 }
 
 .chat__conv-item {
-  display: flex;
-  align-items: stretch;
-  gap: 0.25rem;
+  position: relative; /* anchors the X delete button top-right */
 }
 
 .chat__conv {
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  min-height: 3.4rem; /* fixed height so short titles ("hi") don't squish */
   text-align: left;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.15rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.55rem 1.8rem 0.55rem 0.65rem; /* right space for the X */
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
@@ -131,17 +131,26 @@
 }
 
 .chat__conv-delete {
-  flex-shrink: 0;
-  width: 1.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-danger);
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
+  line-height: 1;
 
   &:hover {
     background: var(--color-danger-soft);
+    color: var(--color-danger);
   }
 }
 
@@ -329,9 +338,14 @@
   }
 
   .chat__new,
+  .chat__conv-item,
   .chat__conv {
     flex-shrink: 0;
     max-width: 55vw;
+  }
+
+  .chat__conv-item {
+    min-width: 10rem;
   }
 
   .chat__bubble {

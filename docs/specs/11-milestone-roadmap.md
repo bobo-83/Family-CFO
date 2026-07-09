@@ -1368,3 +1368,35 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Test Expectations
 
 - Web: delete calls the endpoint + reloads the list; deleting the open conversation clears the thread; delete hidden for viewer/child. Suites green.
+
+## M27: Institution Connections & Transaction Dedupe
+
+- Pull statements from financial institutions via SimpleFIN (opt-in; credentials never touch this server) behind a pluggable connector seam.
+- Built-in two-tier dedupe so repeated syncs/imports never duplicate transactions.
+
+> Context: implements [ADR 0015](../adr/0015-bank-connections-and-dedupe.md). Provider ids give hard idempotency (`(account_id, external_id)` unique); a content hash gives fallback dedupe for CSV; both flows report imported vs duplicates-skipped counts. The CSV pipeline gains the same dedupe (previously re-uploading a CSV duplicated everything).
+
+### Scope
+
+- Schema: `institution_connections` (Fernet-encrypted access URL), `connection_accounts` mapping, `transactions.external_id` + `import_hash` + indexes (additive migration).
+- `BankConnector` protocol + `SimpleFINConnector` (claim-token exchange, accounts + transactions fetch).
+- API (owner/adult): `POST/GET /connections`, `DELETE /connections/{id}`, `POST /connections/{id}/sync` → `{accounts_synced, imported, duplicates_skipped}`; auto-create + map provider accounts; contract + client regen.
+- Worker: daily scheduled sync of all connections (same in-process scheduler as reports/backups).
+- Web: "Linked institutions" section on the Imports page — add via setup token, list with last-synced, Sync now (shows counts), delete with confirm.
+- CSV import processing dedupes via import_hash; counts surfaced.
+
+### Non-Goals
+
+- No Plaid/Yodlee-style aggregators (ADR 0015); OFX DirectConnect is backlog (the seam exists); no per-duplicate review UI (counts only); no balance-history backfill beyond what the provider returns; no webhook/push sync.
+
+### Test Expectations
+
+- Dedupe unit: provider-id idempotency across overlapping windows; hash fallback skips; identical-legit-transactions caveat covered by provider-id path.
+- Connector: token exchange + fetch against a mocked transport; error surfaces as a failed sync, never partial corruption.
+- API: connection CRUD + sync counts; access URL never in responses; role gating; missing encryption key -> 503.
+- CSV regression: re-uploading the same file imports 0 and reports duplicates.
+- Web: add/sync/delete flows with mocked ApiService. All suites green.
+
+### Documentation Impact
+
+- ADR 0015; guides (imports/bank sync section); `.env.example` note (backup key doubles as credential key); acceptance state.
