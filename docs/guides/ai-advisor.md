@@ -108,8 +108,11 @@ on purpose). The API logs above name the reason.
 
 ## Swapping models
 
-The supported way (updates `.env`, keeps parser/vision settings consistent, and
-recreates the right containers):
+Easiest: the dashboard's **AI Runtime** page — search Hugging Face, check the
+hardware-fit verdict, click **Apply**, and watch the live status until the new
+model is active (M23; requires the `model-manager` sidecar, on by default).
+
+From the terminal (same effect):
 
 ```bash
 scripts/swap-model.sh Qwen/Qwen2.5-14B-Instruct                       # keep default vision

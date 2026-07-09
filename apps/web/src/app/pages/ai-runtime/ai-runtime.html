@@ -16,6 +16,22 @@
     @if (isOwner()) {
       <!-- ===================== Model picker (M22 / ADR 0012) ===================== -->
       <section class="picker">
+        <div class="hf-search">
+          <input
+            type="search"
+            placeholder="Search Hugging Face models… (e.g. qwen, llama, mistral)"
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+            (keydown.enter)="runSearch()"
+          />
+          <button type="button" (click)="runSearch()" [disabled]="searching()">
+            {{ searching() ? 'Searching…' : 'Search' }}
+          </button>
+        </div>
+        @if (searchError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+
         <h2>Main model</h2>
         <div class="picker__grid">
           @for (model of mainOptions(); track model.id) {
@@ -146,33 +162,67 @@
 
           @if (servingMismatch()) {
             <p class="picker__mismatch" role="status">
-              ⏳ The server is currently serving
-              <strong>{{ status.value()?.served_model }}</strong>. To apply your selection, run this
-              on the server:
+              ⏳ Currently serving <strong>{{ status.value()?.served_model }}</strong> — click
+              Apply to switch to your selection.
             </p>
-          } @else {
-            <p class="picker__apply-hint">To apply a new selection, run this on the server:</p>
-          }
-          @if (swapCommand(); as command) {
-            <code class="picker__command">{{ command }}</code>
           }
 
           @if (selectionError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
           }
           @if (selectionSaved()) {
-            <p class="ai-runtime-form__success">
-              Selection saved. Run the command above to switch the served model.
-            </p>
+            <p class="ai-runtime-form__success">Selection saved (not yet applied).</p>
           }
-          <button
-            type="button"
-            class="picker__save"
-            (click)="saveSelection()"
-            [disabled]="savingSelection() || !selectedMain()"
-          >
-            {{ savingSelection() ? 'Saving…' : 'Save selection' }}
-          </button>
+          <div class="picker__actions">
+            <button
+              type="button"
+              class="picker__apply"
+              (click)="apply()"
+              [disabled]="applying() || !selectedMain()"
+            >
+              {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+            </button>
+            <button
+              type="button"
+              class="picker__save"
+              (click)="saveSelection()"
+              [disabled]="savingSelection() || !selectedMain()"
+            >
+              {{ savingSelection() ? 'Saving…' : 'Save only' }}
+            </button>
+          </div>
+          @if (applyError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
+          }
+
+          @if (swapCommand(); as command) {
+            <p class="picker__apply-hint">Prefer the terminal? <code class="picker__command picker__command--inline">{{ command }}</code></p>
+          }
+
+          <!-- Live apply status (polls every 5s until active/failed) -->
+          @if (applyLive(); as live) {
+            <div
+              class="apply-live"
+              [class.apply-live--working]="live.phase === 'working'"
+              [class.apply-live--active]="live.phase === 'active'"
+              [class.apply-live--failed]="live.phase === 'failed'"
+              role="status"
+            >
+              @switch (live.phase) {
+                @case ('working') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span>Applying — {{ live.detail }} This can take several minutes for a first
+                    download; the current model keeps answering meanwhile.</span>
+                }
+                @case ('active') {
+                  <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
+                }
+                @case ('failed') {
+                  <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
+                }
+              }
+            </div>
+          }
         }
       </section>
 

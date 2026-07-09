@@ -1,4 +1,5 @@
 import logging
+import re
 from dataclasses import asdict
 from urllib.parse import urlparse
 
@@ -12,11 +13,13 @@ from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
+    AiApplyRequest,
     AiHardwareProfile,
     AiModelCatalog,
     AiModelInfo,
     AiRuntimeConfig,
     AiRuntimeStatus,
+    AiSwapStatus,
     ErrorResponse,
 )
 
@@ -211,3 +214,156 @@ async def update_ai_runtime_config(
         enabled=payload.enabled,
     )
     return _to_schema(record)
+
+
+# --- Hugging Face search + one-click apply (ADR 0013) -------------------------
+
+# org/name with a conservative charset — mirrored in the model-manager sidecar.
+_REPO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$")
+_PARAMS_IN_NAME = re.compile(r"(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)")
+_HF_TIMEOUT_SECONDS = 6.0
+
+
+def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
+    """Map an HF Hub result to catalog shape with ESTIMATED specs (ADR 0013)."""
+    model_id = item.get("modelId") or item.get("id") or ""
+    if not _REPO_ID.match(model_id):
+        return None
+    match = _PARAMS_IN_NAME.search(model_id.rsplit("/", 1)[-1])
+    params = float(match.group(1)) if match else 0.0
+    is_vision = pipeline == "image-text-to-text" or "-vl-" in model_id.lower()
+    lower = model_id.lower()
+    parser = "llama3_json" if "llama" in lower else "hermes"
+    return AiModelInfo(
+        id=model_id,
+        label=f"{model_id.rsplit('/', 1)[-1]} (Hugging Face)",
+        role="both" if is_vision else "main",
+        parameters_b=params,
+        # bf16 ~= 2 bytes/param; unknown size (params 0) surfaces as 0 = "unknown".
+        est_memory_gb=round(params * 2.1) if params else 0,
+        est_disk_gb=round(params * 2.0) if params else 0,
+        tool_parser=None if pipeline == "image-text-to-text" else parser,
+        supports_vision=is_vision,
+        gated=bool(item.get("gated")),
+        notes="Estimated specs from the model name — verify before relying on the fit verdict.",
+    )
+
+
+@router.get(
+    "/ai/models/search",
+    operation_id="searchAiModels",
+    response_model=AiModelCatalog,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        503: {"description": "Hugging Face unreachable", "model": ErrorResponse},
+    },
+    summary="Search Hugging Face for models (estimated specs)",
+)
+async def search_ai_models(
+    q: str,
+    session: repository.SessionContext = Depends(get_current_session),
+    settings: Settings = Depends(get_app_settings),
+) -> AiModelCatalog:
+    models: list[AiModelInfo] = []
+    seen: set[str] = set()
+    try:
+        for pipeline in ("text-generation", "image-text-to-text"):
+            response = httpx.get(
+                f"{settings.hf_hub_url}/api/models",
+                params={"search": q, "pipeline_tag": pipeline, "sort": "downloads", "limit": 10},
+                timeout=_HF_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            for item in response.json():
+                mapped = _estimate_from_hf(item, pipeline)
+                if mapped and mapped.id not in seen:
+                    seen.add(mapped.id)
+                    models.append(mapped)
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(
+            status_code=503, detail="Hugging Face is unreachable; showing curated models only"
+        ) from exc
+    return AiModelCatalog(models=models)
+
+
+@router.post(
+    "/ai/runtime/apply",
+    operation_id="applyAiModelSelection",
+    response_model=AiSwapStatus,
+    status_code=202,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {"description": "A swap is already running", "model": ErrorResponse},
+        503: {"description": "Model manager unavailable", "model": ErrorResponse},
+    },
+    summary="Apply a model selection: download and switch the served models",
+)
+async def apply_ai_model_selection(
+    payload: AiApplyRequest,
+    session: repository.SessionContext = Depends(require_role("owner")),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> AiSwapStatus:
+    if not settings.model_manager_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Model manager is not available; use scripts/swap-model.sh on the server",
+        )
+    if not _REPO_ID.match(payload.main_model):
+        raise HTTPException(status_code=422, detail="invalid main model id")
+    if payload.vision_model is not None and not _REPO_ID.match(payload.vision_model):
+        raise HTTPException(status_code=422, detail="invalid vision model id")
+
+    try:
+        response = httpx.post(
+            f"{settings.model_manager_url.rstrip('/')}/swap",
+            json={"main_model": payload.main_model, "vision_model": payload.vision_model},
+            timeout=_HF_TIMEOUT_SECONDS,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="Model manager unreachable") from exc
+    if response.status_code == 409:
+        raise HTTPException(status_code=409, detail="A model swap is already in progress")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=503, detail="Model manager rejected the request")
+
+    # Keep the household config in sync so status/mismatch reflect the new target.
+    repository.upsert_ai_runtime_config(
+        engine,
+        household_id=session.household_id,
+        provider="vllm",
+        base_url=settings.ai_default_base_url,
+        model=payload.main_model,
+        enabled=True,
+    )
+    logger.info(
+        "model apply started household_id=%s main=%s vision=%s",
+        session.household_id,
+        payload.main_model,
+        payload.vision_model,
+    )
+    return AiSwapStatus(**response.json())
+
+
+@router.get(
+    "/ai/runtime/apply/status",
+    operation_id="getAiApplyStatus",
+    response_model=AiSwapStatus,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Report the state of the last model apply",
+)
+async def get_ai_apply_status(
+    session: repository.SessionContext = Depends(get_current_session),
+    settings: Settings = Depends(get_app_settings),
+) -> AiSwapStatus:
+    if not settings.model_manager_url:
+        return AiSwapStatus(state="unavailable")
+    try:
+        response = httpx.get(
+            f"{settings.model_manager_url.rstrip('/')}/status", timeout=_HF_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+        return AiSwapStatus(**response.json())
+    except (httpx.HTTPError, ValueError):
+        return AiSwapStatus(state="unavailable")

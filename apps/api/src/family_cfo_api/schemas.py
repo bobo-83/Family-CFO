@@ -275,6 +275,20 @@ class AiModelCatalog(BaseModel):
     models: list[AiModelInfo]
 
 
+class AiApplyRequest(BaseModel):
+    """One-click model apply (ADR 0013). vision_model None disables photo analysis."""
+
+    main_model: str
+    vision_model: str | None = None
+
+
+class AiSwapStatus(BaseModel):
+    state: Literal["idle", "running", "succeeded", "failed", "unavailable"]
+    main_model: str | None = None
+    vision_model: str | None = None
+    log_tail: str = ""
+
+
 class AiHardwareProfile(BaseModel):
     """Best-effort hardware facts for model-fit planning (ADR 0012)."""
 

@@ -1279,3 +1279,30 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - ADR 0012; AI-advisor guide (swap-model section replaces manual `.env` editing); README pointer; acceptance state.
+
+## M23: Hugging Face Model Search & One-Click Apply
+
+- Search models live from Hugging Face in the AI Runtime page, click **Apply**, and watch the model download/load/turn active — no shell needed.
+
+> Context: implements [ADR 0013](../adr/0013-model-manager-sidecar.md), which partially supersedes ADR 0012's command-only apply. A narrow, internal-only `model-manager` sidecar (Docker socket + project mount, one validated `swap` operation running `scripts/swap-model.sh`) performs the restart; the API remains socket-free and gates the trigger behind the `owner` role.
+
+### Scope
+
+- **`GET /ai/models/search?q=`**: API-proxied Hugging Face Hub search (text-generation + image-text-to-text, sorted by downloads) mapped to `AiModelInfo` with **estimated** specs (params parsed from the id; memory/disk ≈ 2×params; parser by family; vision by pipeline/naming). Curated catalog stays as hand-checked recommendations.
+- **`POST /ai/runtime/apply {main_model, vision_model|null}`** (owner): validates repo-id shape, forwards to the manager, updates the household config; **`GET /ai/runtime/apply/status`** relays the manager's swap state (idle/running/succeeded/failed + log tail).
+- **`services/model-manager`**: FastAPI sidecar; strict repo-id validation; runs `swap-model.sh`; tracks one swap at a time; internal network only, never published; removable (`--scale model-manager=0` → ADR 0012 command flow).
+- **AI Runtime page**: HF search box merging results into the picker (estimates labeled); **Apply** button; live apply panel polling status every ~5s — downloading/loading → **Active ✓** when `served_model` matches the selection; errors surfaced.
+
+### Non-Goals
+
+- No arbitrary command execution in the sidecar (single validated operation); no HF token management UI (env only); no download-percentage progress (state-level only: running → serving); no automatic rollback on a failed swap (the old model simply keeps serving until the new one loads; a failed download leaves vLLM restarting — surfaced in status with the fix being another Apply).
+
+### Test Expectations
+
+- API: HF search mapping/estimates + offline 503 (mock transport); apply validation (bad repo id 422, non-owner 403, manager down 503) and happy path (manager stubbed); apply-status relay. Contract green.
+- Manager: repo-id validation, swap state machine, subprocess mocked.
+- Web: search merge; apply triggers endpoint + starts polling; status transitions rendered; fit estimates labeled. Suites + builds green.
+
+### Documentation Impact
+
+- ADR 0013; docker README (sidecar + threat note); AI-advisor guide; acceptance state.

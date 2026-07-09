@@ -486,6 +486,18 @@ export type AiModelCatalog = {
     models: Array<AiModelInfo>;
 };
 
+export type AiApplyRequest = {
+    main_model: string;
+    vision_model?: string;
+};
+
+export type AiSwapStatus = {
+    state: 'idle' | 'running' | 'succeeded' | 'failed' | 'unavailable';
+    main_model?: string;
+    vision_model?: string;
+    log_tail?: string;
+};
+
 export type AiHardwareProfile = {
     gpu_memory_gb?: number;
     system_memory_gb?: number;
@@ -2207,3 +2219,96 @@ export type GetAiHardwareProfileResponses = {
 };
 
 export type GetAiHardwareProfileResponse = GetAiHardwareProfileResponses[keyof GetAiHardwareProfileResponses];
+
+export type SearchAiModelsData = {
+    body?: never;
+    path?: never;
+    query: {
+        q: string;
+    };
+    url: '/ai/models/search';
+};
+
+export type SearchAiModelsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type SearchAiModelsError = SearchAiModelsErrors[keyof SearchAiModelsErrors];
+
+export type SearchAiModelsResponses = {
+    /**
+     * Search results mapped to catalog shape
+     */
+    200: AiModelCatalog;
+};
+
+export type SearchAiModelsResponse = SearchAiModelsResponses[keyof SearchAiModelsResponses];
+
+export type ApplyAiModelSelectionData = {
+    body: AiApplyRequest;
+    path?: never;
+    query?: never;
+    url: '/ai/runtime/apply';
+};
+
+export type ApplyAiModelSelectionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type ApplyAiModelSelectionError = ApplyAiModelSelectionErrors[keyof ApplyAiModelSelectionErrors];
+
+export type ApplyAiModelSelectionResponses = {
+    /**
+     * Swap started
+     */
+    202: AiSwapStatus;
+};
+
+export type ApplyAiModelSelectionResponse = ApplyAiModelSelectionResponses[keyof ApplyAiModelSelectionResponses];
+
+export type GetAiApplyStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/runtime/apply/status';
+};
+
+export type GetAiApplyStatusErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetAiApplyStatusError = GetAiApplyStatusErrors[keyof GetAiApplyStatusErrors];
+
+export type GetAiApplyStatusResponses = {
+    /**
+     * Swap status
+     */
+    200: AiSwapStatus;
+};
+
+export type GetAiApplyStatusResponse = GetAiApplyStatusResponses[keyof GetAiApplyStatusResponses];

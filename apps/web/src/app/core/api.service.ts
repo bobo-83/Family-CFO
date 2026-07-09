@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import {
+  applyAiModelSelection,
   applyImport,
   createAccount,
   createAuthSession,
@@ -20,6 +21,7 @@ import {
   deleteTransaction,
   discardImport,
   generateReport,
+  getAiApplyStatus,
   getAiRuntimeConfig,
   getAiHardwareProfile,
   getAiRuntimeStatus,
@@ -41,6 +43,7 @@ import {
   listTransactions,
   recordAccountBalance,
   restoreBackup,
+  searchAiModels,
   revokePairedDevice,
   updateAccount,
   updateAiRuntimeConfig,
@@ -50,6 +53,7 @@ import {
   updateTransaction,
   uploadImportFile,
   type AccountCreateRequest,
+  type AiApplyRequest,
   type AccountUpdateRequest,
   type AiRuntimeConfig,
   type AuthSessionCreateRequest,
@@ -283,6 +287,18 @@ export class ApiService {
 
   getAiHardwareProfile() {
     return getAiHardwareProfile();
+  }
+
+  searchAiModels(q: string) {
+    return searchAiModels({ query: { q } });
+  }
+
+  applyAiModelSelection(body: AiApplyRequest) {
+    return applyAiModelSelection({ body });
+  }
+
+  getAiApplyStatus() {
+    return getAiApplyStatus();
   }
 
   updateAiRuntimeConfig(body: AiRuntimeConfig) {

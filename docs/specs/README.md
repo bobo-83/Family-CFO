@@ -62,6 +62,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M22 model selection, hardware planning & status clarity: implemented (backed by ADR 0012). The AI Runtime page gains a curated model picker (main + vision, vision hidden when the main model sees photos itself) with live replacement-semantics hardware-fit metrics (`GET /ai/models`, `GET /ai/hardware`), a save + `scripts/swap-model.sh` apply command, and a serving-mismatch notice; the chat banner shows separate main/vision states (`vision_enabled`); the camera button alignment is fixed. The API never controls Docker in this milestone.
 
+- M23 Hugging Face model search & one-click apply: implemented (backed by ADR 0013, partially superseding ADR 0012). The AI Runtime page searches HF Hub live (API-proxied, estimated specs labeled as such), and **Apply** downloads/switches the served models via the narrow `model-manager` sidecar (the only Docker-socket holder; single validated swap operation; internal network; removable), with a live status panel polling until the selection is active. The API container remains socket-free; apply is owner-gated.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

@@ -1354,6 +1354,77 @@ paths:
                 $ref: "#/components/schemas/AiHardwareProfile"
         "401":
           $ref: "#/components/responses/Error"
+  /ai/models/search:
+    get:
+      tags:
+        - AI Runtime
+      operationId: searchAiModels
+      summary: Search Hugging Face for models (estimated specs)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results mapped to catalog shape
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiModelCatalog"
+        "401":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /ai/runtime/apply:
+    post:
+      tags:
+        - AI Runtime
+      operationId: applyAiModelSelection
+      summary: "Apply a model selection: download and switch the served models"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiApplyRequest"
+      responses:
+        "202":
+          description: Swap started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSwapStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /ai/runtime/apply/status:
+    get:
+      tags:
+        - AI Runtime
+      operationId: getAiApplyStatus
+      summary: Report the state of the last model apply
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Swap status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSwapStatus"
+        "401":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -2616,6 +2687,32 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiModelInfo"
+    AiApplyRequest:
+      type: object
+      required:
+        - main_model
+      properties:
+        main_model:
+          type: string
+        vision_model:
+          type: string
+          nullable: true
+    AiSwapStatus:
+      type: object
+      required:
+        - state
+      properties:
+        state:
+          type: string
+          enum: [idle, running, succeeded, failed, unavailable]
+        main_model:
+          type: string
+          nullable: true
+        vision_model:
+          type: string
+          nullable: true
+        log_tail:
+          type: string
     AiHardwareProfile:
       type: object
       required:
