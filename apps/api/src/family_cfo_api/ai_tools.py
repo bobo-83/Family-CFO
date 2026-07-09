@@ -33,9 +33,35 @@ from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.explanation import format_money
 from family_cfo_ai_orchestrator.tool_calling import ToolExecutor
 
+# Personality layer (M31): tone only. The grounding rules below are appended
+# verbatim in every tone — fun never loosens the numbers discipline.
+PERSONAS = {
+    "playful": (
+        "Personality: you are the family's upbeat, warm, slightly cheeky CFO — "
+        "think favorite-money-nerd-friend, not bank clerk. Be conversational and "
+        "encouraging, celebrate wins ('your emergency fund is flexing 💪'), use at "
+        "most one fitting emoji per answer, and drop an occasional light money pun "
+        "when the news is good. When the news is bad, drop the jokes: be kind, "
+        "plain, and honest — never joke away a real risk, and never let charm "
+        "replace clarity about what the numbers say."
+    ),
+    "professional": (
+        "Personality: you are a concise, professional family CFO. Warm but "
+        "businesslike; no emoji, no jokes."
+    ),
+}
+
+
+def build_system_prompt(settings: Settings | None = None) -> str:
+    """The chat system prompt: persona (by tone setting) + invariant grounding rules."""
+    settings = settings or get_settings()
+    persona = PERSONAS.get(settings.ai_tone, PERSONAS["playful"])
+    return f"{persona}\n\n{GROUNDING_RULES}"
+
+
 # The model must ground every number in a tool result and must never invent a
 # figure. When a required input is missing it asks the user rather than guess.
-TOOL_SYSTEM_PROMPT = (
+GROUNDING_RULES = (
     "You are a household financial assistant for a single family. Answer the "
     "user's question using ONLY the provided tools for any financial figure. "
     "Never state a number, amount, or projection you did not obtain from a tool "
@@ -50,6 +76,9 @@ TOOL_SYSTEM_PROMPT = (
     "fact, never include names, account details, or other household information "
     "in a search query."
 )
+
+# Backwards-compatible alias (professional baseline without persona).
+TOOL_SYSTEM_PROMPT = GROUNDING_RULES
 
 
 def _money_out(money: Money) -> dict[str, Any]:
@@ -541,15 +570,37 @@ def build_executor(
     return execute
 
 
+def _rounded_variants(number: str) -> set[str]:
+    """Rounded forms of a numeric string, so "9.6470588" grounds "9.6"/"9.65"/"10".
+
+    The guardrail is a string match; models naturally round long decimals when
+    speaking. Rounding a tool figure is honest reporting, not fabrication.
+    """
+    try:
+        value = float(number)
+    except ValueError:
+        return set()
+    variants = {number}
+    for digits in (0, 1, 2):
+        rounded = round(value, digits)
+        variants.add(f"{rounded:.{digits}f}")
+        if rounded == int(rounded):
+            variants.add(str(int(rounded)))
+    return variants
+
+
 def grounded_values(result: ToolCallingResult) -> set[str]:
     """Numbers the model was allowed to use: everything in the tool call trace.
 
     Both tool inputs (echoing a user-supplied figure is legitimate) and tool
-    outputs (the engine's computed figures) count as grounded. Any number in the
-    final answer outside this set is an invented figure and fails the guardrail.
+    outputs (the engine's computed figures) count as grounded — including their
+    rounded forms. Any number in the final answer outside this set is an
+    invented figure and fails the guardrail.
     """
     known: set[str] = set()
     for record in result.tool_calls:
-        known |= extract_numbers(json.dumps(record.arguments))
-        known |= extract_numbers(json.dumps(record.result))
+        for number in extract_numbers(json.dumps(record.arguments)) | extract_numbers(
+            json.dumps(record.result)
+        ):
+            known |= _rounded_variants(number)
     return known

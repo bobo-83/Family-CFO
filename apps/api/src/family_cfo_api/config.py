@@ -73,6 +73,9 @@ class Settings:
     # codes leave the box); web_search requires a self-hosted SearXNG URL.
     live_data_enabled: bool = True
     searxng_url: str = ""
+    # Advisor voice (M31): "playful" (default) or "professional". Tone only —
+    # grounding rules are identical in both.
+    ai_tone: str = "playful"
 
     def allowed_ai_base_urls(self) -> tuple[str, ...]:
         """The effective AI base_url allowlist: configured set, else the default."""
@@ -138,6 +141,7 @@ class Settings:
             hf_hub_url=os.getenv("FAMILY_CFO_HF_HUB_URL", cls.hf_hub_url),
             live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),
             searxng_url=os.getenv("FAMILY_CFO_SEARXNG_URL", cls.searxng_url),
+            ai_tone=os.getenv("FAMILY_CFO_AI_TONE", cls.ai_tone),
         )
 
 
