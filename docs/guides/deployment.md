@@ -114,13 +114,23 @@ the [AI Advisor guide](./ai-advisor.md).
 
 ## 5. Updates
 
+The fast path — patch only the app containers, leaving the AI model and database
+untouched:
+
 ```bash
 git pull
-docker compose up -d --build
+scripts/patch.sh                 # rebuild api + worker + web
+scripts/patch.sh web             # or just one service
+TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 ```
 
-The API applies any new migrations on startup. Migrations are additive; a
-rollback path is `docker compose run --rm api python -m alembic -c alembic.ini downgrade <rev>`.
+`patch.sh` never rebuilds `vllm` or `db` and never removes a volume, so the
+multi-GB model in `model_cache` is **not** re-downloaded. The full
+`docker compose up -d --build` still works if you want to rebuild everything.
+
+The API applies any new migrations on startup (so a schema change ships with an
+`api` patch). Migrations are additive; a rollback path is
+`docker compose run --rm api python -m alembic -c alembic.ini downgrade <rev>`.
 
 ## Operating the stack
 
