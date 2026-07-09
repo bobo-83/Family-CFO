@@ -78,6 +78,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M30 conversational memory: implemented. The agentic loop now receives the active conversation's prior turns (bounded window; history numbers grounded), fixing follow-ups that previously lost all context.
 
+- M31 advisor personality: implemented. A tone-setting persona layer (playful default, professional opt-out via `FAMILY_CFO_AI_TONE`) sits above unchanged grounding rules; plus a guardrail fix grounding rounded variants of tool floats (honest rounding of 9.647→"9.6" no longer falls back).
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:
