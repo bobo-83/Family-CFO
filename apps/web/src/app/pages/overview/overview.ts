@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, resource } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { EmergencyFundSummary } from '../../api-client';
+import type { EmergencyFundSummary, Money, NetWorthPoint } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
@@ -59,5 +59,43 @@ export class Overview {
       return 'Due tomorrow';
     }
     return `Due in ${daysUntil} days`;
+  }
+
+  /**
+   * M40: net-worth trend as an SVG polyline over a fixed 100x28 viewBox.
+   * Returns null when there are fewer than two points to connect.
+   */
+  protected sparklinePoints(history: NetWorthPoint[]): string | null {
+    if (!history || history.length < 2) {
+      return null;
+    }
+    const values = history.map((p) => p.net_worth.amount_minor);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const width = 100;
+    const height = 28;
+    const stepX = width / (values.length - 1);
+    return values
+      .map((value, index) => {
+        const x = index * stepX;
+        // Invert: higher net worth sits nearer the top of the viewBox.
+        const y = height - ((value - min) / range) * height;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }
+
+  /** Change from the earliest shown snapshot to the latest. */
+  protected netWorthChange(history: NetWorthPoint[]): Money | null {
+    if (!history || history.length < 2) {
+      return null;
+    }
+    const first = history[0].net_worth;
+    const last = history[history.length - 1].net_worth;
+    return {
+      amount_minor: last.amount_minor - first.amount_minor,
+      currency: last.currency,
+    };
   }
 }

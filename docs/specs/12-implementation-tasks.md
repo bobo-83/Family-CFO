@@ -764,13 +764,20 @@ Bills carry a `next_due_date` and the `Bill` schema declares the field, but the 
 - [x] Spec gate: (a) fix — `RecurringRecord` gains `next_due_date`, `list_bills` maps it, and the bills `_to_schema` returns it (closing the latent drop); the Bills create form gains an optional due-date input and the list shows each bill's next due date. (b) roll-forward — a pure `next_bill_occurrence(next_due_date, frequency, today)` helper advances a stored due date to the next occurrence on/after today (day-based for weekly/biweekly/semimonthly, calendar-month arithmetic with end-of-month clamping for monthly/quarterly/annual), so stale dates never show as overdue. (c) Overview — `HouseholdContext` gains additive `upcoming_bills`: bills whose next occurrence falls within the next 14 days, sorted ascending, each with `id`, `name`, `amount`, `due_date`, `days_until`; a new Overview card lists them (with a "nothing due" empty state). No schema migration — every column already exists.
 - [x] Implement + tests (roll-forward across frequencies incl. end-of-month + already-future dates; `_to_schema` round-trips the due date; upcoming window includes/excludes correctly; Overview renders the card) + deploy + commit. Verified: 268 api + 73 web tests pass; live deployment round-trips a due date (previously always null) and lists it under `upcoming_bills` with the correct `days_until`.
 
+## M40: Net-Worth History (snapshots + Overview sparkline)
+
+Net worth is only shown as today's number; there's no trend. This is the next backlog item — persist a periodic snapshot and visualize the trajectory.
+
+- [x] Spec gate: (a) schema — a `net_worth_snapshots` table (`id`, `household_id` FK, `as_of` DATE, `net_worth_minor` BIGINT, `currency`, `created_at`), with a unique `(household_id, as_of)` so at most one snapshot per household per day; migration `0035`. (b) capture — a `net_worth_history.record_snapshot_once(engine)` that iterates households, computes net worth, and **upserts** today's row (idempotent — re-running the same day overwrites, not appends); wired into the worker as a daily job **and** run once at worker startup so history begins immediately. (c) read — `repository.list_net_worth_snapshots(household_id, limit)` (most recent N, returned oldest-first for charting); `HouseholdContext` gains additive `net_worth_history` (last 30 snapshots as `{as_of, net_worth}`). (d) UI — the Overview net-worth card renders an inline SVG sparkline of the history plus the change since the earliest point shown; a single/no-point history renders no sparkline gracefully.
+- [x] Implement + tests (upsert idempotency same-day; multi-day ordering oldest-first; snapshot job persists per household; context returns the series; Overview renders a sparkline path) + deploy + commit. Verified: 273 api + 73 web tests pass; live deploy applied migration `0035`, the worker captured a snapshot per household at startup, re-running left exactly one row per day, and the context returns the series oldest-first (seeded 3-day demo trend shows a +$70,000 change).
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
 
 - [ ] Configurable emergency-fund target (per-household `target_months`, replacing the fixed 3/6 guidance).
 - [ ] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists).
-- [ ] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists).
+- [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
 - [ ] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar).
 - [ ] Budget envelopes per category with monthly limits + alerts (larger; overlaps the existing budget-management backlog).

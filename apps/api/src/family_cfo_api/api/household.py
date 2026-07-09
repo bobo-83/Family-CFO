@@ -9,6 +9,7 @@ from family_cfo_api.schemas import (
     ErrorResponse,
     HouseholdContext,
     MonthlyCashFlow,
+    NetWorthPoint,
     UpcomingBill,
 )
 from family_cfo_api.schemas import Money as MoneySchema
@@ -109,6 +110,13 @@ async def get_household_context(
         )
         for bill in finance_service.upcoming_bills(engine, household.id, currency)
     ]
+    history = [
+        NetWorthPoint(
+            as_of=snapshot.as_of,
+            net_worth=MoneySchema(amount_minor=snapshot.net_worth_minor, currency=snapshot.currency),
+        )
+        for snapshot in repository.list_net_worth_snapshots(engine, household.id, limit=30)
+    ]
 
     return HouseholdContext(
         household_id=household.id,
@@ -127,4 +135,5 @@ async def get_household_context(
         asset_breakdown=asset_breakdown,
         total_debt=total_debt,
         upcoming_bills=upcoming,
+        net_worth_history=history,
     )

@@ -133,6 +133,13 @@ class UpcomingBill(BaseModel):
     days_until: int
 
 
+class NetWorthPoint(BaseModel):
+    """M40: one net-worth snapshot in the Overview trend series."""
+
+    as_of: date
+    net_worth: Money
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -145,6 +152,7 @@ class HouseholdContext(BaseModel):
     asset_breakdown: list[AssetCategoryTotal] = Field(default_factory=list)
     total_debt: Money | None = None
     upcoming_bills: list[UpcomingBill] = Field(default_factory=list)
+    net_worth_history: list[NetWorthPoint] = Field(default_factory=list)
 
 
 class Account(BaseModel):

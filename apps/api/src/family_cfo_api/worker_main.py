@@ -14,7 +14,12 @@ import time
 
 from family_cfo_scheduler import Job, Scheduler
 
-from family_cfo_api import backup_processing, import_processing, report_generation
+from family_cfo_api import (
+    backup_processing,
+    import_processing,
+    net_worth_history,
+    report_generation,
+)
 from family_cfo_api.config import get_settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
@@ -52,6 +57,10 @@ def main() -> None:
             except banksync.BankSyncError:
                 # Error already recorded on the connection; keep syncing others.
                 continue
+
+    def capture_net_worth_snapshot() -> None:
+        # M40: one snapshot per household per day for the Overview trend.
+        net_worth_history.record_snapshot_once(engine)
 
     def run_daily_backup() -> None:
         backup_processing.run_backup_once(
@@ -106,6 +115,21 @@ def main() -> None:
             interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily, same cadence as backups
         )
     )
+    scheduler.add_job(
+        Job(
+            name="capture-net-worth-snapshot",
+            func=capture_net_worth_snapshot,
+            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+        )
+    )
+
+    # M40: capture one snapshot immediately so the trend has a starting point
+    # rather than waiting a full day for the first interval to fire.
+    try:
+        capture_net_worth_snapshot()
+    except Exception:  # noqa: BLE001 - a snapshot failure must not stop the worker
+        logger.exception("initial net-worth snapshot failed")
+
     scheduler.start()
 
     logger.info(
