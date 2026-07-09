@@ -103,8 +103,11 @@ cp .env.example .env       # then edit — at minimum set POSTGRES_PASSWORD
 docker compose up -d
 ```
 
-The dashboard is then at `https://localhost:8443` (self-signed cert by default —
-accept the browser warning). The API applies database migrations on startup.
+The dashboard is then at `https://localhost:8443` on the host, and at
+`https://<host-lan-ip>:8443` from other machines on the network — published
+ports bind all interfaces, and `scripts/deploy.sh` prints the LAN URL after it
+finishes (self-signed cert by default — accept the browser warning). The API
+applies database migrations on startup.
 The local vLLM AI runtime is **on by default** and assumes a GPU-capable host;
 to run without it, set `FAMILY_CFO_AI_ENABLED=false` and
 `docker compose up -d --scale vllm=0`.

@@ -31,6 +31,14 @@ section() { printf "\n${dim}== %s ==${reset}\n" "$*"; }
 # Read a value from .env (best effort).
 env_val() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2-; }
 
+# LAN address other machines use to reach this host (published ports bind 0.0.0.0).
+detect_host_ip() {
+  local ip
+  ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+  [ -z "$ip" ] && ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  echo "${ip:-localhost}"
+}
+
 svc_running() { [ "$($DC ps -q "$1" 2>/dev/null | wc -l)" -gt 0 ] && \
   [ -n "$($DC ps --status running -q "$1" 2>/dev/null)" ]; }
 
@@ -68,8 +76,10 @@ else fail "PostgreSQL not ready"; fi
 
 # Web tier (HTTPS, self-signed — allow insecure).
 web_tls_port="$(env_val WEB_TLS_PORT)"; web_tls_port="${web_tls_port:-8443}"
+host_ip="$(detect_host_ip)"
 if command -v curl >/dev/null 2>&1; then
-  if curl -ksSf -o /dev/null "https://localhost:${web_tls_port}/"; then pass "Dashboard reachable on https://localhost:${web_tls_port}"
+  if curl -ksSf -o /dev/null "https://localhost:${web_tls_port}/"; then
+    pass "Dashboard reachable at https://${host_ip}:${web_tls_port} (LAN) / https://localhost:${web_tls_port}"
   else warn "Dashboard not reachable on https://localhost:${web_tls_port} (check WEB_TLS_PORT / firewall)"; fi
 else warn "curl not on host — skipped dashboard check"; fi
 
