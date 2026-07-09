@@ -79,6 +79,7 @@ render_env() { # render_env <dest-path>
       echo "FAMILY_CFO_GPU_MEMORY_GB=$(( gpu_mb / 1024 ))"
     fi
     echo "POSTGRES_PASSWORD=${pg_pw}"
+    echo "SEARXNG_SECRET=$(openssl rand -hex 16 2>/dev/null || echo sx$RANDOM$RANDOM)"
     echo "FAMILY_CFO_BACKUP_ENCRYPTION_KEY=${enc_key}"
   } >> "$dest"
   log "Generated a fresh .env with random POSTGRES_PASSWORD and backup key."

@@ -696,6 +696,10 @@ Rules:
 - [x] Imports page "Linked institutions" UI (link via setup token, sync-now with counts, unlink with confirm; owner/adult). Tests (67 web total).
 - [x] Docs; verification; live deploy; commit.
 
+## M28: Live Price Search On By Default
+
+- [x] Spec note (amends ADR 0014): SearXNG un-profiled with JSON-enabled config (`docker/searxng-settings.yml`: formats+json, limiter off) + `SEARXNG_SECRET`; `FAMILY_CFO_SEARXNG_URL` defaults to the bundled instance; deploy.sh generates the secret; opt-out documented; deployed + real price-question e2e; commit.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
