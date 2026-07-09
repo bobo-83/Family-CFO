@@ -724,6 +724,11 @@ Rules:
 - [x] Spec gate: (a) the net-worth tool gains a spendability breakdown (liquid / investments / retirement / education / property / debts) and the grounding rules state retirement+529 funds are not spendable for purchases — big-purchase affordability must be reasoned from liquid (and cautiously taxable investment) assets; (b) `GET /accounts` gains nullable `institution` + `last_synced_at` from the connection mapping (additive contract), and the Accounts page groups accounts by category with institution + last-synced shown.
 - [x] Implemented + tested (250 api / 67 web) + live re-test: the 850k-house answer now reasons from liquid assets and flags the emergency-fund breach instead of spending net worth; Accounts page grouped (Cash/Investments/Retirement/Education/Property/Debts) with institution + last-synced columns.
 
+## M34: Real Document Pipeline (OFX/QFX, PDF Line-Items, OCR)
+
+- [x] Spec gate: (a) OFX/QFX imports parse STMTTRN blocks (tolerant SGML/XML regex parser, no new deps) into pending transactions, with **FITID feeding the M27 external_id hard-dedupe** — re-importing an OFX is idempotent; (b) PDF imports gain a heuristic statement line-item parser (date + amount + payee lines → pending transactions for review, content-hash deduped, unparseable lines skipped and counted; the document extraction is kept as before); (c) ocr-worker gains a TesseractOcrAdapter used automatically when the tesseract binary is present (image documents get real OCR; the deterministic adapter remains the fallback and the test default); tesseract-ocr added to the api/worker image. UI: OFX/QFX options in the import form.
+- [x] Implement + tests (incl. OFX re-import idempotency; tesseract test skipped when binary absent) + deploy + commit. Verified: 253 api + 10 ocr-worker tests pass, patched deployment reports `tesseract 5.5.0` inside the api image with the real adapter active.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

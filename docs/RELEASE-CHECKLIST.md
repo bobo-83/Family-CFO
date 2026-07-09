@@ -76,4 +76,4 @@ Delta since v0.1.0 — seventeen milestones (M14–M32):
 
 Verification at tag time: financial-engine 65, ai-orchestrator 24, model-manager 5, api 247, web 67 — all green; builds clean; compose config valid; contract in sync; live GB10 deployment serving Qwen2.5-32B-AWQ + Qwen2.5-VL-7B.
 
-Still deferred (tracked in `docs/specs/12-implementation-tasks.md` backlogs): the iOS app (needs macOS), OFX DirectConnect + OFX/QFX parsing, real OCR engine + PDF line-item parsing, vector store/retrieval, multi-currency households, budget management UI, monitoring container, long-conversation summarization.
+Still deferred (tracked in `docs/specs/12-implementation-tasks.md` backlogs): the iOS app (needs macOS), OFX DirectConnect + OFX/QFX parsing, real OCR engine + PDF line-item parsing, vector store/retrieval, multi-currency households, budget management UI, monitoring container, long-conversation summarization. *(Post-tag: M34 closed OFX/QFX parsing, real OCR, and PDF line-items.)*

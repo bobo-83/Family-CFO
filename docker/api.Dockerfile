@@ -12,7 +12,7 @@ FROM python:3.12-slim
 # pg_dump refuses to dump a newer server. Debian trixie ships client 17, so
 # docker-compose.yml pins postgres:17 to match.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client \
+    && apt-get install -y --no-install-recommends postgresql-client tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
