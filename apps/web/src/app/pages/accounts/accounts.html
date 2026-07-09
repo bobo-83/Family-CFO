@@ -42,38 +42,59 @@
       @if (accountList.length === 0) {
         <p class="page-empty">No accounts yet.</p>
       } @else {
-        <table class="accounts-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Balance</th>
-              @if (canWrite()) {
-                <th></th>
-              }
-            </tr>
-          </thead>
-          <tbody>
-            @for (account of accountList; track account.id) {
-              <tr>
-                <td>{{ account.name }}</td>
-                <td>{{ account.type }}</td>
-                <td>{{ formatMoney(account.balance) }}</td>
-                @if (canWrite()) {
-                  <td>
-                    <button
-                      type="button"
-                      class="accounts-table__delete"
-                      (click)="remove(account.id)"
-                    >
-                      Delete
-                    </button>
-                  </td>
+        @for (group of groupedAccounts(); track group.category) {
+          <section class="accounts-group">
+            <h2 class="accounts-group__title">{{ group.category }}</h2>
+            <table class="accounts-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Institution</th>
+                  <th>Last synced</th>
+                  <th>Balance</th>
+                  @if (canWrite()) {
+                    <th></th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (account of group.accounts; track account.id) {
+                  <tr>
+                    <td>{{ account.name }}</td>
+                    <td>{{ account.type }}</td>
+                    <td>
+                      @if (account.institution) {
+                        🔗 {{ account.institution }}
+                      } @else {
+                        <span class="accounts-table__manual">manual</span>
+                      }
+                    </td>
+                    <td>
+                      @if (account.last_synced_at) {
+                        {{ account.last_synced_at | date: 'MMM d, h:mm a' }}
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td>{{ formatMoney(account.balance) }}</td>
+                    @if (canWrite()) {
+                      <td>
+                        <button
+                          type="button"
+                          class="accounts-table__delete"
+                          (click)="remove(account.id)"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    }
+                  </tr>
                 }
-              </tr>
-            }
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          </section>
+        }
       }
     }
   }

@@ -2803,3 +2803,36 @@ def any_household_exists(engine: Engine) -> bool:
     """M32 single-tenant lockout: is this server already claimed by a family?"""
     with engine.connect() as conn:
         return conn.execute(select(models.households.c.id).limit(1)).first() is not None
+
+
+@dataclass(frozen=True, slots=True)
+class AccountConnectionInfo:
+    institution: str
+    last_synced_at: datetime | None
+
+
+def account_connection_map(engine: Engine, household_id: str) -> dict[str, AccountConnectionInfo]:
+    """account_id -> linked institution name + last sync (M33 accounts page)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(
+                models.connection_accounts.c.account_id,
+                models.institution_connections.c.display_name,
+                models.institution_connections.c.last_synced_at,
+            )
+            .select_from(
+                models.connection_accounts.join(
+                    models.institution_connections,
+                    models.connection_accounts.c.connection_id
+                    == models.institution_connections.c.id,
+                )
+            )
+            .where(models.institution_connections.c.household_id == household_id)
+        ).all()
+    return {
+        row[0]: AccountConnectionInfo(
+            institution=row[1],
+            last_synced_at=_as_aware(row[2]) if row[2] else None,
+        )
+        for row in rows
+    }

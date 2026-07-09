@@ -140,3 +140,16 @@ def test_hash_dedupe_fallback_without_provider_ids(demo_engine: Engine) -> None:
     )
     assert repository.create_transaction_deduped(**kwargs) is True
     assert repository.create_transaction_deduped(**kwargs) is False  # hash match skipped
+
+
+def test_synced_accounts_carry_institution_and_last_synced(demo_engine: Engine) -> None:
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)
+    connector = _connector(lambda r: httpx.Response(200, json=_accounts_payload()))
+    banksync.sync_connection(demo_engine, settings, connection, connector)
+
+    info = repository.account_connection_map(demo_engine, _HH)
+    assert len(info) == 1
+    entry = next(iter(info.values()))
+    assert entry.institution == "Test Bank"
+    assert entry.last_synced_at is not None

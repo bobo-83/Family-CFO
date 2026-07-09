@@ -114,6 +114,9 @@ class Account(BaseModel):
     balance: Money
     annual_interest_rate: float | None = None
     minimum_payment: Money | None = None
+    # M33: set when the account is fed by a linked institution (M27).
+    institution: str | None = None
+    last_synced_at: datetime | None = None
 
 
 class Transaction(BaseModel):

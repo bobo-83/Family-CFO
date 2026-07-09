@@ -83,6 +83,8 @@ documented in `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md)
 
 - M32 single-household lockout, full audit coverage & v0.2.0: implemented. `POST /households` refuses once a household exists (single-tenant by default; env opt-out); audit_events now cover login, pairing, device revoke, AI config/model apply, import apply/discard, report generation, and backup create/restore; versions bumped and **v0.2.0** tagged after full cross-package verification.
 
+- M33 asset spendability & accounts organization: implemented. The net-worth tool returns an asset spendability breakdown (liquid/investments/retirement/education/property) with an explicit not-spendable note, and the grounding rules forbid treating net worth as purchasable funds — fixing affordability answers that spent retirement money. `GET /accounts` gains nullable institution/last_synced_at (additive), and the Accounts page groups by category showing the linked institution and last sync.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

@@ -1869,6 +1869,13 @@ components:
           minimum: 0
         minimum_payment:
           $ref: "#/components/schemas/Money"
+        institution:
+          type: string
+          nullable: true
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
     AccountType:
       type: string
       enum:

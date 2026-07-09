@@ -719,6 +719,11 @@ Rules:
 - [x] Audit events for login, pairing confirm, device revoke, AI config/apply, import apply/discard, report generation, backup create/restore (summaries secret-free, asserted). Tests.
 - [x] Version bumps to 0.2.0 (API + contract + regenerated client), RELEASE-CHECKLIST v0.2.0 section, full cross-package verification (65/24/5/247/67), tag v0.2.0.
 
+## M33: Asset Spendability & Accounts Page Organization
+
+- [x] Spec gate: (a) the net-worth tool gains a spendability breakdown (liquid / investments / retirement / education / property / debts) and the grounding rules state retirement+529 funds are not spendable for purchases — big-purchase affordability must be reasoned from liquid (and cautiously taxable investment) assets; (b) `GET /accounts` gains nullable `institution` + `last_synced_at` from the connection mapping (additive contract), and the Accounts page groups accounts by category with institution + last-synced shown.
+- [x] Implemented + tested (250 api / 67 web) + live re-test: the 850k-house answer now reasons from liquid assets and flags the emergency-fund breach instead of spending net worth; Accounts page grouped (Cash/Investments/Retirement/Education/Property/Debts) with institution + last-synced columns.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

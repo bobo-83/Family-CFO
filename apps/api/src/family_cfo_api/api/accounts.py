@@ -43,6 +43,7 @@ async def list_accounts(
     engine: Engine = Depends(get_engine),
 ) -> AccountListResponse:
     balances = repository.list_account_balances(engine, session.household_id)
+    connections = repository.account_connection_map(engine, session.household_id)
     return AccountListResponse(
         accounts=[
             Account(
@@ -52,6 +53,8 @@ async def list_accounts(
                 balance=MoneySchema(amount_minor=balance.balance_minor, currency=balance.currency),
                 annual_interest_rate=balance.annual_interest_rate,
                 minimum_payment=_min_payment(balance.currency, balance.minimum_payment_minor),
+                institution=(info := connections.get(balance.account_id)) and info.institution,
+                last_synced_at=info.last_synced_at if info else None,
             )
             for balance in balances
         ]

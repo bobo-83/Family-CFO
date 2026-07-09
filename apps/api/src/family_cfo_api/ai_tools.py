@@ -71,6 +71,11 @@ GROUNDING_RULES = (
     "user to supply that fact instead of guessing. If a tool reports "
     "\"error\": \"invalid_arguments\", correct the arguments and try again. Keep "
     "the final answer to a few plain-language sentences. For currency "
+    "For affordability questions (a house, a car, any purchase), never treat "
+    "net worth as spendable: use get_net_worth's asset_breakdown — retirement "
+    "and education funds are NOT available for purchases; base affordability on "
+    "liquid assets (and taxable investments only with a tax caveat), and use "
+    "project_purchase_impact for the cash-flow view. For currency "
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
@@ -163,9 +168,47 @@ def _currency_arg(
 # --- tool handlers ----------------------------------------------------------
 
 
+# Spendability categories (M33): which assets can actually fund a purchase.
+_CATEGORY_BY_TYPE = {
+    "checking": "liquid",
+    "savings": "liquid",
+    "brokerage": "investments",
+    "retirement": "retirement",
+    "hsa": "retirement",
+    "529": "education",
+    "real_estate": "property",
+    "other_asset": "property",
+}
+
+
 def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     result, calc_id = finance_service.compute_net_worth_with_ref(engine, household_id, currency)
-    return _result_payload(result, calc_id)
+    payload = _result_payload(result, calc_id)
+
+    # M33: break assets into spendability categories so the model never treats
+    # retirement or education money as available for a purchase.
+    from family_cfo_financial_engine import Money as _Money
+
+    from family_cfo_api import repository
+
+    totals: dict[str, int] = {}
+    for balance in repository.list_account_balances(engine, household_id):
+        if balance.currency != currency:
+            continue
+        if balance.balance_minor < 0 or balance.account_type not in _CATEGORY_BY_TYPE:
+            continue
+        category = _CATEGORY_BY_TYPE[balance.account_type]
+        totals[category] = totals.get(category, 0) + balance.balance_minor
+    payload["asset_breakdown"] = {
+        category: _money_out(_Money(minor, currency)) for category, minor in totals.items()
+    }
+    payload["spendability_note"] = (
+        "Only 'liquid' is readily spendable. 'investments' can be sold but may "
+        "trigger taxes. 'retirement' and 'education' are NOT available for "
+        "purchases (early-withdrawal penalties / different purpose). 'property' "
+        "is illiquid."
+    )
+    return payload
 
 
 def _get_emergency_fund(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):

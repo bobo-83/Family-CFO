@@ -123,3 +123,15 @@ def test_grounded_values_include_rounded_variants() -> None:
     )
     values = ai_tools.grounded_values(result)
     assert {"9.6470588", "9.6", "9.65", "10"} <= values
+
+
+def test_net_worth_tool_breaks_assets_into_spendability_categories(demo_engine: Engine) -> None:
+    """M33: the model must see retirement money as not-spendable, separately."""
+    result = _execute(demo_engine, "get_net_worth", {})
+
+    breakdown = result["asset_breakdown"]
+    assert "liquid" in breakdown  # demo household has checking/savings
+    for category, money in breakdown.items():
+        assert money["amount_minor"] >= 0, category
+    assert "NOT available for purchases" in result["spendability_note"]
+    assert "retirement" in result["spendability_note"]
