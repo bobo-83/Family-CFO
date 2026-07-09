@@ -99,12 +99,41 @@ class PairedDeviceListResponse(BaseModel):
     devices: list[PairedDevice]
 
 
+class EmergencyFundSummary(BaseModel):
+    """M38: coverage vs the standard 3–6 month guidance."""
+
+    months: float | None = None
+    reserved: Money
+    using_designations: bool
+    monthly_expenses: Money
+    target_months_min: float
+    target_months_recommended: float
+    gap_to_recommended: Money | None = None
+    status: Literal["no_bills", "no_fund", "getting_started", "on_track", "fully_funded"]
+
+
+class MonthlyCashFlow(BaseModel):
+    income: Money
+    bills: Money
+    net: Money
+
+
+class AssetCategoryTotal(BaseModel):
+    category: Literal["liquid", "investments", "retirement", "education", "property"]
+    total: Money
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
     currency: str
     net_worth: Money
     emergency_fund_months: float | None
+    # M38: enriched overview summary (additive).
+    emergency_fund: EmergencyFundSummary | None = None
+    monthly_cash_flow: MonthlyCashFlow | None = None
+    asset_breakdown: list[AssetCategoryTotal] = Field(default_factory=list)
+    total_debt: Money | None = None
 
 
 class Account(BaseModel):

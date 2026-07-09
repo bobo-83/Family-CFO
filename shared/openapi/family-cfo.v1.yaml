@@ -1847,6 +1847,78 @@ components:
         emergency_fund_months:
           type: number
           format: double
+        emergency_fund:
+          description: "M38: emergency-fund coverage vs the standard 3–6 month guidance."
+          $ref: "#/components/schemas/EmergencyFundSummary"
+        monthly_cash_flow:
+          description: "M38: recurring income vs bills, normalized monthly."
+          $ref: "#/components/schemas/MonthlyCashFlow"
+        asset_breakdown:
+          description: "M38: positive balances grouped by spendability category (ordered)."
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetCategoryTotal"
+        total_debt:
+          description: "M38: positive sum of all negative account balances."
+          $ref: "#/components/schemas/Money"
+    EmergencyFundSummary:
+      type: object
+      required:
+        - reserved
+        - using_designations
+        - monthly_expenses
+        - target_months_min
+        - target_months_recommended
+        - status
+      properties:
+        months:
+          description: Months of expenses the fund covers; null when there are no bills.
+          type: number
+          format: double
+          nullable: true
+        reserved:
+          description: The fund balance used — designated total when set, else all liquid money.
+          $ref: "#/components/schemas/Money"
+        using_designations:
+          description: True when the fund comes from explicit account designations (M36).
+          type: boolean
+        monthly_expenses:
+          $ref: "#/components/schemas/Money"
+        target_months_min:
+          type: number
+        target_months_recommended:
+          type: number
+        gap_to_recommended:
+          description: Money still needed to reach the recommended target; 0 when funded, absent when no bills.
+          $ref: "#/components/schemas/Money"
+        status:
+          type: string
+          enum: [no_bills, no_fund, getting_started, on_track, fully_funded]
+    MonthlyCashFlow:
+      type: object
+      required:
+        - income
+        - bills
+        - net
+      properties:
+        income:
+          $ref: "#/components/schemas/Money"
+        bills:
+          $ref: "#/components/schemas/Money"
+        net:
+          description: Income minus bills; excludes discretionary spending.
+          $ref: "#/components/schemas/Money"
+    AssetCategoryTotal:
+      type: object
+      required:
+        - category
+        - total
+      properties:
+        category:
+          type: string
+          enum: [liquid, investments, retirement, education, property]
+        total:
+          $ref: "#/components/schemas/Money"
     Account:
       type: object
       required:
