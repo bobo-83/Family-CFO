@@ -4,7 +4,7 @@ import logging
 import os
 
 from family_cfo_ocr_worker import (
-    DeterministicOcrAdapter,
+    default_ocr_adapter,
     ExtractionResult,
     PdfTextExtractionAdapter,
 )
@@ -20,7 +20,9 @@ router = APIRouter(tags=["Documents"])
 logger = logging.getLogger(__name__)
 
 _pdf_adapter = PdfTextExtractionAdapter()
-_ocr_adapter = DeterministicOcrAdapter()
+# M34: real tesseract OCR when the binary is present (Docker image ships it);
+# deterministic fallback keeps tests hermetic.
+_ocr_adapter = default_ocr_adapter()
 
 
 def _extract(content: bytes, content_type: str) -> tuple[str, ExtractionResult]:

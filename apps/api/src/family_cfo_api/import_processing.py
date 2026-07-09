@@ -4,14 +4,15 @@ import csv
 import io
 import logging
 import os
+import re
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from family_cfo_ocr_worker import PdfTextExtractionAdapter
 from family_cfo_scheduler import RetryExhaustedError, RetryPolicy, run_with_retry
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import ofx_parsing, repository
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,80 @@ def _process_csv(engine: Engine, import_record: repository.ImportRecord, file_by
     )
 
 
+def _process_ofx(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
+    """M34: OFX/QFX statements. FITID feeds the external_id hard-dedupe, so
+    re-importing the same or overlapping exports is idempotent."""
+    household = repository.get_household(engine, import_record.household_id)
+    assert household is not None
+    transactions, skipped = ofx_parsing.parse_ofx_transactions(file_bytes)
+
+    for txn in transactions:
+        created = repository.create_transaction_deduped(
+            engine,
+            household_id=import_record.household_id,
+            account_id=import_record.account_id,
+            occurred_at=txn.posted,
+            amount_minor=txn.amount_minor,
+            currency=household.base_currency,
+            merchant=txn.name,
+            description=txn.memo,
+            import_source=import_record.source_type,
+            import_id=import_record.id,
+            review_state="pending",
+            external_id=txn.fitid,
+        )
+        if not created:
+            skipped += 1
+
+    repository.update_import_status(
+        engine, import_record.id, status="needs_review", skipped_row_count=skipped
+    )
+
+
+# Heuristic statement line: date, payee text, amount at end of line. Parentheses
+# or a trailing minus mean negative. Handles "07/03 STARBUCKS 4.50" and
+# "2026-07-03  Rent payment  $1,200.00-".
+_STATEMENT_LINE = re.compile(
+    r"^\s*(?P<date>\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4}-\d{2}-\d{2})\s+"
+    r"(?P<payee>.+?)\s+"
+    r"(?P<neg_open>\()?\$?(?P<amount>-?[\d,]+\.\d{2})(?P<neg_close>\))?(?P<trail_minus>-)?\s*$"
+)
+
+
+def _parse_statement_line_date(raw: str) -> date | None:
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    # MM/DD without a year: assume the current year.
+    try:
+        parsed = datetime.strptime(raw, "%m/%d")
+        return parsed.replace(year=date.today().year).date()
+    except ValueError:
+        return None
+
+
+def _parse_statement_lines(text: str) -> list[tuple[date, str, int]]:
+    rows: list[tuple[date, str, int]] = []
+    for line in text.splitlines():
+        match = _STATEMENT_LINE.match(line)
+        if not match:
+            continue
+        occurred = _parse_statement_line_date(match.group("date"))
+        if occurred is None:
+            continue
+        amount_minor = int(
+            (Decimal(match.group("amount").replace(",", "")) * 100).to_integral_value(
+                rounding=ROUND_HALF_UP
+            )
+        )
+        if match.group("neg_open") or match.group("trail_minus"):
+            amount_minor = -abs(amount_minor)
+        rows.append((occurred, match.group("payee").strip(), amount_minor))
+    return rows
+
+
 def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
     result = _pdf_adapter.extract(file_bytes, "application/pdf")
 
@@ -111,7 +186,32 @@ def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_by
         warnings=result.warnings,
     )
 
-    repository.update_import_status(engine, import_record.id, status="needs_review")
+    # M34: heuristic statement line-items -> pending transactions for review
+    # (content-hash deduped). A PDF with no recognizable lines behaves as
+    # before: document extraction only.
+    household = repository.get_household(engine, import_record.household_id)
+    assert household is not None
+    skipped = 0
+    for occurred_at, payee, amount_minor in _parse_statement_lines(result.text):
+        created = repository.create_transaction_deduped(
+            engine,
+            household_id=import_record.household_id,
+            account_id=import_record.account_id,
+            occurred_at=occurred_at,
+            amount_minor=amount_minor,
+            currency=household.base_currency,
+            merchant=payee,
+            description=None,
+            import_source="pdf",
+            import_id=import_record.id,
+            review_state="pending",
+        )
+        if not created:
+            skipped += 1
+
+    repository.update_import_status(
+        engine, import_record.id, status="needs_review", skipped_row_count=skipped
+    )
 
 
 def _read_staged_file(staging_dir: str, storage_path: str) -> bytes:
@@ -132,10 +232,10 @@ def _process_one_import(
         _process_csv(engine, import_record, file_bytes)
     elif import_record.source_type == "pdf":
         _process_pdf(engine, import_record, file_bytes)
+    elif import_record.source_type in ("ofx", "qfx"):
+        _process_ofx(engine, import_record, file_bytes)
     else:
-        raise ValueError(
-            f"no processor for source_type {import_record.source_type!r} yet (OFX/QFX planning only)"
-        )
+        raise ValueError(f"no processor for source_type {import_record.source_type!r}")
 
 
 def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:

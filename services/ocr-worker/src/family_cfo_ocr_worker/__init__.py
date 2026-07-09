@@ -3,6 +3,9 @@ from family_cfo_ocr_worker.deterministic_ocr_adapter import DeterministicOcrAdap
 from family_cfo_ocr_worker.pdf_adapter import PdfTextExtractionAdapter
 
 __all__ = [
+    "TesseractOcrAdapter",
+    "default_ocr_adapter",
+    "tesseract_available",
     "DeterministicOcrAdapter",
     "DocumentExtractionAdapter",
     "ExtractionResult",
@@ -10,3 +13,8 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
+from family_cfo_ocr_worker.tesseract_ocr_adapter import (
+    TesseractOcrAdapter,
+    default_ocr_adapter,
+    tesseract_available,
+)

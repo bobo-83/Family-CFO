@@ -137,11 +137,14 @@ def test_pdf_import_creates_a_document_extraction_not_transactions(
     assert "99.99" in extraction.text
 
 
-def test_import_with_no_processor_fails_after_retries(demo_engine: Engine, tmp_path) -> None:
+def test_import_processing_error_fails_after_retries(demo_engine: Engine, tmp_path) -> None:
+    # Every valid source_type has a processor since M34, so exercise the
+    # retry-then-fail path with a staged file that vanished before processing.
     staging_dir = str(tmp_path)
     import_record = _create_pending_import_with_file(
         demo_engine, staging_dir, b"OFXHEADER:100", filename="statement.ofx", source_type="ofx"
     )
+    os.remove(os.path.join(staging_dir, f"{import_record.id}/statement.ofx"))
 
     processed = import_processing.run_pending_imports_once(demo_engine, staging_dir)
 
