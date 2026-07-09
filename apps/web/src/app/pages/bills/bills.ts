@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Bill as BillDto, RecurringFrequency } from '../../api-client';
@@ -17,7 +18,7 @@ const FREQUENCIES: RecurringFrequency[] = [
 
 @Component({
   selector: 'app-bills',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, DatePipe],
   templateUrl: './bills.html',
   styleUrl: './bills.scss',
 })
@@ -57,6 +58,7 @@ export class Bills {
     name: ['', Validators.required],
     amount: [0, [Validators.required, Validators.min(0.01)]],
     frequency: ['monthly' as RecurringFrequency, Validators.required],
+    nextDueDate: [''],
   });
 
   protected readonly submitting = signal(false);
@@ -69,18 +71,19 @@ export class Bills {
     }
     this.submitting.set(true);
     this.submitError.set(null);
-    const { name, amount, frequency } = this.form.getRawValue();
+    const { name, amount, frequency, nextDueDate } = this.form.getRawValue();
     const { error } = await this.api.createBill({
       name,
       amount: { amount_minor: Math.round(amount * 100), currency: 'USD' },
       frequency,
+      ...(nextDueDate ? { next_due_date: nextDueDate } : {}),
     });
     this.submitting.set(false);
     if (error) {
       this.submitError.set(apiErrorMessage(error, 'Failed to create bill.'));
       return;
     }
-    this.form.reset({ name: '', amount: 0, frequency: 'monthly' });
+    this.form.reset({ name: '', amount: 0, frequency: 'monthly', nextDueDate: '' });
     await this.load();
   }
 

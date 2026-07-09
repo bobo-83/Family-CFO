@@ -1,4 +1,4 @@
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, resource } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { EmergencyFundSummary } from '../../api-client';
@@ -24,7 +24,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 @Component({
   selector: 'app-overview',
-  imports: [DecimalPipe, RouterLink],
+  imports: [DatePipe, DecimalPipe, RouterLink],
   templateUrl: './overview.html',
   styleUrl: './overview.scss',
 })
@@ -49,5 +49,15 @@ export class Overview {
 
   protected categoryLabel(category: string): string {
     return CATEGORY_LABELS[category] ?? category;
+  }
+
+  protected dueLabel(daysUntil: number): string {
+    if (daysUntil <= 0) {
+      return 'Due today';
+    }
+    if (daysUntil === 1) {
+      return 'Due tomorrow';
+    }
+    return `Due in ${daysUntil} days`;
   }
 }

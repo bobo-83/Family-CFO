@@ -142,6 +142,21 @@ export type HouseholdContext = {
      * M38: positive sum of all negative account balances.
      */
     total_debt?: Money;
+    /**
+     * M39: bills due within the next 14 days, soonest first.
+     */
+    upcoming_bills?: Array<UpcomingBill>;
+};
+
+export type UpcomingBill = {
+    id: string;
+    name: string;
+    amount: Money;
+    due_date: string;
+    /**
+     * Whole days from today to the next occurrence (0 = due today).
+     */
+    days_until: number;
 };
 
 export type EmergencyFundSummary = {

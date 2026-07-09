@@ -475,6 +475,8 @@ class RecurringRecord:
     amount_minor: int
     currency: str
     frequency: str
+    # Bills carry a due date; income sources leave it None.
+    next_due_date: date | None = None
 
 
 def list_transactions(
@@ -537,6 +539,7 @@ def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
             amount_minor=row["amount_minor"],
             currency=row["currency"],
             frequency=row["frequency"],
+            next_due_date=row["next_due_date"],
         )
         for row in rows
     ]
@@ -2230,12 +2233,14 @@ def delete_transaction(engine: Engine, household_id: str, transaction_id: str) -
 
 
 def _recurring_record_from_row(row: Any) -> RecurringRecord:
+    # Shared by bills and income sources; only bills carry a due-date column.
     return RecurringRecord(
         id=row["id"],
         name=row["name"],
         amount_minor=row["amount_minor"],
         currency=row["currency"],
         frequency=row["frequency"],
+        next_due_date=row.get("next_due_date"),
     )
 
 
@@ -2277,7 +2282,12 @@ def create_bill(
             )
         )
     return RecurringRecord(
-        id=bill_id, name=name, amount_minor=amount_minor, currency=currency, frequency=frequency
+        id=bill_id,
+        name=name,
+        amount_minor=amount_minor,
+        currency=currency,
+        frequency=frequency,
+        next_due_date=next_due_date,
     )
 
 

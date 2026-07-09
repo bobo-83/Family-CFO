@@ -109,6 +109,34 @@
             </span>
           </div>
         }
+
+        <div class="overview__card overview__card--wide">
+          <span class="overview__label">
+            Upcoming bills
+            <span class="overview__value-context">next 14 days</span>
+          </span>
+          @if (context.upcoming_bills && context.upcoming_bills.length > 0) {
+            <ul class="overview__bills">
+              @for (bill of context.upcoming_bills; track bill.id) {
+                <li class="overview__bill">
+                  <span class="overview__bill-name">{{ bill.name }}</span>
+                  <span
+                    class="overview__bill-due"
+                    [class.overview__bill-due--soon]="bill.days_until <= 3"
+                  >
+                    {{ dueLabel(bill.days_until) }} · {{ bill.due_date | date: 'MMM d' }}
+                  </span>
+                  <span class="overview__bill-amount">{{ formatMoney(bill.amount) }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <span class="overview__hint">
+              Nothing due in the next two weeks.
+              <a routerLink="/bills">Manage bills</a>
+            </span>
+          }
+        </div>
       </div>
     }
   }

@@ -52,6 +52,15 @@ describe('Overview', () => {
           { category: 'retirement', total: { amount_minor: 80_000_000, currency: 'USD' } },
         ],
         total_debt: { amount_minor: 30_000_000, currency: 'USD' },
+        upcoming_bills: [
+          {
+            id: 'b1',
+            name: 'Internet',
+            amount: { amount_minor: 8_000, currency: 'USD' },
+            due_date: '2026-07-12',
+            days_until: 3,
+          },
+        ],
       }),
     );
 
@@ -72,6 +81,10 @@ describe('Overview', () => {
     expect(text).toContain('USD 6,000.00 income');
     expect(text).toContain('Retirement');
     expect(text).toContain('USD 300,000.00');
+    // Upcoming bills card.
+    expect(text).toContain('Upcoming bills');
+    expect(text).toContain('Internet');
+    expect(text).toContain('Due in 3 days');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {

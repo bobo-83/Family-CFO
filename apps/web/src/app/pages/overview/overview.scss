@@ -122,3 +122,47 @@
     gap: 1rem;
   }
 }
+
+/* M39: upcoming bills */
+.overview__bills {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.overview__bill {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.95rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.overview__bill:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.overview__bill-name {
+  font-weight: 600;
+}
+
+.overview__bill-due {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.overview__bill-due--soon {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.overview__bill-amount {
+  font-weight: 600;
+  text-align: right;
+}

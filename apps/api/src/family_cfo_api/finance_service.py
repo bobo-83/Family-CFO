@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any
 
 from family_cfo_financial_engine import (
@@ -44,6 +46,80 @@ ASSET_CATEGORY_ORDER = ("liquid", "investments", "retirement", "education", "pro
 # Standard emergency-fund guidance (M38): months of essential expenses.
 EMERGENCY_FUND_TARGET_MIN_MONTHS = 3.0
 EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS = 6.0
+
+# How far ahead the Overview's upcoming-bills card looks (M39).
+UPCOMING_BILL_WINDOW_DAYS = 14
+
+_DAY_STEP_BY_FREQUENCY = {"weekly": 7, "biweekly": 14, "semimonthly": 15}
+_MONTH_STEP_BY_FREQUENCY = {"monthly": 1, "quarterly": 3, "annual": 12}
+
+
+def _add_months(anchor: date, months: int) -> date:
+    """Add whole months, clamping to the last valid day (Jan 31 + 1mo -> Feb 28/29)."""
+    total = anchor.month - 1 + months
+    year = anchor.year + total // 12
+    month = total % 12 + 1
+    day = min(anchor.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def next_bill_occurrence(next_due_date: date, frequency: str, today: date) -> date:
+    """Advance a stored due date to its next occurrence on or after `today`.
+
+    A due date already in the future is returned unchanged; a stale one is
+    rolled forward by its frequency so it never shows as overdue. An unknown
+    frequency (should not happen given the DB CHECK) is returned as-is.
+    """
+    if next_due_date >= today:
+        return next_due_date
+
+    if frequency in _DAY_STEP_BY_FREQUENCY:
+        step = _DAY_STEP_BY_FREQUENCY[frequency]
+        gap = (today - next_due_date).days
+        return next_due_date + timedelta(days=((gap + step - 1) // step) * step)
+
+    if frequency in _MONTH_STEP_BY_FREQUENCY:
+        step = _MONTH_STEP_BY_FREQUENCY[frequency]
+        occurrence = next_due_date
+        while occurrence < today:
+            occurrence = _add_months(occurrence, step)
+        return occurrence
+
+    return next_due_date
+
+
+@dataclass(frozen=True, slots=True)
+class UpcomingBill:
+    id: str
+    name: str
+    amount: Money
+    due_date: date
+    days_until: int
+
+
+def upcoming_bills(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> list[UpcomingBill]:
+    """Bills whose next occurrence falls within UPCOMING_BILL_WINDOW_DAYS, soonest first."""
+    today = today or date.today()
+    horizon = today + timedelta(days=UPCOMING_BILL_WINDOW_DAYS)
+    result: list[UpcomingBill] = []
+    for bill in repository.list_bills(engine, household_id):
+        if bill.next_due_date is None:
+            continue
+        due = next_bill_occurrence(bill.next_due_date, bill.frequency, today)
+        if due <= horizon:
+            result.append(
+                UpcomingBill(
+                    id=bill.id,
+                    name=bill.name,
+                    amount=Money(bill.amount_minor, bill.currency),
+                    due_date=due,
+                    days_until=(due - today).days,
+                )
+            )
+    result.sort(key=lambda b: b.due_date)
+    return result
 
 
 @dataclass(frozen=True, slots=True)

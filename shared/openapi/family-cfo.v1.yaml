@@ -1861,6 +1861,33 @@ components:
         total_debt:
           description: "M38: positive sum of all negative account balances."
           $ref: "#/components/schemas/Money"
+        upcoming_bills:
+          description: "M39: bills due within the next 14 days, soonest first."
+          type: array
+          items:
+            $ref: "#/components/schemas/UpcomingBill"
+    UpcomingBill:
+      type: object
+      required:
+        - id
+        - name
+        - amount
+        - due_date
+        - days_until
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        due_date:
+          type: string
+          format: date
+        days_until:
+          description: Whole days from today to the next occurrence (0 = due today).
+          type: integer
     EmergencyFundSummary:
       type: object
       required:
