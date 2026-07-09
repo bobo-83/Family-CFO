@@ -657,6 +657,19 @@ Rules:
 - [x] Docs (ADR 0013, docker README, AI-advisor guide, acceptance state); verification; live deploy.
 - [ ] Commit M23 changes.
 
+## M24: Live-Data Chat Tools
+
+### Spec Gate
+
+- [x] Define M24 scope, non-goals, and test expectations. (See roadmap and ADR 0014.)
+
+### Implementation
+
+- [x] `get_exchange_rate` + optional `web_search` tools in the registry (settings-gated), prompt update. Tests (222 api pass).
+- [x] `searxng` compose profile + env knobs (`FAMILY_CFO_LIVE_DATA_ENABLED`, `FAMILY_CFO_SEARXNG_URL`).
+- [x] Docs (ADR 0014, .env.example, docker README, AI-advisor guide, acceptance state); verification; live deploy.
+- [ ] Commit M24 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

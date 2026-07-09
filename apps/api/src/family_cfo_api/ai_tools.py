@@ -12,7 +12,11 @@ back for the model to correct itself or ask the user.
 from __future__ import annotations
 
 import json
+import re
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+
+import httpx
 
 from family_cfo_ai_orchestrator import ToolCallingResult, ToolSpec, extract_numbers
 from family_cfo_financial_engine import (
@@ -25,6 +29,7 @@ from family_cfo_financial_engine import (
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import finance_service
+from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.explanation import format_money
 from family_cfo_ai_orchestrator.tool_calling import ToolExecutor
 
@@ -39,7 +44,11 @@ TOOL_SYSTEM_PROMPT = (
     "back to the user. If a tool reports \"error\": \"missing_input\", ask the "
     "user to supply that fact instead of guessing. If a tool reports "
     "\"error\": \"invalid_arguments\", correct the arguments and try again. Keep "
-    "the final answer to a few plain-language sentences."
+    "the final answer to a few plain-language sentences. For currency "
+    "conversion use the get_exchange_rate tool; for live item prices or other "
+    "public facts use web_search when available — search only for the item or "
+    "fact, never include names, account details, or other household information "
+    "in a search query."
 )
 
 
@@ -272,6 +281,81 @@ def _debt_payoff(engine: Engine, household_id: str, currency: str, args: dict[st
     return _result_payload(result, calc_id)
 
 
+# --- Live-data tools (ADR 0014) ----------------------------------------------
+
+_ISO_CODE = re.compile(r"^[A-Za-z]{3}$")
+_RATE_PROVIDER = "https://open.er-api.com/v6/latest/{base}"
+_LIVE_TIMEOUT_SECONDS = 6.0
+_SEARCH_QUERY_MAX = 200
+
+
+def _get_exchange_rate(args: dict[str, Any]) -> dict[str, Any]:
+    base, quote = str(args.get("base", "")).upper(), str(args.get("quote", "")).upper()
+    if not _ISO_CODE.match(base):
+        return _missing("base") if not base else _invalid("base must be a 3-letter currency code")
+    if not _ISO_CODE.match(quote):
+        return _missing("quote") if not quote else _invalid("quote must be a 3-letter currency code")
+    amount_minor = None
+    if args.get("amount_minor") is not None:
+        amount_minor, error = _int_arg(args, "amount_minor", minimum=0)
+        if error:
+            return error
+    try:
+        response = httpx.get(_RATE_PROVIDER.format(base=base), timeout=_LIVE_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        data = response.json()
+        rate = (data.get("rates") or {}).get(quote)
+    except (httpx.HTTPError, ValueError):
+        return {"error": "lookup_failed", "detail": "exchange-rate provider unreachable"}
+    if rate is None:
+        return _invalid(f"no rate available for {base}->{quote}")
+    result: dict[str, Any] = {
+        "base": base,
+        "quote": quote,
+        "rate": rate,
+        "as_of": data.get("time_last_update_utc", "unknown"),
+        "source": "open.er-api.com (ECB-style daily rates)",
+    }
+    if amount_minor is not None:
+        # The engine calculates, never the model (ADR 0003): the conversion is
+        # done here with Decimal so the model can quote a grounded figure.
+        converted_minor = int(
+            (Decimal(amount_minor) * Decimal(str(rate))).to_integral_value(rounding=ROUND_HALF_UP)
+        )
+        result["amount"] = _money_out(Money(amount_minor, base))
+        result["converted"] = _money_out(Money(converted_minor, quote))
+    return result
+
+
+def _web_search(args: dict[str, Any], searxng_url: str) -> dict[str, Any]:
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return _missing("query")
+    if len(query) > _SEARCH_QUERY_MAX:
+        return _invalid(f"query must be at most {_SEARCH_QUERY_MAX} characters")
+    try:
+        response = httpx.get(
+            f"{searxng_url.rstrip('/')}/search",
+            params={"q": query, "format": "json"},
+            timeout=_LIVE_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        results = (response.json().get("results") or [])[:5]
+    except (httpx.HTTPError, ValueError):
+        return {"error": "lookup_failed", "detail": "search service unreachable"}
+    return {
+        "query": query,
+        "results": [
+            {
+                "title": item.get("title", ""),
+                "snippet": (item.get("content") or "")[:300],
+                "url": item.get("url", ""),
+            }
+            for item in results
+        ],
+    }
+
+
 _HANDLERS = {
     "get_net_worth": _get_net_worth,
     "get_emergency_fund": _get_emergency_fund,
@@ -290,9 +374,10 @@ _CURRENCY_FIELD = {
 _RATE_FIELD = {"type": "number", "description": "annual rate as a decimal fraction, e.g. 0.06 for 6%"}
 
 
-def build_tools() -> list[ToolSpec]:
-    """The JSON-schema descriptors advertised to the model."""
-    return [
+def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
+    """The JSON-schema descriptors advertised to the model (some settings-gated)."""
+    settings = settings or get_settings()
+    tools = [
         ToolSpec(
             name="get_net_worth",
             description="Current household net worth, total assets, and total liabilities.",
@@ -393,12 +478,61 @@ def build_tools() -> list[ToolSpec]:
             },
         ),
     ]
+    if settings.live_data_enabled:
+        tools.append(
+            ToolSpec(
+                name="get_exchange_rate",
+                description=(
+                    "Current currency exchange rate between two ISO codes (live, daily). Pass "
+                    "amount_minor to also get the converted amount computed for you — never "
+                    "multiply amounts by the rate yourself."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "base": {"type": "string", "description": "3-letter code, e.g. USD"},
+                        "quote": {"type": "string", "description": "3-letter code, e.g. VND"},
+                        "amount_minor": {
+                            "type": "integer",
+                            "description": "optional amount in base minor units to convert",
+                        },
+                    },
+                    "required": ["base", "quote"],
+                    "additionalProperties": False,
+                },
+            )
+        )
+    if settings.searxng_url:
+        tools.append(
+            ToolSpec(
+                name="web_search",
+                description=(
+                    "Search the web for public facts like current item prices. Query the item or "
+                    "fact only — never include household or personal information."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {"query": {"type": "string", "description": "search terms"}},
+                    "required": ["query"],
+                    "additionalProperties": False,
+                },
+            )
+        )
+    return tools
 
 
-def build_executor(engine: Engine, household_id: str, currency: str) -> ToolExecutor:
+def build_executor(
+    engine: Engine, household_id: str, currency: str, settings: Settings | None = None
+) -> ToolExecutor:
     """A household-scoped dispatcher the tool-calling loop invokes for each tool call."""
+    settings = settings or get_settings()
 
     def execute(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        # Live-data tools (ADR 0014): only reachable when registered above.
+        if name == "get_exchange_rate" and settings.live_data_enabled:
+            return _get_exchange_rate(args)
+        if name == "web_search" and settings.searxng_url:
+            return _web_search(args, settings.searxng_url)
         handler = _HANDLERS.get(name)
         if handler is None:
             return {"error": "unknown_tool", "name": name}

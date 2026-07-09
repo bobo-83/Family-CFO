@@ -39,6 +39,9 @@ x-api-env: &api-env
   FAMILY_CFO_GPU_MEMORY_GB: ${FAMILY_CFO_GPU_MEMORY_GB:-}
   # One-click model apply (ADR 0013); blank disables the in-app Apply button.
   FAMILY_CFO_MODEL_MANAGER_URL: http://model-manager:8000
+  # Live-data chat tools (ADR 0014).
+  FAMILY_CFO_LIVE_DATA_ENABLED: ${FAMILY_CFO_LIVE_DATA_ENABLED:-true}
+  FAMILY_CFO_SEARXNG_URL: ${FAMILY_CFO_SEARXNG_URL:-}
 
 services:
   db:
@@ -206,6 +209,17 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/project
+    networks: [internal]
+    restart: unless-stopped
+
+  # Optional self-hosted metasearch for the chat web_search tool (ADR 0014).
+  # Enable with: docker compose --profile search up -d
+  # and set FAMILY_CFO_SEARXNG_URL=http://searxng:8080 in .env.
+  searxng:
+    image: searxng/searxng:latest
+    profiles: [search]
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
     networks: [internal]
     restart: unless-stopped
 

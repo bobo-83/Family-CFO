@@ -42,6 +42,8 @@ Only `web` is reachable from outside the Docker network. The database, API, and 
 
 - **model-manager** — THE one privileged sidecar (ADR 0013): Docker socket + project mount, exposing a single validated operation (swap served models via `scripts/swap-model.sh`) so the dashboard's **Apply** button works. Internal network only, never published; the owner-gated API is its only caller. Remove with `--scale model-manager=0` to fall back to the CLI swap flow.
 
+- **searxng** (`--profile search`) — optional self-hosted metasearch powering the chat `web_search` tool (live prices/public facts, ADR 0014). Set `FAMILY_CFO_SEARXNG_URL=http://searxng:8080` when enabled; without it the tool simply isn't offered to the model.
+
 - **qdrant** (`--profile vector`) — a vector store matching `docs/specs/10-docker-spec.md`'s planned `family-cfo-vector` container. **Nothing connects to it yet** — retrieval/embeddings are tracked backlog (`docs/specs/12-implementation-tasks.md`). It is honest scaffolding, off unless explicitly enabled.
 
   ```bash
