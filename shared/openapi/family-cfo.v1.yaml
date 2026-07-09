@@ -1871,6 +1871,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NetWorthPoint"
+        top_goal:
+          description: "M41: the highest-priority savings goal with progress, when one exists."
+          $ref: "#/components/schemas/GoalProgress"
+    GoalProgress:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - current
+        - target
+        - percent_complete
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/GoalType"
+        current:
+          $ref: "#/components/schemas/Money"
+        target:
+          $ref: "#/components/schemas/Money"
+        percent_complete:
+          description: current / target, 0-100 (capped), 0 when target is 0.
+          type: integer
+        target_date:
+          type: string
+          format: date
+          nullable: true
     NetWorthPoint:
       type: object
       required:

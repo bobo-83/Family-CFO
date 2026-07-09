@@ -771,6 +771,13 @@ Net worth is only shown as today's number; there's no trend. This is the next ba
 - [x] Spec gate: (a) schema — a `net_worth_snapshots` table (`id`, `household_id` FK, `as_of` DATE, `net_worth_minor` BIGINT, `currency`, `created_at`), with a unique `(household_id, as_of)` so at most one snapshot per household per day; migration `0035`. (b) capture — a `net_worth_history.record_snapshot_once(engine)` that iterates households, computes net worth, and **upserts** today's row (idempotent — re-running the same day overwrites, not appends); wired into the worker as a daily job **and** run once at worker startup so history begins immediately. (c) read — `repository.list_net_worth_snapshots(household_id, limit)` (most recent N, returned oldest-first for charting); `HouseholdContext` gains additive `net_worth_history` (last 30 snapshots as `{as_of, net_worth}`). (d) UI — the Overview net-worth card renders an inline SVG sparkline of the history plus the change since the earliest point shown; a single/no-point history renders no sparkline gracefully.
 - [x] Implement + tests (upsert idempotency same-day; multi-day ordering oldest-first; snapshot job persists per household; context returns the series; Overview renders a sparkline path) + deploy + commit. Verified: 273 api + 73 web tests pass; live deploy applied migration `0035`, the worker captured a snapshot per household at startup, re-running left exactly one row per day, and the context returns the series oldest-first (seeded 3-day demo trend shows a +$70,000 change).
 
+## M41: Goal Progress on the Overview
+
+Goals exist (create/list, priority-ordered) but never appear on the Overview. Surface the highest-priority goal with a progress bar — the next backlog item.
+
+- [x] Spec gate: (a) read — `HouseholdContext` gains additive `top_goal` (nullable): the highest-priority goal (`list_goals` already orders by priority then name, so it's the first) as `GoalProgress { id, name, type, current, target, percent_complete, target_date }`, where `percent_complete` is `min(100, round(current/target*100))` with a zero-target guard (0). No migration — goals already persist. (b) UI — an Overview card shows the goal's name and type, a progress bar filled to `percent_complete`, "current of target", the percent, and the target date when set; a "no goals yet" empty state links to the Goals page. Contract addition only.
+- [x] Implement + tests (top-of-priority selection; percent math incl. zero-target and over-100 capping; context returns it; Overview renders the bar + empty state) + deploy + commit. Verified: 276 api + 73 web tests pass; live deployment returns the demo household's priority-1 Emergency fund goal at 83%.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
@@ -779,7 +786,7 @@ Candidate features surfaced while enriching the overview; each needs its own spe
 - [ ] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists).
 - [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
-- [ ] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar).
+- [x] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar). — delivered by M41.
 - [ ] Budget envelopes per category with monthly limits + alerts (larger; overlaps the existing budget-management backlog).
 - [ ] Savings-rate metric (income − all spending, trailing 3 months).
 

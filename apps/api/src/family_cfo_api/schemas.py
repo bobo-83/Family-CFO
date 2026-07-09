@@ -140,6 +140,18 @@ class NetWorthPoint(BaseModel):
     net_worth: Money
 
 
+class GoalProgress(BaseModel):
+    """M41: the highest-priority goal, with progress toward its target."""
+
+    id: str
+    name: str
+    type: GoalType
+    current: Money
+    target: Money
+    percent_complete: int
+    target_date: date | None = None
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -153,6 +165,7 @@ class HouseholdContext(BaseModel):
     total_debt: Money | None = None
     upcoming_bills: list[UpcomingBill] = Field(default_factory=list)
     net_worth_history: list[NetWorthPoint] = Field(default_factory=list)
+    top_goal: GoalProgress | None = None
 
 
 class Account(BaseModel):
