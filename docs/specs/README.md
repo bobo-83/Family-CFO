@@ -60,6 +60,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M21 chat photo attachments (vision routing): implemented (backed by ADR 0011). Chat accepts an attached/camera photo; it is always converted to a text description first (vision-capable main model, else the on-box `vllm-vision` describer, else a graceful warning), the description joins the tool-calling loop and its numbers join the grounded set, and the image itself is never persisted. On-device iPhone describing is recorded as native-app backlog (Safari cannot reach Apple's on-device models).
 
+- M22 model selection, hardware planning & status clarity: implemented (backed by ADR 0012). The AI Runtime page gains a curated model picker (main + vision, vision hidden when the main model sees photos itself) with live replacement-semantics hardware-fit metrics (`GET /ai/models`, `GET /ai/hardware`), a save + `scripts/swap-model.sh` apply command, and a serving-mismatch notice; the chat banner shows separate main/vision states (`vision_enabled`); the camera button alignment is fixed. The API never controls Docker in this milestone.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

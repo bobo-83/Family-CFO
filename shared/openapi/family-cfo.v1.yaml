@@ -1320,6 +1320,40 @@ paths:
                 $ref: "#/components/schemas/AiRuntimeStatus"
         "401":
           $ref: "#/components/responses/Error"
+  /ai/models:
+    get:
+      tags:
+        - AI Runtime
+      operationId: listAiModels
+      summary: List the curated model catalog for the runtime picker
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Curated model catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiModelCatalog"
+        "401":
+          $ref: "#/components/responses/Error"
+  /ai/hardware:
+    get:
+      tags:
+        - AI Runtime
+      operationId: getAiHardwareProfile
+      summary: Report best-effort hardware facts for model-fit planning
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Hardware profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiHardwareProfile"
+        "401":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -2537,3 +2571,64 @@ components:
         vision_model:
           type: string
           nullable: true
+        vision_enabled:
+          type: boolean
+    AiModelInfo:
+      type: object
+      required:
+        - id
+        - label
+        - role
+        - parameters_b
+        - est_memory_gb
+        - est_disk_gb
+        - supports_vision
+        - gated
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        role:
+          type: string
+          enum: [main, vision, both]
+        parameters_b:
+          type: number
+        est_memory_gb:
+          type: number
+        est_disk_gb:
+          type: number
+        tool_parser:
+          type: string
+          nullable: true
+        supports_vision:
+          type: boolean
+        gated:
+          type: boolean
+        notes:
+          type: string
+    AiModelCatalog:
+      type: object
+      required:
+        - models
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiModelInfo"
+    AiHardwareProfile:
+      type: object
+      required:
+        - disk_free_gb
+        - source
+      properties:
+        gpu_memory_gb:
+          type: number
+          nullable: true
+        system_memory_gb:
+          type: number
+          nullable: true
+        disk_free_gb:
+          type: number
+        source:
+          type: string

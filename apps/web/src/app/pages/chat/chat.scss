@@ -315,6 +315,12 @@
 .chat__attach {
   flex-shrink: 0;
   width: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0;
+  line-height: 1;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
@@ -357,4 +363,16 @@
   font-size: 0.72rem;
   opacity: 0.85;
   margin-bottom: 0.25rem;
+}
+
+
+.chat__status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-end;
+
+  @media (max-width: 820px) {
+    align-items: stretch;
+  }
 }

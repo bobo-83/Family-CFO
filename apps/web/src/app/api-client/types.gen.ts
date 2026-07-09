@@ -466,6 +466,31 @@ export type AiRuntimeStatus = {
     detail: string;
     vision_ready?: boolean;
     vision_model?: string;
+    vision_enabled?: boolean;
+};
+
+export type AiModelInfo = {
+    id: string;
+    label: string;
+    role: 'main' | 'vision' | 'both';
+    parameters_b: number;
+    est_memory_gb: number;
+    est_disk_gb: number;
+    tool_parser?: string;
+    supports_vision: boolean;
+    gated: boolean;
+    notes?: string;
+};
+
+export type AiModelCatalog = {
+    models: Array<AiModelInfo>;
+};
+
+export type AiHardwareProfile = {
+    gpu_memory_gb?: number;
+    system_memory_gb?: number;
+    disk_free_gb: number;
+    source: string;
 };
 
 export type GetHealthData = {
@@ -2132,3 +2157,53 @@ export type GetAiRuntimeStatusResponses = {
 };
 
 export type GetAiRuntimeStatusResponse = GetAiRuntimeStatusResponses[keyof GetAiRuntimeStatusResponses];
+
+export type ListAiModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/models';
+};
+
+export type ListAiModelsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListAiModelsError = ListAiModelsErrors[keyof ListAiModelsErrors];
+
+export type ListAiModelsResponses = {
+    /**
+     * Curated model catalog
+     */
+    200: AiModelCatalog;
+};
+
+export type ListAiModelsResponse = ListAiModelsResponses[keyof ListAiModelsResponses];
+
+export type GetAiHardwareProfileData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/hardware';
+};
+
+export type GetAiHardwareProfileErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetAiHardwareProfileError = GetAiHardwareProfileErrors[keyof GetAiHardwareProfileErrors];
+
+export type GetAiHardwareProfileResponses = {
+    /**
+     * Hardware profile
+     */
+    200: AiHardwareProfile;
+};
+
+export type GetAiHardwareProfileResponse = GetAiHardwareProfileResponses[keyof GetAiHardwareProfileResponses];

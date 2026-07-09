@@ -21,6 +21,7 @@ import {
   discardImport,
   generateReport,
   getAiRuntimeConfig,
+  getAiHardwareProfile,
   getAiRuntimeStatus,
   getConversation,
   getHouseholdContext,
@@ -29,6 +30,7 @@ import {
   listAuditEvents,
   listBackups,
   listBills,
+  listAiModels,
   listConversations,
   listGoals,
   listImports,
@@ -273,6 +275,14 @@ export class ApiService {
 
   getAiRuntimeStatus() {
     return getAiRuntimeStatus();
+  }
+
+  listAiModels() {
+    return listAiModels();
+  }
+
+  getAiHardwareProfile() {
+    return getAiHardwareProfile();
   }
 
   updateAiRuntimeConfig(body: AiRuntimeConfig) {

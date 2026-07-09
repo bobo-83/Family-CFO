@@ -628,6 +628,21 @@ Rules:
 - [x] Verification: all suites + build; deployed to the live stack.
 - [ ] Commit M21 changes.
 
+## M22: Model Selection, Hardware Planning & Status Clarity
+
+### Spec Gate
+
+- [x] Define M22 scope, non-goals, and test expectations. (See roadmap and ADR 0012.)
+
+### Implementation
+
+- [x] `GET /ai/models` catalog + `GET /ai/hardware` profile + `AiRuntimeStatus.vision_enabled`; contract + client regen. Tests (211 api pass).
+- [x] Chat banner: separate main/vision states; camera button alignment fix.
+- [x] AI Runtime page rebuild: pickers, live fit metrics, save, mismatch notice + swap command. Tests (57 web pass).
+- [x] `scripts/swap-model.sh` + deploy-script GPU memory detection.
+- [x] Docs (ADR 0012, AI-advisor guide, acceptance state); verification; live patch.
+- [ ] Commit M22 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
