@@ -806,8 +806,8 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 
 ### Non-Goals
 
-- **vLLM and Qdrant do not run by default.** Both are defined but behind Compose **profiles** (`--profile ai` for `vllm`, `--profile vector` for `qdrant`), off unless explicitly requested:
-  - `vllm` is a real, wire-able opt-in — it needs a GPU and a multi-gigabyte model download, and the app runs fully without it (the purchase advisor and reports fall back to the deterministic explanation stub). A household enables it by pointing its AI runtime config at `http://vllm:8000` (`PUT /api/v1/ai/runtime`). It is never published to the host.
+- **vLLM and Qdrant do not run by default.** _(vLLM part superseded by [M17](#m17-turnkey-deployment-ai-on-by-default), which makes the local runtime on by default; Qdrant stays profile-gated.)_ Both were defined behind Compose **profiles** (`--profile ai` for `vllm`, `--profile vector` for `qdrant`), off unless explicitly requested:
+  - `vllm` was a wire-able opt-in — it needs a GPU and a multi-gigabyte model download, and the app runs fully without it (the advisor, reports, and chat fall back to the deterministic explanation stub). As of M17 it runs by default and households inherit it automatically; the opt-out is `FAMILY_CFO_AI_ENABLED=false` + `--scale vllm=0`. It is never published to the host.
   - `qdrant` is **honest scaffolding only** — it matches the Docker spec's planned `family-cfo-vector` container, but nothing in the codebase connects to it yet (the vector-store/retrieval work is tracked backlog). It is profile-gated and documented as having no consumer, rather than pretending it is wired up (the same honesty the M5 placeholder shells used).
 - No reverse proxy, TLS/HTTPS termination, monitoring, or the "Backup" sidecar container — those are the Docker spec's "Future Containers" and remain Release-Readiness security work (HTTPS is a separate tracked item). The `web` container serves plain HTTP; a home-server operator is expected to front it with their own TLS proxy until that milestone lands.
 - No image publishing to a registry, no multi-arch build, no Kubernetes/Swarm manifests — a single-host `docker compose` deployment is the target (ADR 0006).
@@ -1074,3 +1074,42 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - Update `services/ai-orchestrator/README.md` (tool-calling loop, tool descriptors), `apps/api/README.md` (chat gains tool-calling when a model is enabled), and `services/financial-engine/README.md` (future-value primitive).
 - Reference ADR 0009; update `docs/specs/README.md` Acceptance State.
 - Update `shared/openapi/family-cfo.v1.yaml` only if the response gains an optional tool-call trace.
+
+## M17: Turnkey Deployment (AI on by default)
+
+- Ship a single-command deploy of the full stack (dashboard + API + worker + DB + vLLM) to a local or remote host.
+- Flip the **local** AI runtime from opt-in to **on by default** so a fresh instance answers open-ended questions without manual configuration.
+
+> Context: M16 delivered the agentic advisor but it stayed dormant unless an operator hand-enabled a runtime and the `vllm` service (behind a Compose profile). This milestone makes "stand up an instance and use the AI dashboard" a one-step operation, on the assumption that the target is a GPU-capable host. It refines M12 (Docker) and the AI-runtime posture of ADR 0004; it does **not** change the privacy stance of ADR 0008 — see Non-Goals.
+
+### Scope
+
+- **Local AI on by default.** Add deployment-level settings (`FAMILY_CFO_AI_ENABLED`, `FAMILY_CFO_AI_PROVIDER`, `FAMILY_CFO_AI_BASE_URL`, `FAMILY_CFO_AI_MODEL`) that supply the default AI runtime a household inherits until it saves its own `ai_runtime_configs` row. The code default stays **off** (so tests and non-Docker runs never reach for an absent runtime); the Docker stack sets these to **on**. A household's own saved config always overrides the default.
+- **vLLM runs by default.** Remove the `ai` Compose profile so `docker compose up -d` starts the runtime; wire the api/worker env to it. Keep an operator escape hatch (`FAMILY_CFO_AI_ENABLED=false` + `--scale vllm=0`) for GPU-less hosts.
+- **`scripts/deploy.sh`** — an interactive, one-command deploy. For `local` it runs Compose in place; for `remote` it prompts for SSH host/user/port/key, verifies Docker (and, for AI, the NVIDIA Container Toolkit) on the target, rsyncs the repo, generates a `.env` with random secrets on first deploy (never clobbering an existing remote `.env`), runs `docker compose up -d --build`, and prints the dashboard URL.
+
+### Non-Goals
+
+- **No change to the external/cloud-AI stance.** ADR 0008 keeps *external* runtimes opt-in; "on by default" applies only to the **local, on-box** vLLM, where no household data leaves the host. Enabling a local model by default is consistent with the privacy-first principle, not a reversal of it.
+- **No orchestration platform.** `scripts/deploy.sh` is Compose over SSH for a single home-server/box, not Kubernetes/Swarm/multi-node. No zero-downtime, load-balancing, or secret-manager integration.
+- **No password-based SSH automation.** The script relies on the operator's own SSH key/agent (or ssh's interactive prompt); it does not embed credentials or use `sshpass`.
+- **No provisioning.** It assumes Docker Engine + Compose v2 (and the NVIDIA Container Toolkit for AI) are already installed on the target.
+
+### Data Model Changes
+
+- None. The default runtime is resolved from settings at request time; no schema or migration.
+
+### Security Impact
+
+- Generated `.env` secrets (`POSTGRES_PASSWORD`, `FAMILY_CFO_BACKUP_ENCRYPTION_KEY`) use a CSPRNG; the remote `.env` is excluded from rsync so a re-deploy never overwrites or exfiltrates existing secrets.
+- On-by-default AI still sends household context only to the on-box vLLM; the trust boundary and grounding guardrail from M16 are unchanged.
+
+### Test Expectations
+
+- Runtime selection: with an enabled settings default and no household row, `resolve_ai_config`/`select_tool_runtime` yield a usable runtime; a saved household row (e.g. disabled) overrides it; the code default (disabled) yields the deterministic fallback; enabled-but-no-model is treated as unusable.
+- The default-disabled code posture keeps the existing chat/advisor/ai-runtime tests unchanged.
+- `scripts/deploy.sh` passes `bash -n` (and shellcheck where available); a live deploy is a manual/operator verification, not a CI test.
+
+### Documentation Impact
+
+- Update `docs/specs/10-docker-spec.md` (AI on by default; vLLM not profiled), `.env.example`, `docker/README.md`, and the deployment + AI-advisor guides. Reference this milestone from `docs/specs/README.md` Acceptance State.

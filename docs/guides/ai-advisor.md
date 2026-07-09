@@ -28,8 +28,11 @@ behaviour.
 The dev overlay publishes the API on `localhost:8000` (no TLS), which is the
 easiest surface for `curl`:
 
+The AI runtime is on by default (M17), so the vLLM service starts with the
+stack — no profile flag needed:
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile ai up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 The first boot downloads the model from HuggingFace into the `model_cache`
@@ -45,11 +48,13 @@ Confirm vLLM is serving and tool-calling is enabled (the model should appear):
 docker compose exec api curl -s http://vllm:8000/v1/models
 ```
 
-## 2. Enable the runtime for the demo household
+## 2. (Usually not needed) Point a household at a specific runtime
 
-The runtime is **opt-in per household** and disabled by default. Log in as the
-demo owner and point the config at the in-network vLLM service. Set `model` to
-exactly the `VLLM_MODEL` you deployed.
+With the Docker stack, AI is **on by default** (M17): every household inherits
+the deployment default (`FAMILY_CFO_AI_*` → `http://vllm:8000` + `VLLM_MODEL`),
+so you can skip straight to step 3. You only need this step to override the
+default — e.g. to run a **different** model than `VLLM_MODEL`, or to disable AI
+for one household. Log in as the demo owner and save an explicit config:
 
 ```bash
 BASE=http://localhost:8000/api/v1
@@ -112,7 +117,7 @@ VLLM_TOOL_PARSER=hermes
 # For a gated model (e.g. Llama-3.3): also set HUGGING_FACE_HUB_TOKEN and
 # VLLM_TOOL_PARSER=llama3_json
 
-docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile ai up -d vllm
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d vllm
 ```
 
 Remember to re-run step 2 with the new `model` string so the household config

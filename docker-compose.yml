@@ -2,9 +2,11 @@
 #
 #   docker compose up -d
 #
-# Brings up the core services (db, api, worker, web). The optional AI runtime
-# (vLLM) and vector store (Qdrant) are behind Compose profiles and off by
-# default — see docker/README.md.
+# Brings up the core services (db, api, worker, web) AND the local AI runtime
+# (vLLM), which is on by default — this stack assumes a GPU-capable host. To run
+# without AI, set FAMILY_CFO_AI_ENABLED=false in .env and stop the vllm service
+# (docker compose up -d --scale vllm=0). The vector store (Qdrant) stays behind
+# a Compose profile and off by default — see docker/README.md.
 #
 # Configuration and secrets come from a .env file (see .env.example); nothing
 # secret is baked into an image or this file.
@@ -20,6 +22,12 @@ x-api-env: &api-env
   FAMILY_CFO_BACKUP_RETENTION_COUNT: ${FAMILY_CFO_BACKUP_RETENTION_COUNT:-7}
   FAMILY_CFO_BACKUP_ENCRYPTION_KEY: ${FAMILY_CFO_BACKUP_ENCRYPTION_KEY:-}
   FAMILY_CFO_LOG_LEVEL: ${FAMILY_CFO_LOG_LEVEL:-INFO}
+  # AI runtime on by default; households inherit this until they save their own
+  # ai_runtime_configs row. Must match the vllm service (model = VLLM_MODEL).
+  FAMILY_CFO_AI_ENABLED: ${FAMILY_CFO_AI_ENABLED:-true}
+  FAMILY_CFO_AI_PROVIDER: vllm
+  FAMILY_CFO_AI_BASE_URL: http://vllm:8000
+  FAMILY_CFO_AI_MODEL: ${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}
 
 services:
   db:
@@ -53,6 +61,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # Start order only (vLLM has a long model-load warmup and no healthcheck);
+      # the API tolerates an unreachable runtime and falls back deterministically.
+      vllm:
+        condition: service_started
     networks: [internal]
     healthcheck:
       test:
@@ -102,13 +114,13 @@ services:
     networks: [internal]
     restart: unless-stopped
 
-  # Optional local LLM runtime. Off by default (needs a GPU and a multi-GB
-  # model). Enable with: docker compose --profile ai up -d
-  # A household opts in by pointing its AI runtime config at http://vllm:8000.
-  # Never published to the host.
+  # Local LLM runtime, ON BY DEFAULT — this stack assumes a GPU-capable host and
+  # the app is wired to use it out of the box (FAMILY_CFO_AI_* on the api/worker).
+  # Needs a GPU and a multi-GB model download. To run without it, stop this
+  # service (docker compose up -d --scale vllm=0) and set FAMILY_CFO_AI_ENABLED
+  # =false. Never published to the host.
   vllm:
     image: vllm/vllm-openai:latest
-    profiles: [ai]
     # --enable-auto-tool-choice + --tool-call-parser are REQUIRED for the M16
     # agentic advisor: without them vLLM never emits OpenAI tool_calls, so the
     # tool-calling loop can't ground any numbers and every chat silently falls

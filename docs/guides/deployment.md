@@ -3,6 +3,23 @@
 Family CFO runs as a Docker Compose stack on a machine you control. This guide
 takes you from a clean checkout to a running, TLS-served dashboard.
 
+## Quick start: one-command deploy
+
+`scripts/deploy.sh` stands the whole stack up (dashboard + API + worker + DB +
+vLLM) on a **local** or **remote** host and prints the dashboard URL. It
+generates a `.env` with random secrets on first run.
+
+```bash
+scripts/deploy.sh                 # interactive: choose local or remote (SSH)
+TARGET=local scripts/deploy.sh    # non-interactive local
+TARGET=remote SSH_HOST=my-box SSH_USER=me scripts/deploy.sh
+```
+
+For a remote host it prompts for SSH host/user/port/key, verifies Docker (and
+the NVIDIA Container Toolkit, since the AI runtime is on by default), rsyncs the
+repo, and runs Compose there. The manual steps below are the same thing done by
+hand, plus the configuration reference.
+
 ## Prerequisites
 
 - Docker Engine 24+ and the Compose plugin (`docker compose version`).
@@ -75,21 +92,25 @@ Devices** you can add adult/viewer/child members; from **Accounts**,
 **Transactions**, **Bills**, and **Income** you can enter your financial data
 (or import a CSV from **Imports**).
 
-## 4. Optional services
+## 4. AI runtime and optional services
 
-Off by default; enable per your hardware and needs:
+The local vLLM AI runtime is **on by default** (M17) — `docker compose up -d`
+already started it, and every household uses it automatically. It needs a
+GPU-capable host with the NVIDIA Container Toolkit. To run **without** AI (no
+GPU), set `FAMILY_CFO_AI_ENABLED=false` in `.env` and start with:
 
 ```bash
-docker compose --profile ai up -d        # local vLLM runtime (needs a GPU)
-docker compose --profile vector up -d    # Qdrant (no consumer yet — scaffolding)
+docker compose up -d --scale vllm=0      # no AI; deterministic answers only
 ```
 
-For the AI runtime, point a household's config at `http://vllm:8000` from the
-dashboard's **AI Runtime** page. Without it, the purchase advisor and reports
-use the deterministic explanation stub. For a step-by-step end-to-end test of
-the agentic chat advisor (model choice, required tool-calling flags, opt-in
-config, and confirming the model engaged), see the
-[AI Advisor guide](./ai-advisor.md).
+The vector store stays off (no consumer yet — scaffolding):
+
+```bash
+docker compose --profile vector up -d    # Qdrant
+```
+
+For choosing/swapping the model and confirming the agentic advisor engaged, see
+the [AI Advisor guide](./ai-advisor.md).
 
 ## 5. Updates
 

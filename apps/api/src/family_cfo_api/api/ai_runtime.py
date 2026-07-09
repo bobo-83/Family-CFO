@@ -2,18 +2,26 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api.config import Settings
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
 from family_cfo_api.schemas import AiRuntimeConfig, ErrorResponse
 
 router = APIRouter(tags=["AI Runtime"])
 
-# Returned when a household has never configured a runtime. Disabled by
-# default so no household starts sending financial context to any runtime
-# without an explicit opt-in (local AI first, per README architectural
-# principles).
-_DEFAULT_CONFIG = AiRuntimeConfig(
-    provider="vllm", base_url="http://vllm:8000", model="", enabled=False
-)
+
+def _default_config(settings: Settings) -> AiRuntimeConfig:
+    """The config a household inherits before saving its own — the deployment default.
+
+    The Docker stack enables AI here via ``FAMILY_CFO_AI_*`` (it ships a vLLM
+    service); a bare/non-Docker run leaves it disabled so no financial context
+    is sent to a runtime that isn't there.
+    """
+    return AiRuntimeConfig(
+        provider=settings.ai_default_provider,
+        base_url=settings.ai_default_base_url,
+        model=settings.ai_default_model,
+        enabled=settings.ai_default_enabled,
+    )
 
 
 def _to_schema(record: repository.AiRuntimeConfigRecord) -> AiRuntimeConfig:
@@ -35,9 +43,10 @@ def _to_schema(record: repository.AiRuntimeConfigRecord) -> AiRuntimeConfig:
 async def get_ai_runtime_config(
     session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
 ) -> AiRuntimeConfig:
     record = repository.get_ai_runtime_config(engine, session.household_id)
-    return _to_schema(record) if record is not None else _DEFAULT_CONFIG
+    return _to_schema(record) if record is not None else _default_config(settings)
 
 
 @router.put(

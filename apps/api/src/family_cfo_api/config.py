@@ -31,6 +31,15 @@ class Settings:
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
     backup_encryption_key: str | None = None
     session_ttl_hours: int = 12
+    # Default AI runtime for households that have not configured their own. The
+    # deployed Docker stack sets these so the agentic advisor is on out of the
+    # box (the stack ships a vLLM service); the code default stays off so tests
+    # and non-Docker runs never reach for a runtime that isn't there. A
+    # household's own ai_runtime_configs row always overrides these.
+    ai_default_enabled: bool = False
+    ai_default_provider: str = "vllm"
+    ai_default_base_url: str = "http://vllm:8000"
+    ai_default_model: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -55,6 +64,10 @@ class Settings:
             session_ttl_hours=int(
                 os.getenv("FAMILY_CFO_SESSION_TTL_HOURS", str(cls.session_ttl_hours))
             ),
+            ai_default_enabled=_env_bool("FAMILY_CFO_AI_ENABLED", cls.ai_default_enabled),
+            ai_default_provider=os.getenv("FAMILY_CFO_AI_PROVIDER", cls.ai_default_provider),
+            ai_default_base_url=os.getenv("FAMILY_CFO_AI_BASE_URL", cls.ai_default_base_url),
+            ai_default_model=os.getenv("FAMILY_CFO_AI_MODEL", cls.ai_default_model),
         )
 
 

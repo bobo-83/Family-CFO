@@ -60,11 +60,12 @@ non-sensitive `error_message`.
 
 ## AI explanations look "deterministic," not model-generated
 
-That's the fallback. The purchase advisor and reports use the deterministic
-explanation stub unless a household has an **enabled** AI runtime config
-pointing at a reachable vLLM (start it with `docker compose --profile ai up -d`
-and set it on the AI Runtime page). The system also falls back whenever a model
-response fails guardrail validation — by design.
+That's the fallback. The advisor, reports, and chat use the deterministic
+explanation stub unless a **reachable** vLLM runtime is available. In the Docker
+stack the runtime is on by default (M17), so the usual cause is the model still
+loading (first boot downloads it — `docker compose logs -f vllm`) or the stack
+running with `FAMILY_CFO_AI_ENABLED=false` / `--scale vllm=0`. The system also
+falls back whenever a model response fails guardrail validation — by design.
 
 ## Reports/backups pages say I can't do something
 

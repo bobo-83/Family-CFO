@@ -540,7 +540,24 @@ Rules:
 - [x] Add tests: engine primitive; per-tool argument validation incl. foreign-currency rejection; stubbed-runtime multi-step loop; iteration cap; missing-fact path; no-model + ungrounded-number fallback; chat API integration.
 - [x] Update docs (ai-orchestrator, apps/api, financial-engine READMEs; acceptance state).
 - [x] Run verification commands.
-- [ ] Commit M16 changes.
+- [x] Commit M16 changes. (`feat(m16): agentic tool-calling advisor for open-ended chat`.)
+
+## M17: Turnkey Deployment (AI on by default)
+
+### Spec Gate
+
+- [x] Define M17 scope, non-goals, security impact, and test expectations. (See `docs/specs/11-milestone-roadmap.md`.)
+
+### Implementation
+
+- [x] Add deployment settings for a default AI runtime (`FAMILY_CFO_AI_ENABLED/PROVIDER/BASE_URL/MODEL`) in `apps/api/.../config.py`; code default off.
+- [x] Resolve a household's effective AI config (own row, else settings default) in `ai_runtime_selection.py`; both `select_tool_runtime` and `select_explanation_adapter` use it; `GET /ai/runtime` returns the deployment default.
+- [x] Make vLLM run by default (remove the `ai` Compose profile) and wire api/worker env to it; keep a GPU-less escape hatch (`FAMILY_CFO_AI_ENABLED=false` + `--scale vllm=0`).
+- [x] Add `scripts/deploy.sh`: interactive local/remote (SSH) one-command full-stack deploy that rsyncs the repo, generates `.env` secrets on first deploy, runs `docker compose up -d --build`, and prints the dashboard URL.
+- [x] Add tests: runtime-selection default/override/unusable cases; existing chat/advisor/ai-runtime tests unchanged; `bash -n scripts/deploy.sh`.
+- [x] Update docs (`10-docker-spec.md`, `.env.example`, `docker/README.md`, deployment + AI-advisor guides, acceptance state).
+- [x] Run verification commands.
+- [ ] Commit M17 changes.
 
 ## Backlog: Debt Payoff and Retirement Projections
 

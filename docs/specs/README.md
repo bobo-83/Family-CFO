@@ -48,7 +48,9 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M15 annual report: implemented. Adds `annual` as a third report type (prior calendar year, 12× monthly normalization) reusing the M8 report content and narrative, plus a scheduled annual generation job. Closes the "Backlog: Annual Report" item; the PRD's weekly/monthly/annual reports are now all delivered.
 
-- M16 agentic tool-calling (conversational advisor): spec accepted (backed by ADR 0009), implementation pending. Exposes the deterministic engine calculations as callable tools the local model orchestrates to answer open-ended questions, with the guardrail trust boundary moving to tool-argument validation and every figure still tracing to a tool output. Read/compute-only tools; local-model-only; no per-question API.
+- M16 agentic tool-calling (conversational advisor): implemented (backed by ADR 0009). Exposes the deterministic engine calculations as callable tools the local model orchestrates to answer open-ended questions, with the guardrail trust boundary moving to tool-argument validation and every figure still tracing to a tool output. Read/compute-only tools; local-model-only; no per-question API.
+
+- M17 turnkey deployment (AI on by default): implemented. Makes the **local** vLLM runtime on by default (via `FAMILY_CFO_AI_*` deployment settings a household inherits until it saves its own config; code default stays off for tests/non-Docker) and removes the `ai` Compose profile so `docker compose up -d` starts the whole stack. Adds `scripts/deploy.sh` for a one-command local/remote (SSH) full-stack deploy. Does not change ADR 0008's external/cloud-AI opt-in stance — only the on-box local model is defaulted on.
 
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 

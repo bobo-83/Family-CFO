@@ -29,12 +29,13 @@ Automated public-CA issuance (ACME/Let's Encrypt) is intentionally not built in 
 
 Only `web` is reachable from outside the Docker network. The database, API, and worker are internal-only.
 
-## Optional Services (profiles, off by default)
+## AI runtime (on by default) and optional services
 
-- **vllm** (`--profile ai`) — a local LLM runtime. Needs a GPU (passed through via the NVIDIA Container Toolkit) and a multi-GB model download; the app runs fully without it (the purchase advisor, reports, and chat fall back to the deterministic explanation stub). The command enables tool-calling (`--enable-auto-tool-choice --tool-call-parser`), which the M16 agentic chat advisor requires; the model (`VLLM_MODEL`) and parser (`VLLM_TOOL_PARSER`) are set in `.env`. Enable it and point a household's AI runtime config at `http://vllm:8000` via `PUT /api/v1/ai/runtime`. Never published to the host. See the [AI Advisor guide](../docs/guides/ai-advisor.md) for an end-to-end test.
+- **vllm** — a local LLM runtime, **on by default** (M17): it starts with `docker compose up -d` and the api/worker are wired to use it (`FAMILY_CFO_AI_*`). Needs a GPU (passed through via the NVIDIA Container Toolkit) and a multi-GB model download. The command enables tool-calling (`--enable-auto-tool-choice --tool-call-parser`), which the M16 agentic chat advisor requires; the model (`VLLM_MODEL`) and parser (`VLLM_TOOL_PARSER`) are set in `.env`. Households use it automatically; a household can override or disable via `PUT /api/v1/ai/runtime`. Never published to the host. See the [AI Advisor guide](../docs/guides/ai-advisor.md) for an end-to-end test. To run without a GPU:
 
   ```bash
-  docker compose --profile ai up -d
+  # in .env: FAMILY_CFO_AI_ENABLED=false
+  docker compose up -d --scale vllm=0     # deterministic answers only
   ```
 
 - **qdrant** (`--profile vector`) — a vector store matching `docs/specs/10-docker-spec.md`'s planned `family-cfo-vector` container. **Nothing connects to it yet** — retrieval/embeddings are tracked backlog (`docs/specs/12-implementation-tasks.md`). It is honest scaffolding, off unless explicitly enabled.
@@ -58,7 +59,7 @@ Persistent named volumes (per `docs/specs/10-docker-spec.md`):
 - `postgres_data` — PostgreSQL data.
 - `import_staging` — uploaded import/document files, shared by `api` and `worker`.
 - `backups` — encrypted backup archives, shared by `api` and `worker`.
-- `model_cache` — vLLM model cache (only used with `--profile ai`).
+- `model_cache` — vLLM model cache (used by the `vllm` service).
 - `qdrant_data` — Qdrant storage (only used with `--profile vector`).
 
 ## Secrets
