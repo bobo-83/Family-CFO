@@ -102,6 +102,44 @@ describe('Chat', () => {
     expect(component['conversationId']()).toBeNull();
   });
 
+  it('sends the attached image and clears it afterwards', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'c1', recommendation: recommendation('Looks affordable.') },
+    });
+    const component = TestBed.createComponent(Chat).componentInstance;
+
+    component['attachedImage'].set({
+      base64: 'aGVsbG8=',
+      mediaType: 'image/jpeg',
+      previewUrl: 'data:image/jpeg;base64,aGVsbG8=',
+    });
+    component['form'].setValue({ message: 'Can I afford this?' });
+    await component['send']();
+
+    expect(apiMock.createChatMessage).toHaveBeenCalledWith({
+      message: 'Can I afford this?',
+      conversation_id: undefined,
+      image_base64: 'aGVsbG8=',
+      image_media_type: 'image/jpeg',
+    });
+    expect(component['attachedImage']()).toBeNull();
+    expect(component['turns']()[0]).toMatchObject({ role: 'user', hadImage: true });
+  });
+
+  it('removeImage clears the pending attachment without sending', () => {
+    const component = TestBed.createComponent(Chat).componentInstance;
+    component['attachedImage'].set({
+      base64: 'x',
+      mediaType: 'image/jpeg',
+      previewUrl: 'data:image/jpeg;base64,x',
+    });
+
+    component['removeImage']();
+
+    expect(component['attachedImage']()).toBeNull();
+    expect(apiMock.createChatMessage).not.toHaveBeenCalled();
+  });
+
   it('maps confidence to a label', () => {
     const component = TestBed.createComponent(Chat).componentInstance;
     expect(component['confidenceLabel'](0.85)).toBe('High');

@@ -1220,3 +1220,33 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - `apps/web/README.md` (design tokens + responsive behaviour note); acceptance state.
+
+## M21: Chat Photo Attachments (Vision Routing)
+
+- Let a user attach a photo (or take one with the camera) in chat and ask about it ("can I afford this?").
+- Route the image to the main model if it is vision-capable, else to a small on-box vision describer model; ground the description's numbers.
+
+> Context: implements [ADR 0011](../adr/0011-vision-image-routing.md) — describe-then-ground. The image is always converted to a text description first (main model if `FAMILY_CFO_AI_SUPPORTS_VISION`, else the `vllm-vision` describer); the description joins the user message in the existing text tool-calling loop (M16) and its numbers join the grounded set. On-device iPhone describing is a native-app concern (Safari cannot reach Apple's on-device models) and is recorded in the mobile spec backlog.
+
+### Scope
+
+- **Contract/API**: `ChatRequest` gains optional `image_base64` + `image_media_type` (jpeg/png/webp); server enforces the upload cap and type allowlist. Response unchanged; a `warnings` entry reports when no vision model was available. `AiRuntimeStatus` gains optional `vision_ready`/`vision_model`.
+- **Orchestrator**: `RuntimeMessage` supports an attached image (data URL); `VLLMAdapter` builds OpenAI multimodal content parts; a `describe_image` helper runs a single no-tools completion against whichever runtime is doing the describing.
+- **API flow**: decode/validate the image → pick describer per ADR 0011 → get description → append `[Attached photo: …]` to the user message → existing tool loop; add `extract_numbers(description)` to the grounded set. The image is processed in memory only — never persisted; the stored conversation turn contains the description text.
+- **Compose**: new `vllm-vision` service (default `Qwen/Qwen2.5-VL-7B-Instruct`), on by default like the main runtime; both services get explicit `--gpu-memory-utilization` fractions (`VLLM_GPU_FRACTION=0.60`, `VLLM_VISION_GPU_FRACTION=0.20`). Opt-out: `FAMILY_CFO_AI_VISION_ENABLED=false` + `--scale vllm-vision=0`.
+- **Web chat**: an attach-photo button (`<input type="file" accept="image/*" capture="environment">` — on iPhone this offers Camera or Photo Library), client-side downscale + JPEG re-encode (canvas, max ~1280px) so HEIC and huge photos become small JPEGs, a removable thumbnail preview, and an "included a photo" marker on sent turns.
+
+### Non-Goals
+
+- No multimodal tool-calling (ADR 0011 rationale); no image persistence or gallery; no OCR-pipeline integration (imports/documents remain the place for statements needing structured extraction); no native-iOS on-device describing (mobile-app backlog); no multi-image messages.
+
+### Test Expectations
+
+- Orchestrator: multimodal payload building; `describe_image` happy/error paths (stubbed transport).
+- API: image chat with a stubbed describer (description reaches the prompt; its numbers are grounded); vision-capable-main path; no-vision warning path; oversized/wrong-type image rejected (413/422); image absent unchanged.
+- Web: attach → preview → send includes the encoded image; remove clears it; component tests with mocked ApiService.
+- Contract test green; existing suites green.
+
+### Documentation Impact
+
+- ADR 0011; README system-requirements row for the vision model; `.env.example`, docker README, AI-advisor guide (vision section), mobile-spec backlog note; acceptance state.

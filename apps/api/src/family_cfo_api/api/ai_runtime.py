@@ -123,6 +123,16 @@ async def get_ai_runtime_status(
         if ready
         else "AI model is starting up (still loading); answers are deterministic until it is ready."
     )
+
+    # Vision (ADR 0011): the main model if marked vision-capable, else the describer.
+    vision_ready = False
+    vision_model: str | None = None
+    if settings.ai_supports_vision and ready:
+        vision_ready, vision_model = True, served_model or config.model
+    elif settings.ai_vision_enabled and settings.ai_vision_model:
+        vision_ready, vision_served = _probe_served_model(settings.ai_vision_base_url)
+        vision_model = vision_served or settings.ai_vision_model
+
     return AiRuntimeStatus(
         enabled=True,
         provider=config.provider,
@@ -130,6 +140,8 @@ async def get_ai_runtime_status(
         ready=ready,
         served_model=served_model,
         detail=detail,
+        vision_ready=vision_ready,
+        vision_model=vision_model,
     )
 
 

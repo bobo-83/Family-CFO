@@ -47,6 +47,13 @@ class Settings:
     ai_default_provider: str = "vllm"
     ai_default_base_url: str = "http://vllm:8000"
     ai_default_model: str = ""
+    # Vision routing (ADR 0011). If the main model is vision-capable, it
+    # describes attached photos itself; otherwise the dedicated describer below
+    # is used; otherwise images get a graceful "not analyzed" warning.
+    ai_supports_vision: bool = False
+    ai_vision_enabled: bool = False
+    ai_vision_base_url: str = "http://vllm-vision:8000"
+    ai_vision_model: str = ""
     # SSRF guard: base_urls a household may point its AI runtime at. Empty means
     # "just the deployment default" (ai_default_base_url) — see ADR 0010.
     ai_allowed_base_urls: tuple[str, ...] = ()
@@ -94,6 +101,10 @@ class Settings:
             ai_default_provider=os.getenv("FAMILY_CFO_AI_PROVIDER", cls.ai_default_provider),
             ai_default_base_url=os.getenv("FAMILY_CFO_AI_BASE_URL", cls.ai_default_base_url),
             ai_default_model=os.getenv("FAMILY_CFO_AI_MODEL", cls.ai_default_model),
+            ai_supports_vision=_env_bool("FAMILY_CFO_AI_SUPPORTS_VISION", cls.ai_supports_vision),
+            ai_vision_enabled=_env_bool("FAMILY_CFO_AI_VISION_ENABLED", cls.ai_vision_enabled),
+            ai_vision_base_url=os.getenv("FAMILY_CFO_AI_VISION_BASE_URL", cls.ai_vision_base_url),
+            ai_vision_model=os.getenv("FAMILY_CFO_AI_VISION_MODEL", cls.ai_vision_model),
             ai_allowed_base_urls=_env_csv("FAMILY_CFO_AI_ALLOWED_BASE_URLS"),
             auth_rate_limit_enabled=_env_bool(
                 "FAMILY_CFO_AUTH_RATE_LIMIT_ENABLED", cls.auth_rate_limit_enabled

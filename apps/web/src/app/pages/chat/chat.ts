@@ -9,6 +9,33 @@ interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
   recommendation?: Recommendation;
+  hadImage?: boolean;
+}
+
+interface AttachedImage {
+  base64: string;
+  mediaType: 'image/jpeg';
+  previewUrl: string;
+}
+
+/**
+ * Downscale + re-encode a photo to a small JPEG data URL (max ~1280px). This
+ * also normalizes iPhone HEIC into JPEG, since the canvas always encodes JPEG.
+ */
+export async function encodeImageFile(file: File, maxDimension = 1280): Promise<AttachedImage> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('canvas unavailable');
+  }
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
+  return { base64: previewUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl };
 }
 
 const EXAMPLE_PROMPTS = [
@@ -45,6 +72,7 @@ export class Chat {
   protected readonly conversationId = signal<string | null>(null);
   protected readonly sending = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly attachedImage = signal<AttachedImage | null>(null);
 
   protected readonly form = this.formBuilder.nonNullable.group({
     message: ['', Validators.required],
@@ -63,6 +91,25 @@ export class Chat {
 
   protected usePrompt(prompt: string): void {
     this.form.setValue({ message: prompt });
+  }
+
+  protected async onFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // allow re-selecting the same file
+    if (!file) {
+      return;
+    }
+    try {
+      this.attachedImage.set(await encodeImageFile(file));
+      this.errorMessage.set(null);
+    } catch {
+      this.errorMessage.set('Could not read that image — try a different photo.');
+    }
+  }
+
+  protected removeImage(): void {
+    this.attachedImage.set(null);
   }
 
   /** A coarse High/Medium/Low label for a 0..1 confidence score. */
@@ -84,6 +131,7 @@ export class Chat {
     this.turns.set([]);
     this.conversationId.set(null);
     this.errorMessage.set(null);
+    this.attachedImage.set(null);
     this.form.reset({ message: '' });
   }
 
@@ -109,14 +157,21 @@ export class Chat {
       return;
     }
 
+    const image = this.attachedImage();
     this.sending.set(true);
     this.errorMessage.set(null);
-    this.turns.update((turns) => [...turns, { role: 'user', content: message }]);
+    this.turns.update((turns) => [
+      ...turns,
+      { role: 'user', content: message, hadImage: image !== null },
+    ]);
     this.form.reset({ message: '' });
+    this.attachedImage.set(null);
 
     const { data, error } = await this.api.createChatMessage({
       message,
       conversation_id: this.conversationId() ?? undefined,
+      image_base64: image?.base64,
+      image_media_type: image?.mediaType,
     });
 
     this.sending.set(false);

@@ -1872,6 +1872,15 @@ components:
           type: string
           minLength: 1
           maxLength: 4000
+        image_base64:
+          type: string
+          description: Optional attached photo, base64-encoded (ADR 0011)
+        image_media_type:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
     ChatResponse:
       type: object
       required:
@@ -2523,3 +2532,8 @@ components:
           nullable: true
         detail:
           type: string
+        vision_ready:
+          type: boolean
+        vision_model:
+          type: string
+          nullable: true
