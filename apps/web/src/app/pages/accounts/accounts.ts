@@ -1,6 +1,7 @@
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import type { AccountType } from '../../api-client';
+import { DatePipe } from '@angular/common';
+import type { Account, AccountType } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -24,7 +25,7 @@ const ACCOUNT_TYPES: AccountType[] = [
 
 @Component({
   selector: 'app-accounts',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, DatePipe],
   templateUrl: './accounts.html',
   styleUrl: './accounts.scss',
 })
@@ -38,6 +39,49 @@ export class Accounts {
   protected readonly canWrite = computed(() => {
     const role = this.auth.role();
     return role === 'owner' || role === 'adult';
+  });
+
+  /** Spendability-oriented grouping (M33) — mirrors the advisor's categories. */
+  private static readonly CATEGORY_ORDER = [
+    'Cash',
+    'Investments',
+    'Retirement',
+    'Education',
+    'Property',
+    'Debts',
+  ] as const;
+
+  private static categoryOf(type: AccountType): (typeof Accounts.CATEGORY_ORDER)[number] {
+    switch (type) {
+      case 'checking':
+      case 'savings':
+        return 'Cash';
+      case 'brokerage':
+        return 'Investments';
+      case 'retirement':
+      case 'hsa':
+        return 'Retirement';
+      case '529':
+        return 'Education';
+      case 'real_estate':
+      case 'other_asset':
+        return 'Property';
+      default:
+        return 'Debts';
+    }
+  }
+
+  protected readonly groupedAccounts = computed(() => {
+    const list = this.accounts.value() ?? [];
+    const groups = new Map<string, Account[]>();
+    for (const account of list) {
+      const category = Accounts.categoryOf(account.type);
+      groups.set(category, [...(groups.get(category) ?? []), account]);
+    }
+    return Accounts.CATEGORY_ORDER.filter((c) => groups.has(c)).map((category) => ({
+      category,
+      accounts: groups.get(category)!,
+    }));
   });
 
   protected readonly accounts = resource({

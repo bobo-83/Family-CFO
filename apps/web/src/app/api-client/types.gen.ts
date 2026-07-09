@@ -135,6 +135,8 @@ export type Account = {
     balance: Money;
     annual_interest_rate?: number;
     minimum_payment?: Money;
+    institution?: string;
+    last_synced_at?: string;
 };
 
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
