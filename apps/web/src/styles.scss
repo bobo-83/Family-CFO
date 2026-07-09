@@ -82,6 +82,17 @@ button {
   font-size: 0.9rem;
 }
 
+/* Kill iOS double-tap-to-zoom on interactive elements (M26) while leaving
+   pinch-zoom untouched. Focus-zoom is prevented by the 16px inputs below. */
+a,
+button,
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+}
+
 input,
 select,
 textarea {

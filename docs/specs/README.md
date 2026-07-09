@@ -68,6 +68,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M25 per-response model attribution: implemented. Every chat answer is tagged with what produced it — `answered_by` (the chat model id, persisted as `recommendations.model_version`; null = deterministic path) and `photo_described_by` (the vision model that read an attached photo, also recorded in the persisted assumptions). The chat UI shows a per-bubble caption ("🤖 Answered by X · 📷 photo read by Y" / "🧮 Deterministic calculation").
 
+- M26 chat usability pass: implemented. iOS zoom hardening (`touch-action: manipulation` on interactive elements + explicit 16px chat input), conversation deletion surfaced in the chat UI (confirmation dialog, owner/adult role gate matching the existing M10 `DELETE /conversations/{id}`, clears the open thread), and a legible history list (card items with title + last-updated date).
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:
