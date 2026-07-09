@@ -76,6 +76,9 @@ class Settings:
     # Advisor voice (M31): "playful" (default) or "professional". Tone only —
     # grounding rules are identical in both.
     ai_tone: str = "playful"
+    # M32: single-tenant by default — POST /households refuses once a household
+    # exists. Opt out for deliberate multi-household deployments.
+    allow_multiple_households: bool = False
 
     def allowed_ai_base_urls(self) -> tuple[str, ...]:
         """The effective AI base_url allowlist: configured set, else the default."""
@@ -142,6 +145,9 @@ class Settings:
             live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),
             searxng_url=os.getenv("FAMILY_CFO_SEARXNG_URL", cls.searxng_url),
             ai_tone=os.getenv("FAMILY_CFO_AI_TONE", cls.ai_tone),
+            allow_multiple_households=_env_bool(
+                "FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS", cls.allow_multiple_households
+            ),
         )
 
 

@@ -3,7 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository, security
+from family_cfo_api import audit, repository, security
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import (
     client_ip,
@@ -73,7 +73,9 @@ async def create_auth_session(
         raise HTTPException(status_code=401, detail="User has no household membership")
 
     rate_limiter.reset(limit_keys)
-
+    audit.write_audit(
+        engine, household_id, user.id, "auth.login", "user", user.id, "Signed in"
+    )
     return _issue_session(engine, user.id, household_id, role, settings.session_ttl_hours)
 
 

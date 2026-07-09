@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import backup_processing, repository
+from family_cfo_api import audit, backup_processing, repository
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_engine, require_role
 from family_cfo_api.schemas import BackupJob, BackupJobListResponse, ErrorResponse
@@ -69,6 +69,15 @@ async def create_backup(
         encryption_key=settings.backup_encryption_key,
         retention_count=settings.backup_retention_count,
     )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "backup.created",
+        "backup_job",
+        backup_job_id,
+        "Backup requested",
+    )
     record = repository.get_backup_job(engine, backup_job_id)
     assert record is not None
     logger.info("backup requested backup_id=%s status=%s", record.id, record.status)
@@ -112,4 +121,13 @@ async def restore_backup(
     logger.info("backup restored backup_id=%s", backup_id)
     updated = repository.get_backup_job(engine, backup_id)
     assert updated is not None
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "backup.restored",
+        "backup_job",
+        backup_id,
+        "Backup restore executed",
+    )
     return _to_schema(updated)

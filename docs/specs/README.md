@@ -22,10 +22,11 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 
 ## Acceptance State
 
-**Release 0.1.0** — M1–M13 implemented and verified; feature-complete backend,
-dashboard, containerized deployment, and security hardening. Deferrals (iOS app,
-real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
-`docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md) to run it.
+**Release 0.2.0** — M1–M32 implemented and verified: the full agentic advisor
+(local models, vision, live data, memory, attribution), model ops (picker,
+one-click apply, hardware planning), bank sync with dedupe, redesigned mobile
+dashboard, turnkey deployment, and layered security hardening. Deferrals are
+documented in `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
 
 - M0 repository and specification baseline: accepted.
 - M1 backend skeleton: accepted for implementation.
@@ -79,6 +80,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 - M30 conversational memory: implemented. The agentic loop now receives the active conversation's prior turns (bounded window; history numbers grounded), fixing follow-ups that previously lost all context.
 
 - M31 advisor personality: implemented. A tone-setting persona layer (playful default, professional opt-out via `FAMILY_CFO_AI_TONE`) sits above unchanged grounding rules; plus a guardrail fix grounding rounded variants of tool floats (honest rounding of 9.647→"9.6" no longer falls back).
+
+- M32 single-household lockout, full audit coverage & v0.2.0: implemented. `POST /households` refuses once a household exists (single-tenant by default; env opt-out); audit_events now cover login, pairing, device revoke, AI config/model apply, import apply/discard, report generation, and backup create/restore; versions bumped and **v0.2.0** tagged after full cross-package verification.
 
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 

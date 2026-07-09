@@ -6,7 +6,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import audit, repository
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
@@ -152,6 +152,15 @@ async def apply_import(
 
     updated_count = repository.apply_import(engine, session.household_id, import_id)
     logger.info("import applied import_id=%s transactions_updated=%s", import_id, updated_count)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "import.applied",
+        "import",
+        import_id,
+        f"Applied import ({updated_count} transactions confirmed)",
+    )
 
     updated = repository.get_import(engine, session.household_id, import_id)
     assert updated is not None
@@ -180,6 +189,15 @@ async def discard_import(
 
     deleted_count = repository.discard_import(engine, session.household_id, import_id)
     logger.info("import discarded import_id=%s transactions_deleted=%s", import_id, deleted_count)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "import.discarded",
+        "import",
+        import_id,
+        f"Discarded import ({deleted_count} pending transactions deleted)",
+    )
 
     updated = repository.get_import(engine, session.household_id, import_id)
     assert updated is not None
