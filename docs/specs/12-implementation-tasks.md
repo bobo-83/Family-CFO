@@ -729,6 +729,13 @@ Rules:
 - [x] Spec gate: (a) OFX/QFX imports parse STMTTRN blocks (tolerant SGML/XML regex parser, no new deps) into pending transactions, with **FITID feeding the M27 external_id hard-dedupe** — re-importing an OFX is idempotent; (b) PDF imports gain a heuristic statement line-item parser (date + amount + payee lines → pending transactions for review, content-hash deduped, unparseable lines skipped and counted; the document extraction is kept as before); (c) ocr-worker gains a TesseractOcrAdapter used automatically when the tesseract binary is present (image documents get real OCR; the deterministic adapter remains the fallback and the test default); tesseract-ocr added to the api/worker image. UI: OFX/QFX options in the import form.
 - [x] Implement + tests (incl. OFX re-import idempotency; tesseract test skipped when binary absent) + deploy + commit. Verified: 253 api + 10 ocr-worker tests pass, patched deployment reports `tesseract 5.5.0` inside the api image with the real adapter active.
 
+## M35: Connected Account Typing (401k Was "checking")
+
+Bank sync hardcoded `type="checking"` for every auto-created connected account — SimpleFIN's protocol carries no account-type field. A 401k typed as checking is worse than cosmetic: M33 spendability classifies checking as **liquid**, so the advisor would treat retirement money as spendable.
+
+- [x] Spec gate: (a) `infer_account_type(name)` in banksync — conservative name-pattern inference (401k/403b/457/IRA/Roth/pension/TSP → retirement; HSA; 529/college savings → 529; brokerage/investment → brokerage; savings/money market → savings; credit card → credit_card; mortgage; auto/car loan → auto_loan; student loan → student_loan; anything else stays checking) applied only when a connection account is first auto-created — never retypes an existing account, so manual corrections are preserved; (b) the Accounts page lets owners/adults change an account's type inline (per-row select → existing `updateAccount` PATCH, already in the contract) — this is also how already-mislabeled accounts get fixed. No contract or migration changes.
+- [x] Implement + tests (inference table; sync creates "Acme 401k Plan" as retirement; manual retype survives re-sync; UI select patches on change) + deploy + commit. Verified: 255 api + 67 web tests pass, patched deployment healthy.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
