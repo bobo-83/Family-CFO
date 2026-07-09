@@ -133,6 +133,34 @@
           </div>
         }
 
+        <div class="overview__card">
+          <span class="overview__label">Top goal</span>
+          @if (context.top_goal; as goal) {
+            <span class="overview__value overview__value--goal">{{ goal.name }}</span>
+            <span class="overview__detail">{{ goal.type }}</span>
+            <div
+              class="overview__progress"
+              role="progressbar"
+              [attr.aria-valuenow]="goal.percent_complete"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div class="overview__progress-fill" [style.width.%]="goal.percent_complete"></div>
+            </div>
+            <span class="overview__detail">
+              {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
+              · {{ goal.percent_complete }}%
+              @if (goal.target_date) {
+                · by {{ goal.target_date | date: 'MMM y' }}
+              }
+            </span>
+          } @else {
+            <span class="overview__hint">
+              No goals yet. <a routerLink="/goals">Set a savings goal</a> to track progress.
+            </span>
+          }
+        </div>
+
         <div class="overview__card overview__card--wide">
           <span class="overview__label">
             Upcoming bills

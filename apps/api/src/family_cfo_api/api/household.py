@@ -7,6 +7,7 @@ from family_cfo_api.schemas import (
     AssetCategoryTotal,
     EmergencyFundSummary,
     ErrorResponse,
+    GoalProgress,
     HouseholdContext,
     MonthlyCashFlow,
     NetWorthPoint,
@@ -76,6 +77,26 @@ def _asset_and_debt_summary(
     return breakdown, MoneySchema(amount_minor=debt_minor, currency=currency)
 
 
+def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
+    """M41: the highest-priority goal (list_goals is priority-ordered) with progress."""
+    goals = repository.list_goals(engine, household_id)
+    if not goals:
+        return None
+    goal = goals[0]
+    percent = 0
+    if goal.target_minor > 0:
+        percent = min(100, round(goal.current_minor / goal.target_minor * 100))
+    return GoalProgress(
+        id=goal.id,
+        name=goal.name,
+        type=goal.goal_type,
+        current=MoneySchema(amount_minor=goal.current_minor, currency=goal.currency),
+        target=MoneySchema(amount_minor=goal.target_minor, currency=goal.currency),
+        percent_complete=percent,
+        target_date=goal.target_date,
+    )
+
+
 @router.get(
     "/household",
     operation_id="getHouseholdContext",
@@ -136,4 +157,5 @@ async def get_household_context(
         total_debt=total_debt,
         upcoming_bills=upcoming,
         net_worth_history=history,
+        top_goal=_top_goal(engine, household.id),
     )

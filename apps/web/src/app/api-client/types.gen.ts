@@ -150,6 +150,23 @@ export type HouseholdContext = {
      * M40: recent net-worth snapshots, oldest-first, for the trend sparkline.
      */
     net_worth_history?: Array<NetWorthPoint>;
+    /**
+     * M41: the highest-priority savings goal with progress, when one exists.
+     */
+    top_goal?: GoalProgress;
+};
+
+export type GoalProgress = {
+    id: string;
+    name: string;
+    type: GoalType;
+    current: Money;
+    target: Money;
+    /**
+     * current / target, 0-100 (capped), 0 when target is 0.
+     */
+    percent_complete: number;
+    target_date?: string;
 };
 
 export type NetWorthPoint = {

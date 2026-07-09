@@ -66,6 +66,15 @@ describe('Overview', () => {
           { as_of: '2026-07-08', net_worth: { amount_minor: 95_000_000, currency: 'USD' } },
           { as_of: '2026-07-09', net_worth: { amount_minor: 97_927_848, currency: 'USD' } },
         ],
+        top_goal: {
+          id: 'g1',
+          name: 'Emergency fund',
+          type: 'emergency_fund',
+          current: { amount_minor: 1_500_000, currency: 'USD' },
+          target: { amount_minor: 1_800_000, currency: 'USD' },
+          percent_complete: 83,
+          target_date: null,
+        },
       }),
     );
 
@@ -91,11 +100,14 @@ describe('Overview', () => {
     expect(text).toContain('Internet');
     expect(text).toContain('Due in 3 days');
     // Net-worth sparkline + change over the snapshot window.
-    const sparkline = (fixture.nativeElement as HTMLElement).querySelector(
-      '.overview__sparkline polyline',
-    );
+    const host = fixture.nativeElement as HTMLElement;
+    const sparkline = host.querySelector('.overview__sparkline polyline');
     expect(sparkline?.getAttribute('points')?.split(' ').length).toBe(3);
     expect(text).toContain('over 3 snapshots');
+    // Top-goal progress bar filled to percent_complete.
+    expect(text).toContain('Emergency fund');
+    const fill = host.querySelector('.overview__progress-fill') as HTMLElement;
+    expect(fill.style.width).toBe('83%');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {
