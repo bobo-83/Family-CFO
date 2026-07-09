@@ -15,14 +15,110 @@
   gap: 0.35rem;
 }
 
+/* M38: the emergency-fund card carries more detail than the headline cards. */
+.overview__card--wide {
+  grid-column: 1 / -1;
+}
+
 .overview__label {
   font-size: 0.8rem;
   color: #5b6472;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .overview__value {
   font-size: 1.4rem;
   font-weight: 600;
+}
+
+.overview__value--positive {
+  color: #15803d;
+}
+
+.overview__value--negative {
+  color: #b00020;
+}
+
+.overview__value-context {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #5b6472;
+}
+
+.overview__detail {
+  font-size: 0.85rem;
+  color: #5b6472;
+
+  a {
+    color: inherit;
+  }
+}
+
+.overview__detail--action {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.overview__detail--good {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.overview__hint {
+  font-size: 0.85rem;
+  color: #5b6472;
+}
+
+/* Emergency-fund status chip, colored by progress. */
+.overview__status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.overview__status--no_bills,
+.overview__status--no_fund {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.overview__status--getting_started {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.overview__status--on_track {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.overview__status--fully_funded {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.overview__breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
 }

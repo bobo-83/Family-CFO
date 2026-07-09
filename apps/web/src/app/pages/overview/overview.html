@@ -14,20 +14,101 @@
           <span class="overview__label">Household</span>
           <span class="overview__value">{{ context.display_name }}</span>
         </div>
+
         <div class="overview__card">
           <span class="overview__label">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
         </div>
-        <div class="overview__card">
-          <span class="overview__label">Emergency fund</span>
-          <span class="overview__value">
-            @if (context.emergency_fund_months !== null && context.emergency_fund_months !== undefined) {
-              {{ context.emergency_fund_months | number: '1.1-1' }} months
-            } @else {
-              Not enough data
+
+        @if (context.monthly_cash_flow; as cashFlow) {
+          <div class="overview__card">
+            <span class="overview__label">Monthly cash flow</span>
+            <span
+              class="overview__value"
+              [class.overview__value--negative]="cashFlow.net.amount_minor < 0"
+              [class.overview__value--positive]="cashFlow.net.amount_minor > 0"
+            >
+              {{ formatMoney(cashFlow.net) }}
+            </span>
+            <span class="overview__detail">
+              {{ formatMoney(cashFlow.income) }} income − {{ formatMoney(cashFlow.bills) }} bills
+            </span>
+            @if (cashFlow.income.amount_minor === 0) {
+              <span class="overview__hint">No income sources recorded yet.</span>
             }
-          </span>
-        </div>
+          </div>
+        }
+
+        @if (context.emergency_fund; as fund) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label">
+              Emergency fund
+              <span class="overview__status overview__status--{{ fund.status }}">
+                {{ efStatusLabel(fund) }}
+              </span>
+            </span>
+            @if (fund.months !== null && fund.months !== undefined) {
+              <span class="overview__value">
+                {{ fund.months | number: '1.1-1' }} months
+                <span class="overview__value-context">of {{ fund.target_months_recommended }} recommended</span>
+              </span>
+              <span class="overview__detail">
+                {{ formatMoney(fund.reserved) }} set aside
+                @if (fund.using_designations) {
+                  (designated accounts)
+                } @else {
+                  (all cash — <a routerLink="/accounts">designate accounts</a> to be precise)
+                }
+                · expenses {{ formatMoney(fund.monthly_expenses) }}/month
+              </span>
+              @if (fund.gap_to_recommended; as gap) {
+                @if (gap.amount_minor > 0) {
+                  <span class="overview__detail overview__detail--action">
+                    {{ formatMoney(gap) }} more to reach the
+                    {{ fund.target_months_recommended }}-month goal
+                  </span>
+                } @else {
+                  <span class="overview__detail overview__detail--good">
+                    ✓ Recommended target met
+                  </span>
+                }
+              }
+            } @else {
+              <span class="overview__value">—</span>
+              <span class="overview__hint">
+                <a routerLink="/bills">Add your recurring bills</a> so coverage can be measured
+                against the {{ fund.target_months_min }}–{{ fund.target_months_recommended }} month
+                guideline.
+              </span>
+            }
+          </div>
+        }
+
+        @if (context.asset_breakdown && context.asset_breakdown.length > 0) {
+          <div class="overview__card">
+            <span class="overview__label">Assets</span>
+            <ul class="overview__breakdown">
+              @for (entry of context.asset_breakdown; track entry.category) {
+                <li>
+                  <span>{{ categoryLabel(entry.category) }}</span>
+                  <span>{{ formatMoney(entry.total) }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (context.total_debt; as debt) {
+          <div class="overview__card">
+            <span class="overview__label">Total debt</span>
+            <span
+              class="overview__value"
+              [class.overview__value--negative]="debt.amount_minor > 0"
+            >
+              {{ formatMoney(debt) }}
+            </span>
+          </div>
+        }
       </div>
     }
   }

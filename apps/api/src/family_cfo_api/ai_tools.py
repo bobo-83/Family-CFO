@@ -169,17 +169,8 @@ def _currency_arg(
 # --- tool handlers ----------------------------------------------------------
 
 
-# Spendability categories (M33): which assets can actually fund a purchase.
-_CATEGORY_BY_TYPE = {
-    "checking": "liquid",
-    "savings": "liquid",
-    "brokerage": "investments",
-    "retirement": "retirement",
-    "hsa": "retirement",
-    "529": "education",
-    "real_estate": "property",
-    "other_asset": "property",
-}
+# Spendability categories (M33): shared with the overview endpoint since M38.
+_CATEGORY_BY_TYPE = finance_service.ASSET_CATEGORY_BY_TYPE
 
 
 def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):

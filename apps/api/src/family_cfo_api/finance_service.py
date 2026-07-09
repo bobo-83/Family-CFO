@@ -27,6 +27,52 @@ from family_cfo_api import repository
 
 LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
 
+# Spendability categories (M33; shared with ai_tools since M38): which assets
+# can actually fund a purchase.
+ASSET_CATEGORY_BY_TYPE = {
+    "checking": "liquid",
+    "savings": "liquid",
+    "brokerage": "investments",
+    "retirement": "retirement",
+    "hsa": "retirement",
+    "529": "education",
+    "real_estate": "property",
+    "other_asset": "property",
+}
+ASSET_CATEGORY_ORDER = ("liquid", "investments", "retirement", "education", "property")
+
+# Standard emergency-fund guidance (M38): months of essential expenses.
+EMERGENCY_FUND_TARGET_MIN_MONTHS = 3.0
+EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS = 6.0
+
+
+@dataclass(frozen=True, slots=True)
+class EmergencyFundInputs:
+    """The fund balance the coverage calculation measures, and its provenance."""
+
+    fund: Money
+    using_designations: bool
+    monthly_bills: Money
+
+
+def emergency_fund_inputs(engine: Engine, household_id: str, currency: str) -> EmergencyFundInputs:
+    balances = repository.list_account_balances(engine, household_id)
+    liquid_balance = Money.zero(currency)
+    designated_minor = 0
+    for balance in balances:
+        if balance.account_type in LIQUID_ACCOUNT_TYPES:
+            liquid_balance += Money(balance.balance_minor, balance.currency)
+        # M36: user-designated reservations, on any account type.
+        if balance.currency == currency:
+            designated_minor += repository.emergency_fund_reserved_minor(
+                balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
+            )
+    using_designations = designated_minor > 0
+    # M36: once the family designates emergency-fund money, coverage measures
+    # that fund — not the legacy "all liquid money" approximation.
+    fund = Money(designated_minor, currency) if using_designations else liquid_balance
+    return EmergencyFundInputs(fund, using_designations, _monthly_bill_total(engine, household_id, currency))
+
 
 @dataclass(frozen=True, slots=True)
 class DebtOutlook:
@@ -144,24 +190,8 @@ def compute_emergency_fund(engine: Engine, household_id: str, currency: str) -> 
 def compute_emergency_fund_with_ref(
     engine: Engine, household_id: str, currency: str
 ) -> tuple[CalculationResult, str]:
-    balances = repository.list_account_balances(engine, household_id)
-    liquid_balance = Money.zero(currency)
-    designated_minor = 0
-    for balance in balances:
-        if balance.account_type in LIQUID_ACCOUNT_TYPES:
-            liquid_balance += Money(balance.balance_minor, balance.currency)
-        # M36: user-designated reservations, on any account type.
-        if balance.currency == currency:
-            designated_minor += repository.emergency_fund_reserved_minor(
-                balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
-            )
-
-    monthly_bills = _monthly_bill_total(engine, household_id, currency)
-
-    # M36: once the family designates emergency-fund money, coverage measures
-    # that fund — not the legacy "all liquid money" approximation.
-    fund_balance = Money(designated_minor, currency) if designated_minor > 0 else liquid_balance
-    result = calculate_emergency_fund_months(fund_balance, monthly_bills)
+    inputs = emergency_fund_inputs(engine, household_id, currency)
+    result = calculate_emergency_fund_months(inputs.fund, inputs.monthly_bills)
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 
@@ -217,6 +247,20 @@ def compute_purchase_impact(
     )
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
+
+
+def monthly_income_total(engine: Engine, household_id: str, currency: str) -> Money:
+    total = Money.zero(currency)
+    for income in repository.list_income_sources(engine, household_id):
+        recurring = RecurringAmount(
+            income.name, Money(income.amount_minor, income.currency), income.frequency
+        )
+        total += recurring.monthly_amount()
+    return total
+
+
+def monthly_bill_total(engine: Engine, household_id: str, currency: str) -> Money:
+    return _monthly_bill_total(engine, household_id, currency)
 
 
 def _monthly_bill_total(engine: Engine, household_id: str, currency: str) -> Money:

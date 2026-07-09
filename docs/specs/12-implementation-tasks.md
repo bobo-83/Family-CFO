@@ -750,6 +750,25 @@ The `bills` API (list/create/update/delete) shipped in **M9** and `api.service.t
 - [x] Spec gate: add a `/bills` page (list + create form: name, amount, frequency, optional next due date; delete) mirroring the existing Goals page pattern; add the nav entry and route. No API/contract changes — every endpoint this needs already exists and is already wrapped in `ApiService`.
 - [x] Implement + tests (page renders bills, create round-trips, delete removes, role-gated for viewers) + deploy + commit. Verified: 72 web tests pass; live reproduction — deleting the demo household's bills flips `emergency_fund_months` from `0.96` to `None` ("Not enough data"), and re-adding them via the new page's exact API path restores `0.96`.
 
+## M38: Overview Dashboard Enrichment (Emergency-Fund Target + Financial Summary)
+
+The Overview page shows only three numbers (household name, net worth, emergency-fund months), and the emergency-fund figure answers "how long would it last" without saying whether that is good or what closing the gap costs. User request: show the target comparison and enrich the overview.
+
+- [x] Spec gate: (a) contract — `HouseholdContext` gains additive fields: `emergency_fund` (months, the fund balance used [`reserved`], `using_designations` flag, `monthly_expenses`, `target_months_min` = 3 / `target_months_recommended` = 6 [standard guidance, constants in the payload so the UI never hardcodes them], `gap_to_recommended` Money [0 when funded], `status` enum `no_bills|no_fund|getting_started|on_track|fully_funded`), `monthly_cash_flow` (income, bills, net — recurring sources normalized monthly; discretionary spending intentionally excluded, matching the M2 engine assumption), `asset_breakdown` (ordered category totals reusing the M33 spendability categories, moved to `finance_service` so ai_tools and the API share one map), and `total_debt` (positive sum of negative balances). Legacy `emergency_fund_months` kept for compatibility. (b) UI — Overview becomes a card grid: net worth, emergency fund (months + status label + reserved amount + dollar gap to the 6-month recommendation, with actionable empty states linking to Bills/Accounts), monthly cash flow (income − bills = net, negative highlighted), assets by category, and total debt.
+- [x] Implement + tests (context fields incl. status/gap math across no-bills/no-fund/funded cases; overview renders target gap and empty states) + deploy + commit. Verified: 263 api + 73 web tests pass; live deployment returns the full enriched payload (status `getting_started`, USD 10,480.00 gap for the demo household's $2,000 designation).
+
+## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
+
+Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
+
+- [ ] Configurable emergency-fund target (per-household `target_months`, replacing the fixed 3/6 guidance).
+- [ ] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists).
+- [ ] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists).
+- [ ] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview).
+- [ ] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar).
+- [ ] Budget envelopes per category with monthly limits + alerts (larger; overlaps the existing budget-management backlog).
+- [ ] Savings-rate metric (income − all spending, trailing 3 months).
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

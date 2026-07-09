@@ -126,6 +126,59 @@ export type HouseholdContext = {
     currency: string;
     net_worth: Money;
     emergency_fund_months: number;
+    /**
+     * M38: emergency-fund coverage vs the standard 3–6 month guidance.
+     */
+    emergency_fund?: EmergencyFundSummary;
+    /**
+     * M38: recurring income vs bills, normalized monthly.
+     */
+    monthly_cash_flow?: MonthlyCashFlow;
+    /**
+     * M38: positive balances grouped by spendability category (ordered).
+     */
+    asset_breakdown?: Array<AssetCategoryTotal>;
+    /**
+     * M38: positive sum of all negative account balances.
+     */
+    total_debt?: Money;
+};
+
+export type EmergencyFundSummary = {
+    /**
+     * Months of expenses the fund covers; null when there are no bills.
+     */
+    months?: number;
+    /**
+     * The fund balance used — designated total when set, else all liquid money.
+     */
+    reserved: Money;
+    /**
+     * True when the fund comes from explicit account designations (M36).
+     */
+    using_designations: boolean;
+    monthly_expenses: Money;
+    target_months_min: number;
+    target_months_recommended: number;
+    /**
+     * Money still needed to reach the recommended target; 0 when funded, absent when no bills.
+     */
+    gap_to_recommended?: Money;
+    status: 'no_bills' | 'no_fund' | 'getting_started' | 'on_track' | 'fully_funded';
+};
+
+export type MonthlyCashFlow = {
+    income: Money;
+    bills: Money;
+    /**
+     * Income minus bills; excludes discretionary spending.
+     */
+    net: Money;
+};
+
+export type AssetCategoryTotal = {
+    category: 'liquid' | 'investments' | 'retirement' | 'education' | 'property';
+    total: Money;
 };
 
 export type Account = {
