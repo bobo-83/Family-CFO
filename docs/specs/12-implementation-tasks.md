@@ -735,10 +735,10 @@ The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as 
 These were explicitly deferred (not dropped) by M9/M10/M11 non-goals. Tracked here so nothing is undocumented.
 
 - [ ] Extend `audit_events` coverage beyond M9's own mutations to all pre-existing sensitive mutation points (auth login, pairing confirm, paired-device revoke, AI-runtime config change, import apply/discard, report generation, backup create/restore). M9 introduces the table and audits the writes it adds; this generalizes it.
-- [ ] Add a dashboard **chat UI** page backed by the M6/M10 chat and conversation-history APIs (M10 persists threads at the API layer but ships no UI; M11 covers only the four M5 shells).
-- [ ] Add a first-run **household setup wizard** UI around `POST /api/v1/households` (M9 adds the bootstrap API; M5 onboarding remains login-only; M11 non-goals defer the wizard UX).
+- [x] Add a dashboard **chat UI** page backed by the M6/M10 chat and conversation-history APIs. (Delivered by M19; upgraded through M21/M25/M26.)
+- [x] Add a first-run **household setup wizard** UI around `POST /api/v1/households`. (Delivered by M19 as the /signup page.)
 - [ ] Add optional first-run bootstrap lockout (refuse `POST /api/v1/households` once any household exists) for deployments that want it — M9 leaves bootstrap open for the trusted-local-network case.
-- [ ] Feed prior conversation turns back into the model as context (true multi-turn memory) — M10 persists history but does not change what the assistant computes; this interacts with the real-vLLM/retrieval work.
+- [x] Feed prior conversation turns back into the model as context (true multi-turn memory). (Delivered by M30: bounded history window + grounded history numbers.)
 
 ## Backlog: Vector Store and Retrieval
 
