@@ -22,9 +22,12 @@ Two new read-only tools join the agentic registry:
   `open.er-api.com` (keyless, ~160 currencies incl. VND, ECB-style daily
   rates). The outbound request contains exactly two ISO currency codes.
 - **`web_search(query)`** — top result titles/snippets/URLs from a
-  **self-hosted SearXNG** metasearch instance (compose profile `search`, off by
-  default). Registered only when `FAMILY_CFO_SEARXNG_URL` is configured, so the
-  default deployment makes no third-party search calls. The model is prompted
+  **self-hosted SearXNG** metasearch instance. *Amended in M28:* SearXNG ships
+  **on by default** (consistent with the M17 works-out-of-the-box posture) with
+  JSON output enabled and the bot-limiter disabled for internal calls; opt out
+  with an empty `FAMILY_CFO_SEARXNG_URL` + `--scale searxng=0`. Upstream search
+  engines see only the model-composed item query, relayed by the on-box
+  SearXNG. The model is prompted
   to search for *item/price facts*, not household information.
 
 Numbers in tool results are grounded automatically by the M16 guardrail (the

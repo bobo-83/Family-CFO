@@ -1,0 +1,10 @@
+# Family CFO SearXNG configuration (M28). Private, internal-network instance
+# serving the chat web_search tool (ADR 0014): the JSON format must be enabled
+# (403 otherwise) and the bot limiter disabled for server-to-server calls.
+use_default_settings: true
+server:
+  limiter: false
+search:
+  formats:
+    - html
+    - json
