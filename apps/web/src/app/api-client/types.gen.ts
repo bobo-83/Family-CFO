@@ -146,6 +146,15 @@ export type HouseholdContext = {
      * M39: bills due within the next 14 days, soonest first.
      */
     upcoming_bills?: Array<UpcomingBill>;
+    /**
+     * M40: recent net-worth snapshots, oldest-first, for the trend sparkline.
+     */
+    net_worth_history?: Array<NetWorthPoint>;
+};
+
+export type NetWorthPoint = {
+    as_of: string;
+    net_worth: Money;
 };
 
 export type UpcomingBill = {

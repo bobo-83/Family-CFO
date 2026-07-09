@@ -191,6 +191,19 @@ account_balances = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+# M40: one net-worth snapshot per household per day, for the Overview trend.
+net_worth_snapshots = Table(
+    "net_worth_snapshots",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("as_of", Date, nullable=False),
+    Column("net_worth_minor", BigInteger, nullable=False),
+    Column("currency", String(3), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("household_id", "as_of", name="uq_net_worth_snapshots_household_day"),
+)
+
 transaction_categories = Table(
     "transaction_categories",
     metadata,

@@ -18,6 +18,29 @@
         <div class="overview__card">
           <span class="overview__label">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
+          @if (context.net_worth_history; as history) {
+            @if (sparklinePoints(history); as points) {
+              <svg
+                class="overview__sparkline"
+                viewBox="0 0 100 28"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Net worth trend"
+              >
+                <polyline [attr.points]="points" />
+              </svg>
+              @if (netWorthChange(history); as change) {
+                <span
+                  class="overview__detail"
+                  [class.overview__value--positive]="change.amount_minor > 0"
+                  [class.overview__value--negative]="change.amount_minor < 0"
+                >
+                  {{ change.amount_minor >= 0 ? '▲' : '▼' }}
+                  {{ formatMoney(change) }} over {{ history.length }} snapshots
+                </span>
+              }
+            }
+          }
         </div>
 
         @if (context.monthly_cash_flow; as cashFlow) {

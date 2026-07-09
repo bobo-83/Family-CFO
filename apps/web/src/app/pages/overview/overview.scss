@@ -36,6 +36,22 @@
   font-weight: 600;
 }
 
+/* M40: net-worth trend sparkline */
+.overview__sparkline {
+  width: 100%;
+  height: 34px;
+  margin-top: 0.25rem;
+
+  polyline {
+    fill: none;
+    stroke: var(--color-accent, #2563eb);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+}
+
 .overview__value--positive {
   color: #15803d;
 }

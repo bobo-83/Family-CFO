@@ -1505,6 +1505,68 @@ def list_households(engine: Engine) -> list[str]:
         return [row[0] for row in conn.execute(query).all()]
 
 
+# --- Net-worth history (M40) -------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class NetWorthSnapshotRecord:
+    as_of: date
+    net_worth_minor: int
+    currency: str
+
+
+def record_net_worth_snapshot(
+    engine: Engine, household_id: str, as_of: date, net_worth_minor: int, currency: str
+) -> None:
+    """Upsert today's snapshot: one row per household per day, latest value wins."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.net_worth_snapshots.c.id).where(
+                models.net_worth_snapshots.c.household_id == household_id,
+                models.net_worth_snapshots.c.as_of == as_of,
+            )
+        ).first()
+        if existing is not None:
+            conn.execute(
+                update(models.net_worth_snapshots)
+                .where(models.net_worth_snapshots.c.id == existing[0])
+                .values(net_worth_minor=net_worth_minor, currency=currency)
+            )
+        else:
+            conn.execute(
+                insert(models.net_worth_snapshots).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    as_of=as_of,
+                    net_worth_minor=net_worth_minor,
+                    currency=currency,
+                    created_at=utcnow(),
+                )
+            )
+
+
+def list_net_worth_snapshots(
+    engine: Engine, household_id: str, limit: int = 30
+) -> list[NetWorthSnapshotRecord]:
+    """The most recent `limit` snapshots, returned oldest-first for charting."""
+    query = (
+        select(
+            models.net_worth_snapshots.c.as_of,
+            models.net_worth_snapshots.c.net_worth_minor,
+            models.net_worth_snapshots.c.currency,
+        )
+        .where(models.net_worth_snapshots.c.household_id == household_id)
+        .order_by(models.net_worth_snapshots.c.as_of.desc())
+        .limit(limit)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [
+        NetWorthSnapshotRecord(as_of=row.as_of, net_worth_minor=row.net_worth_minor, currency=row.currency)
+        for row in reversed(rows)
+    ]
+
+
 # --- Backups -----------------------------------------------------------------
 
 

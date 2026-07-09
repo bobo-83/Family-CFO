@@ -61,6 +61,11 @@ describe('Overview', () => {
             days_until: 3,
           },
         ],
+        net_worth_history: [
+          { as_of: '2026-07-07', net_worth: { amount_minor: 90_000_000, currency: 'USD' } },
+          { as_of: '2026-07-08', net_worth: { amount_minor: 95_000_000, currency: 'USD' } },
+          { as_of: '2026-07-09', net_worth: { amount_minor: 97_927_848, currency: 'USD' } },
+        ],
       }),
     );
 
@@ -85,6 +90,12 @@ describe('Overview', () => {
     expect(text).toContain('Upcoming bills');
     expect(text).toContain('Internet');
     expect(text).toContain('Due in 3 days');
+    // Net-worth sparkline + change over the snapshot window.
+    const sparkline = (fixture.nativeElement as HTMLElement).querySelector(
+      '.overview__sparkline polyline',
+    );
+    expect(sparkline?.getAttribute('points')?.split(' ').length).toBe(3);
+    expect(text).toContain('over 3 snapshots');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {
