@@ -596,6 +596,21 @@ Rules:
 - [x] Update `apps/web/README.md` and acceptance state.
 - [ ] Commit M19 changes.
 
+## M20: Dashboard Redesign & Mobile Support
+
+### Spec Gate
+
+- [x] Define M20 scope, non-goals, and test expectations. (See `docs/specs/11-milestone-roadmap.md`.)
+
+### Implementation
+
+- [x] Design tokens + global element baseline in `styles.scss`; head metadata (title, theme-color, viewport-fit).
+- [x] Responsive shell: top app bar + slide-in drawer under the breakpoint; refined desktop sidebar; safe-area insets. Shell menu component test (3 tests).
+- [x] Responsive pages: global scrollable tables, chat history chip-strip, auth-card widths, tokenized page accents.
+- [x] `ng test` (50) + production build pass; patched onto the live deployment.
+- [x] Update `apps/web/README.md` + acceptance state.
+- [ ] Commit M20 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

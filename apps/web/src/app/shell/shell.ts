@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 
@@ -14,6 +14,9 @@ export class Shell {
 
   protected readonly role = this.auth.role;
 
+  /** Mobile drawer state; the sidebar is always visible on desktop widths. */
+  protected readonly menuOpen = signal(false);
+
   protected readonly navItems = [
     { path: '/overview', label: 'Overview' },
     { path: '/chat', label: 'Ask the Advisor' },
@@ -26,6 +29,14 @@ export class Shell {
     { path: '/backups', label: 'Backups' },
     { path: '/users', label: 'Users' },
   ];
+
+  protected toggleMenu(): void {
+    this.menuOpen.update((open) => !open);
+  }
+
+  protected closeMenu(): void {
+    this.menuOpen.set(false);
+  }
 
   protected logout(): void {
     this.auth.logout();

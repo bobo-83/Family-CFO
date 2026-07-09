@@ -1189,3 +1189,34 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Documentation Impact
 
 - Update `apps/web/README.md` (new pages) and the login-page copy (which currently says "there is no public sign-up"). Reference from `docs/specs/README.md` Acceptance State.
+
+## M20: Dashboard Redesign & Mobile Support
+
+- Restyle the Angular dashboard to a modern, professional visual standard using a shared design-token system.
+- Make every page usable on phone-sized screens (target: iPhone 15 Pro, 393×852 CSS px), including notch/safe-area handling.
+
+> Context: the M5/M11/M19 dashboard is functional but visually utilitarian — hard-coded hex values per page, a fixed 220px sidebar with no responsive behaviour, tables that overflow small screens, and a default "Web" page title. Web-only; no API or contract changes.
+
+### Scope
+
+- **Design tokens**: CSS custom properties in `styles.scss` (color palette, surface/border/shadow, radius, spacing, typography scale) consumed by the shell and pages; a refined system font stack. Global element baselines (buttons, inputs/selects, tables, headings) so all existing pages inherit the new look without per-page rewrites.
+- **Responsive shell**: desktop keeps a refined dark sidebar (accent active state); below a breakpoint (~820px) the sidebar becomes a **slide-in drawer** behind a fixed top app bar with a hamburger button and scrim; the drawer closes on navigation. Safe-area insets (`viewport-fit=cover`, `env(safe-area-inset-*)`) for notched iPhones.
+- **Responsive pages**: data tables become horizontally scrollable on narrow screens via a global rule; chat's history sidebar collapses above the thread on mobile; login/sign-up cards fit small widths; content padding scales down.
+- **Head metadata**: proper title ("Family CFO"), `theme-color`, `viewport-fit=cover`.
+
+### Non-Goals
+
+- No component-library adoption (Material/PrimeNG) — a token-based restyle of the existing hand-rolled components keeps the bundle small and the diff reviewable.
+- No information-architecture changes: same pages, routes, and functionality; this is visual + responsive only.
+- No dark mode (tokens make it cheap later; not in this pass).
+- Not the native iOS app (`apps/ios`) — this is the responsive web dashboard on a phone browser.
+
+### Test Expectations
+
+- Shell: a component test covers the mobile menu toggle (open/close, closes on nav selection).
+- All existing Vitest component tests stay green (restyle must not break behaviour); production build type-checks.
+- Manual verification on the live deployment at 393px width (devtools emulation): no horizontal page overflow; nav, chat, forms, and tables usable.
+
+### Documentation Impact
+
+- `apps/web/README.md` (design tokens + responsive behaviour note); acceptance state.
