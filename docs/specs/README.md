@@ -56,6 +56,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M19 dashboard AI chat & self sign-up: implemented. Adds an Angular **Ask the Advisor** chat page (send messages, render the grounded recommendation with a confidence chip, conversation history, and an AI-runtime status banner via the new `GET /ai/runtime/status` endpoint showing whether the model is loaded and which one) and a **sign-up/onboarding** page wiring the existing `POST /households` bootstrap. Also fixed the shared contract's missing `POST /households` request body.
 
+- M20 dashboard redesign & mobile support: implemented. A design-token system (CSS custom properties + global element baselines) modernizes every page; the shell gains a mobile slide-in drawer behind a fixed top bar with safe-area/notch handling (`viewport-fit=cover`); tables scroll horizontally and the chat history collapses on narrow screens. Target: iPhone 15 Pro (393px). Web-only; no API changes.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

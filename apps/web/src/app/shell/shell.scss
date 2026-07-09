@@ -1,38 +1,124 @@
+/* Responsive shell (M20): fixed dark sidebar on desktop; below $breakpoint the
+   sidebar becomes a slide-in drawer behind a fixed top bar with a hamburger. */
+$breakpoint: 820px;
+
 .shell {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh; /* mobile browsers with dynamic chrome */
 }
 
+/* --- Mobile top bar -------------------------------------------------------- */
+
+.shell__topbar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  align-items: center;
+  gap: 0.75rem;
+  height: calc(3.25rem + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 0.75rem 0;
+  background: var(--color-nav);
+  color: #fff;
+  box-shadow: var(--shadow-md);
+}
+
+.shell__topbar-brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.shell__menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+/* Hamburger drawn with pseudo-elements (no icon dependency). */
+.shell__menu-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 18px;
+    height: 2px;
+    background: #fff;
+    border-radius: 2px;
+  }
+
+  &::before {
+    top: -6px;
+  }
+
+  &::after {
+    top: 6px;
+  }
+}
+
+.shell__scrim {
+  display: none;
+}
+
+/* --- Sidebar --------------------------------------------------------------- */
+
 .shell__nav {
-  width: 220px;
+  width: var(--shell-nav-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #1b2430;
-  color: #e6e9ef;
-  padding: 1.25rem 1rem;
+  background: linear-gradient(180deg, var(--color-nav) 0%, #111c33 100%);
+  color: var(--color-nav-text);
+  padding: 1.5rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
 }
 
 .shell__brand {
+  color: #fff;
   font-weight: 700;
-  font-size: 1.1rem;
-  margin-bottom: 1.5rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.75rem;
+  padding: 0 0.75rem;
 }
 
 .shell__nav-link {
   display: block;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
   color: inherit;
   text-decoration: none;
-  margin-bottom: 0.25rem;
+  font-size: 0.92rem;
+  margin-bottom: 0.15rem;
+  border-left: 3px solid transparent;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
   }
 
   &--active {
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(79, 70, 229, 0.22);
+    border-left-color: var(--color-accent);
+    color: #fff;
     font-weight: 600;
   }
 }
@@ -40,31 +126,89 @@
 .shell__footer {
   margin-top: auto;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   font-size: 0.85rem;
+  padding: 0.75rem 0.25rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .shell__role {
   opacity: 0.75;
+  text-transform: capitalize;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  font-size: 0.75rem;
 }
 
 .shell__logout {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: inherit;
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.7rem;
   cursor: pointer;
 
   &:hover {
     background: rgba(255, 255, 255, 0.08);
+    color: #fff;
   }
 }
 
+/* --- Content --------------------------------------------------------------- */
+
 .shell__content {
   flex: 1;
-  padding: 2rem;
-  background: #f5f6f8;
+  min-width: 0; /* let flex children (tables, chat) shrink instead of overflowing */
+  padding: var(--content-pad);
+  background: var(--color-bg);
   overflow-y: auto;
+}
+
+/* --- Phone / small-tablet layout ------------------------------------------- */
+
+@media (max-width: $breakpoint) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .shell__topbar {
+    display: flex;
+  }
+
+  .shell__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  .shell__nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(82vw, 300px);
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: none;
+
+    &--open {
+      transform: translateX(0);
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  .shell__content {
+    --content-pad: 1rem;
+    padding-top: calc(3.25rem + env(safe-area-inset-top) + 1rem);
+    padding-left: calc(1rem + env(safe-area-inset-left));
+    padding-right: calc(1rem + env(safe-area-inset-right));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
 }

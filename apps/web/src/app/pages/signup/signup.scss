@@ -3,12 +3,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f6f8;
-  padding: 2rem 0;
+  background: var(--color-bg);
+  padding: 2rem 1.25rem;
 }
 
 .signup__card {
-  width: 380px;
+  width: min(380px, 100%);
   background: white;
   border-radius: 12px;
   padding: 2rem;
@@ -30,7 +30,7 @@
 
   input {
     padding: 0.5rem 0.6rem;
-    border: 1px solid #ccd2da;
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     font-size: 1rem;
   }
@@ -57,7 +57,7 @@ button[type='submit'] {
   padding: 0.6rem;
   border: none;
   border-radius: 6px;
-  background: #2a5adf;
+  background: var(--color-accent);
   color: white;
   font-weight: 600;
   cursor: pointer;

@@ -1,5 +1,24 @@
 <div class="shell">
-  <aside class="shell__nav">
+  <!-- Mobile top bar: brand + hamburger. Hidden on desktop widths. -->
+  <header class="shell__topbar">
+    <button
+      type="button"
+      class="shell__menu-button"
+      (click)="toggleMenu()"
+      aria-label="Toggle navigation menu"
+      [attr.aria-expanded]="menuOpen()"
+    >
+      <span class="shell__menu-icon" aria-hidden="true"></span>
+    </button>
+    <span class="shell__topbar-brand">Family CFO</span>
+  </header>
+
+  <!-- Scrim behind the mobile drawer; tap to dismiss. -->
+  @if (menuOpen()) {
+    <div class="shell__scrim" (click)="closeMenu()" aria-hidden="true"></div>
+  }
+
+  <aside class="shell__nav" [class.shell__nav--open]="menuOpen()">
     <div class="shell__brand">Family CFO</div>
     <nav>
       @for (item of navItems; track item.path) {
@@ -7,17 +26,19 @@
           [routerLink]="item.path"
           routerLinkActive="shell__nav-link--active"
           class="shell__nav-link"
+          (click)="closeMenu()"
           >{{ item.label }}</a
         >
       }
     </nav>
     <div class="shell__footer">
       @if (role(); as currentRole) {
-        <span class="shell__role">Role: {{ currentRole }}</span>
+        <span class="shell__role">{{ currentRole }}</span>
       }
       <button type="button" class="shell__logout" (click)="logout()">Log out</button>
     </div>
   </aside>
+
   <main class="shell__content">
     <router-outlet />
   </main>

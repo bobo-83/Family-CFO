@@ -53,6 +53,12 @@ Closes the two M11 backlog UI gaps.
 - **Ask the Advisor** (`/chat`, any role): a conversational page over `POST /api/v1/chat/messages` for open-ended questions ("Can I afford a $1,000 phone?"). Renders the grounded `Recommendation` (answer + expandable impacts/assumptions/tradeoffs/alternatives/warnings) with a **confidence** chip (High/Medium/Low + %), a **conversation history** sidebar (`GET /conversations`, `GET /conversations/{id}`) with "New conversation", and an **AI status banner** driven by the new `GET /api/v1/ai/runtime/status` — showing whether the model is loaded/active and which model is serving. When no model is loaded the API's deterministic snapshot answers (unchanged).
 - **Sign-up** (`/signup`, public): a first-run onboarding form over `POST /api/v1/households` (household name, base currency, owner name/email/password) that stores the session like login and enters the app; linked from the login page.
 
+## M20 Scope (Redesign & Mobile)
+
+- **Design tokens**: `src/styles.scss` defines CSS custom properties (palette, radius, shadows, type) plus global element baselines (buttons, inputs, tables, headings) that every page inherits. New styles should consume `var(--color-*)`/`var(--radius-*)` rather than hard-coded values.
+- **Responsive shell**: desktop keeps the dark sidebar; below 820px it becomes a slide-in drawer behind a fixed top app bar (hamburger + scrim, closes on navigation). Safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`) handle notched iPhones; target width is iPhone 15 Pro (393px).
+- **Responsive pages**: data tables scroll horizontally on narrow screens (global rule); the chat history sidebar collapses to a horizontal chip strip; auth cards fit small widths. Inputs are ≥16px font-size so iOS Safari doesn't zoom on focus.
+
 ## Stack
 
 Standalone components (no `NgModule`s), Angular signals and the built-in `resource()` API for async data, zoneless change detection, plain SCSS. No server-side rendering — this is a single-page app served behind the FastAPI backend.
