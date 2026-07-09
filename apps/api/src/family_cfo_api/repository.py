@@ -2708,8 +2708,13 @@ def get_or_create_connection_account(
     external_account_id: str,
     name: str,
     currency: str,
+    account_type: str = "checking",
 ) -> str:
-    """The local account mapped to a provider account, auto-created on first sight."""
+    """The local account mapped to a provider account, auto-created on first sight.
+
+    account_type only applies at creation; an existing mapping is returned as-is
+    so manual retyping from the Accounts page is never overwritten by a sync.
+    """
     with engine.connect() as conn:
         row = conn.execute(
             select(models.connection_accounts.c.account_id).where(
@@ -2720,7 +2725,7 @@ def get_or_create_connection_account(
     if row is not None:
         return row[0]
 
-    account = create_account(engine, household_id, name, "checking", currency)
+    account = create_account(engine, household_id, name, account_type, currency)
     with engine.begin() as conn:
         conn.execute(
             insert(models.connection_accounts).values(

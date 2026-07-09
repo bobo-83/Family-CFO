@@ -130,6 +130,17 @@ export class Accounts {
     this.accounts.reload();
   }
 
+  /** M35: fix mistyped accounts (e.g. a synced 401k created as "checking"). */
+  protected async retype(id: string, event: Event): Promise<void> {
+    const type = (event.target as HTMLSelectElement).value as AccountType;
+    const { error } = await this.api.updateAccount(id, { type });
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, 'Failed to change account type.'));
+      return;
+    }
+    this.accounts.reload();
+  }
+
   protected async remove(id: string): Promise<void> {
     if (!confirm('Delete this account? Accounts referenced by transactions cannot be deleted.')) {
       return;

@@ -153,3 +153,56 @@ def test_synced_accounts_carry_institution_and_last_synced(demo_engine: Engine) 
     entry = next(iter(info.values()))
     assert entry.institution == "Test Bank"
     assert entry.last_synced_at is not None
+
+
+# --- M35: account type inference ------------------------------------------------
+
+
+def test_infer_account_type_covers_common_names() -> None:
+    cases = {
+        "Acme 401k Plan": "retirement",
+        "My 401(k)": "retirement",
+        "Roth IRA": "retirement",
+        "403(b) Retirement": "retirement",
+        "Health Savings Account HSA": "hsa",
+        "NY 529 College Savings": "529",
+        "Brokerage Account": "brokerage",
+        "Investment Account": "brokerage",
+        "Home Mortgage": "mortgage",
+        "Auto Loan": "auto_loan",
+        "Student Loans": "student_loan",
+        "Rewards Visa": "credit_card",
+        "Platinum Credit Card": "credit_card",
+        "High-Yield Savings": "savings",
+        "Money Market": "savings",
+        "Everyday Checking": "checking",
+        "Mystery Account": "checking",
+    }
+    for name, expected in cases.items():
+        assert banksync.infer_account_type(name) == expected, name
+
+
+def test_sync_creates_401k_as_retirement_and_never_retypes(demo_engine: Engine) -> None:
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)
+    payload = {
+        "accounts": [
+            {"id": "ext-401k", "name": "Acme 401k Plan", "currency": "USD", "balance": "50000.00"}
+        ]
+    }
+    connector = _connector(lambda r: httpx.Response(200, json=payload))
+
+    banksync.sync_connection(demo_engine, settings, connection, connector)
+    account = next(
+        b for b in repository.list_account_balances(demo_engine, _HH) if b.name == "Acme 401k Plan"
+    )
+    assert account.account_type == "retirement"
+
+    # A manual correction survives later syncs: the mapping is reused as-is.
+    repository.update_account(demo_engine, _HH, account.account_id, account_type="brokerage")
+    connection = repository.get_institution_connection(demo_engine, _HH, connection.id)
+    banksync.sync_connection(demo_engine, settings, connection, connector)
+    account = next(
+        b for b in repository.list_account_balances(demo_engine, _HH) if b.name == "Acme 401k Plan"
+    )
+    assert account.account_type == "brokerage"

@@ -62,7 +62,24 @@
                 @for (account of group.accounts; track account.id) {
                   <tr>
                     <td>{{ account.name }}</td>
-                    <td>{{ account.type }}</td>
+                    <td>
+                      @if (canWrite()) {
+                        <select
+                          class="accounts-table__type"
+                          [value]="account.type"
+                          (change)="retype(account.id, $event)"
+                          aria-label="Change account type"
+                        >
+                          @for (type of accountTypes; track type) {
+                            <option [value]="type" [selected]="type === account.type">
+                              {{ type }}
+                            </option>
+                          }
+                        </select>
+                      } @else {
+                        {{ account.type }}
+                      }
+                    </td>
                     <td>
                       @if (account.institution) {
                         🔗 {{ account.institution }}

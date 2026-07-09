@@ -87,6 +87,8 @@ documented in `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md)
 
 - M34 real document pipeline: implemented. OFX/QFX imports parse STMTTRN blocks (tolerant SGML/XML regex parser, no new deps) into pending transactions with FITID feeding the M27 external_id hard-dedupe (re-import idempotent); PDF imports additionally run a heuristic statement line-item parser (content-hash deduped pending transactions, unparseable lines counted as skipped); ocr-worker gains a TesseractOcrAdapter selected automatically when the binary is present (baked into the api/worker image; deterministic adapter remains the hermetic test fallback).
 
+- M35 connected account typing: implemented. Bank sync infers the account type from the provider account name at first creation (401k/IRA → retirement, HSA, 529, brokerage, savings, credit/loan/mortgage; SimpleFIN carries no type field, so everything used to land as "checking" — which M33 spendability wrongly counted as liquid). Existing accounts are never retyped by a sync; the Accounts page gains an inline type select (owners/adults) backed by the existing `updateAccount` PATCH so mislabeled accounts can be corrected in one tap.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

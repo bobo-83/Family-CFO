@@ -17,6 +17,7 @@ import base64
 import binascii
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -73,6 +74,33 @@ def compute_import_hash(
     normalized = (payee or "").strip().lower()
     raw = f"{account_id}|{occurred_at.isoformat()}|{amount_minor}|{normalized}"
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+# --- account type inference (M35) ----------------------------------------------
+
+# SimpleFIN carries no account-type field, so infer conservatively from the
+# account name when a connection account is first auto-created. Order matters:
+# first match wins; anything unmatched stays "checking". Existing accounts are
+# never retyped — manual corrections from the Accounts page stick.
+_ACCOUNT_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("retirement", re.compile(r"\b(?:401\s*\(?k\)?|403\s*\(?b\)?|457|ira|roth|sep|pension|tsp|retirement)\b", re.I)),
+    ("hsa", re.compile(r"\b(?:hsa|health\s+savings)\b", re.I)),
+    ("529", re.compile(r"\b(?:529|college\s+savings|education\s+savings)\b", re.I)),
+    ("brokerage", re.compile(r"\b(?:brokerage|investment|investing)\b", re.I)),
+    ("mortgage", re.compile(r"\bmortgage\b", re.I)),
+    ("auto_loan", re.compile(r"\b(?:auto|car|vehicle)\s+loan\b", re.I)),
+    ("student_loan", re.compile(r"\bstudent\s+loans?\b", re.I)),
+    ("credit_card", re.compile(r"\b(?:credit\s*card|visa|mastercard|amex|american\s+express)\b", re.I)),
+    ("savings", re.compile(r"\b(?:savings|money\s+market|mma)\b", re.I)),
+)
+
+
+def infer_account_type(name: str) -> str:
+    """Best-effort account type from a provider account name; defaults to checking."""
+    for account_type, pattern in _ACCOUNT_TYPE_PATTERNS:
+        if pattern.search(name):
+            return account_type
+    return "checking"
 
 
 # --- connector seam ------------------------------------------------------------
@@ -213,6 +241,7 @@ def sync_connection(
             external_account_id=ext.external_id,
             name=ext.name,
             currency=ext.currency,
+            account_type=infer_account_type(ext.name),
         )
         if ext.balance_minor is not None:
             repository.record_account_balance(engine, account_id, ext.balance_minor)
