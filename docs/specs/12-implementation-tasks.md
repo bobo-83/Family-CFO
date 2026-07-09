@@ -708,6 +708,10 @@ Rules:
 
 - [x] Prior turns of the active conversation are sent to the model (bounded: last 8 messages, 1500 chars each) so follow-ups have context — M10 persisted the thread but the loop never saw it. History numbers join the grounded set (they passed the guardrail when produced). Tests: history included between system and current message; earlier grounded figures can be echoed without tripping the guardrail. Verified live with the exact reported failure ("Mac mini at Best Buy" → "How about at Apple.com?" now answers in context).
 
+## M31: Advisor Personality
+
+- [x] Persona layer over the invariant grounding rules (`FAMILY_CFO_AI_TONE`: playful default / professional; unknown -> playful). Also fixed a real guardrail precision bug surfaced in live testing: tool floats like 9.6470588 now ground their rounded forms (9.6 / 9.65 / 10), so honest rounding no longer forces deterministic fallbacks. Tests; live-verified both.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
