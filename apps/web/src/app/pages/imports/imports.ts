@@ -152,7 +152,13 @@ export class Imports {
       return;
     }
     this.connectionForm.reset({ displayName: '', setupToken: '' });
+    this.syncMessage.set('Linked! The first sync started automatically — accounts appear shortly.');
     this.connections.reload();
+    // The initial background sync usually lands within seconds; refresh once.
+    setTimeout(() => {
+      this.connections.reload();
+      this.imports.reload();
+    }, 8000);
   }
 
   protected async syncNow(connectionId: string): Promise<void> {

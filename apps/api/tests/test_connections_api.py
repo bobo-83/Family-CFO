@@ -10,6 +10,9 @@ class _StubConnector:
             raise banksync.BankSyncError("that does not look like a SimpleFIN setup token")
         return "https://u:p@bridge.example/simplefin"
 
+    def fetch_accounts(self, access_url, since):
+        return []  # the initial background sync no-ops in these tests
+
 
 @pytest.fixture(autouse=True)
 def _stub_connector(monkeypatch):
@@ -91,3 +94,20 @@ async def test_sync_unknown_connection_404(demo_client, demo_token) -> None:
         headers={"Authorization": f"Bearer {demo_token}"},
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_linking_triggers_an_immediate_background_sync(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    calls = []
+    monkeypatch.setattr(
+        connections_module.banksync,
+        "sync_connection",
+        lambda engine, settings, record: calls.append(record.id)
+        or banksync.SyncResult(accounts_synced=1, imported=3, duplicates_skipped=0),
+    )
+    created = await _create(demo_client, demo_token, name="Auto Bank")
+    assert created.status_code == 201
+    # httpx's ASGI transport runs FastAPI background tasks before returning.
+    assert calls == [created.json()["id"]]

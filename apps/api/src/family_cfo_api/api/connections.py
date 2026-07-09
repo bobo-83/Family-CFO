@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, banksync, repository
@@ -62,6 +62,7 @@ async def list_connections(
 )
 async def create_connection(
     payload: ConnectionCreateRequest,
+    background: BackgroundTasks,
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
@@ -93,7 +94,29 @@ async def create_connection(
         record.id,
         f"Linked institution '{payload.display_name}' via {payload.provider}",
     )
+    # First sync runs immediately in the background (the daily worker job would
+    # otherwise leave a fresh link empty for up to 24h). Errors are recorded on
+    # the connection (last_sync_error), never raised here.
+    background.add_task(_initial_sync, engine, settings, record.id, session.household_id)
     return _to_schema(record)
+
+
+def _initial_sync(
+    engine: Engine, settings: Settings, connection_id: str, household_id: str
+) -> None:
+    record = repository.get_institution_connection(engine, household_id, connection_id)
+    if record is None:
+        return
+    try:
+        result = banksync.sync_connection(engine, settings, record)
+        logger.info(
+            "initial sync completed connection_id=%s imported=%s duplicates=%s",
+            connection_id,
+            result.imported,
+            result.duplicates_skipped,
+        )
+    except banksync.BankSyncError:
+        logger.warning("initial sync failed connection_id=%s (recorded on connection)", connection_id)
 
 
 @router.delete(
