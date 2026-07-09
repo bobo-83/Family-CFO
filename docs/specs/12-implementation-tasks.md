@@ -700,6 +700,10 @@ Rules:
 
 - [x] Spec note (amends ADR 0014): SearXNG un-profiled with JSON-enabled config (`docker/searxng-settings.yml`: formats+json, limiter off) + `SEARXNG_SECRET`; `FAMILY_CFO_SEARXNG_URL` defaults to the bundled instance; deploy.sh generates the secret; opt-out documented; deployed + real price-question e2e; commit.
 
+## M29: Inference Performance (AWQ)
+
+- [x] Diagnosed slow responses: GPU active (verified via nvidia-smi + CUDA/FlashAttention logs); bottleneck = memory bandwidth (measured 3.2 tok/s decoding 65GB bf16 on ~273GB/s unified memory). Swapped the live main model to Qwen2.5-32B-Instruct-AWQ via swap-model.sh (M23 tooling): measured 7.9 tok/s (~2.5×; currency question 6.2s end-to-end, attribution confirming the AWQ model answered). Added 32B-AWQ + 14B-AWQ to the curated catalog with unified-memory guidance; README perf note with measured numbers.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.
