@@ -38,7 +38,8 @@ cp .env.example .env
 Edit `.env` and set, at minimum:
 
 - `POSTGRES_PASSWORD` — a strong password. The stack refuses to start without it.
-- `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` — required before you can take backups.
+- `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` — required before you can take backups
+  (it also encrypts linked-institution credentials, M27).
   Generate one:
 
   ```bash

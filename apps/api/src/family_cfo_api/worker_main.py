@@ -42,6 +42,17 @@ def main() -> None:
     def generate_annual_reports() -> None:
         report_generation.run_scheduled_reports_once(engine, "annual")
 
+    def sync_bank_connections() -> None:
+        # M27: pull statements from every linked institution, deduped (ADR 0015).
+        from family_cfo_api import banksync, repository
+
+        for connection in repository.list_all_institution_connections(engine):
+            try:
+                banksync.sync_connection(engine, settings, connection)
+            except banksync.BankSyncError:
+                # Error already recorded on the connection; keep syncing others.
+                continue
+
     def run_daily_backup() -> None:
         backup_processing.run_backup_once(
             engine,
@@ -86,6 +97,13 @@ def main() -> None:
             name="run-daily-backup",
             func=run_daily_backup,
             interval_seconds=BACKUP_INTERVAL_SECONDS,
+        )
+    )
+    scheduler.add_job(
+        Job(
+            name="sync-bank-connections",
+            func=sync_bank_connections,
+            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily, same cadence as backups
         )
     )
     scheduler.start()

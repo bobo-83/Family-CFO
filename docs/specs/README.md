@@ -70,6 +70,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M26 chat usability pass: implemented. iOS zoom hardening (`touch-action: manipulation` on interactive elements + explicit 16px chat input), conversation deletion surfaced in the chat UI (confirmation dialog, owner/adult role gate matching the existing M10 `DELETE /conversations/{id}`, clears the open thread), and a legible history list (card items with title + last-updated date).
 
+- M27 institution connections & transaction dedupe: implemented (backed by ADR 0015). Pull statements via SimpleFIN behind a pluggable `BankConnector` seam — the setup token is exchanged once, the resulting access URL is Fernet-encrypted at rest and never exposed, and bank credentials never touch this server. Two-tier dedupe: provider ids give hard idempotency (`(account_id, external_id)` unique); a content hash covers CSV rows (re-uploading a CSV now imports 0 instead of duplicating everything). Manual sync-now + daily scheduled sync; counts (imported vs duplicates skipped) always reported. OFX DirectConnect (no third party at all) remains the preferred next connector on the backlog.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

@@ -10,11 +10,13 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 
 from family_cfo_api.db import metadata
@@ -214,9 +216,60 @@ transactions = Table(
     ),
     Column("possible_duplicate", Boolean, nullable=False, server_default="0"),
     Column("review_state", String(20), nullable=False, server_default="reviewed"),
+    # M27 dedupe (ADR 0015): provider transaction id (hard idempotency) and a
+    # content hash (soft fallback for CSV rows without provider ids).
+    Column("external_id", String(120), nullable=True),
+    Column("import_hash", String(64), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
         f"review_state in {_sql_in(TRANSACTION_REVIEW_STATES)}", name="ck_transactions_review_state"
+    ),
+    Index(
+        "uq_transactions_account_external",
+        "account_id",
+        "external_id",
+        unique=True,
+        sqlite_where=text("external_id IS NOT NULL"),
+        postgresql_where=text("external_id IS NOT NULL"),
+    ),
+    Index("ix_transactions_import_hash", "account_id", "import_hash"),
+)
+
+# --- M27: institution connections (ADR 0015) ---------------------------------
+
+institution_connections = Table(
+    "institution_connections",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("provider", String(30), nullable=False),  # "simplefin" for now
+    Column("display_name", String(120), nullable=False),
+    # Fernet-encrypted SimpleFIN access URL — a credential; never returned by the API.
+    Column("access_url_encrypted", Text, nullable=False),
+    Column("status", String(20), nullable=False, server_default="active"),
+    Column("last_synced_at", DateTime(timezone=True), nullable=True),
+    Column("last_sync_error", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+connection_accounts = Table(
+    "connection_accounts",
+    metadata,
+    _uuid_pk(),
+    Column(
+        "connection_id",
+        String(36),
+        ForeignKey("institution_connections.id", name="fk_connection_accounts_connection_id"),
+        nullable=False,
+    ),
+    Column("external_account_id", String(120), nullable=False),
+    Column("account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index(
+        "uq_connection_accounts_external",
+        "connection_id",
+        "external_account_id",
+        unique=True,
     ),
 )
 

@@ -26,6 +26,10 @@ function configure(apiMock: Record<string, unknown>, role: string) {
 describe('Imports', () => {
   it('registers then uploads a selected file', async () => {
     const apiMock = {
+      listConnections: vi.fn().mockResolvedValue(response({ connections: [] })),
+      createConnection: vi.fn(),
+      deleteConnection: vi.fn(),
+      syncConnection: vi.fn(),
       listAccounts: vi
         .fn()
         .mockResolvedValue(
@@ -69,6 +73,10 @@ describe('Imports', () => {
 
   it('applies a needs_review import', async () => {
     const apiMock = {
+      listConnections: vi.fn().mockResolvedValue(response({ connections: [] })),
+      createConnection: vi.fn(),
+      deleteConnection: vi.fn(),
+      syncConnection: vi.fn(),
       listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
       listImports: vi
         .fn()
@@ -100,6 +108,10 @@ describe('Imports', () => {
 
   it('hides the import form for a viewer', async () => {
     const apiMock = {
+      listConnections: vi.fn().mockResolvedValue(response({ connections: [] })),
+      createConnection: vi.fn(),
+      deleteConnection: vi.fn(),
+      syncConnection: vi.fn(),
       listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
       listImports: vi.fn().mockResolvedValue(response({ imports: [] })),
     };
@@ -111,5 +123,59 @@ describe('Imports', () => {
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.import-form')).toBeFalsy();
+  });
+
+  it('links an institution and syncs with counts', async () => {
+    const apiMock = {
+      listConnections: vi.fn().mockResolvedValue(
+        response({
+          connections: [
+            {
+              id: 'conn-1',
+              provider: 'simplefin',
+              display_name: 'My Bank',
+              status: 'active',
+              last_synced_at: null,
+              last_sync_error: null,
+              created_at: '2026-07-09T00:00:00Z',
+            },
+          ],
+        }),
+      ),
+      createConnection: vi.fn().mockResolvedValue(response({ id: 'conn-1' })),
+      deleteConnection: vi.fn(),
+      syncConnection: vi.fn().mockResolvedValue(
+        response({ accounts_synced: 1, imported: 5, duplicates_skipped: 2 }),
+      ),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      listImports: vi.fn().mockResolvedValue(response({ imports: [] })),
+      createImport: vi.fn(),
+      uploadImportFile: vi.fn(),
+      applyImport: vi.fn(),
+      discardImport: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [Imports],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: { role: () => 'owner' } },
+      ],
+    });
+    const fixture = TestBed.createComponent(Imports);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['connectionForm'].setValue({ displayName: 'My Bank', setupToken: 'Z29vZC10b2tlbg==' });
+    await component['linkInstitution']();
+    expect(apiMock.createConnection).toHaveBeenCalledWith({
+      provider: 'simplefin',
+      display_name: 'My Bank',
+      setup_token: 'Z29vZC10b2tlbg==',
+    });
+
+    await component['syncNow']('conn-1');
+    expect(component['syncMessage']()).toContain('5 new');
+    expect(component['syncMessage']()).toContain('2 duplicate');
   });
 });

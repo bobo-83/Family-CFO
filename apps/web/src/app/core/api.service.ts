@@ -7,6 +7,7 @@ import {
   createBackup,
   createBill,
   createChatMessage,
+  createConnection,
   createGoal,
   createHousehold,
   createImport,
@@ -15,6 +16,7 @@ import {
   createPairingSession,
   createTransaction,
   deleteAccount,
+  deleteConnection,
   deleteConversation,
   deleteBill,
   deleteIncomeSource,
@@ -34,6 +36,7 @@ import {
   listBackups,
   listBills,
   listAiModels,
+  listConnections,
   listConversations,
   listGoals,
   listImports,
@@ -45,6 +48,7 @@ import {
   recordAccountBalance,
   restoreBackup,
   searchAiModels,
+  syncConnection,
   revokePairedDevice,
   updateAccount,
   updateAiRuntimeConfig,
@@ -61,6 +65,7 @@ import {
   type BillCreateRequest,
   type BillUpdateRequest,
   type ChatRequest,
+  type ConnectionCreateRequest,
   type GoalCreateRequest,
   type HouseholdCreateRequest,
   type ImportCreateRequest,
@@ -194,6 +199,23 @@ export class ApiService {
 
   deleteIncomeSource(incomeId: string) {
     return deleteIncomeSource({ path: { income_id: incomeId } });
+  }
+
+  // --- Institution connections (M27) ---
+  listConnections() {
+    return listConnections();
+  }
+
+  createConnection(body: ConnectionCreateRequest) {
+    return createConnection({ body });
+  }
+
+  deleteConnection(connectionId: string) {
+    return deleteConnection({ path: { connection_id: connectionId } });
+  }
+
+  syncConnection(connectionId: string) {
+    return syncConnection({ path: { connection_id: connectionId } });
   }
 
   // --- Imports & documents ---

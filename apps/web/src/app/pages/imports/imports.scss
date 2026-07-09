@@ -44,3 +44,88 @@
     margin-left: 0.5rem;
   }
 }
+
+/* --- Linked institutions (M27) ---------------------------------------------- */
+
+.connections {
+  margin-top: 2rem;
+
+  h2 {
+    margin-bottom: 0.5rem;
+  }
+}
+
+.connections__form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+
+  input {
+    flex: 1;
+    min-width: 14rem;
+  }
+
+  button {
+    padding: 0 1.2rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+    }
+  }
+}
+
+.connections__status {
+  color: var(--color-success);
+  font-size: 0.9rem;
+}
+
+.connections__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.connections__name {
+  font-weight: 650;
+  display: block;
+}
+
+.connections__meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.connections__actions {
+  display: flex;
+  gap: 0.5rem;
+
+  button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+    }
+  }
+}
+
+.connections__unlink {
+  color: var(--color-danger);
+}

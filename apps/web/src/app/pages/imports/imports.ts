@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { ImportSourceType } from '../../api-client';
@@ -7,7 +8,7 @@ import { apiErrorMessage } from '../../shared/api-error';
 
 @Component({
   selector: 'app-imports',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, DatePipe],
   templateUrl: './imports.html',
   styleUrl: './imports.scss',
 })
@@ -109,4 +110,81 @@ export class Imports {
     }
     this.imports.reload();
   }
+
+  // --- Linked institutions (M27, ADR 0015) ----------------------------------
+
+  protected readonly connections = resource({
+    loader: async () => {
+      const { data, error } = await this.api.listConnections();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load linked institutions.'));
+      }
+      return data.connections;
+    },
+  });
+
+  protected readonly connectionForm = this.formBuilder.nonNullable.group({
+    displayName: ['', Validators.required],
+    setupToken: ['', [Validators.required, Validators.minLength(8)]],
+  });
+
+  protected readonly linking = signal(false);
+  protected readonly linkError = signal<string | null>(null);
+  protected readonly syncingId = signal<string | null>(null);
+  protected readonly syncMessage = signal<string | null>(null);
+
+  protected async linkInstitution(): Promise<void> {
+    if (this.connectionForm.invalid || this.linking()) {
+      this.connectionForm.markAllAsTouched();
+      return;
+    }
+    this.linking.set(true);
+    this.linkError.set(null);
+    const { displayName, setupToken } = this.connectionForm.getRawValue();
+    const { error } = await this.api.createConnection({
+      provider: 'simplefin',
+      display_name: displayName,
+      setup_token: setupToken.trim(),
+    });
+    this.linking.set(false);
+    if (error) {
+      this.linkError.set(apiErrorMessage(error, 'Could not link the institution.'));
+      return;
+    }
+    this.connectionForm.reset({ displayName: '', setupToken: '' });
+    this.connections.reload();
+  }
+
+  protected async syncNow(connectionId: string): Promise<void> {
+    if (this.syncingId()) {
+      return;
+    }
+    this.syncingId.set(connectionId);
+    this.syncMessage.set(null);
+    const { data, error } = await this.api.syncConnection(connectionId);
+    this.syncingId.set(null);
+    if (error || !data) {
+      this.syncMessage.set(apiErrorMessage(error, 'Sync failed.'));
+    } else {
+      this.syncMessage.set(
+        `Synced ${data.accounts_synced} account(s): ${data.imported} new, ` +
+          `${data.duplicates_skipped} duplicate(s) skipped.`,
+      );
+    }
+    this.connections.reload();
+    this.imports.reload();
+  }
+
+  protected async unlink(connectionId: string): Promise<void> {
+    if (!window.confirm('Unlink this institution? Imported transactions are kept.')) {
+      return;
+    }
+    const { error } = await this.api.deleteConnection(connectionId);
+    if (error) {
+      this.syncMessage.set(apiErrorMessage(error, 'Failed to unlink.'));
+      return;
+    }
+    this.connections.reload();
+  }
 }
+

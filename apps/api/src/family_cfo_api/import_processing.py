@@ -68,11 +68,9 @@ def _process_csv(engine: Engine, import_record: repository.ImportRecord, file_by
             skipped += 1
             continue
 
-        possible_duplicate = repository.transaction_exists(
-            engine, import_record.household_id, import_record.account_id, occurred_at, amount_minor
-        )
-
-        repository.create_transaction(
+        # ADR 0015 dedupe: an exact content-hash match (same account, date,
+        # amount, payee) is skipped — re-uploading the same CSV imports nothing.
+        created = repository.create_transaction_deduped(
             engine,
             household_id=import_record.household_id,
             account_id=import_record.account_id,
@@ -84,8 +82,9 @@ def _process_csv(engine: Engine, import_record: repository.ImportRecord, file_by
             import_source="csv",
             import_id=import_record.id,
             review_state="pending",
-            possible_duplicate=possible_duplicate,
         )
+        if not created:
+            skipped += 1
 
     repository.update_import_status(
         engine, import_record.id, status="needs_review", skipped_row_count=skipped

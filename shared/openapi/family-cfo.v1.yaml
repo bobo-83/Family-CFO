@@ -22,6 +22,7 @@ tags:
   - name: Chat
   - name: Conversations
   - name: Imports
+  - name: Connections
   - name: Documents
   - name: Reports
   - name: Backups
@@ -1425,6 +1426,103 @@ paths:
                 $ref: "#/components/schemas/AiSwapStatus"
         "401":
           $ref: "#/components/responses/Error"
+  /connections:
+    get:
+      tags:
+        - Connections
+      operationId: listConnections
+      summary: List linked financial institutions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Linked institutions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Connections
+      operationId: createConnection
+      summary: Link a financial institution (exchange a SimpleFIN setup token)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectionCreateRequest"
+      responses:
+        "201":
+          description: Institution linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionConnection"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /connections/{connection_id}:
+    delete:
+      tags:
+        - Connections
+      operationId: deleteConnection
+      summary: Unlink a financial institution
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: connection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Connection removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /connections/{connection_id}/sync:
+    post:
+      tags:
+        - Connections
+      operationId: syncConnection
+      summary: Pull the latest statements from a linked institution
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: connection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionSyncResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     bearerAuth:
@@ -2695,6 +2793,69 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiModelInfo"
+    ConnectionCreateRequest:
+      type: object
+      required:
+        - display_name
+        - setup_token
+      properties:
+        provider:
+          type: string
+          enum: [simplefin]
+          default: simplefin
+        display_name:
+          type: string
+        setup_token:
+          type: string
+    InstitutionConnection:
+      type: object
+      required:
+        - id
+        - provider
+        - display_name
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_sync_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    ConnectionListResponse:
+      type: object
+      required:
+        - connections
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstitutionConnection"
+    ConnectionSyncResult:
+      type: object
+      required:
+        - accounts_synced
+        - imported
+        - duplicates_skipped
+      properties:
+        accounts_synced:
+          type: integer
+        imported:
+          type: integer
+        duplicates_skipped:
+          type: integer
     AiApplyRequest:
       type: object
       required:

@@ -2563,3 +2563,231 @@ def delete_conversation(engine: Engine, household_id: str, conversation_id: str)
             delete(models.conversations).where(models.conversations.c.id == conversation_id)
         )
     return True
+
+
+# --- M27: institution connections + dedupe (ADR 0015) -------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionConnectionRecord:
+    id: str
+    household_id: str
+    provider: str
+    display_name: str
+    access_url_encrypted: str
+    status: str
+    last_synced_at: datetime | None
+    last_sync_error: str | None
+    created_at: datetime
+
+
+def _connection_from_row(row: Any) -> InstitutionConnectionRecord:
+    return InstitutionConnectionRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        provider=row["provider"],
+        display_name=row["display_name"],
+        access_url_encrypted=row["access_url_encrypted"],
+        status=row["status"],
+        last_synced_at=_as_aware(row["last_synced_at"]) if row["last_synced_at"] else None,
+        last_sync_error=row["last_sync_error"],
+        created_at=_as_aware(row["created_at"]),
+    )
+
+
+def create_institution_connection(
+    engine: Engine,
+    household_id: str,
+    provider: str,
+    display_name: str,
+    access_url_encrypted: str,
+) -> InstitutionConnectionRecord:
+    connection_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.institution_connections).values(
+                id=connection_id,
+                household_id=household_id,
+                provider=provider,
+                display_name=display_name,
+                access_url_encrypted=access_url_encrypted,
+                status="active",
+                created_at=utcnow(),
+            )
+        )
+    record = get_institution_connection(engine, household_id, connection_id)
+    assert record is not None
+    return record
+
+
+def get_institution_connection(
+    engine: Engine, household_id: str, connection_id: str
+) -> InstitutionConnectionRecord | None:
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.institution_connections).where(
+                    models.institution_connections.c.id == connection_id,
+                    models.institution_connections.c.household_id == household_id,
+                )
+            )
+            .mappings()
+            .first()
+        )
+    return _connection_from_row(row) if row else None
+
+
+def list_institution_connections(
+    engine: Engine, household_id: str
+) -> list[InstitutionConnectionRecord]:
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(models.institution_connections)
+                .where(models.institution_connections.c.household_id == household_id)
+                .order_by(models.institution_connections.c.created_at)
+            )
+            .mappings()
+            .all()
+        )
+    return [_connection_from_row(row) for row in rows]
+
+
+def list_all_institution_connections(engine: Engine) -> list[InstitutionConnectionRecord]:
+    """Every active connection across households — for the scheduled sync job."""
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                select(models.institution_connections).where(
+                    models.institution_connections.c.status == "active"
+                )
+            )
+            .mappings()
+            .all()
+        )
+    return [_connection_from_row(row) for row in rows]
+
+
+def delete_institution_connection(
+    engine: Engine, household_id: str, connection_id: str
+) -> bool:
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.connection_accounts).where(
+                models.connection_accounts.c.connection_id == connection_id
+            )
+        )
+        result = conn.execute(
+            delete(models.institution_connections).where(
+                models.institution_connections.c.id == connection_id,
+                models.institution_connections.c.household_id == household_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def record_connection_sync(engine: Engine, connection_id: str, error: str | None) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.institution_connections)
+            .where(models.institution_connections.c.id == connection_id)
+            .values(last_synced_at=utcnow(), last_sync_error=error)
+        )
+
+
+def get_or_create_connection_account(
+    engine: Engine,
+    household_id: str,
+    connection_id: str,
+    external_account_id: str,
+    name: str,
+    currency: str,
+) -> str:
+    """The local account mapped to a provider account, auto-created on first sight."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.connection_accounts.c.account_id).where(
+                models.connection_accounts.c.connection_id == connection_id,
+                models.connection_accounts.c.external_account_id == external_account_id,
+            )
+        ).first()
+    if row is not None:
+        return row[0]
+
+    account = create_account(engine, household_id, name, "checking", currency)
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.connection_accounts).values(
+                id=new_id(),
+                connection_id=connection_id,
+                external_account_id=external_account_id,
+                account_id=account.id,
+                created_at=utcnow(),
+            )
+        )
+    return account.id
+
+
+def create_transaction_deduped(
+    engine: Engine,
+    household_id: str,
+    account_id: str,
+    occurred_at: date,
+    amount_minor: int,
+    currency: str,
+    merchant: str | None,
+    description: str | None,
+    import_source: str | None,
+    external_id: str | None = None,
+    import_id: str | None = None,
+    review_state: str = "reviewed",
+) -> bool:
+    """Insert a transaction unless it is a duplicate (ADR 0015). True if inserted.
+
+    Provider path: skip when (account_id, external_id) already exists — hard
+    idempotency, backed by the unique index. Fallback path (no external id):
+    skip when the content hash matches an existing row in the account.
+    """
+    from family_cfo_api.banksync import compute_import_hash
+
+    import_hash = compute_import_hash(account_id, occurred_at, amount_minor, merchant)
+    with engine.begin() as conn:
+        if external_id is not None:
+            existing = conn.execute(
+                select(models.transactions.c.id).where(
+                    models.transactions.c.account_id == account_id,
+                    models.transactions.c.external_id == external_id,
+                )
+            ).first()
+            if existing is not None:
+                return False
+        else:
+            existing = conn.execute(
+                select(models.transactions.c.id).where(
+                    models.transactions.c.account_id == account_id,
+                    models.transactions.c.import_hash == import_hash,
+                )
+            ).first()
+            if existing is not None:
+                return False
+        conn.execute(
+            insert(models.transactions).values(
+                id=new_id(),
+                household_id=household_id,
+                account_id=account_id,
+                occurred_at=occurred_at,
+                amount_minor=amount_minor,
+                currency=currency,
+                merchant=merchant,
+                category_id=None,
+                description=description,
+                import_source=import_source,
+                import_id=import_id,
+                possible_duplicate=False,
+                review_state=review_state,
+                external_id=external_id,
+                import_hash=import_hash,
+                created_at=utcnow(),
+            )
+        )
+    return True

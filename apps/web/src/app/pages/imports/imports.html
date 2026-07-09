@@ -79,3 +79,59 @@
     </tbody>
   </table>
 }
+
+<!-- ===================== Linked institutions (M27) ===================== -->
+<section class="connections">
+  <h2>Linked institutions</h2>
+  <p class="page-empty">
+    Pull statements automatically via <a href="https://beta-bridge.simplefin.org" target="_blank" rel="noopener">SimpleFIN</a>:
+    connect your bank there, then paste the one-time setup token below. Your bank credentials never
+    touch this server, and re-syncing never duplicates transactions.
+  </p>
+
+  @if (canReview()) {
+    <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
+      <input type="text" formControlName="displayName" placeholder="Institution name (e.g. Chase)" />
+      <input type="text" formControlName="setupToken" placeholder="SimpleFIN setup token" />
+      <button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
+    </form>
+    @if (linkError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+  }
+
+  @if (syncMessage(); as message) {
+    <p class="connections__status" role="status">{{ message }}</p>
+  }
+
+  @if (connections.value(); as list) {
+    @for (conn of list; track conn.id) {
+      <div class="connections__item">
+        <div class="connections__info">
+          <span class="connections__name">{{ conn.display_name }}</span>
+          <span class="connections__meta">
+            {{ conn.provider }} ·
+            @if (conn.last_synced_at) {
+              last synced {{ conn.last_synced_at | date: 'MMM d, h:mm a' }}
+            } @else {
+              never synced
+            }
+            @if (conn.last_sync_error) {
+              · ⚠️ {{ conn.last_sync_error }}
+            }
+          </span>
+        </div>
+        @if (canReview()) {
+          <div class="connections__actions">
+            <button type="button" (click)="syncNow(conn.id)" [disabled]="syncingId() === conn.id">
+              {{ syncingId() === conn.id ? 'Syncing…' : 'Sync now' }}
+            </button>
+            <button type="button" class="connections__unlink" (click)="unlink(conn.id)">Unlink</button>
+          </div>
+        }
+      </div>
+    } @empty {
+      <p class="page-empty">No institutions linked yet.</p>
+    }
+  }
+</section>

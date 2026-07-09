@@ -539,3 +539,35 @@ class ConversationDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: list[ConversationMessage]
+
+
+# --- M27: institution connections (ADR 0015) ---------------------------------
+
+
+class ConnectionCreateRequest(BaseModel):
+    provider: Literal["simplefin"] = "simplefin"
+    display_name: str = Field(min_length=1, max_length=120)
+    # One-time SimpleFIN setup token; exchanged immediately, never stored.
+    setup_token: str = Field(min_length=8)
+
+
+class InstitutionConnection(BaseModel):
+    """A linked institution. The access credential is never exposed."""
+
+    id: str
+    provider: str
+    display_name: str
+    status: str
+    last_synced_at: datetime | None = None
+    last_sync_error: str | None = None
+    created_at: datetime
+
+
+class ConnectionListResponse(BaseModel):
+    connections: list[InstitutionConnection]
+
+
+class ConnectionSyncResult(BaseModel):
+    accounts_synced: int
+    imported: int
+    duplicates_skipped: int

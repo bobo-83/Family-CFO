@@ -494,6 +494,32 @@ export type AiModelCatalog = {
     models: Array<AiModelInfo>;
 };
 
+export type ConnectionCreateRequest = {
+    provider?: 'simplefin';
+    display_name: string;
+    setup_token: string;
+};
+
+export type InstitutionConnection = {
+    id: string;
+    provider: string;
+    display_name: string;
+    status: string;
+    last_synced_at?: string;
+    last_sync_error?: string;
+    created_at: string;
+};
+
+export type ConnectionListResponse = {
+    connections: Array<InstitutionConnection>;
+};
+
+export type ConnectionSyncResult = {
+    accounts_synced: number;
+    imported: number;
+    duplicates_skipped: number;
+};
+
 export type AiApplyRequest = {
     main_model: string;
     vision_model?: string;
@@ -2320,3 +2346,139 @@ export type GetAiApplyStatusResponses = {
 };
 
 export type GetAiApplyStatusResponse = GetAiApplyStatusResponses[keyof GetAiApplyStatusResponses];
+
+export type ListConnectionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/connections';
+};
+
+export type ListConnectionsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListConnectionsError = ListConnectionsErrors[keyof ListConnectionsErrors];
+
+export type ListConnectionsResponses = {
+    /**
+     * Linked institutions
+     */
+    200: ConnectionListResponse;
+};
+
+export type ListConnectionsResponse = ListConnectionsResponses[keyof ListConnectionsResponses];
+
+export type CreateConnectionData = {
+    body: ConnectionCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/connections';
+};
+
+export type CreateConnectionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type CreateConnectionError = CreateConnectionErrors[keyof CreateConnectionErrors];
+
+export type CreateConnectionResponses = {
+    /**
+     * Institution linked
+     */
+    201: InstitutionConnection;
+};
+
+export type CreateConnectionResponse = CreateConnectionResponses[keyof CreateConnectionResponses];
+
+export type DeleteConnectionData = {
+    body?: never;
+    path: {
+        connection_id: string;
+    };
+    query?: never;
+    url: '/connections/{connection_id}';
+};
+
+export type DeleteConnectionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteConnectionError = DeleteConnectionErrors[keyof DeleteConnectionErrors];
+
+export type DeleteConnectionResponses = {
+    /**
+     * Connection removed
+     */
+    204: void;
+};
+
+export type DeleteConnectionResponse = DeleteConnectionResponses[keyof DeleteConnectionResponses];
+
+export type SyncConnectionData = {
+    body?: never;
+    path: {
+        connection_id: string;
+    };
+    query?: never;
+    url: '/connections/{connection_id}/sync';
+};
+
+export type SyncConnectionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    502: ErrorResponse;
+};
+
+export type SyncConnectionError = SyncConnectionErrors[keyof SyncConnectionErrors];
+
+export type SyncConnectionResponses = {
+    /**
+     * Sync result
+     */
+    200: ConnectionSyncResult;
+};
+
+export type SyncConnectionResponse = SyncConnectionResponses[keyof SyncConnectionResponses];

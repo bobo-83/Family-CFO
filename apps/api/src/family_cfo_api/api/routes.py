@@ -8,6 +8,7 @@ from family_cfo_api.api.auth import router as auth_router
 from family_cfo_api.api.backups import router as backups_router
 from family_cfo_api.api.bills import router as bills_router
 from family_cfo_api.api.chat import router as chat_router
+from family_cfo_api.api.connections import router as connections_router
 from family_cfo_api.api.conversations import router as conversations_router
 from family_cfo_api.api.documents import router as documents_router
 from family_cfo_api.api.goals import router as goals_router
@@ -36,6 +37,7 @@ api_router.include_router(goals_router)
 api_router.include_router(advisor_router)
 api_router.include_router(ai_runtime_router)
 api_router.include_router(chat_router)
+api_router.include_router(connections_router)
 api_router.include_router(conversations_router)
 api_router.include_router(imports_router)
 api_router.include_router(documents_router)
