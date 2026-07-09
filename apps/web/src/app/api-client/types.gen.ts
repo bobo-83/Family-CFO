@@ -199,6 +199,11 @@ export type Impact = {
 export type ChatRequest = {
     conversation_id?: string;
     message: string;
+    /**
+     * Optional attached photo, base64-encoded (ADR 0011)
+     */
+    image_base64?: string;
+    image_media_type?: 'image/jpeg' | 'image/png' | 'image/webp';
 };
 
 export type ChatResponse = {
@@ -459,6 +464,8 @@ export type AiRuntimeStatus = {
     ready: boolean;
     served_model?: string;
     detail: string;
+    vision_ready?: boolean;
+    vision_model?: string;
 };
 
 export type GetHealthData = {

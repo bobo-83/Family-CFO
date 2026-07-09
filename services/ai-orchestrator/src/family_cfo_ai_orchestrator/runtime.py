@@ -21,6 +21,9 @@ class RuntimeMessage:
     tool_calls: list[ToolCall] = field(default_factory=list)
     # Set on a "tool" message carrying a tool's result back to the model.
     tool_call_id: str | None = None
+    # Optional attached image as a data URL (data:image/jpeg;base64,...) for
+    # vision-capable runtimes; adapters render OpenAI multimodal content parts.
+    image_data_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

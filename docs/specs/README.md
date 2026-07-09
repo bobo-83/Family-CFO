@@ -58,6 +58,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M20 dashboard redesign & mobile support: implemented. A design-token system (CSS custom properties + global element baselines) modernizes every page; the shell gains a mobile slide-in drawer behind a fixed top bar with safe-area/notch handling (`viewport-fit=cover`); tables scroll horizontally and the chat history collapses on narrow screens. Target: iPhone 15 Pro (393px). Web-only; no API changes.
 
+- M21 chat photo attachments (vision routing): implemented (backed by ADR 0011). Chat accepts an attached/camera photo; it is always converted to a text description first (vision-capable main model, else the on-box `vllm-vision` describer, else a graceful warning), the description joins the tool-calling loop and its numbers join the grounded set, and the image itself is never persisted. On-device iPhone describing is recorded as native-app backlog (Safari cannot reach Apple's on-device models).
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

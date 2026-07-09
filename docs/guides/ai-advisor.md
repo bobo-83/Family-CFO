@@ -133,3 +133,19 @@ model or GPU required:
 cd apps/api && python -m pytest tests/test_chat_agentic.py tests/test_ai_tools.py
 cd services/ai-orchestrator && python -m pytest tests/test_tool_calling.py
 ```
+
+
+## Photo attachments (vision)
+
+Chat accepts a photo (the 📷 button; on iPhone it offers Camera or Photo
+Library). Per [ADR 0011](../adr/0011-vision-image-routing.md) the photo is
+always turned into a text description first — by the main model if
+`FAMILY_CFO_AI_SUPPORTS_VISION=true`, else by the `vllm-vision` describer
+(default `Qwen/Qwen2.5-VL-7B-Instruct`) — and only the description enters the
+advisor pipeline; the image itself is never persisted. The chat status banner
+shows "photos supported" when a vision path is ready.
+
+Both runtimes share the GPU via `VLLM_GPU_FRACTION` (0.60) and
+`VLLM_VISION_GPU_FRACTION` (0.20). To run without vision:
+`FAMILY_CFO_AI_VISION_ENABLED=false` and `docker compose up -d --scale vllm-vision=0`
+— attached photos then get a clear "could not be analyzed" warning.

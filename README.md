@@ -155,11 +155,17 @@ plus headroom for the KV cache. Model weights are downloaded once into the
 | **Qwen2.5-32B-Instruct** (default) | `hermes` | ~65 GB | ~20 GB | ~62 GB | strong reasoning + tool use, ungated |
 | Qwen2.5-72B-Instruct | `hermes` | ~145 GB | ~40 GB | ~140 GB | best; usually run 4-bit |
 | Llama-3.3-70B-Instruct | `llama3_json` | ~140 GB | ~40 GB | ~132 GB | gated (needs `HUGGING_FACE_HUB_TOKEN`) |
+| Qwen2.5-VL-7B-Instruct (vision describer) | n/a | ~16 GB | ~6 GB | ~16 GB | describes chat photo attachments (ADR 0011); runs alongside the main model |
 
 VRAM figures are approximate and depend on context length / KV-cache settings;
 size storage for **at least 1.5×** the weight size to allow for the download plus
 extraction. Set the model with `VLLM_MODEL` and its parser with
 `VLLM_TOOL_PARSER` in `.env` (defaults to Qwen2.5-32B-Instruct / `hermes`).
+
+Chat photo attachments run a second small **vision describer** (`vllm-vision`)
+next to the main model; both share the GPU via `VLLM_GPU_FRACTION` (0.60) and
+`VLLM_VISION_GPU_FRACTION` (0.20). Disable with `FAMILY_CFO_AI_VISION_ENABLED=false`
+and `--scale vllm-vision=0` if the GPU lacks headroom.
 
 ## Development Workflow
 

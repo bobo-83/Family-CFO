@@ -28,6 +28,13 @@ x-api-env: &api-env
   FAMILY_CFO_AI_PROVIDER: vllm
   FAMILY_CFO_AI_BASE_URL: http://vllm:8000
   FAMILY_CFO_AI_MODEL: ${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}
+  # Vision routing (ADR 0011): set SUPPORTS_VISION=true if VLLM_MODEL itself is
+  # a vision model (e.g. Qwen2.5-VL); otherwise the vllm-vision describer below
+  # analyzes chat photo attachments.
+  FAMILY_CFO_AI_SUPPORTS_VISION: ${FAMILY_CFO_AI_SUPPORTS_VISION:-false}
+  FAMILY_CFO_AI_VISION_ENABLED: ${FAMILY_CFO_AI_VISION_ENABLED:-true}
+  FAMILY_CFO_AI_VISION_BASE_URL: http://vllm-vision:8000
+  FAMILY_CFO_AI_VISION_MODEL: ${VLLM_VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
 
 services:
   db:
@@ -132,6 +139,10 @@ services:
       - "--enable-auto-tool-choice"
       - "--tool-call-parser"
       - "${VLLM_TOOL_PARSER:-hermes}"
+      # Fraction of GPU memory this instance may claim — must leave room for
+      # the vllm-vision describer below (ADR 0011).
+      - "--gpu-memory-utilization"
+      - "${VLLM_GPU_FRACTION:-0.60}"
     environment:
       # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
@@ -144,6 +155,34 @@ services:
     # Pass the host GPU(s) into the container. Requires the NVIDIA Container
     # Toolkit on the host (nvidia-ctk). Without this block vLLM cannot see the
     # GPU and will fail to start.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Small vision describer for chat photo attachments (ADR 0011). Turns a photo
+  # into a text description the main model reasons over. Run GPU-light: no tool
+  # parsing needed. Opt out with FAMILY_CFO_AI_VISION_ENABLED=false and
+  # `--scale vllm-vision=0` (photos then get a graceful "not analyzed" warning).
+  vllm-vision:
+    image: vllm/vllm-openai:latest
+    command:
+      - "--model"
+      - "${VLLM_VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}"
+      - "--gpu-memory-utilization"
+      - "${VLLM_VISION_GPU_FRACTION:-0.20}"
+      - "--max-model-len"
+      - "8192"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    networks: [internal]
+    restart: unless-stopped
+    ipc: host
     deploy:
       resources:
         reservations:

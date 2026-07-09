@@ -48,7 +48,7 @@ class VLLMAdapter:
     ) -> RuntimeCompletion:
         payload = {
             "model": self._model,
-            "messages": [{"role": message.role, "content": message.content} for message in messages],
+            "messages": [self._message_payload(message) for message in messages],
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -71,6 +71,12 @@ class VLLMAdapter:
 
     def _message_payload(self, message: RuntimeMessage) -> dict:
         item: dict = {"role": message.role, "content": message.content}
+        if message.image_data_url:
+            # OpenAI multimodal content parts (vLLM-compatible) for vision models.
+            item["content"] = [
+                {"type": "text", "text": message.content},
+                {"type": "image_url", "image_url": {"url": message.image_data_url}},
+            ]
         if message.tool_calls:
             item["tool_calls"] = [
                 {

@@ -61,3 +61,13 @@ Photos should remain on device whenever structured extraction is sufficient.
 - Face ID protects local app access where available.
 - Pairing credentials are revocable from the dashboard.
 - Image capture sends structured JSON when possible.
+
+
+## Backlog: On-device photo description (from M21 / ADR 0011)
+
+The web dashboard's chat photo attachments are described server-side by a small
+vision model (`vllm-vision`), because Safari cannot reach Apple's on-device
+models from a web page. The native iOS app should prefer describing the photo
+**on the device** (Vision framework / Foundation Models where available) and
+sending only the text description to `POST /chat/messages` — less data leaves
+the phone and the server needs no vision model for iOS users.

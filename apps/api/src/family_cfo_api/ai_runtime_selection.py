@@ -74,6 +74,24 @@ def select_explanation_adapter(
     return LlmExplanationAdapter(runtime_client, model_version=config.model), runtime_client
 
 
+def select_vision_describer(
+    engine: Engine, household_id: str, settings: Settings | None = None
+) -> tuple[VLLMAdapter | None, str]:
+    """The runtime that should describe an attached photo (ADR 0011).
+
+    Returns (adapter, source) where source is "main" (vision-capable main
+    model), "describer" (dedicated vision model), or "none". The caller owns
+    closing the adapter.
+    """
+    settings = settings or get_settings()
+    config = resolve_ai_config(engine, household_id, settings)
+    if config.is_usable and settings.ai_supports_vision:
+        return VLLMAdapter(config.base_url, config.model), "main"
+    if settings.ai_vision_enabled and settings.ai_vision_model:
+        return VLLMAdapter(settings.ai_vision_base_url, settings.ai_vision_model), "describer"
+    return None, "none"
+
+
 def select_tool_runtime(
     engine: Engine, household_id: str, settings: Settings | None = None
 ) -> VLLMAdapter | None:

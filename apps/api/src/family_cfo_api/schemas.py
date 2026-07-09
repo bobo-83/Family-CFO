@@ -217,9 +217,15 @@ class Recommendation(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+ChatImageMediaType = Literal["image/jpeg", "image/png", "image/webp"]
+
+
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
     message: str = Field(min_length=1, max_length=4000)
+    # Optional attached photo (ADR 0011): base64-encoded, downscaled client-side.
+    image_base64: str | None = None
+    image_media_type: ChatImageMediaType | None = None
 
 
 class ChatResponse(BaseModel):
@@ -243,6 +249,9 @@ class AiRuntimeStatus(BaseModel):
     ready: bool
     served_model: str | None = None
     detail: str
+    # Vision routing (ADR 0011): whether photos can be analyzed, and by what.
+    vision_ready: bool = False
+    vision_model: str | None = None
 
 
 class ImportCreateRequest(BaseModel):

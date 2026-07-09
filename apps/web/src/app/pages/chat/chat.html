@@ -17,7 +17,12 @@
       >
         <span class="chat__status-dot"></span>
         @if (status.enabled && status.ready) {
-          <span>AI active — <strong>{{ status.served_model || status.model }}</strong></span>
+          <span>
+            AI active — <strong>{{ status.served_model || status.model }}</strong>
+            @if (status.vision_ready) {
+              · 📷 photos supported
+            }
+          </span>
         } @else if (status.enabled && !status.ready) {
           <span>AI model loading… deterministic answers until it is ready</span>
         } @else {
@@ -69,6 +74,9 @@
         @for (turn of turns(); track $index) {
           <div class="chat__turn" [class.chat__turn--user]="turn.role === 'user'">
             <div class="chat__bubble">
+              @if (turn.hadImage) {
+                <span class="chat__photo-marker">📷 Photo attached</span>
+              }
               <p class="chat__answer">{{ turn.content }}</p>
 
               @if (turn.recommendation; as rec) {
@@ -146,7 +154,34 @@
         <p class="chat__error" role="alert">{{ message }}</p>
       }
 
+      @if (attachedImage(); as image) {
+        <div class="chat__preview">
+          <img [src]="image.previewUrl" alt="Attached photo preview" />
+          <button type="button" class="chat__preview-remove" (click)="removeImage()" aria-label="Remove photo">
+            ✕
+          </button>
+        </div>
+      }
+
       <form class="chat__input" [formGroup]="form" (ngSubmit)="send()" novalidate>
+        <!-- accept+capture: on iPhone this offers Take Photo or Photo Library -->
+        <input
+          #fileInput
+          type="file"
+          accept="image/*"
+          capture="environment"
+          class="chat__file"
+          (change)="onFileSelected($event)"
+        />
+        <button
+          type="button"
+          class="chat__attach"
+          (click)="fileInput.click()"
+          aria-label="Attach a photo or take one"
+          title="Attach a photo"
+        >
+          📷
+        </button>
         <input
           type="text"
           formControlName="message"

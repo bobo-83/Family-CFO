@@ -611,6 +611,23 @@ Rules:
 - [x] Update `apps/web/README.md` + acceptance state.
 - [ ] Commit M20 changes.
 
+## M21: Chat Photo Attachments (Vision Routing)
+
+### Spec Gate
+
+- [x] Define M21 scope, non-goals, and test expectations. (See `docs/specs/11-milestone-roadmap.md` and ADR 0011.)
+
+### Implementation
+
+- [x] Orchestrator: image support in `RuntimeMessage`/`VLLMAdapter` (multimodal content parts) + `describe_image` helper. Tests (24 pass).
+- [x] Contract: `ChatRequest.image_base64`/`image_media_type`; `AiRuntimeStatus.vision_ready`/`vision_model`; client regenerated; contract test green.
+- [x] API: describe-then-ground flow (main-vision / describer / graceful-warning paths), validation (cap 413 / type 422), grounded description numbers, in-memory-only image handling. Tests (206 pass).
+- [x] Compose: `vllm-vision` service (Qwen2.5-VL-7B) + `VLLM_GPU_FRACTION`/`VLLM_VISION_GPU_FRACTION`; `.env.example`.
+- [x] Web chat: attach/camera button (`capture=environment`), canvas downscale->JPEG, preview/remove, photo marker, vision status chip. Tests (52 pass).
+- [x] Docs (ADR 0011, README requirements row, docker README, AI-advisor guide, mobile-spec backlog note, acceptance state).
+- [x] Verification: all suites + build; deployed to the live stack.
+- [ ] Commit M21 changes.
+
 ## Backlog: Debt Payoff and Retirement Projections
 
 The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash flow, retirement, debt payoff, net worth, and savings goals" and a Scenario Planning journey ("Can we retire at 55?", "Should we refinance?"). Mostly owned by **M14** (`docs/specs/11-milestone-roadmap.md`); the open-ended scenario API remains backlog.

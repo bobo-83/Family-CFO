@@ -28,9 +28,11 @@ from family_cfo_ai_orchestrator.tool_calling import (
     ToolCallRecord,
     run_tool_calling_loop,
 )
+from family_cfo_ai_orchestrator.vision import DESCRIBE_PROMPT_VERSION, describe_image
 from family_cfo_ai_orchestrator.vllm_adapter import VLLMAdapter
 
 __all__ = [
+    "DESCRIBE_PROMPT_VERSION",
     "PURCHASE_EXPLANATION_PROMPT_VERSION",
     "REPORT_EXPLANATION_PROMPT_VERSION",
     "GuardrailResult",
@@ -48,6 +50,7 @@ __all__ = [
     "ToolSpec",
     "VLLMAdapter",
     "build_purchase_explanation_prompt",
+    "describe_image",
     "build_report_explanation_prompt",
     "find_unattributed_numbers",
     "known_values_from_facts",
