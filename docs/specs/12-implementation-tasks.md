@@ -573,6 +573,7 @@ Rules:
 - [x] Pairing: CSPRNG pairing session id (`security.generate_pairing_secret`). Test.
 - [x] Prod docs gating: disable Swagger/openapi.json under `FAMILY_CFO_ENV=production`. Test.
 - [x] `scripts/doctor.sh` health report. `bash -n`.
+- [x] `scripts/patch.sh` — fast app-only redeploy (rebuild api/worker/web local or remote; refuses vllm/db so the model/DB are untouched; api auto-migrates on start). `bash -n`; verified live (2s no-op patch, vllm uptime unchanged).
 - [x] `scripts/e2e-deploy-test.sh` real build + core-stack boot + login + chat smoke + teardown; run it for real.
 - [x] System requirements (per-model RAM/VRAM + storage min/recommended) in README + deployment guide; deploy-script preflight.
 - [x] Update docs (ADR 0010, README, guides, `.env.example`, docker README, nginx, acceptance state).

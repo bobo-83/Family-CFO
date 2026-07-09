@@ -119,6 +119,14 @@ scripts/doctor.sh          # read-only health report: containers, endpoints, dis
 scripts/e2e-deploy-test.sh # real build + core-stack boot + login + chat smoke test
 ```
 
+To update a running deployment quickly, patch only the app containers — the AI
+model and database are left untouched, so the multi-GB model is never
+re-downloaded:
+
+```bash
+scripts/patch.sh           # rebuild api + worker + web (or e.g. `scripts/patch.sh web`)
+```
+
 See [docker/README.md](./docker/README.md) for the development override, volumes,
 and secrets, and the [AI Advisor guide](./docs/guides/ai-advisor.md) for testing
 the model end-to-end.
