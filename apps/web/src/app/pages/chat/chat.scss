@@ -376,3 +376,14 @@
     align-items: stretch;
   }
 }
+
+
+.chat__source {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+
+  .chat__turn--user & {
+    display: none;
+  }
+}

@@ -188,6 +188,14 @@ export type Recommendation = {
     confidence: number;
     calculation_refs: Array<string>;
     warnings?: Array<string>;
+    /**
+     * Model id that produced the answer; null for deterministic answers
+     */
+    answered_by?: string;
+    /**
+     * Vision model that read an attached photo; null when none
+     */
+    photo_described_by?: string;
 };
 
 export type Impact = {

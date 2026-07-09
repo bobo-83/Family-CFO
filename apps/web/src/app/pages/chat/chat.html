@@ -152,6 +152,17 @@
                   }
                   <p class="chat__refs">Backed by {{ rec.calculation_refs.length }} calculation(s).</p>
                 </details>
+
+                <p class="chat__source">
+                  @if (rec.answered_by) {
+                    🤖 Answered by <strong>{{ rec.answered_by }}</strong>
+                    @if (rec.photo_described_by) {
+                      · 📷 photo read by <strong>{{ rec.photo_described_by }}</strong>
+                    }
+                  } @else {
+                    🧮 Deterministic calculation — no AI model involved
+                  }
+                </p>
               }
             </div>
           </div>

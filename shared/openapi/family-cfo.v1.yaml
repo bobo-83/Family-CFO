@@ -1945,6 +1945,14 @@ components:
           type: array
           items:
             type: string
+        answered_by:
+          type: string
+          nullable: true
+          description: Model id that produced the answer; null for deterministic answers
+        photo_described_by:
+          type: string
+          nullable: true
+          description: Vision model that read an attached photo; null when none
     Impact:
       type: object
       required:

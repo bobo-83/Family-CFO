@@ -135,3 +135,42 @@ async def test_non_converging_loop_falls_back_to_deterministic(
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
     assert await _explanation_source(demo_engine, recommendation["id"]) == "deterministic_stub"
+
+
+@pytest.mark.anyio
+async def test_agentic_answer_reports_which_model_answered(
+    demo_client, demo_engine, demo_token, monkeypatch
+) -> None:
+    # Enable a runtime config so resolve_ai_config carries a model id.
+    await demo_client.put(
+        "/api/v1/ai/runtime",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "provider": "vllm",
+            "base_url": "http://vllm:8000",
+            "model": "Qwen/Qwen2.5-32B-Instruct",
+            "enabled": True,
+        },
+    )
+    _install_runtime(
+        monkeypatch,
+        [RuntimeToolCompletion(tool_calls=[], text="All good.", model="stub", raw={})],
+    )
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "How are we doing?"},
+    )
+    rec = response.json()["recommendation"]
+    assert rec["answered_by"] == "Qwen/Qwen2.5-32B-Instruct"
+
+
+@pytest.mark.anyio
+async def test_deterministic_answer_reports_no_model(demo_client, demo_token) -> None:
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "How are we doing?"},
+    )
+    assert response.json()["recommendation"]["answered_by"] is None
