@@ -54,6 +54,8 @@ real vLLM/OCR, OFX/QFX, vector store, and other backlog) are documented in
 
 - M18 security hardening pass & deployment tooling: implemented (backed by ADR 0010). Closes a manual-review's findings — SSRF allowlist for the AI runtime `base_url`, in-memory brute-force limiter on login, upload size caps (API + nginx), a CSPRNG pairing secret, and production docs gating — and adds `scripts/doctor.sh` (health report) and `scripts/e2e-deploy-test.sh` (real build + core-stack boot + login + chat smoke). All controls have safe defaults; threat model unchanged.
 
+- M19 dashboard AI chat & self sign-up: implemented. Adds an Angular **Ask the Advisor** chat page (send messages, render the grounded recommendation with a confidence chip, conversation history, and an AI-runtime status banner via the new `GET /ai/runtime/status` endpoint showing whether the model is loaded and which one) and a **sign-up/onboarding** page wiring the existing `POST /households` bootstrap. Also fixed the shared contract's missing `POST /households` request body.
+
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 
 Before coding a milestone, update the relevant documents with:

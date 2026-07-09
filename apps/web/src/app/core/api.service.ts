@@ -5,7 +5,9 @@ import {
   createAuthSession,
   createBackup,
   createBill,
+  createChatMessage,
   createGoal,
+  createHousehold,
   createImport,
   createIncomeSource,
   createMember,
@@ -19,12 +21,15 @@ import {
   discardImport,
   generateReport,
   getAiRuntimeConfig,
+  getAiRuntimeStatus,
+  getConversation,
   getHouseholdContext,
   getReport,
   listAccounts,
   listAuditEvents,
   listBackups,
   listBills,
+  listConversations,
   listGoals,
   listImports,
   listIncomeSources,
@@ -48,7 +53,9 @@ import {
   type AuthSessionCreateRequest,
   type BillCreateRequest,
   type BillUpdateRequest,
+  type ChatRequest,
   type GoalCreateRequest,
+  type HouseholdCreateRequest,
   type ImportCreateRequest,
   type IncomeCreateRequest,
   type IncomeUpdateRequest,
@@ -73,8 +80,25 @@ export class ApiService {
     return createAuthSession({ body });
   }
 
+  createHousehold(body: HouseholdCreateRequest) {
+    return createHousehold({ body });
+  }
+
   getHouseholdContext() {
     return getHouseholdContext();
+  }
+
+  // --- Advisor chat ---
+  createChatMessage(body: ChatRequest) {
+    return createChatMessage({ body });
+  }
+
+  listConversations() {
+    return listConversations();
+  }
+
+  getConversation(conversationId: string) {
+    return getConversation({ path: { conversation_id: conversationId } });
   }
 
   // --- Accounts ---
@@ -245,6 +269,10 @@ export class ApiService {
 
   getAiRuntimeConfig() {
     return getAiRuntimeConfig();
+  }
+
+  getAiRuntimeStatus() {
+    return getAiRuntimeStatus();
   }
 
   updateAiRuntimeConfig(body: AiRuntimeConfig) {

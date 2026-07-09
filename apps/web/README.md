@@ -44,7 +44,14 @@ Turns the M5 placeholder shells into real pages, now that their backends (M7 imp
 - **Backups** (`owner` only): create a backup, list backup jobs, and restore — with a confirmation dialog stating that restore replaces all current data.
 - **Users & Devices** (`owner` for members): the M6 pairing/device half now sits alongside real member management (list, add, change role, remove).
 
-Not implemented in M11 (tracked backlog): a dashboard **chat** page (M10 persists conversations at the API layer but ships no UI) and a first-run **household setup wizard** around `POST /api/v1/households` (the API exists after M9; M5 onboarding remains login-only).
+Not implemented in M11 (tracked backlog): a dashboard **chat** page (M10 persists conversations at the API layer but ships no UI) and a first-run **household setup wizard** around `POST /api/v1/households` (the API exists after M9; M5 onboarding remains login-only). Both are delivered in M19 below.
+
+## M19 Scope (AI Chat & Self Sign-up)
+
+Closes the two M11 backlog UI gaps.
+
+- **Ask the Advisor** (`/chat`, any role): a conversational page over `POST /api/v1/chat/messages` for open-ended questions ("Can I afford a $1,000 phone?"). Renders the grounded `Recommendation` (answer + expandable impacts/assumptions/tradeoffs/alternatives/warnings) with a **confidence** chip (High/Medium/Low + %), a **conversation history** sidebar (`GET /conversations`, `GET /conversations/{id}`) with "New conversation", and an **AI status banner** driven by the new `GET /api/v1/ai/runtime/status` — showing whether the model is loaded/active and which model is serving. When no model is loaded the API's deterministic snapshot answers (unchanged).
+- **Sign-up** (`/signup`, public): a first-run onboarding form over `POST /api/v1/households` (household name, base currency, owner name/email/password) that stores the session like login and enters the app; linked from the login page.
 
 ## Stack
 

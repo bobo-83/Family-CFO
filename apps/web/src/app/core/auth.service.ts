@@ -1,4 +1,5 @@
 import { Injectable, computed, inject } from '@angular/core';
+import type { HouseholdCreateRequest } from '../api-client';
 import { apiErrorMessage } from '../shared/api-error';
 import { ApiService } from './api.service';
 import { authState, clearAuthState, setAuthState } from './token-store';
@@ -21,6 +22,25 @@ export class AuthService {
 
     if (error || !data) {
       return { ok: false, errorMessage: apiErrorMessage(error, 'Login failed. Check your email and password.') };
+    }
+
+    setAuthState({
+      accessToken: data.access_token,
+      householdId: data.household_id,
+      userId: data.user_id,
+      role: data.role,
+    });
+    return { ok: true };
+  }
+
+  async signup(payload: HouseholdCreateRequest): Promise<LoginResult> {
+    const { data, error } = await this.api.createHousehold(payload);
+
+    if (error || !data) {
+      return {
+        ok: false,
+        errorMessage: apiErrorMessage(error, 'Could not create the household. Try a different email.'),
+      };
     }
 
     setAuthState({

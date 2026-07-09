@@ -234,6 +234,17 @@ class AiRuntimeConfig(BaseModel):
     enabled: bool = True
 
 
+class AiRuntimeStatus(BaseModel):
+    """Live readiness of the household's AI runtime, for the chat UI banner."""
+
+    enabled: bool
+    provider: str
+    model: str
+    ready: bool
+    served_model: str | None = None
+    detail: str
+
+
 class ImportCreateRequest(BaseModel):
     source_type: ImportSourceType
     filename: str

@@ -452,6 +452,15 @@ export type AiRuntimeConfig = {
     enabled?: boolean;
 };
 
+export type AiRuntimeStatus = {
+    enabled: boolean;
+    provider: string;
+    model: string;
+    ready: boolean;
+    served_model?: string;
+    detail: string;
+};
+
 export type GetHealthData = {
     body?: never;
     path?: never;
@@ -658,7 +667,7 @@ export type RefreshAuthSessionResponses = {
 export type RefreshAuthSessionResponse = RefreshAuthSessionResponses[keyof RefreshAuthSessionResponses];
 
 export type CreateHouseholdData = {
-    body?: never;
+    body: HouseholdCreateRequest;
     path?: never;
     query?: never;
     url: '/households';
@@ -2091,3 +2100,28 @@ export type UpdateAiRuntimeConfigResponses = {
 };
 
 export type UpdateAiRuntimeConfigResponse = UpdateAiRuntimeConfigResponses[keyof UpdateAiRuntimeConfigResponses];
+
+export type GetAiRuntimeStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/runtime/status';
+};
+
+export type GetAiRuntimeStatusErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetAiRuntimeStatusError = GetAiRuntimeStatusErrors[keyof GetAiRuntimeStatusErrors];
+
+export type GetAiRuntimeStatusResponses = {
+    /**
+     * AI runtime status
+     */
+    200: AiRuntimeStatus;
+};
+
+export type GetAiRuntimeStatusResponse = GetAiRuntimeStatusResponses[keyof GetAiRuntimeStatusResponses];

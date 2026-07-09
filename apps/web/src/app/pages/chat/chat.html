@@ -1,0 +1,160 @@
+<section class="chat">
+  <header class="chat__header">
+    <div>
+      <h1>Ask the Advisor</h1>
+      <p class="chat__sub">Ask open-ended questions like "Can I afford a $1,000 phone?"</p>
+    </div>
+
+    <!-- AI model status banner -->
+    @if (aiStatus.isLoading()) {
+      <div class="chat__status chat__status--loading">Checking AI status…</div>
+    } @else if (aiStatus.value(); as status) {
+      <div
+        class="chat__status"
+        [class.chat__status--active]="status.enabled && status.ready"
+        [class.chat__status--warming]="status.enabled && !status.ready"
+        [class.chat__status--off]="!status.enabled"
+      >
+        <span class="chat__status-dot"></span>
+        @if (status.enabled && status.ready) {
+          <span>AI active — <strong>{{ status.served_model || status.model }}</strong></span>
+        } @else if (status.enabled && !status.ready) {
+          <span>AI model loading… deterministic answers until it is ready</span>
+        } @else {
+          <span>AI is off — answers use deterministic calculations</span>
+        }
+        <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()" title="Re-check">
+          ↻
+        </button>
+      </div>
+    } @else {
+      <div class="chat__status chat__status--off">
+        <span class="chat__status-dot"></span>
+        <span>AI status unavailable</span>
+        <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()">↻</button>
+      </div>
+    }
+  </header>
+
+  <div class="chat__body">
+    <aside class="chat__history">
+      <button type="button" class="chat__new" (click)="startNewConversation()">+ New conversation</button>
+      @if (conversations.value(); as list) {
+        @for (conv of list; track conv.id) {
+          <button
+            type="button"
+            class="chat__conv"
+            [class.chat__conv--active]="conv.id === conversationId()"
+            (click)="openConversation(conv.id)"
+          >
+            {{ conv.title }}
+          </button>
+        } @empty {
+          <p class="chat__history-empty">No past conversations yet.</p>
+        }
+      }
+    </aside>
+
+    <div class="chat__main">
+      <div class="chat__messages">
+        @if (turns().length === 0) {
+          <div class="chat__welcome">
+            <p>Try one of these:</p>
+            @for (prompt of examplePrompts; track prompt) {
+              <button type="button" class="chat__example" (click)="usePrompt(prompt)">{{ prompt }}</button>
+            }
+          </div>
+        }
+
+        @for (turn of turns(); track $index) {
+          <div class="chat__turn" [class.chat__turn--user]="turn.role === 'user'">
+            <div class="chat__bubble">
+              <p class="chat__answer">{{ turn.content }}</p>
+
+              @if (turn.recommendation; as rec) {
+                <div
+                  class="chat__confidence"
+                  [class.chat__confidence--high]="confidenceLabel(rec.confidence) === 'High'"
+                  [class.chat__confidence--medium]="confidenceLabel(rec.confidence) === 'Medium'"
+                  [class.chat__confidence--low]="confidenceLabel(rec.confidence) === 'Low'"
+                >
+                  Confidence: {{ confidenceLabel(rec.confidence) }} ({{ confidencePercent(rec.confidence) }}%)
+                </div>
+
+                <details class="chat__details">
+                  <summary>How this was worked out</summary>
+                  @if (rec.impacts.length) {
+                    <h4>Impacts</h4>
+                    <ul>
+                      @for (impact of rec.impacts; track impact.area) {
+                        <li>
+                          <strong>{{ impact.area }}:</strong> {{ impact.summary }}
+                          @if (impact.amount) {
+                            ({{ formatMoney(impact.amount) }})
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @if (rec.assumptions.length) {
+                    <h4>Assumptions</h4>
+                    <ul>
+                      @for (a of rec.assumptions; track a) {
+                        <li>{{ a }}</li>
+                      }
+                    </ul>
+                  }
+                  @if (rec.tradeoffs.length) {
+                    <h4>Tradeoffs</h4>
+                    <ul>
+                      @for (t of rec.tradeoffs; track t) {
+                        <li>{{ t }}</li>
+                      }
+                    </ul>
+                  }
+                  @if (rec.alternatives.length) {
+                    <h4>Alternatives</h4>
+                    <ul>
+                      @for (alt of rec.alternatives; track alt) {
+                        <li>{{ alt }}</li>
+                      }
+                    </ul>
+                  }
+                  @if (rec.warnings?.length) {
+                    <h4 class="chat__warn">Warnings</h4>
+                    <ul>
+                      @for (w of rec.warnings; track w) {
+                        <li>{{ w }}</li>
+                      }
+                    </ul>
+                  }
+                  <p class="chat__refs">Backed by {{ rec.calculation_refs.length }} calculation(s).</p>
+                </details>
+              }
+            </div>
+          </div>
+        }
+
+        @if (sending()) {
+          <div class="chat__turn">
+            <div class="chat__bubble chat__bubble--typing">The advisor is thinking…</div>
+          </div>
+        }
+      </div>
+
+      @if (errorMessage(); as message) {
+        <p class="chat__error" role="alert">{{ message }}</p>
+      }
+
+      <form class="chat__input" [formGroup]="form" (ngSubmit)="send()" novalidate>
+        <input
+          type="text"
+          formControlName="message"
+          placeholder="Ask about a purchase, your goals, retirement…"
+          autocomplete="off"
+        />
+        <button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
+      </form>
+    </div>
+  </div>
+</section>
