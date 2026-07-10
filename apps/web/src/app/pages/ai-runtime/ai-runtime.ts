@@ -19,7 +19,13 @@ const LIVE_LIMIT = 20;
 const PARAMS_IN_NAME = /(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)/;
 
 export type FitVerdict = 'fits' | 'tight' | 'no' | 'unknown';
-export type QuickFilter = 'recommended' | 'vision-big' | 'vision-small' | 'finance' | 'all';
+export type QuickFilter =
+  | 'recommended'
+  | 'all-in-one'
+  | 'vision-big'
+  | 'vision-small'
+  | 'finance'
+  | 'all';
 
 /** What would actually be served if this model were applied (M48). */
 export interface ApplyPlan {
@@ -418,6 +424,9 @@ export class AiRuntime {
       case 'recommended':
         await this.fetchLive({ pipeline: 'text-generation' });
         break;
+      case 'all-in-one':
+        await this.fetchLive({ pipeline: 'any' });
+        break;
       case 'finance':
         await this.fetchLive({ q: 'finance', pipeline: 'text-generation' });
         break;
@@ -442,9 +451,20 @@ export class AiRuntime {
 
     switch (this.quickFilter()) {
       case 'recommended':
-        // Strongest main model that actually fits this server.
+        // Strongest CHAT model: must fit AND be able to call the financial
+        // tools (M52 — a photo model must never top the chat recommendation).
         models = models.filter(
-          (m) => (m.role === 'main' || m.role === 'both') && this.fitOf(m) !== 'no',
+          (m) =>
+            (m.role === 'main' || m.role === 'both') &&
+            Boolean(m.tool_parser) &&
+            this.fitOf(m) !== 'no',
+        );
+        order = 'desc';
+        break;
+      case 'all-in-one':
+        // The rare model that genuinely does BOTH photos and tool calling.
+        models = models.filter(
+          (m) => m.supports_vision && Boolean(m.tool_parser) && this.fitOf(m) !== 'no',
         );
         order = 'desc';
         break;
@@ -503,6 +523,12 @@ export class AiRuntime {
 
   protected showMore(): void {
     this.visibleCount.update((count) => count + PAGE_SIZE);
+  }
+
+  /** M52: guided pairing — after picking a chat model, go choose the photo model. */
+  protected pickPhotoModelNext(): void {
+    this.expandedId.set(null);
+    void this.setQuickFilter('vision-big');
   }
 
   // --- Advanced (raw) config form -------------------------------------------
