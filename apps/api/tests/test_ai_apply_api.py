@@ -144,3 +144,57 @@ async def test_apply_status_relays_manager_state(demo_engine, monkeypatch) -> No
     )
     assert resp.json()["state"] == "succeeded"
     await client.aclose()
+
+
+# --- M48: live quick-filter lists (optional q, pipeline, limit) -----------------
+
+
+@pytest.mark.anyio
+async def test_search_without_q_fetches_top_downloads(demo_client, demo_token, monkeypatch) -> None:
+    captured: list[dict] = []
+
+    def fake_get(url, params=None, timeout=None):
+        captured.append(dict(params))
+        return httpx.Response(
+            200,
+            json=[{"modelId": "Qwen/Qwen2.5-7B-Instruct", "gated": False}],
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/search?pipeline=text-generation&limit=25",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    # Only the requested pipeline is queried; no search term is sent.
+    assert len(captured) == 1
+    assert captured[0]["pipeline_tag"] == "text-generation"
+    assert captured[0]["limit"] == 25
+    assert "search" not in captured[0]
+
+
+@pytest.mark.anyio
+async def test_search_pipeline_validation_and_limit_clamp(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    captured: list[dict] = []
+
+    def fake_get(url, params=None, timeout=None):
+        captured.append(dict(params))
+        return httpx.Response(200, json=[], request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+
+    bad = await demo_client.get(
+        "/api/v1/ai/models/search?pipeline=bogus",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert bad.status_code == 422
+
+    clamped = await demo_client.get(
+        "/api/v1/ai/models/search?pipeline=image-text-to-text&limit=999",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert clamped.status_code == 200
+    assert captured[-1]["limit"] == 30  # clamped to the max

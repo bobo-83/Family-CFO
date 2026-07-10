@@ -362,8 +362,12 @@ export class ApiService {
     return getAiHardwareProfile();
   }
 
-  searchAiModels(q: string) {
-    return searchAiModels({ query: { q } });
+  searchAiModels(options: {
+    q?: string;
+    pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
+    limit?: number;
+  }) {
+    return searchAiModels({ query: options });
   }
 
   applyAiModelSelection(body: AiApplyRequest) {

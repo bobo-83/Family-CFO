@@ -2763,8 +2763,13 @@ export type GetAiHardwareProfileResponse = GetAiHardwareProfileResponses[keyof G
 export type SearchAiModelsData = {
     body?: never;
     path?: never;
-    query: {
-        q: string;
+    query?: {
+        /**
+         * Empty returns the pipeline's most-downloaded models (M48 live quick-filter lists).
+         */
+        q?: string;
+        pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
+        limit?: number;
     };
     url: '/ai/models/search';
 };

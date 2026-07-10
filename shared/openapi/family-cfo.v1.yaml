@@ -1565,9 +1565,26 @@ paths:
       parameters:
         - name: q
           in: query
-          required: true
+          required: false
+          description: "Empty returns the pipeline's most-downloaded models (M48 live quick-filter lists)."
           schema:
             type: string
+            default: ""
+        - name: pipeline
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [any, text-generation, image-text-to-text]
+            default: any
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 10
       responses:
         "200":
           description: Search results mapped to catalog shape
