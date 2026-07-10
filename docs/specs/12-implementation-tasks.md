@@ -778,12 +778,19 @@ Goals exist (create/list, priority-ordered) but never appear on the Overview. Su
 - [x] Spec gate: (a) read — `HouseholdContext` gains additive `top_goal` (nullable): the highest-priority goal (`list_goals` already orders by priority then name, so it's the first) as `GoalProgress { id, name, type, current, target, percent_complete, target_date }`, where `percent_complete` is `min(100, round(current/target*100))` with a zero-target guard (0). No migration — goals already persist. (b) UI — an Overview card shows the goal's name and type, a progress bar filled to `percent_complete`, "current of target", the percent, and the target date when set; a "no goals yet" empty state links to the Goals page. Contract addition only.
 - [x] Implement + tests (top-of-priority selection; percent math incl. zero-target and over-100 capping; context returns it; Overview renders the bar + empty state) + deploy + commit. Verified: 276 api + 73 web tests pass; live deployment returns the demo household's priority-1 Emergency fund goal at 83%.
 
+## M42: Spending Insights on the Overview
+
+Transactions carry signed amounts, dates, and merchants, but the Overview shows nothing about spending. Add a month-to-date spending summary vs the same period last month, plus the top merchants — the next backlog item.
+
+- [x] Spec gate: (a) read — two generic repository aggregates over `transactions` in the base currency: `sum_spending(household_id, start, end)` (positive total of outflows — the absolute value of negative `amount_minor`; income excluded) and `top_spending_merchants(household_id, start, end, limit)` (grouped by merchant, `NULL`→"Other", descending). (b) fair comparison — the endpoint compares **month-to-date** (1st→today) against the **same day range of last month** (1st→same day, clamped to the prior month's length), not partial-vs-full, so early-month numbers aren't misleading. (c) `HouseholdContext` gains additive `spending_insights` (nullable): `{ this_month, last_month, change_percent (null when last_month is 0), top_merchants: [{ merchant, amount }] (top 5) }`. (d) UI — an Overview card shows this-month spending, the % change vs last month (red when up, green when down — spending less is good), and the top merchants with amounts. No migration.
+- [x] Implement + tests (spending sum excludes income and sums outflows; MTD vs same-period window math incl. month-length clamp; top-merchants ordering + NULL grouping; change_percent zero-guard; Overview renders) + deploy + commit. Verified: 281 api + 73 web tests pass; live deployment returns the demo household's month-to-date spending ($175 across Whole Foods + Trader Joe's) with a null change (no prior-period spending).
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
 
 - [ ] Configurable emergency-fund target (per-household `target_months`, replacing the fixed 3/6 guidance).
-- [ ] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists).
+- [x] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists). — delivered by M42.
 - [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
 - [x] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar). — delivered by M41.

@@ -152,6 +152,20 @@ class GoalProgress(BaseModel):
     target_date: date | None = None
 
 
+class MerchantSpend(BaseModel):
+    merchant: str
+    amount: Money
+
+
+class SpendingInsights(BaseModel):
+    """M42: month-to-date spending vs the same period last month, plus top merchants."""
+
+    this_month: Money
+    last_month: Money
+    change_percent: int | None = None
+    top_merchants: list[MerchantSpend] = Field(default_factory=list)
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -166,6 +180,7 @@ class HouseholdContext(BaseModel):
     upcoming_bills: list[UpcomingBill] = Field(default_factory=list)
     net_worth_history: list[NetWorthPoint] = Field(default_factory=list)
     top_goal: GoalProgress | None = None
+    spending_insights: SpendingInsights | None = None
 
 
 class Account(BaseModel):

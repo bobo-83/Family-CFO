@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
@@ -9,8 +11,10 @@ from family_cfo_api.schemas import (
     ErrorResponse,
     GoalProgress,
     HouseholdContext,
+    MerchantSpend,
     MonthlyCashFlow,
     NetWorthPoint,
+    SpendingInsights,
     UpcomingBill,
 )
 from family_cfo_api.schemas import Money as MoneySchema
@@ -75,6 +79,40 @@ def _asset_and_debt_summary(
         if category in totals
     ]
     return breakdown, MoneySchema(amount_minor=debt_minor, currency=currency)
+
+
+def _spending_insights(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> SpendingInsights:
+    """M42: month-to-date outflow vs the same day range last month, plus top merchants."""
+    today = today or date.today()
+    this_start = today.replace(day=1)
+
+    # Same day range in the prior month, clamped to the prior month's length so
+    # comparing e.g. Mar 31 never runs off the end of February.
+    prev_last = this_start - timedelta(days=1)
+    prev_start = prev_last.replace(day=1)
+    prev_end = min(prev_start + timedelta(days=today.day - 1), prev_last)
+
+    this_minor = repository.sum_spending(engine, household_id, this_start, today, currency)
+    last_minor = repository.sum_spending(engine, household_id, prev_start, prev_end, currency)
+    change = None if last_minor == 0 else round((this_minor - last_minor) / last_minor * 100)
+
+    merchants = [
+        MerchantSpend(
+            merchant=m.merchant,
+            amount=MoneySchema(amount_minor=m.amount_minor, currency=currency),
+        )
+        for m in repository.top_spending_merchants(
+            engine, household_id, this_start, today, currency, limit=5
+        )
+    ]
+    return SpendingInsights(
+        this_month=MoneySchema(amount_minor=this_minor, currency=currency),
+        last_month=MoneySchema(amount_minor=last_minor, currency=currency),
+        change_percent=change,
+        top_merchants=merchants,
+    )
 
 
 def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
@@ -158,4 +196,5 @@ async def get_household_context(
         upcoming_bills=upcoming,
         net_worth_history=history,
         top_goal=_top_goal(engine, household.id),
+        spending_insights=_spending_insights(engine, household.id, currency),
     )

@@ -51,6 +51,10 @@ export class Overview {
     return CATEGORY_LABELS[category] ?? category;
   }
 
+  protected absPercent(value: number): number {
+    return Math.abs(value);
+  }
+
   protected dueLabel(daysUntil: number): string {
     if (daysUntil <= 0) {
       return 'Due today';

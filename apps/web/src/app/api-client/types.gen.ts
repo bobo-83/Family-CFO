@@ -154,6 +154,25 @@ export type HouseholdContext = {
      * M41: the highest-priority savings goal with progress, when one exists.
      */
     top_goal?: GoalProgress;
+    /**
+     * M42: month-to-date spending vs the same period last month, plus top merchants.
+     */
+    spending_insights?: SpendingInsights;
+};
+
+export type SpendingInsights = {
+    this_month: Money;
+    last_month: Money;
+    /**
+     * Percent change vs last month; null when last month was zero.
+     */
+    change_percent?: number;
+    top_merchants?: Array<MerchantSpend>;
+};
+
+export type MerchantSpend = {
+    merchant: string;
+    amount: Money;
 };
 
 export type GoalProgress = {

@@ -161,6 +161,39 @@
           }
         </div>
 
+        @if (context.spending_insights; as spending) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label">
+              Spending this month
+              <span class="overview__value-context">vs same period last month</span>
+            </span>
+            <span class="overview__value">{{ formatMoney(spending.this_month) }}</span>
+            @if (spending.change_percent !== null && spending.change_percent !== undefined) {
+              <span
+                class="overview__detail"
+                [class.overview__value--negative]="spending.change_percent > 0"
+                [class.overview__value--positive]="spending.change_percent < 0"
+              >
+                {{ spending.change_percent > 0 ? '▲' : spending.change_percent < 0 ? '▼' : '' }}
+                {{ absPercent(spending.change_percent) }}% vs last month
+                ({{ formatMoney(spending.last_month) }})
+              </span>
+            } @else {
+              <span class="overview__detail">No spending in the same period last month.</span>
+            }
+            @if (spending.top_merchants && spending.top_merchants.length > 0) {
+              <ul class="overview__breakdown overview__breakdown--merchants">
+                @for (merchant of spending.top_merchants; track merchant.merchant) {
+                  <li>
+                    <span>{{ merchant.merchant }}</span>
+                    <span>{{ formatMoney(merchant.amount) }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+
         <div class="overview__card overview__card--wide">
           <span class="overview__label">
             Upcoming bills
