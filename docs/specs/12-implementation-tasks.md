@@ -792,6 +792,13 @@ The 3/6-month emergency-fund guidance (M38) is hardcoded. Let each household set
 - [x] Spec gate: (a) schema — `households.emergency_fund_target_months` (nullable Float; `NULL` means "use the default 6"), migration `0036`. (b) API — a new `PATCH /household` (owner/adult) accepting `emergency_fund_target_months` (1–60, or `null` to reset to default); audited. `get_household`/`HouseholdRecord` carry the value. (c) summary — `_emergency_fund_summary` uses the household's target as `target_months_recommended` (default 6 when unset); the "getting started → on track" threshold becomes `min(3, target)` so a sub-3-month target still makes sense; `gap_to_recommended` and `status` compute against the configured target. (d) UI — the Overview emergency-fund card gains an inline target editor (owner/adult only): a number input + Save that PATCHes and reloads. No behavior change for households that never set one.
 - [x] Implement + tests (target persisted + returned; summary/gap/status recompute against a custom target incl. sub-3 threshold; PATCH validation bounds + null reset; role-gated; Overview editor saves) + deploy + commit. Verified: 287 api + 75 web tests pass; live deploy applied migration `0036`, PATCH target=3 recomputed the gap to $4,240 (3×$2,080 bills − $2,000 reserved) and status getting_started, and clear reset to 6.
 
+## M44: Savings-Rate Metric
+
+The Overview shows monthly net cash flow in dollars but not as a rate. Add a recognizable savings-rate percentage over the trailing 3 months — the last of the lighter backlog items.
+
+- [x] Spec gate: (a) definition — savings rate = `(monthly_income − average_monthly_spending) / monthly_income`, where `monthly_income` is the recurring monthly income (M38) and `average_monthly_spending` is actual outflow (M42 `sum_spending`) over the **last 3 complete calendar months** ÷ 3 (the current partial month is excluded for stability). Can be negative when spending exceeds income; null when income is 0. This intentionally pairs recurring income with actual tracked spending — documented as the metric's basis. (b) `HouseholdContext` gains additive `savings_rate` (nullable): `{ percent, monthly_income, average_monthly_spending }`. (c) UI — the Overview cash-flow card shows the savings-rate percent (green when positive, red when negative) with the trailing-3-month average spending as context. No migration.
+- [x] Implement + tests (3-complete-month window excludes the current month; average = total/3; percent sign + zero-income null; context returns it; Overview renders) + deploy + commit. Verified: 290 api + 75 web tests pass; live deploy returns the demo household's 100% rate ($6,000 income, $0 avg over the last 3 complete months — its transactions fall in the excluded current month).
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
@@ -802,7 +809,7 @@ Candidate features surfaced while enriching the overview; each needs its own spe
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
 - [x] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar). — delivered by M41.
 - [ ] Budget envelopes per category with monthly limits + alerts (larger; overlaps the existing budget-management backlog).
-- [ ] Savings-rate metric (income − all spending, trailing 3 months).
+- [x] Savings-rate metric (income − all spending, trailing 3 months). — delivered by M44.
 
 ## Backlog: Debt Payoff and Retirement Projections
 

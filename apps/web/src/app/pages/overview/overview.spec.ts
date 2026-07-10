@@ -99,6 +99,11 @@ describe('Overview', () => {
             { merchant: 'Other', amount: { amount_minor: 20_000, currency: 'USD' } },
           ],
         },
+        savings_rate: {
+          percent: 65,
+          monthly_income: { amount_minor: 600_000, currency: 'USD' },
+          average_monthly_spending: { amount_minor: 210_000, currency: 'USD' },
+        },
       }),
     );
 
@@ -137,6 +142,8 @@ describe('Overview', () => {
     expect(text).toContain('USD 450.00');
     expect(text).toContain('50% vs last month');
     expect(text).toContain('Whole Foods');
+    // Savings rate on the cash-flow card.
+    expect(text).toContain('Savings rate 65%');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {

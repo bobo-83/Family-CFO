@@ -15,6 +15,7 @@ from family_cfo_api.schemas import (
     MerchantSpend,
     MonthlyCashFlow,
     NetWorthPoint,
+    SavingsRate,
     SpendingInsights,
     UpcomingBill,
 )
@@ -121,6 +122,28 @@ def _spending_insights(
     )
 
 
+def _savings_rate(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> SavingsRate:
+    """M44: recurring income vs trailing-3-complete-month average actual spending."""
+    today = today or date.today()
+    this_month_start = today.replace(day=1)
+    # The last 3 complete calendar months (exclude the current partial month).
+    window_start = finance_service.add_months(this_month_start, -3)
+    window_end = this_month_start - timedelta(days=1)
+
+    income = finance_service.monthly_income_total(engine, household_id, currency).amount_minor
+    spending_3mo = repository.sum_spending(engine, household_id, window_start, window_end, currency)
+    avg_spending = round(spending_3mo / 3)
+
+    percent = None if income <= 0 else round((income - avg_spending) / income * 100)
+    return SavingsRate(
+        percent=percent,
+        monthly_income=MoneySchema(amount_minor=income, currency=currency),
+        average_monthly_spending=MoneySchema(amount_minor=avg_spending, currency=currency),
+    )
+
+
 def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
     """M41: the highest-priority goal (list_goals is priority-ordered) with progress."""
     goals = repository.list_goals(engine, household_id)
@@ -205,6 +228,7 @@ async def get_household_context(
         net_worth_history=history,
         top_goal=_top_goal(engine, household.id),
         spending_insights=_spending_insights(engine, household.id, currency),
+        savings_rate=_savings_rate(engine, household.id, currency),
     )
 
 

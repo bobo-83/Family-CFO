@@ -158,6 +158,19 @@ export type HouseholdContext = {
      * M42: month-to-date spending vs the same period last month, plus top merchants.
      */
     spending_insights?: SpendingInsights;
+    /**
+     * M44: recurring income vs trailing-3-month average actual spending.
+     */
+    savings_rate?: SavingsRate;
+};
+
+export type SavingsRate = {
+    /**
+     * (income - avg spending) / income, %; null when income is 0; may be negative.
+     */
+    percent?: number;
+    monthly_income: Money;
+    average_monthly_spending: Money;
 };
 
 export type SpendingInsights = {
