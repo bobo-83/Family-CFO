@@ -419,6 +419,11 @@ async def apply_ai_model_selection(
         raise HTTPException(status_code=422, detail="invalid main model id")
     if payload.vision_model is not None and not _REPO_ID.match(payload.vision_model):
         raise HTTPException(status_code=422, detail="invalid vision model id")
+    # M51: never run two instances of the same model. Identical main+vision
+    # collapses to the single-instance path (the swap script serves one
+    # container; photos work iff the model is actually vision-capable).
+    if payload.vision_model == payload.main_model:
+        payload.vision_model = None
 
     try:
         response = httpx.post(

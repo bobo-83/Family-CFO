@@ -302,6 +302,11 @@ export class AiRuntime {
       this.applyError.set('No chat model is configured to pair with.');
       return;
     }
+    if (main === model.id) {
+      // Same model both roles = ONE instance handling both, never two.
+      await this.applyModel(model);
+      return;
+    }
     await this.postApply(main, model.id);
   }
 
