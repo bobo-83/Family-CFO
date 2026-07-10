@@ -312,6 +312,23 @@
   &--ok {
     color: var(--color-success);
   }
+
+  &--error {
+    color: var(--color-danger);
+    font-weight: 600;
+  }
+}
+
+/* M50: the concrete loading phase (download %, shard %, or the crash line). */
+.now-serving__phase {
+  margin: 0.15rem 0 0.3rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+
+  &--error {
+    color: var(--color-danger);
+  }
 }
 
 /* --- Browse: quick filters, facets, compact rows (M47) ----------------------- */

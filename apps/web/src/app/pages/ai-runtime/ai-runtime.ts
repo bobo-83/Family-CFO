@@ -143,6 +143,22 @@ export class AiRuntime {
     return this.status.value()?.served_model ?? this.config.value()?.model ?? null;
   }
 
+  /** M50: short label for the not-ready state ("downloading" beats "loading"). */
+  protected statusPhaseLabel(): string {
+    switch (this.status.value()?.loading_phase) {
+      case 'downloading':
+        return 'downloading';
+      case 'loading':
+        return 'loading weights';
+      case 'warming_up':
+        return 'warming up';
+      case 'starting':
+        return 'starting';
+      default:
+        return 'loading / off';
+    }
+  }
+
   /** Memory budget: GPU memory when known, else system RAM (unified/unknown GPU). */
   protected readonly memoryBudgetGb = computed(() => {
     const hw = this.hardware.value();

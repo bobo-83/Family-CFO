@@ -406,6 +406,11 @@ class AiRuntimeStatus(BaseModel):
     vision_model: str | None = None
     # Whether a vision path is configured at all (distinguishes "loading" from "off").
     vision_enabled: bool = False
+    # M50: what "loading" actually means, classified from the vLLM log tail.
+    loading_phase: Literal["downloading", "loading", "warming_up", "error", "starting"] | None = (
+        None
+    )
+    loading_detail: str | None = None
 
 
 class AiModelInfo(BaseModel):

@@ -715,6 +715,14 @@ export type AiRuntimeStatus = {
     vision_ready?: boolean;
     vision_model?: string;
     vision_enabled?: boolean;
+    /**
+     * M50: what 'loading' actually means, classified from the vLLM log tail.
+     */
+    loading_phase?: 'downloading' | 'loading' | 'warming_up' | 'error' | 'starting';
+    /**
+     * Human detail (download %, shard %, or the crash line).
+     */
+    loading_detail?: string;
 };
 
 export type AiModelInfo = {
