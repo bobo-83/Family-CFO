@@ -276,3 +276,17 @@ async def test_apply_collapses_duplicate_main_and_vision(demo_engine, monkeypatc
         "vision_model": None,
     }
     await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_catalog_offers_verified_dual_capable_models(demo_client, demo_token) -> None:
+    """M52 follow-up: Qwen3-VL renders tools (verified) — the all-in-one filter
+    must have real content: vision AND tool calling in one entry."""
+    resp = await demo_client.get(
+        "/api/v1/ai/models", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    duals = [
+        m for m in resp.json()["models"] if m["supports_vision"] and m["tool_parser"]
+    ]
+    assert any(m["id"] == "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8" for m in duals)
+    assert all("Qwen2.5-VL" not in m["id"] for m in duals)  # 2.5-VL stays tool-less
