@@ -14,221 +14,378 @@
   }
   @default {
     @if (isOwner()) {
-      <!-- ===================== Model picker (M22 / ADR 0012) ===================== -->
       <section class="picker">
-        <div class="hf-search">
-          <input
-            type="search"
-            placeholder="Search Hugging Face models… (e.g. qwen, llama, mistral)"
-            [value]="searchQuery()"
-            (input)="searchQuery.set($any($event.target).value)"
-            (keydown.enter)="runSearch()"
-          />
-          <button type="button" (click)="runSearch()" [disabled]="searching()">
-            {{ searching() ? 'Searching…' : 'Search' }}
-          </button>
-        </div>
-        @if (searchError(); as message) {
-          <p class="page-error" role="alert">{{ message }}</p>
-        }
-
-        <h2>Main model</h2>
-        <div class="picker__grid">
-          @for (model of mainOptions(); track model.id) {
-            <button
-              type="button"
-              class="picker__card"
-              [class.picker__card--selected]="model.id === selectedMainId()"
-              (click)="selectMain(model.id)"
-            >
-              <span class="picker__label">{{ model.label }}</span>
-              <span class="picker__meta">
-                {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory ·
-                ~{{ model.est_disk_gb }} GB disk
-                @if (model.supports_vision) {
-                  · 📷 vision
-                }
-                @if (model.gated) {
-                  · 🔒 gated
+        <!-- ================= Now serving (always first, M47) ================= -->
+        <div class="now-serving">
+          <h2>Now serving</h2>
+          <div class="now-serving__rows">
+            <div class="now-serving__row">
+              <span class="now-serving__label">Chat model</span>
+              <span class="now-serving__model">
+                {{ status.value()?.served_model || status.value()?.model || '—' }}
+              </span>
+              <span
+                class="now-serving__state"
+                [class.now-serving__state--ok]="status.value()?.ready"
+              >
+                {{ status.value()?.ready ? '● active' : '○ loading / off' }}
+              </span>
+            </div>
+            <div class="now-serving__row">
+              <span class="now-serving__label">Photo model</span>
+              <span class="now-serving__model">{{ status.value()?.vision_model || 'off' }}</span>
+              <span
+                class="now-serving__state"
+                [class.now-serving__state--ok]="status.value()?.vision_ready"
+              >
+                @if (status.value()?.vision_model) {
+                  {{ status.value()?.vision_ready ? '● active' : '○ loading' }}
+                } @else {
+                  —
                 }
               </span>
-              @if (model.notes) {
-                <span class="picker__notes">{{ model.notes }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= Your selection (pinned, M47) ================= -->
+        <div class="selection">
+          <h2>Your selection</h2>
+          @if (selectedMain(); as main) {
+            <div class="selection__chips">
+              <div class="selection__chip">
+                <span class="selection__chip-role">Main</span>
+                <span class="selection__chip-name">{{ main.label }}</span>
+                <span class="selection__chip-meta">
+                  @if (main.parameters_b) {
+                    {{ main.parameters_b }}B · ~{{ main.est_memory_gb }} GB
+                  } @else {
+                    size unknown
+                  }
+                  @if (main.supports_vision) {
+                    · 📷 sees photos itself
+                  }
+                </span>
+              </div>
+              @if (!main.supports_vision) {
+                <div class="selection__chip">
+                  <span class="selection__chip-role">Vision</span>
+                  @if (selectedVision(); as vision) {
+                    <span class="selection__chip-name">{{ vision.label }}</span>
+                    <span class="selection__chip-meta">
+                      @if (vision.parameters_b) {
+                        {{ vision.parameters_b }}B · ~{{ vision.est_memory_gb }} GB
+                      } @else {
+                        size unknown
+                      }
+                    </span>
+                  } @else {
+                    <span class="selection__chip-name">No photo analysis</span>
+                    <span class="selection__chip-meta">Chat photos get a "not analyzed" note</span>
+                  }
+                  <button
+                    type="button"
+                    class="selection__chip-clear"
+                    (click)="selectVision('none')"
+                    [disabled]="selectedVisionId() === 'none'"
+                  >
+                    Turn off photos
+                  </button>
+                </div>
               }
-            </button>
+            </div>
+
+            <!-- Live hardware fit for the combination -->
+            <div class="fit">
+              <div class="fit__rows">
+                <div class="fit__row" [attr.data-verdict]="memoryVerdict()">
+                  <span class="fit__what">Memory needed (incl. ~15% headroom)</span>
+                  <span class="fit__numbers">
+                    {{ requiredMemoryGb() }} GB required ·
+                    @if (memoryBudgetGb() !== null) {
+                      {{ memoryBudgetGb() }} GB available
+                      @if (usingSystemMemoryBudget()) {
+                        (system memory — GPU memory unknown/unified)
+                      }
+                    } @else {
+                      available unknown
+                    }
+                  </span>
+                  <span class="fit__verdict">
+                    @switch (memoryVerdict()) {
+                      @case ('fits') {
+                        ✅ Fits
+                      }
+                      @case ('tight') {
+                        ⚠️ Tight — may work with reduced context
+                      }
+                      @case ('no') {
+                        ❌ Won't fit this hardware
+                      }
+                      @default {
+                        ❓ Unknown
+                      }
+                    }
+                  </span>
+                </div>
+                <div class="fit__row" [attr.data-verdict]="diskVerdict()">
+                  <span class="fit__what">Disk for new model downloads</span>
+                  <span class="fit__numbers">
+                    ~{{ requiredDiskGb() }} GB weights ·
+                    {{ hardware.value()?.disk_free_gb ?? '?' }} GB free
+                  </span>
+                  <span class="fit__verdict">
+                    @switch (diskVerdict()) {
+                      @case ('fits') {
+                        ✅ Fits
+                      }
+                      @case ('tight') {
+                        ⚠️ Tight
+                      }
+                      @case ('no') {
+                        ❌ Not enough free disk
+                      }
+                      @default {
+                        ❓ Unknown
+                      }
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            @if (servingMismatch()) {
+              <p class="picker__mismatch" role="status">
+                ⏳ Currently serving <strong>{{ status.value()?.served_model }}</strong> — click
+                Apply to switch to your selection.
+              </p>
+            }
+
+            @if (selectionError(); as message) {
+              <p class="page-error" role="alert">{{ message }}</p>
+            }
+            @if (selectionSaved()) {
+              <p class="ai-runtime-form__success">Selection saved (not yet applied).</p>
+            }
+            <div class="picker__actions">
+              <button
+                type="button"
+                class="picker__apply"
+                (click)="apply()"
+                [disabled]="applying() || !selectedMain()"
+              >
+                {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+              </button>
+              <button
+                type="button"
+                class="picker__save"
+                (click)="saveSelection()"
+                [disabled]="savingSelection() || !selectedMain()"
+              >
+                {{ savingSelection() ? 'Saving…' : 'Save only' }}
+              </button>
+            </div>
+            @if (applyError(); as message) {
+              <p class="page-error" role="alert">{{ message }}</p>
+            }
+            @if (swapCommand(); as command) {
+              <p class="picker__apply-hint">
+                Prefer the terminal?
+                <code class="picker__command picker__command--inline">{{ command }}</code>
+              </p>
+            }
+
+            <!-- Live apply status (polls every 5s until active/failed) -->
+            @if (applyLive(); as live) {
+              <div
+                class="apply-live"
+                [class.apply-live--working]="live.phase === 'working'"
+                [class.apply-live--active]="live.phase === 'active'"
+                [class.apply-live--failed]="live.phase === 'failed'"
+                role="status"
+              >
+                @switch (live.phase) {
+                  @case ('working') {
+                    <span class="apply-live__spinner" aria-hidden="true"></span>
+                    <span>Applying — {{ live.detail }} This can take several minutes for a first
+                      download; the current model keeps answering meanwhile.</span>
+                  }
+                  @case ('active') {
+                    <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
+                  }
+                  @case ('failed') {
+                    <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
+                  }
+                }
+              </div>
+            }
+          } @else {
+            <p class="page-empty">Pick a model below to see requirements and apply it.</p>
           }
         </div>
 
-        @if (selectedMain()?.supports_vision) {
-          <p class="picker__vision-note">
-            ✅ This main model sees photos itself — no separate vision model is needed.
-          </p>
-        } @else if (selectedMain()) {
-          <h2>Vision model (for chat photos)</h2>
-          <div class="picker__grid">
-            @for (model of visionOptions(); track model.id) {
-              <button
-                type="button"
-                class="picker__card"
-                [class.picker__card--selected]="model.id === selectedVisionId()"
-                (click)="selectVision(model.id)"
+        <!-- ================= Browse & filter (M47) ================= -->
+        <div class="browse">
+          <h2>Find a model</h2>
+          <div class="hf-search">
+            <input
+              type="search"
+              placeholder="Search Hugging Face… (qwen, llama, mistral)"
+              [value]="searchQuery()"
+              (input)="searchQuery.set($any($event.target).value)"
+              (keydown.enter)="runSearch()"
+            />
+            <button type="button" (click)="runSearch()" [disabled]="searching()">
+              {{ searching() ? '…' : 'Search' }}
+            </button>
+          </div>
+          @if (searchError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
+          }
+
+          <div class="browse__quick" role="group" aria-label="Quick filters">
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'recommended'"
+              (click)="setQuickFilter('recommended')"
+            >
+              ✨ Recommended for this server
+            </button>
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'finance'"
+              (click)="setQuickFilter('finance')"
+            >
+              🏦 Best for finances
+            </button>
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'vision-big'"
+              (click)="setQuickFilter('vision-big')"
+            >
+              📷 Biggest vision
+            </button>
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'vision-small'"
+              (click)="setQuickFilter('vision-small')"
+            >
+              📷 Smallest vision
+            </button>
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'all'"
+              (click)="setQuickFilter('all')"
+            >
+              All
+            </button>
+          </div>
+
+          <div class="browse__facets">
+            <label>
+              Role
+              <select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
+                <option value="all">All</option>
+                <option value="main">Main</option>
+                <option value="vision">Vision</option>
+              </select>
+            </label>
+            <label>
+              Sort
+              <select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
+                <option value="default">Recommended</option>
+                <option value="size-desc">Largest first</option>
+                <option value="size-asc">Smallest first</option>
+                <option value="memory-asc">Least memory first</option>
+              </select>
+            </label>
+            <label class="browse__fits">
+              <input
+                type="checkbox"
+                [ngModel]="onlyFits()"
+                (ngModelChange)="onlyFits.set($event)"
+              />
+              Only models that fit
+            </label>
+          </div>
+
+          @if (visibleModels().length === 0) {
+            <p class="page-empty">
+              No models match these filters. Try "All" or search Hugging Face above.
+            </p>
+          }
+          <ul class="browse__list">
+            @for (model of visibleModels(); track model.id) {
+              <li
+                class="model-row"
+                [class.model-row--selected]="
+                  model.id === selectedMainId() || model.id === selectedVisionId()
+                "
               >
-                <span class="picker__label">{{ model.label }}</span>
-                <span class="picker__meta">
-                  {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory ·
-                  ~{{ model.est_disk_gb }} GB disk
+                <div class="model-row__text">
+                  <span class="model-row__label">
+                    {{ model.label }}
+                    @if (model.supports_vision) {
+                      <span title="vision-capable">📷</span>
+                    }
+                    @if (model.gated) {
+                      <span title="gated on Hugging Face">🔒</span>
+                    }
+                  </span>
+                  <span class="model-row__meta">
+                    @if (model.parameters_b) {
+                      {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory ·
+                      ~{{ model.est_disk_gb }} GB disk
+                    } @else {
+                      size unknown
+                    }
+                    @if (model.notes) {
+                      · {{ model.notes }}
+                    }
+                  </span>
+                </div>
+                <span class="model-row__fit" [attr.data-verdict]="fitOf(model)">
+                  @switch (fitOf(model)) {
+                    @case ('fits') {
+                      ✅
+                    }
+                    @case ('tight') {
+                      ⚠️
+                    }
+                    @case ('no') {
+                      ❌
+                    }
+                    @default {
+                      ❓
+                    }
+                  }
                 </span>
-                @if (model.notes) {
-                  <span class="picker__notes">{{ model.notes }}</span>
-                }
-              </button>
+                <button type="button" class="model-row__select" (click)="selectFor(model)">
+                  {{ model.role === 'vision' ? 'Use for photos' : 'Select' }}
+                </button>
+              </li>
             }
-            <button
-              type="button"
-              class="picker__card"
-              [class.picker__card--selected]="selectedVisionId() === 'none'"
-              (click)="selectVision('none')"
-            >
-              <span class="picker__label">No photo analysis</span>
-              <span class="picker__meta">Chat photos get a "not analyzed" note</span>
+          </ul>
+          @if (hiddenCount() > 0) {
+            <button type="button" class="browse__more" (click)="showMore()">
+              Show {{ hiddenCount() }} more
             </button>
-          </div>
-        }
-
-        <!-- Live hardware fit -->
-        @if (selectedMain()) {
-          <div class="fit">
-            <h2>Will it run on this server?</h2>
-            <div class="fit__rows">
-              <div class="fit__row" [attr.data-verdict]="memoryVerdict()">
-                <span class="fit__what">Memory needed (incl. ~15% headroom)</span>
-                <span class="fit__numbers">
-                  {{ requiredMemoryGb() }} GB required ·
-                  @if (memoryBudgetGb() !== null) {
-                    {{ memoryBudgetGb() }} GB available
-                    @if (usingSystemMemoryBudget()) {
-                      (system memory — GPU memory unknown/unified)
-                    }
-                  } @else {
-                    available unknown
-                  }
-                </span>
-                <span class="fit__verdict">
-                  @switch (memoryVerdict()) {
-                    @case ('fits') {
-                      ✅ Fits
-                    }
-                    @case ('tight') {
-                      ⚠️ Tight — may work with reduced context
-                    }
-                    @case ('no') {
-                      ❌ Won't fit this hardware
-                    }
-                    @default {
-                      ❓ Unknown
-                    }
-                  }
-                </span>
-              </div>
-              <div class="fit__row" [attr.data-verdict]="diskVerdict()">
-                <span class="fit__what">Disk for new model downloads</span>
-                <span class="fit__numbers">
-                  ~{{ requiredDiskGb() }} GB weights ·
-                  {{ hardware.value()?.disk_free_gb ?? '?' }} GB free
-                </span>
-                <span class="fit__verdict">
-                  @switch (diskVerdict()) {
-                    @case ('fits') {
-                      ✅ Fits
-                    }
-                    @case ('tight') {
-                      ⚠️ Tight
-                    }
-                    @case ('no') {
-                      ❌ Not enough free disk
-                    }
-                    @default {
-                      ❓ Unknown
-                    }
-                  }
-                </span>
-              </div>
-            </div>
-            <p class="fit__note">
-              Estimates for bf16 serving; previously downloaded models stay cached and are not
-              re-downloaded.
-            </p>
-          </div>
-
-          @if (servingMismatch()) {
-            <p class="picker__mismatch" role="status">
-              ⏳ Currently serving <strong>{{ status.value()?.served_model }}</strong> — click
-              Apply to switch to your selection.
-            </p>
           }
-
-          @if (selectionError(); as message) {
-            <p class="page-error" role="alert">{{ message }}</p>
-          }
-          @if (selectionSaved()) {
-            <p class="ai-runtime-form__success">Selection saved (not yet applied).</p>
-          }
-          <div class="picker__actions">
-            <button
-              type="button"
-              class="picker__apply"
-              (click)="apply()"
-              [disabled]="applying() || !selectedMain()"
-            >
-              {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
-            </button>
-            <button
-              type="button"
-              class="picker__save"
-              (click)="saveSelection()"
-              [disabled]="savingSelection() || !selectedMain()"
-            >
-              {{ savingSelection() ? 'Saving…' : 'Save only' }}
-            </button>
-          </div>
-          @if (applyError(); as message) {
-            <p class="page-error" role="alert">{{ message }}</p>
-          }
-
-          @if (swapCommand(); as command) {
-            <p class="picker__apply-hint">Prefer the terminal? <code class="picker__command picker__command--inline">{{ command }}</code></p>
-          }
-
-          <!-- Live apply status (polls every 5s until active/failed) -->
-          @if (applyLive(); as live) {
-            <div
-              class="apply-live"
-              [class.apply-live--working]="live.phase === 'working'"
-              [class.apply-live--active]="live.phase === 'active'"
-              [class.apply-live--failed]="live.phase === 'failed'"
-              role="status"
-            >
-              @switch (live.phase) {
-                @case ('working') {
-                  <span class="apply-live__spinner" aria-hidden="true"></span>
-                  <span>Applying — {{ live.detail }} This can take several minutes for a first
-                    download; the current model keeps answering meanwhile.</span>
-                }
-                @case ('active') {
-                  <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
-                }
-                @case ('failed') {
-                  <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
-                }
-              }
-            </div>
-          }
-        }
+        </div>
       </section>
 
       <!-- ===================== Advanced raw configuration ===================== -->
       <details class="advanced">
         <summary>Advanced configuration</summary>
+        <p class="advanced__current">
+          Currently serving: <strong>{{ status.value()?.served_model || '—' }}</strong>
+          (main) + <strong>{{ status.value()?.vision_model || 'off' }}</strong> (vision)
+        </p>
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="ai-runtime-form">
           <label>
             <span>Provider</span>
@@ -245,7 +402,7 @@
           </label>
 
           <label>
-            <span>Model</span>
+            <span>Main model</span>
             <input type="text" formControlName="model" placeholder="Qwen/Qwen2.5-32B-Instruct" />
           </label>
 
@@ -265,6 +422,34 @@
             {{ submitting() ? 'Saving…' : 'Save' }}
           </button>
         </form>
+
+        @if (form.value.provider === 'vllm') {
+          <div class="advanced__vision">
+            <h3>Vision model</h3>
+            <p class="advanced__vision-note">
+              The photo model is served by a separate container; changing it triggers a model swap
+              and <strong>restarts the vision container</strong> (empty = photo analysis off).
+            </p>
+            <div class="advanced__vision-form">
+              <input
+                type="text"
+                placeholder="Qwen/Qwen2.5-VL-7B-Instruct"
+                [ngModel]="visionModelInput()"
+                (ngModelChange)="visionModelInput.set($event)"
+              />
+              <button
+                type="button"
+                (click)="applyVisionModel()"
+                [disabled]="applyingVision()"
+              >
+                {{ applyingVision() ? 'Applying…' : 'Apply vision model' }}
+              </button>
+            </div>
+            @if (visionApplyError(); as message) {
+              <p class="page-error" role="alert">{{ message }}</p>
+            }
+          </div>
+        }
       </details>
     } @else {
       <p class="page-empty">Only the household owner can change the AI runtime configuration.</p>
