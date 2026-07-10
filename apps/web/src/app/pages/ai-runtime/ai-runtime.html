@@ -416,6 +416,8 @@
             <p class="advanced__vision-note">
               The photo model is served by a separate container; changing it triggers a model swap
               and <strong>restarts the vision container</strong> (empty = photo analysis off).
+              Entering the same model as the chat model runs <strong>one</strong> container that
+              handles both — never two copies.
             </p>
             <div class="advanced__vision-form">
               <input

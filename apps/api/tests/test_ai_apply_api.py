@@ -244,3 +244,35 @@ async def test_catalog_includes_the_72b_vision_options(demo_client, demo_token) 
     awq = models["Qwen/Qwen2.5-VL-72B-Instruct-AWQ"]
     assert awq["supports_vision"] is True
     assert awq["est_memory_gb"] == 45  # fits ~120GB unified boxes
+
+
+@pytest.mark.anyio
+async def test_apply_collapses_duplicate_main_and_vision(demo_engine, monkeypatch) -> None:
+    calls = {}
+
+    def fake_post(url, json=None, timeout=None):
+        calls["json"] = json
+        return httpx.Response(
+            202,
+            json={"state": "running", "main_model": json["main_model"], "vision_model": None},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "post", fake_post)
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "main_model": "Qwen/Qwen2.5-VL-32B-Instruct",
+            "vision_model": "Qwen/Qwen2.5-VL-32B-Instruct",
+        },
+    )
+    assert resp.status_code == 202
+    # One instance, not two: the duplicate vision id was dropped.
+    assert calls["json"] == {
+        "main_model": "Qwen/Qwen2.5-VL-32B-Instruct",
+        "vision_model": None,
+    }
+    await client.aclose()
