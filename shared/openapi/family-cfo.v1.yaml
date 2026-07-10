@@ -211,6 +211,32 @@ paths:
                 $ref: "#/components/schemas/HouseholdContext"
         "401":
           $ref: "#/components/responses/Error"
+    patch:
+      tags:
+        - Household
+      operationId: updateHousehold
+      summary: "Update household settings (M43: emergency-fund target)"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseholdUpdateRequest"
+      responses:
+        "200":
+          description: Updated household context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdContext"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /household/members:
     get:
       tags:
@@ -2598,6 +2624,18 @@ components:
           minLength: 8
         owner_display_name:
           type: string
+    HouseholdUpdateRequest:
+      type: object
+      description: "M43: household settings. Omit fields to leave them unchanged."
+      properties:
+        emergency_fund_target_months:
+          description: Months of expenses to target for the emergency fund (1-60).
+          type: number
+          minimum: 1
+          maximum: 60
+        clear_emergency_fund_target:
+          description: Reset the emergency-fund target to the default (6 months).
+          type: boolean
     Member:
       type: object
       required:

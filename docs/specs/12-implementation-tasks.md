@@ -785,11 +785,18 @@ Transactions carry signed amounts, dates, and merchants, but the Overview shows 
 - [x] Spec gate: (a) read — two generic repository aggregates over `transactions` in the base currency: `sum_spending(household_id, start, end)` (positive total of outflows — the absolute value of negative `amount_minor`; income excluded) and `top_spending_merchants(household_id, start, end, limit)` (grouped by merchant, `NULL`→"Other", descending). (b) fair comparison — the endpoint compares **month-to-date** (1st→today) against the **same day range of last month** (1st→same day, clamped to the prior month's length), not partial-vs-full, so early-month numbers aren't misleading. (c) `HouseholdContext` gains additive `spending_insights` (nullable): `{ this_month, last_month, change_percent (null when last_month is 0), top_merchants: [{ merchant, amount }] (top 5) }`. (d) UI — an Overview card shows this-month spending, the % change vs last month (red when up, green when down — spending less is good), and the top merchants with amounts. No migration.
 - [x] Implement + tests (spending sum excludes income and sums outflows; MTD vs same-period window math incl. month-length clamp; top-merchants ordering + NULL grouping; change_percent zero-guard; Overview renders) + deploy + commit. Verified: 281 api + 73 web tests pass; live deployment returns the demo household's month-to-date spending ($175 across Whole Foods + Trader Joe's) with a null change (no prior-period spending).
 
+## M43: Configurable Emergency-Fund Target
+
+The 3/6-month emergency-fund guidance (M38) is hardcoded. Let each household set its own target — some want 3 months, others 12.
+
+- [x] Spec gate: (a) schema — `households.emergency_fund_target_months` (nullable Float; `NULL` means "use the default 6"), migration `0036`. (b) API — a new `PATCH /household` (owner/adult) accepting `emergency_fund_target_months` (1–60, or `null` to reset to default); audited. `get_household`/`HouseholdRecord` carry the value. (c) summary — `_emergency_fund_summary` uses the household's target as `target_months_recommended` (default 6 when unset); the "getting started → on track" threshold becomes `min(3, target)` so a sub-3-month target still makes sense; `gap_to_recommended` and `status` compute against the configured target. (d) UI — the Overview emergency-fund card gains an inline target editor (owner/adult only): a number input + Save that PATCHes and reloads. No behavior change for households that never set one.
+- [x] Implement + tests (target persisted + returned; summary/gap/status recompute against a custom target incl. sub-3 threshold; PATCH validation bounds + null reset; role-gated; Overview editor saves) + deploy + commit. Verified: 287 api + 75 web tests pass; live deploy applied migration `0036`, PATCH target=3 recomputed the gap to $4,240 (3×$2,080 bills − $2,000 reserved) and status getting_started, and clear reset to 6.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
 
-- [ ] Configurable emergency-fund target (per-household `target_months`, replacing the fixed 3/6 guidance).
+- [x] Configurable emergency-fund target (per-household `target_months`, replacing the fixed 3/6 guidance). — delivered by M43.
 - [x] Spending insights on Overview: this month's discretionary spending vs last month, top merchants/categories (transactions data already exists). — delivered by M42.
 - [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.

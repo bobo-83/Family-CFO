@@ -30,6 +30,7 @@ import {
   getAiRuntimeStatus,
   getConversation,
   getHouseholdContext,
+  updateHousehold,
   getReport,
   listAccounts,
   listAuditEvents,
@@ -68,6 +69,7 @@ import {
   type ConnectionCreateRequest,
   type GoalCreateRequest,
   type HouseholdCreateRequest,
+  type HouseholdUpdateRequest,
   type ImportCreateRequest,
   type IncomeCreateRequest,
   type IncomeUpdateRequest,
@@ -98,6 +100,10 @@ export class ApiService {
 
   getHouseholdContext() {
     return getHouseholdContext();
+  }
+
+  updateHousehold(body: HouseholdUpdateRequest) {
+    return updateHousehold({ body });
   }
 
   // --- Advisor chat ---

@@ -1,8 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, resource } from '@angular/core';
+import { Component, inject, resource, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import type { EmergencyFundSummary, Money, NetWorthPoint } from '../../api-client';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 
@@ -24,12 +26,22 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 @Component({
   selector: 'app-overview',
-  imports: [DatePipe, DecimalPipe, RouterLink],
+  imports: [DatePipe, DecimalPipe, FormsModule, RouterLink],
   templateUrl: './overview.html',
   styleUrl: './overview.scss',
 })
 export class Overview {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+
+  protected readonly canWrite = () => {
+    const role = this.auth.role();
+    return role === 'owner' || role === 'adult';
+  };
+
+  protected readonly editingTarget = signal(false);
+  protected readonly targetInput = signal<number | null>(null);
+  protected readonly savingTarget = signal(false);
 
   protected readonly household = resource({
     loader: async () => {
@@ -53,6 +65,26 @@ export class Overview {
 
   protected absPercent(value: number): number {
     return Math.abs(value);
+  }
+
+  protected startEditTarget(current: number): void {
+    this.targetInput.set(current);
+    this.editingTarget.set(true);
+  }
+
+  protected async saveTarget(): Promise<void> {
+    const value = this.targetInput();
+    if (value === null || value < 1 || value > 60 || this.savingTarget()) {
+      return;
+    }
+    this.savingTarget.set(true);
+    const { error } = await this.api.updateHousehold({ emergency_fund_target_months: value });
+    this.savingTarget.set(false);
+    if (error) {
+      return;
+    }
+    this.editingTarget.set(false);
+    this.household.reload();
   }
 
   protected dueLabel(daysUntil: number): string {

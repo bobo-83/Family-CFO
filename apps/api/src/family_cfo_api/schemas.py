@@ -491,6 +491,14 @@ class HouseholdCreateRequest(BaseModel):
     owner_display_name: str = Field(min_length=1, max_length=120)
 
 
+class HouseholdUpdateRequest(BaseModel):
+    """M43: household-level settings. None on the target resets to the default."""
+
+    emergency_fund_target_months: float | None = Field(default=None, ge=1, le=60)
+    # Distinguishes "reset to default" (True) from "leave unchanged" (field omitted).
+    clear_emergency_fund_target: bool = False
+
+
 class Member(BaseModel):
     user_id: str
     email: str

@@ -370,6 +370,8 @@ class HouseholdRecord:
     id: str
     display_name: str
     base_currency: str
+    # M43: null means "use the default target".
+    emergency_fund_target_months: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -397,8 +399,23 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         return None
 
     return HouseholdRecord(
-        id=row["id"], display_name=row["display_name"], base_currency=row["base_currency"]
+        id=row["id"],
+        display_name=row["display_name"],
+        base_currency=row["base_currency"],
+        emergency_fund_target_months=row["emergency_fund_target_months"],
     )
+
+
+def update_emergency_fund_target(
+    engine: Engine, household_id: str, target_months: float | None
+) -> None:
+    """M43: set (or clear, when None) the household's emergency-fund target."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(emergency_fund_target_months=target_months, updated_at=utcnow())
+        )
 
 
 def list_account_balances(engine: Engine, household_id: str) -> list[AccountBalanceRecord]:

@@ -457,6 +457,20 @@ export type HouseholdCreateRequest = {
     owner_display_name: string;
 };
 
+/**
+ * M43: household settings. Omit fields to leave them unchanged.
+ */
+export type HouseholdUpdateRequest = {
+    /**
+     * Months of expenses to target for the emergency fund (1-60).
+     */
+    emergency_fund_target_months?: number;
+    /**
+     * Reset the emergency-fund target to the default (6 months).
+     */
+    clear_emergency_fund_target?: boolean;
+};
+
 export type Member = {
     user_id: string;
     email: string;
@@ -932,6 +946,39 @@ export type GetHouseholdContextResponses = {
 };
 
 export type GetHouseholdContextResponse = GetHouseholdContextResponses[keyof GetHouseholdContextResponses];
+
+export type UpdateHouseholdData = {
+    body: HouseholdUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/household';
+};
+
+export type UpdateHouseholdErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateHouseholdError = UpdateHouseholdErrors[keyof UpdateHouseholdErrors];
+
+export type UpdateHouseholdResponses = {
+    /**
+     * Updated household context
+     */
+    200: HouseholdContext;
+};
+
+export type UpdateHouseholdResponse = UpdateHouseholdResponses[keyof UpdateHouseholdResponses];
 
 export type ListMembersData = {
     body?: never;

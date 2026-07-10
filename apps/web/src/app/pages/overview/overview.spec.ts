@@ -2,6 +2,7 @@ import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { Overview } from './overview';
 
 function response(data: unknown, error?: unknown) {
@@ -14,14 +15,28 @@ function response(data: unknown, error?: unknown) {
 }
 
 describe('Overview', () => {
-  let apiMock: { getHouseholdContext: ReturnType<typeof vi.fn> };
+  let apiMock: {
+    getHouseholdContext: ReturnType<typeof vi.fn>;
+    updateHousehold: ReturnType<typeof vi.fn>;
+  };
 
-  beforeEach(() => {
-    apiMock = { getHouseholdContext: vi.fn() };
+  function configure(role = 'owner') {
     TestBed.configureTestingModule({
       imports: [Overview],
-      providers: [provideRouter([]), { provide: ApiService, useValue: apiMock }],
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: { role: () => role } },
+      ],
     });
+  }
+
+  beforeEach(() => {
+    apiMock = {
+      getHouseholdContext: vi.fn(),
+      updateHousehold: vi.fn().mockResolvedValue(response({})),
+    };
+    configure();
   });
 
   it('renders the enriched summary cards (M38)', async () => {
@@ -167,5 +182,81 @@ describe('Overview', () => {
 
     const errorEl = (fixture.nativeElement as HTMLElement).querySelector('.page-error');
     expect(errorEl?.textContent).toContain('Failed to load');
+  });
+
+  it('lets an owner adjust the emergency-fund target (M43)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: 4,
+        emergency_fund: {
+          months: 4,
+          reserved: { amount_minor: 800_000, currency: 'USD' },
+          using_designations: true,
+          monthly_expenses: { amount_minor: 200_000, currency: 'USD' },
+          target_months_min: 3,
+          target_months_recommended: 6,
+          gap_to_recommended: { amount_minor: 400_000, currency: 'USD' },
+          status: 'on_track',
+        },
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    (host.querySelector('.overview__target-edit') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const input = host.querySelector('.overview__target-label input') as HTMLInputElement;
+    input.value = '3';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const saveBtn = [...host.querySelectorAll('.overview__target-editor button')].find(
+      (b) => b.textContent?.trim() === 'Save',
+    ) as HTMLButtonElement;
+    saveBtn.click();
+    await fixture.whenStable();
+
+    expect(apiMock.updateHousehold).toHaveBeenCalledWith({ emergency_fund_target_months: 3 });
+  });
+
+  it('hides the target editor for a viewer', async () => {
+    TestBed.resetTestingModule();
+    configure('viewer');
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: 4,
+        emergency_fund: {
+          months: 4,
+          reserved: { amount_minor: 800_000, currency: 'USD' },
+          using_designations: true,
+          monthly_expenses: { amount_minor: 200_000, currency: 'USD' },
+          target_months_min: 3,
+          target_months_recommended: 6,
+          gap_to_recommended: { amount_minor: 400_000, currency: 'USD' },
+          status: 'on_track',
+        },
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.overview__target-edit'),
+    ).toBeNull();
   });
 });
