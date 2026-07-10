@@ -718,7 +718,7 @@ export const getAiHardwareProfile = <ThrowOnError extends boolean = false>(optio
 /**
  * Search Hugging Face for models (estimated specs)
  */
-export const searchAiModels = <ThrowOnError extends boolean = false>(options: Options<SearchAiModelsData, ThrowOnError>): RequestResult<SearchAiModelsResponses, SearchAiModelsErrors, ThrowOnError> => (options.client ?? client).get<SearchAiModelsResponses, SearchAiModelsErrors, ThrowOnError>({
+export const searchAiModels = <ThrowOnError extends boolean = false>(options?: Options<SearchAiModelsData, ThrowOnError>): RequestResult<SearchAiModelsResponses, SearchAiModelsErrors, ThrowOnError> => (options?.client ?? client).get<SearchAiModelsResponses, SearchAiModelsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/ai/models/search',
     ...options

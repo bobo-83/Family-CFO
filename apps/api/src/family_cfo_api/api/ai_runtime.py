@@ -269,22 +269,36 @@ def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     summary="Search Hugging Face for models (estimated specs)",
 )
 async def search_ai_models(
-    q: str,
+    q: str = "",
+    pipeline: str = "any",
+    limit: int = 10,
     session: repository.SessionContext = Depends(get_current_session),
     settings: Settings = Depends(get_app_settings),
 ) -> AiModelCatalog:
+    # M48: an empty q returns the pipeline's most-downloaded models — the live
+    # lists behind the dashboard's quick filters.
+    if pipeline not in ("any", "text-generation", "image-text-to-text"):
+        raise HTTPException(status_code=422, detail="invalid pipeline")
+    limit = max(1, min(limit, 30))
+    pipelines = (
+        ("text-generation", "image-text-to-text") if pipeline == "any" else (pipeline,)
+    )
+
     models: list[AiModelInfo] = []
     seen: set[str] = set()
     try:
-        for pipeline in ("text-generation", "image-text-to-text"):
+        for pipe in pipelines:
+            params: dict[str, str | int] = {"pipeline_tag": pipe, "sort": "downloads", "limit": limit}
+            if q:
+                params["search"] = q
             response = httpx.get(
                 f"{settings.hf_hub_url}/api/models",
-                params={"search": q, "pipeline_tag": pipeline, "sort": "downloads", "limit": 10},
+                params=params,
                 timeout=_HF_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
             for item in response.json():
-                mapped = _estimate_from_hf(item, pipeline)
+                mapped = _estimate_from_hf(item, pipe)
                 if mapped and mapped.id not in seen:
                     seen.add(mapped.id)
                     models.append(mapped)

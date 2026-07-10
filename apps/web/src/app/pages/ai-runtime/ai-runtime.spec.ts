@@ -92,7 +92,7 @@ describe('AiRuntime', () => {
       getAiHardwareProfile: vi.fn().mockResolvedValue(
         response({ gpu_memory_gb: null, system_memory_gb: 120, disk_free_gb: 500, source: 'system' }),
       ),
-      searchAiModels: vi.fn(),
+      searchAiModels: vi.fn().mockResolvedValue(response({ models: [] })),
       applyAiModelSelection: vi.fn(),
       getAiApplyStatus: vi.fn().mockResolvedValue(response({ state: 'idle', log_tail: '' })),
     };
@@ -113,130 +113,66 @@ describe('AiRuntime', () => {
     return fixture;
   }
 
-  it('initializes the selection from the saved config and status', async () => {
+  // --- Serving plans (M48): what an apply would actually run -----------------
+
+  it('a photo-blind main keeps the current photo model in the plan and fit', async () => {
     const fixture = await create();
     const component = fixture.componentInstance;
-    expect(component['selectedMainId']()).toBe('Qwen/Qwen2.5-32B-Instruct');
-    expect(component['selectedVisionId']()).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
+    const plan = component['planFor'](CATALOG[0] as never);
+
+    expect(plan.mainId).toBe('Qwen/Qwen2.5-32B-Instruct');
+    expect(plan.visionId).toBe('Qwen/Qwen2.5-VL-7B-Instruct'); // kept from status
+    // (65 + 16) * 1.15 ≈ 93 vs 120 GB budget.
+    expect(plan.memoryGb).toBe(93);
+    expect(plan.memoryVerdict).toBe('fits');
   });
 
-  it('computes replacement requirements and fit against the memory budget', async () => {
+  it('a vision-capable main replaces both models', async () => {
     const fixture = await create();
     const component = fixture.componentInstance;
+    const plan = component['planFor'](CATALOG[1] as never);
 
-    // 32B main (65) + VL-7B vision (16) = 81 * 1.15 ≈ 93 GB vs 120 GB budget.
-    expect(component['requiredMemoryGb']()).toBe(93);
-    expect(component['memoryVerdict']()).toBe('fits');
-    expect(component['usingSystemMemoryBudget']()).toBe(true);
-
-    // A vision-capable main REPLACES both models: vision drops out of the total.
-    component['selectMain']('Qwen/Qwen2.5-VL-32B-Instruct');
-    expect(component['selectedVision']()).toBeNull();
-    expect(component['requiredMemoryGb']()).toBe(Math.round(70 * 1.15));
-    expect(component['swapCommand']()).toBe('scripts/swap-model.sh Qwen/Qwen2.5-VL-32B-Instruct');
+    expect(plan.mainId).toBe('Qwen/Qwen2.5-VL-32B-Instruct');
+    expect(plan.visionId).toBeNull();
+    expect(plan.memoryGb).toBe(Math.round(70 * 1.15));
   });
 
-  it('flags a selection that will not fit', async () => {
+  it('a vision model pairs with the current chat model', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    const plan = component['planFor'](CATALOG[2] as never);
+
+    expect(plan.mainId).toBe('Qwen/Qwen2.5-32B-Instruct'); // current served main
+    expect(plan.visionId).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
+  });
+
+  it('flags a plan that will not fit the hardware', async () => {
     apiMock.getAiHardwareProfile.mockResolvedValue(
       response({ gpu_memory_gb: 24, system_memory_gb: 64, disk_free_gb: 30, source: 'env' }),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
-
-    expect(component['memoryVerdict']()).toBe('no'); // 93 GB required vs 24 GB GPU
-    expect(component['diskVerdict']()).toBe('no'); // 78 GB weights vs 30 GB free
+    const plan = component['planFor'](CATALOG[0] as never);
+    expect(plan.memoryVerdict).toBe('no'); // 93 GB vs 24 GB GPU
+    expect(plan.diskVerdict).toBe('no'); // 78 GB weights vs 30 GB free
   });
 
-  it('saves the selection and builds the swap command with the vision model', async () => {
-    apiMock.updateAiRuntimeConfig.mockResolvedValue(response({}));
-    const fixture = await create();
-    const component = fixture.componentInstance;
+  // --- Apply from an expanded row (M48) ---------------------------------------
 
-    expect(component['swapCommand']()).toBe(
-      'scripts/swap-model.sh Qwen/Qwen2.5-32B-Instruct Qwen/Qwen2.5-VL-7B-Instruct',
-    );
-    await component['saveSelection']();
-    expect(apiMock.updateAiRuntimeConfig).toHaveBeenCalledWith({
-      provider: 'vllm',
-      base_url: 'http://vllm:8000',
-      model: 'Qwen/Qwen2.5-32B-Instruct',
-      enabled: true,
-    });
-  });
-
-  it('reports a serving mismatch when the selection differs from the served model', async () => {
-    const fixture = await create();
-    const component = fixture.componentInstance;
-    expect(component['servingMismatch']()).toBe(false);
-
-    component['selectMain']('Qwen/Qwen2.5-VL-32B-Instruct');
-    expect(component['servingMismatch']()).toBe(true);
-  });
-
-  it('saves changes through the advanced form', async () => {
-    apiMock.updateAiRuntimeConfig.mockResolvedValue(response({}));
-    const fixture = await create();
-    const component = fixture.componentInstance;
-    expect(component['form'].value.base_url).toBe('http://vllm:8000');
-
-    component['form'].patchValue({ model: 'llama-3-8b-instruct', enabled: true });
-    await component['submit']();
-
-    expect(apiMock.updateAiRuntimeConfig).toHaveBeenCalledWith({
-      provider: 'vllm',
-      base_url: 'http://vllm:8000',
-      model: 'llama-3-8b-instruct',
-      enabled: true,
-    });
-  });
-
-  it('merges HF search results into the picker (curated wins on duplicates)', async () => {
-    apiMock.searchAiModels.mockResolvedValue(
-      response({
-        models: [
-          {
-            id: 'mistralai/Mistral-7B-Instruct-v0.3',
-            label: 'Mistral-7B-Instruct-v0.3 (Hugging Face)',
-            role: 'main',
-            parameters_b: 7,
-            est_memory_gb: 15,
-            est_disk_gb: 14,
-            tool_parser: 'hermes',
-            supports_vision: false,
-            gated: false,
-            notes: 'Estimated specs',
-          },
-          // Duplicate of a curated model: must not double up.
-          CATALOG[0],
-        ],
-      }),
-    );
-    const fixture = await create();
-    const component = fixture.componentInstance;
-
-    component['searchQuery'].set('mistral');
-    await component['runSearch']();
-
-    const ids = component['mainOptions']().map((m) => m.id);
-    expect(ids).toContain('mistralai/Mistral-7B-Instruct-v0.3');
-    expect(ids.filter((id) => id === 'Qwen/Qwen2.5-32B-Instruct').length).toBe(1);
-  });
-
-  it('apply calls the endpoint and reaches active when the served model matches', async () => {
+  it('applyModel posts the plan and reaches active when serving matches', async () => {
     apiMock.applyAiModelSelection.mockResolvedValue(
       response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
 
-    await component['apply']();
+    await component['applyModel'](CATALOG[0] as never);
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
       main_model: 'Qwen/Qwen2.5-32B-Instruct',
       vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct',
     });
     expect(component['applyLive']()?.phase).toBe('working');
 
-    // Manager finishes; the served model already matches the selection.
     apiMock.getAiApplyStatus.mockResolvedValue(
       response({ state: 'succeeded', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'ok' }),
     );
@@ -252,7 +188,7 @@ describe('AiRuntime', () => {
     );
     const fixture = await create();
     const component = fixture.componentInstance;
-    await component['apply']();
+    await component['applyModel'](CATALOG[0] as never);
 
     apiMock.getAiApplyStatus.mockResolvedValue(
       response({ state: 'failed', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'boom' }),
@@ -260,11 +196,116 @@ describe('AiRuntime', () => {
     await component['pollOnce']();
     expect(component['applyLive']()?.phase).toBe('failed');
     expect(component['applyLive']()?.detail).toBe('boom');
+    component['stopPolling']();
   });
 
-  // --- M47: redesign behaviors ------------------------------------------------
+  it('toggles row expansion', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    expect(component['expandedId']()).toBeNull();
+    component['toggleExpand']('a');
+    expect(component['expandedId']()).toBe('a');
+    component['toggleExpand']('a');
+    expect(component['expandedId']()).toBeNull();
+  });
 
-  it('keeps an off-catalog active model visible via a synthesized stub', async () => {
+  // --- Live quick filters (M48) ------------------------------------------------
+
+  it('quick filters fetch a live list from Hugging Face', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['setQuickFilter']('vision-big');
+    expect(apiMock.searchAiModels).toHaveBeenCalledWith({
+      pipeline: 'image-text-to-text',
+      limit: 20,
+    });
+
+    await component['setQuickFilter']('finance');
+    expect(apiMock.searchAiModels).toHaveBeenCalledWith({
+      q: 'finance',
+      pipeline: 'text-generation',
+      limit: 20,
+    });
+
+    await component['setQuickFilter']('recommended');
+    expect(apiMock.searchAiModels).toHaveBeenCalledWith({
+      pipeline: 'text-generation',
+      limit: 20,
+    });
+  });
+
+  it('recommended keeps only fitting mains, strongest first, live results merged', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'big/Huge-200B-Instruct',
+            label: 'Huge 200B',
+            role: 'main',
+            parameters_b: 200,
+            est_memory_gb: 400,
+            est_disk_gb: 380,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            gated: false,
+            notes: '',
+          },
+          {
+            id: 'neat/Solid-40B-Instruct',
+            label: 'Solid 40B',
+            role: 'main',
+            parameters_b: 40,
+            est_memory_gb: 82,
+            est_disk_gb: 78,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['setQuickFilter']('recommended');
+    const ids = component['filteredModels']().map((m) => m.id);
+    expect(ids).not.toContain('big/Huge-200B-Instruct'); // 400 GB does not fit 120
+    expect(ids[0]).toBe('neat/Solid-40B-Instruct'); // strongest fitting, from the live list
+  });
+
+  it('vision quick filters sort vision-capable models by size', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['setQuickFilter']('vision-big');
+    let models = component['filteredModels']();
+    expect(models.every((m) => m.supports_vision)).toBe(true);
+    expect(models[0].id).toBe('Qwen/Qwen2.5-VL-32B-Instruct');
+
+    await component['setQuickFilter']('vision-small');
+    models = component['filteredModels']();
+    expect(models[0].id).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
+  });
+
+  it('falls back to curated models when Hugging Face is unreachable', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response(undefined, { error: { code: 'http_error', message: 'offline' } }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['setQuickFilter']('recommended');
+    expect(component['searchError']()).toBeTruthy();
+    // Curated fitting mains still listed.
+    const ids = component['filteredModels']().map((m) => m.id);
+    expect(ids).toContain('Qwen/Qwen2.5-32B-Instruct');
+  });
+
+  // --- Stub synthesis: an off-catalog active model stays visible ---------------
+
+  it('keeps an off-catalog served model visible via a synthesized stub', async () => {
     apiMock.getAiRuntimeConfig.mockResolvedValue(
       response({
         provider: 'vllm',
@@ -289,78 +330,31 @@ describe('AiRuntime', () => {
     const fixture = await create();
     const component = fixture.componentInstance;
 
-    // The fix: previously this selection resolved to null and the whole
-    // fit/apply section disappeared after a reload.
-    const main = component['selectedMain']();
-    expect(main).not.toBeNull();
-    expect(main!.id).toBe('someorg/Custom-13B-Instruct');
-    expect(main!.label).toContain('not in catalog');
-    expect(main!.parameters_b).toBe(13); // estimated from the name
-    expect(component['requiredMemoryGb']()).not.toBeNull();
+    const stub = component['byId']('someorg/Custom-13B-Instruct');
+    expect(stub).not.toBeNull();
+    expect(stub!.label).toContain('not in catalog');
+    expect(stub!.parameters_b).toBe(13); // estimated from the name
+    // And its plan computes a real fit instead of disappearing.
+    expect(component['planFor'](stub!).memoryGb).not.toBeNull();
   });
 
-  it('recommended quick filter keeps only main models that fit, strongest first', async () => {
-    // 120 GB budget: 32B (65) and VL-32B (70) fit; add an oversized entry via search.
-    apiMock.searchAiModels.mockResolvedValue(
-      response({
-        models: [
-          {
-            id: 'big/Huge-200B-Instruct',
-            label: 'Huge 200B',
-            role: 'main',
-            parameters_b: 200,
-            est_memory_gb: 400,
-            est_disk_gb: 380,
-            tool_parser: 'hermes',
-            supports_vision: false,
-            gated: false,
-            notes: '',
-          },
-        ],
-      }),
-    );
+  // --- Advanced section ---------------------------------------------------------
+
+  it('saves changes through the advanced form', async () => {
+    apiMock.updateAiRuntimeConfig.mockResolvedValue(response({}));
     const fixture = await create();
     const component = fixture.componentInstance;
-    component['searchQuery'].set('huge');
-    await component['runSearch']();
+    expect(component['form'].value.base_url).toBe('http://vllm:8000');
 
-    component['setQuickFilter']('recommended');
-    const ids = component['filteredModels']().map((m) => m.id);
-    expect(ids).not.toContain('big/Huge-200B-Instruct'); // does not fit
-    expect(ids[0]).toBe('Qwen/Qwen2.5-VL-32B-Instruct'); // strongest fitting first (33B)
-  });
+    component['form'].patchValue({ model: 'llama-3-8b-instruct', enabled: true });
+    await component['submit']();
 
-  it('vision quick filters sort vision-capable models by size', async () => {
-    const fixture = await create();
-    const component = fixture.componentInstance;
-
-    component['setQuickFilter']('vision-big');
-    let models = component['filteredModels']();
-    expect(models.every((m) => m.supports_vision)).toBe(true);
-    expect(models[0].id).toBe('Qwen/Qwen2.5-VL-32B-Instruct');
-
-    component['setQuickFilter']('vision-small');
-    models = component['filteredModels']();
-    expect(models[0].id).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
-  });
-
-  it('finance quick filter keeps only tool-calling-capable main models', async () => {
-    const fixture = await create();
-    const component = fixture.componentInstance;
-    component['setQuickFilter']('finance');
-    const models = component['filteredModels']();
-    expect(models.length).toBeGreaterThan(0);
-    expect(models.every((m) => Boolean(m.tool_parser))).toBe(true);
-    expect(models.every((m) => m.role === 'main' || m.role === 'both')).toBe(true);
-  });
-
-  it('selectFor routes vision-role models to the vision slot', async () => {
-    const fixture = await create();
-    const component = fixture.componentInstance;
-    component['selectFor'](CATALOG[2] as never); // role: vision
-    expect(component['selectedVisionId']()).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
-    component['selectFor'](CATALOG[0] as never); // role: main
-    expect(component['selectedMainId']()).toBe('Qwen/Qwen2.5-32B-Instruct');
+    expect(apiMock.updateAiRuntimeConfig).toHaveBeenCalledWith({
+      provider: 'vllm',
+      base_url: 'http://vllm:8000',
+      model: 'llama-3-8b-instruct',
+      enabled: true,
+    });
   });
 
   it('applies a vision model change from the Advanced section via the swap', async () => {
@@ -370,7 +364,6 @@ describe('AiRuntime', () => {
     const fixture = await create();
     const component = fixture.componentInstance;
 
-    // Prefilled from the live status.
     expect(component['visionModelInput']()).toBe('Qwen/Qwen2.5-VL-7B-Instruct');
     component['visionModelInput'].set('Qwen/Qwen2.5-VL-3B-Instruct');
     await component['applyVisionModel']();

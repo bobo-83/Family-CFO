@@ -1,8 +1,8 @@
 <h1>AI Runtime</h1>
 <p class="page-empty">
   Choose which local models power the advisor. Everything runs on this server — no household data
-  ever leaves it. A new selection <strong>replaces</strong> the current models; it does not add to
-  them.
+  ever leaves it. Applying a model <strong>replaces</strong> the current one; it does not add to
+  it.
 </p>
 
 @switch (config.status()) {
@@ -46,185 +46,37 @@
               </span>
             </div>
           </div>
-        </div>
 
-        <!-- ================= Your selection (pinned, M47) ================= -->
-        <div class="selection">
-          <h2>Your selection</h2>
-          @if (selectedMain(); as main) {
-            <div class="selection__chips">
-              <div class="selection__chip">
-                <span class="selection__chip-role">Main</span>
-                <span class="selection__chip-name">{{ main.label }}</span>
-                <span class="selection__chip-meta">
-                  @if (main.parameters_b) {
-                    {{ main.parameters_b }}B · ~{{ main.est_memory_gb }} GB
-                  } @else {
-                    size unknown
-                  }
-                  @if (main.supports_vision) {
-                    · 📷 sees photos itself
-                  }
-                </span>
-              </div>
-              @if (!main.supports_vision) {
-                <div class="selection__chip">
-                  <span class="selection__chip-role">Vision</span>
-                  @if (selectedVision(); as vision) {
-                    <span class="selection__chip-name">{{ vision.label }}</span>
-                    <span class="selection__chip-meta">
-                      @if (vision.parameters_b) {
-                        {{ vision.parameters_b }}B · ~{{ vision.est_memory_gb }} GB
-                      } @else {
-                        size unknown
-                      }
-                    </span>
-                  } @else {
-                    <span class="selection__chip-name">No photo analysis</span>
-                    <span class="selection__chip-meta">Chat photos get a "not analyzed" note</span>
-                  }
-                  <button
-                    type="button"
-                    class="selection__chip-clear"
-                    (click)="selectVision('none')"
-                    [disabled]="selectedVisionId() === 'none'"
-                  >
-                    Turn off photos
-                  </button>
-                </div>
+          <!-- Live apply status (polls every 5s until active/failed) -->
+          @if (applyLive(); as live) {
+            <div
+              class="apply-live"
+              [class.apply-live--working]="live.phase === 'working'"
+              [class.apply-live--active]="live.phase === 'active'"
+              [class.apply-live--failed]="live.phase === 'failed'"
+              role="status"
+            >
+              @switch (live.phase) {
+                @case ('working') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span>Applying — {{ live.detail }} This can take several minutes for a first
+                    download; the current model keeps answering meanwhile.</span>
+                }
+                @case ('active') {
+                  <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
+                }
+                @case ('failed') {
+                  <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
+                }
               }
             </div>
-
-            <!-- Live hardware fit for the combination -->
-            <div class="fit">
-              <div class="fit__rows">
-                <div class="fit__row" [attr.data-verdict]="memoryVerdict()">
-                  <span class="fit__what">Memory needed (incl. ~15% headroom)</span>
-                  <span class="fit__numbers">
-                    {{ requiredMemoryGb() }} GB required ·
-                    @if (memoryBudgetGb() !== null) {
-                      {{ memoryBudgetGb() }} GB available
-                      @if (usingSystemMemoryBudget()) {
-                        (system memory — GPU memory unknown/unified)
-                      }
-                    } @else {
-                      available unknown
-                    }
-                  </span>
-                  <span class="fit__verdict">
-                    @switch (memoryVerdict()) {
-                      @case ('fits') {
-                        ✅ Fits
-                      }
-                      @case ('tight') {
-                        ⚠️ Tight — may work with reduced context
-                      }
-                      @case ('no') {
-                        ❌ Won't fit this hardware
-                      }
-                      @default {
-                        ❓ Unknown
-                      }
-                    }
-                  </span>
-                </div>
-                <div class="fit__row" [attr.data-verdict]="diskVerdict()">
-                  <span class="fit__what">Disk for new model downloads</span>
-                  <span class="fit__numbers">
-                    ~{{ requiredDiskGb() }} GB weights ·
-                    {{ hardware.value()?.disk_free_gb ?? '?' }} GB free
-                  </span>
-                  <span class="fit__verdict">
-                    @switch (diskVerdict()) {
-                      @case ('fits') {
-                        ✅ Fits
-                      }
-                      @case ('tight') {
-                        ⚠️ Tight
-                      }
-                      @case ('no') {
-                        ❌ Not enough free disk
-                      }
-                      @default {
-                        ❓ Unknown
-                      }
-                    }
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            @if (servingMismatch()) {
-              <p class="picker__mismatch" role="status">
-                ⏳ Currently serving <strong>{{ status.value()?.served_model }}</strong> — click
-                Apply to switch to your selection.
-              </p>
-            }
-
-            @if (selectionError(); as message) {
-              <p class="page-error" role="alert">{{ message }}</p>
-            }
-            @if (selectionSaved()) {
-              <p class="ai-runtime-form__success">Selection saved (not yet applied).</p>
-            }
-            <div class="picker__actions">
-              <button
-                type="button"
-                class="picker__apply"
-                (click)="apply()"
-                [disabled]="applying() || !selectedMain()"
-              >
-                {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
-              </button>
-              <button
-                type="button"
-                class="picker__save"
-                (click)="saveSelection()"
-                [disabled]="savingSelection() || !selectedMain()"
-              >
-                {{ savingSelection() ? 'Saving…' : 'Save only' }}
-              </button>
-            </div>
-            @if (applyError(); as message) {
-              <p class="page-error" role="alert">{{ message }}</p>
-            }
-            @if (swapCommand(); as command) {
-              <p class="picker__apply-hint">
-                Prefer the terminal?
-                <code class="picker__command picker__command--inline">{{ command }}</code>
-              </p>
-            }
-
-            <!-- Live apply status (polls every 5s until active/failed) -->
-            @if (applyLive(); as live) {
-              <div
-                class="apply-live"
-                [class.apply-live--working]="live.phase === 'working'"
-                [class.apply-live--active]="live.phase === 'active'"
-                [class.apply-live--failed]="live.phase === 'failed'"
-                role="status"
-              >
-                @switch (live.phase) {
-                  @case ('working') {
-                    <span class="apply-live__spinner" aria-hidden="true"></span>
-                    <span>Applying — {{ live.detail }} This can take several minutes for a first
-                      download; the current model keeps answering meanwhile.</span>
-                  }
-                  @case ('active') {
-                    <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
-                  }
-                  @case ('failed') {
-                    <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
-                  }
-                }
-              </div>
-            }
-          } @else {
-            <p class="page-empty">Pick a model below to see requirements and apply it.</p>
+          }
+          @if (applyError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
           }
         </div>
 
-        <!-- ================= Browse & filter (M47) ================= -->
+        <!-- ================= Browse & filter (M47/M48) ================= -->
         <div class="browse">
           <h2>Find a model</h2>
           <div class="hf-search">
@@ -285,6 +137,9 @@
               All
             </button>
           </div>
+          @if (searching()) {
+            <p class="browse__loading">Fetching the live list from Hugging Face…</p>
+          }
 
           <div class="browse__facets">
             <label>
@@ -314,7 +169,7 @@
             </label>
           </div>
 
-          @if (visibleModels().length === 0) {
+          @if (visibleModels().length === 0 && !searching()) {
             <p class="page-empty">
               No models match these filters. Try "All" or search Hugging Face above.
             </p>
@@ -323,51 +178,144 @@
             @for (model of visibleModels(); track model.id) {
               <li
                 class="model-row"
-                [class.model-row--selected]="
-                  model.id === selectedMainId() || model.id === selectedVisionId()
-                "
+                [class.model-row--expanded]="expandedId() === model.id"
+                [class.model-row--active]="model.id === status.value()?.served_model"
               >
-                <div class="model-row__text">
-                  <span class="model-row__label">
-                    {{ model.label }}
-                    @if (model.supports_vision) {
-                      <span title="vision-capable">📷</span>
+                <button
+                  type="button"
+                  class="model-row__summary"
+                  (click)="toggleExpand(model.id)"
+                  [attr.aria-expanded]="expandedId() === model.id"
+                >
+                  <div class="model-row__text">
+                    <span class="model-row__label">
+                      {{ model.label }}
+                      @if (model.id === status.value()?.served_model) {
+                        <span class="model-row__now">now serving</span>
+                      }
+                      @if (model.supports_vision) {
+                        <span title="vision-capable">📷</span>
+                      }
+                      @if (model.gated) {
+                        <span title="gated on Hugging Face">🔒</span>
+                      }
+                    </span>
+                    <span class="model-row__meta">
+                      @if (model.parameters_b) {
+                        {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory
+                      } @else {
+                        size unknown
+                      }
+                    </span>
+                  </div>
+                  <span class="model-row__fit" [attr.data-verdict]="fitOf(model)">
+                    @switch (fitOf(model)) {
+                      @case ('fits') {
+                        ✅
+                      }
+                      @case ('tight') {
+                        ⚠️
+                      }
+                      @case ('no') {
+                        ❌
+                      }
+                      @default {
+                        ❓
+                      }
+                    }
+                  </span>
+                  <span class="model-row__chevron" aria-hidden="true">
+                    {{ expandedId() === model.id ? '▾' : '▸' }}
+                  </span>
+                </button>
+
+                @if (expandedId() === model.id) {
+                  <div class="model-detail">
+                    <p class="model-detail__id"><code>{{ model.id }}</code></p>
+                    @if (model.notes) {
+                      <p class="model-detail__notes">{{ model.notes }}</p>
+                    }
+                    @if (planFor(model); as plan) {
+                      <p class="model-detail__plan">{{ plan.description }}</p>
+                      <div class="fit__rows">
+                        <div class="fit__row" [attr.data-verdict]="plan.memoryVerdict">
+                          <span class="fit__what">Memory (incl. ~15% headroom)</span>
+                          <span class="fit__numbers">
+                            @if (plan.memoryGb !== null) {
+                              {{ plan.memoryGb }} GB required ·
+                            } @else {
+                              required unknown ·
+                            }
+                            @if (memoryBudgetGb() !== null) {
+                              {{ memoryBudgetGb() }} GB available
+                              @if (usingSystemMemoryBudget()) {
+                                (system memory)
+                              }
+                            } @else {
+                              available unknown
+                            }
+                          </span>
+                          <span class="fit__verdict">
+                            @switch (plan.memoryVerdict) {
+                              @case ('fits') {
+                                ✅ Fits this computer
+                              }
+                              @case ('tight') {
+                                ⚠️ Tight — may need reduced context
+                              }
+                              @case ('no') {
+                                ❌ Won't fit this computer
+                              }
+                              @default {
+                                ❓ Unknown
+                              }
+                            }
+                          </span>
+                        </div>
+                        <div class="fit__row" [attr.data-verdict]="plan.diskVerdict">
+                          <span class="fit__what">Disk for downloads</span>
+                          <span class="fit__numbers">
+                            ~{{ plan.diskGb ?? '?' }} GB weights ·
+                            {{ hardware.value()?.disk_free_gb ?? '?' }} GB free
+                          </span>
+                          <span class="fit__verdict">
+                            @switch (plan.diskVerdict) {
+                              @case ('fits') {
+                                ✅ Fits
+                              }
+                              @case ('tight') {
+                                ⚠️ Tight
+                              }
+                              @case ('no') {
+                                ❌ Not enough free disk
+                              }
+                              @default {
+                                ❓ Unknown
+                              }
+                            }
+                          </span>
+                        </div>
+                      </div>
                     }
                     @if (model.gated) {
-                      <span title="gated on Hugging Face">🔒</span>
+                      <p class="model-detail__gated">
+                        🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN.
+                      </p>
                     }
-                  </span>
-                  <span class="model-row__meta">
-                    @if (model.parameters_b) {
-                      {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory ·
-                      ~{{ model.est_disk_gb }} GB disk
-                    } @else {
-                      size unknown
-                    }
-                    @if (model.notes) {
-                      · {{ model.notes }}
-                    }
-                  </span>
-                </div>
-                <span class="model-row__fit" [attr.data-verdict]="fitOf(model)">
-                  @switch (fitOf(model)) {
-                    @case ('fits') {
-                      ✅
-                    }
-                    @case ('tight') {
-                      ⚠️
-                    }
-                    @case ('no') {
-                      ❌
-                    }
-                    @default {
-                      ❓
-                    }
-                  }
-                </span>
-                <button type="button" class="model-row__select" (click)="selectFor(model)">
-                  {{ model.role === 'vision' ? 'Use for photos' : 'Select' }}
-                </button>
+                    <button
+                      type="button"
+                      class="picker__apply"
+                      (click)="applyModel(model)"
+                      [disabled]="applying() || model.id === status.value()?.served_model"
+                    >
+                      @if (model.id === status.value()?.served_model) {
+                        Already serving
+                      } @else {
+                        {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+                      }
+                    </button>
+                  </div>
+                }
               </li>
             }
           </ul>
