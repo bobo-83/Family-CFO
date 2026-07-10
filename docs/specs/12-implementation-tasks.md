@@ -810,8 +810,8 @@ Budget envelopes (M46) attach to spending categories, but today there is no way 
 
 With categories in place (M45), add monthly budget envelopes. Product decisions (2026-07-09): monthly periods, soft tracking (a recording app can't block spend) with approaching-limit warnings, no rollover.
 
-- [ ] Spec gate: (a) schema — a `budgets` table (`id`, `household_id`, `category_id` FK, `limit_minor`, `currency`, `created_at`, `updated_at`) with a unique `(household_id, category_id)` (one envelope per category); migration `0038`. (b) API — `GET/POST/PATCH/DELETE /budgets`; the list computes each envelope's **current calendar-month** spend (reuse M42 category-scoped `sum_spending`), `remaining`, `percent_used` (capped display but raw value drives status), and `status` (`under` / `warning` at ≥80% / `over` at >100%). (c) `HouseholdContext` gains additive `budget_summary` (nullable): counts of over/warning envelopes + total budgeted vs spent, for an Overview alert card. (d) UI — a `Budgets` page (per-category limit CRUD with spent/limit progress bars, colored by status) and an Overview summary card that surfaces over/at-risk envelopes.
-- [ ] Implement + tests (per-category month spend vs limit; status thresholds 80/100; summary counts; CRUD + one-per-category 409; Budgets page + Overview card) + deploy + commit.
+- [x] Spec gate: (a) schema — a `budgets` table (`id`, `household_id`, `category_id` FK, `limit_minor`, `currency`, `created_at`, `updated_at`) with a unique `(household_id, category_id)` (one envelope per category); migration `0038`. (b) API — `GET/POST/PATCH/DELETE /budgets`; the list computes each envelope's **current calendar-month** spend (reuse M42 category-scoped `sum_spending`), `remaining`, `percent_used` (capped display but raw value drives status), and `status` (`under` / `warning` at ≥80% / `over` at >100%). (c) `HouseholdContext` gains additive `budget_summary` (nullable): counts of over/warning envelopes + total budgeted vs spent, for an Overview alert card. (d) UI — a `Budgets` page (per-category limit CRUD with spent/limit progress bars, colored by status) and an Overview summary card that surfaces over/at-risk envelopes.
+- [x] Implement + tests (per-category month spend vs limit; status thresholds 80/100; summary counts; CRUD + one-per-category 409; category delete removes its budget; Budgets page + Overview card) + deploy + commit. Verified: 302 api + 88 web tests pass; live deploy applied migration `0038`, and the demo household's real $175 categorized Groceries spend against a $200 limit reads 88% → warning, mirrored in the Overview summary.
 
 ## M47: AI Runtime Page Redesign (user-reported UX fixes)
 
@@ -829,7 +829,7 @@ Candidate features surfaced while enriching the overview; each needs its own spe
 - [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
 - [x] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar). — delivered by M41.
-- [~] Budget envelopes per category with monthly limits + alerts — being delivered by M45 (categories) + M46 (budgets).
+- [x] Budget envelopes per category with monthly limits + alerts — delivered by M45 (categories) + M46 (budgets).
 - [x] Savings-rate metric (income − all spending, trailing 3 months). — delivered by M44.
 
 ## Backlog: Debt Payoff and Retirement Projections

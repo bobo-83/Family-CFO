@@ -661,6 +661,112 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /budgets:
+    get:
+      tags:
+        - Budgets
+      operationId: listBudgets
+      summary: List budget envelopes with current-month progress
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Budgets
+      operationId: createBudget
+      summary: Create a monthly budget envelope for a category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetCreateRequest"
+      responses:
+        "201":
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /budgets/{budget_id}:
+    patch:
+      tags:
+        - Budgets
+      operationId: updateBudget
+      summary: Change a budget envelope's monthly limit
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budget_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetUpdateRequest"
+      responses:
+        "200":
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Budgets
+      operationId: deleteBudget
+      summary: Delete a budget envelope
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budget_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Budget deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /bills:
     get:
       tags:
@@ -2006,6 +2112,90 @@ components:
         savings_rate:
           description: "M44: recurring income vs trailing-3-month average actual spending."
           $ref: "#/components/schemas/SavingsRate"
+        budget_summary:
+          description: "M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist."
+          $ref: "#/components/schemas/BudgetSummary"
+    Budget:
+      type: object
+      required:
+        - id
+        - category_id
+        - category_name
+        - limit
+        - spent
+        - remaining
+        - percent_used
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        limit:
+          $ref: "#/components/schemas/Money"
+        spent:
+          description: Outflow in this category during the current calendar month.
+          $ref: "#/components/schemas/Money"
+        remaining:
+          description: limit − spent; negative when over budget.
+          $ref: "#/components/schemas/Money"
+        percent_used:
+          description: Raw spent/limit percent; may exceed 100.
+          type: integer
+        status:
+          type: string
+          enum: [under, warning, over]
+    BudgetListResponse:
+      type: object
+      required:
+        - budgets
+      properties:
+        budgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Budget"
+    BudgetCreateRequest:
+      type: object
+      required:
+        - category_id
+        - limit
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        limit:
+          $ref: "#/components/schemas/Money"
+    BudgetUpdateRequest:
+      type: object
+      required:
+        - limit
+      properties:
+        limit:
+          $ref: "#/components/schemas/Money"
+    BudgetSummary:
+      type: object
+      required:
+        - envelope_count
+        - over_count
+        - warning_count
+        - total_budgeted
+        - total_spent
+      properties:
+        envelope_count:
+          type: integer
+        over_count:
+          type: integer
+        warning_count:
+          description: Envelopes at ≥80% of their limit (but not over).
+          type: integer
+        total_budgeted:
+          $ref: "#/components/schemas/Money"
+        total_spent:
+          $ref: "#/components/schemas/Money"
     SavingsRate:
       type: object
       required:

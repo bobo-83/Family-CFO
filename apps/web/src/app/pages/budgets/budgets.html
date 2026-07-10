@@ -1,0 +1,111 @@
+<h1>Budgets</h1>
+
+<p class="page-hint">
+  Monthly envelopes per spending category. Spending is tracked as it happens — the bar turns amber
+  at 80% of the limit and red when you're over. Limits reset each calendar month (no rollover).
+</p>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else if (budgets().length === 0) {
+  <p class="page-empty">No budgets yet.</p>
+} @else {
+  <ul class="budget-list">
+    @for (budget of budgets(); track budget.id) {
+      <li class="budget" [attr.data-status]="budget.status">
+        <div class="budget__head">
+          <span class="budget__name">{{ budget.category_name }}</span>
+          <span class="budget__status budget__status--{{ budget.status }}">
+            @switch (budget.status) {
+              @case ('over') {
+                Over budget
+              }
+              @case ('warning') {
+                Almost there
+              }
+              @default {
+                On track
+              }
+            }
+          </span>
+        </div>
+        <div
+          class="budget__bar"
+          role="progressbar"
+          [attr.aria-valuenow]="budget.percent_used"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div
+            class="budget__bar-fill budget__bar-fill--{{ budget.status }}"
+            [style.width.%]="barWidth(budget)"
+          ></div>
+        </div>
+        <div class="budget__numbers">
+          {{ formatMoney(budget.spent) }} of {{ formatMoney(budget.limit) }} ·
+          {{ budget.percent_used }}%
+          @if (budget.remaining.amount_minor >= 0) {
+            · {{ formatMoney(budget.remaining) }} left
+          } @else {
+            · over by {{ formatMoney({ amount_minor: -budget.remaining.amount_minor, currency: budget.remaining.currency }) }}
+          }
+        </div>
+        @if (canWrite()) {
+          <div class="budget__actions">
+            <label class="budget__limit-edit">
+              Limit
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                [value]="budget.limit.amount_minor / 100"
+                (change)="changeLimit(budget, $event)"
+              />
+            </label>
+            <button type="button" class="budget__delete" (click)="remove(budget.id)">
+              Delete
+            </button>
+          </div>
+        }
+      </li>
+    }
+  </ul>
+}
+
+@if (canWrite()) {
+  <h2>Add a budget</h2>
+  @if (categories().length === 0) {
+    <p class="page-empty">
+      Budgets attach to spending categories —
+      <a routerLink="/categories">create a category first</a>.
+    </p>
+  } @else if (availableCategories().length === 0) {
+    <p class="page-empty">Every category already has an envelope.</p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="budget-form">
+      <label>
+        <span>Category</span>
+        <select formControlName="categoryId">
+          <option value="" disabled>Select a category</option>
+          @for (category of availableCategories(); track category.id) {
+            <option [value]="category.id">{{ category.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Monthly limit (USD)</span>
+        <input type="number" step="0.01" min="0.01" formControlName="limit" />
+      </label>
+      @if (submitError(); as message) {
+        <p class="page-error" role="alert">{{ message }}</p>
+      }
+      <button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Saving…' : 'Add budget' }}
+      </button>
+    </form>
+  }
+} @else {
+  <p class="page-empty">Only the household owner or an adult member can manage budgets.</p>
+}

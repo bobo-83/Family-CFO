@@ -6,6 +6,7 @@ import {
   createAuthSession,
   createBackup,
   createBill,
+  createBudget,
   createCategory,
   createChatMessage,
   createConnection,
@@ -20,6 +21,7 @@ import {
   deleteConnection,
   deleteConversation,
   deleteBill,
+  deleteBudget,
   deleteCategory,
   deleteIncomeSource,
   deleteMember,
@@ -38,6 +40,7 @@ import {
   listAuditEvents,
   listBackups,
   listBills,
+  listBudgets,
   listCategories,
   listAiModels,
   listConnections,
@@ -57,6 +60,7 @@ import {
   updateAccount,
   updateAiRuntimeConfig,
   updateBill,
+  updateBudget,
   updateIncomeSource,
   updateMemberRole,
   updateTransaction,
@@ -68,6 +72,8 @@ import {
   type AuthSessionCreateRequest,
   type BillCreateRequest,
   type BillUpdateRequest,
+  type BudgetCreateRequest,
+  type BudgetUpdateRequest,
   type CategoryCreateRequest,
   type ChatRequest,
   type ConnectionCreateRequest,
@@ -175,6 +181,23 @@ export class ApiService {
 
   deleteTransaction(transactionId: string) {
     return deleteTransaction({ path: { transaction_id: transactionId } });
+  }
+
+  // --- Budgets (M46) ---
+  listBudgets() {
+    return listBudgets();
+  }
+
+  createBudget(body: BudgetCreateRequest) {
+    return createBudget({ body });
+  }
+
+  updateBudget(budgetId: string, body: BudgetUpdateRequest) {
+    return updateBudget({ path: { budget_id: budgetId }, body });
+  }
+
+  deleteBudget(budgetId: string) {
+    return deleteBudget({ path: { budget_id: budgetId } });
   }
 
   // --- Categories (M45) ---
