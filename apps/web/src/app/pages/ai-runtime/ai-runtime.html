@@ -90,6 +90,12 @@
           @if (applyError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
           }
+          @if (status.value()?.ready && !status.value()?.vision_model) {
+            <p class="now-serving__nudge">
+              📷 No photo model is serving — chat photos won't be analyzed.
+              <button type="button" (click)="pickPhotoModelNext()">Pick a photo model</button>
+            </p>
+          }
         </div>
 
         <!-- ================= Browse & filter (M47/M48) ================= -->
@@ -118,7 +124,15 @@
               [class.browse__qf--on]="quickFilter() === 'recommended'"
               (click)="setQuickFilter('recommended')"
             >
-              ✨ Recommended for this server
+              ✨ Recommended chat models
+            </button>
+            <button
+              type="button"
+              class="browse__qf"
+              [class.browse__qf--on]="quickFilter() === 'all-in-one'"
+              (click)="setQuickFilter('all-in-one')"
+            >
+              🪄 One model for both
             </button>
             <button
               type="button"
@@ -186,9 +200,16 @@
           </div>
 
           @if (visibleModels().length === 0 && !searching()) {
-            <p class="page-empty">
-              No models match these filters. Try "All" or search Hugging Face above.
-            </p>
+            @if (quickFilter() === 'all-in-one') {
+              <p class="page-empty">
+                No available model reliably does both chat (tool calling) and photos today.
+                Pick a chat model first, then a photo model — the expanded panel guides you.
+              </p>
+            } @else {
+              <p class="page-empty">
+                No models match these filters. Try "All" or search Hugging Face above.
+              </p>
+            }
           }
           <ul class="browse__list">
             @for (model of visibleModels(); track model.id) {
@@ -350,6 +371,14 @@
                               ? 'Already the photo model'
                               : 'Apply as photo model only'
                           }}
+                        </button>
+                      } @else if (model.role !== 'vision') {
+                        <button
+                          type="button"
+                          class="model-detail__as-photo"
+                          (click)="pickPhotoModelNext()"
+                        >
+                          Next: pick a photo model →
                         </button>
                       }
                     </div>

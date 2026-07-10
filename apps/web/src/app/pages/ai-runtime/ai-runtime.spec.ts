@@ -33,7 +33,7 @@ const CATALOG = [
     parameters_b: 33,
     est_memory_gb: 70,
     est_disk_gb: 66,
-    tool_parser: 'hermes',
+    tool_parser: null,
     supports_vision: true,
     gated: false,
     notes: '',
@@ -272,7 +272,51 @@ describe('AiRuntime', () => {
     await component['setQuickFilter']('recommended');
     const ids = component['filteredModels']().map((m) => m.id);
     expect(ids).not.toContain('big/Huge-200B-Instruct'); // 400 GB does not fit 120
+    // M52: a photo model that can't call tools must never top the CHAT list.
+    expect(ids).not.toContain('Qwen/Qwen2.5-VL-32B-Instruct');
     expect(ids[0]).toBe('neat/Solid-40B-Instruct'); // strongest fitting, from the live list
+  });
+
+  it('all-in-one lists only dual-capable models, honest empty state otherwise', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    // Today's catalog has no model with BOTH vision and tool calling.
+    await component['setQuickFilter']('all-in-one');
+    expect(component['filteredModels']().length).toBe(0);
+
+    // A future dual-capable model appears automatically.
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'future/Dual-30B-VL-Instruct',
+            label: 'Dual 30B',
+            role: 'both',
+            parameters_b: 30,
+            est_memory_gb: 62,
+            est_disk_gb: 58,
+            tool_parser: 'hermes',
+            supports_vision: true,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
+    await component['setQuickFilter']('all-in-one');
+    expect(component['filteredModels']().map((m) => m.id)).toEqual([
+      'future/Dual-30B-VL-Instruct',
+    ]);
+  });
+
+  it('guided pairing jumps to the vision filter and collapses the row', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    component['toggleExpand']('Qwen/Qwen2.5-32B-Instruct');
+    component['pickPhotoModelNext']();
+    expect(component['expandedId']()).toBeNull();
+    expect(component['quickFilter']()).toBe('vision-big');
   });
 
   it('vision quick filters sort vision-capable models by size', async () => {
