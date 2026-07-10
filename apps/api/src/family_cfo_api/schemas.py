@@ -165,6 +165,45 @@ class SavingsRate(BaseModel):
     average_monthly_spending: Money
 
 
+BudgetStatus = Literal["under", "warning", "over"]
+
+
+class Budget(BaseModel):
+    """M46: a monthly per-category envelope with current-month progress."""
+
+    id: str
+    category_id: str
+    category_name: str
+    limit: Money
+    spent: Money
+    remaining: Money
+    percent_used: int
+    status: BudgetStatus
+
+
+class BudgetListResponse(BaseModel):
+    budgets: list[Budget]
+
+
+class BudgetCreateRequest(BaseModel):
+    category_id: str
+    limit: Money
+
+
+class BudgetUpdateRequest(BaseModel):
+    limit: Money
+
+
+class BudgetSummary(BaseModel):
+    """M46: envelope health for the Overview alert card."""
+
+    envelope_count: int
+    over_count: int
+    warning_count: int
+    total_budgeted: Money
+    total_spent: Money
+
+
 class SpendingInsights(BaseModel):
     """M42: month-to-date spending vs the same period last month, plus top merchants."""
 
@@ -190,6 +229,7 @@ class HouseholdContext(BaseModel):
     top_goal: GoalProgress | None = None
     spending_insights: SpendingInsights | None = None
     savings_rate: SavingsRate | None = None
+    budget_summary: BudgetSummary | None = None
 
 
 class Account(BaseModel):

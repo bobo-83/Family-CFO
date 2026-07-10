@@ -597,7 +597,10 @@ def create_category(engine: Engine, household_id: str, name: str) -> CategoryRec
 
 
 def delete_category(engine: Engine, household_id: str, category_id: str) -> bool:
-    """Delete a category, first nulling it on any transactions that reference it."""
+    """Delete a category, first nulling it on any transactions that reference it.
+
+    Any budget envelope for the category (M46) is deleted with it.
+    """
     with engine.begin() as conn:
         exists = conn.execute(
             select(models.transaction_categories.c.id).where(
@@ -616,11 +619,140 @@ def delete_category(engine: Engine, household_id: str, category_id: str) -> bool
             .values(category_id=None)
         )
         conn.execute(
+            delete(models.budgets).where(
+                models.budgets.c.household_id == household_id,
+                models.budgets.c.category_id == category_id,
+            )
+        )
+        conn.execute(
             delete(models.transaction_categories).where(
                 models.transaction_categories.c.id == category_id
             )
         )
     return True
+
+
+# --- Budgets (M46) -------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetRecord:
+    id: str
+    category_id: str
+    category_name: str
+    limit_minor: int
+    currency: str
+
+
+def list_budgets(engine: Engine, household_id: str) -> list[BudgetRecord]:
+    query = (
+        select(
+            models.budgets.c.id,
+            models.budgets.c.category_id,
+            models.transaction_categories.c.name.label("category_name"),
+            models.budgets.c.limit_minor,
+            models.budgets.c.currency,
+        )
+        .select_from(models.budgets)
+        .join(
+            models.transaction_categories,
+            models.transaction_categories.c.id == models.budgets.c.category_id,
+        )
+        .where(models.budgets.c.household_id == household_id)
+        .order_by(models.transaction_categories.c.name)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [
+        BudgetRecord(
+            id=row.id,
+            category_id=row.category_id,
+            category_name=row.category_name,
+            limit_minor=row.limit_minor,
+            currency=row.currency,
+        )
+        for row in rows
+    ]
+
+
+def get_budget(engine: Engine, household_id: str, budget_id: str) -> BudgetRecord | None:
+    for budget in list_budgets(engine, household_id):
+        if budget.id == budget_id:
+            return budget
+    return None
+
+
+def budget_exists_for_category(engine: Engine, household_id: str, category_id: str) -> bool:
+    query = select(models.budgets.c.id).where(
+        models.budgets.c.household_id == household_id,
+        models.budgets.c.category_id == category_id,
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).first() is not None
+
+
+def create_budget(
+    engine: Engine, household_id: str, category_id: str, limit_minor: int, currency: str
+) -> str:
+    budget_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.budgets).values(
+                id=budget_id,
+                household_id=household_id,
+                category_id=category_id,
+                limit_minor=limit_minor,
+                currency=currency,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return budget_id
+
+
+def update_budget_limit(
+    engine: Engine, household_id: str, budget_id: str, limit_minor: int
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.budgets)
+            .where(
+                models.budgets.c.household_id == household_id,
+                models.budgets.c.id == budget_id,
+            )
+            .values(limit_minor=limit_minor, updated_at=utcnow())
+        )
+    return result.rowcount > 0
+
+
+def delete_budget(engine: Engine, household_id: str, budget_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.budgets).where(
+                models.budgets.c.household_id == household_id,
+                models.budgets.c.id == budget_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def sum_spending_by_category(
+    engine: Engine, household_id: str, start: date, end: date, currency: str
+) -> dict[str, int]:
+    """Outflow (positive) per category id over [start, end]; uncategorized excluded."""
+    total = func.sum(-models.transactions.c.amount_minor).label("total")
+    query = (
+        select(models.transactions.c.category_id, total)
+        .where(
+            _spending_window(household_id, start, end, currency),
+            models.transactions.c.category_id.is_not(None),
+        )
+        .group_by(models.transactions.c.category_id)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return {row.category_id: int(row.total) for row in rows}
 
 
 # --- Spending insights (M42) -------------------------------------------------

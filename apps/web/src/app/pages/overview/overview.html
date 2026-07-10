@@ -238,6 +238,29 @@
           </div>
         }
 
+        @if (context.budget_summary; as budgets) {
+          <div class="overview__card">
+            <span class="overview__label">Budgets</span>
+            @if (budgets.over_count > 0) {
+              <span class="overview__value overview__value--negative">
+                {{ budgets.over_count }} over budget
+              </span>
+            } @else if (budgets.warning_count > 0) {
+              <span class="overview__value overview__value--warning">
+                {{ budgets.warning_count }} almost at the limit
+              </span>
+            } @else {
+              <span class="overview__value overview__value--positive">All on track</span>
+            }
+            <span class="overview__detail">
+              {{ formatMoney(budgets.total_spent) }} of
+              {{ formatMoney(budgets.total_budgeted) }} across
+              {{ budgets.envelope_count }} envelopes ·
+              <a routerLink="/budgets">manage</a>
+            </span>
+          </div>
+        }
+
         <div class="overview__card overview__card--wide">
           <span class="overview__label">
             Upcoming bills

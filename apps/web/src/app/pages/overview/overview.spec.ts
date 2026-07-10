@@ -104,6 +104,13 @@ describe('Overview', () => {
           monthly_income: { amount_minor: 600_000, currency: 'USD' },
           average_monthly_spending: { amount_minor: 210_000, currency: 'USD' },
         },
+        budget_summary: {
+          envelope_count: 3,
+          over_count: 1,
+          warning_count: 1,
+          total_budgeted: { amount_minor: 200_000, currency: 'USD' },
+          total_spent: { amount_minor: 150_000, currency: 'USD' },
+        },
       }),
     );
 
@@ -144,6 +151,9 @@ describe('Overview', () => {
     expect(text).toContain('Whole Foods');
     // Savings rate on the cash-flow card.
     expect(text).toContain('Savings rate 65%');
+    // Budget summary: over-budget count leads.
+    expect(text).toContain('1 over budget');
+    expect(text).toContain('3 envelopes');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {

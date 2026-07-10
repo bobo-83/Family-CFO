@@ -194,6 +194,21 @@ account_balances = Table(
 )
 
 # M40: one net-worth snapshot per household per day, for the Overview trend.
+# M46: one monthly budget envelope per spending category. No rollover — the
+# limit resets each calendar month (product decision 2026-07-09).
+budgets = Table(
+    "budgets",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=False),
+    Column("limit_minor", BigInteger, nullable=False),
+    _currency_column(),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("household_id", "category_id", name="uq_budgets_household_category"),
+)
+
 net_worth_snapshots = Table(
     "net_worth_snapshots",
     metadata,

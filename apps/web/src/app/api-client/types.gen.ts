@@ -176,6 +176,54 @@ export type HouseholdContext = {
      * M44: recurring income vs trailing-3-month average actual spending.
      */
     savings_rate?: SavingsRate;
+    /**
+     * M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
+     */
+    budget_summary?: BudgetSummary;
+};
+
+export type Budget = {
+    id: string;
+    category_id: string;
+    category_name: string;
+    limit: Money;
+    /**
+     * Outflow in this category during the current calendar month.
+     */
+    spent: Money;
+    /**
+     * limit − spent; negative when over budget.
+     */
+    remaining: Money;
+    /**
+     * Raw spent/limit percent; may exceed 100.
+     */
+    percent_used: number;
+    status: 'under' | 'warning' | 'over';
+};
+
+export type BudgetListResponse = {
+    budgets: Array<Budget>;
+};
+
+export type BudgetCreateRequest = {
+    category_id: string;
+    limit: Money;
+};
+
+export type BudgetUpdateRequest = {
+    limit: Money;
+};
+
+export type BudgetSummary = {
+    envelope_count: number;
+    over_count: number;
+    /**
+     * Envelopes at ≥80% of their limit (but not over).
+     */
+    warning_count: number;
+    total_budgeted: Money;
+    total_spent: Money;
 };
 
 export type SavingsRate = {
@@ -1567,6 +1615,146 @@ export type DeleteCategoryResponses = {
 };
 
 export type DeleteCategoryResponse = DeleteCategoryResponses[keyof DeleteCategoryResponses];
+
+export type ListBudgetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/budgets';
+};
+
+export type ListBudgetsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListBudgetsError = ListBudgetsErrors[keyof ListBudgetsErrors];
+
+export type ListBudgetsResponses = {
+    /**
+     * Budgets
+     */
+    200: BudgetListResponse;
+};
+
+export type ListBudgetsResponse = ListBudgetsResponses[keyof ListBudgetsResponses];
+
+export type CreateBudgetData = {
+    body: BudgetCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/budgets';
+};
+
+export type CreateBudgetErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateBudgetError = CreateBudgetErrors[keyof CreateBudgetErrors];
+
+export type CreateBudgetResponses = {
+    /**
+     * Budget created
+     */
+    201: Budget;
+};
+
+export type CreateBudgetResponse = CreateBudgetResponses[keyof CreateBudgetResponses];
+
+export type DeleteBudgetData = {
+    body?: never;
+    path: {
+        budget_id: string;
+    };
+    query?: never;
+    url: '/budgets/{budget_id}';
+};
+
+export type DeleteBudgetErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteBudgetError = DeleteBudgetErrors[keyof DeleteBudgetErrors];
+
+export type DeleteBudgetResponses = {
+    /**
+     * Budget deleted
+     */
+    204: void;
+};
+
+export type DeleteBudgetResponse = DeleteBudgetResponses[keyof DeleteBudgetResponses];
+
+export type UpdateBudgetData = {
+    body: BudgetUpdateRequest;
+    path: {
+        budget_id: string;
+    };
+    query?: never;
+    url: '/budgets/{budget_id}';
+};
+
+export type UpdateBudgetErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateBudgetError = UpdateBudgetErrors[keyof UpdateBudgetErrors];
+
+export type UpdateBudgetResponses = {
+    /**
+     * Budget updated
+     */
+    200: Budget;
+};
+
+export type UpdateBudgetResponse = UpdateBudgetResponses[keyof UpdateBudgetResponses];
 
 export type ListBillsData = {
     body?: never;

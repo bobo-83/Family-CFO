@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, finance_service, repository
+from family_cfo_api.api.budgets import budgets_with_progress
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     AssetCategoryTotal,
+    BudgetSummary,
     EmergencyFundSummary,
     ErrorResponse,
     GoalProgress,
@@ -144,6 +146,24 @@ def _savings_rate(
     )
 
 
+def _budget_summary(engine: Engine, household_id: str, currency: str) -> BudgetSummary | None:
+    """M46: envelope health for the Overview; None when no budgets exist."""
+    budgets = budgets_with_progress(engine, household_id, currency)
+    if not budgets:
+        return None
+    return BudgetSummary(
+        envelope_count=len(budgets),
+        over_count=sum(1 for b in budgets if b.status == "over"),
+        warning_count=sum(1 for b in budgets if b.status == "warning"),
+        total_budgeted=MoneySchema(
+            amount_minor=sum(b.limit.amount_minor for b in budgets), currency=currency
+        ),
+        total_spent=MoneySchema(
+            amount_minor=sum(b.spent.amount_minor for b in budgets), currency=currency
+        ),
+    )
+
+
 def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
     """M41: the highest-priority goal (list_goals is priority-ordered) with progress."""
     goals = repository.list_goals(engine, household_id)
@@ -229,6 +249,7 @@ async def get_household_context(
         top_goal=_top_goal(engine, household.id),
         spending_insights=_spending_insights(engine, household.id, currency),
         savings_rate=_savings_rate(engine, household.id, currency),
+        budget_summary=_budget_summary(engine, household.id, currency),
     )
 
 
