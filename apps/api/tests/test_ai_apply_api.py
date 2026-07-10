@@ -198,3 +198,49 @@ async def test_search_pipeline_validation_and_limit_clamp(
     )
     assert clamped.status_code == 200
     assert captured[-1]["limit"] == 30  # clamped to the max
+
+
+# --- M49: quantization-aware size estimates -------------------------------------
+
+
+@pytest.mark.anyio
+async def test_search_estimates_respect_quant_markers(demo_client, demo_token, monkeypatch) -> None:
+    def fake_get(url, params=None, timeout=None):
+        payload = (
+            [
+                {"modelId": "Qwen/Qwen3.6-35B-A3B-FP8", "gated": False},
+                {"modelId": "Qwen/Qwen2.5-32B-Instruct-AWQ", "gated": False},
+                {"modelId": "Qwen/Qwen2.5-14B-Instruct", "gated": False},
+            ]
+            if params["pipeline_tag"] == "text-generation"
+            else []
+        )
+        return httpx.Response(200, json=payload, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/search?q=qwen", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    models = {m["id"]: m for m in resp.json()["models"]}
+
+    # FP8 ~= 1.1 GB/B, not the bf16 2.1 that doubled the screenshot's estimate.
+    assert models["Qwen/Qwen3.6-35B-A3B-FP8"]["est_memory_gb"] == round(35 * 1.1)
+    assert "8-bit" in models["Qwen/Qwen3.6-35B-A3B-FP8"]["notes"]
+    # AWQ ~= 0.65 GB/B.
+    assert models["Qwen/Qwen2.5-32B-Instruct-AWQ"]["est_memory_gb"] == round(32 * 0.65)
+    assert "4-bit" in models["Qwen/Qwen2.5-32B-Instruct-AWQ"]["notes"]
+    # Unquantized stays bf16.
+    assert models["Qwen/Qwen2.5-14B-Instruct"]["est_memory_gb"] == round(14 * 2.1)
+    assert "bf16" in models["Qwen/Qwen2.5-14B-Instruct"]["notes"]
+
+
+@pytest.mark.anyio
+async def test_catalog_includes_the_72b_vision_options(demo_client, demo_token) -> None:
+    resp = await demo_client.get(
+        "/api/v1/ai/models", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    models = {m["id"]: m for m in resp.json()["models"]}
+    assert models["Qwen/Qwen2.5-VL-72B-Instruct"]["supports_vision"] is True
+    awq = models["Qwen/Qwen2.5-VL-72B-Instruct-AWQ"]
+    assert awq["supports_vision"] is True
+    assert awq["est_memory_gb"] == 45  # fits ~120GB unified boxes
