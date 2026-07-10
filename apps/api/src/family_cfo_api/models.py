@@ -216,6 +216,10 @@ transaction_categories = Table(
         "parent_category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True
     ),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    # M45: category names are unique within a household.
+    UniqueConstraint(
+        "household_id", "name", name="uq_transaction_categories_household_name"
+    ),
 )
 
 transactions = Table(

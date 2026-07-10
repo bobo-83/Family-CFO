@@ -28,6 +28,15 @@
       Description
       <input type="text" formControlName="description" />
     </label>
+    <label>
+      Category
+      <select formControlName="categoryId">
+        <option value="">Uncategorized</option>
+        @for (category of categories.value() ?? []; track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+    </label>
     <button type="submit" [disabled]="submitting()">Add transaction</button>
     @if (submitError()) {
       <p class="txn-form__error">{{ submitError() }}</p>
@@ -59,7 +68,25 @@
         <tr>
           <td>{{ txn.occurred_at }}</td>
           <td>{{ txn.merchant ?? '—' }}</td>
-          <td>{{ txn.category ?? '—' }}</td>
+          <td>
+            @if (canWrite()) {
+              <select
+                class="txn-table__category"
+                [value]="txn.category_id ?? ''"
+                (change)="setCategory(txn.id, $event)"
+                aria-label="Transaction category"
+              >
+                <option value="">Uncategorized</option>
+                @for (category of categories.value() ?? []; track category.id) {
+                  <option [value]="category.id" [selected]="category.id === txn.category_id">
+                    {{ category.name }}
+                  </option>
+                }
+              </select>
+            } @else {
+              {{ txn.category ?? '—' }}
+            }
+          </td>
           <td class="txn-table__amount">{{ formatMoney(txn.amount) }}</td>
           @if (canWrite()) {
             <td>

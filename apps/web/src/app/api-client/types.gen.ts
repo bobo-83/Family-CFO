@@ -81,7 +81,21 @@ export type Transaction = {
     amount: Money;
     merchant?: string;
     category?: string;
+    category_id?: string;
     description?: string;
+};
+
+export type Category = {
+    id: string;
+    name: string;
+};
+
+export type CategoryListResponse = {
+    categories: Array<Category>;
+};
+
+export type CategoryCreateRequest = {
+    name: string;
 };
 
 export type Bill = {
@@ -544,6 +558,10 @@ export type TransactionCreateRequest = {
     amount: Money;
     merchant?: string;
     description?: string;
+    /**
+     * M45: assign a spending category.
+     */
+    category_id?: string;
 };
 
 export type TransactionUpdateRequest = {
@@ -552,6 +570,14 @@ export type TransactionUpdateRequest = {
     amount?: Money;
     merchant?: string;
     description?: string;
+    /**
+     * M45: assign a spending category.
+     */
+    category_id?: string;
+    /**
+     * M45: remove the category from this transaction.
+     */
+    clear_category?: boolean;
 };
 
 export type BillCreateRequest = {
@@ -1448,6 +1474,99 @@ export type UpdateTransactionResponses = {
 };
 
 export type UpdateTransactionResponse = UpdateTransactionResponses[keyof UpdateTransactionResponses];
+
+export type ListCategoriesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/categories';
+};
+
+export type ListCategoriesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListCategoriesError = ListCategoriesErrors[keyof ListCategoriesErrors];
+
+export type ListCategoriesResponses = {
+    /**
+     * Categories
+     */
+    200: CategoryListResponse;
+};
+
+export type ListCategoriesResponse = ListCategoriesResponses[keyof ListCategoriesResponses];
+
+export type CreateCategoryData = {
+    body: CategoryCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/categories';
+};
+
+export type CreateCategoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateCategoryError = CreateCategoryErrors[keyof CreateCategoryErrors];
+
+export type CreateCategoryResponses = {
+    /**
+     * Category created
+     */
+    201: Category;
+};
+
+export type CreateCategoryResponse = CreateCategoryResponses[keyof CreateCategoryResponses];
+
+export type DeleteCategoryData = {
+    body?: never;
+    path: {
+        category_id: string;
+    };
+    query?: never;
+    url: '/categories/{category_id}';
+};
+
+export type DeleteCategoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteCategoryError = DeleteCategoryErrors[keyof DeleteCategoryErrors];
+
+export type DeleteCategoryResponses = {
+    /**
+     * Category deleted
+     */
+    204: void;
+};
+
+export type DeleteCategoryResponse = DeleteCategoryResponses[keyof DeleteCategoryResponses];
 
 export type ListBillsData = {
     body?: never;

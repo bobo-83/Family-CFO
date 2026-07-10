@@ -41,6 +41,7 @@ describe('Transactions', () => {
           }),
         ),
       listTransactions: vi.fn().mockResolvedValue(response({ transactions: [] })),
+      listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
       createTransaction: vi.fn().mockResolvedValue(response({ id: 't1' })),
     };
     configure(apiMock, 'adult');
@@ -57,6 +58,7 @@ describe('Transactions', () => {
       amount: -35.5,
       merchant: 'Grocer',
       description: '',
+      categoryId: '',
     });
     await component['submit']();
 
@@ -66,6 +68,7 @@ describe('Transactions', () => {
       amount: { amount_minor: -3550, currency: 'USD' },
       merchant: 'Grocer',
       description: undefined,
+      category_id: undefined,
     });
   });
 
@@ -73,6 +76,7 @@ describe('Transactions', () => {
     const apiMock = {
       listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
       listTransactions: vi.fn().mockResolvedValue(response({ transactions: [] })),
+      listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
     };
     configure(apiMock, 'viewer');
 

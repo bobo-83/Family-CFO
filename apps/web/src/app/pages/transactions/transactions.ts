@@ -42,12 +42,23 @@ export class Transactions {
     },
   });
 
+  protected readonly categories = resource({
+    loader: async () => {
+      const { data, error } = await this.api.listCategories();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load categories.'));
+      }
+      return data.categories;
+    },
+  });
+
   protected readonly form = this.formBuilder.nonNullable.group({
     accountId: ['', Validators.required],
     occurredAt: ['', Validators.required],
     amount: [0, [Validators.required]],
     merchant: [''],
     description: [''],
+    categoryId: [''],
   });
 
   protected readonly submitting = signal(false);
@@ -66,13 +77,15 @@ export class Transactions {
 
     this.submitting.set(true);
     this.submitError.set(null);
-    const { accountId, occurredAt, amount, merchant, description } = this.form.getRawValue();
+    const { accountId, occurredAt, amount, merchant, description, categoryId } =
+      this.form.getRawValue();
     const { error } = await this.api.createTransaction({
       account_id: accountId,
       occurred_at: occurredAt,
       amount: { amount_minor: Math.round(amount * 100), currency: account.balance.currency },
       merchant: merchant || undefined,
       description: description || undefined,
+      category_id: categoryId || undefined,
     });
     this.submitting.set(false);
 
@@ -80,7 +93,28 @@ export class Transactions {
       this.submitError.set(apiErrorMessage(error, 'Failed to create transaction.'));
       return;
     }
-    this.form.reset({ accountId: '', occurredAt: '', amount: 0, merchant: '', description: '' });
+    this.form.reset({
+      accountId: '',
+      occurredAt: '',
+      amount: 0,
+      merchant: '',
+      description: '',
+      categoryId: '',
+    });
+    this.transactions.reload();
+  }
+
+  /** M45: assign or clear a transaction's category inline. */
+  protected async setCategory(id: string, event: Event): Promise<void> {
+    const value = (event.target as HTMLSelectElement).value;
+    const { error } = await this.api.updateTransaction(
+      id,
+      value ? { category_id: value } : { clear_category: true },
+    );
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, 'Failed to update category.'));
+      return;
+    }
     this.transactions.reload();
   }
 

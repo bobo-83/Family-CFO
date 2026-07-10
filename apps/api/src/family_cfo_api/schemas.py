@@ -215,7 +215,21 @@ class Transaction(BaseModel):
     amount: Money
     merchant: str | None = None
     category: str | None = None
+    category_id: str | None = None
     description: str | None = None
+
+
+class Category(BaseModel):
+    id: str
+    name: str
+
+
+class CategoryListResponse(BaseModel):
+    categories: list[Category]
+
+
+class CategoryCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
 
 
 class Bill(BaseModel):
@@ -560,6 +574,7 @@ class TransactionCreateRequest(BaseModel):
     amount: Money
     merchant: str | None = None
     description: str | None = None
+    category_id: str | None = None
 
 
 class TransactionUpdateRequest(BaseModel):
@@ -568,6 +583,8 @@ class TransactionUpdateRequest(BaseModel):
     amount: Money | None = None
     merchant: str | None = None
     description: str | None = None
+    category_id: str | None = None
+    clear_category: bool = False
 
 
 class BillCreateRequest(BaseModel):
