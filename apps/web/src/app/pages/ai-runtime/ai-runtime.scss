@@ -554,8 +554,26 @@
   color: var(--color-warning);
 }
 
-.model-detail .picker__apply {
-  align-self: flex-start;
+.model-detail__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.model-detail__as-photo {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 }
 
 .browse__loading {
