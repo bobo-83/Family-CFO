@@ -54,3 +54,24 @@ def test_vision_capable_main_gets_no_second_arg() -> None:
     with patch.object(manager.subprocess, "run", return_value=fake) as run:
         manager._run_swap("Qwen/Qwen2.5-VL-32B-Instruct", None)
         assert run.call_args.args[0] == ["bash", "scripts/swap-model.sh", "Qwen/Qwen2.5-VL-32B-Instruct"]
+
+
+# --- M50: read-only log access -----------------------------------------------
+
+
+def test_logs_rejects_unknown_services() -> None:
+    client = TestClient(manager.app)
+    assert client.get("/logs", params={"service": "db"}).status_code == 422
+    assert client.get("/logs", params={"service": "vllm; rm -rf /"}).status_code == 422
+
+
+def test_logs_runs_compose_logs_for_allowlisted_service() -> None:
+    fake = type("R", (), {"returncode": 0, "stdout": "line1\nline2", "stderr": ""})()
+    with patch.object(manager.subprocess, "run", return_value=fake) as run:
+        client = TestClient(manager.app)
+        resp = client.get("/logs", params={"service": "vllm", "tail": 500})
+        assert resp.status_code == 200
+        assert resp.json()["lines"] == "line1\nline2"
+        cmd = run.call_args.args[0]
+        # Tail clamped to the max; only the fixed, allowlisted service name.
+        assert cmd == ["docker", "compose", "logs", "--no-color", "--tail", "200", "vllm"]

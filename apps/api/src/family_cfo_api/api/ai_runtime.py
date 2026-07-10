@@ -102,6 +102,63 @@ def _probe_served_model(base_url: str) -> tuple[bool, str | None]:
         return False, None
 
 
+# --- M50: explain what "loading" actually means -------------------------------
+
+_ERROR_MARKERS = ("ValueError", "RuntimeError", "CUDA out of memory", "Traceback", "Error:")
+_DOWNLOAD_RE = re.compile(r"([\w.-]+\.safetensors)[^\n]*?(\d{1,3})%")
+_SHARDS_RE = re.compile(r"Loading safetensors checkpoint shards[^\n]*?(\d{1,3})\s*%")
+
+
+def classify_vllm_logs(text: str) -> tuple[str, str] | None:
+    """Map a vLLM log tail to (phase, human detail). Pure; unit-tested."""
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    # A crash beats everything: surface the last error-ish line.
+    for line in reversed(lines):
+        if any(marker in line for marker in _ERROR_MARKERS):
+            cleaned = line.split(")", 1)[-1].strip() if "(EngineCore" in line else line
+            # Drop compose prefixes like "vllm-1  | ".
+            cleaned = cleaned.split("| ", 1)[-1].strip()
+            return "error", cleaned[:300]
+
+    shard = None
+    for match in _SHARDS_RE.finditer(text):
+        shard = match.group(1)
+    if shard is not None:
+        return "loading", f"Loading weights into memory — {shard}%"
+
+    download = None
+    for match in _DOWNLOAD_RE.finditer(text):
+        download = match
+    if download is not None:
+        return "downloading", f"Downloading {download.group(1)} — {download.group(2)}%"
+    if "Downloading" in text or "download" in text.lower():
+        return "downloading", "Downloading model weights…"
+
+    if "Capturing CUDA graph" in text or "torch.compile" in text or "Warming up" in text:
+        return "warming_up", "Warming up (compiling kernels)…"
+
+    return "starting", "Starting the engine…"
+
+
+def _loading_status_from_manager(settings: Settings) -> tuple[str, str] | None:
+    """Fetch the vLLM log tail via the model manager and classify it."""
+    if not settings.model_manager_url:
+        return None
+    try:
+        response = httpx.get(
+            f"{settings.model_manager_url.rstrip('/')}/logs",
+            params={"service": "vllm", "tail": 40},
+            timeout=_HF_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        return classify_vllm_logs(response.json().get("lines", ""))
+    except (httpx.HTTPError, ValueError):
+        return None
+
+
 @router.get(
     "/ai/runtime/status",
     operation_id="getAiRuntimeStatus",
@@ -134,11 +191,20 @@ async def get_ai_runtime_status(
         )
 
     ready, served_model = _probe_served_model(config.base_url)
-    detail = (
-        f"AI model '{served_model or config.model}' is loaded and answering."
-        if ready
-        else "AI model is starting up (still loading); answers are deterministic until it is ready."
-    )
+    loading_phase: str | None = None
+    loading_detail: str | None = None
+    if ready:
+        detail = f"AI model '{served_model or config.model}' is loaded and answering."
+    else:
+        detail = (
+            "AI model is starting up (still loading); answers are deterministic "
+            "until it is ready."
+        )
+        # M50: say what "loading" actually means (or that it crashed).
+        if config.provider == "vllm":
+            classified = _loading_status_from_manager(settings)
+            if classified is not None:
+                loading_phase, loading_detail = classified
 
     # Vision (ADR 0011): the main model if marked vision-capable, else the describer.
     vision_ready = False
@@ -159,6 +225,8 @@ async def get_ai_runtime_status(
         vision_ready=vision_ready,
         vision_model=vision_model,
         vision_enabled=vision_enabled,
+        loading_phase=loading_phase,
+        loading_detail=loading_detail,
     )
 
 

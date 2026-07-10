@@ -3330,6 +3330,15 @@ components:
           nullable: true
         vision_enabled:
           type: boolean
+        loading_phase:
+          description: "M50: what 'loading' actually means, classified from the vLLM log tail."
+          type: string
+          enum: [downloading, loading, warming_up, error, starting]
+          nullable: true
+        loading_detail:
+          description: Human detail (download %, shard %, or the crash line).
+          type: string
+          nullable: true
     AiModelInfo:
       type: object
       required:

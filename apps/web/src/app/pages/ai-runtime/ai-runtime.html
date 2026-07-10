@@ -27,10 +27,26 @@
               <span
                 class="now-serving__state"
                 [class.now-serving__state--ok]="status.value()?.ready"
+                [class.now-serving__state--error]="status.value()?.loading_phase === 'error'"
               >
-                {{ status.value()?.ready ? '● active' : '○ loading / off' }}
+                @if (status.value()?.ready) {
+                  ● active
+                } @else if (status.value()?.loading_phase === 'error') {
+                  ✕ failed to start
+                } @else {
+                  ○ {{ statusPhaseLabel() }}
+                }
               </span>
             </div>
+            <!-- M50: what "loading" actually means (download %, shard %, or a crash) -->
+            @if (!status.value()?.ready && status.value()?.loading_detail; as loadingDetail) {
+              <p
+                class="now-serving__phase"
+                [class.now-serving__phase--error]="status.value()?.loading_phase === 'error'"
+              >
+                {{ loadingDetail }}
+              </p>
+            }
             <div class="now-serving__row">
               <span class="now-serving__label">Photo model</span>
               <span class="now-serving__model">{{ status.value()?.vision_model || 'off' }}</span>

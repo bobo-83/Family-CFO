@@ -82,6 +82,32 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+# M50: read-only container log access so the API can explain what "loading"
+# actually means (downloading / loading weights / crashed). Allowlisted
+# service names only — never caller-supplied strings.
+_LOG_SERVICES = {"vllm", "vllm-vision"}
+
+
+@app.get("/logs")
+def logs(service: str, tail: int = 30) -> dict:
+    if service not in _LOG_SERVICES:
+        raise HTTPException(status_code=422, detail="unknown service")
+    tail = max(1, min(tail, 200))
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "logs", "--no-color", "--tail", str(tail), service],
+            cwd=PROJECT_DIR,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=503, detail="log read timed out") from exc
+    if result.returncode != 0:
+        raise HTTPException(status_code=503, detail="log read failed")
+    return {"lines": result.stdout[-LOG_TAIL_CHARS:]}
+
+
 @app.get("/status", response_model=SwapStatus)
 def status() -> SwapStatus:
     with _lock:

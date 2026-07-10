@@ -150,6 +150,11 @@ services:
       # the vllm-vision describer below (ADR 0011).
       - "--gpu-memory-utilization"
       - "${VLLM_GPU_FRACTION:-0.60}"
+      # Cap the context window: models shipping 128k defaults (e.g. VL-72B)
+      # need ~39 GiB of KV cache at full length and crash-loop on startup.
+      # 32k is ample for chat + tool calls and keeps KV under ~10 GiB.
+      - "--max-model-len"
+      - "${VLLM_MAX_MODEL_LEN:-32768}"
     environment:
       # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
