@@ -57,54 +57,6 @@
   }
 }
 
-.picker__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.75rem;
-}
-
-.picker__card {
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.8rem 0.9rem;
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: border-color 120ms ease;
-
-  &:hover {
-    border-color: var(--color-accent);
-  }
-
-  &--selected {
-    border-color: var(--color-accent);
-    background: var(--color-accent-soft);
-  }
-}
-
-.picker__label {
-  font-weight: 650;
-}
-
-.picker__meta {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.picker__notes {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
-.picker__vision-note {
-  color: var(--color-success);
-  font-size: 0.9rem;
-}
-
 .fit {
   margin-top: 1.25rem;
   background: var(--color-surface);
@@ -211,11 +163,15 @@
 .hf-search {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 
   input {
     flex: 1;
     min-width: 0;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 16px; /* <16px triggers iOS focus-zoom — keep explicit here */
   }
 
   button {
@@ -301,4 +257,300 @@
   display: inline;
   padding: 0.15rem 0.45rem;
   font-size: 0.78rem;
+}
+
+/* --- Now serving + pinned selection (M47) ----------------------------------- */
+
+.now-serving,
+.selection,
+.browse {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.05rem;
+  }
+}
+
+.now-serving__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.now-serving__row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 6rem 1fr;
+  }
+}
+
+.now-serving__label {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.now-serving__model {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.now-serving__state {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+
+  &--ok {
+    color: var(--color-success);
+  }
+}
+
+.selection__chips {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.selection__chip {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+}
+
+.selection__chip-role {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.selection__chip-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.selection__chip-meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.selection__chip-clear {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:disabled {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    cursor: default;
+  }
+}
+
+/* --- Browse: quick filters, facets, compact rows (M47) ----------------------- */
+
+.browse__quick {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.browse__qf {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+
+  &--on {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+  }
+}
+
+.browse__facets {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  select {
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 16px; /* iOS focus-zoom threshold */
+  }
+}
+
+.browse__fits input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.browse__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.model-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+
+  &--selected {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr auto;
+
+    &__select {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+}
+
+.model-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.model-row__label {
+  font-weight: 600;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.model-row__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.model-row__fit {
+  font-size: 0.95rem;
+}
+
+.model-row__select {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-accent);
+    color: white;
+  }
+}
+
+.browse__more {
+  margin-top: 0.6rem;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* --- Advanced: current combination + vision mini-form (M47) ------------------ */
+
+.advanced__current {
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.advanced__vision {
+  margin-top: 1.25rem;
+  max-width: 32rem;
+
+  h3 {
+    margin: 0 0 0.3rem;
+    font-size: 0.95rem;
+  }
+}
+
+.advanced__vision-note {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 0 0 0.5rem;
+}
+
+.advanced__vision-form {
+  display: flex;
+  gap: 0.5rem;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid #ccd2da;
+    border-radius: 6px;
+    font-size: 16px; /* iOS focus-zoom threshold */
+  }
+
+  button {
+    padding: 0.45rem 0.9rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
 }

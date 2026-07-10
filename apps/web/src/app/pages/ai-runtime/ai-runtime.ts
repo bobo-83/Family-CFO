@@ -1,5 +1,5 @@
 import { Component, computed, DestroyRef, effect, inject, resource, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AiModelInfo, AiRuntimeConfig, AiSwapStatus } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -10,11 +10,17 @@ const PROVIDERS: AiRuntimeConfig['provider'][] = ['vllm', 'ollama', 'llama_cpp',
 /** Extra memory beyond the weights for KV cache / runtime overhead (ADR 0012). */
 const HEADROOM = 1.15;
 
+/** How many browse rows show before "Show more" (M47: no more endless grids). */
+const PAGE_SIZE = 6;
+
+const PARAMS_IN_NAME = /(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)/;
+
 export type FitVerdict = 'fits' | 'tight' | 'no' | 'unknown';
+export type QuickFilter = 'recommended' | 'vision-big' | 'vision-small' | 'finance' | 'all';
 
 @Component({
   selector: 'app-ai-runtime',
-  imports: [ReactiveFormsModule],
+  imports: [FormsModule, ReactiveFormsModule],
   templateUrl: './ai-runtime.html',
   styleUrl: './ai-runtime.scss',
 })
@@ -60,20 +66,77 @@ export class AiRuntime {
     },
   });
 
+  // --- Known models (M47) -----------------------------------------------------
+  // Curated + HF search results + synthesized stubs for any ACTIVE or SELECTED
+  // id that is not otherwise loaded — an applied off-catalog model must never
+  // silently disappear from the page.
+
+  /** Estimate a model's shape from its id alone (same heuristics as the API). */
+  private stubModel(id: string, roleHint: 'main' | 'vision' = 'main'): AiModelInfo {
+    const name = id.split('/').pop() ?? id;
+    const match = PARAMS_IN_NAME.exec(name);
+    const params = match ? Number(match[1]) : 0;
+    const lower = id.toLowerCase();
+    const isVision = roleHint === 'vision' || lower.includes('-vl-') || lower.includes('vision');
+    return {
+      id,
+      label: `${name} (not in catalog)`,
+      role: isVision && roleHint === 'vision' ? 'vision' : isVision ? 'both' : 'main',
+      parameters_b: params,
+      est_memory_gb: params ? Math.round(params * 2.1) : 0,
+      est_disk_gb: params ? Math.round(params * 2) : 0,
+      tool_parser: isVision ? undefined : 'hermes',
+      supports_vision: isVision,
+      gated: false,
+      notes: 'Specs estimated from the model name.',
+    };
+  }
+
+  private readonly knownModels = computed<AiModelInfo[]>(() => {
+    const curated = this.catalog.value() ?? [];
+    const ids = new Set(curated.map((m) => m.id));
+    const merged = [...curated];
+    for (const model of this.searchResults()) {
+      if (!ids.has(model.id)) {
+        ids.add(model.id);
+        merged.push(model);
+      }
+    }
+    const ensure = (id: string | null | undefined, role: 'main' | 'vision') => {
+      if (id && id !== 'none' && !ids.has(id)) {
+        ids.add(id);
+        merged.push(this.stubModel(id, role));
+      }
+    };
+    ensure(this.config.value()?.model, 'main');
+    ensure(this.status.value()?.served_model, 'main');
+    ensure(this.status.value()?.vision_model, 'vision');
+    ensure(this.selectedMainId(), 'main');
+    ensure(this.selectedVisionId(), 'vision');
+    return merged;
+  });
+
+  protected byId(id: string | null | undefined): AiModelInfo | null {
+    if (!id || id === 'none') {
+      return null;
+    }
+    return this.knownModels().find((m) => m.id === id) ?? null;
+  }
+
   // --- Model selection (REPLACES the served models; never additive) ---------
 
   protected readonly selectedMainId = signal<string | null>(null);
   protected readonly selectedVisionId = signal<string>('none');
 
   protected readonly mainOptions = computed(() =>
-    this.allModels().filter((m) => m.role === 'main' || m.role === 'both'),
+    this.knownModels().filter((m) => m.role === 'main' || m.role === 'both'),
   );
   protected readonly visionOptions = computed(() =>
-    this.allModels().filter((m) => m.role === 'vision'),
+    this.knownModels().filter((m) => m.role === 'vision'),
   );
 
-  protected readonly selectedMain = computed<AiModelInfo | null>(
-    () => this.mainOptions().find((m) => m.id === this.selectedMainId()) ?? null,
+  protected readonly selectedMain = computed<AiModelInfo | null>(() =>
+    this.byId(this.selectedMainId()),
   );
 
   /** Vision model in play — hidden/ignored when the main model sees photos itself. */
@@ -81,7 +144,7 @@ export class AiRuntime {
     if (this.selectedVisionId() === 'none' || this.selectedMain()?.supports_vision) {
       return null;
     }
-    return this.visionOptions().find((m) => m.id === this.selectedVisionId()) ?? null;
+    return this.byId(this.selectedVisionId());
   });
 
   /** Live requirement for the SELECTED combination only (replacement semantics). */
@@ -138,6 +201,19 @@ export class AiRuntime {
     return required <= free ? 'tight' : 'no';
   });
 
+  /** Per-model memory fit badge for browse rows (individual, not combined). */
+  protected fitOf(model: AiModelInfo): FitVerdict {
+    const budget = this.memoryBudgetGb();
+    if (!model.est_memory_gb || budget == null) {
+      return 'unknown';
+    }
+    const required = model.est_memory_gb * HEADROOM;
+    if (required <= budget * 0.85) {
+      return 'fits';
+    }
+    return required <= budget ? 'tight' : 'no';
+  }
+
   /** The exact operator command that applies the selection (ADR 0012). */
   protected readonly swapCommand = computed(() => {
     const main = this.selectedMain();
@@ -164,6 +240,15 @@ export class AiRuntime {
 
   protected selectVision(id: string): void {
     this.selectedVisionId.set(id);
+  }
+
+  /** Role-aware select from the browse list (M47). */
+  protected selectFor(model: AiModelInfo): void {
+    if (model.role === 'vision') {
+      this.selectVision(model.id);
+    } else {
+      this.selectMain(model.id);
+    }
   }
 
   protected readonly savingSelection = signal(false);
@@ -217,14 +302,94 @@ export class AiRuntime {
       return;
     }
     this.searchResults.set(data.models);
+    // Fresh results: show them, not a stale preset slice.
+    this.quickFilter.set('all');
+    this.visibleCount.set(PAGE_SIZE);
   }
 
-  /** Curated catalog + HF results, deduped (curated entries win: checked specs). */
-  private readonly allModels = computed<AiModelInfo[]>(() => {
-    const curated = this.catalog.value() ?? [];
-    const ids = new Set(curated.map((m) => m.id));
-    return [...curated, ...this.searchResults().filter((m) => !ids.has(m.id))];
+  // --- Browse filters + sort (M47) --------------------------------------------
+
+  protected readonly quickFilter = signal<QuickFilter>('recommended');
+  protected readonly roleFilter = signal<'all' | 'main' | 'vision'>('all');
+  protected readonly onlyFits = signal(false);
+  protected readonly sortBy = signal<'default' | 'size-desc' | 'size-asc' | 'memory-asc'>(
+    'default',
+  );
+  protected readonly visibleCount = signal(PAGE_SIZE);
+
+  protected setQuickFilter(filter: QuickFilter): void {
+    this.quickFilter.set(filter);
+    this.visibleCount.set(PAGE_SIZE);
+  }
+
+  protected readonly filteredModels = computed<AiModelInfo[]>(() => {
+    let models = [...this.knownModels()];
+    let order: 'asc' | 'desc' | null = null;
+
+    switch (this.quickFilter()) {
+      case 'recommended':
+        // Strongest main model that actually fits this server.
+        models = models.filter(
+          (m) => (m.role === 'main' || m.role === 'both') && this.fitOf(m) !== 'no',
+        );
+        order = 'desc';
+        break;
+      case 'vision-big':
+        models = models.filter((m) => m.supports_vision);
+        order = 'desc';
+        break;
+      case 'vision-small':
+        models = models.filter((m) => m.supports_vision);
+        order = 'asc';
+        break;
+      case 'finance':
+        // Financial reasoning needs tool calling; strongest tool-capable first.
+        models = models.filter(
+          (m) => (m.role === 'main' || m.role === 'both') && Boolean(m.tool_parser),
+        );
+        order = 'desc';
+        break;
+      case 'all':
+        break;
+    }
+
+    const role = this.roleFilter();
+    if (role === 'main') {
+      models = models.filter((m) => m.role === 'main' || m.role === 'both');
+    } else if (role === 'vision') {
+      models = models.filter((m) => m.supports_vision);
+    }
+    if (this.onlyFits()) {
+      models = models.filter((m) => this.fitOf(m) === 'fits' || this.fitOf(m) === 'tight');
+    }
+
+    const sort = this.sortBy();
+    if (sort === 'size-desc') {
+      order = 'desc';
+    } else if (sort === 'size-asc') {
+      order = 'asc';
+    }
+    if (sort === 'memory-asc') {
+      models.sort((a, b) => (a.est_memory_gb || 1e9) - (b.est_memory_gb || 1e9));
+    } else if (order === 'desc') {
+      models.sort((a, b) => b.parameters_b - a.parameters_b);
+    } else if (order === 'asc') {
+      // Unknown sizes (0) sort last, not first.
+      models.sort((a, b) => (a.parameters_b || 1e9) - (b.parameters_b || 1e9));
+    }
+    return models;
   });
+
+  protected readonly visibleModels = computed(() =>
+    this.filteredModels().slice(0, this.visibleCount()),
+  );
+  protected readonly hiddenCount = computed(() =>
+    Math.max(0, this.filteredModels().length - this.visibleCount()),
+  );
+
+  protected showMore(): void {
+    this.visibleCount.update((count) => count + PAGE_SIZE);
+  }
 
   // --- One-click apply + live status (ADR 0013) -------------------------------
 
@@ -317,6 +482,35 @@ export class AiRuntime {
   protected readonly submitError = signal<string | null>(null);
   protected readonly submitSuccess = signal(false);
 
+  // M47: the vision model is deployment-level (swap path, ADR 0013), so the
+  // Advanced section changes it through the apply endpoint — not the raw PUT.
+  protected readonly visionModelInput = signal('');
+  protected readonly applyingVision = signal(false);
+  protected readonly visionApplyError = signal<string | null>(null);
+
+  protected async applyVisionModel(): Promise<void> {
+    const main = this.config.value()?.model;
+    if (!main || this.applyingVision()) {
+      return;
+    }
+    this.applyingVision.set(true);
+    this.visionApplyError.set(null);
+    const vision = this.visionModelInput().trim();
+    const { data, error } = await this.api.applyAiModelSelection({
+      main_model: main,
+      vision_model: vision || undefined,
+    });
+    this.applyingVision.set(false);
+    if (error || !data) {
+      this.visionApplyError.set(
+        apiErrorMessage(error, 'Could not start the vision swap. Is the model manager running?'),
+      );
+      return;
+    }
+    this.applyState.set(data);
+    this.startPolling();
+  }
+
   constructor() {
     inject(DestroyRef).onDestroy(() => this.stopPolling());
     effect(() => {
@@ -337,6 +531,9 @@ export class AiRuntime {
       const status = this.status.value();
       if (status?.vision_model && this.selectedVisionId() === 'none') {
         this.selectedVisionId.set(status.vision_model);
+      }
+      if (status?.vision_model && !this.visionModelInput()) {
+        this.visionModelInput.set(status.vision_model);
       }
     });
   }
