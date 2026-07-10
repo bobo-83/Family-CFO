@@ -75,6 +75,15 @@ describe('Overview', () => {
           percent_complete: 83,
           target_date: null,
         },
+        spending_insights: {
+          this_month: { amount_minor: 45_000, currency: 'USD' },
+          last_month: { amount_minor: 30_000, currency: 'USD' },
+          change_percent: 50,
+          top_merchants: [
+            { merchant: 'Whole Foods', amount: { amount_minor: 25_000, currency: 'USD' } },
+            { merchant: 'Other', amount: { amount_minor: 20_000, currency: 'USD' } },
+          ],
+        },
       }),
     );
 
@@ -108,6 +117,11 @@ describe('Overview', () => {
     expect(text).toContain('Emergency fund');
     const fill = host.querySelector('.overview__progress-fill') as HTMLElement;
     expect(fill.style.width).toBe('83%');
+    // Spending insights: this-month total, % change, and top merchants.
+    expect(text).toContain('Spending this month');
+    expect(text).toContain('USD 450.00');
+    expect(text).toContain('50% vs last month');
+    expect(text).toContain('Whole Foods');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {

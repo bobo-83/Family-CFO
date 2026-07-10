@@ -522,6 +522,55 @@ def list_transactions(
     ]
 
 
+# --- Spending insights (M42) -------------------------------------------------
+
+
+def _spending_window(household_id: str, start: date, end: date, currency: str):
+    """A predicate selecting outflows (negative amounts) in [start, end], base currency."""
+    return (
+        (models.transactions.c.household_id == household_id)
+        & (models.transactions.c.currency == currency)
+        & (models.transactions.c.amount_minor < 0)
+        & (models.transactions.c.occurred_at >= start)
+        & (models.transactions.c.occurred_at <= end)
+    )
+
+
+def sum_spending(
+    engine: Engine, household_id: str, start: date, end: date, currency: str
+) -> int:
+    """Total outflow (positive) over [start, end]; income is excluded."""
+    query = select(func.coalesce(func.sum(-models.transactions.c.amount_minor), 0)).where(
+        _spending_window(household_id, start, end, currency)
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
+@dataclass(frozen=True, slots=True)
+class MerchantSpend:
+    merchant: str
+    amount_minor: int
+
+
+def top_spending_merchants(
+    engine: Engine, household_id: str, start: date, end: date, currency: str, limit: int = 5
+) -> list[MerchantSpend]:
+    """Merchants ranked by outflow over [start, end]; NULL merchant folds into 'Other'."""
+    merchant = func.coalesce(models.transactions.c.merchant, "Other").label("merchant")
+    total = func.sum(-models.transactions.c.amount_minor).label("total")
+    query = (
+        select(merchant, total)
+        .where(_spending_window(household_id, start, end, currency))
+        .group_by(merchant)
+        .order_by(total.desc())
+        .limit(limit)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [MerchantSpend(merchant=row.merchant, amount_minor=int(row.total)) for row in rows]
+
+
 def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
     query = (
         select(models.bills)

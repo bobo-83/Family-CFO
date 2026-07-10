@@ -160,6 +160,11 @@
   transition: width 0.3s ease;
 }
 
+/* M42: top-merchant list reuses the breakdown layout */
+.overview__breakdown--merchants {
+  margin-top: 0.5rem;
+}
+
 /* M39: upcoming bills */
 .overview__bills {
   list-style: none;

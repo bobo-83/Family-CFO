@@ -1874,6 +1874,37 @@ components:
         top_goal:
           description: "M41: the highest-priority savings goal with progress, when one exists."
           $ref: "#/components/schemas/GoalProgress"
+        spending_insights:
+          description: "M42: month-to-date spending vs the same period last month, plus top merchants."
+          $ref: "#/components/schemas/SpendingInsights"
+    SpendingInsights:
+      type: object
+      required:
+        - this_month
+        - last_month
+      properties:
+        this_month:
+          $ref: "#/components/schemas/Money"
+        last_month:
+          $ref: "#/components/schemas/Money"
+        change_percent:
+          description: Percent change vs last month; null when last month was zero.
+          type: integer
+          nullable: true
+        top_merchants:
+          type: array
+          items:
+            $ref: "#/components/schemas/MerchantSpend"
+    MerchantSpend:
+      type: object
+      required:
+        - merchant
+        - amount
+      properties:
+        merchant:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
     GoalProgress:
       type: object
       required:
