@@ -340,6 +340,21 @@ def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     )
 
 
+# M53: deliberate size/quant fan-out — HF cannot sort by parameter count, so
+# "optimal for this server" needs hinted queries; the download charts alone
+# never surface big-but-unpopular models.
+_DEEP_HINTS = ("", "AWQ", "FP8", "70B", "72B", "90B", "110B", "A22B")
+
+
+def _fetch_hf_page(hub_url: str, pipe: str, q: str, limit: int) -> list[dict]:
+    params: dict[str, str | int] = {"pipeline_tag": pipe, "sort": "downloads", "limit": limit}
+    if q:
+        params["search"] = q
+    response = httpx.get(f"{hub_url}/api/models", params=params, timeout=_HF_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
+
+
 @router.get(
     "/ai/models/search",
     operation_id="searchAiModels",
@@ -354,32 +369,38 @@ async def search_ai_models(
     q: str = "",
     pipeline: str = "any",
     limit: int = 10,
+    deep: bool = False,
     session: repository.SessionContext = Depends(get_current_session),
     settings: Settings = Depends(get_app_settings),
 ) -> AiModelCatalog:
     # M48: an empty q returns the pipeline's most-downloaded models — the live
-    # lists behind the dashboard's quick filters.
+    # lists behind the dashboard's quick filters. M53: deep=true fans out over
+    # size/quant-hinted queries so the largest FITTING models surface too.
     if pipeline not in ("any", "text-generation", "image-text-to-text"):
         raise HTTPException(status_code=422, detail="invalid pipeline")
     limit = max(1, min(limit, 30))
     pipelines = (
         ("text-generation", "image-text-to-text") if pipeline == "any" else (pipeline,)
     )
+    queries: tuple[str, ...] = (q,) if not deep else tuple(
+        dict.fromkeys((q, *_DEEP_HINTS))  # user's q first, deduped, order kept
+    )
 
     models: list[AiModelInfo] = []
     seen: set[str] = set()
+    jobs = [(pipe, query) for pipe in pipelines for query in queries]
     try:
-        for pipe in pipelines:
-            params: dict[str, str | int] = {"pipeline_tag": pipe, "sort": "downloads", "limit": limit}
-            if q:
-                params["search"] = q
-            response = httpx.get(
-                f"{settings.hf_hub_url}/api/models",
-                params=params,
-                timeout=_HF_TIMEOUT_SECONDS,
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(8, len(jobs))) as pool:
+            pages = list(
+                pool.map(
+                    lambda job: _fetch_hf_page(settings.hf_hub_url, job[0], job[1], limit),
+                    jobs,
+                )
             )
-            response.raise_for_status()
-            for item in response.json():
+        for (pipe, _query), page in zip(jobs, pages):
+            for item in page:
                 mapped = _estimate_from_hf(item, pipe)
                 if mapped and mapped.id not in seen:
                     seen.add(mapped.id)
@@ -388,7 +409,7 @@ async def search_ai_models(
         raise HTTPException(
             status_code=503, detail="Hugging Face is unreachable; showing curated models only"
         ) from exc
-    return AiModelCatalog(models=models)
+    return AiModelCatalog(models=models[:120])
 
 
 @router.post(

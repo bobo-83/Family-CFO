@@ -2778,6 +2778,10 @@ export type SearchAiModelsData = {
         q?: string;
         pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
         limit?: number;
+        /**
+         * M53: fan out size/quant-hinted queries so the largest fitting models surface.
+         */
+        deep?: boolean;
     };
     url: '/ai/models/search';
 };

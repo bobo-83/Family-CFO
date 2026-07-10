@@ -366,6 +366,7 @@ export class ApiService {
     q?: string;
     pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
     limit?: number;
+    deep?: boolean;
   }) {
     return searchAiModels({ query: options });
   }
