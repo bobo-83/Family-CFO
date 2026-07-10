@@ -312,3 +312,36 @@ async def test_deep_search_fans_out_hinted_queries(demo_client, demo_token, monk
     # The user's query plus every hint, one pipeline only.
     assert searches == {"qwen", "", "AWQ", "FP8", "70B", "72B", "90B", "110B", "A22B"}
     assert all(pipe == "text-generation" for pipe, _q in captured)
+
+
+@pytest.mark.anyio
+async def test_search_drops_unservable_formats(demo_client, demo_token, monkeypatch) -> None:
+    """M54: MLX/GGUF/bnb repos cannot run on vLLM — never enter the pool."""
+
+    def fake_get(url, params=None, timeout=None):
+        payload = [
+            {"modelId": "mlx-community/Qwen1.5-110B-Chat-4bit", "gated": False},
+            {"modelId": "unsloth/Llama-3.2-90B-Vision-bnb-4bit", "gated": False},
+            {"modelId": "bartowski/Some-72B-GGUF", "gated": False},
+            {"modelId": "Qwen/Qwen2.5-72B-Instruct-AWQ", "gated": False},
+        ]
+        return httpx.Response(200, json=payload, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/search?q=72b&pipeline=text-generation",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    ids = [m["id"] for m in resp.json()["models"]]
+    assert ids == ["Qwen/Qwen2.5-72B-Instruct-AWQ"]
+
+
+@pytest.mark.anyio
+async def test_catalog_lists_the_text_72b_awq(demo_client, demo_token) -> None:
+    resp = await demo_client.get(
+        "/api/v1/ai/models", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    models = {m["id"]: m for m in resp.json()["models"]}
+    entry = models["Qwen/Qwen2.5-72B-Instruct-AWQ"]
+    assert entry["role"] == "main" and entry["tool_parser"] == "hermes"
+    assert entry["est_memory_gb"] == 47

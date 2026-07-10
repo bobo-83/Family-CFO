@@ -18,6 +18,11 @@ const LIVE_LIMIT = 20;
 
 const PARAMS_IN_NAME = /(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)/;
 
+/** Known-obsolete families: size ranking is generation-blind, so a 2024-era
+ *  110B would outrank a modern 72B. Excluded from the ranked recommendations
+ *  only — the "All" filter still shows everything (M54). */
+const LEGACY_FAMILIES = /qwen1[._-]?5|llama-?2\b|falcon|vicuna|mpt-|gpt2|gpt-j|bloom/i;
+
 export type FitVerdict = 'fits' | 'tight' | 'no' | 'unknown';
 export type QuickFilter =
   | 'recommended'
@@ -456,14 +461,19 @@ export class AiRuntime {
           (m) =>
             (m.role === 'main' || m.role === 'both') &&
             Boolean(m.tool_parser) &&
-            this.fitOf(m) !== 'no',
+            this.fitOf(m) !== 'no' &&
+            !LEGACY_FAMILIES.test(m.id),
         );
         order = 'desc';
         break;
       case 'all-in-one':
         // The rare model that genuinely does BOTH photos and tool calling.
         models = models.filter(
-          (m) => m.supports_vision && Boolean(m.tool_parser) && this.fitOf(m) !== 'no',
+          (m) =>
+            m.supports_vision &&
+            Boolean(m.tool_parser) &&
+            this.fitOf(m) !== 'no' &&
+            !LEGACY_FAMILIES.test(m.id),
         );
         order = 'desc';
         break;
@@ -478,7 +488,10 @@ export class AiRuntime {
       case 'finance':
         // Financial reasoning needs tool calling; strongest tool-capable first.
         models = models.filter(
-          (m) => (m.role === 'main' || m.role === 'both') && Boolean(m.tool_parser),
+          (m) =>
+            (m.role === 'main' || m.role === 'both') &&
+            Boolean(m.tool_parser) &&
+            !LEGACY_FAMILIES.test(m.id),
         );
         order = 'desc';
         break;

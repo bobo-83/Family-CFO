@@ -311,10 +311,17 @@ def _bytes_per_param(model_id: str) -> tuple[float, str]:
     return 2.1, "bf16"
 
 
+# Formats vLLM cannot serve — they crowd the pool without being usable (M54).
+_UNSERVABLE_MARKERS = ("gguf", "mlx", "bnb", "exl2", "onnx", "openvino")
+
+
 def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     """Map an HF Hub result to catalog shape with ESTIMATED specs (ADR 0013)."""
     model_id = item.get("modelId") or item.get("id") or ""
     if not _REPO_ID.match(model_id):
+        return None
+    lower_id = model_id.lower()
+    if any(marker in lower_id for marker in _UNSERVABLE_MARKERS):
         return None
     match = _PARAMS_IN_NAME.search(model_id.rsplit("/", 1)[-1])
     params = float(match.group(1)) if match else 0.0

@@ -88,6 +88,18 @@ MODEL_CATALOG: tuple[ModelInfo, ...] = (
         gated=False,
     ),
     ModelInfo(
+        id="Qwen/Qwen2.5-72B-Instruct-AWQ",
+        label="Qwen2.5 72B AWQ — strongest proven chat for ~120GB boxes",
+        role="main",
+        parameters_b=72,
+        est_memory_gb=47,
+        est_disk_gb=41,
+        tool_parser="hermes",
+        supports_vision=False,
+        gated=False,
+        notes="4-bit 72B: the strongest tool-calling chat model that fits ~120 GB unified memory, with room left for a large photo model beside it.",
+    ),
+    ModelInfo(
         id="Qwen/Qwen2.5-72B-Instruct",
         label="Qwen2.5 72B — strongest",
         role="main",
