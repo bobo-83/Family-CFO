@@ -1585,6 +1585,13 @@ paths:
             minimum: 1
             maximum: 30
             default: 10
+        - name: deep
+          in: query
+          required: false
+          description: "M53: fan out size/quant-hinted queries so the largest fitting models surface."
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Search results mapped to catalog shape

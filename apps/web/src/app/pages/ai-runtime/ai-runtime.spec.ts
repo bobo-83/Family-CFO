@@ -218,6 +218,7 @@ describe('AiRuntime', () => {
     await component['setQuickFilter']('vision-big');
     expect(apiMock.searchAiModels).toHaveBeenCalledWith({
       pipeline: 'image-text-to-text',
+      deep: true,
       limit: 20,
     });
 
@@ -225,12 +226,14 @@ describe('AiRuntime', () => {
     expect(apiMock.searchAiModels).toHaveBeenCalledWith({
       q: 'finance',
       pipeline: 'text-generation',
+      deep: true,
       limit: 20,
     });
 
     await component['setQuickFilter']('recommended');
     expect(apiMock.searchAiModels).toHaveBeenCalledWith({
       pipeline: 'text-generation',
+      deep: true,
       limit: 20,
     });
   });
@@ -349,57 +352,50 @@ describe('AiRuntime', () => {
 
   // --- M49: honest "biggest vision that fits" ----------------------------------
 
-  it('vision-big fans out size-hinted live queries and merges results', async () => {
+  it('vision-big uses the deep server fan-out and the largest fitting model tops', async () => {
     const fixture = await create();
     const component = fixture.componentInstance;
     apiMock.searchAiModels.mockClear();
-    apiMock.searchAiModels
-      .mockResolvedValueOnce(
-        response({
-          models: [
-            {
-              id: 'popular/Small-8B-VL',
-              label: 'Small 8B VL',
-              role: 'both',
-              parameters_b: 8,
-              est_memory_gb: 17,
-              est_disk_gb: 16,
-              tool_parser: null,
-              supports_vision: true,
-              gated: false,
-              notes: '',
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          models: [
-            {
-              id: 'big/Giant-72B-VL-AWQ',
-              label: 'Giant 72B VL AWQ',
-              role: 'both',
-              parameters_b: 72,
-              est_memory_gb: 47,
-              est_disk_gb: 44,
-              tool_parser: null,
-              supports_vision: true,
-              gated: false,
-              notes: '',
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(response({ models: [] }));
+    // M53: the size-hinted fan-out happens SERVER-side (deep=true) in one call.
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'popular/Small-8B-VL',
+            label: 'Small 8B VL',
+            role: 'both',
+            parameters_b: 8,
+            est_memory_gb: 17,
+            est_disk_gb: 16,
+            tool_parser: null,
+            supports_vision: true,
+            gated: false,
+            notes: '',
+          },
+          {
+            id: 'big/Giant-72B-VL-AWQ',
+            label: 'Giant 72B VL AWQ',
+            role: 'both',
+            parameters_b: 72,
+            est_memory_gb: 47,
+            est_disk_gb: 44,
+            tool_parser: null,
+            supports_vision: true,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
 
     await component['setQuickFilter']('vision-big');
-    expect(apiMock.searchAiModels).toHaveBeenCalledTimes(3);
+    expect(apiMock.searchAiModels).toHaveBeenCalledTimes(1);
     expect(apiMock.searchAiModels).toHaveBeenCalledWith({
-      q: '72B',
       pipeline: 'image-text-to-text',
+      deep: true,
       limit: 20,
     });
-    // Both fan-out results merged; 72B AWQ (fits: 47*1.15 < 120) tops the list.
+    // 72B AWQ (fits: 47*1.15 < 120) tops the list.
     const ids = component['filteredModels']().map((m) => m.id);
     expect(ids[0]).toBe('big/Giant-72B-VL-AWQ');
     expect(ids).toContain('popular/Small-8B-VL');

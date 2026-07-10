@@ -290,3 +290,25 @@ async def test_catalog_offers_verified_dual_capable_models(demo_client, demo_tok
     ]
     assert any(m["id"] == "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8" for m in duals)
     assert all("Qwen2.5-VL" not in m["id"] for m in duals)  # 2.5-VL stays tool-less
+
+
+@pytest.mark.anyio
+async def test_deep_search_fans_out_hinted_queries(demo_client, demo_token, monkeypatch) -> None:
+    """M53: deep=true issues size/quant-hinted queries so big-but-unpopular
+    models enter the pool (HF cannot sort by parameter count)."""
+    captured: list[tuple[str, str]] = []
+
+    def fake_get(url, params=None, timeout=None):
+        captured.append((params["pipeline_tag"], params.get("search", "")))
+        return httpx.Response(200, json=[], request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/search?pipeline=text-generation&deep=true&q=qwen",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    searches = {q for _pipe, q in captured}
+    # The user's query plus every hint, one pipeline only.
+    assert searches == {"qwen", "", "AWQ", "FP8", "70B", "72B", "90B", "110B", "A22B"}
+    assert all(pipe == "text-generation" for pipe, _q in captured)

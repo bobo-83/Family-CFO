@@ -376,7 +376,11 @@ export class AiRuntime {
   protected readonly visibleCount = signal(PAGE_SIZE);
 
   private async fetchLive(
-    ...requests: { q?: string; pipeline?: 'any' | 'text-generation' | 'image-text-to-text' }[]
+    ...requests: {
+      q?: string;
+      pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
+      deep?: boolean;
+    }[]
   ): Promise<void> {
     this.searching.set(true);
     this.searchError.set(null);
@@ -422,23 +426,18 @@ export class AiRuntime {
     this.visibleCount.set(PAGE_SIZE);
     switch (filter) {
       case 'recommended':
-        await this.fetchLive({ pipeline: 'text-generation' });
+        // M53: deep fan-out — the largest FITTING models, not just the popular.
+        await this.fetchLive({ pipeline: 'text-generation', deep: true });
         break;
       case 'all-in-one':
-        await this.fetchLive({ pipeline: 'any' });
+        await this.fetchLive({ pipeline: 'any', deep: true });
         break;
       case 'finance':
-        await this.fetchLive({ q: 'finance', pipeline: 'text-generation' });
+        await this.fetchLive({ q: 'finance', pipeline: 'text-generation', deep: true });
         break;
       case 'vision-big':
       case 'vision-small':
-        // Fan out beyond the download charts: genuinely large vision models
-        // are rarely download leaders (M49).
-        await this.fetchLive(
-          { pipeline: 'image-text-to-text' },
-          { q: '72B', pipeline: 'image-text-to-text' },
-          { q: 'vision', pipeline: 'image-text-to-text' },
-        );
+        await this.fetchLive({ pipeline: 'image-text-to-text', deep: true });
         break;
       case 'all':
         break;
@@ -506,7 +505,9 @@ export class AiRuntime {
     if (sort === 'memory-asc') {
       models.sort((a, b) => (a.est_memory_gb || 1e9) - (b.est_memory_gb || 1e9));
     } else if (order === 'desc') {
-      models.sort((a, b) => b.parameters_b - a.parameters_b);
+      models.sort(
+        (a, b) => b.parameters_b - a.parameters_b || b.est_memory_gb - a.est_memory_gb,
+      );
     } else if (order === 'asc') {
       // Unknown sizes (0) sort last, not first.
       models.sort((a, b) => (a.parameters_b || 1e9) - (b.parameters_b || 1e9));
