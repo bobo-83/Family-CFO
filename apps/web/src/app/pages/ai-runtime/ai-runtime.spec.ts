@@ -280,6 +280,38 @@ describe('AiRuntime', () => {
     expect(ids[0]).toBe('neat/Solid-40B-Instruct'); // strongest fitting, from the live list
   });
 
+  it('recommended excludes known-legacy families (M54)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'Qwen/Qwen1.5-110B-Chat-AWQ',
+            label: 'Qwen1.5 110B AWQ',
+            role: 'main',
+            parameters_b: 110,
+            est_memory_gb: 72,
+            est_disk_gb: 68,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['setQuickFilter']('recommended');
+    const ids = component['filteredModels']().map((m) => m.id);
+    // A 2024-era 110B must not outrank modern models in the ranked list...
+    expect(ids).not.toContain('Qwen/Qwen1.5-110B-Chat-AWQ');
+    // ...but "All" still shows it.
+    component['setQuickFilter']('all');
+    expect(component['filteredModels']().map((m) => m.id)).toContain(
+      'Qwen/Qwen1.5-110B-Chat-AWQ',
+    );
+  });
+
   it('all-in-one lists only dual-capable models, honest empty state otherwise', async () => {
     const fixture = await create();
     const component = fixture.componentInstance;
