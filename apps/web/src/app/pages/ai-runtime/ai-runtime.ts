@@ -89,13 +89,19 @@ export class AiRuntime {
     const params = match ? Number(match[1]) : 0;
     const lower = id.toLowerCase();
     const isVision = roleHint === 'vision' || lower.includes('-vl-') || lower.includes('vision');
+    // M49: quantization markers change the bytes/param dramatically.
+    const gbPerB = /awq|gptq|int4|4bit|4-bit/.test(lower)
+      ? 0.65
+      : /fp8|int8|8bit|8-bit/.test(lower)
+        ? 1.1
+        : 2.1;
     return {
       id,
       label: `${name} (not in catalog)`,
       role: isVision && roleHint === 'vision' ? 'vision' : isVision ? 'both' : 'main',
       parameters_b: params,
-      est_memory_gb: params ? Math.round(params * 2.1) : 0,
-      est_disk_gb: params ? Math.round(params * 2) : 0,
+      est_memory_gb: params ? Math.round(params * gbPerB) : 0,
+      est_disk_gb: params ? Math.round(params * gbPerB * 0.95) : 0,
       tool_parser: isVision ? undefined : 'hermes',
       supports_vision: isVision,
       gated: false,
@@ -325,21 +331,35 @@ export class AiRuntime {
   );
   protected readonly visibleCount = signal(PAGE_SIZE);
 
-  private async fetchLive(options: {
-    q?: string;
-    pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
-  }): Promise<void> {
+  private async fetchLive(
+    ...requests: { q?: string; pipeline?: 'any' | 'text-generation' | 'image-text-to-text' }[]
+  ): Promise<void> {
     this.searching.set(true);
     this.searchError.set(null);
-    const { data, error } = await this.api.searchAiModels({ ...options, limit: LIVE_LIMIT });
+    const responses = await Promise.all(
+      requests.map((options) => this.api.searchAiModels({ ...options, limit: LIVE_LIMIT })),
+    );
     this.searching.set(false);
-    if (error || !data) {
-      this.searchError.set(
-        apiErrorMessage(error, 'Hugging Face is unreachable; showing curated models only.'),
-      );
+    const merged: AiModelInfo[] = [];
+    const seen = new Set<string>();
+    let failures = 0;
+    for (const { data, error } of responses) {
+      if (error || !data) {
+        failures += 1;
+        continue;
+      }
+      for (const model of data.models) {
+        if (!seen.has(model.id)) {
+          seen.add(model.id);
+          merged.push(model);
+        }
+      }
+    }
+    if (failures === responses.length) {
+      this.searchError.set('Hugging Face is unreachable; showing curated models only.');
       return;
     }
-    this.searchResults.set(data.models);
+    this.searchResults.set(merged);
   }
 
   protected async runSearch(): Promise<void> {
@@ -365,7 +385,13 @@ export class AiRuntime {
         break;
       case 'vision-big':
       case 'vision-small':
-        await this.fetchLive({ pipeline: 'image-text-to-text' });
+        // Fan out beyond the download charts: genuinely large vision models
+        // are rarely download leaders (M49).
+        await this.fetchLive(
+          { pipeline: 'image-text-to-text' },
+          { q: '72B', pipeline: 'image-text-to-text' },
+          { q: 'vision', pipeline: 'image-text-to-text' },
+        );
         break;
       case 'all':
         break;
@@ -385,11 +411,11 @@ export class AiRuntime {
         order = 'desc';
         break;
       case 'vision-big':
-        models = models.filter((m) => m.supports_vision);
+        models = models.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
         order = 'desc';
         break;
       case 'vision-small':
-        models = models.filter((m) => m.supports_vision);
+        models = models.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
         order = 'asc';
         break;
       case 'finance':

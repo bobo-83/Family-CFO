@@ -303,6 +303,111 @@ describe('AiRuntime', () => {
     expect(ids).toContain('Qwen/Qwen2.5-32B-Instruct');
   });
 
+  // --- M49: honest "biggest vision that fits" ----------------------------------
+
+  it('vision-big fans out size-hinted live queries and merges results', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    apiMock.searchAiModels.mockClear();
+    apiMock.searchAiModels
+      .mockResolvedValueOnce(
+        response({
+          models: [
+            {
+              id: 'popular/Small-8B-VL',
+              label: 'Small 8B VL',
+              role: 'both',
+              parameters_b: 8,
+              est_memory_gb: 17,
+              est_disk_gb: 16,
+              tool_parser: null,
+              supports_vision: true,
+              gated: false,
+              notes: '',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          models: [
+            {
+              id: 'big/Giant-72B-VL-AWQ',
+              label: 'Giant 72B VL AWQ',
+              role: 'both',
+              parameters_b: 72,
+              est_memory_gb: 47,
+              est_disk_gb: 44,
+              tool_parser: null,
+              supports_vision: true,
+              gated: false,
+              notes: '',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(response({ models: [] }));
+
+    await component['setQuickFilter']('vision-big');
+    expect(apiMock.searchAiModels).toHaveBeenCalledTimes(3);
+    expect(apiMock.searchAiModels).toHaveBeenCalledWith({
+      q: '72B',
+      pipeline: 'image-text-to-text',
+      limit: 20,
+    });
+    // Both fan-out results merged; 72B AWQ (fits: 47*1.15 < 120) tops the list.
+    const ids = component['filteredModels']().map((m) => m.id);
+    expect(ids[0]).toBe('big/Giant-72B-VL-AWQ');
+    expect(ids).toContain('popular/Small-8B-VL');
+  });
+
+  it('vision-big drops models that do not fit the memory budget', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [
+          {
+            id: 'huge/Colossal-90B-Vision',
+            label: 'Colossal 90B Vision',
+            role: 'both',
+            parameters_b: 90,
+            est_memory_gb: 189, // 189*1.15 > 120 budget
+            est_disk_gb: 180,
+            tool_parser: null,
+            supports_vision: true,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['setQuickFilter']('vision-big');
+    const ids = component['filteredModels']().map((m) => m.id);
+    expect(ids).not.toContain('huge/Colossal-90B-Vision');
+  });
+
+  it('stub estimates respect quantization markers in the name', async () => {
+    apiMock.getAiRuntimeStatus.mockResolvedValue(
+      response({
+        enabled: true,
+        provider: 'vllm',
+        model: 'org/Fast-32B-Instruct-AWQ',
+        ready: true,
+        served_model: 'org/Fast-32B-Instruct-AWQ',
+        detail: 'ok',
+        vision_ready: false,
+        vision_model: null,
+        vision_enabled: false,
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    const stub = component['byId']('org/Fast-32B-Instruct-AWQ');
+    // AWQ ~0.65 GB/B, not the bf16 2.1 that would double-count it.
+    expect(stub!.est_memory_gb).toBe(Math.round(32 * 0.65));
+  });
+
   // --- Stub synthesis: an off-catalog active model stays visible ---------------
 
   it('keeps an off-catalog served model visible via a synthesized stub', async () => {

@@ -233,6 +233,16 @@ _PARAMS_IN_NAME = re.compile(r"(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)")
 _HF_TIMEOUT_SECONDS = 6.0
 
 
+def _bytes_per_param(model_id: str) -> tuple[float, str]:
+    """GB-per-billion-params from quantization markers in the name (M49)."""
+    lower = model_id.lower()
+    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit")):
+        return 0.65, "4-bit"
+    if any(marker in lower for marker in ("fp8", "int8", "8bit", "8-bit")):
+        return 1.1, "8-bit"
+    return 2.1, "bf16"
+
+
 def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     """Map an HF Hub result to catalog shape with ESTIMATED specs (ADR 0013)."""
     model_id = item.get("modelId") or item.get("id") or ""
@@ -243,18 +253,22 @@ def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     is_vision = pipeline == "image-text-to-text" or "-vl-" in model_id.lower()
     lower = model_id.lower()
     parser = "llama3_json" if "llama" in lower else "hermes"
+    gb_per_b, precision = _bytes_per_param(model_id)
     return AiModelInfo(
         id=model_id,
         label=f"{model_id.rsplit('/', 1)[-1]} (Hugging Face)",
         role="both" if is_vision else "main",
         parameters_b=params,
-        # bf16 ~= 2 bytes/param; unknown size (params 0) surfaces as 0 = "unknown".
-        est_memory_gb=round(params * 2.1) if params else 0,
-        est_disk_gb=round(params * 2.0) if params else 0,
+        # Precision-aware: bf16 ~2 GB/B, fp8/int8 ~1.1, 4-bit ~0.65 (M49).
+        est_memory_gb=round(params * gb_per_b) if params else 0,
+        est_disk_gb=round(params * gb_per_b * 0.95) if params else 0,
         tool_parser=None if pipeline == "image-text-to-text" else parser,
         supports_vision=is_vision,
         gated=bool(item.get("gated")),
-        notes="Estimated specs from the model name — verify before relying on the fit verdict.",
+        notes=(
+            f"Estimated specs from the model name ({precision}) — verify before "
+            "relying on the fit verdict."
+        ),
     )
 
 
