@@ -54,13 +54,17 @@ _DAY_STEP_BY_FREQUENCY = {"weekly": 7, "biweekly": 14, "semimonthly": 15}
 _MONTH_STEP_BY_FREQUENCY = {"monthly": 1, "quarterly": 3, "annual": 12}
 
 
-def _add_months(anchor: date, months: int) -> date:
+def add_months(anchor: date, months: int) -> date:
     """Add whole months, clamping to the last valid day (Jan 31 + 1mo -> Feb 28/29)."""
     total = anchor.month - 1 + months
     year = anchor.year + total // 12
     month = total % 12 + 1
     day = min(anchor.day, calendar.monthrange(year, month)[1])
     return date(year, month, day)
+
+
+# Backwards-compatible private alias (used by next_bill_occurrence).
+_add_months = add_months
 
 
 def next_bill_occurrence(next_due_date: date, frequency: str, today: date) -> date:

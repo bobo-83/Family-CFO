@@ -1903,6 +1903,23 @@ components:
         spending_insights:
           description: "M42: month-to-date spending vs the same period last month, plus top merchants."
           $ref: "#/components/schemas/SpendingInsights"
+        savings_rate:
+          description: "M44: recurring income vs trailing-3-month average actual spending."
+          $ref: "#/components/schemas/SavingsRate"
+    SavingsRate:
+      type: object
+      required:
+        - monthly_income
+        - average_monthly_spending
+      properties:
+        percent:
+          description: (income - avg spending) / income, %; null when income is 0; may be negative.
+          type: integer
+          nullable: true
+        monthly_income:
+          $ref: "#/components/schemas/Money"
+        average_monthly_spending:
+          $ref: "#/components/schemas/Money"
     SpendingInsights:
       type: object
       required:

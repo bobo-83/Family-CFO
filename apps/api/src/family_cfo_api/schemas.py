@@ -157,6 +157,14 @@ class MerchantSpend(BaseModel):
     amount: Money
 
 
+class SavingsRate(BaseModel):
+    """M44: recurring income vs trailing-3-month average actual spending."""
+
+    percent: int | None = None
+    monthly_income: Money
+    average_monthly_spending: Money
+
+
 class SpendingInsights(BaseModel):
     """M42: month-to-date spending vs the same period last month, plus top merchants."""
 
@@ -181,6 +189,7 @@ class HouseholdContext(BaseModel):
     net_worth_history: list[NetWorthPoint] = Field(default_factory=list)
     top_goal: GoalProgress | None = None
     spending_insights: SpendingInsights | None = None
+    savings_rate: SavingsRate | None = None
 
 
 class Account(BaseModel):
