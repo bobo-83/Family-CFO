@@ -92,7 +92,7 @@
                   </span>
                 } @else {
                   <span class="overview__detail overview__detail--good">
-                    ✓ Recommended target met
+                    ✓ Target met
                   </span>
                 }
               }
@@ -100,9 +100,39 @@
               <span class="overview__value">—</span>
               <span class="overview__hint">
                 <a routerLink="/bills">Add your recurring bills</a> so coverage can be measured
-                against the {{ fund.target_months_min }}–{{ fund.target_months_recommended }} month
-                guideline.
+                against your {{ fund.target_months_recommended }}-month target.
               </span>
+            }
+
+            @if (canWrite()) {
+              <div class="overview__target-editor">
+                @if (editingTarget()) {
+                  <label class="overview__target-label">
+                    Target months
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      [ngModel]="targetInput()"
+                      (ngModelChange)="targetInput.set($event)"
+                    />
+                  </label>
+                  <button type="button" (click)="saveTarget()" [disabled]="savingTarget()">
+                    {{ savingTarget() ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button type="button" class="overview__target-cancel" (click)="editingTarget.set(false)">
+                    Cancel
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="overview__target-edit"
+                    (click)="startEditTarget(fund.target_months_recommended)"
+                  >
+                    Adjust target ({{ fund.target_months_recommended }} months)
+                  </button>
+                }
+              </div>
             }
           </div>
         }

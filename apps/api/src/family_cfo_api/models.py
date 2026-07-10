@@ -89,6 +89,8 @@ households = Table(
     _uuid_pk(),
     Column("display_name", String(120), nullable=False),
     _currency_column("base_currency"),
+    # M43: null means "use the default target" (finance_service constant).
+    Column("emergency_fund_target_months", Float, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("length(base_currency) = 3", name="ck_households_currency_length"),

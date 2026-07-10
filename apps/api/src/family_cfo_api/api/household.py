@@ -3,14 +3,15 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service, repository
-from family_cfo_api.deps import get_current_session, get_engine
+from family_cfo_api import audit, finance_service, repository
+from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     AssetCategoryTotal,
     EmergencyFundSummary,
     ErrorResponse,
     GoalProgress,
     HouseholdContext,
+    HouseholdUpdateRequest,
     MerchantSpend,
     MonthlyCashFlow,
     NetWorthPoint,
@@ -23,10 +24,15 @@ router = APIRouter(tags=["Household"])
 
 
 def _emergency_fund_summary(
-    months: float | None, inputs: finance_service.EmergencyFundInputs, currency: str
+    months: float | None,
+    inputs: finance_service.EmergencyFundInputs,
+    currency: str,
+    target_months: float | None = None,
 ) -> EmergencyFundSummary:
-    """M38: coverage vs the standard 3–6 month guidance, with the gap in dollars."""
-    recommended = finance_service.EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS
+    """M38/M43: coverage vs the household's target (default 6), with the gap in dollars."""
+    recommended = target_months or finance_service.EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS
+    # M43: a sub-3-month target still needs a sensible "getting started" floor.
+    min_threshold = min(finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS, recommended)
     fund_minor = inputs.fund.amount_minor
     bills_minor = inputs.monthly_bills.amount_minor
 
@@ -38,7 +44,7 @@ def _emergency_fund_summary(
         gap = MoneySchema(amount_minor=gap_minor, currency=currency)
         if fund_minor <= 0:
             status = "no_fund"
-        elif months < finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS:
+        elif months < min_threshold:
             status = "getting_started"
         elif months < recommended:
             status = "on_track"
@@ -50,7 +56,7 @@ def _emergency_fund_summary(
         reserved=MoneySchema(amount_minor=fund_minor, currency=currency),
         using_designations=inputs.using_designations,
         monthly_expenses=MoneySchema(amount_minor=bills_minor, currency=currency),
-        target_months_min=finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS,
+        target_months_min=min_threshold,
         target_months_recommended=recommended,
         gap_to_recommended=gap,
         status=status,
@@ -183,7 +189,9 @@ async def get_household_context(
         currency=currency,
         net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
         emergency_fund_months=months,
-        emergency_fund=_emergency_fund_summary(months, ef_inputs, currency),
+        emergency_fund=_emergency_fund_summary(
+            months, ef_inputs, currency, household.emergency_fund_target_months
+        ),
         monthly_cash_flow=MonthlyCashFlow(
             income=MoneySchema(amount_minor=income.amount_minor, currency=currency),
             bills=MoneySchema(amount_minor=bills.amount_minor, currency=currency),
@@ -198,3 +206,43 @@ async def get_household_context(
         top_goal=_top_goal(engine, household.id),
         spending_insights=_spending_insights(engine, household.id, currency),
     )
+
+
+@router.patch(
+    "/household",
+    operation_id="updateHousehold",
+    response_model=HouseholdContext,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Household not found", "model": ErrorResponse},
+    },
+    summary="Update household settings (M43: emergency-fund target)",
+)
+async def update_household(
+    payload: HouseholdUpdateRequest,
+    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    engine: Engine = Depends(get_engine),
+) -> HouseholdContext:
+    if repository.get_household(engine, session.household_id) is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    if payload.clear_emergency_fund_target:
+        target: float | None = None
+    elif payload.emergency_fund_target_months is not None:
+        target = payload.emergency_fund_target_months
+    else:
+        # Nothing to change; return the current context unchanged.
+        return await get_household_context(session=session, engine=engine)
+
+    repository.update_emergency_fund_target(engine, session.household_id, target)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.updated",
+        "household",
+        session.household_id,
+        f"Set emergency-fund target to {target if target is not None else 'default'}",
+    )
+    return await get_household_context(session=session, engine=engine)
