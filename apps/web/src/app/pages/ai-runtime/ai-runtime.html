@@ -318,18 +318,41 @@
                         🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN.
                       </p>
                     }
-                    <button
-                      type="button"
-                      class="picker__apply"
-                      (click)="applyModel(model)"
-                      [disabled]="applying() || model.id === status.value()?.served_model"
-                    >
-                      @if (model.id === status.value()?.served_model) {
-                        Already serving
-                      } @else {
-                        {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+                    @if (model.role !== 'vision' && !model.tool_parser) {
+                      <p class="model-detail__gated">
+                        ⚠️ This model can't call the financial tools — as the chat model,
+                        answers fall back to deterministic snapshots. Best applied as the
+                        photo model.
+                      </p>
+                    }
+                    <div class="model-detail__actions">
+                      <button
+                        type="button"
+                        class="picker__apply"
+                        (click)="applyModel(model)"
+                        [disabled]="applying() || model.id === status.value()?.served_model"
+                      >
+                        @if (model.id === status.value()?.served_model) {
+                          Already serving
+                        } @else {
+                          {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+                        }
+                      </button>
+                      @if (model.supports_vision && model.role !== 'vision') {
+                        <button
+                          type="button"
+                          class="model-detail__as-photo"
+                          (click)="applyAsVision(model)"
+                          [disabled]="applying() || model.id === status.value()?.vision_model"
+                        >
+                          {{
+                            model.id === status.value()?.vision_model
+                              ? 'Already the photo model'
+                              : 'Apply as photo model only'
+                          }}
+                        </button>
                       }
-                    </button>
+                    </div>
                   </div>
                 }
               </li>

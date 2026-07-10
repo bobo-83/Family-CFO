@@ -443,6 +443,23 @@ describe('AiRuntime', () => {
     expect(component['planFor'](stub!).memoryGb).not.toBeNull();
   });
 
+  // --- M51: tool-less vision models pair with the current main -----------------
+
+  it('applyAsVision keeps the current chat model and swaps only photos', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['applyAsVision'](CATALOG[1] as never); // VL-32B, role both
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
+      main_model: 'Qwen/Qwen2.5-32B-Instruct', // current served main, unchanged
+      vision_model: 'Qwen/Qwen2.5-VL-32B-Instruct',
+    });
+    component['stopPolling']();
+  });
+
   // --- Advanced section ---------------------------------------------------------
 
   it('saves changes through the advanced form', async () => {

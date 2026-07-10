@@ -289,11 +289,28 @@ export class AiRuntime {
       return;
     }
     const plan = this.planFor(model);
+    await this.postApply(plan.mainId, plan.visionId ?? undefined);
+  }
+
+  /** M51: pair a vision-capable model with the CURRENT chat model (photos only). */
+  protected async applyAsVision(model: AiModelInfo): Promise<void> {
+    if (this.applying()) {
+      return;
+    }
+    const main = this.currentMainId();
+    if (!main) {
+      this.applyError.set('No chat model is configured to pair with.');
+      return;
+    }
+    await this.postApply(main, model.id);
+  }
+
+  private async postApply(mainId: string, visionId: string | undefined): Promise<void> {
     this.applying.set(true);
     this.applyError.set(null);
     const { data, error } = await this.api.applyAiModelSelection({
-      main_model: plan.mainId,
-      vision_model: plan.visionId ?? undefined,
+      main_model: mainId,
+      vision_model: visionId,
     });
     this.applying.set(false);
     if (error || !data) {
@@ -302,7 +319,7 @@ export class AiRuntime {
       );
       return;
     }
-    this.lastAppliedMain.set(plan.mainId);
+    this.lastAppliedMain.set(mainId);
     this.applyState.set(data);
     this.startPolling();
   }
