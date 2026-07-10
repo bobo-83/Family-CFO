@@ -23,8 +23,14 @@ def _to_schema(record: repository.TransactionRecord) -> Transaction:
         amount=MoneySchema(amount_minor=record.amount_minor, currency=record.currency),
         merchant=record.merchant,
         category=record.category,
+        category_id=record.category_id,
         description=record.description,
     )
+
+
+def _require_category(engine: Engine, household_id: str, category_id: str) -> None:
+    if repository.get_category(engine, household_id, category_id) is None:
+        raise HTTPException(status_code=404, detail="Category not found")
 
 
 def _require_account(
@@ -71,6 +77,8 @@ async def create_transaction(
     account = _require_account(engine, session.household_id, payload.account_id)
     if payload.amount.currency != account.currency:
         raise HTTPException(status_code=400, detail=f"Amount currency must be {account.currency}")
+    if payload.category_id is not None:
+        _require_category(engine, session.household_id, payload.category_id)
 
     transaction_id = repository.create_transaction(
         engine,
@@ -84,6 +92,7 @@ async def create_transaction(
         import_source=None,
         import_id=None,
         review_state="reviewed",
+        category_id=payload.category_id,
     )
     audit.write_audit(
         engine,
@@ -120,6 +129,8 @@ async def update_transaction(
         raise HTTPException(status_code=404, detail="Transaction not found")
     if payload.account_id is not None:
         _require_account(engine, session.household_id, payload.account_id)
+    if payload.category_id is not None:
+        _require_category(engine, session.household_id, payload.category_id)
 
     amount_minor = payload.amount.amount_minor if payload.amount is not None else None
     currency = payload.amount.currency if payload.amount is not None else None
@@ -133,6 +144,8 @@ async def update_transaction(
         currency=currency,
         merchant=payload.merchant,
         description=payload.description,
+        category_id=payload.category_id,
+        clear_category=payload.clear_category,
     )
     audit.write_audit(
         engine,

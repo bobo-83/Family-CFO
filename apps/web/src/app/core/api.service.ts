@@ -6,6 +6,7 @@ import {
   createAuthSession,
   createBackup,
   createBill,
+  createCategory,
   createChatMessage,
   createConnection,
   createGoal,
@@ -19,6 +20,7 @@ import {
   deleteConnection,
   deleteConversation,
   deleteBill,
+  deleteCategory,
   deleteIncomeSource,
   deleteMember,
   deleteTransaction,
@@ -36,6 +38,7 @@ import {
   listAuditEvents,
   listBackups,
   listBills,
+  listCategories,
   listAiModels,
   listConnections,
   listConversations,
@@ -65,6 +68,7 @@ import {
   type AuthSessionCreateRequest,
   type BillCreateRequest,
   type BillUpdateRequest,
+  type CategoryCreateRequest,
   type ChatRequest,
   type ConnectionCreateRequest,
   type GoalCreateRequest,
@@ -171,6 +175,19 @@ export class ApiService {
 
   deleteTransaction(transactionId: string) {
     return deleteTransaction({ path: { transaction_id: transactionId } });
+  }
+
+  // --- Categories (M45) ---
+  listCategories() {
+    return listCategories();
+  }
+
+  createCategory(body: CategoryCreateRequest) {
+    return createCategory({ body });
+  }
+
+  deleteCategory(categoryId: string) {
+    return deleteCategory({ path: { category_id: categoryId } });
   }
 
   // --- Bills ---

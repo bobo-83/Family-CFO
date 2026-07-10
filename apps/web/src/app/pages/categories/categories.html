@@ -1,0 +1,50 @@
+<h1>Categories</h1>
+
+<p class="page-hint">
+  Spending categories power budgets and the spending breakdown. Create the ones
+  that fit your household, then assign them to transactions.
+</p>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else if (categories().length === 0) {
+  <p class="page-empty">No categories yet.</p>
+} @else {
+  <ul class="category-list">
+    @for (category of categories(); track category.id) {
+      <li class="category-list__item">
+        <span class="category-list__name">{{ category.name }}</span>
+        @if (canWrite()) {
+          <button
+            type="button"
+            class="category-list__delete"
+            (click)="remove(category.id)"
+            aria-label="Delete category"
+          >
+            Delete
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}
+
+@if (canWrite()) {
+  <h2>Add a category</h2>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="category-form">
+    <label>
+      <span>Name</span>
+      <input type="text" formControlName="name" maxlength="80" />
+    </label>
+    @if (submitError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Saving…' : 'Add category' }}
+    </button>
+  </form>
+} @else {
+  <p class="page-empty">Only the household owner or an adult member can manage categories.</p>
+}

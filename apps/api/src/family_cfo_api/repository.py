@@ -483,6 +483,7 @@ class TransactionRecord:
     merchant: str | None
     category: str | None
     description: str | None
+    category_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -508,6 +509,7 @@ def list_transactions(
             models.transactions.c.currency,
             models.transactions.c.merchant,
             models.transaction_categories.c.name.label("category"),
+            models.transactions.c.category_id,
             models.transactions.c.description,
         )
         .select_from(models.transactions)
@@ -533,10 +535,92 @@ def list_transactions(
             currency=row.currency,
             merchant=row.merchant,
             category=row.category,
+            category_id=row.category_id,
             description=row.description,
         )
         for row in rows
     ]
+
+
+# --- Categories (M45) --------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class CategoryRecord:
+    id: str
+    name: str
+
+
+def list_categories(engine: Engine, household_id: str) -> list[CategoryRecord]:
+    query = (
+        select(models.transaction_categories.c.id, models.transaction_categories.c.name)
+        .where(models.transaction_categories.c.household_id == household_id)
+        .order_by(models.transaction_categories.c.name)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [CategoryRecord(id=row.id, name=row.name) for row in rows]
+
+
+def get_category(engine: Engine, household_id: str, category_id: str) -> CategoryRecord | None:
+    query = select(models.transaction_categories.c.id, models.transaction_categories.c.name).where(
+        models.transaction_categories.c.household_id == household_id,
+        models.transaction_categories.c.id == category_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).first()
+    return CategoryRecord(id=row.id, name=row.name) if row is not None else None
+
+
+def category_name_exists(engine: Engine, household_id: str, name: str) -> bool:
+    query = select(models.transaction_categories.c.id).where(
+        models.transaction_categories.c.household_id == household_id,
+        models.transaction_categories.c.name == name,
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).first() is not None
+
+
+def create_category(engine: Engine, household_id: str, name: str) -> CategoryRecord:
+    category_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.transaction_categories).values(
+                id=category_id,
+                household_id=household_id,
+                name=name,
+                parent_category_id=None,
+                created_at=utcnow(),
+            )
+        )
+    return CategoryRecord(id=category_id, name=name)
+
+
+def delete_category(engine: Engine, household_id: str, category_id: str) -> bool:
+    """Delete a category, first nulling it on any transactions that reference it."""
+    with engine.begin() as conn:
+        exists = conn.execute(
+            select(models.transaction_categories.c.id).where(
+                models.transaction_categories.c.household_id == household_id,
+                models.transaction_categories.c.id == category_id,
+            )
+        ).first()
+        if exists is None:
+            return False
+        conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.category_id == category_id,
+            )
+            .values(category_id=None)
+        )
+        conn.execute(
+            delete(models.transaction_categories).where(
+                models.transaction_categories.c.id == category_id
+            )
+        )
+    return True
 
 
 # --- Spending insights (M42) -------------------------------------------------
@@ -1170,6 +1254,7 @@ def create_transaction(
     import_id: str | None,
     review_state: str,
     possible_duplicate: bool = False,
+    category_id: str | None = None,
 ) -> str:
     transaction_id = new_id()
     with engine.begin() as conn:
@@ -1182,7 +1267,7 @@ def create_transaction(
                 amount_minor=amount_minor,
                 currency=currency,
                 merchant=merchant,
-                category_id=None,
+                category_id=category_id,
                 description=description,
                 import_source=import_source,
                 import_id=import_id,
@@ -2279,6 +2364,7 @@ def get_transaction(
             models.transactions.c.currency,
             models.transactions.c.merchant,
             models.transaction_categories.c.name.label("category"),
+            models.transactions.c.category_id,
             models.transactions.c.description,
         )
         .select_from(models.transactions)
@@ -2304,6 +2390,7 @@ def get_transaction(
         currency=row.currency,
         merchant=row.merchant,
         category=row.category,
+        category_id=row.category_id,
         description=row.description,
     )
 
@@ -2318,6 +2405,8 @@ def update_transaction(
     currency: str | None = None,
     merchant: str | None = None,
     description: str | None = None,
+    category_id: str | None = None,
+    clear_category: bool = False,
 ) -> bool:
     values: dict[str, Any] = {}
     if account_id is not None:
@@ -2332,6 +2421,11 @@ def update_transaction(
         values["merchant"] = merchant
     if description is not None:
         values["description"] = description
+    # M45: assign or clear the category (clear distinguishes from "unchanged").
+    if clear_category:
+        values["category_id"] = None
+    elif category_id is not None:
+        values["category_id"] = category_id
     if not values:
         return get_transaction(engine, household_id, transaction_id) is not None
     with engine.begin() as conn:

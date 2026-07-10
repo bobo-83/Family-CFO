@@ -594,6 +594,73 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /categories:
+    get:
+      tags:
+        - Categories
+      operationId: listCategories
+      summary: List spending categories
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Categories
+      operationId: createCategory
+      summary: Create a spending category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryCreateRequest"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /categories/{category_id}:
+    delete:
+      tags:
+        - Categories
+      operationId: deleteCategory
+      summary: Delete a spending category
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Category deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /bills:
     get:
       tags:
@@ -1764,8 +1831,41 @@ components:
           type: string
         category:
           type: string
+        category_id:
+          type: string
+          format: uuid
+          nullable: true
         description:
           type: string
+    Category:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    CategoryListResponse:
+      type: object
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+    CategoryCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
     Bill:
       type: object
       required:
@@ -2776,6 +2876,10 @@ components:
           type: string
         description:
           type: string
+        category_id:
+          description: "M45: assign a spending category."
+          type: string
+          format: uuid
     TransactionUpdateRequest:
       type: object
       properties:
@@ -2791,6 +2895,13 @@ components:
           type: string
         description:
           type: string
+        category_id:
+          description: "M45: assign a spending category."
+          type: string
+          format: uuid
+        clear_category:
+          description: "M45: remove the category from this transaction."
+          type: boolean
     BillCreateRequest:
       type: object
       required:

@@ -799,6 +799,20 @@ The Overview shows monthly net cash flow in dollars but not as a rate. Add a rec
 - [x] Spec gate: (a) definition — savings rate = `(monthly_income − average_monthly_spending) / monthly_income`, where `monthly_income` is the recurring monthly income (M38) and `average_monthly_spending` is actual outflow (M42 `sum_spending`) over the **last 3 complete calendar months** ÷ 3 (the current partial month is excluded for stability). Can be negative when spending exceeds income; null when income is 0. This intentionally pairs recurring income with actual tracked spending — documented as the metric's basis. (b) `HouseholdContext` gains additive `savings_rate` (nullable): `{ percent, monthly_income, average_monthly_spending }`. (c) UI — the Overview cash-flow card shows the savings-rate percent (green when positive, red when negative) with the trailing-3-month average spending as context. No migration.
 - [x] Implement + tests (3-complete-month window excludes the current month; average = total/3; percent sign + zero-income null; context returns it; Overview renders) + deploy + commit. Verified: 290 api + 75 web tests pass; live deploy returns the demo household's 100% rate ($6,000 income, $0 avg over the last 3 complete months — its transactions fall in the excluded current month).
 
+## M45: Category Management (prerequisite for budgets)
+
+Budget envelopes (M46) attach to spending categories, but today there is no way to create categories or assign them: the `transaction_categories` table exists and reads expose a category **name**, yet create/update transaction requests have no category field and `create_transaction` hardcodes `category_id=None`. This milestone adds lightweight category tooling (per the product decision on 2026-07-09).
+
+- [x] Spec gate: (a) schema — a unique `(household_id, name)` index on `transaction_categories` so names don't duplicate; migration `0037`. (No new table — it already exists, household-scoped with an optional `parent_category_id` we leave unused for now, i.e. flat categories.) (b) API — `GET/POST/DELETE /categories` (create/delete owner/adult, audited; delete nulls the `category_id` on any transactions referencing it rather than failing); `POST/PATCH /transactions` gain an optional `category_id` (validated to belong to the household, else 404), and the `Transaction` response gains `category_id` alongside the existing `category` name. (c) UI — a `Categories` page (list + create + delete, mirroring the Bills page) and a category `<select>` on the Transactions create form and inline per-row on the list. Categories are flat and household-scoped; a brand-new household starts empty (no auto-seed) — users add what they need.
+- [x] Implement + tests (category CRUD + household scoping; duplicate-name 409; transaction create/update sets + validates category; delete nulls references; Transactions/Categories pages) + deploy + commit. Verified: 296 api + 78 web tests pass; live deploy applied migration `0037`, and the full flow worked — create category, duplicate 409, assign on transaction create, delete category leaves the transaction uncategorized.
+
+## M46: Budget Envelopes (monthly, per-category, threshold alerts)
+
+With categories in place (M45), add monthly budget envelopes. Product decisions (2026-07-09): monthly periods, soft tracking (a recording app can't block spend) with approaching-limit warnings, no rollover.
+
+- [ ] Spec gate: (a) schema — a `budgets` table (`id`, `household_id`, `category_id` FK, `limit_minor`, `currency`, `created_at`, `updated_at`) with a unique `(household_id, category_id)` (one envelope per category); migration `0038`. (b) API — `GET/POST/PATCH/DELETE /budgets`; the list computes each envelope's **current calendar-month** spend (reuse M42 category-scoped `sum_spending`), `remaining`, `percent_used` (capped display but raw value drives status), and `status` (`under` / `warning` at ≥80% / `over` at >100%). (c) `HouseholdContext` gains additive `budget_summary` (nullable): counts of over/warning envelopes + total budgeted vs spent, for an Overview alert card. (d) UI — a `Budgets` page (per-category limit CRUD with spent/limit progress bars, colored by status) and an Overview summary card that surfaces over/at-risk envelopes.
+- [ ] Implement + tests (per-category month spend vs limit; status thresholds 80/100; summary counts; CRUD + one-per-category 409; Budgets page + Overview card) + deploy + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
@@ -808,7 +822,7 @@ Candidate features surfaced while enriching the overview; each needs its own spe
 - [x] Net-worth history sparkline (persist a periodic net-worth snapshot; scheduler exists). — delivered by M40.
 - [x] Upcoming bills calendar (bills have `next_due_date`; surface "due this week" on Overview). — delivered by M39.
 - [x] Goal progress on Overview (goals API exists; show top-priority goal with a progress bar). — delivered by M41.
-- [ ] Budget envelopes per category with monthly limits + alerts (larger; overlaps the existing budget-management backlog).
+- [~] Budget envelopes per category with monthly limits + alerts — being delivered by M45 (categories) + M46 (budgets).
 - [x] Savings-rate metric (income − all spending, trailing 3 months). — delivered by M44.
 
 ## Backlog: Debt Payoff and Retirement Projections

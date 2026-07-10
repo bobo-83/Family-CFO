@@ -25,6 +25,7 @@ export class Shell {
     { path: '/bills', label: 'Bills' },
     { path: '/reports', label: 'Reports' },
     { path: '/transactions', label: 'Transactions' },
+    { path: '/categories', label: 'Categories' },
     { path: '/imports', label: 'Imports' },
     { path: '/ai-runtime', label: 'AI Runtime' },
     { path: '/backups', label: 'Backups' },
