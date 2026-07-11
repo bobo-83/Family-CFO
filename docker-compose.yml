@@ -262,14 +262,16 @@ services:
     networks: [internal]
     restart: unless-stopped
 
-  # Dashboards at http://<server>:${GRAFANA_PORT:-3000} (LAN). Anonymous
-  # viewing is enabled because only ops telemetry lives here; the admin
-  # password (for editing) comes from .env.
+  # Ops dashboards, reached through the app's own HTTPS address at
+  # https://<server>:${WEB_TLS_PORT}/grafana/ (nginx proxies; no extra
+  # published port — iPhone Safari's HTTPS-first breaks on plain-HTTP ports).
+  # Anonymous viewing is enabled because only ops telemetry lives here; the
+  # admin password (for editing) comes from .env.
   grafana:
     image: grafana/grafana-oss:latest
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
     environment:
+      GF_SERVER_ROOT_URL: "https://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-family-cfo-grafana}
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
