@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 
 from family_cfo_ai_orchestrator.prompts import PurchaseFacts, ReportFacts, purchase_fact_lines, report_fact_lines
@@ -50,17 +51,38 @@ def _is_year_like(number: str) -> bool:
     return number.isdigit() and _YEAR_RANGE[0] <= int(number) <= _YEAR_RANGE[1]
 
 
+def _matches_pair_arithmetic(value: float, sorted_knowns: list[float], tolerance: float) -> bool:
+    """True when ``value`` ≈ a+b, a−b, or b−a for grounded values a, b.
+
+    Models narrate purchases with honest arithmetic ("$8,215.64 minus the
+    $7,000 laptop leaves $1,215.64") that no single-value tolerance can see.
+    Bisect per element keeps this O(n log n). An element may pair with itself.
+    """
+    for a in sorted_knowns:
+        for target in (value - a, a - value, a + value):
+            index = bisect_left(sorted_knowns, target)
+            for neighbor in (index - 1, index):
+                if 0 <= neighbor < len(sorted_knowns) and abs(
+                    sorted_knowns[neighbor] - target
+                ) <= tolerance:
+                    return True
+    return False
+
+
 def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
     """Return numeric substrings in ``text`` not traceable to ``known_values``.
 
     A conservative (string-based, not semantic) check: it exists to catch
-    invented figures, not to validate arithmetic. Immaterial numbers (<100),
-    year-like integers, and values within ±1% of a grounded figure are
-    tolerated (M56) — a strict verbatim match rejected essentially every
+    invented figures, not to validate arithmetic. Immaterial numbers (≤100),
+    year-like integers, values within ±1% of a grounded figure (M56), and
+    values within ±1% of a sum/difference of two grounded figures (M60) are
+    tolerated — a strict verbatim match rejected essentially every
     naturally-phrased answer (rounded totals, "3-6 months" guidance, derived
-    ratios). Material figures with no nearby grounded value still fail closed
-    into the deterministic explanation stub rather than risking a fabricated
-    number reaching the user (ADR 0003).
+    remainders). Accepted trade-off: a figure equal to a±b of two real values
+    passes even if contextually wrong — it is still composed of the
+    household's real numbers, and chronic fallback made the advisor unusable.
+    Figures matching no grounded value or pair still fail closed into the
+    deterministic explanation stub (ADR 0003).
     """
     known_floats: list[float] = []
     for value in known_values:
@@ -68,6 +90,7 @@ def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
             known_floats.append(float(value))
         except ValueError:
             continue
+    known_floats.sort()
 
     def is_violation(number: str) -> bool:
         if number in known_values:
@@ -76,12 +99,12 @@ def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
             value = float(number)
         except ValueError:
             return False
-        if abs(value) < _MATERIAL_THRESHOLD or _is_year_like(number):
+        if abs(value) <= _MATERIAL_THRESHOLD or _is_year_like(number):
             return False
-        return not any(
-            abs(value - known) <= _RELATIVE_TOLERANCE * max(abs(known), 1.0)
-            for known in known_floats
-        )
+        tolerance = _RELATIVE_TOLERANCE * max(abs(value), 1.0)
+        if any(abs(value - known) <= tolerance for known in known_floats):
+            return False
+        return not _matches_pair_arithmetic(value, known_floats, tolerance)
 
     return sorted(number for number in extract_numbers(text) if is_violation(number))
 
