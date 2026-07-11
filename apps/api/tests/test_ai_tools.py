@@ -178,7 +178,7 @@ def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -
     assert tax["tax_year"] == 2026
     assert tax["estimated_total_tax"]["amount_minor"] > 0
     assert tax["estimated_gross_income"]["amount_minor"] > 4 * 461_538
-    assert any("State and local taxes" in a for a in result["assumptions"])
+    assert any("state income tax is NOT included" in a for a in result["assumptions"])
     # Partial history is disclosed to the model too.
     assert any("not a full year" in w for w in result["warnings"])
 

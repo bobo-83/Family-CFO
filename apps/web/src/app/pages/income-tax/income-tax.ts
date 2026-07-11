@@ -32,6 +32,15 @@ export class IncomeTax {
   // Tax settings form state (mirrors the loaded analysis).
   protected filingStatus = 'married_joint';
   protected treatedAsNet = true;
+  // M65: only the state is asked for — a street address has no use here.
+  protected state = '';
+  protected readonly states = [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI',
+    'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN',
+    'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH',
+    'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA',
+    'WV', 'WI', 'WY',
+  ];
 
   constructor() {
     void this.load();
@@ -48,6 +57,7 @@ export class IncomeTax {
     this.analysis.set(data);
     this.filingStatus = data.tax.filing_status;
     this.treatedAsNet = data.tax.income_treated_as_net;
+    this.state = data.tax.state ?? '';
   }
 
   private async override(
@@ -99,6 +109,7 @@ export class IncomeTax {
     const { error } = await this.api.updateIncomeTaxSettings({
       tax_filing_status: this.filingStatus as 'single' | 'married_joint' | 'head_of_household',
       income_treated_as_net: this.treatedAsNet,
+      ...(this.state ? { state: this.state } : {}),
     });
     this.busy.set(null);
     if (error) {

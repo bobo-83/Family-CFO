@@ -94,6 +94,9 @@ households = Table(
     # M61 tax-estimate settings: null = defaults (married_joint, deposits net).
     Column("tax_filing_status", String(20), nullable=True),
     Column("income_treated_as_net", Boolean, nullable=True),
+    # M65: USPS state code for state income tax; only the state, never a
+    # street address (privacy-first).
+    Column("state", String(2), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("length(base_currency) = 3", name="ck_households_currency_length"),

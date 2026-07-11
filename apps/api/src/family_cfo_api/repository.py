@@ -375,6 +375,8 @@ class HouseholdRecord:
     # M61: null = defaults (married_joint; deposits treated as take-home pay).
     tax_filing_status: str | None = None
     income_treated_as_net: bool | None = None
+    # M65: USPS state code for state income tax (null = not set).
+    state: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,6 +410,7 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         emergency_fund_target_months=row["emergency_fund_target_months"],
         tax_filing_status=row["tax_filing_status"],
         income_treated_as_net=row["income_treated_as_net"],
+        state=row["state"],
     )
 
 
@@ -429,8 +432,9 @@ def update_tax_settings(
     *,
     tax_filing_status: str | None,
     income_treated_as_net: bool | None,
+    state: str | None = None,
 ) -> None:
-    """M61: set (or clear, when None) the household's tax-estimate settings."""
+    """M61/M65: set (or clear, when None) the household's tax-estimate settings."""
     with engine.begin() as conn:
         conn.execute(
             update(models.households)
@@ -438,6 +442,7 @@ def update_tax_settings(
             .values(
                 tax_filing_status=tax_filing_status,
                 income_treated_as_net=income_treated_as_net,
+                state=state,
                 updated_at=utcnow(),
             )
         )

@@ -466,9 +466,15 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
             "tax_year": tax.tax_year,
             "filing_status": tax.filing_status,
             "income_treated_as_take_home": tax.income_treated_as_net,
+            "state": tax.state,
             "estimated_gross_income": _schema_money_out(tax.gross_income),
             "federal_income_tax": _schema_money_out(tax.federal_income_tax),
             "social_security_and_medicare": _schema_money_out(tax.fica_tax),
+            "state_income_tax": (
+                _schema_money_out(tax.state_income_tax)
+                if tax.state_income_tax is not None
+                else None
+            ),
             "estimated_total_tax": _schema_money_out(tax.total_tax),
             "effective_rate": tax.effective_rate,
         },
