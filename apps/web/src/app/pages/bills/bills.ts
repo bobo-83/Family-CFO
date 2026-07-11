@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type {
   Bill as BillDto,
   BillSuggestion,
+  BillUpdateSuggestion,
   RecurringFrequency,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
@@ -44,6 +45,8 @@ export class Bills {
 
   // M58: recurring charges detected in checking/credit-card transactions.
   protected readonly suggestions = signal<BillSuggestion[]>([]);
+  // M59: existing bills whose live charge pattern drifted (price changes).
+  protected readonly updates = signal<BillUpdateSuggestion[]>([]);
   protected readonly suggestionError = signal<string | null>(null);
   protected readonly suggestionBusy = signal<string | null>(null);
 
@@ -71,6 +74,41 @@ export class Bills {
       return;
     }
     this.suggestions.set(data.suggestions);
+    this.updates.set(data.updates ?? []);
+  }
+
+  protected async applyUpdate(update: BillUpdateSuggestion): Promise<void> {
+    if (this.suggestionBusy()) {
+      return;
+    }
+    this.suggestionBusy.set(update.dismiss_key);
+    this.suggestionError.set(null);
+    const { error } = await this.api.updateBill(update.bill_id, {
+      amount: update.suggested_amount,
+      frequency: update.frequency,
+      next_due_date: update.next_due_date,
+    });
+    this.suggestionBusy.set(null);
+    if (error) {
+      this.suggestionError.set(apiErrorMessage(error, 'Failed to update the bill.'));
+      return;
+    }
+    await Promise.all([this.load(), this.loadSuggestions()]);
+  }
+
+  protected async dismissUpdate(update: BillUpdateSuggestion): Promise<void> {
+    if (this.suggestionBusy()) {
+      return;
+    }
+    this.suggestionBusy.set(update.dismiss_key);
+    this.suggestionError.set(null);
+    const { error } = await this.api.dismissBillSuggestion(update.dismiss_key);
+    this.suggestionBusy.set(null);
+    if (error) {
+      this.suggestionError.set(apiErrorMessage(error, 'Failed to dismiss the update.'));
+      return;
+    }
+    await this.loadSuggestions();
   }
 
   protected async confirmSuggestion(suggestion: BillSuggestion): Promise<void> {
