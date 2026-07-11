@@ -28,7 +28,7 @@ from family_cfo_financial_engine import (
 )
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service
+from family_cfo_api import finance_service, repository
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.explanation import format_money
 from family_cfo_ai_orchestrator.tool_calling import ToolExecutor
@@ -80,7 +80,10 @@ GROUNDING_RULES = (
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
-    "in a search query."
+    "in a search query. For income, salary, or tax questions use "
+    "get_income_and_tax (quote its assumptions when giving a tax figure); for "
+    "bills or upcoming payments use get_bills; for budgets use get_budgets; for "
+    "recent spending habits use get_spending_insights."
 )
 
 # Backwards-compatible alias (professional baseline without persona).
@@ -428,6 +431,114 @@ def _web_search(args: dict[str, Any], searxng_url: str) -> dict[str, Any]:
     }
 
 
+def _schema_money_out(money) -> dict[str, Any]:
+    """schemas.Money → the same shape _money_out gives engine Money."""
+    return _money_out(Money(money.amount_minor, money.currency))
+
+
+def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """M64: the M61–M63 income analysis + tax estimate, compacted for the model."""
+    from family_cfo_api.api.income_analysis import build_income_analysis
+
+    household = repository.get_household(engine, household_id)
+    if household is None:
+        return {"error": "missing_input", "detail": "household not found"}
+    analysis = build_income_analysis(engine, household)
+    tax = analysis.tax
+    warnings: list[str] = []
+    if analysis.coverage_warning:
+        warnings.append(analysis.coverage_warning)
+    return {
+        "income_sources": [
+            {
+                "name": source.name,
+                "frequency": source.frequency,
+                "typical_deposit": _schema_money_out(source.typical_amount),
+                "total_in_window": _schema_money_out(source.total_amount),
+                "deposit_count": len(source.transactions),
+            }
+            for source in analysis.sources
+        ],
+        "annual_income": _schema_money_out(analysis.rollup.annual_income),
+        "monthly_average_income": _schema_money_out(analysis.rollup.monthly_average),
+        "window_days": analysis.rollup.window_days,
+        "tax_estimate": {
+            "tax_year": tax.tax_year,
+            "filing_status": tax.filing_status,
+            "income_treated_as_take_home": tax.income_treated_as_net,
+            "estimated_gross_income": _schema_money_out(tax.gross_income),
+            "federal_income_tax": _schema_money_out(tax.federal_income_tax),
+            "social_security_and_medicare": _schema_money_out(tax.fica_tax),
+            "estimated_total_tax": _schema_money_out(tax.total_tax),
+            "effective_rate": tax.effective_rate,
+        },
+        "assumptions": list(tax.assumptions),
+        "warnings": warnings,
+    }
+
+
+def _get_bills(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """M64: recurring bills plus the next-14-days upcoming view."""
+    bills = repository.list_bills(engine, household_id)
+    upcoming = finance_service.upcoming_bills(engine, household_id, currency)
+    return {
+        "bills": [
+            {
+                "name": bill.name,
+                "amount": _money_out(Money(bill.amount_minor, bill.currency)),
+                "frequency": bill.frequency,
+                "next_due_date": bill.next_due_date.isoformat() if bill.next_due_date else None,
+            }
+            for bill in bills
+        ],
+        "due_within_14_days": [
+            {
+                "name": bill.name,
+                "amount": _money_out(bill.amount),
+                "due_date": bill.due_date.isoformat(),
+                "days_until": bill.days_until,
+            }
+            for bill in upcoming
+        ],
+    }
+
+
+def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """M64: current-month envelope progress per category."""
+    from family_cfo_api.api.budgets import budgets_with_progress
+
+    budgets = budgets_with_progress(engine, household_id, currency)
+    return {
+        "month_budgets": [
+            {
+                "category": budget.category_name,
+                "limit": _schema_money_out(budget.limit),
+                "spent_so_far": _schema_money_out(budget.spent),
+                "remaining": _schema_money_out(budget.remaining),
+                "percent_used": budget.percent_used,
+                "status": budget.status,
+            }
+            for budget in budgets
+        ],
+    }
+
+
+def _get_spending_insights(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """M64: month-to-date spending vs the same window last month + top merchants."""
+    from family_cfo_api.api.household import _spending_insights
+
+    insights = _spending_insights(engine, household_id, currency)
+    return {
+        "month_to_date_spending": _schema_money_out(insights.this_month),
+        "same_window_last_month": _schema_money_out(insights.last_month),
+        "change_percent": insights.change_percent,
+        "top_merchants": [
+            {"merchant": m.merchant, "total": _schema_money_out(m.amount)}
+            for m in insights.top_merchants
+        ],
+    }
+
+
 _HANDLERS = {
     "get_net_worth": _get_net_worth,
     "get_emergency_fund": _get_emergency_fund,
@@ -436,6 +547,10 @@ _HANDLERS = {
     "future_value": _future_value,
     "project_retirement": _project_retirement,
     "debt_payoff": _debt_payoff,
+    "get_income_and_tax": _get_income_and_tax,
+    "get_bills": _get_bills,
+    "get_budgets": _get_budgets,
+    "get_spending_insights": _get_spending_insights,
 }
 
 _MONEY_FIELD = {"type": "integer", "description": "amount in minor currency units (e.g. cents)"}
@@ -548,6 +663,40 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "required": ["balance_minor", "annual_interest_rate", "minimum_payment_minor"],
                 "additionalProperties": False,
             },
+        ),
+        ToolSpec(
+            name="get_income_and_tax",
+            description=(
+                "The household's detected income (recurring checking-account deposits over the "
+                "last 12 months, user-curated) and the deterministic annual tax estimate "
+                "(federal + FICA, with assumptions). Use for any income, salary, earnings, or "
+                "tax question."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_bills",
+            description=(
+                "The household's recurring bills and which are due within the next 14 days. "
+                "Use for questions about bills, subscriptions, or upcoming payments."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_budgets",
+            description=(
+                "This month's budget envelopes per spending category: limit, spent so far, "
+                "remaining, and status. Use for budget questions."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_spending_insights",
+            description=(
+                "Month-to-date spending vs the same window last month, plus the top merchants. "
+                "Use for questions about recent spending habits."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
     ]
     if settings.live_data_enabled:
