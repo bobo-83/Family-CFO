@@ -203,7 +203,7 @@ async def test_analyze_purchase_falls_back_to_deterministic_on_guardrail_violati
 ) -> None:
     monkeypatch.setattr(
         "family_cfo_api.ai_runtime_selection.VLLMAdapter",
-        _StubVllmAdapter("This purchase carries a fabricated 42.7% hidden risk premium."),
+        _StubVllmAdapter("This purchase carries a fabricated USD 42,700.00 hidden risk premium."),
     )
     await _enable_runtime(demo_client, demo_token)
 
@@ -214,7 +214,7 @@ async def test_analyze_purchase_falls_back_to_deterministic_on_guardrail_violati
     )
 
     assert response.status_code == 200
-    assert "42.7" not in response.json()["answer"]
+    assert "42,700" not in response.json()["answer"]
 
     with demo_engine.connect() as conn:
         row = (

@@ -89,7 +89,9 @@ async def test_agentic_answer_is_used_when_grounded(
 async def test_ungrounded_number_falls_back_to_deterministic(
     demo_client, demo_engine, demo_token, monkeypatch
 ) -> None:
-    _install_runtime(
+    # M56: one corrective retry runs first, so the fabricated figure must
+    # survive two rounds before the deterministic snapshot takes over.
+    runtime = _install_runtime(
         monkeypatch,
         [
             RuntimeToolCompletion(
@@ -97,7 +99,13 @@ async def test_ungrounded_number_falls_back_to_deterministic(
                 text="You have exactly USD 999,999.00 in net worth.",
                 model="stub",
                 raw={},
-            )
+            ),
+            RuntimeToolCompletion(
+                tool_calls=[],
+                text="I insist: USD 999,999.00 in net worth.",
+                model="stub",
+                raw={},
+            ),
         ],
     )
 
@@ -109,9 +117,64 @@ async def test_ungrounded_number_falls_back_to_deterministic(
 
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
-    # The fabricated figure was rejected; the deterministic snapshot answered instead.
+    # The fabricated figure was rejected twice; the deterministic snapshot answered instead.
+    assert runtime._i == 2
     assert "999,999" not in recommendation["answer"]
     assert await _explanation_source(demo_engine, recommendation["id"]) == "deterministic_stub"
+
+
+@pytest.mark.anyio
+async def test_corrective_retry_rescues_ungrounded_answer(
+    demo_client, demo_engine, demo_token, monkeypatch
+) -> None:
+    """M56: a guardrail violation triggers one retry; a grounded restatement is used."""
+    _install_runtime(
+        monkeypatch,
+        [
+            RuntimeToolCompletion(
+                tool_calls=[],
+                text="Your money could roughly triple to USD 320,700.00.",
+                model="stub",
+                raw={},
+            ),
+            # Retry round: the model calls a tool this time, then answers with
+            # the tool's figure.
+            RuntimeToolCompletion(
+                tool_calls=[
+                    ToolCall(
+                        id="c1",
+                        name="future_value",
+                        arguments={
+                            "present_value_minor": 100_000,
+                            "annual_return_rate": 0.06,
+                            "years": 20,
+                        },
+                    )
+                ],
+                text="",
+                model="stub",
+                raw={},
+            ),
+            RuntimeToolCompletion(
+                tool_calls=[],
+                text="Invested for 20 years it could grow to USD 3,207.14.",
+                model="stub",
+                raw={},
+            ),
+        ],
+    )
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "What could $1000 grow to?"},
+    )
+
+    assert response.status_code == 200
+    recommendation = response.json()["recommendation"]
+    assert recommendation["answer"] == "Invested for 20 years it could grow to USD 3,207.14."
+    assert recommendation["calculation_refs"]
+    assert await _explanation_source(demo_engine, recommendation["id"]) == "agentic_tool_calling"
 
 
 @pytest.mark.anyio
