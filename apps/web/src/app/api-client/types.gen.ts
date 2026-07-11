@@ -272,10 +272,70 @@ export type TaxEstimate = {
     assumptions: Array<string>;
 };
 
+export type IncomeEarner = {
+    id: string;
+    label: string;
+    base_salary: Money;
+    rsu_annual: Money;
+    rsu_frequency?: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+    rsu_next_vest_date?: string;
+    bonus_percent?: number;
+    bonus_month?: number;
+    w2_year?: number;
+    w2_wages?: Money;
+    w2_withheld?: Money;
+};
+
+export type ExpectedIncomeEvent = {
+    date: string;
+    label: string;
+    amount: Money;
+};
+
+/**
+ * Declared compensation (M73). When present it is the authority for the tax estimate — no net-to-gross inference.
+ *
+ */
+export type IncomeProfile = {
+    earners: Array<IncomeEarner>;
+    expected_annual_gross: Money;
+    expected_events: Array<ExpectedIncomeEvent>;
+};
+
+export type IncomeEarnerCreateRequest = {
+    label: string;
+    base_salary_minor?: number;
+    rsu_annual_minor?: number;
+    rsu_frequency?: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+    rsu_next_vest_date?: string;
+    bonus_percent?: number;
+    bonus_month?: number;
+    w2_year?: number;
+    w2_wages_minor?: number;
+    w2_withheld_minor?: number;
+};
+
+export type W2ScanRequest = {
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp';
+};
+
+/**
+ * Candidate values only — the user confirms before anything is saved.
+ */
+export type W2ScanResult = {
+    year?: number;
+    employer?: string;
+    wages_minor?: number;
+    federal_withheld_minor?: number;
+    note: string;
+};
+
 export type IncomeAnalysisResponse = {
     sources: Array<IncomeSourceAnalysis>;
     other_inflows: Array<IncomeAnalysisTransaction>;
     rollup: IncomeRollup;
+    profile?: IncomeProfile;
     /**
      * Present when the synced history does not span the full analysis window (e.g. it starts mid-year) — income and tax are then likely underestimated. Internal transfers between the household's own accounts are never shown or counted (M63).
      *
@@ -2330,6 +2390,103 @@ export type UpdateIncomeTaxSettingsResponses = {
 };
 
 export type UpdateIncomeTaxSettingsResponse = UpdateIncomeTaxSettingsResponses[keyof UpdateIncomeTaxSettingsResponses];
+
+export type CreateIncomeEarnerData = {
+    body: IncomeEarnerCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/income/profile/earners';
+};
+
+export type CreateIncomeEarnerErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateIncomeEarnerError = CreateIncomeEarnerErrors[keyof CreateIncomeEarnerErrors];
+
+export type CreateIncomeEarnerResponses = {
+    /**
+     * Earner declared
+     */
+    201: IncomeEarner;
+};
+
+export type CreateIncomeEarnerResponse = CreateIncomeEarnerResponses[keyof CreateIncomeEarnerResponses];
+
+export type DeleteIncomeEarnerData = {
+    body?: never;
+    path: {
+        earner_id: string;
+    };
+    query?: never;
+    url: '/income/profile/earners/{earner_id}';
+};
+
+export type DeleteIncomeEarnerErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteIncomeEarnerError = DeleteIncomeEarnerErrors[keyof DeleteIncomeEarnerErrors];
+
+export type DeleteIncomeEarnerResponses = {
+    /**
+     * Earner removed
+     */
+    204: void;
+};
+
+export type DeleteIncomeEarnerResponse = DeleteIncomeEarnerResponses[keyof DeleteIncomeEarnerResponses];
+
+export type ScanW2Data = {
+    body: W2ScanRequest;
+    path?: never;
+    query?: never;
+    url: '/income/profile/scan-w2';
+};
+
+export type ScanW2Errors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type ScanW2Error = ScanW2Errors[keyof ScanW2Errors];
+
+export type ScanW2Responses = {
+    /**
+     * Candidate values extracted by the on-box vision model
+     */
+    200: W2ScanResult;
+};
+
+export type ScanW2Response = ScanW2Responses[keyof ScanW2Responses];
 
 export type ListGoalsData = {
     body?: never;

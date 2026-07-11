@@ -419,12 +419,74 @@ class TaxEstimate(BaseModel):
     assumptions: list[str]
 
 
+ChatImageMediaType = Literal["image/jpeg", "image/png", "image/webp"]
+
+
+# --- Compensation profiles (M73) ---
+
+
+class IncomeEarner(BaseModel):
+    id: str
+    label: str
+    base_salary: Money
+    rsu_annual: Money
+    rsu_frequency: Literal["monthly", "quarterly", "semiannual", "annual"] | None = None
+    rsu_next_vest_date: date | None = None
+    bonus_percent: float = 0.0
+    bonus_month: int | None = None
+    w2_year: int | None = None
+    w2_wages: Money | None = None
+    w2_withheld: Money | None = None
+
+
+class ExpectedIncomeEvent(BaseModel):
+    date: date
+    label: str
+    amount: Money
+
+
+class IncomeProfile(BaseModel):
+    earners: list[IncomeEarner]
+    expected_annual_gross: Money
+    expected_events: list[ExpectedIncomeEvent]
+
+
+class IncomeEarnerCreateRequest(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    base_salary_minor: int = Field(default=0, ge=0)
+    rsu_annual_minor: int = Field(default=0, ge=0)
+    rsu_frequency: Literal["monthly", "quarterly", "semiannual", "annual"] | None = None
+    rsu_next_vest_date: date | None = None
+    bonus_percent: float = Field(default=0.0, ge=0, le=100)
+    bonus_month: int | None = Field(default=None, ge=1, le=12)
+    w2_year: int | None = Field(default=None, ge=1990, le=2100)
+    w2_wages_minor: int | None = Field(default=None, ge=0)
+    w2_withheld_minor: int | None = Field(default=None, ge=0)
+
+
+class W2ScanRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_media_type: ChatImageMediaType
+
+
+class W2ScanResult(BaseModel):
+    """Candidate values only — the user confirms before anything is saved."""
+
+    year: int | None = None
+    employer: str | None = None
+    wages_minor: int | None = None
+    federal_withheld_minor: int | None = None
+    note: str
+
+
 class IncomeAnalysisResponse(BaseModel):
     sources: list[IncomeSourceAnalysis]
     other_inflows: list[IncomeAnalysisTransaction]
     rollup: IncomeRollup
     # M63: set when the synced history does not span the full window.
     coverage_warning: str | None = None
+    # M73: declared compensation; when present it is the tax authority.
+    profile: IncomeProfile | None = None
     tax: TaxEstimate
 
 
@@ -503,7 +565,6 @@ class Recommendation(BaseModel):
     photo_described_by: str | None = None
 
 
-ChatImageMediaType = Literal["image/jpeg", "image/png", "image/webp"]
 
 
 class ChatRequest(BaseModel):
