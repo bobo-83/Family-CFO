@@ -17,22 +17,44 @@ export class Shell {
   /** Mobile drawer state; the sidebar is always visible on desktop widths. */
   protected readonly menuOpen = signal(false);
 
-  protected readonly navItems = [
-    { path: '/overview', label: 'Overview' },
-    { path: '/chat', label: 'Ask the Advisor' },
-    { path: '/memory', label: 'Advisor Memory' },
-    { path: '/accounts', label: 'Accounts' },
-    { path: '/goals', label: 'Goals' },
-    { path: '/bills', label: 'Bills' },
-    { path: '/income-tax', label: 'Income & Tax' },
-    { path: '/reports', label: 'Reports' },
-    { path: '/transactions', label: 'Transactions' },
-    { path: '/categories', label: 'Categories' },
-    { path: '/budgets', label: 'Budgets' },
-    { path: '/imports', label: 'Imports' },
-    { path: '/ai-runtime', label: 'AI Runtime' },
-    { path: '/backups', label: 'Backups' },
-    { path: '/users', label: 'Users' },
+  // M70: grouped so the drawer stays scannable as pages accumulate; the
+  // template renders each group under a small label.
+  protected readonly navSections: { label: string | null; items: { path: string; label: string }[] }[] = [
+    {
+      label: null,
+      items: [
+        { path: '/overview', label: 'Overview' },
+        { path: '/chat', label: 'Ask the Advisor' },
+      ],
+    },
+    {
+      label: 'Money',
+      items: [
+        { path: '/accounts', label: 'Accounts' },
+        { path: '/transactions', label: 'Transactions' },
+        { path: '/bills', label: 'Bills' },
+        { path: '/income-tax', label: 'Income & Tax' },
+        { path: '/budgets', label: 'Budgets' },
+        { path: '/categories', label: 'Categories' },
+        { path: '/goals', label: 'Goals' },
+      ],
+    },
+    {
+      label: 'Advisor',
+      items: [
+        { path: '/memory', label: 'Advisor Memory' },
+        { path: '/ai-runtime', label: 'AI Runtime' },
+      ],
+    },
+    {
+      label: 'Admin',
+      items: [
+        { path: '/imports', label: 'Imports' },
+        { path: '/reports', label: 'Reports' },
+        { path: '/backups', label: 'Backups' },
+        { path: '/users', label: 'Users' },
+      ],
+    },
   ];
 
   protected toggleMenu(): void {
