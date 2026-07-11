@@ -14,7 +14,7 @@ import subprocess
 import threading
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 PROJECT_DIR = "/project"
@@ -106,6 +106,75 @@ def logs(service: str, tail: int = 30) -> dict:
     if result.returncode != 0:
         raise HTTPException(status_code=503, detail="log read failed")
     return {"lines": result.stdout[-LOG_TAIL_CHARS:]}
+
+
+# M67: container health as Prometheus metrics, from the socket this sidecar
+# ALREADY holds — so the monitoring stack needs no cAdvisor and ADR 0013's
+# single-socket-holder rule survives. Read-only.
+def _container_stats() -> list[tuple[str, int, int]]:
+    """(service, up, restart_count) per compose container."""
+    listing = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            "label=com.docker.compose.project=family-cfo",
+            "--format",
+            "{{.ID}}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if listing.returncode != 0:
+        raise RuntimeError("docker ps failed")
+    ids = [line.strip() for line in listing.stdout.splitlines() if line.strip()]
+    if not ids:
+        return []
+    inspect = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            '{{index .Config.Labels "com.docker.compose.service"}}'
+            "|{{.State.Running}}|{{.RestartCount}}",
+            *ids,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if inspect.returncode != 0:
+        raise RuntimeError("docker inspect failed")
+    stats: list[tuple[str, int, int]] = []
+    for line in inspect.stdout.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) != 3 or not parts[0]:
+            continue
+        stats.append((parts[0], 1 if parts[1] == "true" else 0, int(parts[2] or 0)))
+    return stats
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    try:
+        stats = _container_stats()
+    except (RuntimeError, subprocess.TimeoutExpired, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="container stats unavailable") from exc
+    lines = [
+        "# HELP family_cfo_container_up Whether the compose container is running.",
+        "# TYPE family_cfo_container_up gauge",
+    ]
+    for service, up, _restarts in sorted(stats):
+        lines.append(f'family_cfo_container_up{{service="{service}"}} {up}')
+    lines += [
+        "# HELP family_cfo_container_restarts Docker restart count per container.",
+        "# TYPE family_cfo_container_restarts counter",
+    ]
+    for service, _up, restarts in sorted(stats):
+        lines.append(f'family_cfo_container_restarts{{service="{service}"}} {restarts}')
+    return Response("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 @app.get("/status", response_model=SwapStatus)

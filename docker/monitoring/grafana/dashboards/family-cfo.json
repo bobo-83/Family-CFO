@@ -1,0 +1,108 @@
+{
+  "title": "Family CFO Ops",
+  "uid": "family-cfo-ops",
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Generation tokens/sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(vllm:generation_tokens_total[2m])",
+          "legendFormat": "{{runtime}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Requests running",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "vllm:num_requests_running", "legendFormat": "{{runtime}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "KV-cache usage",
+      "type": "timeseries",
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "vllm:gpu_cache_usage_perc", "legendFormat": "{{runtime}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Host memory used (= GPU on unified memory)",
+      "type": "timeseries",
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "memory used %"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Containers up",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 16 },
+      "options": { "textMode": "value_and_name", "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "family_cfo_container_up", "legendFormat": "{{service}}", "instant": true }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Container restarts (crash-loop detector)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "family_cfo_container_restarts", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Disk free (/)",
+      "type": "stat",
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\", fstype!=\"tmpfs\"}",
+          "legendFormat": "free",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Host CPU usage",
+      "type": "timeseries",
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        {
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])))",
+          "legendFormat": "cpu used %"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

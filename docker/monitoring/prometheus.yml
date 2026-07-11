@@ -1,0 +1,27 @@
+# Family CFO monitoring (M67). Scrapes ops metrics only — no household
+# financial data flows through this stack.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # vLLM's native metrics: tokens/sec, KV-cache usage, running requests.
+  - job_name: vllm
+    static_configs:
+      - targets: ["vllm:8000"]
+        labels: { runtime: chat }
+  - job_name: vllm-vision
+    static_configs:
+      - targets: ["vllm-vision:8000"]
+        labels: { runtime: photos }
+
+  # Host CPU/memory/disk. On unified-memory boxes (GB10-class) host memory IS
+  # the GPU memory, so this doubles as GPU monitoring.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Container up/restart states from the model-manager (the stack's single
+  # docker-socket holder, ADR 0013) — no cAdvisor needed.
+  - job_name: containers
+    static_configs:
+      - targets: ["model-manager:8000"]
