@@ -158,6 +158,10 @@ services:
     environment:
       # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # DeepGEMM's FP8 block-quant path asserts ("Unknown SF transformation")
+      # on GB10-class hardware; the fallback FP8 kernels work. Override to 1
+      # on platforms where DeepGEMM is known-good.
+      VLLM_USE_DEEP_GEMM: ${VLLM_USE_DEEP_GEMM:-0}
     volumes:
       - model_cache:/root/.cache/huggingface
     networks: [internal]
