@@ -20,6 +20,7 @@ from family_cfo_api import (
     import_processing,
     net_worth_history,
     report_generation,
+    vector_indexing,
 )
 from family_cfo_api.config import get_settings
 from family_cfo_api.db import create_database_engine
@@ -62,6 +63,10 @@ def main() -> None:
     def capture_net_worth_snapshot() -> None:
         # M40: one snapshot per household per day for the Overview trend.
         net_worth_history.record_snapshot_once(engine)
+
+    def rebuild_vector_index() -> None:
+        # M69: daily wipe-and-rebuild prunes vectors of deleted rows.
+        vector_indexing.run_indexing_once(engine, settings, wipe=True)
 
     def run_daily_backup() -> None:
         backup_processing.run_backup_once(
@@ -123,6 +128,13 @@ def main() -> None:
             interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
         )
     )
+    scheduler.add_job(
+        Job(
+            name="rebuild-vector-index",
+            func=rebuild_vector_index,
+            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+        )
+    )
 
     # M40: capture one snapshot immediately so the trend has a starting point
     # rather than waiting a full day for the first interval to fire.
@@ -140,6 +152,9 @@ def main() -> None:
             logger.info("memory backfill completed for %s household(s)", backfilled)
     except Exception:  # noqa: BLE001 - a backfill failure must not stop the worker
         logger.exception("memory backfill failed")
+
+    # M69: index existing records at startup (additive; the daily job prunes).
+    vector_indexing.run_indexing_once(engine, settings)
 
     scheduler.start()
 

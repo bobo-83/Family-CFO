@@ -3145,6 +3145,40 @@ def list_household_outflows(
         return [(row[0], int(row[1])) for row in conn.execute(query).all()]
 
 
+def list_transactions_for_indexing(
+    engine: Engine, household_id: str, *, since: date
+) -> list[tuple[str, date, int, str, str | None, str | None, str]]:
+    """All of a household's transactions in the window, for vector indexing (M69).
+
+    Returns (id, occurred_at, amount_minor, currency, merchant, description,
+    account_name).
+    """
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transactions.c.description,
+            models.accounts.c.name,
+        )
+        .select_from(
+            models.transactions.join(
+                models.accounts, models.transactions.c.account_id == models.accounts.c.id
+            )
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.occurred_at >= since,
+        )
+        .order_by(models.transactions.c.occurred_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [tuple(row) for row in rows]
+
+
 def list_income_overrides(engine: Engine, household_id: str) -> dict[str, str]:
     """transaction_id -> verdict ("include" | "exclude")."""
     query = select(

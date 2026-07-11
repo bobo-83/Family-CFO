@@ -431,6 +431,46 @@ def _web_search(args: dict[str, Any], searxng_url: str) -> dict[str, Any]:
     }
 
 
+def _search_backends(settings: Settings):
+    """The embedder + vector store pair; a seam so tests inject fakes."""
+    from family_cfo_api.embeddings import get_default_embedder
+    from family_cfo_api.vector_store import QdrantVectorStore
+
+    return get_default_embedder(), QdrantVectorStore(settings.qdrant_url)
+
+
+def _search_records(household_id: str, args: dict[str, Any], settings: Settings) -> dict[str, Any]:
+    """M69: embed the query, search the household's indexed records.
+
+    Best-effort recall — the deterministic aggregate tools remain the
+    authority for totals. Every figure returned here is grounded via the
+    normal tool trace.
+    """
+    query = str(args.get("query") or "").strip()
+    if not query:
+        return {"error": "invalid_arguments", "detail": "query is required"}
+    try:
+        embedder, store = _search_backends(settings)
+        vector = embedder.embed([query])[0]
+        hits = store.search(vector, household_id, limit=8)
+    except Exception as exc:  # noqa: BLE001 — honest failure beats a crash
+        return {"error": "lookup_failed", "detail": str(exc)[:200]}
+    return {
+        "matches": [
+            {
+                "kind": hit.payload.get("kind"),
+                "date": hit.payload.get("date"),
+                "description": hit.payload.get("text"),
+                "amount": hit.payload.get("amount_display"),
+                "account": hit.payload.get("account"),
+            }
+            for hit in hits
+        ],
+        "note": "Semantic matches from the household's own records; use the "
+        "aggregate tools for totals.",
+    }
+
+
 def _schema_money_out(money) -> dict[str, Any]:
     """schemas.Money → the same shape _money_out gives engine Money."""
     return _money_out(Money(money.amount_minor, money.currency))
@@ -729,6 +769,26 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 },
             )
         )
+    if settings.qdrant_url:
+        tools.append(
+            ToolSpec(
+                name="search_records",
+                description=(
+                    "Semantic search over the household's OWN transaction history and "
+                    "remembered facts — use for recall questions like 'when did we last "
+                    "pay X' or 'how much was that repair'. Returns matching records with "
+                    "dates and amounts; use the aggregate tools for totals."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "what to look for"}
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False,
+                },
+            )
+        )
     if settings.searxng_url:
         tools.append(
             ToolSpec(
@@ -760,6 +820,9 @@ def build_executor(
             return _get_exchange_rate(args)
         if name == "web_search" and settings.searxng_url:
             return _web_search(args, settings.searxng_url)
+        # M69 (ADR 0017): semantic recall over the household's own records.
+        if name == "search_records" and settings.qdrant_url:
+            return _search_records(household_id, args, settings)
         handler = _HANDLERS.get(name)
         if handler is None:
             return {"error": "unknown_tool", "name": name}
