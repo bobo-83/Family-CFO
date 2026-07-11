@@ -77,6 +77,7 @@ async def test_apply_forwards_to_manager_and_updates_config(demo_engine, monkeyp
         )
 
     monkeypatch.setattr(ai_runtime_module.httpx, "post", fake_post)
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
     app = create_app(_settings(), engine=demo_engine)
     client, token = await _owner_client_token(app)
     resp = await client.post(
@@ -115,6 +116,51 @@ async def test_apply_rejects_bad_ids_and_missing_manager(demo_engine, monkeypatc
     )
     assert resp.status_code == 503
     await client2.aclose()
+
+
+@pytest.mark.anyio
+async def test_apply_rejects_nonexistent_hub_model(demo_engine, monkeypatch) -> None:
+    """M66: a typo'd id is refused BEFORE any container is touched."""
+    monkeypatch.setattr(
+        ai_runtime_module, "_hf_model_exists", lambda hub, mid: mid != "Qwen/Qwen2.5-VL-8B-Instruct"
+    )
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "main_model": "Qwen/Qwen3-Next-80B-A3B-Instruct-FP8",
+            "vision_model": "Qwen/Qwen2.5-VL-8B-Instruct",
+        },
+    )
+    assert resp.status_code == 422
+    assert "Qwen/Qwen2.5-VL-8B-Instruct" in resp.json()["error"]["message"]
+    await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_apply_proceeds_when_hub_unreachable(demo_engine, monkeypatch) -> None:
+    """Offline-tolerant: an unreachable hub must not block the swap."""
+
+    def fake_post(url, json=None, timeout=None):
+        return httpx.Response(
+            202,
+            json={"state": "running", "main_model": json["main_model"], "vision_model": None},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "post", fake_post)
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: None)
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"main_model": "Qwen/Qwen2.5-14B-Instruct"},
+    )
+    assert resp.status_code == 202
+    await client.aclose()
 
 
 @pytest.mark.anyio
