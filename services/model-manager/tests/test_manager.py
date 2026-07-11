@@ -75,3 +75,33 @@ def test_logs_runs_compose_logs_for_allowlisted_service() -> None:
         cmd = run.call_args.args[0]
         # Tail clamped to the max; only the fixed, allowlisted service name.
         assert cmd == ["docker", "compose", "logs", "--no-color", "--tail", "200", "vllm"]
+
+
+def test_metrics_renders_container_families() -> None:
+    """M67: up gauge + restarts counter per compose service, Prometheus text."""
+    ps = type("R", (), {"returncode": 0, "stdout": "abc123\ndef456\n", "stderr": ""})()
+    inspect = type(
+        "R",
+        (),
+        {
+            "returncode": 0,
+            "stdout": "vllm|true|0\nvllm-vision|false|7\n",
+            "stderr": "",
+        },
+    )()
+    with patch.object(manager.subprocess, "run", side_effect=[ps, inspect]):
+        client = TestClient(manager.app)
+        resp = client.get("/metrics")
+    assert resp.status_code == 200
+    body = resp.text
+    assert 'family_cfo_container_up{service="vllm"} 1' in body
+    assert 'family_cfo_container_up{service="vllm-vision"} 0' in body
+    assert 'family_cfo_container_restarts{service="vllm-vision"} 7' in body
+    assert resp.headers["content-type"].startswith("text/plain")
+
+
+def test_metrics_503_when_docker_fails() -> None:
+    fail = type("R", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
+    with patch.object(manager.subprocess, "run", return_value=fail):
+        client = TestClient(manager.app)
+        assert client.get("/metrics").status_code == 503
