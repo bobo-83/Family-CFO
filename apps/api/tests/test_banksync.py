@@ -100,6 +100,37 @@ def test_sync_imports_and_is_idempotent(demo_engine: Engine) -> None:
     assert len(txns) == 2
 
 
+def test_sync_always_requests_the_full_history_window(demo_engine: Engine) -> None:
+    """M59: every sync asks for ~13 months, even the first one.
+
+    The old behavior sent NO start-date on the first sync (providers then
+    return almost nothing) and only since-last-sync afterwards, so a
+    household's transaction history was never fetched.
+    """
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)
+    seen_params: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_params.append(dict(request.url.params))
+        return httpx.Response(200, json=_accounts_payload())
+
+    connector = _connector(handler)
+    banksync.sync_connection(demo_engine, settings, connection, connector)
+    # Sync again with last_synced_at now set: the window must not shrink.
+    connection = repository.get_institution_connection(demo_engine, _HH, connection.id)
+    assert connection.last_synced_at is not None
+    banksync.sync_connection(demo_engine, settings, connection, connector)
+
+    from datetime import datetime, timedelta, timezone
+
+    expected = date.today() - timedelta(days=banksync.SYNC_LOOKBACK_DAYS)
+    for params in seen_params:
+        assert "start-date" in params
+        start = datetime.fromtimestamp(int(params["start-date"]), tz=timezone.utc).date()
+        assert start == expected
+
+
 def test_sync_auto_creates_and_reuses_the_mapped_account(demo_engine: Engine) -> None:
     settings = _settings()
     connection = _linked_connection(demo_engine, settings)

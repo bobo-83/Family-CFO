@@ -143,8 +143,29 @@ export type BillSuggestion = {
     last_seen: string;
 };
 
+/**
+ * An existing bill whose live charge pattern has drifted (M59): the detected median amount or cadence no longer matches the stored bill. Applying it is always a user-confirmed PATCH — never silent.
+ *
+ */
+export type BillUpdateSuggestion = {
+    bill_id: string;
+    name: string;
+    /**
+     * Pass to the dismissal endpoint to mute THIS suggested value; a later different value prompts again.
+     *
+     */
+    dismiss_key: string;
+    current_amount: Money;
+    suggested_amount: Money;
+    frequency: RecurringFrequency;
+    next_due_date: string;
+    occurrences: number;
+    last_seen: string;
+};
+
 export type BillSuggestionListResponse = {
     suggestions: Array<BillSuggestion>;
+    updates: Array<BillUpdateSuggestion>;
 };
 
 export type BillSuggestionDismissRequest = {

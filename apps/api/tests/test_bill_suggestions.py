@@ -213,6 +213,96 @@ async def test_dismissed_suggestion_stays_hidden(demo_client, demo_token) -> Non
     assert listed["suggestions"] == []
 
 
+# --- M59: drift updates for existing bills ---
+
+
+async def _get_suggestions(client, headers):
+    return (await client.get("/api/v1/bills/suggestions", headers=headers)).json()
+
+
+@pytest.mark.anyio
+async def test_price_drift_raises_update_suggestion(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    await _seed_recurring_charges(demo_client, demo_token, "NETFLIX.COM")
+    # Confirm the bill at an OLD price; the live pattern says 15.49.
+    created = await demo_client.post(
+        "/api/v1/bills",
+        headers=headers,
+        json={
+            "name": "NETFLIX.COM",
+            "amount": {"amount_minor": 1_299, "currency": "USD"},
+            "frequency": "monthly",
+        },
+    )
+    bill_id = created.json()["id"]
+
+    body = await _get_suggestions(demo_client, headers)
+    assert body["suggestions"] == []
+    assert len(body["updates"]) == 1
+    update = body["updates"][0]
+    assert update["bill_id"] == bill_id
+    assert update["current_amount"]["amount_minor"] == 1299
+    assert update["suggested_amount"]["amount_minor"] == 1549
+    assert update["dismiss_key"] == "netflix com@1549"
+
+    # Accepting = PATCHing the bill; the drift disappears.
+    patched = await demo_client.patch(
+        f"/api/v1/bills/{bill_id}",
+        headers=headers,
+        json={"amount": update["suggested_amount"]},
+    )
+    assert patched.status_code == 200
+    body = await _get_suggestions(demo_client, headers)
+    assert body["updates"] == []
+
+
+@pytest.mark.anyio
+async def test_within_tolerance_drift_is_quiet(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    await _seed_recurring_charges(demo_client, demo_token, "NETFLIX.COM")
+    # 1540 vs detected 1549 is within the 2% drift tolerance.
+    await demo_client.post(
+        "/api/v1/bills",
+        headers=headers,
+        json={
+            "name": "NETFLIX.COM",
+            "amount": {"amount_minor": 1_540, "currency": "USD"},
+            "frequency": "monthly",
+        },
+    )
+
+    body = await _get_suggestions(demo_client, headers)
+    assert body["suggestions"] == []
+    assert body["updates"] == []
+
+
+@pytest.mark.anyio
+async def test_dismissed_drift_reprompts_only_on_new_value(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    await _seed_recurring_charges(demo_client, demo_token, "NETFLIX.COM")
+    await demo_client.post(
+        "/api/v1/bills",
+        headers=headers,
+        json={
+            "name": "NETFLIX.COM",
+            "amount": {"amount_minor": 1_299, "currency": "USD"},
+            "frequency": "monthly",
+        },
+    )
+    dismissed = await demo_client.post(
+        "/api/v1/bills/suggestions/dismissals",
+        headers=headers,
+        json={"merchant_key": "netflix com@1549"},
+    )
+    assert dismissed.status_code == 204
+
+    body = await _get_suggestions(demo_client, headers)
+    assert body["updates"] == []
+    # The dismissal is value-specific: a plain new-bill dismissal for the
+    # merchant does not exist, and a different detected price would carry a
+    # different dismiss_key and prompt again.
+
+
 @pytest.mark.anyio
 async def test_viewer_cannot_dismiss_suggestions(demo_client, demo_viewer_token) -> None:
     response = await demo_client.post(
