@@ -185,6 +185,15 @@
             <option value="head_of_household">Head of household</option>
           </select>
         </label>
+        <label>
+          <span>State (for state income tax)</span>
+          <select [(ngModel)]="state" name="state">
+            <option value="">Not set</option>
+            @for (code of states; track code) {
+              <option [value]="code">{{ code }}</option>
+            }
+          </select>
+        </label>
         <label class="tax-card__toggle">
           <input type="checkbox" [(ngModel)]="treatedAsNet" name="treatedAsNet" />
           <span>Deposits are take-home pay (gross is estimated from them)</span>
@@ -203,6 +212,12 @@
       <div><dt>Standard deduction</dt><dd>−{{ formatMoney(data.tax.standard_deduction) }}</dd></div>
       <div><dt>Federal income tax</dt><dd>{{ formatMoney(data.tax.federal_income_tax) }}</dd></div>
       <div><dt>Social Security &amp; Medicare</dt><dd>{{ formatMoney(data.tax.fica_tax) }}</dd></div>
+      @if (data.tax.state_income_tax; as stateTax) {
+        <div>
+          <dt>State income tax ({{ data.tax.state }})</dt>
+          <dd>{{ formatMoney(stateTax) }}</dd>
+        </div>
+      }
       <div class="tax-card__total">
         <dt>Estimated total tax</dt>
         <dd>{{ formatMoney(data.tax.total_tax) }}</dd>

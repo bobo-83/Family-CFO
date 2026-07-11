@@ -60,14 +60,25 @@ def _txn_item(
     )
 
 
+# USPS codes accepted for the state setting (M65).
+US_STATES = frozenset(
+    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS "
+    "MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split()
+)
+
+
 def _tax_estimate(
-    annual_income_minor: int, currency: str, filing_status: str, treated_as_net: bool
+    annual_income_minor: int,
+    currency: str,
+    filing_status: str,
+    treated_as_net: bool,
+    state: str | None = None,
 ) -> TaxEstimate:
     income = EngineMoney(annual_income_minor, currency)
     result = (
-        gross_up_from_net(income, filing_status)
+        gross_up_from_net(income, filing_status, state)
         if treated_as_net
-        else estimate_annual_tax(income, filing_status)
+        else estimate_annual_tax(income, filing_status, state)
     )
     outputs = result.outputs
 
@@ -76,10 +87,12 @@ def _tax_estimate(
         return MoneySchema(amount_minor=value.amount_minor, currency=value.currency)
 
     net = outputs.get("net_income")
+    state_tax = outputs.get("state_income_tax")
     return TaxEstimate(
         tax_year=result.inputs["tax_year"],
         filing_status=filing_status,
         income_treated_as_net=treated_as_net,
+        state=state,
         gross_income=money("gross_income"),
         net_income=(
             MoneySchema(amount_minor=net.amount_minor, currency=net.currency) if net else None
@@ -88,6 +101,11 @@ def _tax_estimate(
         taxable_income=money("taxable_income"),
         federal_income_tax=money("federal_income_tax"),
         fica_tax=money("fica_tax"),
+        state_income_tax=(
+            MoneySchema(amount_minor=state_tax.amount_minor, currency=state_tax.currency)
+            if state_tax is not None
+            else None
+        ),
         total_tax=money("total_tax"),
         effective_rate=float(outputs["effective_rate"]),
         assumptions=list(result.assumptions),
@@ -244,7 +262,11 @@ def build_income_analysis(
         ),
         coverage_warning=coverage_warning,
         tax=_tax_estimate(
-            total_minor, household.base_currency, filing_status, treated_as_net
+            total_minor,
+            household.base_currency,
+            filing_status,
+            treated_as_net,
+            household.state,
         ),
     )
 
@@ -315,11 +337,15 @@ async def update_income_tax_settings(
 ) -> Response:
     if payload.tax_filing_status not in FILING_STATUSES:
         raise HTTPException(status_code=422, detail="Unknown filing status")
+    state = payload.state.upper() if payload.state else None
+    if state is not None and state not in US_STATES:
+        raise HTTPException(status_code=422, detail="Unknown state code")
     repository.update_tax_settings(
         engine,
         session.household_id,
         tax_filing_status=payload.tax_filing_status,
         income_treated_as_net=payload.income_treated_as_net,
+        state=state,
     )
     audit.write_audit(
         engine,
@@ -328,6 +354,7 @@ async def update_income_tax_settings(
         "income_tax_settings.updated",
         "household",
         session.household_id,
-        f"Tax settings: {payload.tax_filing_status}, net={payload.income_treated_as_net}",
+        f"Tax settings: {payload.tax_filing_status}, net={payload.income_treated_as_net}, "
+        f"state={state or 'unset'}",
     )
     return Response(status_code=204)

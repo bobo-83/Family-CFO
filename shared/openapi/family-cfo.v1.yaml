@@ -2483,6 +2483,9 @@ components:
           enum: [single, married_joint, head_of_household]
         income_treated_as_net:
           type: boolean
+        state:
+          type: string
+          description: USPS state code used for state income tax (M65).
         gross_income:
           $ref: "#/components/schemas/Money"
         net_income:
@@ -2494,6 +2497,8 @@ components:
         federal_income_tax:
           $ref: "#/components/schemas/Money"
         fica_tax:
+          $ref: "#/components/schemas/Money"
+        state_income_tax:
           $ref: "#/components/schemas/Money"
         total_tax:
           $ref: "#/components/schemas/Money"
@@ -2553,6 +2558,13 @@ components:
           enum: [single, married_joint, head_of_household]
         income_treated_as_net:
           type: boolean
+        state:
+          type: string
+          minLength: 2
+          maxLength: 2
+          description: >
+            USPS state code for state income tax (M65). Only the state is
+            collected — never a street address. Null clears it.
     IncomeListResponse:
       type: object
       required:

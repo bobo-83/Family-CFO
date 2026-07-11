@@ -71,6 +71,24 @@ def is_internal_transfer(
     return False
 
 
+# M65: adjacent sorted amounts more than this far apart start a new cluster —
+# a $2,830.78 paycheck must not share a group with a $23,124 one-off just
+# because the bank labels both "Online Transfer".
+CLUSTER_GAP = 0.30
+
+
+def _cluster_by_amount(group: list[IncomeTransaction]) -> list[list[IncomeTransaction]]:
+    """Split a merchant group into amount bands (greedy over sorted amounts)."""
+    ordered = sorted(group, key=lambda t: t.amount_minor)
+    clusters: list[list[IncomeTransaction]] = [[ordered[0]]]
+    for txn in ordered[1:]:
+        if txn.amount_minor > clusters[-1][-1].amount_minor * (1 + CLUSTER_GAP):
+            clusters.append([txn])
+        else:
+            clusters[-1].append(txn)
+    return clusters
+
+
 def detect_income_sources(
     transactions: list[IncomeTransaction],
     *,
@@ -80,6 +98,8 @@ def detect_income_sources(
 
     ``excluded_ids`` (user "remove" verdicts) are dropped BEFORE cadence
     analysis so an excluded outlier cannot block an otherwise-regular payer.
+    Merchant groups are first split into amount bands (M65) so a regular
+    paycheck is detected even when unrelated transfers share its bank label.
     """
     excluded = excluded_ids or set()
     groups: dict[tuple[str, str], list[IncomeTransaction]] = {}
@@ -93,27 +113,33 @@ def detect_income_sources(
 
     candidates: list[IncomeSourceCandidate] = []
     for (key, currency), group in groups.items():
-        group.sort(key=lambda t: t.occurred_at)
-        dates = sorted({t.occurred_at for t in group})
-        frequency = _classify_cadence(dates)
-        if frequency is None:
-            continue
-        amounts = [t.amount_minor for t in group]
-        typical = int(median(amounts))
-        if typical <= 0 or any(
-            abs(amount - typical) > typical * AMOUNT_TOLERANCE for amount in amounts
-        ):
-            continue
-        candidates.append(
-            IncomeSourceCandidate(
-                source_key=key,
-                name=group[-1].display_name,
-                frequency=frequency,
-                currency=currency,
-                typical_amount_minor=typical,
-                transactions=group,
+        clusters = _cluster_by_amount(group)
+        for index, cluster in enumerate(clusters):
+            cluster.sort(key=lambda t: t.occurred_at)
+            dates = sorted({t.occurred_at for t in cluster})
+            frequency = _classify_cadence(dates)
+            if frequency is None:
+                continue
+            amounts = [t.amount_minor for t in cluster]
+            typical = int(median(amounts))
+            if typical <= 0 or any(
+                abs(amount - typical) > typical * AMOUNT_TOLERANCE for amount in amounts
+            ):
+                continue
+            name = cluster[-1].display_name
+            if len(clusters) > 1:
+                # Disambiguate multiple bands under one bank label.
+                name = f"{name} (~{typical / 100:,.2f} {currency})"[:120]
+            candidates.append(
+                IncomeSourceCandidate(
+                    source_key=key if len(clusters) == 1 else f"{key}#{index}",
+                    name=name,
+                    frequency=frequency,
+                    currency=currency,
+                    typical_amount_minor=typical,
+                    transactions=cluster,
+                )
             )
-        )
 
     candidates.sort(key=lambda c: (-c.typical_amount_minor, c.name.lower()))
     return candidates

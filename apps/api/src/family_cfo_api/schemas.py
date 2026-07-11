@@ -404,12 +404,16 @@ class TaxEstimate(BaseModel):
     tax_year: int
     filing_status: str
     income_treated_as_net: bool
+    # M65: USPS state code; state_income_tax is None when the state is unset
+    # or not modeled (an assumption line says which).
+    state: str | None = None
     gross_income: Money
     net_income: Money | None = None
     standard_deduction: Money
     taxable_income: Money
     federal_income_tax: Money
     fica_tax: Money
+    state_income_tax: Money | None = None
     total_tax: Money
     effective_rate: float
     assumptions: list[str]
@@ -432,6 +436,8 @@ class IncomeOverrideRequest(BaseModel):
 class IncomeTaxSettingsRequest(BaseModel):
     tax_filing_status: str = Field(min_length=1, max_length=20)
     income_treated_as_net: bool
+    # M65: USPS state code for state income tax; null clears it.
+    state: str | None = Field(default=None, min_length=2, max_length=2)
 
 
 # --- Household memory (M57, ADR 0016) ---
