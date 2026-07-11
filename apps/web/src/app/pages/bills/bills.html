@@ -41,6 +41,46 @@
   </ul>
 }
 
+@if (updates().length > 0) {
+  <h2>Suggested updates</h2>
+  <p class="page-hint">
+    These bills' recent charges no longer match the saved amount. Nothing
+    changes without your confirmation.
+  </p>
+  <ul class="bill-list bill-list--suggestions">
+    @for (update of updates(); track update.dismiss_key) {
+      <li class="bill-list__item">
+        <div class="bill-list__main">
+          <div class="bill-list__name">{{ update.name }}</div>
+          <div class="bill-list__frequency">
+            {{ formatMoney(update.current_amount) }} →
+            {{ formatMoney(update.suggested_amount) }} · {{ update.frequency }} ·
+            {{ update.occurrences }} charges · last {{ update.last_seen | date: 'MMM d' }}
+          </div>
+        </div>
+        @if (canWrite()) {
+          <button
+            type="button"
+            class="bill-list__confirm"
+            [disabled]="suggestionBusy() !== null"
+            (click)="applyUpdate(update)"
+          >
+            {{ suggestionBusy() === update.dismiss_key ? '…' : 'Update' }}
+          </button>
+          <button
+            type="button"
+            class="bill-list__delete"
+            [disabled]="suggestionBusy() !== null"
+            (click)="dismissUpdate(update)"
+          >
+            Dismiss
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}
+
 @if (suggestions().length > 0) {
   <h2>Suggested from your transactions</h2>
   <p class="page-hint">

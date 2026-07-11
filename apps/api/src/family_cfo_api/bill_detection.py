@@ -23,6 +23,10 @@ LOOKBACK_DAYS = 400
 # utilities wobble, but a merchant whose charges double is not one bill.
 AMOUNT_TOLERANCE = 0.30
 
+# M59: how far a confirmed bill's amount may drift from its live charge
+# pattern before an update suggestion is raised.
+DRIFT_TOLERANCE = 0.02
+
 # (frequency, min interval days, max interval days, min occurrences).
 # Short cadences demand three sightings; quarterly/annual would need most of
 # a year to reach three, so two consistent sightings suffice.

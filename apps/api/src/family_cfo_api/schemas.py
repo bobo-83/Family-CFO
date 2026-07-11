@@ -335,8 +335,23 @@ class BillSuggestion(BaseModel):
     last_seen: date
 
 
+class BillUpdateSuggestion(BaseModel):
+    """M59: an existing bill whose live charge pattern has drifted."""
+
+    bill_id: str
+    name: str
+    dismiss_key: str
+    current_amount: Money
+    suggested_amount: Money
+    frequency: RecurringFrequency
+    next_due_date: date
+    occurrences: int
+    last_seen: date
+
+
 class BillSuggestionListResponse(BaseModel):
     suggestions: list[BillSuggestion]
+    updates: list[BillUpdateSuggestion]
 
 
 class BillSuggestionDismissRequest(BaseModel):

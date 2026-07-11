@@ -19,7 +19,7 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
@@ -33,6 +33,11 @@ from family_cfo_api.config import Settings
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 30.0
+
+# How much transaction history every sync requests. Matches the bill-detection
+# lookback (bill_detection.LOOKBACK_DAYS) so recurring-charge suggestions have
+# a full ~13 months to work with.
+SYNC_LOOKBACK_DAYS = 400
 
 
 class BankSyncError(RuntimeError):
@@ -221,7 +226,12 @@ def sync_connection(
     """Fetch and import all accounts/transactions for one connection, deduped."""
     connector = connector or SimpleFINConnector()
     access_url = decrypt_credential(settings, connection.access_url_encrypted)
-    since = connection.last_synced_at.date() if connection.last_synced_at else None
+    # M59: always request the full detection lookback, never just "since last
+    # sync" — the first sync used to send NO start-date (providers then return
+    # almost nothing), so history was never fetched. The M27 external_id
+    # dedupe makes re-fetching this window idempotent, so every sync also
+    # self-heals gaps.
+    since = date.today() - timedelta(days=SYNC_LOOKBACK_DAYS)
 
     try:
         external_accounts = connector.fetch_accounts(access_url, since)

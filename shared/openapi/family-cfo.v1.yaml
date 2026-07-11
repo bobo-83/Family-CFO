@@ -2198,15 +2198,61 @@ components:
         last_seen:
           type: string
           format: date
+    BillUpdateSuggestion:
+      type: object
+      description: >
+        An existing bill whose live charge pattern has drifted (M59): the
+        detected median amount or cadence no longer matches the stored bill.
+        Applying it is always a user-confirmed PATCH — never silent.
+      required:
+        - bill_id
+        - name
+        - dismiss_key
+        - current_amount
+        - suggested_amount
+        - frequency
+        - next_due_date
+        - occurrences
+        - last_seen
+      properties:
+        bill_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        dismiss_key:
+          type: string
+          description: >
+            Pass to the dismissal endpoint to mute THIS suggested value; a
+            later different value prompts again.
+        current_amount:
+          $ref: "#/components/schemas/Money"
+        suggested_amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        next_due_date:
+          type: string
+          format: date
+        occurrences:
+          type: integer
+        last_seen:
+          type: string
+          format: date
     BillSuggestionListResponse:
       type: object
       required:
         - suggestions
+        - updates
       properties:
         suggestions:
           type: array
           items:
             $ref: "#/components/schemas/BillSuggestion"
+        updates:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillUpdateSuggestion"
     BillSuggestionDismissRequest:
       type: object
       required:

@@ -241,4 +241,47 @@ describe('Bills', () => {
     expect(apiMock.dismissBillSuggestion).toHaveBeenCalledWith('gym co');
     expect(host.querySelector('.bill-list--suggestions')).toBeNull();
   });
+
+  it('applies a drift update to the existing bill after confirmation', async () => {
+    const update = {
+      bill_id: 'b1',
+      name: 'Netflix',
+      dismiss_key: 'netflix@1799',
+      current_amount: { amount_minor: 1_549, currency: 'USD' },
+      suggested_amount: { amount_minor: 1_799, currency: 'USD' },
+      frequency: 'monthly',
+      next_due_date: '2026-08-01',
+      occurrences: 3,
+      last_seen: '2026-07-01',
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi
+        .fn()
+        .mockResolvedValueOnce(response({ suggestions: [], updates: [update] }))
+        .mockResolvedValueOnce(response({ suggestions: [], updates: [] })),
+      updateBill: vi.fn().mockResolvedValue(response({ id: 'b1' })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Suggested updates');
+    expect(host.textContent).toContain('USD 15.49');
+    expect(host.textContent).toContain('USD 17.99');
+    (host.querySelector('.bill-list__confirm') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.updateBill).toHaveBeenCalledWith('b1', {
+      amount: { amount_minor: 1_799, currency: 'USD' },
+      frequency: 'monthly',
+      next_due_date: '2026-08-01',
+    });
+    expect(host.textContent).not.toContain('Suggested updates');
+  });
 });

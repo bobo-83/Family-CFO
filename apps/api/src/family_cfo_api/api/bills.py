@@ -12,6 +12,7 @@ from family_cfo_api.schemas import (
     BillSuggestion,
     BillSuggestionDismissRequest,
     BillSuggestionListResponse,
+    BillUpdateSuggestion,
     BillUpdateRequest,
     ErrorResponse,
 )
@@ -75,17 +76,55 @@ async def list_bill_suggestions(
             for occurred_at, amount_minor, currency, merchant, description in rows
         ]
     )
-    existing_names = {
-        bill_detection.normalize_merchant(bill.name)
-        for bill in repository.list_bills(engine, session.household_id)
-    }
+    bills_by_key: dict[str, repository.RecurringRecord] = {}
+    for bill in repository.list_bills(engine, session.household_id):
+        bills_by_key.setdefault(bill_detection.normalize_merchant(bill.name), bill)
     dismissed = repository.list_bill_suggestion_dismissals(engine, session.household_id)
-    return BillSuggestionListResponse(
-        suggestions=[
-            BillSuggestion(
-                merchant_key=candidate.merchant_key,
-                name=candidate.name,
-                amount=MoneySchema(
+
+    suggestions: list[BillSuggestion] = []
+    updates: list[BillUpdateSuggestion] = []
+    for candidate in candidates:
+        existing = bills_by_key.get(candidate.merchant_key)
+        if existing is None:
+            if candidate.merchant_key not in dismissed:
+                suggestions.append(
+                    BillSuggestion(
+                        merchant_key=candidate.merchant_key,
+                        name=candidate.name,
+                        amount=MoneySchema(
+                            amount_minor=candidate.amount_minor, currency=candidate.currency
+                        ),
+                        frequency=candidate.frequency,
+                        next_due_date=candidate.next_due_date,
+                        occurrences=candidate.occurrences,
+                        last_seen=candidate.last_seen,
+                    )
+                )
+            continue
+        # M59 drift: an existing bill whose live charge pattern has moved.
+        # Updates always need user confirmation — nothing changes silently.
+        if existing.currency != candidate.currency:
+            continue
+        amount_drift = abs(candidate.amount_minor - existing.amount_minor) > (
+            existing.amount_minor * bill_detection.DRIFT_TOLERANCE
+        )
+        cadence_drift = candidate.frequency != existing.frequency
+        if not amount_drift and not cadence_drift:
+            continue
+        # Dismissals are keyed by the suggested amount: a dismissed price
+        # re-prompts only when the detected price changes again.
+        dismiss_key = f"{candidate.merchant_key}@{candidate.amount_minor}"
+        if dismiss_key in dismissed:
+            continue
+        updates.append(
+            BillUpdateSuggestion(
+                bill_id=existing.id,
+                name=existing.name,
+                dismiss_key=dismiss_key,
+                current_amount=MoneySchema(
+                    amount_minor=existing.amount_minor, currency=existing.currency
+                ),
+                suggested_amount=MoneySchema(
                     amount_minor=candidate.amount_minor, currency=candidate.currency
                 ),
                 frequency=candidate.frequency,
@@ -93,11 +132,8 @@ async def list_bill_suggestions(
                 occurrences=candidate.occurrences,
                 last_seen=candidate.last_seen,
             )
-            for candidate in candidates
-            if candidate.merchant_key not in dismissed
-            and candidate.merchant_key not in existing_names
-        ]
-    )
+        )
+    return BillSuggestionListResponse(suggestions=suggestions, updates=updates)
 
 
 @router.post(
