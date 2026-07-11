@@ -98,6 +98,39 @@ describe('IncomeTax', () => {
     expect(host.querySelector('.income-txns__add')).toBeNull();
   });
 
+  it('shows the coverage warning, rejects a deposit, and lists rejected ones (M63)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi
+        .fn()
+        .mockResolvedValueOnce(
+          response(
+            analysis({
+              coverage_warning: 'Synced history only starts Apr 15, 2026 — not a full year of data.',
+              other_inflows: [txn('t9', 'VENMO CASHOUT', 90_000), txn('t8', 'REFUND', 5_000, true)],
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(response(analysis({ other_inflows: [] }))),
+      setIncomeOverride: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('not a full year of data');
+    expect(host.textContent).toContain('Rejected deposits (1)');
+
+    (host.querySelector('.income-txns__reject') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.setIncomeOverride).toHaveBeenCalledWith('t9', 'exclude');
+  });
+
   it('expands a deposit row to its full evidence (M62)', async () => {
     const apiMock = {
       getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),

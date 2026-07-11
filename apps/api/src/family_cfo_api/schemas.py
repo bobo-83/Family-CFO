@@ -395,6 +395,9 @@ class IncomeRollup(BaseModel):
     monthly_average: Money
     transaction_count: int
     window_days: int
+    # M63: how far back the synced history actually goes.
+    coverage_start: date | None = None
+    coverage_days: int = 0
 
 
 class TaxEstimate(BaseModel):
@@ -416,6 +419,8 @@ class IncomeAnalysisResponse(BaseModel):
     sources: list[IncomeSourceAnalysis]
     other_inflows: list[IncomeAnalysisTransaction]
     rollup: IncomeRollup
+    # M63: set when the synced history does not span the full window.
+    coverage_warning: str | None = None
     tax: TaxEstimate
 
 

@@ -137,6 +137,22 @@ async def get_income_analysis(
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
     included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
 
+    # M63: internal transfers (money moving between the household's own
+    # accounts) are dropped from the analysis entirely — not counted, not
+    # offered. An explicit "include" verdict overrides: the user is the
+    # authority on what is income.
+    outflows_by_amount: dict[int, list[date]] = {}
+    for occurred_at, amount_minor in repository.list_household_outflows(
+        engine, session.household_id, since=since
+    ):
+        outflows_by_amount.setdefault(amount_minor, []).append(occurred_at)
+    transactions = [
+        t
+        for t in transactions
+        if t.id in included_ids
+        or not income_detection.is_internal_transfer(t, outflows_by_amount)
+    ]
+
     candidates = income_detection.detect_income_sources(
         transactions, excluded_ids=excluded_ids
     )
@@ -203,6 +219,23 @@ async def get_income_analysis(
         if t.id not in counted
     ][:_OTHER_INFLOWS_CAP]
 
+    # M63: disclose when the synced history does not span the full window —
+    # a mid-year start understates both income and the tax on it.
+    coverage_start = rows[0][1] if rows else None
+    coverage_days = (date.today() - coverage_start).days if coverage_start else 0
+    coverage_warning: str | None = None
+    if coverage_start is None:
+        coverage_warning = (
+            "No checking-account transaction history is available yet; income "
+            "and the tax estimate will be meaningful after the first bank sync."
+        )
+    elif coverage_days < ANALYSIS_WINDOW_DAYS - 7:
+        coverage_warning = (
+            f"Synced history only starts {coverage_start.strftime('%b %-d, %Y')} "
+            f"({coverage_days} days) — not a full year of data. Income and the "
+            "tax estimate are likely underestimated."
+        )
+
     filing_status = household.tax_filing_status or DEFAULT_FILING_STATUS
     treated_as_net = (
         household.income_treated_as_net if household.income_treated_as_net is not None else True
@@ -219,7 +252,10 @@ async def get_income_analysis(
             ),
             transaction_count=count,
             window_days=ANALYSIS_WINDOW_DAYS,
+            coverage_start=coverage_start,
+            coverage_days=coverage_days,
         ),
+        coverage_warning=coverage_warning,
         tax=_tax_estimate(
             total_minor, household.base_currency, filing_status, treated_as_net
         ),

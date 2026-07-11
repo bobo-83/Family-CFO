@@ -72,6 +72,16 @@ export class IncomeTax {
     return this.override(transaction, 'exclude');
   }
 
+  // M63: unclassified deposits split into an active list and a collapsed
+  // rejected list (excluded by the user, restorable).
+  protected activeOther(): IncomeAnalysisTransaction[] {
+    return (this.analysis()?.other_inflows ?? []).filter((t) => !t.excluded);
+  }
+
+  protected rejectedOther(): IncomeAnalysisTransaction[] {
+    return (this.analysis()?.other_inflows ?? []).filter((t) => t.excluded);
+  }
+
   protected addAsIncome(transaction: IncomeAnalysisTransaction): Promise<void> {
     return this.override(transaction, 'include');
   }

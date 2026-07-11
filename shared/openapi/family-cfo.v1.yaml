@@ -2449,6 +2449,13 @@ components:
           type: integer
         window_days:
           type: integer
+        coverage_start:
+          type: string
+          format: date
+          description: Earliest synced checking transaction in the window.
+        coverage_days:
+          type: integer
+          description: How many days of history the analysis actually has.
     TaxEstimate:
       type: object
       description: >
@@ -2514,6 +2521,13 @@ components:
             $ref: "#/components/schemas/IncomeAnalysisTransaction"
         rollup:
           $ref: "#/components/schemas/IncomeRollup"
+        coverage_warning:
+          type: string
+          description: >
+            Present when the synced history does not span the full analysis
+            window (e.g. it starts mid-year) — income and tax are then likely
+            underestimated. Internal transfers between the household's own
+            accounts are never shown or counted (M63).
         tax:
           $ref: "#/components/schemas/TaxEstimate"
     IncomeOverrideRequest:

@@ -238,6 +238,14 @@ export type IncomeRollup = {
     monthly_average: Money;
     transaction_count: number;
     window_days: number;
+    /**
+     * Earliest synced checking transaction in the window.
+     */
+    coverage_start?: string;
+    /**
+     * How many days of history the analysis actually has.
+     */
+    coverage_days?: number;
 };
 
 /**
@@ -263,6 +271,11 @@ export type IncomeAnalysisResponse = {
     sources: Array<IncomeSourceAnalysis>;
     other_inflows: Array<IncomeAnalysisTransaction>;
     rollup: IncomeRollup;
+    /**
+     * Present when the synced history does not span the full analysis window (e.g. it starts mid-year) — income and tax are then likely underestimated. Internal transfers between the household's own accounts are never shown or counted (M63).
+     *
+     */
+    coverage_warning?: string;
     tax: TaxEstimate;
 };
 
