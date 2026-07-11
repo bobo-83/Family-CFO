@@ -135,3 +135,39 @@ def test_material_invented_figure_still_fails() -> None:
     violations = find_unattributed_numbers(text, known)
 
     assert violations == ["45000.00"]
+
+
+# --- M60: derived arithmetic and the 100 boundary ---
+
+
+def test_one_hundred_is_immaterial() -> None:
+    violations = find_unattributed_numbers("That covers 100% of the target.", set())
+
+    assert violations == []
+
+
+def test_difference_of_grounded_figures_passes() -> None:
+    known = {"8215.64", "7000"}
+    text = "After the USD 7,000.00 laptop you would keep USD 1,215.64 in liquid funds."
+
+    violations = find_unattributed_numbers(text, known)
+
+    assert violations == []
+
+
+def test_sum_of_grounded_figures_passes() -> None:
+    known = {"1200", "350.50"}
+    text = "Together that is USD 1,550.50 a month."
+
+    violations = find_unattributed_numbers(text, known)
+
+    assert violations == []
+
+
+def test_figure_matching_no_pair_still_fails() -> None:
+    known = {"8215.64", "7000"}
+    text = "Plus your USD 4,900.00 boat payment."
+
+    violations = find_unattributed_numbers(text, known)
+
+    assert violations == ["4900.00"]
