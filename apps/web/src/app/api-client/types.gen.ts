@@ -126,6 +126,30 @@ export type BillListResponse = {
     bills: Array<Bill>;
 };
 
+/**
+ * A durable household fact the advisor remembers across conversations (M57, ADR 0016). Facts survive conversation deletion by design; deleting the memory itself is the forget operation.
+ *
+ */
+export type Memory = {
+    id: string;
+    /**
+     * Stable identifier; a restated fact updates, not duplicates.
+     */
+    key: string;
+    value: string;
+    source: 'chat' | 'manual';
+    created_at: string;
+    updated_at: string;
+};
+
+export type MemoryListResponse = {
+    memories: Array<Memory>;
+};
+
+export type MemoryCreateRequest = {
+    value: string;
+};
+
 export type IncomeListResponse = {
     income: Array<IncomeSource>;
 };
@@ -2148,6 +2172,95 @@ export type CreateChatMessageResponses = {
 };
 
 export type CreateChatMessageResponse = CreateChatMessageResponses[keyof CreateChatMessageResponses];
+
+export type ListMemoriesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/memories';
+};
+
+export type ListMemoriesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListMemoriesError = ListMemoriesErrors[keyof ListMemoriesErrors];
+
+export type ListMemoriesResponses = {
+    /**
+     * Remembered household facts
+     */
+    200: MemoryListResponse;
+};
+
+export type ListMemoriesResponse = ListMemoriesResponses[keyof ListMemoriesResponses];
+
+export type CreateMemoryData = {
+    body: MemoryCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/memories';
+};
+
+export type CreateMemoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CreateMemoryError = CreateMemoryErrors[keyof CreateMemoryErrors];
+
+export type CreateMemoryResponses = {
+    /**
+     * Memory stored
+     */
+    201: Memory;
+};
+
+export type CreateMemoryResponse = CreateMemoryResponses[keyof CreateMemoryResponses];
+
+export type DeleteMemoryData = {
+    body?: never;
+    path: {
+        memory_id: string;
+    };
+    query?: never;
+    url: '/memories/{memory_id}';
+};
+
+export type DeleteMemoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteMemoryError = DeleteMemoryErrors[keyof DeleteMemoryErrors];
+
+export type DeleteMemoryResponses = {
+    /**
+     * Memory deleted
+     */
+    204: void;
+};
+
+export type DeleteMemoryResponse = DeleteMemoryResponses[keyof DeleteMemoryResponses];
 
 export type ListConversationsData = {
     body?: never;

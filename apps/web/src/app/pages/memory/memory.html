@@ -1,0 +1,66 @@
+<h1>Advisor memory</h1>
+
+<p class="page-hint">
+  Durable facts the advisor has learned from your conversations — where you
+  live, family details, habits. Facts stay remembered even if you delete the
+  conversation they came from; forgetting a fact here is permanent.
+</p>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else if (memories().length === 0) {
+  <p class="page-empty">
+    Nothing remembered yet. Facts you mention in chat ("we have two kids", "we
+    live in San Jose") will show up here automatically.
+  </p>
+} @else {
+  <ul class="memory-list">
+    @for (memory of memories(); track memory.id) {
+      <li class="memory-list__item">
+        <div class="memory-list__main">
+          <div class="memory-list__value">{{ memory.value }}</div>
+          <div class="memory-list__meta">
+            {{ memory.source === 'manual' ? 'Taught directly' : 'Learned from chat' }}
+            · {{ memory.updated_at | date: 'MMM d, y' }}
+          </div>
+        </div>
+        @if (canWrite()) {
+          <button
+            type="button"
+            class="memory-list__delete"
+            (click)="forget(memory.id)"
+            aria-label="Forget this fact"
+          >
+            Forget
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}
+
+@if (canWrite()) {
+  <h2>Teach the advisor a fact</h2>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="memory-form">
+    <label>
+      <span>Fact</span>
+      <input
+        type="text"
+        formControlName="value"
+        placeholder="e.g. We eat out about three times a week"
+      />
+    </label>
+
+    @if (submitError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Saving…' : 'Remember this' }}
+    </button>
+  </form>
+} @else {
+  <p class="page-empty">Only the household owner or an adult member can manage memories.</p>
+}
