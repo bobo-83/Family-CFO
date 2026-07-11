@@ -50,3 +50,4 @@ vllm-cache/
 # Generated clients and local artifacts
 generated/
 tmp/
+uv.lock
