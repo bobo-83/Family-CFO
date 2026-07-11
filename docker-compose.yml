@@ -239,6 +239,50 @@ services:
     networks: [internal]
     restart: unless-stopped
 
+  # Monitoring (M67): ops metrics only — no household financial data flows
+  # through this stack. On by default (turnkey, like search); remove with
+  # `--scale prometheus=0 --scale grafana=0 --scale node-exporter=0`.
+  prometheus:
+    image: prom/prometheus:latest
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [internal]
+    restart: unless-stopped
+
+  # Host CPU/memory/disk. On unified-memory hosts (GB10-class) host memory IS
+  # the GPU memory, so this doubles as GPU monitoring without a DCGM exporter.
+  node-exporter:
+    image: prom/node-exporter:latest
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [internal]
+    restart: unless-stopped
+
+  # Dashboards at http://<server>:${GRAFANA_PORT:-3000} (LAN). Anonymous
+  # viewing is enabled because only ops telemetry lives here; the admin
+  # password (for editing) comes from .env.
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-family-cfo-grafana}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: system
+    volumes:
+      - ./docker/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks: [internal]
+    restart: unless-stopped
+
   # Optional vector store. Off by default and NOT yet wired to anything —
   # scaffolding matching docs/specs/10-docker-spec.md. Retrieval is tracked
   # backlog (docs/specs/12-implementation-tasks.md). Enable with:
@@ -258,6 +302,8 @@ volumes:
   model_cache:
   qdrant_data:
   web_certs:
+  prometheus_data:
+  grafana_data:
 
 networks:
   internal:
