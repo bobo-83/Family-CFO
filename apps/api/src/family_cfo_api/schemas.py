@@ -560,6 +560,9 @@ class AiModelInfo(BaseModel):
     supports_vision: bool
     gated: bool
     notes: str = ""
+    # M71: HF release timestamp (ISO); None for curated entries (hand-vetted,
+    # treated as modern by the ranking).
+    created_at: str | None = None
 
 
 class AiModelCatalog(BaseModel):

@@ -344,6 +344,8 @@ def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
             f"Estimated specs from the model name ({precision}) — verify before "
             "relying on the fit verdict."
         ),
+        # M71: lets the picker rank modern models above old ones.
+        created_at=item.get("createdAt"),
     )
 
 
