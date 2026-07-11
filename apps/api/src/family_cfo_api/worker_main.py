@@ -15,6 +15,7 @@ import time
 from family_cfo_scheduler import Job, Scheduler
 
 from family_cfo_api import (
+    ai_memory,
     backup_processing,
     import_processing,
     net_worth_history,
@@ -129,6 +130,16 @@ def main() -> None:
         capture_net_worth_snapshot()
     except Exception:  # noqa: BLE001 - a snapshot failure must not stop the worker
         logger.exception("initial net-worth snapshot failed")
+
+    # M57 (ADR 0016): one-time memory extraction from conversations that
+    # predate the feature. Households already marked done are skipped;
+    # households without a usable runtime stay unmarked and retry next start.
+    try:
+        backfilled = ai_memory.run_memory_backfill_once(engine, settings)
+        if backfilled:
+            logger.info("memory backfill completed for %s household(s)", backfilled)
+    except Exception:  # noqa: BLE001 - a backfill failure must not stop the worker
+        logger.exception("memory backfill failed")
 
     scheduler.start()
 

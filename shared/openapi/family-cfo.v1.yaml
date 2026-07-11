@@ -1077,6 +1077,71 @@ paths:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /memories:
+    get:
+      tags:
+        - Memories
+      operationId: listMemories
+      summary: List what the advisor remembers about the household
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Remembered household facts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Memories
+      operationId: createMemory
+      summary: Teach the advisor a household fact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryCreateRequest"
+      responses:
+        "201":
+          description: Memory stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Memory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /memories/{memory_id}:
+    delete:
+      tags:
+        - Memories
+      operationId: deleteMemory
+      summary: Make the advisor forget a remembered fact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: memory_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Memory deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /conversations:
     get:
       tags:
@@ -2063,6 +2128,55 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bill"
+    Memory:
+      type: object
+      description: >
+        A durable household fact the advisor remembers across conversations
+        (M57, ADR 0016). Facts survive conversation deletion by design;
+        deleting the memory itself is the forget operation.
+      required:
+        - id
+        - key
+        - value
+        - source
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          description: Stable identifier; a restated fact updates, not duplicates.
+        value:
+          type: string
+        source:
+          type: string
+          enum: [chat, manual]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MemoryListResponse:
+      type: object
+      required:
+        - memories
+      properties:
+        memories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Memory"
+    MemoryCreateRequest:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 500
     IncomeListResponse:
       type: object
       required:

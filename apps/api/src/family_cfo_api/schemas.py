@@ -326,6 +326,26 @@ class IncomeListResponse(BaseModel):
     income: list[IncomeSource]
 
 
+# --- Household memory (M57, ADR 0016) ---
+
+
+class Memory(BaseModel):
+    id: str
+    key: str
+    value: str
+    source: Literal["chat", "manual"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemoryListResponse(BaseModel):
+    memories: list[Memory]
+
+
+class MemoryCreateRequest(BaseModel):
+    value: str = Field(min_length=1, max_length=500)
+
+
 class PurchaseAdvisorRequest(BaseModel):
     merchant: str | None = None
     item: str
