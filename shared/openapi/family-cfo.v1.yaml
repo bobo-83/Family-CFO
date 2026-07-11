@@ -3878,6 +3878,11 @@ components:
           nullable: true
         supports_vision:
           type: boolean
+        created_at:
+          type: string
+          description: >
+            Hugging Face release timestamp (M71); absent for curated entries,
+            which the picker treats as modern (hand-vetted).
         gated:
           type: boolean
         notes:

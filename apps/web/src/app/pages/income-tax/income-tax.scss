@@ -101,6 +101,17 @@
   font-size: 0.9rem;
   cursor: pointer;
   list-style: none; // hide the default summary marker
+
+  // M71: on phone widths the action buttons wrap to their own line instead
+  // of pushing the row past the 393px viewport.
+  @media (max-width: 480px) {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+
+    .income-txns__name {
+      min-width: 10rem;
+    }
+  }
 }
 
 .income-txn__details {

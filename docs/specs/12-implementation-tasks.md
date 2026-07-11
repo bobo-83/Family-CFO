@@ -983,6 +983,13 @@ User report (2026-07-11): fifteen nav links now exceed the phone screen and the 
 - [x] Spec gate: the flat link list becomes labeled groups — top actions (Overview, Ask the Advisor), **Money** (Accounts, Transactions, Bills, Income & Tax, Budgets, Categories, Goals), **Advisor** (Advisor Memory, AI Runtime), **Admin** (Imports, Reports, Backups, Users, System Health↗) — and the link area scrolls independently (`overflow-y: auto`, momentum scrolling on iOS) while the brand header and the role/logout footer stay pinned. No route changes. Advisor access: non-goal (no data domain).
 - [x] Implement + tests (groups render with labels; nav area is the scroll container) + deploy + verify + commit. Verified: 108 web tests pass; the served bundle carries the grouped, independently-scrolling nav with the pinned brand header and role/logout footer.
 
+## M71: Generation-Aware Model Ranking + Phone-Width Input Audit
+
+User request (2026-07-11). (1) Close the last recommendation-quality gap: ranking knows model SIZE but not AGE, so an old huge model can outrank a modern smaller one; the M54 legacy blocklist only covers known families. (2) Audit every input for the iPhone 15 Pro-class viewport (393 px).
+
+- [x] Spec gate: (a) generation awareness — the HF search mapping carries each model's `created_at` (additive contract field; curated entries have none and are treated as modern — they are hand-vetted); the size-descending ranking becomes two buckets: models released within the last ~18 months rank first (largest first), older ones after (the M54 family blocklist stays as a backstop). (b) input audit findings — the global 16 px input baseline (M20/M26) already covers focus-zoom on every page and no fixed widths exceed the viewport; the real 393 px defects are the multi-button action rows added by M58/M63 (bills Confirm/Dismiss, income Add-as-income/Not-income) which cannot wrap — they gain narrow-viewport wrapping so buttons drop to their own line instead of overflowing. Advisor access: non-goal (no data domain).
+- [x] Implement + tests + deploy + verify + commit. Verified: 108 web + api suites green; live search now returns `created_at` per model (e.g. Qwen3-8B → 2025-04-27) and the picker ranks modern-first; the M58/M63 action rows wrap below 480px.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:

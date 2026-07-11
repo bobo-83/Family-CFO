@@ -907,6 +907,11 @@ export type AiModelInfo = {
     est_disk_gb: number;
     tool_parser?: string;
     supports_vision: boolean;
+    /**
+     * Hugging Face release timestamp (M71); absent for curated entries, which the picker treats as modern (hand-vetted).
+     *
+     */
+    created_at?: string;
     gated: boolean;
     notes?: string;
 };

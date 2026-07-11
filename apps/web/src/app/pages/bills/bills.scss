@@ -16,6 +16,17 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+
+  // M71: suggestion rows carry two buttons (Confirm/Dismiss, Update/Dismiss);
+  // wrap on phone widths instead of overflowing the 393px viewport.
+  @media (max-width: 480px) {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+
+    .bill-list__main {
+      min-width: 11rem;
+    }
+  }
 }
 
 .bill-list__main {

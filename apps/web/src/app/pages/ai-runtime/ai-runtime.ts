@@ -205,6 +205,16 @@ export class AiRuntime {
   }
 
   /** Per-model memory fit badge for collapsed browse rows (individual). */
+  // M71: a model counts as modern when released within ~18 months; curated
+  // entries carry no created_at and are treated as modern (hand-vetted).
+  protected isModern(model: AiModelInfo): boolean {
+    if (!model.created_at) {
+      return true;
+    }
+    const ageMs = Date.now() - new Date(model.created_at).getTime();
+    return Number.isNaN(ageMs) || ageMs < 548 * 24 * 3600 * 1000;
+  }
+
   protected fitOf(model: AiModelInfo): FitVerdict {
     if (!model.est_memory_gb) {
       return 'unknown';
@@ -518,8 +528,13 @@ export class AiRuntime {
     if (sort === 'memory-asc') {
       models.sort((a, b) => (a.est_memory_gb || 1e9) - (b.est_memory_gb || 1e9));
     } else if (order === 'desc') {
+      // M71 generation-aware: modern releases first (largest first), older
+      // generations after — a 2024-era 110B must not outrank a modern 80B.
       models.sort(
-        (a, b) => b.parameters_b - a.parameters_b || b.est_memory_gb - a.est_memory_gb,
+        (a, b) =>
+          Number(this.isModern(b)) - Number(this.isModern(a)) ||
+          b.parameters_b - a.parameters_b ||
+          b.est_memory_gb - a.est_memory_gb,
       );
     } else if (order === 'asc') {
       // Unknown sizes (0) sort last, not first.
