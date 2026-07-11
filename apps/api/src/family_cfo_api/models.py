@@ -566,6 +566,23 @@ conversations = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
+# M58: "not a bill" verdicts on suggested recurring charges, so a dismissed
+# suggestion stays dismissed across refreshes.
+bill_suggestion_dismissals = Table(
+    "bill_suggestion_dismissals",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("merchant_key", String(120), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index(
+        "uq_bill_suggestion_dismissals_household_key",
+        "household_id",
+        "merchant_key",
+        unique=True,
+    ),
+)
+
 # M57 (ADR 0016): durable facts the advisor learned from chat ("home_city",
 # "kids_count", ...). source_conversation_id deliberately has NO foreign key:
 # a memory must survive the deletion of the conversation it was learned from.

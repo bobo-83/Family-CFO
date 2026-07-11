@@ -808,6 +808,44 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /bills/suggestions:
+    get:
+      tags:
+        - Bills
+      operationId: listBillSuggestions
+      summary: Suggest bills detected from recurring account transactions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Suggested bills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillSuggestionListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /bills/suggestions/dismissals:
+    post:
+      tags:
+        - Bills
+      operationId: dismissBillSuggestion
+      summary: Dismiss a suggested bill (not a bill)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillSuggestionDismissRequest"
+      responses:
+        "204":
+          description: Suggestion dismissed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /bills/{bill_id}:
     patch:
       tags:
@@ -2128,6 +2166,56 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bill"
+    BillSuggestion:
+      type: object
+      description: >
+        A recurring charge detected in checking/credit-card transactions
+        (M58). Deterministic pattern-matching, not an AI guess — every
+        suggestion is explainable as "N charges of ~amount at ~cadence".
+      required:
+        - merchant_key
+        - name
+        - amount
+        - frequency
+        - next_due_date
+        - occurrences
+        - last_seen
+      properties:
+        merchant_key:
+          type: string
+          description: Normalized merchant identifier; used to dismiss.
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        next_due_date:
+          type: string
+          format: date
+        occurrences:
+          type: integer
+        last_seen:
+          type: string
+          format: date
+    BillSuggestionListResponse:
+      type: object
+      required:
+        - suggestions
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillSuggestion"
+    BillSuggestionDismissRequest:
+      type: object
+      required:
+        - merchant_key
+      properties:
+        merchant_key:
+          type: string
+          minLength: 1
+          maxLength: 120
     Memory:
       type: object
       description: >

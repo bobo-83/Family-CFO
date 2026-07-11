@@ -127,6 +127,31 @@ export type BillListResponse = {
 };
 
 /**
+ * A recurring charge detected in checking/credit-card transactions (M58). Deterministic pattern-matching, not an AI guess — every suggestion is explainable as "N charges of ~amount at ~cadence".
+ *
+ */
+export type BillSuggestion = {
+    /**
+     * Normalized merchant identifier; used to dismiss.
+     */
+    merchant_key: string;
+    name: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+    next_due_date: string;
+    occurrences: number;
+    last_seen: string;
+};
+
+export type BillSuggestionListResponse = {
+    suggestions: Array<BillSuggestion>;
+};
+
+export type BillSuggestionDismissRequest = {
+    merchant_key: string;
+};
+
+/**
  * A durable household fact the advisor remembers across conversations (M57, ADR 0016). Facts survive conversation deletion by design; deleting the memory itself is the forget operation.
  *
  */
@@ -1841,6 +1866,60 @@ export type CreateBillResponses = {
 };
 
 export type CreateBillResponse = CreateBillResponses[keyof CreateBillResponses];
+
+export type ListBillSuggestionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/bills/suggestions';
+};
+
+export type ListBillSuggestionsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListBillSuggestionsError = ListBillSuggestionsErrors[keyof ListBillSuggestionsErrors];
+
+export type ListBillSuggestionsResponses = {
+    /**
+     * Suggested bills
+     */
+    200: BillSuggestionListResponse;
+};
+
+export type ListBillSuggestionsResponse = ListBillSuggestionsResponses[keyof ListBillSuggestionsResponses];
+
+export type DismissBillSuggestionData = {
+    body: BillSuggestionDismissRequest;
+    path?: never;
+    query?: never;
+    url: '/bills/suggestions/dismissals';
+};
+
+export type DismissBillSuggestionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type DismissBillSuggestionError = DismissBillSuggestionErrors[keyof DismissBillSuggestionErrors];
+
+export type DismissBillSuggestionResponses = {
+    /**
+     * Suggestion dismissed
+     */
+    204: void;
+};
+
+export type DismissBillSuggestionResponse = DismissBillSuggestionResponses[keyof DismissBillSuggestionResponses];
 
 export type DeleteBillData = {
     body?: never;

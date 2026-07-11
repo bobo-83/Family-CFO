@@ -1,12 +1,17 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, bill_detection, repository
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     Bill,
     BillCreateRequest,
     BillListResponse,
+    BillSuggestion,
+    BillSuggestionDismissRequest,
+    BillSuggestionListResponse,
     BillUpdateRequest,
     ErrorResponse,
 )
@@ -38,6 +43,89 @@ async def list_bills(
 ) -> BillListResponse:
     records = repository.list_bills(engine, session.household_id)
     return BillListResponse(bills=[_to_schema(record) for record in records])
+
+
+@router.get(
+    "/bills/suggestions",
+    operation_id="listBillSuggestions",
+    response_model=BillSuggestionListResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Suggest bills detected from recurring account transactions",
+)
+async def list_bill_suggestions(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> BillSuggestionListResponse:
+    """M58: deterministic recurring-charge detection over checking/credit-card outflows.
+
+    Candidates matching an existing bill's name or a stored dismissal are
+    excluded, so confirming (POST /bills) or dismissing removes them.
+    """
+    since = date.today() - timedelta(days=bill_detection.LOOKBACK_DAYS)
+    rows = repository.list_bill_detection_transactions(engine, session.household_id, since=since)
+    candidates = bill_detection.detect_bill_candidates(
+        [
+            bill_detection.DetectionTransaction(
+                occurred_at=occurred_at,
+                amount_minor=amount_minor,
+                currency=currency,
+                merchant=merchant,
+                description=description,
+            )
+            for occurred_at, amount_minor, currency, merchant, description in rows
+        ]
+    )
+    existing_names = {
+        bill_detection.normalize_merchant(bill.name)
+        for bill in repository.list_bills(engine, session.household_id)
+    }
+    dismissed = repository.list_bill_suggestion_dismissals(engine, session.household_id)
+    return BillSuggestionListResponse(
+        suggestions=[
+            BillSuggestion(
+                merchant_key=candidate.merchant_key,
+                name=candidate.name,
+                amount=MoneySchema(
+                    amount_minor=candidate.amount_minor, currency=candidate.currency
+                ),
+                frequency=candidate.frequency,
+                next_due_date=candidate.next_due_date,
+                occurrences=candidate.occurrences,
+                last_seen=candidate.last_seen,
+            )
+            for candidate in candidates
+            if candidate.merchant_key not in dismissed
+            and candidate.merchant_key not in existing_names
+        ]
+    )
+
+
+@router.post(
+    "/bills/suggestions/dismissals",
+    operation_id="dismissBillSuggestion",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Dismiss a suggested bill (not a bill)",
+)
+async def dismiss_bill_suggestion(
+    payload: BillSuggestionDismissRequest,
+    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    repository.add_bill_suggestion_dismissal(engine, session.household_id, payload.merchant_key)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "bill_suggestion.dismissed",
+        "bill_suggestion",
+        payload.merchant_key,
+        f"Dismissed suggested bill '{payload.merchant_key}'",
+    )
+    return Response(status_code=204)
 
 
 @router.post(

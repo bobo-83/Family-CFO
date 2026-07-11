@@ -26,6 +26,7 @@ function configure(apiMock: Record<string, unknown>, role: string) {
 describe('Bills', () => {
   it('renders a row per bill', async () => {
     const apiMock = {
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
       listBills: vi.fn().mockResolvedValue(
         response({
           bills: [
@@ -60,7 +61,10 @@ describe('Bills', () => {
   });
 
   it('hides the create form and delete button for a viewer', async () => {
-    const apiMock = { listBills: vi.fn().mockResolvedValue(response({ bills: [] })) };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+    };
     configure(apiMock, 'viewer');
 
     const fixture = TestBed.createComponent(Bills);
@@ -75,6 +79,7 @@ describe('Bills', () => {
 
   it('creates a bill for an owner and reloads the list', async () => {
     const apiMock = {
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
       listBills: vi
         .fn()
         .mockResolvedValueOnce(response({ bills: [] }))
@@ -127,6 +132,7 @@ describe('Bills', () => {
   it('deletes a bill after confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const apiMock = {
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
       listBills: vi
         .fn()
         .mockResolvedValueOnce(
@@ -158,5 +164,81 @@ describe('Bills', () => {
 
     expect(apiMock.deleteBill).toHaveBeenCalledWith('b1');
     expect(host.textContent).toContain('No bills yet.');
+  });
+
+  it('confirms a suggested bill and reloads both lists', async () => {
+    const suggestion = {
+      merchant_key: 'netflix com',
+      name: 'NETFLIX.COM',
+      amount: { amount_minor: 1_549, currency: 'USD' },
+      frequency: 'monthly',
+      next_due_date: '2026-08-01',
+      occurrences: 4,
+      last_seen: '2026-07-01',
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi
+        .fn()
+        .mockResolvedValueOnce(response({ suggestions: [suggestion] }))
+        .mockResolvedValueOnce(response({ suggestions: [] })),
+      createBill: vi.fn().mockResolvedValue(response({ id: 'b9' })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Suggested from your transactions');
+    expect(host.textContent).toContain('4 charges');
+    (host.querySelector('.bill-list__confirm') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.createBill).toHaveBeenCalledWith({
+      name: 'NETFLIX.COM',
+      amount: { amount_minor: 1_549, currency: 'USD' },
+      frequency: 'monthly',
+      next_due_date: '2026-08-01',
+    });
+    expect(host.querySelector('.bill-list--suggestions')).toBeNull();
+  });
+
+  it('dismisses a suggested bill', async () => {
+    const suggestion = {
+      merchant_key: 'gym co',
+      name: 'GYM CO',
+      amount: { amount_minor: 4_000, currency: 'USD' },
+      frequency: 'monthly',
+      next_due_date: '2026-08-05',
+      occurrences: 3,
+      last_seen: '2026-07-05',
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi
+        .fn()
+        .mockResolvedValueOnce(response({ suggestions: [suggestion] }))
+        .mockResolvedValueOnce(response({ suggestions: [] })),
+      dismissBillSuggestion: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const buttons = host.querySelectorAll('.bill-list--suggestions button');
+    (buttons[1] as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.dismissBillSuggestion).toHaveBeenCalledWith('gym co');
+    expect(host.querySelector('.bill-list--suggestions')).toBeNull();
   });
 });

@@ -322,6 +322,27 @@ class BillListResponse(BaseModel):
     bills: list[Bill]
 
 
+# --- Bill suggestions from transactions (M58) ---
+
+
+class BillSuggestion(BaseModel):
+    merchant_key: str
+    name: str
+    amount: Money
+    frequency: RecurringFrequency
+    next_due_date: date
+    occurrences: int
+    last_seen: date
+
+
+class BillSuggestionListResponse(BaseModel):
+    suggestions: list[BillSuggestion]
+
+
+class BillSuggestionDismissRequest(BaseModel):
+    merchant_key: str = Field(min_length=1, max_length=120)
+
+
 class IncomeListResponse(BaseModel):
     income: list[IncomeSource]
 

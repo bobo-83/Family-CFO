@@ -2991,6 +2991,71 @@ def set_conversation_summary(engine: Engine, conversation_id: str, summary: str)
         )
 
 
+# --- M58: bill suggestions from transactions ----------------------------------
+
+
+def list_bill_detection_transactions(
+    engine: Engine, household_id: str, *, since: date
+) -> list[tuple[date, int, str, str | None, str | None]]:
+    """Outflow rows from checking/credit-card accounts for recurring detection.
+
+    Returns (occurred_at, amount_minor, currency, merchant, description).
+    """
+    query = (
+        select(
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transactions.c.description,
+        )
+        .select_from(
+            models.transactions.join(
+                models.accounts, models.transactions.c.account_id == models.accounts.c.id
+            )
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.amount_minor < 0,
+            models.transactions.c.occurred_at >= since,
+            models.accounts.c.type.in_(("checking", "credit_card")),
+        )
+        .order_by(models.transactions.c.occurred_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [tuple(row) for row in rows]
+
+
+def list_bill_suggestion_dismissals(engine: Engine, household_id: str) -> set[str]:
+    query = select(models.bill_suggestion_dismissals.c.merchant_key).where(
+        models.bill_suggestion_dismissals.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        return {row[0] for row in conn.execute(query).all()}
+
+
+def add_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_key: str) -> None:
+    """Idempotent: dismissing an already-dismissed merchant is a no-op."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.bill_suggestion_dismissals.c.id).where(
+                models.bill_suggestion_dismissals.c.household_id == household_id,
+                models.bill_suggestion_dismissals.c.merchant_key == merchant_key,
+            )
+        ).first()
+        if existing is not None:
+            return
+        conn.execute(
+            insert(models.bill_suggestion_dismissals).values(
+                id=new_id(),
+                household_id=household_id,
+                merchant_key=merchant_key,
+                created_at=utcnow(),
+            )
+        )
+
+
 # --- M57: household memory (ADR 0016) ----------------------------------------
 
 # Internal marker key recording that the one-time backfill ran; never listed.
