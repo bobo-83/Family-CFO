@@ -155,6 +155,14 @@ Before coding a milestone, update the relevant documents with:
 - Non-goals
 - API behavior
 - Data model changes
+- **Advisor access** — every feature that adds a data domain the family can
+  see must also give the AI advisor access to it: add or extend a read-only
+  grounded tool in the M16 registry (`ai_tools.py`, ADR 0009) reusing the same
+  service code as the endpoint (one source of truth), or record an explicit
+  non-goal saying why chat access is deferred. A feature the advisor cannot
+  answer questions about is incomplete (learned in M64: bills, budgets,
+  spending insights, and the income/tax analysis all shipped invisible to
+  chat).
 - Security impact
 - Test expectations
 - Documentation impact
