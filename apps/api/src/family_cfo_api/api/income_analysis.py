@@ -53,6 +53,9 @@ def _txn_item(
         occurred_at=txn.occurred_at,
         amount=MoneySchema(amount_minor=txn.amount_minor, currency=txn.currency),
         name=txn.display_name,
+        merchant=txn.merchant,
+        description=txn.description,
+        account_name=txn.account_name,
         excluded=excluded,
     )
 
@@ -118,8 +121,17 @@ async def get_income_analysis(
             currency=currency,
             merchant=merchant,
             description=description,
+            account_name=account_name,
         )
-        for txn_id, occurred_at, amount_minor, currency, merchant, description in rows
+        for (
+            txn_id,
+            occurred_at,
+            amount_minor,
+            currency,
+            merchant,
+            description,
+            account_name,
+        ) in rows
     ]
     overrides = repository.list_income_overrides(engine, session.household_id)
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
