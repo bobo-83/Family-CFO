@@ -11,6 +11,7 @@ from sqlalchemy.engine import Engine
 from family_cfo_ai_orchestrator import (
     RuntimeMessage,
     RuntimeUnavailableError,
+    ToolCallRecord,
     describe_image,
     extract_numbers,
     run_tool_calling_loop,
@@ -208,40 +209,75 @@ def _try_agentic_answer(
         *history_messages,
         RuntimeMessage(role="user", content=user_content),
     ]
+    # The user's own figures are legitimate to echo back ("your $2,000") — they
+    # are context, not fabrication. Numbers in the included history are
+    # grounded too: prior assistant answers passed the guardrail when they
+    # were produced (M30).
+    context_values = extract_numbers(message)
+    for _role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]:
+        context_values |= extract_numbers(content)
+    if image_description:
+        context_values |= extract_numbers(image_description)
+
+    tool_call_records: list[ToolCallRecord] = []
     try:
         result = run_tool_calling_loop(runtime, messages, tools, executor)
+        if not result.completed or result.answer is None:
+            logger.warning(
+                "agentic chat loop did not converge; falling back to deterministic snapshot"
+            )
+            return None
+        tool_call_records.extend(result.tool_calls)
+        known_values = context_values | ai_tools.grounded_values(result)
+        guardrail = validate_recommendation(result.answer, known_values)
+        if not guardrail.passed:
+            # M56: one corrective retry before failing closed — told which
+            # figures were the problem, the model can usually restate with
+            # tool-derived numbers or call a tool to compute them.
+            logger.warning(
+                "agentic chat answer had ungrounded numbers %s; retrying once",
+                guardrail.violations,
+            )
+            retry_messages = [
+                *messages,
+                RuntimeMessage(role="assistant", content=result.answer),
+                RuntimeMessage(
+                    role="user",
+                    content=(
+                        "Your answer included figures that do not appear in any tool result: "
+                        f"{', '.join(guardrail.violations)}. Restate it using only figures "
+                        "returned by the tools — call a tool if you need to compute something."
+                    ),
+                ),
+            ]
+            retry = run_tool_calling_loop(runtime, retry_messages, tools, executor)
+            if not retry.completed or retry.answer is None:
+                logger.warning(
+                    "agentic chat retry did not converge; falling back to deterministic snapshot"
+                )
+                return None
+            # The first round's tool trace stays grounded: the retry may
+            # restate those figures without re-calling the tools.
+            tool_call_records.extend(retry.tool_calls)
+            known_values |= ai_tools.grounded_values(retry)
+            guardrail = validate_recommendation(retry.answer, known_values)
+            if not guardrail.passed:
+                logger.warning(
+                    "agentic chat retry still had ungrounded numbers %s; falling back",
+                    guardrail.violations,
+                )
+                return None
+            result = retry
     except RuntimeUnavailableError:
         logger.warning("agentic chat runtime unavailable; falling back to deterministic snapshot")
         return None
     finally:
         runtime.close()
 
-    if not result.completed or result.answer is None:
-        logger.warning("agentic chat loop did not converge; falling back to deterministic snapshot")
-        return None
-
-    known_values = ai_tools.grounded_values(result)
-    # The user's own figures are legitimate to echo back ("your $2,000") — they
-    # are context, not fabrication. Derived arithmetic must still come from a
-    # tool: a model-computed product is in neither set and fails closed.
-    known_values |= extract_numbers(message)
-    # Numbers in the included history are grounded too: prior assistant answers
-    # passed the guardrail when they were produced (M30).
-    for _role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]:
-        known_values |= extract_numbers(content)
-    if image_description:
-        known_values |= extract_numbers(image_description)
-    guardrail = validate_recommendation(result.answer, known_values)
-    if not guardrail.passed:
-        logger.warning(
-            "agentic chat answer had ungrounded numbers %s; falling back", guardrail.violations
-        )
-        return None
-
     refs: list[str] = []
     assumptions: list[str] = []
     warnings: list[str] = []
-    for record in result.tool_calls:
+    for record in tool_call_records:
         ref = record.result.get("calculation_ref")
         if isinstance(ref, str):
             refs.append(ref)

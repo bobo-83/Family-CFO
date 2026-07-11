@@ -70,7 +70,7 @@ def test_llm_explanation_returns_grounded_text_when_guardrail_passes() -> None:
 def test_llm_explanation_falls_back_on_guardrail_violation() -> None:
     runtime = _StubRuntimeAdapter(
         completion=RuntimeCompletion(
-            text="This purchase carries a 22.5% hidden risk premium.",
+            text="This purchase carries a USD 22,500.00 hidden risk premium.",
             model="llama-3-8b-instruct",
             raw={},
         )
@@ -115,7 +115,7 @@ def test_llm_report_explanation_returns_grounded_text_when_guardrail_passes() ->
 def test_llm_report_explanation_falls_back_on_guardrail_violation() -> None:
     runtime = _StubRuntimeAdapter(
         completion=RuntimeCompletion(
-            text="This report shows a 42% improvement in hidden savings.",
+            text="This report shows USD 4,200.00 in hidden savings.",
             model="llama-3-8b-instruct",
             raw={},
         )
