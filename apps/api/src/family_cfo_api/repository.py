@@ -372,6 +372,9 @@ class HouseholdRecord:
     base_currency: str
     # M43: null means "use the default target".
     emergency_fund_target_months: float | None = None
+    # M61: null = defaults (married_joint; deposits treated as take-home pay).
+    tax_filing_status: str | None = None
+    income_treated_as_net: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,6 +406,8 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         display_name=row["display_name"],
         base_currency=row["base_currency"],
         emergency_fund_target_months=row["emergency_fund_target_months"],
+        tax_filing_status=row["tax_filing_status"],
+        income_treated_as_net=row["income_treated_as_net"],
     )
 
 
@@ -415,6 +420,26 @@ def update_emergency_fund_target(
             update(models.households)
             .where(models.households.c.id == household_id)
             .values(emergency_fund_target_months=target_months, updated_at=utcnow())
+        )
+
+
+def update_tax_settings(
+    engine: Engine,
+    household_id: str,
+    *,
+    tax_filing_status: str | None,
+    income_treated_as_net: bool | None,
+) -> None:
+    """M61: set (or clear, when None) the household's tax-estimate settings."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(
+                tax_filing_status=tax_filing_status,
+                income_treated_as_net=income_treated_as_net,
+                updated_at=utcnow(),
+            )
         )
 
 
@@ -3054,6 +3079,102 @@ def add_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_ke
                 created_at=utcnow(),
             )
         )
+
+
+# --- M61: income analysis ------------------------------------------------------
+
+
+def list_income_detection_transactions(
+    engine: Engine, household_id: str, *, since: date
+) -> list[tuple[str, date, int, str, str | None, str | None]]:
+    """Inflow rows from checking accounts for recurring-income detection.
+
+    Returns (id, occurred_at, amount_minor, currency, merchant, description).
+    """
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transactions.c.description,
+        )
+        .select_from(
+            models.transactions.join(
+                models.accounts, models.transactions.c.account_id == models.accounts.c.id
+            )
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.amount_minor > 0,
+            models.transactions.c.occurred_at >= since,
+            models.accounts.c.type == "checking",
+        )
+        .order_by(models.transactions.c.occurred_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    return [tuple(row) for row in rows]
+
+
+def list_income_overrides(engine: Engine, household_id: str) -> dict[str, str]:
+    """transaction_id -> verdict ("include" | "exclude")."""
+    query = select(
+        models.income_transaction_overrides.c.transaction_id,
+        models.income_transaction_overrides.c.verdict,
+    ).where(models.income_transaction_overrides.c.household_id == household_id)
+    with engine.connect() as conn:
+        return {row[0]: row[1] for row in conn.execute(query).all()}
+
+
+def set_income_override(
+    engine: Engine, household_id: str, transaction_id: str, verdict: str
+) -> bool:
+    """Upsert an include/exclude verdict; "clear" removes it.
+
+    Returns False when the transaction does not belong to the household.
+    """
+    with engine.begin() as conn:
+        owned = conn.execute(
+            select(models.transactions.c.id).where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+        ).first()
+        if owned is None:
+            return False
+        existing = conn.execute(
+            select(models.income_transaction_overrides.c.id).where(
+                models.income_transaction_overrides.c.household_id == household_id,
+                models.income_transaction_overrides.c.transaction_id == transaction_id,
+            )
+        ).first()
+        if verdict == "clear":
+            if existing is not None:
+                conn.execute(
+                    delete(models.income_transaction_overrides).where(
+                        models.income_transaction_overrides.c.id == existing.id
+                    )
+                )
+            return True
+        if existing is not None:
+            conn.execute(
+                update(models.income_transaction_overrides)
+                .where(models.income_transaction_overrides.c.id == existing.id)
+                .values(verdict=verdict)
+            )
+        else:
+            conn.execute(
+                insert(models.income_transaction_overrides).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    transaction_id=transaction_id,
+                    verdict=verdict,
+                    created_at=utcnow(),
+                )
+            )
+    return True
 
 
 # --- M57: household memory (ADR 0016) ----------------------------------------

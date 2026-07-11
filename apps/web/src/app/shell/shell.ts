@@ -24,6 +24,7 @@ export class Shell {
     { path: '/accounts', label: 'Accounts' },
     { path: '/goals', label: 'Goals' },
     { path: '/bills', label: 'Bills' },
+    { path: '/income-tax', label: 'Income & Tax' },
     { path: '/reports', label: 'Reports' },
     { path: '/transactions', label: 'Transactions' },
     { path: '/categories', label: 'Categories' },
