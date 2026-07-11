@@ -1,0 +1,164 @@
+<h1>Income &amp; Tax</h1>
+
+<p class="page-hint">
+  Recurring deposits detected on your checking accounts over the last 12
+  months — every underlying transaction is listed so you can remove a deposit
+  that isn't income or add one the scan missed.
+</p>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else if (analysis(); as data) {
+  @if (actionError(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+
+  <section class="income-rollup">
+    <div class="income-rollup__item">
+      <span class="income-rollup__label">Income, last {{ data.rollup.window_days }} days</span>
+      <span class="income-rollup__value">{{ formatMoney(data.rollup.annual_income) }}</span>
+    </div>
+    <div class="income-rollup__item">
+      <span class="income-rollup__label">Monthly average</span>
+      <span class="income-rollup__value">{{ formatMoney(data.rollup.monthly_average) }}</span>
+    </div>
+    <div class="income-rollup__item">
+      <span class="income-rollup__label">Deposits counted</span>
+      <span class="income-rollup__value">{{ data.rollup.transaction_count }}</span>
+    </div>
+  </section>
+
+  <h2>Detected income sources</h2>
+  @if (data.sources.length === 0) {
+    <p class="page-empty">
+      No recurring deposits found yet. If your paychecks land in a checking
+      account, they will appear after the next bank sync — or add deposits
+      manually from the list below.
+    </p>
+  }
+  @for (source of data.sources; track source.source_key) {
+    <details class="income-source" [open]="data.sources.length === 1">
+      <summary class="income-source__summary">
+        <span class="income-source__name">{{ source.name }}</span>
+        <span class="income-source__meta">
+          {{ source.frequency }} · typical {{ formatMoney(source.typical_amount) }} ·
+          {{ source.transactions.length }} deposits ·
+          {{ formatMoney(source.total_amount) }} total
+        </span>
+      </summary>
+      <ul class="income-txns">
+        @for (txn of source.transactions; track txn.transaction_id) {
+          <li class="income-txns__row">
+            <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+            <span class="income-txns__name">{{ txn.name }}</span>
+            <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+            @if (canWrite()) {
+              <button
+                type="button"
+                class="income-txns__remove"
+                [disabled]="busy() !== null"
+                (click)="remove(txn)"
+              >
+                Remove
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    </details>
+  }
+
+  <h2>Other deposits</h2>
+  <p class="page-hint">
+    Deposits not counted as income. Add ones the scan missed; removed deposits
+    can be restored.
+  </p>
+  @if (data.other_inflows.length === 0) {
+    <p class="page-empty">Nothing else — every deposit is classified.</p>
+  } @else {
+    <ul class="income-txns income-txns--other">
+      @for (txn of data.other_inflows; track txn.transaction_id) {
+        <li class="income-txns__row">
+          <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+          <span class="income-txns__name">
+            {{ txn.name }}
+            @if (txn.excluded) {
+              <span class="income-txns__tag">removed by you</span>
+            }
+          </span>
+          <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+          @if (canWrite()) {
+            @if (txn.excluded) {
+              <button
+                type="button"
+                class="income-txns__add"
+                [disabled]="busy() !== null"
+                (click)="restore(txn)"
+              >
+                Restore
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="income-txns__add"
+                [disabled]="busy() !== null"
+                (click)="addAsIncome(txn)"
+              >
+                Add as income
+              </button>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <h2>Estimated tax for {{ data.tax.tax_year }}</h2>
+  <section class="tax-card">
+    @if (canWrite()) {
+      <div class="tax-card__settings">
+        <label>
+          <span>Filing status</span>
+          <select [(ngModel)]="filingStatus" name="filingStatus">
+            <option value="married_joint">Married filing jointly</option>
+            <option value="single">Single</option>
+            <option value="head_of_household">Head of household</option>
+          </select>
+        </label>
+        <label class="tax-card__toggle">
+          <input type="checkbox" [(ngModel)]="treatedAsNet" name="treatedAsNet" />
+          <span>Deposits are take-home pay (gross is estimated from them)</span>
+        </label>
+        <button type="button" [disabled]="busy() !== null" (click)="saveSettings()">
+          {{ busy() === 'settings' ? 'Saving…' : 'Recalculate' }}
+        </button>
+      </div>
+    }
+
+    <dl class="tax-card__figures">
+      @if (data.tax.net_income; as net) {
+        <div><dt>Take-home income (deposits)</dt><dd>{{ formatMoney(net) }}</dd></div>
+      }
+      <div><dt>Estimated gross income</dt><dd>{{ formatMoney(data.tax.gross_income) }}</dd></div>
+      <div><dt>Standard deduction</dt><dd>−{{ formatMoney(data.tax.standard_deduction) }}</dd></div>
+      <div><dt>Federal income tax</dt><dd>{{ formatMoney(data.tax.federal_income_tax) }}</dd></div>
+      <div><dt>Social Security &amp; Medicare</dt><dd>{{ formatMoney(data.tax.fica_tax) }}</dd></div>
+      <div class="tax-card__total">
+        <dt>Estimated total tax</dt>
+        <dd>{{ formatMoney(data.tax.total_tax) }}</dd>
+      </div>
+      <div><dt>Effective rate</dt><dd>{{ data.tax.effective_rate | percent: '1.1-1' }}</dd></div>
+    </dl>
+
+    <details class="tax-card__assumptions">
+      <summary>Assumptions behind this estimate</summary>
+      <ul>
+        @for (assumption of data.tax.assumptions; track assumption) {
+          <li>{{ assumption }}</li>
+        }
+      </ul>
+    </details>
+  </section>
+}

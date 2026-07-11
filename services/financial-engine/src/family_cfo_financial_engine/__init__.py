@@ -9,6 +9,12 @@ from family_cfo_financial_engine.net_worth import AccountBalance, calculate_net_
 from family_cfo_financial_engine.purchase_impact import PurchaseImpactInputs, calculate_purchase_impact
 from family_cfo_financial_engine.results import CALCULATION_ENGINE_VERSION, CalculationResult
 from family_cfo_financial_engine.retirement import RetirementInput, calculate_retirement_projection
+from family_cfo_financial_engine.tax_estimate import (
+    FILING_STATUSES,
+    TAX_YEAR,
+    estimate_annual_tax,
+    gross_up_from_net,
+)
 
 __all__ = [
     "CALCULATION_ENGINE_VERSION",
@@ -17,12 +23,14 @@ __all__ = [
     "CategorySpend",
     "CurrencyMismatchError",
     "DebtInput",
+    "FILING_STATUSES",
     "FutureValueInput",
     "GoalInput",
     "Money",
     "PurchaseImpactInputs",
     "RecurringAmount",
     "RetirementInput",
+    "TAX_YEAR",
     "calculate_budget_summary",
     "calculate_cash_flow",
     "calculate_debt_payoff",
@@ -32,6 +40,8 @@ __all__ = [
     "calculate_net_worth",
     "calculate_purchase_impact",
     "calculate_retirement_projection",
+    "estimate_annual_tax",
+    "gross_up_from_net",
 ]
 
 __version__ = "0.1.0"

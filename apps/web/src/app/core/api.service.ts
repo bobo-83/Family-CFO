@@ -37,7 +37,10 @@ import {
   getAiRuntimeStatus,
   getConversation,
   getHouseholdContext,
+  getIncomeAnalysis,
+  setIncomeOverride,
   updateHousehold,
+  updateIncomeTaxSettings,
   getReport,
   listAccounts,
   listAuditEvents,
@@ -87,6 +90,7 @@ import {
   type HouseholdUpdateRequest,
   type ImportCreateRequest,
   type IncomeCreateRequest,
+  type IncomeTaxSettingsRequest,
   type IncomeUpdateRequest,
   type MemberCreateRequest,
   type MemberRoleUpdateRequest,
@@ -260,6 +264,19 @@ export class ApiService {
   // --- Income ---
   listIncomeSources() {
     return listIncomeSources();
+  }
+
+  // --- Income analysis + tax estimate (M61) ---
+  getIncomeAnalysis() {
+    return getIncomeAnalysis();
+  }
+
+  setIncomeOverride(transactionId: string, verdict: 'include' | 'exclude' | 'clear') {
+    return setIncomeOverride({ body: { transaction_id: transactionId, verdict } });
+  }
+
+  updateIncomeTaxSettings(body: IncomeTaxSettingsRequest) {
+    return updateIncomeTaxSettings({ body });
   }
 
   createIncomeSource(body: IncomeCreateRequest) {

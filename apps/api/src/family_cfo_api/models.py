@@ -91,9 +91,30 @@ households = Table(
     _currency_column("base_currency"),
     # M43: null means "use the default target" (finance_service constant).
     Column("emergency_fund_target_months", Float, nullable=True),
+    # M61 tax-estimate settings: null = defaults (married_joint, deposits net).
+    Column("tax_filing_status", String(20), nullable=True),
+    Column("income_treated_as_net", Boolean, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("length(base_currency) = 3", name="ck_households_currency_length"),
+)
+
+# M61: per-transaction income verdicts — "exclude" removes a detected deposit
+# from the income analysis, "include" adds one the scan missed.
+income_transaction_overrides = Table(
+    "income_transaction_overrides",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("transaction_id", String(36), ForeignKey("transactions.id"), nullable=False),
+    Column("verdict", String(10), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index(
+        "uq_income_overrides_household_transaction",
+        "household_id",
+        "transaction_id",
+        unique=True,
+    ),
 )
 
 users = Table(
