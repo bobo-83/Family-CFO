@@ -256,12 +256,17 @@ export type TaxEstimate = {
     tax_year: number;
     filing_status: 'single' | 'married_joint' | 'head_of_household';
     income_treated_as_net: boolean;
+    /**
+     * USPS state code used for state income tax (M65).
+     */
+    state?: string;
     gross_income: Money;
     net_income?: Money;
     standard_deduction: Money;
     taxable_income: Money;
     federal_income_tax: Money;
     fica_tax: Money;
+    state_income_tax?: Money;
     total_tax: Money;
     effective_rate: number;
     assumptions: Array<string>;
@@ -287,6 +292,11 @@ export type IncomeOverrideRequest = {
 export type IncomeTaxSettingsRequest = {
     tax_filing_status: 'single' | 'married_joint' | 'head_of_household';
     income_treated_as_net: boolean;
+    /**
+     * USPS state code for state income tax (M65). Only the state is collected — never a street address. Null clears it.
+     *
+     */
+    state?: string;
 };
 
 export type IncomeListResponse = {

@@ -93,7 +93,7 @@ async def test_tax_estimate_grosses_up_net_income_by_default(demo_client, demo_t
     assert (
         abs(tax["gross_income"]["amount_minor"] - tax["total_tax"]["amount_minor"] - net) <= 2
     )
-    assert any("State and local taxes are NOT included" in a for a in tax["assumptions"])
+    assert any("state income tax is NOT included" in a for a in tax["assumptions"])
 
 
 @pytest.mark.anyio
@@ -165,6 +165,83 @@ async def test_settings_switch_filing_status_and_gross_treatment(
     # Treated as gross: the income IS the gross figure.
     assert tax["gross_income"]["amount_minor"] == 6 * 461_538
     assert tax["net_income"] is None
+
+
+# --- M65: amount clustering + state tax ---
+
+
+@pytest.mark.anyio
+async def test_paycheck_detected_inside_mixed_amount_transfer_label(
+    demo_client, demo_token
+) -> None:
+    """Biweekly ~$2,830 deposits auto-detect even when big one-offs share the label."""
+    headers = _headers(demo_token)
+    checking = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "My Checking", "type": "checking", "currency": "USD"},
+        )
+    ).json()["id"]
+    today = date.today()
+    for i in range(6):
+        await demo_client.post(
+            "/api/v1/transactions",
+            headers=headers,
+            json={
+                "account_id": checking,
+                "occurred_at": (today - timedelta(days=14 * (6 - i))).isoformat(),
+                "amount": {"amount_minor": 283_078 + i, "currency": "USD"},
+                "merchant": "Online Transfer",
+            },
+        )
+    # Both one-offs sit far outside the paycheck's amount band (>30% gap).
+    for amount, days in ((2_312_400, 40), (800_000, 3)):
+        await demo_client.post(
+            "/api/v1/transactions",
+            headers=headers,
+            json={
+                "account_id": checking,
+                "occurred_at": (today - timedelta(days=days)).isoformat(),
+                "amount": {"amount_minor": amount, "currency": "USD"},
+                "merchant": "Online Transfer",
+            },
+        )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert len(body["sources"]) == 1
+    source = body["sources"][0]
+    assert source["frequency"] == "biweekly"
+    assert len(source["transactions"]) == 6
+    assert "2,830" in source["name"]  # disambiguated with the typical amount
+    # The one-offs stay offered, not silently absorbed.
+    assert len(body["other_inflows"]) == 2
+
+
+@pytest.mark.anyio
+async def test_state_setting_changes_the_tax_estimate(demo_client, demo_token) -> None:
+    await _seed_checking_with_payroll(demo_client, demo_token)
+    headers = _headers(demo_token)
+
+    response = await demo_client.put(
+        "/api/v1/income/analysis/settings",
+        headers=headers,
+        json={"tax_filing_status": "married_joint", "income_treated_as_net": True, "state": "ca"},
+    )
+    assert response.status_code == 204
+
+    tax = (await _analysis(demo_client, demo_token))["tax"]
+    assert tax["state"] == "CA"
+    assert tax["state_income_tax"] is not None
+    assert any("2024 FTB brackets" in a for a in tax["assumptions"])
+
+    bad = await demo_client.put(
+        "/api/v1/income/analysis/settings",
+        headers=headers,
+        json={"tax_filing_status": "single", "income_treated_as_net": True, "state": "ZZ"},
+    )
+    assert bad.status_code == 422
 
 
 # --- M63: internal transfers, reject, coverage ---
