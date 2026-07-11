@@ -7,13 +7,26 @@
   "panels": [
     {
       "id": 1,
-      "title": "Generation tokens/sec",
+      "title": "Generation tokens/sec (spikes during answers; zero when idle)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 9, "x": 0, "y": 0 },
       "targets": [
         {
           "expr": "rate(vllm:generation_tokens_total[2m])",
           "legendFormat": "{{runtime}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Tokens generated (last hour)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 3, "x": 9, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(increase(vllm:generation_tokens_total[1h]))",
+          "legendFormat": "tokens",
+          "instant": true
         }
       ]
     },
