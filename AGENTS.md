@@ -31,6 +31,12 @@ Each feature should include:
 - Implementation
 - Unit tests
 - Integration tests where component boundaries are touched
+- **Advisor tool access** — a feature that adds a data domain the family can
+  see must also add or extend a read-only grounded tool in the M16 registry
+  (`apps/api/src/family_cfo_api/ai_tools.py`, ADR 0009), reusing the same
+  service code as the HTTP endpoint, so the chat advisor can answer questions
+  about it. If chat access is genuinely out of scope, say so as an explicit
+  non-goal in the spec gate.
 - Documentation updates
 - A clear commit message
 
