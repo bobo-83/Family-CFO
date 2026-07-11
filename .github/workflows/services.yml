@@ -18,6 +18,7 @@ jobs:
           - ocr-worker
           - scheduler
           - backup
+          - model-manager
     defaults:
       run:
         working-directory: services/${{ matrix.package }}

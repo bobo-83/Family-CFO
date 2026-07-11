@@ -1,0 +1,20 @@
+name: Deploy E2E
+
+# M72: the real thing — build the images, boot the core stack (db + api +
+# worker + web; no GPU services), and exercise it over HTTP: migrations,
+# demo login, a grounded chat answer, and the TLS-served dashboard.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-boot-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build, boot, and smoke-test the deployment
+        run: scripts/e2e-deploy-test.sh

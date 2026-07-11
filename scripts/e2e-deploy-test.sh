@@ -45,11 +45,17 @@ command -v docker >/dev/null 2>&1 || fail "docker not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose v2 required"
 
 # Ephemeral, self-contained env: random secrets, AI off, API published locally.
+# The web ports must not collide with a production stack on the same host
+# (8080/8443 are the compose defaults), so the e2e run gets its own.
+WEB_PORT="${E2E_WEB_PORT:-18080}"
+WEB_TLS_PORT="${E2E_WEB_TLS_PORT:-18443}"
 cat > "$ENV_FILE" <<EOF
 POSTGRES_PASSWORD=$(openssl rand -hex 16 2>/dev/null || echo e2epw$RANDOM$RANDOM)
 FAMILY_CFO_BACKUP_ENCRYPTION_KEY=$(openssl rand -base64 32 2>/dev/null || echo e2ekeyE2EkeyE2EkeyE2EkeyE2Ekey00=)
 FAMILY_CFO_AI_ENABLED=false
 API_PORT=${API_PORT}
+WEB_PORT=${WEB_PORT}
+WEB_TLS_PORT=${WEB_TLS_PORT}
 EOF
 
 BASE="http://localhost:${API_PORT}/api/v1"
