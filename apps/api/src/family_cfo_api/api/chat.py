@@ -5,7 +5,7 @@ import binascii
 import logging
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_ai_orchestrator import (
@@ -18,7 +18,7 @@ from family_cfo_ai_orchestrator import (
     validate_recommendation,
 )
 
-from family_cfo_api import ai_tools, finance_service, repository
+from family_cfo_api import ai_memory, ai_tools, finance_service, repository
 from family_cfo_api.ai_runtime_selection import (
     resolve_ai_config,
     select_tool_runtime,
@@ -180,6 +180,8 @@ def _try_agentic_answer(
     image_description: str | None = None,
     settings: Settings | None = None,
     history: list[tuple[str, str]] | None = None,
+    memories: list[str] | None = None,
+    conversation_summary: str | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -204,20 +206,47 @@ def _try_agentic_answer(
         RuntimeMessage(role=role, content=content[:_HISTORY_MESSAGE_MAX_CHARS])
         for role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]
     ]
+    # M57 (ADR 0016): durable facts learned across ALL conversations, plus the
+    # rolling summary of this thread's turns older than the history window.
+    context_messages: list[RuntimeMessage] = []
+    if memories:
+        facts = "\n".join(f"- {value}" for value in memories[:ai_memory.MAX_INJECTED_MEMORIES])
+        context_messages.append(
+            RuntimeMessage(
+                role="system",
+                content=(
+                    "Known household facts, remembered from previous conversations "
+                    f"(each individually deletable by the family):\n{facts}"
+                ),
+            )
+        )
+    if conversation_summary:
+        context_messages.append(
+            RuntimeMessage(
+                role="system",
+                content=f"Earlier in this conversation (summary): {conversation_summary}",
+            )
+        )
     messages = [
         RuntimeMessage(role="system", content=ai_tools.build_system_prompt(settings)),
+        *context_messages,
         *history_messages,
         RuntimeMessage(role="user", content=user_content),
     ]
     # The user's own figures are legitimate to echo back ("your $2,000") — they
     # are context, not fabrication. Numbers in the included history are
     # grounded too: prior assistant answers passed the guardrail when they
-    # were produced (M30).
+    # were produced (M30). Remembered facts and the stored summary are context
+    # the same way (M57).
     context_values = extract_numbers(message)
     for _role, content in (history or [])[-_HISTORY_MAX_MESSAGES:]:
         context_values |= extract_numbers(content)
     if image_description:
         context_values |= extract_numbers(image_description)
+    for value in memories or []:
+        context_values |= extract_numbers(value)
+    if conversation_summary:
+        context_values |= extract_numbers(conversation_summary)
 
     tool_call_records: list[ToolCallRecord] = []
     try:
@@ -308,6 +337,7 @@ def _try_agentic_answer(
 )
 async def create_chat_message(
     payload: ChatRequest,
+    background_tasks: BackgroundTasks,
     session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
@@ -336,6 +366,9 @@ async def create_chat_message(
             engine, household.id, settings, image_data_url, payload.message
         )
 
+    # M57: facts remembered across all conversations + this thread's summary.
+    memories = [m.value for m in repository.list_household_memories(engine, household.id)]
+
     answer = _try_agentic_answer(
         engine,
         household,
@@ -343,6 +376,8 @@ async def create_chat_message(
         image_description=analysis.description if analysis else None,
         settings=settings,
         history=history,
+        memories=memories,
+        conversation_summary=conversation.summary if conversation else None,
     ) or _deterministic_answer(engine, household)
 
     if analysis and analysis.warning:
@@ -388,6 +423,17 @@ async def create_chat_message(
         user_content=stored_user_content,
         assistant_content=answer.answer,
         recommendation_id=recommendation_id,
+    )
+
+    # M57 (ADR 0016): after the response is sent, extract durable facts from
+    # this message and refresh the thread summary. Best-effort; never raises.
+    background_tasks.add_task(
+        ai_memory.remember_exchange,
+        engine,
+        household.id,
+        conversation.id,
+        stored_user_content,
+        settings,
     )
 
     logger.info(

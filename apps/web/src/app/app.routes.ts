@@ -38,6 +38,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/bills/bills').then((m) => m.Bills),
       },
       {
+        path: 'memory',
+        loadComponent: () => import('./pages/memory/memory').then((m) => m.Memory),
+      },
+      {
         path: 'categories',
         loadComponent: () =>
           import('./pages/categories/categories').then((m) => m.Categories),

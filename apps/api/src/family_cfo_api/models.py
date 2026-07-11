@@ -560,8 +560,27 @@ conversations = Table(
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
     Column("title", String(200), nullable=False),
+    # M57 (ADR 0016): rolling summary of turns older than the history window.
+    Column("summary", Text, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+# M57 (ADR 0016): durable facts the advisor learned from chat ("home_city",
+# "kids_count", ...). source_conversation_id deliberately has NO foreign key:
+# a memory must survive the deletion of the conversation it was learned from.
+household_memories = Table(
+    "household_memories",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("key", String(100), nullable=False),
+    Column("value", String(500), nullable=False),
+    Column("source", String(20), nullable=False),
+    Column("source_conversation_id", String(36), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Index("uq_household_memories_household_key", "household_id", "key", unique=True),
 )
 
 conversation_messages = Table(

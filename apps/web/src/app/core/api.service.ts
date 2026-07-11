@@ -15,6 +15,7 @@ import {
   createImport,
   createIncomeSource,
   createMember,
+  createMemory,
   createPairingSession,
   createTransaction,
   deleteAccount,
@@ -25,6 +26,7 @@ import {
   deleteCategory,
   deleteIncomeSource,
   deleteMember,
+  deleteMemory,
   deleteTransaction,
   discardImport,
   generateReport,
@@ -49,6 +51,7 @@ import {
   listImports,
   listIncomeSources,
   listMembers,
+  listMemories,
   listPairedDevices,
   listReports,
   listTransactions,
@@ -85,6 +88,7 @@ import {
   type IncomeUpdateRequest,
   type MemberCreateRequest,
   type MemberRoleUpdateRequest,
+  type MemoryCreateRequest,
   type ReportGenerateRequest,
   type TransactionCreateRequest,
   type TransactionUpdateRequest,
@@ -228,6 +232,19 @@ export class ApiService {
 
   deleteBill(billId: string) {
     return deleteBill({ path: { bill_id: billId } });
+  }
+
+  // --- Advisor memory (M57) ---
+  listMemories() {
+    return listMemories();
+  }
+
+  createMemory(body: MemoryCreateRequest) {
+    return createMemory({ body });
+  }
+
+  deleteMemory(memoryId: string) {
+    return deleteMemory({ path: { memory_id: memoryId } });
   }
 
   // --- Income ---

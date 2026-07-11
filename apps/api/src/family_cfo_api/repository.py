@@ -2779,6 +2779,7 @@ class ConversationRecord:
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
+    summary: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -2843,6 +2844,7 @@ def get_conversation(
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         message_count=int(count),
+        summary=row["summary"],
     )
 
 
@@ -2977,6 +2979,154 @@ def delete_conversation(engine: Engine, household_id: str, conversation_id: str)
             delete(models.conversations).where(models.conversations.c.id == conversation_id)
         )
     return True
+
+
+def set_conversation_summary(engine: Engine, conversation_id: str, summary: str) -> None:
+    """M57 (ADR 0016): store the rolling summary of turns older than the history window."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.conversations)
+            .where(models.conversations.c.id == conversation_id)
+            .values(summary=summary)
+        )
+
+
+# --- M57: household memory (ADR 0016) ----------------------------------------
+
+# Internal marker key recording that the one-time backfill ran; never listed.
+MEMORY_BACKFILL_MARKER_KEY = "_backfill_done"
+
+MEMORY_VALUE_MAX_LENGTH = 500
+
+
+@dataclass(frozen=True, slots=True)
+class HouseholdMemoryRecord:
+    id: str
+    household_id: str
+    key: str
+    value: str
+    source: str  # "chat" | "manual" | "system"
+    source_conversation_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _memory_from_row(row: Any) -> HouseholdMemoryRecord:
+    return HouseholdMemoryRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        key=row["key"],
+        value=row["value"],
+        source=row["source"],
+        source_conversation_id=row["source_conversation_id"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def list_household_memories(engine: Engine, household_id: str) -> list[HouseholdMemoryRecord]:
+    """All remembered facts, oldest first. Internal marker rows are excluded."""
+    query = (
+        select(models.household_memories)
+        .where(
+            models.household_memories.c.household_id == household_id,
+            models.household_memories.c.source != "system",
+        )
+        .order_by(models.household_memories.c.created_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_memory_from_row(row) for row in rows]
+
+
+def upsert_household_memory(
+    engine: Engine,
+    household_id: str,
+    key: str,
+    value: str,
+    *,
+    source: str = "chat",
+    source_conversation_id: str | None = None,
+) -> HouseholdMemoryRecord:
+    """Insert a fact, or update the existing fact with the same key.
+
+    Stable keys are the dedupe mechanism: "we eat out 5 times a week now"
+    updates eating_out_frequency instead of piling up contradictions.
+    """
+    value = value[:MEMORY_VALUE_MAX_LENGTH]
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.household_memories.c.id).where(
+                models.household_memories.c.household_id == household_id,
+                models.household_memories.c.key == key,
+            )
+        ).first()
+        if existing is not None:
+            conn.execute(
+                update(models.household_memories)
+                .where(models.household_memories.c.id == existing.id)
+                .values(
+                    value=value,
+                    source=source,
+                    source_conversation_id=source_conversation_id,
+                    updated_at=now,
+                )
+            )
+            memory_id = existing.id
+        else:
+            memory_id = new_id()
+            conn.execute(
+                insert(models.household_memories).values(
+                    id=memory_id,
+                    household_id=household_id,
+                    key=key,
+                    value=value,
+                    source=source,
+                    source_conversation_id=source_conversation_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        row = (
+            conn.execute(
+                select(models.household_memories).where(
+                    models.household_memories.c.id == memory_id
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _memory_from_row(row)
+
+
+def delete_household_memory(engine: Engine, household_id: str, memory_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.household_memories).where(
+                models.household_memories.c.household_id == household_id,
+                models.household_memories.c.id == memory_id,
+                models.household_memories.c.source != "system",
+            )
+        )
+    return result.rowcount > 0
+
+
+def memory_backfill_done(engine: Engine, household_id: str) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.household_memories.c.id).where(
+                models.household_memories.c.household_id == household_id,
+                models.household_memories.c.key == MEMORY_BACKFILL_MARKER_KEY,
+            )
+        ).first()
+    return row is not None
+
+
+def mark_memory_backfill_done(engine: Engine, household_id: str) -> None:
+    upsert_household_memory(
+        engine, household_id, MEMORY_BACKFILL_MARKER_KEY, "done", source="system"
+    )
 
 
 # --- M27: institution connections + dedupe (ADR 0015) -------------------------
