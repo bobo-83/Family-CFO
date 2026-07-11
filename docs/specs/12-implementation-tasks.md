@@ -969,6 +969,13 @@ The two most complex user flows — the tool-calling chat loop and the photo pat
 - [x] Spec gate: two specs in `apps/web/e2e/chat.spec.ts`, runtime-tolerant by design (they pass against a deterministic-only stack AND a full AI stack, asserting the HONEST outcome either way). (a) text chat — login → send a question → an assistant bubble renders with the confidence chip and an attribution caption reading either "Answered by …" or "Deterministic calculation". (b) photo — a receipt image is generated in-browser (render text in a data-URL page, screenshot it — no binary fixtures in the repo), attached through the real file input, and sent; the user bubble shows the photo marker and the answer's caption shows "photo read by …" (describer active) or the response carries the not-analyzed warning. Generous per-test timeouts (a live 80B answer takes ~30 s; photo ~60 s). `ignoreHTTPSErrors` added to the config for self-signed LAN deployments. Advisor-access rule: non-goal — tests add no data domain.
 - [x] Implement + run against the live deployment (both specs green) + commit. Verified live: both specs pass in 15 s total against the full AI stack — the text answer arrived model-attributed, and the in-browser-generated receipt flowed through the real file input to the Qwen3-VL-8B describer, whose stored description read the exact merchant and \$7.79 total.
 
+## M69: Vector Retrieval
+
+User request (2026-07-11): implement vector retrieval. Closes the "Backlog: Vector Store and Retrieval" section — the Qdrant scaffold finally gets its consumer. Design in [ADR 0017](../adr/0017-vector-retrieval.md).
+
+- [x] Spec gate: (a) seams — `EmbeddingAdapter` (fastembed `BAAI/bge-small-en-v1.5`, ONNX/CPU, lazily loaded, cache volume; embeddings never leave the box or touch the GPU) and `VectorStoreAdapter` (Qdrant via plain httpx REST — ensure-collection, batched upsert, household-filtered search, wipe). (b) indexing — the worker embeds household memories and trailing-window transactions (one point per row uuid, household id in the payload): additive upsert at startup, wipe-and-rebuild daily (prunes deleted rows); failures log and never block. (c) retrieval — chat gains the grounded tool `search_records(query)` (advisor-access rule satisfied), registered only when `FAMILY_CFO_QDRANT_URL` is set; returns top matches with date/description/amount display, all grounded via the tool trace; empty/unreachable → honest `lookup_failed`. (d) compose — qdrant loses its opt-in profile (default-on; empty url opts out), api/worker gain the url + an embedding cache volume. Backups deliberately exclude Qdrant (rebuildable from PostgreSQL, per the ADR).
+- [x] Implement + tests (indexing and the tool against in-memory fakes — deterministic hash embedder + cosine store; Qdrant adapter request shapes via httpx MockTransport; tool absent when unconfigured) + deploy + live verify + commit. Verified: 374 api tests pass. Live: worker startup indexed **535 points** (memories + trailing transactions); the semantic question "when did we last pay for streaming or TV subscriptions?" — zero keyword overlap with the stored "NETFLIX.COM" — was answered by the 80B via `search_records` with the exact date and \$15.49 amount, grounded, in 5.5 s.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
@@ -1013,10 +1020,10 @@ These were explicitly deferred (not dropped) by M9/M10/M11 non-goals. Tracked he
 
 The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qdrant) container, ADR 0007 lists "Vector database" as a replaceable component, and the AI-orchestration spec names "relevant retrieved context" as a reasoning input — but no milestone ever introduced a vector store, embeddings, or retrieval. The AI orchestrator calls the runtime directly with calculation context and no retrieval step, and M8 explicitly non-goaled Qdrant backup because no vector data exists. Tracked here until scoped into a milestone.
 
-- [ ] Decide whether retrieval-augmented context is in scope for v1 or deferred post-release (it has no consumer until real multi-turn chat exists).
-- [ ] If in scope: add a `VectorStoreAdapter` seam (ADR 0007), a Qdrant-backed implementation, an embedding step, and wire retrieved context into the AI orchestration path.
-- [ ] Add encrypted Qdrant backup to M8's backup pipeline once vector data exists (M8 non-goaled it precisely because it does not yet).
-- [ ] Assign to a specific milestone.
+- [x] Decide whether retrieval-augmented context is in scope for v1 or deferred post-release. (In scope; delivered by M69/ADR 0017.)
+- [x] If in scope: add a `VectorStoreAdapter` seam (ADR 0007), a Qdrant-backed implementation, an embedding step, and wire retrieved context into the AI orchestration path. (M69: seams + worker indexing + the `search_records` grounded tool.)
+- [x] Add encrypted Qdrant backup to M8's backup pipeline once vector data exists. (Resolved by ADR 0017: the index is rebuildable from PostgreSQL, so backups deliberately EXCLUDE it — a restore re-indexes.)
+- [x] Assign to a specific milestone. (M69.)
 
 ## Release Readiness
 
