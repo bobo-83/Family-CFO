@@ -1,3 +1,37 @@
+.coverage-warning {
+  background: #fff7e6;
+  border: 1px solid #f0d48a;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  max-width: 44rem;
+  font-size: 0.9rem;
+}
+
+.income-rejected {
+  max-width: 44rem;
+  margin-top: 0.75rem;
+
+  > summary {
+    cursor: pointer;
+    color: #5b6472;
+    font-size: 0.9rem;
+  }
+}
+
+.income-txns__reject {
+  color: #b00020;
+  background: none;
+  border: 1px solid #e5c1c7;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
 .income-rollup {
   display: flex;
   flex-wrap: wrap;

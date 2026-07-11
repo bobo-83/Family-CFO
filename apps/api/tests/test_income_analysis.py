@@ -167,6 +167,131 @@ async def test_settings_switch_filing_status_and_gross_treatment(
     assert tax["net_income"] is None
 
 
+# --- M63: internal transfers, reject, coverage ---
+
+
+@pytest.mark.anyio
+async def test_matched_pair_transfer_is_hidden_entirely(demo_client, demo_token) -> None:
+    """A deposit whose amount left a sibling account is money movement, not income."""
+    headers = _headers(demo_token)
+    checking = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "My Checking", "type": "checking", "currency": "USD"},
+        )
+    ).json()["id"]
+    savings = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "My Savings", "type": "savings", "currency": "USD"},
+        )
+    ).json()["id"]
+    today = date.today()
+    inflow = await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": checking,
+            "occurred_at": (today - timedelta(days=10)).isoformat(),
+            "amount": {"amount_minor": 500_000, "currency": "USD"},
+            "merchant": "Online Transfer",
+        },
+    )
+    await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": savings,
+            "occurred_at": (today - timedelta(days=11)).isoformat(),
+            "amount": {"amount_minor": -500_000, "currency": "USD"},
+            "merchant": "Online Transfer",
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["sources"] == []
+    assert body["other_inflows"] == []
+
+    # An explicit include verdict overrides suppression — the user decides.
+    await demo_client.post(
+        "/api/v1/income/analysis/overrides",
+        headers=headers,
+        json={"transaction_id": inflow.json()["id"], "verdict": "include"},
+    )
+    body = await _analysis(demo_client, demo_token)
+    assert body["rollup"]["annual_income"]["amount_minor"] == 500_000
+
+
+@pytest.mark.anyio
+async def test_bank_labeled_internal_transfer_is_hidden(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    checking = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "My Checking", "type": "checking", "currency": "USD"},
+        )
+    ).json()["id"]
+    await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": checking,
+            "occurred_at": (date.today() - timedelta(days=5)).isoformat(),
+            "amount": {"amount_minor": 700_000, "currency": "USD"},
+            "merchant": "Internal Transfer Credit Savings",
+            "description": "Internal Transfer Credit: Savings -2061",
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["other_inflows"] == []
+    assert body["rollup"]["annual_income"]["amount_minor"] == 0
+
+
+@pytest.mark.anyio
+async def test_coverage_warning_for_partial_history(demo_client, demo_token) -> None:
+    await _seed_checking_with_payroll(demo_client, demo_token)  # starts ~84 days ago
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["coverage_warning"] is not None
+    assert "not a full year" in body["coverage_warning"]
+    assert 80 <= body["rollup"]["coverage_days"] <= 90
+    assert body["rollup"]["coverage_start"] is not None
+
+
+@pytest.mark.anyio
+async def test_no_coverage_warning_with_full_window(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    checking = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "My Checking", "type": "checking", "currency": "USD"},
+        )
+    ).json()["id"]
+    await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": checking,
+            "occurred_at": (date.today() - timedelta(days=364)).isoformat(),
+            "amount": {"amount_minor": 10_000, "currency": "USD"},
+            "merchant": "Old Deposit",
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["coverage_warning"] is None
+    assert body["rollup"]["coverage_days"] >= 358
+
+
 @pytest.mark.anyio
 async def test_override_on_foreign_transaction_is_404(demo_client, demo_token) -> None:
     response = await demo_client.post(

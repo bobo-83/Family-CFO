@@ -3120,6 +3120,26 @@ def list_income_detection_transactions(
     return [tuple(row) for row in rows]
 
 
+def list_household_outflows(
+    engine: Engine, household_id: str, *, since: date
+) -> list[tuple[date, int]]:
+    """(occurred_at, positive amount) of every outflow across ALL accounts.
+
+    Used to unmask internal transfers (M63): a checking inflow whose amount
+    left a sibling account around the same time is money movement, not income.
+    """
+    query = select(
+        models.transactions.c.occurred_at,
+        -models.transactions.c.amount_minor,
+    ).where(
+        models.transactions.c.household_id == household_id,
+        models.transactions.c.amount_minor < 0,
+        models.transactions.c.occurred_at >= since,
+    )
+    with engine.connect() as conn:
+        return [(row[0], int(row[1])) for row in conn.execute(query).all()]
+
+
 def list_income_overrides(engine: Engine, household_id: str) -> dict[str, str]:
     """transaction_id -> verdict ("include" | "exclude")."""
     query = select(

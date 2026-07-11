@@ -15,6 +15,10 @@
     <p class="page-error" role="alert">{{ message }}</p>
   }
 
+  @if (data.coverage_warning; as warning) {
+    <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
+  }
+
   <section class="income-rollup">
     <div class="income-rollup__item">
       <span class="income-rollup__label">Income, last {{ data.rollup.window_days }} days</span>
@@ -83,45 +87,38 @@
 
   <h2>Other deposits</h2>
   <p class="page-hint">
-    Deposits not counted as income. Add ones the scan missed; removed deposits
-    can be restored.
+    Deposits not counted as income (transfers between your own accounts are
+    filtered out automatically). Add ones the scan missed, or reject ones that
+    aren't income.
   </p>
-  @if (data.other_inflows.length === 0) {
+  @if (activeOther().length === 0) {
     <p class="page-empty">Nothing else — every deposit is classified.</p>
   } @else {
     <ul class="income-txns income-txns--other">
-      @for (txn of data.other_inflows; track txn.transaction_id) {
+      @for (txn of activeOther(); track txn.transaction_id) {
         <li>
           <details class="income-txn">
             <summary class="income-txns__row">
               <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
-              <span class="income-txns__name">
-                {{ txn.name }}
-                @if (txn.excluded) {
-                  <span class="income-txns__tag">removed by you</span>
-                }
-              </span>
+              <span class="income-txns__name">{{ txn.name }}</span>
               <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
               @if (canWrite()) {
-                @if (txn.excluded) {
-                  <button
-                    type="button"
-                    class="income-txns__add"
-                    [disabled]="busy() !== null"
-                    (click)="$event.preventDefault(); restore(txn)"
-                  >
-                    Restore
-                  </button>
-                } @else {
-                  <button
-                    type="button"
-                    class="income-txns__add"
-                    [disabled]="busy() !== null"
-                    (click)="$event.preventDefault(); addAsIncome(txn)"
-                  >
-                    Add as income
-                  </button>
-                }
+                <button
+                  type="button"
+                  class="income-txns__add"
+                  [disabled]="busy() !== null"
+                  (click)="$event.preventDefault(); addAsIncome(txn)"
+                >
+                  Add as income
+                </button>
+                <button
+                  type="button"
+                  class="income-txns__reject"
+                  [disabled]="busy() !== null"
+                  (click)="$event.preventDefault(); remove(txn)"
+                >
+                  Not income
+                </button>
               }
             </summary>
             <dl class="income-txn__details">
@@ -137,7 +134,46 @@
     </ul>
   }
 
+  @if (rejectedOther().length > 0) {
+    <details class="income-rejected">
+      <summary>Rejected deposits ({{ rejectedOther().length }})</summary>
+      <ul class="income-txns income-txns--other">
+        @for (txn of rejectedOther(); track txn.transaction_id) {
+          <li>
+            <details class="income-txn">
+              <summary class="income-txns__row">
+                <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+                <span class="income-txns__name">{{ txn.name }}</span>
+                <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+                @if (canWrite()) {
+                  <button
+                    type="button"
+                    class="income-txns__add"
+                    [disabled]="busy() !== null"
+                    (click)="$event.preventDefault(); restore(txn)"
+                  >
+                    Restore
+                  </button>
+                }
+              </summary>
+              <dl class="income-txn__details">
+                <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+                <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+                <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+                <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+              </dl>
+            </details>
+          </li>
+        }
+      </ul>
+    </details>
+  }
+
   <h2>Estimated tax for {{ data.tax.tax_year }}</h2>
+  @if (data.coverage_warning; as warning) {
+    <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
+  }
   <section class="tax-card">
     @if (canWrite()) {
       <div class="tax-card__settings">
