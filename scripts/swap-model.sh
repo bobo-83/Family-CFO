@@ -41,6 +41,40 @@ parser_for() {
 # A "VL" model sees photos itself — no separate describer needed.
 is_vision_model() { case "$1" in *-VL-*|*vl-*) return 0 ;; *) return 1 ;; esac; }
 
+# M55: estimate a model's weight footprint (GB) from its name — params count
+# times a quantization factor (same heuristics as the API's fit planner).
+# Prints 0 when the name carries no parameter count.
+estimate_weights_gb() {
+  python3 - "$1" <<'PY'
+import re, sys
+model = sys.argv[1]
+name = model.rsplit("/", 1)[-1]
+match = re.search(r"(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)", name)
+if not match:
+    print(0)
+    raise SystemExit
+params = float(match.group(1))
+lower = model.lower()
+if any(m in lower for m in ("awq", "gptq", "int4", "4bit", "4-bit")):
+    factor = 0.65
+elif any(m in lower for m in ("fp8", "int8", "8bit", "8-bit")):
+    factor = 1.0
+else:
+    factor = 2.1
+print(round(params * factor))
+PY
+}
+
+total_memory_gb() {
+  awk '/MemTotal:/ {printf "%d", $2/1024/1024}' /proc/meminfo
+}
+
+# Fraction of total memory a model needs: weights + runtime reserve, with a
+# little rounding headroom. Prints e.g. "0.72".
+fraction_for() { # fraction_for WEIGHTS_GB RESERVE_GB TOTAL_GB
+  python3 -c "import sys; w,r,t=map(float,sys.argv[1:4]); print(f'{min(0.95,(w+r)/t + 0.01):.2f}')" "$1" "$2" "$3"
+}
+
 set_env() { # set_env KEY VALUE — update in place or append
   local key="$1" value="$2"
   if grep -qE "^${key}=" .env; then
@@ -72,6 +106,41 @@ else
   set_env FAMILY_CFO_AI_SUPPORTS_VISION "false"
   set_env FAMILY_CFO_AI_VISION_ENABLED "true"
   set_env VLLM_VISION_MODEL "$VISION"
+fi
+
+# --- M55: automatic GPU-fraction budgeting -----------------------------------
+# Manual fractions caused three crash-loops (a fraction sized for one model
+# starves the next). Compute them from the applied models; refuse impossible
+# combinations BEFORE touching containers.
+TOTAL_GB="$(total_memory_gb)"
+MAIN_WEIGHTS="$(estimate_weights_gb "$MAIN")"
+MAIN_RESERVE=10   # 32k-context KV cache + runtime overhead
+VISION_RESERVE=5  # 8k-context describer overhead
+
+if [ "$TOTAL_GB" -gt 0 ] && [ "$MAIN_WEIGHTS" -gt 0 ]; then
+  MAIN_FRACTION="$(fraction_for "$MAIN_WEIGHTS" "$MAIN_RESERVE" "$TOTAL_GB")"
+  VISION_FRACTION="0.00"
+  if [ -n "$VISION" ] && [ "$VISION" != "none" ] && ! is_vision_model "$MAIN"; then
+    VISION_WEIGHTS="$(estimate_weights_gb "$VISION")"
+    if [ "$VISION_WEIGHTS" -gt 0 ]; then
+      VISION_FRACTION="$(fraction_for "$VISION_WEIGHTS" "$VISION_RESERVE" "$TOTAL_GB")"
+    else
+      log "Cannot size '$VISION' from its name — keeping the current vision fraction."
+      VISION_FRACTION="$(grep -E '^VLLM_VISION_GPU_FRACTION=' .env | cut -d= -f2)"
+      VISION_FRACTION="${VISION_FRACTION:-0.20}"
+    fi
+  fi
+  COMBINED_OK="$(python3 -c "print(1 if float('$MAIN_FRACTION') + float('$VISION_FRACTION') <= 0.92 else 0)")"
+  if [ "$COMBINED_OK" != "1" ]; then
+    die "Won't fit: '$MAIN' (~${MAIN_WEIGHTS}GB + ${MAIN_RESERVE}GB reserve) plus the vision model need more than 92% of ${TOTAL_GB}GB. Pick a smaller photo model (e.g. Qwen/Qwen2.5-VL-7B-Instruct) or 'none'."
+  fi
+  log "Memory budget: main fraction ${MAIN_FRACTION} (~${MAIN_WEIGHTS}GB weights), vision fraction ${VISION_FRACTION} of ${TOTAL_GB}GB."
+  set_env VLLM_GPU_FRACTION "$MAIN_FRACTION"
+  if [ "$VISION_FRACTION" != "0.00" ]; then
+    set_env VLLM_VISION_GPU_FRACTION "$VISION_FRACTION"
+  fi
+else
+  log "Cannot size '$MAIN' from its name — keeping the current GPU fractions."
 fi
 
 log "Recreating runtime + app containers (new models download once; DB untouched)…"
