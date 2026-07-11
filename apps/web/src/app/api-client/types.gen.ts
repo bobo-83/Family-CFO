@@ -196,6 +196,74 @@ export type MemoryCreateRequest = {
     value: string;
 };
 
+export type IncomeAnalysisTransaction = {
+    transaction_id: string;
+    occurred_at: string;
+    amount: Money;
+    name: string;
+    excluded: boolean;
+};
+
+/**
+ * A recurring deposit pattern detected in checking accounts (M61) with every underlying transaction shown as editable evidence.
+ *
+ */
+export type IncomeSourceAnalysis = {
+    source_key: string;
+    name: string;
+    /**
+     * Detected cadence, or "irregular" for manually-added deposits.
+     */
+    frequency: string;
+    manually_added: boolean;
+    typical_amount: Money;
+    total_amount: Money;
+    transactions: Array<IncomeAnalysisTransaction>;
+};
+
+export type IncomeRollup = {
+    annual_income: Money;
+    monthly_average: Money;
+    transaction_count: number;
+    window_days: number;
+};
+
+/**
+ * Deterministic US federal + FICA estimate with explicit assumptions (standard deduction only, no credits, no state tax). When income is treated as take-home, gross is recovered by solving gross − tax(gross) = net.
+ *
+ */
+export type TaxEstimate = {
+    tax_year: number;
+    filing_status: 'single' | 'married_joint' | 'head_of_household';
+    income_treated_as_net: boolean;
+    gross_income: Money;
+    net_income?: Money;
+    standard_deduction: Money;
+    taxable_income: Money;
+    federal_income_tax: Money;
+    fica_tax: Money;
+    total_tax: Money;
+    effective_rate: number;
+    assumptions: Array<string>;
+};
+
+export type IncomeAnalysisResponse = {
+    sources: Array<IncomeSourceAnalysis>;
+    other_inflows: Array<IncomeAnalysisTransaction>;
+    rollup: IncomeRollup;
+    tax: TaxEstimate;
+};
+
+export type IncomeOverrideRequest = {
+    transaction_id: string;
+    verdict: 'include' | 'exclude' | 'clear';
+};
+
+export type IncomeTaxSettingsRequest = {
+    tax_filing_status: 'single' | 'married_joint' | 'head_of_household';
+    income_treated_as_net: boolean;
+};
+
 export type IncomeListResponse = {
     income: Array<IncomeSource>;
 };
@@ -2135,6 +2203,93 @@ export type UpdateIncomeSourceResponses = {
 };
 
 export type UpdateIncomeSourceResponse = UpdateIncomeSourceResponses[keyof UpdateIncomeSourceResponses];
+
+export type GetIncomeAnalysisData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/income/analysis';
+};
+
+export type GetIncomeAnalysisErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetIncomeAnalysisError = GetIncomeAnalysisErrors[keyof GetIncomeAnalysisErrors];
+
+export type GetIncomeAnalysisResponses = {
+    /**
+     * Income analysis with evidence transactions and tax estimate
+     */
+    200: IncomeAnalysisResponse;
+};
+
+export type GetIncomeAnalysisResponse = GetIncomeAnalysisResponses[keyof GetIncomeAnalysisResponses];
+
+export type SetIncomeOverrideData = {
+    body: IncomeOverrideRequest;
+    path?: never;
+    query?: never;
+    url: '/income/analysis/overrides';
+};
+
+export type SetIncomeOverrideErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type SetIncomeOverrideError = SetIncomeOverrideErrors[keyof SetIncomeOverrideErrors];
+
+export type SetIncomeOverrideResponses = {
+    /**
+     * Override stored
+     */
+    204: void;
+};
+
+export type SetIncomeOverrideResponse = SetIncomeOverrideResponses[keyof SetIncomeOverrideResponses];
+
+export type UpdateIncomeTaxSettingsData = {
+    body: IncomeTaxSettingsRequest;
+    path?: never;
+    query?: never;
+    url: '/income/analysis/settings';
+};
+
+export type UpdateIncomeTaxSettingsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type UpdateIncomeTaxSettingsError = UpdateIncomeTaxSettingsErrors[keyof UpdateIncomeTaxSettingsErrors];
+
+export type UpdateIncomeTaxSettingsResponses = {
+    /**
+     * Settings stored
+     */
+    204: void;
+};
+
+export type UpdateIncomeTaxSettingsResponse = UpdateIncomeTaxSettingsResponses[keyof UpdateIncomeTaxSettingsResponses];
 
 export type ListGoalsData = {
     body?: never;

@@ -362,6 +362,68 @@ class IncomeListResponse(BaseModel):
     income: list[IncomeSource]
 
 
+# --- Income analysis + tax estimate (M61) ---
+
+
+class IncomeAnalysisTransaction(BaseModel):
+    transaction_id: str
+    occurred_at: date
+    amount: Money
+    name: str
+    excluded: bool
+
+
+class IncomeSourceAnalysis(BaseModel):
+    source_key: str
+    name: str
+    # Detected cadence, or "irregular" for the manually-added group — wider
+    # than RecurringFrequency on purpose.
+    frequency: str
+    manually_added: bool
+    typical_amount: Money
+    total_amount: Money
+    transactions: list[IncomeAnalysisTransaction]
+
+
+class IncomeRollup(BaseModel):
+    annual_income: Money
+    monthly_average: Money
+    transaction_count: int
+    window_days: int
+
+
+class TaxEstimate(BaseModel):
+    tax_year: int
+    filing_status: str
+    income_treated_as_net: bool
+    gross_income: Money
+    net_income: Money | None = None
+    standard_deduction: Money
+    taxable_income: Money
+    federal_income_tax: Money
+    fica_tax: Money
+    total_tax: Money
+    effective_rate: float
+    assumptions: list[str]
+
+
+class IncomeAnalysisResponse(BaseModel):
+    sources: list[IncomeSourceAnalysis]
+    other_inflows: list[IncomeAnalysisTransaction]
+    rollup: IncomeRollup
+    tax: TaxEstimate
+
+
+class IncomeOverrideRequest(BaseModel):
+    transaction_id: str
+    verdict: Literal["include", "exclude", "clear"]
+
+
+class IncomeTaxSettingsRequest(BaseModel):
+    tax_filing_status: str = Field(min_length=1, max_length=20)
+    income_treated_as_net: bool
+
+
 # --- Household memory (M57, ADR 0016) ---
 
 

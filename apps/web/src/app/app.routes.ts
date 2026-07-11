@@ -42,6 +42,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/memory/memory').then((m) => m.Memory),
       },
       {
+        path: 'income-tax',
+        loadComponent: () => import('./pages/income-tax/income-tax').then((m) => m.IncomeTax),
+      },
+      {
         path: 'categories',
         loadComponent: () =>
           import('./pages/categories/categories').then((m) => m.Categories),

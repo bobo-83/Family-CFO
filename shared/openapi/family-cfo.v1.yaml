@@ -1001,6 +1001,67 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /income/analysis:
+    get:
+      tags:
+        - Income
+      operationId: getIncomeAnalysis
+      summary: Detect income from checking-account deposits and estimate annual tax
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Income analysis with evidence transactions and tax estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeAnalysisResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /income/analysis/overrides:
+    post:
+      tags:
+        - Income
+      operationId: setIncomeOverride
+      summary: Include, exclude, or reset a deposit in the income analysis
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeOverrideRequest"
+      responses:
+        "204":
+          description: Override stored
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/analysis/settings:
+    put:
+      tags:
+        - Income
+      operationId: updateIncomeTaxSettings
+      summary: Set the tax-estimate filing status and net/gross treatment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeTaxSettingsRequest"
+      responses:
+        "204":
+          description: Settings stored
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /goals:
     get:
       tags:
@@ -2311,6 +2372,164 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+    IncomeAnalysisTransaction:
+      type: object
+      required:
+        - transaction_id
+        - occurred_at
+        - amount
+        - name
+        - excluded
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date
+        amount:
+          $ref: "#/components/schemas/Money"
+        name:
+          type: string
+        excluded:
+          type: boolean
+    IncomeSourceAnalysis:
+      type: object
+      description: >
+        A recurring deposit pattern detected in checking accounts (M61) with
+        every underlying transaction shown as editable evidence.
+      required:
+        - source_key
+        - name
+        - frequency
+        - manually_added
+        - typical_amount
+        - total_amount
+        - transactions
+      properties:
+        source_key:
+          type: string
+        name:
+          type: string
+        frequency:
+          type: string
+          description: Detected cadence, or "irregular" for manually-added deposits.
+        manually_added:
+          type: boolean
+        typical_amount:
+          $ref: "#/components/schemas/Money"
+        total_amount:
+          $ref: "#/components/schemas/Money"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeAnalysisTransaction"
+    IncomeRollup:
+      type: object
+      required:
+        - annual_income
+        - monthly_average
+        - transaction_count
+        - window_days
+      properties:
+        annual_income:
+          $ref: "#/components/schemas/Money"
+        monthly_average:
+          $ref: "#/components/schemas/Money"
+        transaction_count:
+          type: integer
+        window_days:
+          type: integer
+    TaxEstimate:
+      type: object
+      description: >
+        Deterministic US federal + FICA estimate with explicit assumptions
+        (standard deduction only, no credits, no state tax). When income is
+        treated as take-home, gross is recovered by solving
+        gross − tax(gross) = net.
+      required:
+        - tax_year
+        - filing_status
+        - income_treated_as_net
+        - gross_income
+        - standard_deduction
+        - taxable_income
+        - federal_income_tax
+        - fica_tax
+        - total_tax
+        - effective_rate
+        - assumptions
+      properties:
+        tax_year:
+          type: integer
+        filing_status:
+          type: string
+          enum: [single, married_joint, head_of_household]
+        income_treated_as_net:
+          type: boolean
+        gross_income:
+          $ref: "#/components/schemas/Money"
+        net_income:
+          $ref: "#/components/schemas/Money"
+        standard_deduction:
+          $ref: "#/components/schemas/Money"
+        taxable_income:
+          $ref: "#/components/schemas/Money"
+        federal_income_tax:
+          $ref: "#/components/schemas/Money"
+        fica_tax:
+          $ref: "#/components/schemas/Money"
+        total_tax:
+          $ref: "#/components/schemas/Money"
+        effective_rate:
+          type: number
+        assumptions:
+          type: array
+          items:
+            type: string
+    IncomeAnalysisResponse:
+      type: object
+      required:
+        - sources
+        - other_inflows
+        - rollup
+        - tax
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeSourceAnalysis"
+        other_inflows:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeAnalysisTransaction"
+        rollup:
+          $ref: "#/components/schemas/IncomeRollup"
+        tax:
+          $ref: "#/components/schemas/TaxEstimate"
+    IncomeOverrideRequest:
+      type: object
+      required:
+        - transaction_id
+        - verdict
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        verdict:
+          type: string
+          enum: [include, exclude, clear]
+    IncomeTaxSettingsRequest:
+      type: object
+      required:
+        - tax_filing_status
+        - income_treated_as_net
+      properties:
+        tax_filing_status:
+          type: string
+          enum: [single, married_joint, head_of_household]
+        income_treated_as_net:
+          type: boolean
     IncomeListResponse:
       type: object
       required:
