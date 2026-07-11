@@ -20,15 +20,20 @@
 
   <aside class="shell__nav" [class.shell__nav--open]="menuOpen()">
     <div class="shell__brand">Family CFO</div>
-    <nav>
-      @for (item of navItems; track item.path) {
-        <a
-          [routerLink]="item.path"
-          routerLinkActive="shell__nav-link--active"
-          class="shell__nav-link"
-          (click)="closeMenu()"
-          >{{ item.label }}</a
-        >
+    <nav class="shell__nav-scroll">
+      @for (section of navSections; track section.label) {
+        @if (section.label) {
+          <div class="shell__nav-section">{{ section.label }}</div>
+        }
+        @for (item of section.items; track item.path) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="shell__nav-link--active"
+            class="shell__nav-link"
+            (click)="closeMenu()"
+            >{{ item.label }}</a
+          >
+        }
       }
       <!-- Grafana ops dashboards, served by nginx under the same origin. -->
       <a href="/grafana/" target="_blank" rel="noopener" class="shell__nav-link"
