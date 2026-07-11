@@ -29,6 +29,7 @@ import {
   deleteMemory,
   deleteTransaction,
   discardImport,
+  dismissBillSuggestion,
   generateReport,
   getAiApplyStatus,
   getAiRuntimeConfig,
@@ -42,6 +43,7 @@ import {
   listAuditEvents,
   listBackups,
   listBills,
+  listBillSuggestions,
   listBudgets,
   listCategories,
   listAiModels,
@@ -220,6 +222,14 @@ export class ApiService {
   // --- Bills ---
   listBills() {
     return listBills();
+  }
+
+  listBillSuggestions() {
+    return listBillSuggestions();
+  }
+
+  dismissBillSuggestion(merchantKey: string) {
+    return dismissBillSuggestion({ body: { merchant_key: merchantKey } });
   }
 
   createBill(body: BillCreateRequest) {
