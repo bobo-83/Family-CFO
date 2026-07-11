@@ -2391,6 +2391,15 @@ components:
           $ref: "#/components/schemas/Money"
         name:
           type: string
+        merchant:
+          type: string
+          description: The payer/sender as the bank reported it.
+        description:
+          type: string
+          description: Full untruncated bank memo (often names the source account).
+        account_name:
+          type: string
+          description: The checking account the deposit landed in.
         excluded:
           type: boolean
     IncomeSourceAnalysis:

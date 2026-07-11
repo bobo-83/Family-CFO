@@ -19,6 +19,9 @@ function txn(id: string, name: string, amountMinor: number, excluded = false) {
     occurred_at: '2026-06-15',
     amount: { amount_minor: amountMinor, currency: 'USD' },
     name,
+    merchant: name,
+    description: `${name} / Payment: Credit ref ${id}`,
+    account_name: 'Rewards Checking (0603)',
     excluded,
   };
 }
@@ -93,6 +96,29 @@ describe('IncomeTax', () => {
     // Viewer cannot edit.
     expect(host.querySelector('.income-txns__remove')).toBeNull();
     expect(host.querySelector('.income-txns__add')).toBeNull();
+  });
+
+  it('expands a deposit row to its full evidence (M62)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+    };
+    configure(apiMock, 'viewer');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const otherRow = host.querySelector('.income-txns--other .income-txn') as HTMLDetailsElement;
+    otherRow.open = true;
+    fixture.detectChanges();
+
+    const details = otherRow.querySelector('.income-txn__details') as HTMLElement;
+    expect(details.textContent).toContain('VENMO CASHOUT / Payment: Credit ref t9');
+    expect(details.textContent).toContain('Rewards Checking (0603)');
+    expect(details.textContent).toContain('From / payer');
+    expect(details.textContent).toContain('Deposited into');
   });
 
   it('removes a deposit from a source and reloads', async () => {

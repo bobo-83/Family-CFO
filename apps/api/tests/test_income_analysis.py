@@ -69,6 +69,11 @@ async def test_detects_payroll_with_evidence_and_rollup(demo_client, demo_token)
 
     # The one-off cash-out is offered for manual classification, not counted.
     assert [t["name"] for t in body["other_inflows"]] == ["VENMO CASHOUT"]
+    # M62: full evidence details ride along on every transaction.
+    other = body["other_inflows"][0]
+    assert other["merchant"] == "VENMO CASHOUT"
+    assert other["account_name"] == "Everyday Checking"
+    assert source["transactions"][0]["account_name"] == "Everyday Checking"
     assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538
     assert body["rollup"]["transaction_count"] == 6
 

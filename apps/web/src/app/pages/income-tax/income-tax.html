@@ -50,20 +50,31 @@
       </summary>
       <ul class="income-txns">
         @for (txn of source.transactions; track txn.transaction_id) {
-          <li class="income-txns__row">
-            <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
-            <span class="income-txns__name">{{ txn.name }}</span>
-            <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
-            @if (canWrite()) {
-              <button
-                type="button"
-                class="income-txns__remove"
-                [disabled]="busy() !== null"
-                (click)="remove(txn)"
-              >
-                Remove
-              </button>
-            }
+          <li>
+            <details class="income-txn">
+              <summary class="income-txns__row">
+                <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+                <span class="income-txns__name">{{ txn.name }}</span>
+                <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+                @if (canWrite()) {
+                  <button
+                    type="button"
+                    class="income-txns__remove"
+                    [disabled]="busy() !== null"
+                    (click)="$event.preventDefault(); remove(txn)"
+                  >
+                    Remove
+                  </button>
+                }
+              </summary>
+              <dl class="income-txn__details">
+                <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+                <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+                <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+                <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+              </dl>
+            </details>
           </li>
         }
       </ul>
@@ -80,36 +91,47 @@
   } @else {
     <ul class="income-txns income-txns--other">
       @for (txn of data.other_inflows; track txn.transaction_id) {
-        <li class="income-txns__row">
-          <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
-          <span class="income-txns__name">
-            {{ txn.name }}
-            @if (txn.excluded) {
-              <span class="income-txns__tag">removed by you</span>
-            }
-          </span>
-          <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
-          @if (canWrite()) {
-            @if (txn.excluded) {
-              <button
-                type="button"
-                class="income-txns__add"
-                [disabled]="busy() !== null"
-                (click)="restore(txn)"
-              >
-                Restore
-              </button>
-            } @else {
-              <button
-                type="button"
-                class="income-txns__add"
-                [disabled]="busy() !== null"
-                (click)="addAsIncome(txn)"
-              >
-                Add as income
-              </button>
-            }
-          }
+        <li>
+          <details class="income-txn">
+            <summary class="income-txns__row">
+              <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+              <span class="income-txns__name">
+                {{ txn.name }}
+                @if (txn.excluded) {
+                  <span class="income-txns__tag">removed by you</span>
+                }
+              </span>
+              <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+              @if (canWrite()) {
+                @if (txn.excluded) {
+                  <button
+                    type="button"
+                    class="income-txns__add"
+                    [disabled]="busy() !== null"
+                    (click)="$event.preventDefault(); restore(txn)"
+                  >
+                    Restore
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="income-txns__add"
+                    [disabled]="busy() !== null"
+                    (click)="$event.preventDefault(); addAsIncome(txn)"
+                  >
+                    Add as income
+                  </button>
+                }
+              }
+            </summary>
+            <dl class="income-txn__details">
+              <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+              <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+              <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+              <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+              <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+            </dl>
+          </details>
         </li>
       }
     </ul>
