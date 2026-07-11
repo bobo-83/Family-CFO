@@ -194,6 +194,10 @@ services:
       - "8192"
     environment:
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # Same GB10-class DeepGEMM FP8 assert as the main service (M55/M66):
+      # "Unknown SF transformation" at weight post-processing. Fallback FP8
+      # kernels work; override to 1 where DeepGEMM is known-good.
+      VLLM_USE_DEEP_GEMM: ${VLLM_USE_DEEP_GEMM:-0}
     volumes:
       - model_cache:/root/.cache/huggingface
     networks: [internal]

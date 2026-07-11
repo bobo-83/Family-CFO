@@ -163,6 +163,22 @@ MODEL_CATALOG: tuple[ModelInfo, ...] = (
         notes="Small single-model option: vision + tools on modest hardware.",
     ),
     ModelInfo(
+        id="Qwen/Qwen3-VL-8B-Instruct-FP8",
+        label="Qwen3-VL 8B FP8 — modern photo describer",
+        role="both",
+        parameters_b=8,
+        est_memory_gb=9,
+        est_disk_gb=9,
+        tool_parser="hermes",
+        supports_vision=True,
+        gated=False,
+        notes=(
+            "FP8 half-memory build of the 8B: the best photo describer that "
+            "fits BESIDE a large chat model (~9 GB); also works as a light "
+            "all-in-one."
+        ),
+    ),
+    ModelInfo(
         id="Qwen/Qwen2.5-VL-32B-Instruct",
         label="Qwen2.5-VL 32B — photos (no tool calling)",
         role="both",
