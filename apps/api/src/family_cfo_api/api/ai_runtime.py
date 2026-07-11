@@ -353,6 +353,23 @@ def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
 _DEEP_HINTS = ("", "AWQ", "FP8", "70B", "72B", "90B", "110B", "A22B")
 
 
+def _hf_model_exists(hub_url: str, model_id: str) -> bool | None:
+    """True/False when the hub answers; None (skip the check) when unreachable."""
+    try:
+        response = httpx.get(
+            f"{hub_url.rstrip('/')}/api/models/{model_id}", timeout=_HF_TIMEOUT_SECONDS
+        )
+    except httpx.HTTPError:
+        return None
+    if response.status_code == 200:
+        return True
+    if response.status_code in (401, 403, 404):
+        # 401/403 = gated or nonexistent private repo — either way the swap
+        # script's anonymous download would fail, so treat as not available.
+        return False
+    return None
+
+
 def _fetch_hf_page(hub_url: str, pipe: str, q: str, limit: int) -> list[dict]:
     params: dict[str, str | int] = {"pipeline_tag": pipe, "sort": "downloads", "limit": limit}
     if q:
@@ -447,6 +464,15 @@ async def apply_ai_model_selection(
         raise HTTPException(status_code=422, detail="invalid main model id")
     if payload.vision_model is not None and not _REPO_ID.match(payload.vision_model):
         raise HTTPException(status_code=422, detail="invalid vision model id")
+    # M66: a typo'd id would tear the containers down and then fail at
+    # download. Verify each repo exists on the hub first; when the hub is
+    # unreachable the check is skipped (offline-tolerant).
+    for model_id in (payload.main_model, payload.vision_model):
+        if model_id is not None and _hf_model_exists(settings.hf_hub_url, model_id) is False:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'{model_id}' was not found on Hugging Face — check the model id",
+            )
     # M51: never run two instances of the same model. Identical main+vision
     # collapses to the single-instance path (the swap script serves one
     # container; photos work iff the model is actually vision-capable).
