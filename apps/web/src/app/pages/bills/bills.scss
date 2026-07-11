@@ -43,6 +43,26 @@
   cursor: pointer;
 }
 
+.bill-list--suggestions .bill-list__item {
+  border: 1px dashed #ccd2da;
+  box-shadow: none;
+}
+
+.bill-list__confirm {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
 .bill-form {
   display: flex;
   flex-direction: column;

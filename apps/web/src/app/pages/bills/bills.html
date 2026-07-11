@@ -41,6 +41,50 @@
   </ul>
 }
 
+@if (suggestions().length > 0) {
+  <h2>Suggested from your transactions</h2>
+  <p class="page-hint">
+    Recurring charges detected on your checking and credit-card accounts.
+    Confirm to add one as a bill, or dismiss if it isn't one.
+  </p>
+  @if (suggestionError(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+  <ul class="bill-list bill-list--suggestions">
+    @for (suggestion of suggestions(); track suggestion.merchant_key) {
+      <li class="bill-list__item">
+        <div class="bill-list__main">
+          <div class="bill-list__name">{{ suggestion.name }}</div>
+          <div class="bill-list__frequency">
+            {{ suggestion.frequency }} · {{ suggestion.occurrences }} charges ·
+            last {{ suggestion.last_seen | date: 'MMM d' }} · next
+            {{ suggestion.next_due_date | date: 'MMM d' }}
+          </div>
+        </div>
+        <div class="bill-list__amount">{{ formatMoney(suggestion.amount) }}</div>
+        @if (canWrite()) {
+          <button
+            type="button"
+            class="bill-list__confirm"
+            [disabled]="suggestionBusy() !== null"
+            (click)="confirmSuggestion(suggestion)"
+          >
+            {{ suggestionBusy() === suggestion.merchant_key ? '…' : 'Confirm' }}
+          </button>
+          <button
+            type="button"
+            class="bill-list__delete"
+            [disabled]="suggestionBusy() !== null"
+            (click)="dismissSuggestion(suggestion)"
+          >
+            Dismiss
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}
+
 @if (canWrite()) {
   <h2>Add a bill</h2>
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="bill-form">
