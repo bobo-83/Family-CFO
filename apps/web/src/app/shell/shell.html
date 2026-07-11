@@ -30,6 +30,10 @@
           >{{ item.label }}</a
         >
       }
+      <!-- Grafana ops dashboards, served by nginx under the same origin. -->
+      <a href="/grafana/" target="_blank" rel="noopener" class="shell__nav-link"
+        >System Health ↗</a
+      >
     </nav>
     <div class="shell__footer">
       @if (role(); as currentRole) {
