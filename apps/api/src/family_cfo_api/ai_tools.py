@@ -80,8 +80,10 @@ GROUNDING_RULES = (
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
-    "in a search query. For income, salary, or tax questions use "
-    "get_income_and_tax (quote its assumptions when giving a tax figure); for "
+    "in a search query. For income, salary, RSU vest, bonus, or tax "
+    "questions ALWAYS call get_income_and_tax first — it carries the household's "
+    "declared compensation profile including upcoming vest dates (quote its "
+    "assumptions when giving a tax figure); for "
     "bills or upcoming payments use get_bills; for budgets use get_budgets; for "
     "recent spending habits use get_spending_insights."
 )
@@ -488,7 +490,32 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
     warnings: list[str] = []
     if analysis.coverage_warning:
         warnings.append(analysis.coverage_warning)
+    # M73: declared compensation — the authority on gross income when present.
+    profile_out = None
+    if analysis.profile is not None:
+        profile_out = {
+            "expected_annual_gross": _schema_money_out(analysis.profile.expected_annual_gross),
+            "earners": [
+                {
+                    "label": earner.label,
+                    "base_salary": _schema_money_out(earner.base_salary),
+                    "rsu_annual_value": _schema_money_out(earner.rsu_annual),
+                    "rsu_vesting": earner.rsu_frequency,
+                    "bonus_percent_of_base": earner.bonus_percent,
+                }
+                for earner in analysis.profile.earners
+            ],
+            "upcoming_income_events": [
+                {
+                    "date": event.date.isoformat(),
+                    "label": event.label,
+                    "amount": _schema_money_out(event.amount),
+                }
+                for event in analysis.profile.expected_events
+            ],
+        }
     return {
+        "compensation_profile": profile_out,
         "income_sources": [
             {
                 "name": source.name,
@@ -713,10 +740,12 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="get_income_and_tax",
             description=(
-                "The household's detected income (recurring checking-account deposits over the "
-                "last 12 months, user-curated) and the deterministic annual tax estimate "
-                "(federal + FICA, with assumptions). Use for any income, salary, earnings, or "
-                "tax question."
+                "The household's income picture: the declared compensation profile (base "
+                "salary, RSU annual value and VESTING SCHEDULE with upcoming vest dates and "
+                "amounts, bonus percent and month), detected recurring deposits, and the "
+                "deterministic annual tax estimate (federal + FICA + modeled state, with "
+                "assumptions). Use for ANY question about income, salary, RSU vests, "
+                "bonuses, upcoming pay, or taxes."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),

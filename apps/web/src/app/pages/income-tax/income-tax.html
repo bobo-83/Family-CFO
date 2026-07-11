@@ -34,6 +34,130 @@
     </div>
   </section>
 
+  <h2>Compensation profile</h2>
+  <p class="page-hint">
+    Declare each earner's pay — base, RSU value and vesting, bonus — and the
+    tax estimate uses these numbers directly instead of guessing from
+    deposits. Best for RSU-heavy pay.
+  </p>
+  @if (analysis()?.profile; as profile) {
+    <div class="earner-list">
+      @for (earner of profile.earners; track earner.id) {
+        <div class="earner-list__item">
+          <div class="earner-list__main">
+            <div class="earner-list__name">{{ earner.label }}</div>
+            <div class="earner-list__meta">
+              base {{ formatMoney(earner.base_salary) }}
+              @if (earner.rsu_annual.amount_minor > 0) {
+                · RSU {{ formatMoney(earner.rsu_annual) }}/yr
+                @if (earner.rsu_frequency) { ({{ earner.rsu_frequency }}) }
+              }
+              @if ((earner.bonus_percent ?? 0) > 0) { · bonus {{ earner.bonus_percent }}% }
+            </div>
+          </div>
+          @if (canWrite()) {
+            <button
+              type="button"
+              class="earner-list__delete"
+              [disabled]="busy() !== null"
+              (click)="removeEarner(earner.id)"
+            >
+              Remove
+            </button>
+          }
+        </div>
+      }
+    </div>
+    <p class="earner-total">
+      Expected annual gross: <strong>{{ formatMoney(profile.expected_annual_gross) }}</strong>
+    </p>
+    @if (profile.expected_events.length > 0) {
+      <h3 class="earner-events-title">Upcoming income</h3>
+      <ul class="earner-events">
+        @for (event of profile.expected_events; track event.label + event.date) {
+          <li>
+            <span>{{ event.date | date: 'MMM d' }}</span>
+            <span class="earner-events__label">{{ event.label }}</span>
+            <strong>{{ formatMoney(event.amount) }}</strong>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  @if (canWrite()) {
+    <details class="earner-form-wrap" [open]="!analysis()?.profile">
+      <summary>Add an earner</summary>
+      <form class="earner-form" (ngSubmit)="addEarner()">
+        <label>
+          <span>Name / label</span>
+          <input type="text" [(ngModel)]="earnerForm.label" name="earnerLabel" />
+        </label>
+        <label>
+          <span>Base salary (USD/yr)</span>
+          <input type="number" min="0" [(ngModel)]="earnerForm.baseSalary" name="earnerBase" />
+        </label>
+        <label>
+          <span>RSU value (USD/yr)</span>
+          <input type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
+        </label>
+        <label>
+          <span>RSU vesting</span>
+          <select [(ngModel)]="earnerForm.rsuFrequency" name="earnerRsuFreq">
+            <option value="">None</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="semiannual">Twice a year</option>
+            <option value="annual">Annually</option>
+          </select>
+        </label>
+        <label>
+          <span>Next vest date</span>
+          <input type="date" [(ngModel)]="earnerForm.rsuNextVest" name="earnerVestDate" />
+        </label>
+        <label>
+          <span>Bonus (% of base)</span>
+          <input type="number" min="0" max="100" [(ngModel)]="earnerForm.bonusPercent" name="earnerBonusPct" />
+        </label>
+        <label>
+          <span>Bonus month (1–12)</span>
+          <input type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
+        </label>
+
+        <div class="earner-form__w2">
+          <div class="earner-form__w2-head">
+            <span>Last year's W2 (optional — calibrates the estimate)</span>
+            <label class="earner-form__scan">
+              {{ scanning() ? 'Reading…' : '📷 Scan W2' }}
+              <input type="file" accept="image/*" (change)="onW2Selected($event)" hidden />
+            </label>
+          </div>
+          @if (scanNote(); as note) {
+            <p class="earner-form__scan-note">{{ note }}</p>
+          }
+          <div class="earner-form__w2-fields">
+            <label>
+              <span>Year</span>
+              <input type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
+            </label>
+            <label>
+              <span>Box 1 wages (USD)</span>
+              <input type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
+            </label>
+            <label>
+              <span>Box 2 federal withheld (USD)</span>
+              <input type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">
+          {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
+        </button>
+      </form>
+    </details>
+  }
+
   <h2>Detected income sources</h2>
   @if (data.sources.length === 0) {
     <p class="page-empty">

@@ -3086,6 +3086,102 @@ def add_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_ke
         )
 
 
+# --- M73: compensation profiles ------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class IncomeProfileRecord:
+    id: str
+    household_id: str
+    label: str
+    base_salary_minor: int
+    rsu_annual_minor: int
+    rsu_frequency: str | None
+    rsu_next_vest_date: date | None
+    bonus_percent: float
+    bonus_month: int | None
+    w2_year: int | None
+    w2_wages_minor: int | None
+    w2_withheld_minor: int | None
+
+
+def list_income_profiles(engine: Engine, household_id: str) -> list[IncomeProfileRecord]:
+    query = (
+        select(models.income_profiles)
+        .where(models.income_profiles.c.household_id == household_id)
+        .order_by(models.income_profiles.c.created_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        IncomeProfileRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            label=row["label"],
+            base_salary_minor=row["base_salary_minor"],
+            rsu_annual_minor=row["rsu_annual_minor"],
+            rsu_frequency=row["rsu_frequency"],
+            rsu_next_vest_date=row["rsu_next_vest_date"],
+            bonus_percent=row["bonus_percent"],
+            bonus_month=row["bonus_month"],
+            w2_year=row["w2_year"],
+            w2_wages_minor=row["w2_wages_minor"],
+            w2_withheld_minor=row["w2_withheld_minor"],
+        )
+        for row in rows
+    ]
+
+
+def create_income_profile(
+    engine: Engine,
+    household_id: str,
+    *,
+    label: str,
+    base_salary_minor: int = 0,
+    rsu_annual_minor: int = 0,
+    rsu_frequency: str | None = None,
+    rsu_next_vest_date: date | None = None,
+    bonus_percent: float = 0.0,
+    bonus_month: int | None = None,
+    w2_year: int | None = None,
+    w2_wages_minor: int | None = None,
+    w2_withheld_minor: int | None = None,
+) -> str:
+    profile_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.income_profiles).values(
+                id=profile_id,
+                household_id=household_id,
+                label=label,
+                base_salary_minor=base_salary_minor,
+                rsu_annual_minor=rsu_annual_minor,
+                rsu_frequency=rsu_frequency,
+                rsu_next_vest_date=rsu_next_vest_date,
+                bonus_percent=bonus_percent,
+                bonus_month=bonus_month,
+                w2_year=w2_year,
+                w2_wages_minor=w2_wages_minor,
+                w2_withheld_minor=w2_withheld_minor,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return profile_id
+
+
+def delete_income_profile(engine: Engine, household_id: str, profile_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.income_profiles).where(
+                models.income_profiles.c.household_id == household_id,
+                models.income_profiles.c.id == profile_id,
+            )
+        )
+    return result.rowcount > 0
+
+
 # --- M61: income analysis ------------------------------------------------------
 
 
