@@ -201,6 +201,18 @@ export type IncomeAnalysisTransaction = {
     occurred_at: string;
     amount: Money;
     name: string;
+    /**
+     * The payer/sender as the bank reported it.
+     */
+    merchant?: string;
+    /**
+     * Full untruncated bank memo (often names the source account).
+     */
+    description?: string;
+    /**
+     * The checking account the deposit landed in.
+     */
+    account_name?: string;
     excluded: boolean;
 };
 

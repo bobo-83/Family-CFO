@@ -3086,10 +3086,11 @@ def add_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_ke
 
 def list_income_detection_transactions(
     engine: Engine, household_id: str, *, since: date
-) -> list[tuple[str, date, int, str, str | None, str | None]]:
+) -> list[tuple[str, date, int, str, str | None, str | None, str]]:
     """Inflow rows from checking accounts for recurring-income detection.
 
-    Returns (id, occurred_at, amount_minor, currency, merchant, description).
+    Returns (id, occurred_at, amount_minor, currency, merchant, description,
+    account_name).
     """
     query = (
         select(
@@ -3099,6 +3100,7 @@ def list_income_detection_transactions(
             models.transactions.c.currency,
             models.transactions.c.merchant,
             models.transactions.c.description,
+            models.accounts.c.name,
         )
         .select_from(
             models.transactions.join(

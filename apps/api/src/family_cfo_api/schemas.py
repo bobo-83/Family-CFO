@@ -370,6 +370,11 @@ class IncomeAnalysisTransaction(BaseModel):
     occurred_at: date
     amount: Money
     name: str
+    # M62 evidence details: payer as the bank reported it, the full bank
+    # memo, and the checking account the deposit landed in.
+    merchant: str | None = None
+    description: str | None = None
+    account_name: str = ""
     excluded: bool
 
 

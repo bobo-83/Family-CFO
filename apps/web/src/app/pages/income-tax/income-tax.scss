@@ -65,15 +65,47 @@
   padding: 0.35rem 0;
   border-top: 1px solid #eef0f3;
   font-size: 0.9rem;
+  cursor: pointer;
+  list-style: none; // hide the default summary marker
 }
 
-.income-txns--other .income-txns__row {
+.income-txn__details {
+  margin: 0.25rem 0 0.6rem;
+  padding: 0.6rem 0.8rem;
+  background: #f6f7f9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.15rem 0;
+  }
+
+  dt {
+    color: #5b6472;
+    white-space: nowrap;
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+.income-txns--other .income-txn {
   background: white;
-  border: none;
   border-radius: 8px;
-  padding: 0.6rem 1rem;
+  padding: 0.15rem 1rem;
   margin-bottom: 0.4rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  .income-txns__row {
+    border: none;
+    padding: 0.45rem 0;
+  }
 }
 
 .income-txns__date {

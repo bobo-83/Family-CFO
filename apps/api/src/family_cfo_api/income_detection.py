@@ -29,6 +29,8 @@ class IncomeTransaction:
     currency: str
     merchant: str | None
     description: str | None
+    # The checking account the deposit landed in (M62 evidence detail).
+    account_name: str = ""
 
     @property
     def display_name(self) -> str:
