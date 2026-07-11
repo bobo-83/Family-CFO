@@ -94,25 +94,12 @@ def _tax_estimate(
     )
 
 
-@router.get(
-    "/income/analysis",
-    operation_id="getIncomeAnalysis",
-    response_model=IncomeAnalysisResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
-    summary="Detect income from checking-account deposits and estimate annual tax",
-)
-async def get_income_analysis(
-    session: repository.SessionContext = Depends(get_current_session),
-    engine: Engine = Depends(get_engine),
+def build_income_analysis(
+    engine: Engine, household: repository.HouseholdRecord
 ) -> IncomeAnalysisResponse:
-    household = repository.get_household(engine, session.household_id)
-    if household is None:
-        raise HTTPException(status_code=404, detail="Household not found")
-
+    """The full M61–M63 income analysis; shared by the endpoint and the chat tool (M64)."""
     since = date.today() - timedelta(days=ANALYSIS_WINDOW_DAYS)
-    rows = repository.list_income_detection_transactions(
-        engine, session.household_id, since=since
-    )
+    rows = repository.list_income_detection_transactions(engine, household.id, since=since)
     transactions = [
         income_detection.IncomeTransaction(
             id=txn_id,
@@ -133,7 +120,7 @@ async def get_income_analysis(
             account_name,
         ) in rows
     ]
-    overrides = repository.list_income_overrides(engine, session.household_id)
+    overrides = repository.list_income_overrides(engine, household.id)
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
     included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
 
@@ -143,7 +130,7 @@ async def get_income_analysis(
     # authority on what is income.
     outflows_by_amount: dict[int, list[date]] = {}
     for occurred_at, amount_minor in repository.list_household_outflows(
-        engine, session.household_id, since=since
+        engine, household.id, since=since
     ):
         outflows_by_amount.setdefault(amount_minor, []).append(occurred_at)
     transactions = [
@@ -260,6 +247,23 @@ async def get_income_analysis(
             total_minor, household.base_currency, filing_status, treated_as_net
         ),
     )
+
+
+@router.get(
+    "/income/analysis",
+    operation_id="getIncomeAnalysis",
+    response_model=IncomeAnalysisResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Detect income from checking-account deposits and estimate annual tax",
+)
+async def get_income_analysis(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> IncomeAnalysisResponse:
+    household = repository.get_household(engine, session.household_id)
+    if household is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+    return build_income_analysis(engine, household)
 
 
 @router.post(
