@@ -16,5 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ubuntu-latest has only ~14 GB free and ships toolchains this job
+      # never uses; the image builds need the room (first run died with
+      # "No space left on device").
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune -af
+          df -h /
+
       - name: Build, boot, and smoke-test the deployment
         run: scripts/e2e-deploy-test.sh
