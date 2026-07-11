@@ -18,6 +18,12 @@ from family_cfo_api.bill_detection import _classify_cadence, normalize_merchant
 # base salary), so income tolerates wider amount spread than bills.
 AMOUNT_TOLERANCE = 0.50
 
+# M63: a checking inflow matching an outflow of the same amount in ANY of the
+# household's accounts within this many days is an internal transfer.
+TRANSFER_MATCH_DAYS = 3
+
+_TRANSFER_TEXT_MARKERS = ("internal transfer",)
+
 
 @dataclass(frozen=True, slots=True)
 class IncomeTransaction:
@@ -45,6 +51,24 @@ class IncomeSourceCandidate:
     currency: str
     typical_amount_minor: int  # median deposit
     transactions: list[IncomeTransaction]  # oldest first — the evidence
+
+
+def is_internal_transfer(
+    txn: IncomeTransaction, outflows_by_amount: dict[int, list[date]]
+) -> bool:
+    """True when a deposit is the household's own money changing accounts.
+
+    Either the bank labels it ("internal transfer"), or an outflow of the
+    same amount left a sibling account within TRANSFER_MATCH_DAYS — the money
+    demonstrably came from inside the household, so it is not income.
+    """
+    text = f"{txn.merchant or ''} {txn.description or ''}".lower()
+    if any(marker in text for marker in _TRANSFER_TEXT_MARKERS):
+        return True
+    for outflow_date in outflows_by_amount.get(txn.amount_minor, ()):
+        if abs((outflow_date - txn.occurred_at).days) <= TRANSFER_MATCH_DAYS:
+            return True
+    return False
 
 
 def detect_income_sources(
