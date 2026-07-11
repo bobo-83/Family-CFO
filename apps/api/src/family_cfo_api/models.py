@@ -590,6 +590,28 @@ conversations = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
+# M73: declared compensation per earner — base + RSU value/cadence + bonus,
+# with optional last-year W2 actuals. Declared truth beats deposit inference
+# for RSU-heavy households.
+income_profiles = Table(
+    "income_profiles",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("label", String(120), nullable=False),
+    Column("base_salary_minor", BigInteger, nullable=False, server_default="0"),
+    Column("rsu_annual_minor", BigInteger, nullable=False, server_default="0"),
+    Column("rsu_frequency", String(20), nullable=True),
+    Column("rsu_next_vest_date", Date, nullable=True),
+    Column("bonus_percent", Float, nullable=False, server_default="0"),
+    Column("bonus_month", Integer, nullable=True),
+    Column("w2_year", Integer, nullable=True),
+    Column("w2_wages_minor", BigInteger, nullable=True),
+    Column("w2_withheld_minor", BigInteger, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
 # M58: "not a bill" verdicts on suggested recurring charges, so a dismissed
 # suggestion stays dismissed across refreshes.
 bill_suggestion_dismissals = Table(

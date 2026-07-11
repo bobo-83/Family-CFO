@@ -22,15 +22,22 @@ from family_cfo_financial_engine import (
 
 from family_cfo_api import audit, income_detection, repository
 from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api.finance_service import add_months
 from family_cfo_api.schemas import (
     ErrorResponse,
+    ExpectedIncomeEvent,
     IncomeAnalysisResponse,
     IncomeAnalysisTransaction,
+    IncomeEarner,
+    IncomeEarnerCreateRequest,
     IncomeOverrideRequest,
+    IncomeProfile,
     IncomeRollup,
     IncomeSourceAnalysis,
     IncomeTaxSettingsRequest,
     TaxEstimate,
+    W2ScanRequest,
+    W2ScanResult,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -110,6 +117,115 @@ def _tax_estimate(
         effective_rate=float(outputs["effective_rate"]),
         assumptions=list(result.assumptions),
     )
+
+
+# RSU vests per year by cadence (M73).
+_VESTS_PER_YEAR = {"monthly": 12, "quarterly": 4, "semiannual": 2, "annual": 1}
+
+
+def _earner_expected_gross_minor(record: repository.IncomeProfileRecord) -> int:
+    bonus = int(record.base_salary_minor * record.bonus_percent / 100)
+    return record.base_salary_minor + record.rsu_annual_minor + bonus
+
+
+def _earner_events(
+    record: repository.IncomeProfileRecord, currency: str, *, today: date
+) -> list[ExpectedIncomeEvent]:
+    events: list[ExpectedIncomeEvent] = []
+    vests = _VESTS_PER_YEAR.get(record.rsu_frequency or "")
+    if vests and record.rsu_annual_minor > 0 and record.rsu_next_vest_date:
+        step_months = 12 // vests
+        vest_date = record.rsu_next_vest_date
+        while vest_date < today:
+            vest_date = add_months(vest_date, step_months)
+        per_vest = record.rsu_annual_minor // vests
+        for i in range(2):
+            events.append(
+                ExpectedIncomeEvent(
+                    date=add_months(vest_date, step_months * i),
+                    label=f"{record.label} — RSU vest",
+                    amount=MoneySchema(amount_minor=per_vest, currency=currency),
+                )
+            )
+    bonus_minor = int(record.base_salary_minor * record.bonus_percent / 100)
+    if record.bonus_month and bonus_minor > 0:
+        year = today.year if record.bonus_month >= today.month else today.year + 1
+        events.append(
+            ExpectedIncomeEvent(
+                date=date(year, record.bonus_month, 15),
+                label=f"{record.label} — annual bonus (~{record.bonus_percent:g}% of base)",
+                amount=MoneySchema(amount_minor=bonus_minor, currency=currency),
+            )
+        )
+    return events
+
+
+def _earner_schema(record: repository.IncomeProfileRecord, currency: str) -> IncomeEarner:
+    def money(minor: int | None) -> MoneySchema | None:
+        return MoneySchema(amount_minor=minor, currency=currency) if minor is not None else None
+
+    return IncomeEarner(
+        id=record.id,
+        label=record.label,
+        base_salary=MoneySchema(amount_minor=record.base_salary_minor, currency=currency),
+        rsu_annual=MoneySchema(amount_minor=record.rsu_annual_minor, currency=currency),
+        rsu_frequency=record.rsu_frequency,
+        rsu_next_vest_date=record.rsu_next_vest_date,
+        bonus_percent=record.bonus_percent,
+        bonus_month=record.bonus_month,
+        w2_year=record.w2_year,
+        w2_wages=money(record.w2_wages_minor),
+        w2_withheld=money(record.w2_withheld_minor),
+    )
+
+
+def _profile_block(
+    engine: Engine, household: repository.HouseholdRecord
+) -> IncomeProfile | None:
+    records = repository.list_income_profiles(engine, household.id)
+    if not records:
+        return None
+    currency = household.base_currency
+    today = date.today()
+    events: list[ExpectedIncomeEvent] = []
+    for record in records:
+        events.extend(_earner_events(record, currency, today=today))
+    events.sort(key=lambda e: e.date)
+    total = sum(_earner_expected_gross_minor(r) for r in records)
+    return IncomeProfile(
+        earners=[_earner_schema(r, currency) for r in records],
+        expected_annual_gross=MoneySchema(amount_minor=total, currency=currency),
+        expected_events=events[:4],
+    )
+
+
+def _profile_assumptions(records: list[repository.IncomeProfileRecord]) -> list[str]:
+    lines = [
+        "Gross income comes from your DECLARED compensation profile "
+        "(base + RSU value + bonus), not from deposit inference."
+    ]
+    for r in records:
+        parts = [f"{r.label}: base {r.base_salary_minor / 100:,.0f}"]
+        if r.rsu_annual_minor:
+            parts.append(
+                f"RSU {r.rsu_annual_minor / 100:,.0f}/yr"
+                + (f" vesting {r.rsu_frequency}" if r.rsu_frequency else "")
+            )
+        if r.bonus_percent:
+            parts.append(f"bonus {r.bonus_percent:g}% of base")
+        lines.append("; ".join(parts) + ".")
+        if r.w2_wages_minor and r.w2_withheld_minor:
+            rate = r.w2_withheld_minor / r.w2_wages_minor
+            lines.append(
+                f"{r.label}'s {r.w2_year or 'last-year'} W2: wages "
+                f"{r.w2_wages_minor / 100:,.0f} with {rate:.1%} federal withholding — "
+                "compare against this estimate's effective rate."
+            )
+    lines.append(
+        "RSU values assume the declared annual value; actual vests move with "
+        "the stock price."
+    )
+    return lines
 
 
 def build_income_analysis(
@@ -245,6 +361,32 @@ def build_income_analysis(
     treated_as_net = (
         household.income_treated_as_net if household.income_treated_as_net is not None else True
     )
+
+    # M73: a declared compensation profile is the authority on gross income —
+    # no net→gross guessing, which structurally misreads RSU-heavy pay.
+    profile = _profile_block(engine, household)
+    if profile is not None:
+        tax = _tax_estimate(
+            profile.expected_annual_gross.amount_minor,
+            household.base_currency,
+            filing_status,
+            False,  # declared amounts ARE gross
+            household.state,
+        )
+        records = repository.list_income_profiles(engine, household.id)
+        tax = tax.model_copy(
+            update={"assumptions": [*_profile_assumptions(records), *tax.assumptions]}
+        )
+        coverage_warning = None  # the estimate no longer depends on deposit coverage
+    else:
+        tax = _tax_estimate(
+            total_minor,
+            household.base_currency,
+            filing_status,
+            treated_as_net,
+            household.state,
+        )
+
     return IncomeAnalysisResponse(
         sources=sources,
         other_inflows=other,
@@ -261,13 +403,8 @@ def build_income_analysis(
             coverage_days=coverage_days,
         ),
         coverage_warning=coverage_warning,
-        tax=_tax_estimate(
-            total_minor,
-            household.base_currency,
-            filing_status,
-            treated_as_net,
-            household.state,
-        ),
+        profile=profile,
+        tax=tax,
     )
 
 
@@ -286,6 +423,167 @@ async def get_income_analysis(
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
     return build_income_analysis(engine, household)
+
+
+@router.post(
+    "/income/profile/earners",
+    operation_id="createIncomeEarner",
+    response_model=IncomeEarner,
+    status_code=201,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Declare an earner's compensation (base, RSU, bonus, W2 actuals)",
+)
+async def create_income_earner(
+    payload: IncomeEarnerCreateRequest,
+    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    engine: Engine = Depends(get_engine),
+) -> IncomeEarner:
+    household = repository.get_household(engine, session.household_id)
+    if household is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+    if payload.rsu_frequency is not None and payload.rsu_frequency not in _VESTS_PER_YEAR:
+        raise HTTPException(status_code=422, detail="Unknown RSU vesting frequency")
+    profile_id = repository.create_income_profile(
+        engine,
+        session.household_id,
+        label=payload.label.strip(),
+        base_salary_minor=payload.base_salary_minor,
+        rsu_annual_minor=payload.rsu_annual_minor,
+        rsu_frequency=payload.rsu_frequency,
+        rsu_next_vest_date=payload.rsu_next_vest_date,
+        bonus_percent=payload.bonus_percent,
+        bonus_month=payload.bonus_month,
+        w2_year=payload.w2_year,
+        w2_wages_minor=payload.w2_wages_minor,
+        w2_withheld_minor=payload.w2_withheld_minor,
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "income_profile.created",
+        "income_profile",
+        profile_id,
+        f"Declared compensation for '{payload.label.strip()}'",
+    )
+    records = [
+        r for r in repository.list_income_profiles(engine, session.household_id)
+        if r.id == profile_id
+    ]
+    return _earner_schema(records[0], household.base_currency)
+
+
+@router.delete(
+    "/income/profile/earners/{earner_id}",
+    operation_id="deleteIncomeEarner",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Earner not found", "model": ErrorResponse},
+    },
+    summary="Remove an earner's declared compensation",
+)
+async def delete_income_earner(
+    earner_id: str,
+    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    if not repository.delete_income_profile(engine, session.household_id, earner_id):
+        raise HTTPException(status_code=404, detail="Earner not found")
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "income_profile.deleted",
+        "income_profile",
+        earner_id,
+        "Removed a declared compensation entry",
+    )
+    return Response(status_code=204)
+
+
+_W2_PROMPT = (
+    "This image is a US W-2 tax form. Extract ONLY a JSON object, no prose: "
+    '{"year": tax year integer or null, "employer": employer name string or '
+    'null, "wages": Box 1 wages as a number or null, "federal_withheld": '
+    'Box 2 federal income tax withheld as a number or null}. Use null for '
+    "anything unreadable."
+)
+
+
+def parse_w2_scan(text: str) -> W2ScanResult:
+    """Defensive parse of the vision model's W2 extraction (candidates only)."""
+    import json as _json
+    import re as _re
+
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-z]*\s*|\s*```$", "", cleaned, flags=_re.IGNORECASE)
+    try:
+        data = _json.loads(cleaned)
+        assert isinstance(data, dict)
+    except (ValueError, AssertionError):
+        return W2ScanResult(note="The photo could not be read as a W-2 — enter values manually.")
+
+    def money_minor(key: str) -> int | None:
+        value = data.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            return int(round(float(value) * 100))
+        return None
+
+    year = data.get("year")
+    return W2ScanResult(
+        year=int(year) if isinstance(year, int) and 1990 < year < 2100 else None,
+        employer=str(data["employer"])[:120] if data.get("employer") else None,
+        wages_minor=money_minor("wages"),
+        federal_withheld_minor=money_minor("federal_withheld"),
+        note=(
+            "Read by the on-box photo model — CONFIRM every value against the "
+            "paper form before saving. Nothing is stored until you save."
+        ),
+    )
+
+
+@router.post(
+    "/income/profile/scan-w2",
+    operation_id="scanW2",
+    response_model=W2ScanResult,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        503: {"description": "No vision model available", "model": ErrorResponse},
+    },
+    summary="Read a W-2 photo into candidate values (user confirms before saving)",
+)
+async def scan_w2(
+    payload: W2ScanRequest,
+    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    engine: Engine = Depends(get_engine),
+) -> W2ScanResult:
+    from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+
+    from family_cfo_api.ai_runtime_selection import select_vision_describer
+
+    describer, source = select_vision_describer(engine, session.household_id)
+    if describer is None:
+        raise HTTPException(status_code=503, detail="No vision model is configured")
+    data_url = f"data:{payload.image_media_type};base64,{payload.image_base64}"
+    try:
+        completion = describer.complete(
+            [RuntimeMessage(role="user", content=_W2_PROMPT, image_data_url=data_url)],
+            temperature=0.0,
+            max_tokens=200,
+        )
+    except RuntimeUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Vision model unavailable") from exc
+    finally:
+        describer.close()
+    del source  # attribution not persisted; the scan stores nothing
+    return parse_w2_scan(completion.text)
 
 
 @router.post(

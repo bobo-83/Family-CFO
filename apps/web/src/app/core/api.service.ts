@@ -36,8 +36,11 @@ import {
   getAiHardwareProfile,
   getAiRuntimeStatus,
   getConversation,
+  createIncomeEarner,
+  deleteIncomeEarner,
   getHouseholdContext,
   getIncomeAnalysis,
+  scanW2,
   setIncomeOverride,
   updateHousehold,
   updateIncomeTaxSettings,
@@ -90,7 +93,9 @@ import {
   type HouseholdUpdateRequest,
   type ImportCreateRequest,
   type IncomeCreateRequest,
+  type IncomeEarnerCreateRequest,
   type IncomeTaxSettingsRequest,
+  type W2ScanRequest,
   type IncomeUpdateRequest,
   type MemberCreateRequest,
   type MemberRoleUpdateRequest,
@@ -277,6 +282,19 @@ export class ApiService {
 
   updateIncomeTaxSettings(body: IncomeTaxSettingsRequest) {
     return updateIncomeTaxSettings({ body });
+  }
+
+  // --- Compensation profiles (M73) ---
+  createIncomeEarner(body: IncomeEarnerCreateRequest) {
+    return createIncomeEarner({ body });
+  }
+
+  deleteIncomeEarner(earnerId: string) {
+    return deleteIncomeEarner({ path: { earner_id: earnerId } });
+  }
+
+  scanW2(body: W2ScanRequest) {
+    return scanW2({ body });
   }
 
   createIncomeSource(body: IncomeCreateRequest) {

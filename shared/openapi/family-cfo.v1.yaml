@@ -1062,6 +1062,82 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /income/profile/earners:
+    post:
+      tags:
+        - Income
+      operationId: createIncomeEarner
+      summary: Declare an earner's compensation (base, RSU, bonus, W2 actuals)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeEarnerCreateRequest"
+      responses:
+        "201":
+          description: Earner declared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeEarner"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /income/profile/earners/{earner_id}:
+    delete:
+      tags:
+        - Income
+      operationId: deleteIncomeEarner
+      summary: Remove an earner's declared compensation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: earner_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Earner removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/profile/scan-w2:
+    post:
+      tags:
+        - Income
+      operationId: scanW2
+      summary: Read a W-2 photo into candidate values (user confirms before saving)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/W2ScanRequest"
+      responses:
+        "200":
+          description: Candidate values extracted by the on-box vision model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/W2ScanResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /goals:
     get:
       tags:
@@ -2508,6 +2584,78 @@ components:
           type: array
           items:
             type: string
+    IncomeEarner:
+      type: object
+      required: [id, label, base_salary, rsu_annual]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        base_salary: { $ref: "#/components/schemas/Money" }
+        rsu_annual: { $ref: "#/components/schemas/Money" }
+        rsu_frequency:
+          type: string
+          enum: [monthly, quarterly, semiannual, annual]
+        rsu_next_vest_date: { type: string, format: date }
+        bonus_percent: { type: number }
+        bonus_month: { type: integer }
+        w2_year: { type: integer }
+        w2_wages: { $ref: "#/components/schemas/Money" }
+        w2_withheld: { $ref: "#/components/schemas/Money" }
+    ExpectedIncomeEvent:
+      type: object
+      required: [date, label, amount]
+      properties:
+        date: { type: string, format: date }
+        label: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+    IncomeProfile:
+      type: object
+      description: >
+        Declared compensation (M73). When present it is the authority for the
+        tax estimate — no net-to-gross inference.
+      required: [earners, expected_annual_gross, expected_events]
+      properties:
+        earners:
+          type: array
+          items: { $ref: "#/components/schemas/IncomeEarner" }
+        expected_annual_gross: { $ref: "#/components/schemas/Money" }
+        expected_events:
+          type: array
+          items: { $ref: "#/components/schemas/ExpectedIncomeEvent" }
+    IncomeEarnerCreateRequest:
+      type: object
+      required: [label]
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        base_salary_minor: { type: integer, minimum: 0 }
+        rsu_annual_minor: { type: integer, minimum: 0 }
+        rsu_frequency:
+          type: string
+          enum: [monthly, quarterly, semiannual, annual]
+        rsu_next_vest_date: { type: string, format: date }
+        bonus_percent: { type: number, minimum: 0, maximum: 100 }
+        bonus_month: { type: integer, minimum: 1, maximum: 12 }
+        w2_year: { type: integer }
+        w2_wages_minor: { type: integer, minimum: 0 }
+        w2_withheld_minor: { type: integer, minimum: 0 }
+    W2ScanRequest:
+      type: object
+      required: [image_base64, image_media_type]
+      properties:
+        image_base64: { type: string }
+        image_media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+    W2ScanResult:
+      type: object
+      description: Candidate values only — the user confirms before anything is saved.
+      required: [note]
+      properties:
+        year: { type: integer }
+        employer: { type: string }
+        wages_minor: { type: integer }
+        federal_withheld_minor: { type: integer }
+        note: { type: string }
     IncomeAnalysisResponse:
       type: object
       required:
@@ -2526,6 +2674,8 @@ components:
             $ref: "#/components/schemas/IncomeAnalysisTransaction"
         rollup:
           $ref: "#/components/schemas/IncomeRollup"
+        profile:
+          $ref: "#/components/schemas/IncomeProfile"
         coverage_warning:
           type: string
           description: >

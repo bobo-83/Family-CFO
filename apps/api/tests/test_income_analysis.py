@@ -396,3 +396,120 @@ async def test_viewer_cannot_edit_overrides_or_settings(
         json={"tax_filing_status": "single", "income_treated_as_net": True},
     )
     assert settings.status_code == 403
+
+
+# --- M73: compensation profiles + W2 scan ---
+
+
+async def _add_earner(client, token: str, **overrides) -> dict:
+    body = {
+        "label": "Primary earner",
+        "base_salary_minor": 20_000_000,  # $200k base
+        "rsu_annual_minor": 16_000_000,  # $160k/yr RSU
+        "rsu_frequency": "quarterly",
+        "rsu_next_vest_date": (date.today() + timedelta(days=20)).isoformat(),
+        "bonus_percent": 25,
+        "bonus_month": 12,
+        **overrides,
+    }
+    response = await client.post(
+        "/api/v1/income/profile/earners", headers=_headers(token), json=body
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.anyio
+async def test_declared_profile_drives_the_tax_estimate(demo_client, demo_token) -> None:
+    await _seed_checking_with_payroll(demo_client, demo_token)
+    await _add_earner(demo_client, demo_token)
+
+    body = await _analysis(demo_client, demo_token)
+
+    profile = body["profile"]
+    # expected gross = 200k base + 160k RSU + 25% * 200k bonus = 410k
+    assert profile["expected_annual_gross"]["amount_minor"] == 41_000_000
+    tax = body["tax"]
+    assert tax["gross_income"]["amount_minor"] == 41_000_000
+    assert tax["net_income"] is None  # declared amounts ARE gross — no gross-up
+    assert any("DECLARED compensation profile" in a for a in tax["assumptions"])
+    assert any("stock price" in a for a in tax["assumptions"])
+    # Declared profile removes the deposit-coverage caveat from the estimate.
+    assert body["coverage_warning"] is None
+    # Deposit-based rollup stays alongside as observed income.
+    assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538
+
+
+@pytest.mark.anyio
+async def test_expected_events_roll_quarterly_vests_and_bonus(demo_client, demo_token) -> None:
+    await _add_earner(demo_client, demo_token)
+
+    profile = (await _analysis(demo_client, demo_token))["profile"]
+
+    events = profile["expected_events"]
+    vests = [e for e in events if "RSU vest" in e["label"]]
+    assert len(vests) == 2
+    assert vests[0]["amount"]["amount_minor"] == 4_000_000  # 160k / 4
+    first = date.fromisoformat(vests[0]["date"])
+    second = date.fromisoformat(vests[1]["date"])
+    assert (second.month - first.month) % 12 == 3
+    bonus = [e for e in events if "bonus" in e["label"]]
+    assert bonus and bonus[0]["amount"]["amount_minor"] == 5_000_000  # 25% of 200k
+
+
+@pytest.mark.anyio
+async def test_w2_actuals_add_a_comparison_line(demo_client, demo_token) -> None:
+    await _add_earner(
+        demo_client,
+        demo_token,
+        w2_year=2025,
+        w2_wages_minor=38_000_000,
+        w2_withheld_minor=7_600_000,
+    )
+
+    tax = (await _analysis(demo_client, demo_token))["tax"]
+
+    assert any("W2: wages" in a and "20.0%" in a for a in tax["assumptions"])
+
+
+@pytest.mark.anyio
+async def test_earner_delete_restores_deposit_based_estimate(demo_client, demo_token) -> None:
+    await _seed_checking_with_payroll(demo_client, demo_token)
+    earner = await _add_earner(demo_client, demo_token)
+
+    deleted = await demo_client.delete(
+        f"/api/v1/income/profile/earners/{earner['id']}", headers=_headers(demo_token)
+    )
+    assert deleted.status_code == 204
+
+    body = await _analysis(demo_client, demo_token)
+    assert body["profile"] is None
+    assert body["tax"]["net_income"] is not None  # back to gross-up mode
+
+
+@pytest.mark.anyio
+async def test_viewer_cannot_manage_earners(demo_client, demo_viewer_token) -> None:
+    response = await demo_client.post(
+        "/api/v1/income/profile/earners",
+        headers=_headers(demo_viewer_token),
+        json={"label": "Nope"},
+    )
+    assert response.status_code == 403
+
+
+def test_w2_scan_parse_tolerates_model_output() -> None:
+    from family_cfo_api.api.income_analysis import parse_w2_scan
+
+    good = parse_w2_scan(
+        '```json\n{"year": 2025, "employer": "ACME Corp", "wages": 380000.25, '
+        '"federal_withheld": 76000}\n```'
+    )
+    assert good.year == 2025
+    assert good.employer == "ACME Corp"
+    assert good.wages_minor == 38_000_025
+    assert good.federal_withheld_minor == 7_600_000
+    assert "CONFIRM" in good.note
+
+    garbage = parse_w2_scan("I see a tax document with some numbers.")
+    assert garbage.wages_minor is None
+    assert "could not be read" in garbage.note
