@@ -135,3 +135,101 @@ def test_net_worth_tool_breaks_assets_into_spendability_categories(demo_engine: 
         assert money["amount_minor"] >= 0, category
     assert "NOT available for purchases" in result["spendability_note"]
     assert "retirement" in result["spendability_note"]
+
+
+# --- M64: income/tax, bills, budgets, spending tools ---
+
+
+def _seed_income(engine: Engine) -> None:
+    from datetime import date, timedelta
+
+    from family_cfo_api import repository
+
+    account = repository.create_account(
+        engine, fixtures.DEMO_HOUSEHOLD_ID, name="Pay Checking", account_type="checking",
+        currency="USD",
+    )
+    today = date.today()
+    for i in range(4):
+        repository.create_transaction(
+            engine,
+            household_id=fixtures.DEMO_HOUSEHOLD_ID,
+            account_id=account.id,
+            occurred_at=today - timedelta(days=14 * (4 - i)),
+            amount_minor=461_538,
+            currency="USD",
+            merchant="ACME CORP PAYROLL",
+            description=None,
+            import_source=None,
+            import_id=None,
+            review_state="reviewed",
+        )
+
+
+def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -> None:
+    _seed_income(demo_engine)
+
+    result = _execute(demo_engine, "get_income_and_tax", {})
+
+    assert result["income_sources"][0]["name"] == "ACME CORP PAYROLL"
+    assert result["income_sources"][0]["frequency"] == "biweekly"
+    assert result["annual_income"]["amount_minor"] == 4 * 461_538
+    tax = result["tax_estimate"]
+    assert tax["tax_year"] == 2026
+    assert tax["estimated_total_tax"]["amount_minor"] > 0
+    assert tax["estimated_gross_income"]["amount_minor"] > 4 * 461_538
+    assert any("State and local taxes" in a for a in result["assumptions"])
+    # Partial history is disclosed to the model too.
+    assert any("not a full year" in w for w in result["warnings"])
+
+
+def test_bills_tool_lists_bills_and_upcoming(demo_engine: Engine) -> None:
+    from datetime import date, timedelta
+
+    from family_cfo_api import repository
+
+    repository.create_bill(
+        engine=demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        name="Netflix",
+        amount_minor=1_549,
+        currency="USD",
+        frequency="monthly",
+        account_id=None,
+        next_due_date=date.today() + timedelta(days=5),
+    )
+
+    result = _execute(demo_engine, "get_bills", {})
+
+    assert [b["name"] for b in result["bills"]].count("Netflix") == 1
+    due = [b for b in result["due_within_14_days"] if b["name"] == "Netflix"]
+    assert due and due[0]["days_until"] == 5
+    assert due[0]["amount"]["display"] == "USD 15.49"
+
+
+def test_budgets_tool_reports_envelope_progress(demo_engine: Engine) -> None:
+    from family_cfo_api import repository
+
+    category = repository.create_category(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Groceries Envelope")
+    repository.create_budget(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        category_id=category.id,
+        limit_minor=50_000,
+        currency="USD",
+    )
+
+    result = _execute(demo_engine, "get_budgets", {})
+
+    envelope = result["month_budgets"][0]
+    assert envelope["category"] == "Groceries Envelope"
+    assert envelope["limit"]["amount_minor"] == 50_000
+    assert envelope["status"] in ("under", "warning", "over")
+
+
+def test_spending_insights_tool_reports_month_comparison(demo_engine: Engine) -> None:
+    result = _execute(demo_engine, "get_spending_insights", {})
+
+    assert "month_to_date_spending" in result
+    assert "same_window_last_month" in result
+    assert isinstance(result["top_merchants"], list)
