@@ -42,6 +42,9 @@ x-api-env: &api-env
   # Live-data chat tools (ADR 0014; search on by default since M28).
   FAMILY_CFO_LIVE_DATA_ENABLED: ${FAMILY_CFO_LIVE_DATA_ENABLED:-true}
   FAMILY_CFO_SEARXNG_URL: ${FAMILY_CFO_SEARXNG_URL-http://searxng:8080}
+  # Vector retrieval (M69, ADR 0017); empty disables indexing + the
+  # search_records chat tool.
+  FAMILY_CFO_QDRANT_URL: ${FAMILY_CFO_QDRANT_URL-http://qdrant:6333}
 
 services:
   db:
@@ -72,6 +75,8 @@ services:
     volumes:
       - import_staging:/data/import-staging
       - backups:/data/backups
+      # M69: fastembed's ONNX model cache (downloaded once, ~130 MB).
+      - embedding_cache:/root/.cache
     depends_on:
       db:
         condition: service_healthy
@@ -100,6 +105,8 @@ services:
     volumes:
       - import_staging:/data/import-staging
       - backups:/data/backups
+      # M69: shared with the api so the model downloads once.
+      - embedding_cache:/root/.cache
     depends_on:
       api:
         condition: service_healthy
@@ -287,13 +294,12 @@ services:
     networks: [internal]
     restart: unless-stopped
 
-  # Optional vector store. Off by default and NOT yet wired to anything —
-  # scaffolding matching docs/specs/10-docker-spec.md. Retrieval is tracked
-  # backlog (docs/specs/12-implementation-tasks.md). Enable with:
-  # docker compose --profile vector up -d
+  # Vector store for semantic recall over the household's own records (M69,
+  # ADR 0017). Rebuildable from PostgreSQL (worker re-indexes at startup and
+  # daily), so backups exclude it. Opt out with FAMILY_CFO_QDRANT_URL= (empty)
+  # and --scale qdrant=0.
   qdrant:
     image: qdrant/qdrant:latest
-    profiles: [vector]
     volumes:
       - qdrant_data:/qdrant/storage
     networks: [internal]
@@ -308,6 +314,7 @@ volumes:
   web_certs:
   prometheus_data:
   grafana_data:
+  embedding_cache:
 
 networks:
   internal:

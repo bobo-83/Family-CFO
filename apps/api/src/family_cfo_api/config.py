@@ -73,6 +73,8 @@ class Settings:
     # codes leave the box); web_search requires a self-hosted SearXNG URL.
     live_data_enabled: bool = True
     searxng_url: str = ""
+    # M69 (ADR 0017): vector retrieval; empty disables the feature entirely.
+    qdrant_url: str = ""
     # Advisor voice (M31): "playful" (default) or "professional". Tone only —
     # grounding rules are identical in both.
     ai_tone: str = "playful"
@@ -144,6 +146,7 @@ class Settings:
             hf_hub_url=os.getenv("FAMILY_CFO_HF_HUB_URL", cls.hf_hub_url),
             live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),
             searxng_url=os.getenv("FAMILY_CFO_SEARXNG_URL", cls.searxng_url),
+            qdrant_url=os.getenv("FAMILY_CFO_QDRANT_URL", cls.qdrant_url),
             ai_tone=os.getenv("FAMILY_CFO_AI_TONE", cls.ai_tone),
             allow_multiple_households=_env_bool(
                 "FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS", cls.allow_multiple_households
