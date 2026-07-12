@@ -1116,7 +1116,7 @@ paths:
       tags:
         - Income
       operationId: scanW2
-      summary: Read a W-2 photo into candidate values (user confirms before saving)
+      summary: Read a W-2 photo or PDF into candidate values (user confirms before saving)
       security:
         - bearerAuth: []
       requestBody:
@@ -1135,6 +1135,8 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+        "422":
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
@@ -2645,7 +2647,7 @@ components:
         image_base64: { type: string }
         image_media_type:
           type: string
-          enum: [image/jpeg, image/png, image/webp]
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
     W2ScanResult:
       type: object
       description: Candidate values only — the user confirms before anything is saved.

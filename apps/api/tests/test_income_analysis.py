@@ -513,3 +513,92 @@ def test_w2_scan_parse_tolerates_model_output() -> None:
     garbage = parse_w2_scan("I see a tax document with some numbers.")
     assert garbage.wages_minor is None
     assert "could not be read" in garbage.note
+
+
+# --- M77: PDF W2 upload ---
+
+
+class _StubDescriber:
+    """Captures what the endpoint sends to the vision model."""
+
+    def __init__(self) -> None:
+        self.data_urls: list[str] = []
+
+    def complete(self, messages, temperature=0.0, max_tokens=0):
+        self.data_urls.append(messages[0].image_data_url)
+
+        class _Completion:
+            text = (
+                '{"year": 2025, "employer": "ACME Corp", "wages": 385412.60, '
+                '"federal_withheld": 78903.15}'
+            )
+
+        return _Completion()
+
+    def close(self) -> None:
+        pass
+
+
+def _w2_pdf_base64() -> str:
+    import base64
+
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=14)
+    pdf.cell(text="Form W-2 Wage and Tax Statement 2025")
+    pdf.ln(10)
+    pdf.cell(text="Employer: ACME Corp")
+    pdf.ln(10)
+    pdf.cell(text="Box 1 wages: 385412.60   Box 2 federal withheld: 78903.15")
+    return base64.b64encode(bytes(pdf.output())).decode("ascii")
+
+
+@pytest.mark.anyio
+async def test_w2_scan_accepts_a_pdf(demo_client, demo_token, monkeypatch) -> None:
+    """M77: a PDF W2 is rasterized to a PNG page image for the vision model."""
+    from family_cfo_api import ai_runtime_selection
+
+    stub = _StubDescriber()
+    monkeypatch.setattr(
+        ai_runtime_selection, "select_vision_describer", lambda engine, hh: (stub, "test")
+    )
+
+    response = await demo_client.post(
+        "/api/v1/income/profile/scan-w2",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"image_base64": _w2_pdf_base64(), "image_media_type": "application/pdf"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["year"] == 2025
+    assert body["wages_minor"] == 38_541_260
+    # The model got a rendered page image, never raw PDF bytes.
+    assert stub.data_urls[0].startswith("data:image/png;base64,")
+
+
+@pytest.mark.anyio
+async def test_w2_scan_rejects_an_unreadable_pdf(demo_client, demo_token, monkeypatch) -> None:
+    import base64
+
+    from family_cfo_api import ai_runtime_selection
+
+    monkeypatch.setattr(
+        ai_runtime_selection,
+        "select_vision_describer",
+        lambda engine, hh: (_StubDescriber(), "test"),
+    )
+
+    response = await demo_client.post(
+        "/api/v1/income/profile/scan-w2",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "image_base64": base64.b64encode(b"this is not a pdf").decode("ascii"),
+            "image_media_type": "application/pdf",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "could not be read" in response.json()["error"]["message"]
