@@ -225,6 +225,11 @@ def _profile_assumptions(records: list[repository.IncomeProfileRecord]) -> list[
         "RSU values assume the declared annual value; actual vests move with "
         "the stock price."
     )
+    lines.append(
+        "All declared amounts are PRE-TAX. RSU taxes are typically withheld "
+        "at vest (shares sold to cover), so brokerage deposits arrive smaller "
+        "than the vest value shown."
+    )
     return lines
 
 
