@@ -68,20 +68,55 @@ def test_assumptions_disclose_the_limits() -> None:
     assert "Standard deduction only" in text
 
 
+# --- M80: parameters cross-checked against Rev. Proc. 2025-32 ---
+
+
+def test_head_of_household_24_percent_bracket_tops_at_201_750() -> None:
+    """Rev. Proc. 2025-32 Table 2: HoH differs from single here ($201,750)."""
+    # gross 234,150 - 24,150 deduction = taxable 210,000
+    # Table 2: $39,207 + 32% * (210,000 - 201,750) = 39,207 + 2,640 = 41,847
+    result = estimate_annual_tax(Money(23_415_000, "USD"), "head_of_household")
+
+    assert result.outputs["taxable_income"] == Money(21_000_000, "USD")
+    assert result.outputs["federal_income_tax"] == Money(4_184_700, "USD")
+
+
+def test_current_year_estimate_carries_no_staleness_warning() -> None:
+    from datetime import date
+
+    result = estimate_annual_tax(
+        Money(10_000_000, "USD"), "single", today=date(2026, 7, 12)
+    )
+
+    assert result.warnings == []
+    assert not any("STALE" in a for a in result.assumptions)
+
+
+def test_next_year_estimate_demands_the_parameter_refresh() -> None:
+    from datetime import date
+
+    result = estimate_annual_tax(
+        Money(10_000_000, "USD"), "single", today=date(2027, 1, 2)
+    )
+
+    assert any("STALE TAX PARAMETERS" in w for w in result.warnings)
+    assert any("2027" in a and "tax-year 2026" in a for a in result.assumptions)
+
+
 # --- M65: state income tax ---
 
 
 def test_california_single_100k_matches_hand_computation() -> None:
-    # CA taxable = 100,000 - 5,540 = 94,460
-    # 1%*10,756 + 2%*14,743 + 4%*14,746 + 6%*15,621 + 8%*14,740 + 9.3%*23,854
-    # = 107.56 + 294.86 + 589.84 + 937.26 + 1,179.20 + 2,218.42 = 5,327.14
+    # 2025 FTB parameters (M80). CA taxable = 100,000 - 5,706 = 94,294
+    # 1%*11,079 + 2%*15,185 + 4%*15,188 + 6%*16,090 + 8%*15,182 + 9.3%*21,570
+    # = 110.79 + 303.70 + 607.52 + 965.40 + 1,214.56 + 2,006.01 = 5,207.98
     result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="CA")
 
-    assert result.outputs["state_income_tax"] == Money(532_714, "USD")
+    assert result.outputs["state_income_tax"] == Money(520_798, "USD")
     federal = result.outputs["federal_income_tax"].amount_minor
     fica = result.outputs["fica_tax"].amount_minor
-    assert result.outputs["total_tax"] == Money(federal + fica + 532_714, "USD")
-    assert any("2024 FTB brackets" in a for a in result.assumptions)
+    assert result.outputs["total_tax"] == Money(federal + fica + 520_798, "USD")
+    assert any("2025 FTB brackets" in a for a in result.assumptions)
 
 
 def test_no_wage_tax_state_is_zero_with_note() -> None:

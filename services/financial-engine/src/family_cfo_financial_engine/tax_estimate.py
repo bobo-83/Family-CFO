@@ -10,10 +10,25 @@ Bank deposits are usually take-home pay, so ``gross_up_from_net`` solves
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from family_cfo_financial_engine.money import Money
 from family_cfo_financial_engine.results import CALCULATION_ENGINE_VERSION, CalculationResult
+
+# Every parameter below was cross-checked against PRIMARY sources on
+# 2026-07-12 (M80). Yearly refresh procedure:
+# docs/guides/tax-parameter-updates.md. When the calendar year passes
+# TAX_YEAR, every estimate carries a STALE PARAMETERS warning until this
+# module is updated.
+#
+# - Federal brackets: Rev. Proc. 2025-32 §4.01 Tables 1-3
+#   (https://www.irs.gov/pub/irs-drop/rp-25-32.pdf)
+# - Standard deduction: Rev. Proc. 2025-32 §4.14
+# - Social Security wage base: SSA 2026 announcement ($184,500)
+#   (https://www.ssa.gov/oact/cola/cbb.html)
+# - Additional Medicare thresholds: IRC §3101(b)(2) — statutory, NOT indexed
+# - California: FTB 2025 indexed parameters (3.0% CCPI June 2024→June 2025)
 
 TAX_YEAR = 2026
 
@@ -21,6 +36,7 @@ FILING_STATUSES = ("single", "married_joint", "head_of_household")
 
 # Minor units (cents). None upper bound = top bracket.
 _BRACKETS: dict[str, list[tuple[int | None, Decimal]]] = {
+    # Rev. Proc. 2025-32 §4.01 Table 3.
     "single": [
         (12_400_00, Decimal("0.10")),
         (50_400_00, Decimal("0.12")),
@@ -30,6 +46,7 @@ _BRACKETS: dict[str, list[tuple[int | None, Decimal]]] = {
         (640_600_00, Decimal("0.35")),
         (None, Decimal("0.37")),
     ],
+    # Rev. Proc. 2025-32 §4.01 Table 1.
     "married_joint": [
         (24_800_00, Decimal("0.10")),
         (100_800_00, Decimal("0.12")),
@@ -39,11 +56,14 @@ _BRACKETS: dict[str, list[tuple[int | None, Decimal]]] = {
         (768_700_00, Decimal("0.35")),
         (None, Decimal("0.37")),
     ],
+    # Rev. Proc. 2025-32 §4.01 Table 2. NOTE: the 24% bracket tops at
+    # $201,750 — NOT the single filer's $201,775 (several secondary sources
+    # get this wrong; the M80 cross-check fixed it here).
     "head_of_household": [
         (17_700_00, Decimal("0.10")),
         (67_450_00, Decimal("0.12")),
         (105_700_00, Decimal("0.22")),
-        (201_775_00, Decimal("0.24")),
+        (201_750_00, Decimal("0.24")),
         (256_200_00, Decimal("0.32")),
         (640_600_00, Decimal("0.35")),
         (None, Decimal("0.37")),
@@ -73,20 +93,21 @@ _ADDL_MEDICARE_THRESHOLD: dict[str, int] = {
 
 NO_WAGE_TAX_STATES = frozenset({"AK", "FL", "NH", "NV", "SD", "TN", "TX", "WA", "WY"})
 
-# California 2024 FTB parameters (the latest reliably published here; stated
-# as an assumption). Single thresholds; married_joint doubles them.
+# California 2025 FTB parameters — the latest the FTB has published (state
+# years lag: 2026 CA tables appear in late 2026). Indexed 3.0% (CCPI June
+# 2024 → June 2025). Single thresholds; married_joint doubles them.
 _CA_SINGLE_BRACKETS: list[tuple[int | None, Decimal]] = [
-    (10_756_00, Decimal("0.01")),
-    (25_499_00, Decimal("0.02")),
-    (40_245_00, Decimal("0.04")),
-    (55_866_00, Decimal("0.06")),
-    (70_606_00, Decimal("0.08")),
-    (360_659_00, Decimal("0.093")),
-    (432_787_00, Decimal("0.103")),
-    (721_314_00, Decimal("0.113")),
+    (11_079_00, Decimal("0.01")),
+    (26_264_00, Decimal("0.02")),
+    (41_452_00, Decimal("0.04")),
+    (57_542_00, Decimal("0.06")),
+    (72_724_00, Decimal("0.08")),
+    (371_479_00, Decimal("0.093")),
+    (445_771_00, Decimal("0.103")),
+    (742_953_00, Decimal("0.113")),
     (None, Decimal("0.123")),
 ]
-_CA_STANDARD_DEDUCTION = {"single": 5_540_00, "married_joint": 11_080_00}
+_CA_STANDARD_DEDUCTION = {"single": 5_706_00, "married_joint": 11_412_00}
 _CA_MENTAL_HEALTH_THRESHOLD = 1_000_000_00  # extra 1% on taxable income above
 
 
@@ -105,8 +126,9 @@ def _bracket_tax(taxable: int, brackets: list[tuple[int | None, Decimal]]) -> De
 
 def _california_tax_minor(gross_minor: int, filing_status: str) -> tuple[int, list[str]]:
     notes = [
-        "California state tax uses 2024 FTB brackets and standard deduction "
-        "(the latest published here); CA SDI is not modeled."
+        "California state tax uses 2025 FTB brackets and standard deduction "
+        "(the latest the FTB has published); CA SDI (1.2% of all wages, no "
+        "cap) is not modeled."
     ]
     if filing_status == "married_joint":
         deduction = _CA_STANDARD_DEDUCTION["married_joint"]
@@ -163,6 +185,19 @@ def _validate(filing_status: str) -> None:
         raise ValueError(f"filing_status must be one of {FILING_STATUSES}")
 
 
+def _staleness_notes(today: date | None) -> list[str]:
+    """Self-enforcing yearly refresh: past TAX_YEAR every estimate says so."""
+    current_year = (today or date.today()).year
+    if current_year <= TAX_YEAR:
+        return []
+    return [
+        f"STALE TAX PARAMETERS: this estimate uses tax-year {TAX_YEAR} law, "
+        f"but it is now {current_year}. The yearly parameter refresh is due "
+        "(docs/guides/tax-parameter-updates.md) — brackets, deductions, the "
+        "Social Security wage base, and state tables have likely changed."
+    ]
+
+
 def _to_minor(value: Decimal) -> int:
     return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
@@ -199,7 +234,11 @@ def _total_tax_minor(gross_minor: int, filing_status: str, state: str | None = N
 
 
 def estimate_annual_tax(
-    gross_annual: Money, filing_status: str, state: str | None = None
+    gross_annual: Money,
+    filing_status: str,
+    state: str | None = None,
+    *,
+    today: date | None = None,
 ) -> CalculationResult:
     """Federal income tax + employee FICA (+ modeled state tax) on annual GROSS income."""
     _validate(filing_status)
@@ -208,6 +247,7 @@ def estimate_annual_tax(
     federal = _federal_income_tax_minor(gross, filing_status)
     fica = _fica_tax_minor(gross, filing_status)
     state_tax, state_notes = _state_tax_minor(gross, filing_status, state)
+    staleness = _staleness_notes(today)
     total = federal + fica + (state_tax or 0)
     effective_rate = round(total / gross, 4) if gross > 0 else 0.0
     return CalculationResult(
@@ -219,7 +259,7 @@ def estimate_annual_tax(
             "currency": currency,
             "state": state,
         },
-        assumptions=[*_ASSUMPTIONS, *state_notes],
+        assumptions=[*_ASSUMPTIONS, *state_notes, *staleness],
         outputs={
             "gross_income": Money(gross, currency),
             "standard_deduction": Money(_STANDARD_DEDUCTION[filing_status], currency),
@@ -232,7 +272,7 @@ def estimate_annual_tax(
             "total_tax": Money(total, currency),
             "effective_rate": effective_rate,
         },
-        warnings=[],
+        warnings=list(staleness),
     )
 
 
@@ -269,9 +309,10 @@ def gross_up_from_net(
             "Pre-tax deductions the deposits already reflect (401k, health "
             "premiums, HSA) are invisible here, so actual gross income and tax "
             "withheld are likely somewhat higher.",
-            # The inner estimate's assumptions include the state-tax notes.
+            # The inner estimate's assumptions include the state-tax notes
+            # and any parameter-staleness notice.
             *result.assumptions,
         ],
         outputs=outputs,
-        warnings=[],
+        warnings=list(result.warnings),
     )

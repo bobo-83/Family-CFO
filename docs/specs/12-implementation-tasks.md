@@ -1047,6 +1047,13 @@ User correction (2026-07-12): "RSU is pre tax" — the tax math was already righ
 - [x] Spec gate: label the pre-tax nature everywhere the profile surfaces. (a) Web: the RSU field reads "RSU value (USD/yr, pre-tax)", the events section reads "Upcoming income (pre-tax)" with a hint that brokers typically sell/withhold shares for taxes at vest so the deposit lands smaller. (b) API: the tax assumptions gain an explicit line that declared amounts are pre-tax and RSU withholding happens at vest. (c) Advisor: the `get_income_and_tax` compensation_profile carries a note that all profile amounts and upcoming events are pre-tax so the model caveats correctly. No behavioral change to the tax estimate; no contract change.
 - [x] Implement + tests + deploy + verify + commit.
 
+## M80: Tax-Law Cross-Check + Yearly Refresh Process
+
+User request (2026-07-12): "I feel like you need to download the tax laws and cross check what we did" + "We need to do this every year to get the updated laws." The engine's constants came from model knowledge; they must be verified against PRIMARY sources, and the refresh must recur yearly.
+
+- [x] Spec gate: (a) cross-check every constant in `tax_estimate.py` against primary sources — Rev. Proc. 2025-32 §4.01 Tables 1–3 and §4.14 (the actual IRS PDF, downloaded and read), the SSA 2026 wage-base announcement, IRC §3101(b)(2) (statutory additional-Medicare thresholds), and the CA FTB's published parameters — fixing any discrepancy and citing each source in the module. (b) yearly recurrence: a self-enforcing staleness guard — once the calendar year passes `TAX_YEAR`, every estimate carries a "STALE TAX PARAMETERS" line in its assumptions (surfacing on the Income & Tax card and in the advisor tool output) until the refresh is done — plus `docs/guides/tax-parameter-updates.md`, a step-by-step October–December checklist naming the primary source for each constant.
+- [x] Implement + tests + deploy + verify + commit. Findings: federal single/MFJ brackets, all standard deductions, and the $184,500 SS wage base were CORRECT; the head-of-household 24% bracket top was WRONG ($201,775 — the single filer's number, which even Tax Foundation's table repeats — vs the IRS's $201,750; fixed with a hand-computed boundary test); California was updated from 2024 to the FTB's published 2025 parameters (3.0% CCPI: deduction $5,706/$11,412, all nine thresholds), and the CA note now names SDI's 1.2% uncapped rate as unmodeled.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
