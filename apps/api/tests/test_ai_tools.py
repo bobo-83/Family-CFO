@@ -183,6 +183,41 @@ def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -
     assert any("not a full year" in w for w in result["warnings"])
 
 
+def test_income_tool_carries_structured_earner_and_w2(demo_engine: Engine) -> None:
+    """M76 follow-up: W2 actuals reach the model as data, not just a prose line."""
+    from datetime import date, timedelta
+
+    from family_cfo_api import repository
+
+    repository.create_income_profile(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        label="Alex",
+        base_salary_minor=20_000_000,
+        rsu_annual_minor=16_000_000,
+        rsu_frequency="quarterly",
+        rsu_next_vest_date=date.today() + timedelta(days=30),
+        bonus_percent=25.0,
+        bonus_month=12,
+        w2_year=2025,
+        w2_wages_minor=38_541_260,
+        w2_withheld_minor=7_890_315,
+    )
+
+    result = _execute(demo_engine, "get_income_and_tax", {})
+
+    earner = result["compensation_profile"]["earners"][0]
+    assert earner["label"] == "Alex"
+    assert earner["rsu_next_vest_date"] == (date.today() + timedelta(days=30)).isoformat()
+    assert earner["bonus_month"] == 12
+    w2 = earner["last_year_w2"]
+    assert w2["year"] == 2025
+    assert w2["box1_wages"]["amount_minor"] == 38_541_260
+    assert w2["box2_federal_withheld"]["amount_minor"] == 7_890_315
+    # The effective-rate calibration line rides along in the assumptions too.
+    assert any("W2" in a for a in result["assumptions"])
+
+
 def test_bills_tool_lists_bills_and_upcoming(demo_engine: Engine) -> None:
     from datetime import date, timedelta
 

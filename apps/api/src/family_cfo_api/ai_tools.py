@@ -501,7 +501,24 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
                     "base_salary": _schema_money_out(earner.base_salary),
                     "rsu_annual_value": _schema_money_out(earner.rsu_annual),
                     "rsu_vesting": earner.rsu_frequency,
+                    "rsu_next_vest_date": (
+                        earner.rsu_next_vest_date.isoformat()
+                        if earner.rsu_next_vest_date is not None
+                        else None
+                    ),
                     "bonus_percent_of_base": earner.bonus_percent,
+                    "bonus_month": earner.bonus_month,
+                    # W2 actuals were only a prose assumption line before;
+                    # structured values let the model quote Box 2 exactly.
+                    "last_year_w2": (
+                        {
+                            "year": earner.w2_year,
+                            "box1_wages": _schema_money_out(earner.w2_wages),
+                            "box2_federal_withheld": _schema_money_out(earner.w2_withheld),
+                        }
+                        if earner.w2_wages is not None and earner.w2_withheld is not None
+                        else None
+                    ),
                 }
                 for earner in analysis.profile.earners
             ],
@@ -742,10 +759,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             description=(
                 "The household's income picture: the declared compensation profile (base "
                 "salary, RSU annual value and VESTING SCHEDULE with upcoming vest dates and "
-                "amounts, bonus percent and month), detected recurring deposits, and the "
+                "amounts, bonus percent and month, last year's W2 actuals — Box 1 wages and "
+                "Box 2 federal withholding), detected recurring deposits, and the "
                 "deterministic annual tax estimate (federal + FICA + modeled state, with "
                 "assumptions). Use for ANY question about income, salary, RSU vests, "
-                "bonuses, upcoming pay, or taxes."
+                "bonuses, W2s, withholding, upcoming pay, or taxes."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
