@@ -1033,6 +1033,13 @@ User report (2026-07-12): "Can I upload pdf w2? It won't let me select" — payr
 - [x] Spec gate: `scan-w2` accepts `application/pdf` (contract enum + schema). The API rasterizes the FIRST page on-box (pypdfium2, ~2x-scale PNG) and feeds that image to the same vision describer — the PDF is processed in memory, nothing new is stored, and the confirm-before-save rule (M73/M76) is unchanged. An unreadable/encrypted/empty PDF (or invalid base64) returns 422 with a clear message. The web file picker accepts images AND PDFs and the scan-row copy says photo or PDF.
 - [x] Implement + tests (an fpdf2-generated W2 PDF through the endpoint with a stub describer asserting the model receives a PNG data URL; a corrupt PDF → 422) + contract + client + deploy + live verify + commit.
 
+## M78: Multi-Page PDF W2 Handling
+
+User request (2026-07-12): "Add the page handling" — some payroll providers put a cover sheet or instructions on page 1, so an M77 scan of such a PDF comes back empty even though a perfectly readable W-2 sits on page 2.
+
+- [x] Spec gate: the scan tries each PDF page in order (rasterized as in M77) until one yields W-2 amounts (Box 1 or Box 2 parsed), capped at 4 pages so a huge PDF cannot hold the vision model for minutes. A hit on a later page prepends "Read from page N of the PDF." to the confirm note; no page yielding amounts returns the all-null candidates with a "no W-2 amounts found on the first N pages" note. Photos and single-page PDFs behave exactly as before; confirm-before-save unchanged; no contract change (the note field carries the page information).
+- [x] Implement + tests (cover-sheet-then-W2 PDF resolves from page 2 with the page note and two model calls; an all-cover-pages PDF returns the manual-entry note; the empty PDF 422) + deploy + live verify + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
