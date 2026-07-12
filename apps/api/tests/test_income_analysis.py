@@ -521,17 +521,21 @@ def test_w2_scan_parse_tolerates_model_output() -> None:
 class _StubDescriber:
     """Captures what the endpoint sends to the vision model."""
 
-    def __init__(self) -> None:
+    W2_JSON = (
+        '{"year": 2025, "employer": "ACME Corp", "wages": 385412.60, '
+        '"federal_withheld": 78903.15}'
+    )
+
+    def __init__(self, responses: list[str] | None = None) -> None:
         self.data_urls: list[str] = []
+        self._responses = responses or [self.W2_JSON]
 
     def complete(self, messages, temperature=0.0, max_tokens=0):
         self.data_urls.append(messages[0].image_data_url)
+        text_value = self._responses[min(len(self.data_urls) - 1, len(self._responses) - 1)]
 
         class _Completion:
-            text = (
-                '{"year": 2025, "employer": "ACME Corp", "wages": 385412.60, '
-                '"federal_withheld": 78903.15}'
-            )
+            text = text_value
 
         return _Completion()
 
@@ -539,14 +543,17 @@ class _StubDescriber:
         pass
 
 
-def _w2_pdf_base64() -> str:
+def _w2_pdf_base64(cover_pages: int = 0) -> str:
     import base64
 
     from fpdf import FPDF
 
     pdf = FPDF()
-    pdf.add_page()
     pdf.set_font("Helvetica", size=14)
+    for _ in range(cover_pages):
+        pdf.add_page()
+        pdf.cell(text="Important tax document enclosed - see the next page")
+    pdf.add_page()
     pdf.cell(text="Form W-2 Wage and Tax Statement 2025")
     pdf.ln(10)
     pdf.cell(text="Employer: ACME Corp")
@@ -577,6 +584,61 @@ async def test_w2_scan_accepts_a_pdf(demo_client, demo_token, monkeypatch) -> No
     assert body["wages_minor"] == 38_541_260
     # The model got a rendered page image, never raw PDF bytes.
     assert stub.data_urls[0].startswith("data:image/png;base64,")
+
+
+@pytest.mark.anyio
+async def test_w2_scan_walks_pdf_pages(demo_client, demo_token, monkeypatch) -> None:
+    """M78: a cover sheet on page 1 is skipped; the W-2 on page 2 is read."""
+    from family_cfo_api import ai_runtime_selection
+
+    stub = _StubDescriber(
+        responses=["A cover page with no amounts on it.", _StubDescriber.W2_JSON]
+    )
+    monkeypatch.setattr(
+        ai_runtime_selection, "select_vision_describer", lambda engine, hh: (stub, "test")
+    )
+
+    response = await demo_client.post(
+        "/api/v1/income/profile/scan-w2",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "image_base64": _w2_pdf_base64(cover_pages=1),
+            "image_media_type": "application/pdf",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["wages_minor"] == 38_541_260
+    assert body["note"].startswith("Read from page 2 of the PDF.")
+    assert len(stub.data_urls) == 2  # one model call per page until the hit
+
+
+@pytest.mark.anyio
+async def test_w2_scan_reports_when_no_page_reads_as_a_w2(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    from family_cfo_api import ai_runtime_selection
+
+    stub = _StubDescriber(responses=["Nothing W-2-like on this page."])
+    monkeypatch.setattr(
+        ai_runtime_selection, "select_vision_describer", lambda engine, hh: (stub, "test")
+    )
+
+    response = await demo_client.post(
+        "/api/v1/income/profile/scan-w2",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "image_base64": _w2_pdf_base64(cover_pages=2),
+            "image_media_type": "application/pdf",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["wages_minor"] is None
+    assert "first 3 pages" in body["note"]
+    assert len(stub.data_urls) == 3
 
 
 @pytest.mark.anyio
