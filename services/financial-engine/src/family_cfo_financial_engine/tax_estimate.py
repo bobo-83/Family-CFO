@@ -110,6 +110,20 @@ _CA_SINGLE_BRACKETS: list[tuple[int | None, Decimal]] = [
 _CA_STANDARD_DEDUCTION = {"single": 5_706_00, "married_joint": 11_412_00}
 _CA_MENTAL_HEALTH_THRESHOLD = 1_000_000_00  # extra 1% on taxable income above
 
+# Massachusetts 2026 DOR parameters (M81; 2026 Form 2-ES / mass.gov): flat 5%
+# on wages, personal exemption per filing status, an up-to-$2,000-per-person
+# deduction for FICA paid (Form 1 lines 11a/11b), and the Fair Share 4%
+# surtax on taxable income above the annually indexed threshold.
+_MA_RATE = Decimal("0.05")
+_MA_PERSONAL_EXEMPTION = {
+    "single": 4_400_00,
+    "married_joint": 8_800_00,
+    "head_of_household": 6_800_00,
+}
+_MA_FICA_DEDUCTION_PER_PERSON = 2_000_00
+_MA_SURTAX_RATE = Decimal("0.04")
+_MA_SURTAX_THRESHOLD = 1_107_750_00  # tax year 2026 (indexed annually)
+
 
 def _bracket_tax(taxable: int, brackets: list[tuple[int | None, Decimal]]) -> Decimal:
     tax = Decimal(0)
@@ -151,6 +165,26 @@ def _california_tax_minor(gross_minor: int, filing_status: str) -> tuple[int, li
     return _to_minor(tax), notes
 
 
+def _massachusetts_tax_minor(gross_minor: int, filing_status: str) -> tuple[int, list[str]]:
+    notes = [
+        f"Massachusetts state tax uses {TAX_YEAR} DOR parameters: flat 5% on "
+        "wages after the personal exemption and the up-to-$2,000-per-person "
+        "FICA deduction (assumed maxed — true above ~$27k of wages per "
+        f"earner), plus the 4% surtax on taxable income over "
+        f"${_MA_SURTAX_THRESHOLD // 100:,}. MA PFML payroll contributions "
+        "are not modeled."
+    ]
+    persons = 2 if filing_status == "married_joint" else 1
+    deductions = (
+        _MA_PERSONAL_EXEMPTION[filing_status] + persons * _MA_FICA_DEDUCTION_PER_PERSON
+    )
+    taxable = max(0, gross_minor - deductions)
+    tax = Decimal(taxable) * _MA_RATE
+    if taxable > _MA_SURTAX_THRESHOLD:
+        tax += (Decimal(taxable) - Decimal(_MA_SURTAX_THRESHOLD)) * _MA_SURTAX_RATE
+    return _to_minor(tax), notes
+
+
 def _state_tax_minor(
     gross_minor: int, filing_status: str, state: str | None
 ) -> tuple[int | None, list[str]]:
@@ -165,6 +199,8 @@ def _state_tax_minor(
         return 0, [f"{state} has no state income tax on wages."]
     if state == "CA":
         return _california_tax_minor(gross_minor, filing_status)
+    if state == "MA":
+        return _massachusetts_tax_minor(gross_minor, filing_status)
     return None, [
         f"State income tax for {state} is not modeled yet — the estimate "
         "covers federal + FICA only and is therefore LOW."
