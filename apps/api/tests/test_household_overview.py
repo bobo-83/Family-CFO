@@ -68,7 +68,9 @@ async def test_designation_drives_status_and_gap(demo_client, demo_token) -> Non
     assert fund["reserved"]["amount_minor"] == 208_000
     assert fund["months"] == pytest.approx(1.0)
     assert fund["status"] == "getting_started"
-    assert fund["gap_to_recommended"]["amount_minor"] == 5 * 208_000
+    # M75: the gap is the LARGER of the months gap (5 * 208,000) and the gap
+    # to the fixture's $18k emergency-fund goal (1,800,000 - 208,000).
+    assert fund["gap_to_recommended"]["amount_minor"] == 1_800_000 - 208_000
 
 
 @pytest.mark.anyio
@@ -99,7 +101,8 @@ async def test_fully_funded_has_zero_gap(demo_client, demo_token) -> None:
 
 
 @pytest.mark.anyio
-async def test_no_bills_yields_no_bills_status(demo_client, demo_token) -> None:
+async def test_no_bills_falls_back_to_the_goal_view(demo_client, demo_token) -> None:
+    """M75: with no bills, the fixture's emergency-fund goal still gives a status."""
     headers = {"Authorization": f"Bearer {demo_token}"}
     bills = (await demo_client.get("/api/v1/bills", headers=headers)).json()["bills"]
     for bill in bills:
@@ -108,7 +111,98 @@ async def test_no_bills_yields_no_bills_status(demo_client, demo_token) -> None:
 
     body = await _context(demo_client, demo_token)
     fund = body["emergency_fund"]
-    assert fund["status"] == "no_bills"
+    # Months can't be computed, but the $18k goal can be measured against.
     assert fund["months"] is None
-    assert fund["gap_to_recommended"] is None
     assert body["emergency_fund_months"] is None
+    assert fund["goal_target"]["amount_minor"] == 1_800_000
+    assert fund["status"] in ("getting_started", "on_track", "fully_funded")
+
+
+# --- M75: goal-aware emergency-fund status ---
+
+
+def _ef_goal(engine, target_minor: int) -> None:
+    from family_cfo_api import fixtures, repository
+
+    repository.create_goal(
+        engine, fixtures.DEMO_HOUSEHOLD_ID, "Emergency fund", "emergency_fund",
+        target_minor, "USD", None, 1,
+    )
+
+
+async def _context(client, token):
+    resp = await client.get(
+        "/api/v1/household", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
+@pytest.mark.anyio
+async def test_ef_goal_overrides_rosy_months_status(
+    demo_client, demo_engine, demo_token
+) -> None:
+    """$1.1k against a $90k goal must NOT read fully funded, however few bills exist."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    savings = repository.create_account(engine=demo_engine, household_id=hh,
+                                        name="EF Savings", account_type="savings",
+                                        currency="USD")
+    repository.record_account_balance(demo_engine, savings.id, 115_411)
+    repository.update_account(demo_engine, hh, savings.id, emergency_fund_percent=100.0)
+    repository.create_bill(demo_engine, hh, "Netflix", 1_549, "USD", "monthly")
+    _ef_goal(demo_engine, 9_000_000)
+
+    fund = (await _context(demo_client, demo_token))["emergency_fund"]
+
+    # Months coverage alone (~74 months of a $15.49 bill) said fully_funded.
+    assert fund["status"] == "getting_started"
+    assert fund["goal_target"]["amount_minor"] == 9_000_000
+    assert fund["gap_to_recommended"]["amount_minor"] == 9_000_000 - 115_411
+
+
+@pytest.mark.anyio
+async def test_ef_goal_rescues_the_no_bills_case(
+    demo_client, demo_engine, demo_token
+) -> None:
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    savings = repository.create_account(engine=demo_engine, household_id=hh,
+                                        name="EF Savings", account_type="savings",
+                                        currency="USD")
+    repository.record_account_balance(demo_engine, savings.id, 6_000_000)
+    repository.update_account(demo_engine, hh, savings.id, emergency_fund_percent=100.0)
+    _ef_goal(demo_engine, 9_000_000)
+
+    fund = (await _context(demo_client, demo_token))["emergency_fund"]
+
+    # 6k/9k = 66% -> on_track, instead of the old "no_bills" shrug.
+    assert fund["status"] == "on_track"
+
+
+@pytest.mark.anyio
+async def test_no_goal_keeps_months_based_behavior(
+    demo_client, demo_engine, demo_token
+) -> None:
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    savings = repository.create_account(engine=demo_engine, household_id=hh,
+                                        name="EF Savings", account_type="savings",
+                                        currency="USD")
+    # A fund comfortably above 6x the fixture's total monthly bills.
+    repository.record_account_balance(demo_engine, savings.id, 10_000_000)
+    repository.update_account(demo_engine, hh, savings.id, emergency_fund_percent=100.0)
+    # Remove the fixture's seeded emergency-fund goal: this test is the
+    # no-goal baseline.
+    from sqlalchemy import delete
+    from family_cfo_api import models
+    with demo_engine.begin() as conn:
+        conn.execute(delete(models.goals).where(models.goals.c.household_id == hh))
+
+    fund = (await _context(demo_client, demo_token))["emergency_fund"]
+
+    assert fund["status"] == "fully_funded"  # 6 months of $2k bills
+    assert fund["goal_target"] is None

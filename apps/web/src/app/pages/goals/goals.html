@@ -16,7 +16,7 @@
           @for (goal of goalList; track goal.id) {
             <li class="goal-list__item">
               <div class="goal-list__name">{{ goal.name }}</div>
-              <div class="goal-list__type">{{ goal.type }}</div>
+              <div class="goal-list__type">{{ goalTypeLabel(goal.type) }}</div>
               <div class="goal-list__amounts">
                 {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
               </div>

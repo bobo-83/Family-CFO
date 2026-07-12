@@ -109,6 +109,9 @@ class EmergencyFundSummary(BaseModel):
     target_months_min: float
     target_months_recommended: float
     gap_to_recommended: Money | None = None
+    # M75: the household's own emergency_fund goal target, when one exists —
+    # the status is the more conservative of months-coverage and goal progress.
+    goal_target: Money | None = None
     status: Literal["no_bills", "no_fund", "getting_started", "on_track", "fully_funded"]
 
 

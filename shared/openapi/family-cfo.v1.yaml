@@ -3005,6 +3005,11 @@ components:
         gap_to_recommended:
           description: Money still needed to reach the recommended target; 0 when funded, absent when no bills.
           $ref: "#/components/schemas/Money"
+        goal_target:
+          description: >
+            The household's own emergency_fund goal target (M75); the status
+            is the more conservative of months-coverage and goal progress.
+          $ref: "#/components/schemas/Money"
         status:
           type: string
           enum: [no_bills, no_fund, getting_started, on_track, fully_funded]

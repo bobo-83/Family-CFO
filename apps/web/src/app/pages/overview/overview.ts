@@ -24,6 +24,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   property: 'Property',
 };
 
+
+// M75: human labels for goal types (raw enums leaked into the UI).
+const GOAL_TYPE_LABELS: Record<string, string> = {
+  emergency_fund: 'Emergency fund',
+  vacation: 'Vacation',
+  retirement: 'Retirement',
+  college: 'College',
+  vehicle: 'Vehicle',
+  renovation: 'Renovation',
+  other: 'Other',
+};
+
 @Component({
   selector: 'app-overview',
   imports: [DatePipe, DecimalPipe, FormsModule, RouterLink],
@@ -61,6 +73,11 @@ export class Overview {
 
   protected categoryLabel(category: string): string {
     return CATEGORY_LABELS[category] ?? category;
+  }
+
+  // M75: enums are for machines; people get labels.
+  protected goalTypeLabel(type: string): string {
+    return GOAL_TYPE_LABELS[type] ?? type;
   }
 
   protected absPercent(value: number): number {

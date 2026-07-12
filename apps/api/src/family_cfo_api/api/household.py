@@ -26,33 +26,67 @@ from family_cfo_api.schemas import Money as MoneySchema
 router = APIRouter(tags=["Household"])
 
 
+# M75: severity order for combining months-based and goal-based statuses —
+# the card must never look rosier than the WORSE of the two views.
+_EF_STATUS_RANK = {"no_fund": 0, "getting_started": 1, "on_track": 2, "fully_funded": 3}
+
+
 def _emergency_fund_summary(
     months: float | None,
     inputs: finance_service.EmergencyFundInputs,
     currency: str,
     target_months: float | None = None,
+    goal_target_minor: int | None = None,
 ) -> EmergencyFundSummary:
-    """M38/M43: coverage vs the household's target (default 6), with the gap in dollars."""
+    """M38/M43/M75: coverage vs the target months AND the emergency-fund goal.
+
+    Months-of-bills alone is absurdly optimistic when few bills are entered
+    (a $1k fund "covers" months of a $15 Netflix bill); a declared
+    emergency-fund GOAL is the family's own target, so the final status is
+    the more conservative of the two views and the gap is the larger one.
+    """
     recommended = target_months or finance_service.EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS
     # M43: a sub-3-month target still needs a sensible "getting started" floor.
     min_threshold = min(finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS, recommended)
     fund_minor = inputs.fund.amount_minor
     bills_minor = inputs.monthly_bills.amount_minor
 
-    gap: MoneySchema | None = None
-    if months is None:
-        status = "no_bills"
-    else:
-        gap_minor = max(0, round(recommended * bills_minor) - fund_minor)
-        gap = MoneySchema(amount_minor=gap_minor, currency=currency)
+    months_status: str | None = None
+    months_gap_minor = 0
+    if months is not None:
+        months_gap_minor = max(0, round(recommended * bills_minor) - fund_minor)
         if fund_minor <= 0:
-            status = "no_fund"
+            months_status = "no_fund"
         elif months < min_threshold:
-            status = "getting_started"
+            months_status = "getting_started"
         elif months < recommended:
-            status = "on_track"
+            months_status = "on_track"
         else:
-            status = "fully_funded"
+            months_status = "fully_funded"
+
+    goal_status: str | None = None
+    goal_gap_minor = 0
+    if goal_target_minor and goal_target_minor > 0:
+        goal_gap_minor = max(0, goal_target_minor - fund_minor)
+        ratio = fund_minor / goal_target_minor
+        if fund_minor <= 0:
+            goal_status = "no_fund"
+        elif ratio < 0.5:
+            goal_status = "getting_started"
+        elif ratio < 1.0:
+            goal_status = "on_track"
+        else:
+            goal_status = "fully_funded"
+
+    candidates = [s for s in (months_status, goal_status) if s is not None]
+    if candidates:
+        status = min(candidates, key=lambda s: _EF_STATUS_RANK[s])
+        gap = MoneySchema(
+            amount_minor=max(months_gap_minor, goal_gap_minor), currency=currency
+        )
+    else:
+        status = "no_bills"
+        gap = None
 
     return EmergencyFundSummary(
         months=months,
@@ -62,6 +96,11 @@ def _emergency_fund_summary(
         target_months_min=min_threshold,
         target_months_recommended=recommended,
         gap_to_recommended=gap,
+        goal_target=(
+            MoneySchema(amount_minor=goal_target_minor, currency=currency)
+            if goal_target_minor
+            else None
+        ),
         status=status,
     )
 
@@ -233,7 +272,20 @@ async def get_household_context(
         net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
         emergency_fund_months=months,
         emergency_fund=_emergency_fund_summary(
-            months, ef_inputs, currency, household.emergency_fund_target_months
+            months,
+            ef_inputs,
+            currency,
+            household.emergency_fund_target_months,
+            # M75: the family's own emergency-fund goal is the target of
+            # record; with several, the LARGEST target is the conservative one.
+            goal_target_minor=max(
+                (
+                    g.target_minor
+                    for g in repository.list_goals(engine, household.id)
+                    if g.goal_type == "emergency_fund"
+                ),
+                default=None,
+            ),
         ),
         monthly_cash_flow=MonthlyCashFlow(
             income=MoneySchema(amount_minor=income.amount_minor, currency=currency),

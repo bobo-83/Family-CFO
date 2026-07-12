@@ -98,6 +98,11 @@
                 }
                 · expenses {{ formatMoney(fund.monthly_expenses) }}/month
               </span>
+              @if (fund.goal_target; as goalTarget) {
+                <div class="overview__detail">
+                  Your goal: {{ formatMoney(goalTarget) }}
+                </div>
+              }
               @if (fund.gap_to_recommended; as gap) {
                 @if (gap.amount_minor > 0) {
                   <span class="overview__detail overview__detail--action">
@@ -181,7 +186,7 @@
           <span class="overview__label">Top goal</span>
           @if (context.top_goal; as goal) {
             <span class="overview__value overview__value--goal">{{ goal.name }}</span>
-            <span class="overview__detail">{{ goal.type }}</span>
+            <span class="overview__detail">{{ goalTypeLabel(goal.type) }}</span>
             <div
               class="overview__progress"
               role="progressbar"
