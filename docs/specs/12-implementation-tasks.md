@@ -1061,6 +1061,13 @@ User report (2026-07-12): "I'm in Massachusetts and I had already specified my s
 - [x] Spec gate: model MA in `tax_estimate.py`, parameters verified against DOR sources (2026 Form 2-ES / mass.gov): flat 5% on wages; personal exemption $4,400 single / $8,800 married-joint / $6,800 head-of-household; the up-to-$2,000-per-person FICA deduction (assumed maxed — true above ~$27k of wages per earner, noted); the 4% surtax on taxable income above the 2026 indexed threshold of $1,107,750. MA PFML payroll contributions are explicitly noted as unmodeled (like CA SDI). Notes cite the tax year; the yearly-update guide gains the MA sources.
 - [x] Implement + hand-computed tests + deploy + live verify on the user's household + commit.
 
+## M82: State Income Tax for Every State
+
+User request (2026-07-12): "This input should have selected the right state and appropriately use the right model. You should build a model for every state" — after M81, only CA and MA were modeled; the other 39 income-tax states + DC still returned the "not modeled" warning despite being selectable.
+
+- [x] Spec gate: every US state + DC produces a state-tax figure. (a) The 9 no-wage-tax states stay $0-with-note; CA and MA keep their primary-source models. (b) The remaining 40 states + DC get a generic bracket engine driven by a data table transcribed from the Tax Foundation's 2026 State Individual Income Tax Rates and Brackets compilation (the standard annual survey): rates/brackets per filing status (single/married; HoH approximated with single, noted), the basic standard deduction plus personal exemption where it is an income offset, and the flat personal CREDIT where that is the state's mechanism (AR/DE/IA/NE/OR/UT). (c) Honesty notes: every table-driven estimate says it is a compilation-based approximation (other credits, phase-outs, recapture, and local/county income taxes not modeled); states where local income taxes are material (MD counties, NYC/Yonkers, OH municipalities, PA locals, IN counties) carry an explicit extra warning; CT's phasing-out exemption is deliberately NOT applied (conservative). (d) The unmodeled fallback remains only for unknown codes; the yearly-update guide gains the compilation as the refresh source for these states.
+- [x] Implement + tests (51-jurisdiction coverage sweep + hand computations incl. a credit state and bracket-doubling) + deploy + live verify + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:

@@ -49,13 +49,21 @@ arrive latest — late December.
    statutory and have been stable — verify, don't assume. Note: mass.gov
    blocks non-browser fetches; open the pages in a browser if scripted
    fetching fails.
-6. **No-wage-tax states** — confirm `NO_WAGE_TAX_STATES` is still accurate
+6. **All other states + DC** (`_STATE_TABLE`) — re-transcribe from the Tax
+   Foundation's annual "State Individual Income Tax Rates and Brackets"
+   compilation (published each February at
+   <https://taxfoundation.org/data/all/state/state-income-tax-rates/>).
+   Many states phase in rate cuts every January, so assume most entries
+   change. Watch the mechanism per state: some list personal exemptions as
+   income offsets (fold into `ded`), others as flat CREDITS (`credit` —
+   AR/DE/IA/NE/OR/UT today).
+7. **No-wage-tax states** — confirm `NO_WAGE_TAX_STATES` is still accurate
    (states do occasionally add or repeal income taxes).
-7. Bump `TAX_YEAR`, update the source citations in the module header
+8. Bump `TAX_YEAR`, update the source citations in the module header
    comment, and update the hand-computed expectations in
    `services/financial-engine/tests/test_tax_estimate.py` (the comments show
    the arithmetic to redo) and any API tests that assert dollar amounts.
-8. Run both suites (`services/financial-engine`, `apps/api`), deploy, and
+9. Run both suites (`services/financial-engine`, `apps/api`), deploy, and
    record the refresh in `docs/specs/12-implementation-tasks.md`.
 
 ## Verification discipline

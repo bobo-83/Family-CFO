@@ -147,11 +147,77 @@ def test_no_wage_tax_state_is_zero_with_note() -> None:
     assert any("no state income tax on wages" in a for a in result.assumptions)
 
 
-def test_unmodeled_state_warns_instead_of_silent_zero() -> None:
-    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="NY")
+def test_unknown_state_code_warns_instead_of_silent_zero() -> None:
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="PR")
 
     assert result.outputs["state_income_tax"] is None
     assert any("not modeled yet" in a for a in result.assumptions)
+
+
+# --- M82: every state + DC is modeled ---
+
+_ALL_JURISDICTIONS = [
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI",
+    "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN",
+    "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH",
+    "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA",
+    "WV", "WI", "WY",
+]
+
+
+def test_every_state_and_dc_produces_a_state_tax_figure() -> None:
+    assert len(_ALL_JURISDICTIONS) == 51
+    for code in _ALL_JURISDICTIONS:
+        for status in ("single", "married_joint", "head_of_household"):
+            result = estimate_annual_tax(Money(15_000_000, "USD"), status, state=code)
+            tax = result.outputs["state_income_tax"]
+            assert tax is not None, f"{code}/{status} returned no state tax"
+            assert tax.amount_minor >= 0, f"{code}/{status} negative"
+            assert not any("not modeled yet" in a for a in result.assumptions), code
+
+
+def test_illinois_flat_rate_matches_hand_computation() -> None:
+    # IL: (100,000 - 2,925 exemption) * 4.95% = 4,805.21 (rounded)
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="IL")
+
+    assert result.outputs["state_income_tax"] == Money(480_521, "USD")
+    assert any("Tax Foundation 2026 compilation" in a for a in result.assumptions)
+
+
+def test_new_york_single_100k_matches_hand_computation() -> None:
+    # NY taxable = 100,000 - 8,000 = 92,000
+    # 3.9%*8,500 + 4.4%*3,200 + 5.15%*2,200 + 5.4%*66,750 + 5.9%*11,350
+    # = 331.50 + 140.80 + 113.30 + 3,604.50 + 669.65 = 4,859.75
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="NY")
+
+    assert result.outputs["state_income_tax"] == Money(485_975, "USD")
+    assert any("New York City" in a for a in result.assumptions)
+
+
+def test_oregon_personal_credit_reduces_the_tax() -> None:
+    # OR taxable = 100,000 - 2,910 = 97,090
+    # 4.75%*4,550 + 6.75%*6,850 + 8.75%*85,690 = 216.13+462.38+7,497.88
+    # = 8,176.375 - 256 credit = 7,920.375 -> 7,920.38
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="OR")
+
+    assert result.outputs["state_income_tax"] == Money(792_038, "USD")
+
+
+def test_hawaii_married_doubles_the_single_thresholds() -> None:
+    single = estimate_annual_tax(Money(20_000_000, "USD"), "single", state="HI")
+    married = estimate_annual_tax(Money(20_000_000, "USD"), "married_joint", state="HI")
+
+    assert (
+        married.outputs["state_income_tax"].amount_minor
+        < single.outputs["state_income_tax"].amount_minor
+    )
+
+
+def test_maryland_warns_about_mandatory_county_tax() -> None:
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="MD")
+
+    assert result.outputs["state_income_tax"].amount_minor > 0
+    assert any("MANDATORY local income tax" in a for a in result.assumptions)
 
 
 def test_gross_up_includes_state_tax() -> None:
