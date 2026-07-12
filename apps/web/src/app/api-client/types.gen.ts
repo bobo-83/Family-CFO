@@ -532,6 +532,11 @@ export type EmergencyFundSummary = {
      * Money still needed to reach the recommended target; 0 when funded, absent when no bills.
      */
     gap_to_recommended?: Money;
+    /**
+     * The household's own emergency_fund goal target (M75); the status is the more conservative of months-coverage and goal progress.
+     *
+     */
+    goal_target?: Money;
     status: 'no_bills' | 'no_fund' | 'getting_started' | 'on_track' | 'fully_funded';
 };
 
