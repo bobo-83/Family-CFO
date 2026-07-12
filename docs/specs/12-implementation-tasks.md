@@ -1054,6 +1054,13 @@ User request (2026-07-12): "I feel like you need to download the tax laws and cr
 - [x] Spec gate: (a) cross-check every constant in `tax_estimate.py` against primary sources — Rev. Proc. 2025-32 §4.01 Tables 1–3 and §4.14 (the actual IRS PDF, downloaded and read), the SSA 2026 wage-base announcement, IRC §3101(b)(2) (statutory additional-Medicare thresholds), and the CA FTB's published parameters — fixing any discrepancy and citing each source in the module. (b) yearly recurrence: a self-enforcing staleness guard — once the calendar year passes `TAX_YEAR`, every estimate carries a "STALE TAX PARAMETERS" line in its assumptions (surfacing on the Income & Tax card and in the advisor tool output) until the refresh is done — plus `docs/guides/tax-parameter-updates.md`, a step-by-step October–December checklist naming the primary source for each constant.
 - [x] Implement + tests + deploy + verify + commit. Findings: federal single/MFJ brackets, all standard deductions, and the $184,500 SS wage base were CORRECT; the head-of-household 24% bracket top was WRONG ($201,775 — the single filer's number, which even Tax Foundation's table repeats — vs the IRS's $201,750; fixed with a hand-computed boundary test); California was updated from 2024 to the FTB's published 2025 parameters (3.0% CCPI: deduction $5,706/$11,412, all nine thresholds), and the CA note now names SDI's 1.2% uncapped rate as unmodeled.
 
+## M81: Massachusetts State Income Tax
+
+User report (2026-07-12): "I'm in Massachusetts and I had already specified my state. Why are you checking CA?" — CA was the only precisely modeled state (M65; the showcase demo household uses it), so the user's own MA setting has been returning the "not modeled yet — estimate is LOW" warning the whole time.
+
+- [x] Spec gate: model MA in `tax_estimate.py`, parameters verified against DOR sources (2026 Form 2-ES / mass.gov): flat 5% on wages; personal exemption $4,400 single / $8,800 married-joint / $6,800 head-of-household; the up-to-$2,000-per-person FICA deduction (assumed maxed — true above ~$27k of wages per earner, noted); the 4% surtax on taxable income above the 2026 indexed threshold of $1,107,750. MA PFML payroll contributions are explicitly noted as unmodeled (like CA SDI). Notes cite the tax year; the yearly-update guide gains the MA sources.
+- [x] Implement + hand-computed tests + deploy + live verify on the user's household + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
