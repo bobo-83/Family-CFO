@@ -28,6 +28,20 @@ export class Goals {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly goalTypes = GOAL_TYPES;
+
+  // M75: human labels for goal types.
+  protected goalTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      emergency_fund: 'Emergency fund',
+      vacation: 'Vacation',
+      retirement: 'Retirement',
+      college: 'College',
+      vehicle: 'Vehicle',
+      renovation: 'Renovation',
+      other: 'Other',
+    };
+    return labels[type] ?? type;
+  }
   protected readonly canCreateGoals = () => {
     const role = this.auth.role();
     return role === 'owner' || role === 'adult';
