@@ -233,6 +233,8 @@ describe('IncomeTax', () => {
     expect(form.textContent).toContain('Nothing is saved until you press');
 
     const fileInput = form.querySelector('.earner-form__scan input[type=file]') as HTMLInputElement;
+    // M77: payroll providers hand out W2s as PDFs — the picker must allow them.
+    expect(fileInput.getAttribute('accept')).toContain('application/pdf');
     Object.defineProperty(fileInput, 'files', {
       value: [new File(['w2'], 'w2.jpg', { type: 'image/jpeg' })],
     });

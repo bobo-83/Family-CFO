@@ -523,7 +523,7 @@ export const deleteIncomeEarner = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Read a W-2 photo into candidate values (user confirms before saving)
+ * Read a W-2 photo or PDF into candidate values (user confirms before saving)
  */
 export const scanW2 = <ThrowOnError extends boolean = false>(options: Options<ScanW2Data, ThrowOnError>): RequestResult<ScanW2Responses, ScanW2Errors, ThrowOnError> => (options.client ?? client).post<ScanW2Responses, ScanW2Errors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

@@ -92,12 +92,17 @@
         <div class="earner-form__scan-row">
           <label class="earner-form__scan">
             {{ scanning() ? 'Reading…' : '📷 Scan last year&#8217;s W2' }}
-            <input type="file" accept="image/*" (change)="onW2Selected($event)" hidden />
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              (change)="onW2Selected($event)"
+              hidden
+            />
           </label>
           <span class="earner-form__scan-hint">
-            Fastest start: the scan prefills this form — employer, year, Box 1
-            and Box 2. Nothing is saved until you press &ldquo;Add
-            earner&rdquo;.
+            Fastest start: a photo or PDF of the W2 prefills this form —
+            employer, year, Box 1 and Box 2. Nothing is saved until you press
+            &ldquo;Add earner&rdquo;.
           </span>
         </div>
         @if (scanNote(); as note) {

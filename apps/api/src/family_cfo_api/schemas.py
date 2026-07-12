@@ -467,9 +467,13 @@ class IncomeEarnerCreateRequest(BaseModel):
     w2_withheld_minor: int | None = Field(default=None, ge=0)
 
 
+# M77: PDFs are accepted here (rasterized server-side) but not in chat images.
+W2ScanMediaType = Literal["image/jpeg", "image/png", "image/webp", "application/pdf"]
+
+
 class W2ScanRequest(BaseModel):
     image_base64: str = Field(min_length=1)
-    image_media_type: ChatImageMediaType
+    image_media_type: W2ScanMediaType
 
 
 class W2ScanResult(BaseModel):

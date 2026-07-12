@@ -317,7 +317,7 @@ export type IncomeEarnerCreateRequest = {
 
 export type W2ScanRequest = {
     image_base64: string;
-    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp';
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
 };
 
 /**
@@ -2476,6 +2476,10 @@ export type ScanW2Errors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
     /**
      * Error response
      */
