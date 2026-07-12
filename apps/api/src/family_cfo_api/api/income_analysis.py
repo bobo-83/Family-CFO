@@ -548,6 +548,28 @@ def parse_w2_scan(text: str) -> W2ScanResult:
     )
 
 
+def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
+    """M77: rasterize page 1 on-box — the vision model reads pixels, not PDF bytes."""
+    import io
+
+    import pypdfium2 as pdfium
+
+    try:
+        document = pdfium.PdfDocument(pdf_bytes)
+        try:
+            image = document[0].render(scale=2.0).to_pil()
+        finally:
+            document.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="The PDF could not be read (encrypted or empty?) — try a photo instead.",
+        ) from exc
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 @router.post(
     "/income/profile/scan-w2",
     operation_id="scanW2",
@@ -555,23 +577,38 @@ def parse_w2_scan(text: str) -> W2ScanResult:
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        422: {"description": "Unreadable PDF", "model": ErrorResponse},
         503: {"description": "No vision model available", "model": ErrorResponse},
     },
-    summary="Read a W-2 photo into candidate values (user confirms before saving)",
+    summary="Read a W-2 photo or PDF into candidate values (user confirms before saving)",
 )
 async def scan_w2(
     payload: W2ScanRequest,
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> W2ScanResult:
+    import base64
+    import binascii
+
     from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
 
     from family_cfo_api.ai_runtime_selection import select_vision_describer
 
+    # PDF handling first: a 422 here must not leak an un-closed describer.
+    image_base64 = payload.image_base64
+    media_type: str = payload.image_media_type
+    if media_type == "application/pdf":
+        try:
+            pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
+        image_base64 = base64.b64encode(pdf_first_page_png(pdf_bytes)).decode("ascii")
+        media_type = "image/png"
+
     describer, source = select_vision_describer(engine, session.household_id)
     if describer is None:
         raise HTTPException(status_code=503, detail="No vision model is configured")
-    data_url = f"data:{payload.image_media_type};base64,{payload.image_base64}"
+    data_url = f"data:{media_type};base64,{image_base64}"
     try:
         completion = describer.complete(
             [RuntimeMessage(role="user", content=_W2_PROMPT, image_data_url=data_url)],

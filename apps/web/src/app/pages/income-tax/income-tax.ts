@@ -200,7 +200,7 @@ export class IncomeTax {
     const mediaType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/jpeg';
     const { data, error } = await this.api.scanW2({
       image_base64: base64,
-      image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp',
+      image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
     });
     this.scanning.set(false);
     if (error || !data) {

@@ -1026,6 +1026,13 @@ User report (2026-07-12): "Are you matching the W2 with add earner? They seem se
 - [x] Implement + web tests + deploy + verify + commit.
 - [x] Follow-up (user question 2026-07-12: "Will ai be aware of my w2 and earner?"): the earner was fully in the `get_income_and_tax` payload but the W2 rode along only as a prose assumption line (wages + withholding RATE — the exact Box 2 dollar amount was never structured data). Per the spec-kit tools rule, each earner in the tool payload now carries `rsu_next_vest_date`, `bonus_month`, and a structured `last_year_w2` (year, Box 1 wages, Box 2 federal withheld), and the tool description names W2s and withholding so the model selects it for those questions.
 
+## M77: PDF W2 Upload
+
+User report (2026-07-12): "Can I upload pdf w2? It won't let me select" — payroll providers deliver W2s as PDF downloads, but the scan only accepted camera images (`accept="image/*"` in the picker, JPEG/PNG/WebP in the contract) because the vision model reads pixels, not PDF bytes.
+
+- [x] Spec gate: `scan-w2` accepts `application/pdf` (contract enum + schema). The API rasterizes the FIRST page on-box (pypdfium2, ~2x-scale PNG) and feeds that image to the same vision describer — the PDF is processed in memory, nothing new is stored, and the confirm-before-save rule (M73/M76) is unchanged. An unreadable/encrypted/empty PDF (or invalid base64) returns 422 with a clear message. The web file picker accepts images AND PDFs and the scan-row copy says photo or PDF.
+- [x] Implement + tests (an fpdf2-generated W2 PDF through the endpoint with a stub describer asserting the model receives a PNG data URL; a corrupt PDF → 422) + contract + client + deploy + live verify + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
