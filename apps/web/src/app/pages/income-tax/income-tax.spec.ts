@@ -201,6 +201,60 @@ describe('IncomeTax', () => {
     expect(apiMock.setIncomeOverride).toHaveBeenCalledWith('t9', 'include');
   });
 
+  it('puts the W2 scan first in the add-earner flow and prefills without saving (M76)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      scanW2: vi.fn().mockResolvedValue(
+        response({
+          year: 2025,
+          employer: 'ACME CORP',
+          wages_minor: 38_541_260,
+          federal_withheld_minor: 7_890_315,
+          note: 'Read by the on-box photo model — CONFIRM every value.',
+        }),
+      ),
+      createIncomeEarner: vi.fn(),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const form = host.querySelector('.earner-form') as HTMLElement;
+    // The scan row is the first element, and the W2 fields sit above the
+    // compensation fields — the scan reads as the on-ramp, not an appendix.
+    expect(form.firstElementChild?.classList.contains('earner-form__scan-row')).toBe(true);
+    const w2Box = form.querySelector('.earner-form__w2') as HTMLElement;
+    const baseInput = form.querySelector('input[name=earnerBase]') as HTMLElement;
+    expect(w2Box.compareDocumentPosition(baseInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(form.textContent).toContain('Nothing is saved until you press');
+
+    const fileInput = form.querySelector('.earner-form__scan input[type=file]') as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', {
+      value: [new File(['w2'], 'w2.jpg', { type: 'image/jpeg' })],
+    });
+    fileInput.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('CONFIRM every value');
+    });
+
+    // Scan prefilled the form as candidates…
+    const cmp = fixture.componentInstance as unknown as {
+      earnerForm: { label: string; w2Year: number | null; w2Wages: number | null; w2Withheld: number | null };
+    };
+    expect(cmp.earnerForm.label).toBe('ACME CORP');
+    expect(cmp.earnerForm.w2Year).toBe(2025);
+    expect(cmp.earnerForm.w2Wages).toBeCloseTo(385_412.6);
+    expect(cmp.earnerForm.w2Withheld).toBeCloseTo(78_903.15);
+    // …and the guided next step is shown, but NOTHING was saved.
+    expect(host.textContent).toContain('Review the fields below, then press');
+    expect(apiMock.createIncomeEarner).not.toHaveBeenCalled();
+  });
+
   it('saves tax settings and recalculates', async () => {
     const apiMock = {
       getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),

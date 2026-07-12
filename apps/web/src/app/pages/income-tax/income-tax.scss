@@ -371,6 +371,22 @@
   }
 }
 
+// M76: the scan is the first step of the flow — button + the prefill promise.
+.earner-form__scan-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.earner-form__scan-hint {
+  flex: 1;
+  min-width: 14rem;
+  font-size: 0.85rem;
+  color: #5b6472;
+}
+
 .earner-form__w2 {
   grid-column: 1 / -1;
   border: 1px dashed #ccd2da;
@@ -378,13 +394,8 @@
   padding: 0.75rem;
 }
 
-.earner-form__w2-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
+.earner-form__w2-title {
   font-size: 0.85rem;
-  flex-wrap: wrap;
 }
 
 .earner-form__scan {
@@ -393,11 +404,14 @@
   background: var(--color-accent);
   color: white;
   font-weight: 600;
-  padding: 0.35rem 0.7rem;
+  padding: 0.45rem 0.8rem;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .earner-form__scan-note {
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: 0.8rem;
   color: #8a6d1a;
   background: #fff7e6;
