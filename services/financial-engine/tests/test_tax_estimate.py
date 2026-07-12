@@ -119,6 +119,27 @@ def test_california_single_100k_matches_hand_computation() -> None:
     assert any("2025 FTB brackets" in a for a in result.assumptions)
 
 
+def test_massachusetts_single_100k_matches_hand_computation() -> None:
+    # M81, 2026 DOR parameters.
+    # MA taxable = 100,000 - 4,400 exemption - 2,000 FICA deduction = 93,600
+    # tax = 5% * 93,600 = 4,680.00 (below the surtax threshold)
+    result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="MA")
+
+    assert result.outputs["state_income_tax"] == Money(468_000, "USD")
+    assert any("Massachusetts" in a and "PFML" in a for a in result.assumptions)
+
+
+def test_massachusetts_surtax_applies_above_the_indexed_threshold() -> None:
+    # married_joint gross 1,500,000:
+    # taxable = 1,500,000 - 8,800 - 4,000 = 1,487,200
+    # tax = 5% * 1,487,200 + 4% * (1,487,200 - 1,107,750)
+    #     = 74,360 + 15,178 = 89,538
+    result = estimate_annual_tax(Money(150_000_000, "USD"), "married_joint", state="MA")
+
+    assert result.outputs["state_income_tax"] == Money(8_953_800, "USD")
+    assert any("1,107,750" in a for a in result.assumptions)
+
+
 def test_no_wage_tax_state_is_zero_with_note() -> None:
     result = estimate_annual_tax(Money(10_000_000, "USD"), "single", state="TX")
 

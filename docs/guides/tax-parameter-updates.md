@@ -42,13 +42,20 @@ arrive latest — late December.
    `_CA_STANDARD_DEDUCTION`, and the year named in the note inside
    `_california_tax_minor`. CA tables lag the federal year by one — use the
    latest published and say so in the note.
-5. **No-wage-tax states** — confirm `NO_WAGE_TAX_STATES` is still accurate
+5. **Massachusetts** — the DOR's next-year Form 1-ES/2-ES instructions
+   (search mass.gov for "Form 2-ES <year>") state the indexed 4% surtax
+   threshold → `_MA_SURTAX_THRESHOLD`. The 5% rate, personal exemptions
+   ($4,400/$8,800/$6,800), and the $2,000-per-person FICA deduction are
+   statutory and have been stable — verify, don't assume. Note: mass.gov
+   blocks non-browser fetches; open the pages in a browser if scripted
+   fetching fails.
+6. **No-wage-tax states** — confirm `NO_WAGE_TAX_STATES` is still accurate
    (states do occasionally add or repeal income taxes).
-6. Bump `TAX_YEAR`, update the source citations in the module header
+7. Bump `TAX_YEAR`, update the source citations in the module header
    comment, and update the hand-computed expectations in
    `services/financial-engine/tests/test_tax_estimate.py` (the comments show
    the arithmetic to redo) and any API tests that assert dollar amounts.
-7. Run both suites (`services/financial-engine`, `apps/api`), deploy, and
+8. Run both suites (`services/financial-engine`, `apps/api`), deploy, and
    record the refresh in `docs/specs/12-implementation-tasks.md`.
 
 ## Verification discipline
