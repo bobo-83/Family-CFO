@@ -87,8 +87,44 @@
 
   @if (canWrite()) {
     <details class="earner-form-wrap" [open]="!analysis()?.profile">
-      <summary>Add an earner</summary>
+      <summary>Add an earner (or scan a W2)</summary>
       <form class="earner-form" (ngSubmit)="addEarner()">
+        <div class="earner-form__scan-row">
+          <label class="earner-form__scan">
+            {{ scanning() ? 'Reading…' : '📷 Scan last year&#8217;s W2' }}
+            <input type="file" accept="image/*" (change)="onW2Selected($event)" hidden />
+          </label>
+          <span class="earner-form__scan-hint">
+            Fastest start: the scan prefills this form — employer, year, Box 1
+            and Box 2. Nothing is saved until you press &ldquo;Add
+            earner&rdquo;.
+          </span>
+        </div>
+        @if (scanNote(); as note) {
+          <p class="earner-form__scan-note">
+            {{ note }} Review the fields below, then press &ldquo;Add
+            earner&rdquo;.
+          </p>
+        }
+
+        <div class="earner-form__w2">
+          <span class="earner-form__w2-title">Last year's W2 (optional — calibrates the estimate)</span>
+          <div class="earner-form__w2-fields">
+            <label>
+              <span>Year</span>
+              <input type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
+            </label>
+            <label>
+              <span>Box 1 wages (USD)</span>
+              <input type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
+            </label>
+            <label>
+              <span>Box 2 federal withheld (USD)</span>
+              <input type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
+            </label>
+          </div>
+        </div>
+
         <label>
           <span>Name / label</span>
           <input type="text" [(ngModel)]="earnerForm.label" name="earnerLabel" />
@@ -123,33 +159,6 @@
           <span>Bonus month (1–12)</span>
           <input type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
         </label>
-
-        <div class="earner-form__w2">
-          <div class="earner-form__w2-head">
-            <span>Last year's W2 (optional — calibrates the estimate)</span>
-            <label class="earner-form__scan">
-              {{ scanning() ? 'Reading…' : '📷 Scan W2' }}
-              <input type="file" accept="image/*" (change)="onW2Selected($event)" hidden />
-            </label>
-          </div>
-          @if (scanNote(); as note) {
-            <p class="earner-form__scan-note">{{ note }}</p>
-          }
-          <div class="earner-form__w2-fields">
-            <label>
-              <span>Year</span>
-              <input type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
-            </label>
-            <label>
-              <span>Box 1 wages (USD)</span>
-              <input type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
-            </label>
-            <label>
-              <span>Box 2 federal withheld (USD)</span>
-              <input type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
-            </label>
-          </div>
-        </div>
 
         <button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">
           {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
