@@ -36,9 +36,9 @@
 
   <h2>Compensation profile</h2>
   <p class="page-hint">
-    Declare each earner's pay — base, RSU value and vesting, bonus — and the
-    tax estimate uses these numbers directly instead of guessing from
-    deposits. Best for RSU-heavy pay.
+    Declare each earner's pay — base, RSU value and vesting, bonus — all as
+    pre-tax (gross) amounts, and the tax estimate uses these numbers directly
+    instead of guessing from deposits. Best for RSU-heavy pay.
   </p>
   @if (analysis()?.profile; as profile) {
     <div class="earner-list">
@@ -72,7 +72,12 @@
       Expected annual gross: <strong>{{ formatMoney(profile.expected_annual_gross) }}</strong>
     </p>
     @if (profile.expected_events.length > 0) {
-      <h3 class="earner-events-title">Upcoming income</h3>
+      <h3 class="earner-events-title">Upcoming income (pre-tax)</h3>
+      <p class="page-hint">
+        Amounts are before tax — for RSU vests, brokers typically sell or
+        withhold shares for taxes at vest, so the deposit that lands will be
+        smaller.
+      </p>
       <ul class="earner-events">
         @for (event of profile.expected_events; track event.label + event.date) {
           <li>
@@ -139,7 +144,7 @@
           <input type="number" min="0" [(ngModel)]="earnerForm.baseSalary" name="earnerBase" />
         </label>
         <label>
-          <span>RSU value (USD/yr)</span>
+          <span>RSU value (USD/yr, pre-tax)</span>
           <input type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
         </label>
         <label>
