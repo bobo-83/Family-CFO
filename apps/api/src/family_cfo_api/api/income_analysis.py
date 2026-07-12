@@ -548,8 +548,13 @@ def parse_w2_scan(text: str) -> W2ScanResult:
     )
 
 
-def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
-    """M77: rasterize page 1 on-box — the vision model reads pixels, not PDF bytes."""
+# M78: some providers put a cover sheet or instructions before the actual W-2;
+# scanning is capped so a huge PDF can't hold the vision model for minutes.
+_W2_PDF_MAX_PAGES = 4
+
+
+def pdf_page_pngs(pdf_bytes: bytes, max_pages: int = _W2_PDF_MAX_PAGES) -> list[bytes]:
+    """M77: rasterize pages on-box — the vision model reads pixels, not PDF bytes."""
     import io
 
     import pypdfium2 as pdfium
@@ -557,7 +562,12 @@ def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
     try:
         document = pdfium.PdfDocument(pdf_bytes)
         try:
-            image = document[0].render(scale=2.0).to_pil()
+            pages = []
+            for index in range(min(len(document), max_pages)):
+                image = document[index].render(scale=2.0).to_pil()
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                pages.append(buffer.getvalue())
         finally:
             document.close()
     except Exception as exc:
@@ -565,9 +575,12 @@ def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
             status_code=422,
             detail="The PDF could not be read (encrypted or empty?) — try a photo instead.",
         ) from exc
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    if not pages:
+        raise HTTPException(
+            status_code=422,
+            detail="The PDF has no pages — try a photo instead.",
+        )
+    return pages
 
 
 @router.post(
@@ -595,32 +608,49 @@ async def scan_w2(
     from family_cfo_api.ai_runtime_selection import select_vision_describer
 
     # PDF handling first: a 422 here must not leak an un-closed describer.
-    image_base64 = payload.image_base64
-    media_type: str = payload.image_media_type
-    if media_type == "application/pdf":
+    if payload.image_media_type == "application/pdf":
         try:
             pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
-        image_base64 = base64.b64encode(pdf_first_page_png(pdf_bytes)).decode("ascii")
-        media_type = "image/png"
+        data_urls = [
+            "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+            for png in pdf_page_pngs(pdf_bytes)
+        ]
+    else:
+        data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
 
     describer, source = select_vision_describer(engine, session.household_id)
     if describer is None:
         raise HTTPException(status_code=503, detail="No vision model is configured")
-    data_url = f"data:{media_type};base64,{image_base64}"
     try:
-        completion = describer.complete(
-            [RuntimeMessage(role="user", content=_W2_PROMPT, image_data_url=data_url)],
-            temperature=0.0,
-            max_tokens=200,
-        )
+        # M78: try each page until one reads as a W-2 (cover sheets and
+        # instruction pages parse to all-null and are skipped).
+        result = None
+        for page_index, data_url in enumerate(data_urls):
+            completion = describer.complete(
+                [RuntimeMessage(role="user", content=_W2_PROMPT, image_data_url=data_url)],
+                temperature=0.0,
+                max_tokens=200,
+            )
+            result = parse_w2_scan(completion.text)
+            if result.wages_minor is not None or result.federal_withheld_minor is not None:
+                if page_index > 0:
+                    result.note = f"Read from page {page_index + 1} of the PDF. {result.note}"
+                return result
     except RuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Vision model unavailable") from exc
     finally:
         describer.close()
     del source  # attribution not persisted; the scan stores nothing
-    return parse_w2_scan(completion.text)
+    if result is None:  # unreachable: there is always at least one image
+        raise HTTPException(status_code=422, detail="Nothing to scan")
+    if len(data_urls) > 1:
+        result.note = (
+            f"No W-2 amounts found on the first {len(data_urls)} pages of the "
+            "PDF — enter values manually."
+        )
+    return result
 
 
 @router.post(
