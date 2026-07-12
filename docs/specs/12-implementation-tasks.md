@@ -1068,6 +1068,60 @@ User request (2026-07-12): "This input should have selected the right state and 
 - [x] Spec gate: every US state + DC produces a state-tax figure. (a) The 9 no-wage-tax states stay $0-with-note; CA and MA keep their primary-source models. (b) The remaining 40 states + DC get a generic bracket engine driven by a data table transcribed from the Tax Foundation's 2026 State Individual Income Tax Rates and Brackets compilation (the standard annual survey): rates/brackets per filing status (single/married; HoH approximated with single, noted), the basic standard deduction plus personal exemption where it is an income offset, and the flat personal CREDIT where that is the state's mechanism (AR/DE/IA/NE/OR/UT). (c) Honesty notes: every table-driven estimate says it is a compilation-based approximation (other credits, phase-outs, recapture, and local/county income taxes not modeled); states where local income taxes are material (MD counties, NYC/Yonkers, OH municipalities, PA locals, IN counties) carry an explicit extra warning; CT's phasing-out exemption is deliberately NOT applied (conservative). (d) The unmodeled fallback remains only for unknown codes; the yearly-update guide gains the compilation as the refresh source for these states.
 - [x] Implement + tests (51-jurisdiction coverage sweep + hand computations incl. a credit state and bracket-doubling) + deploy + live verify + commit.
 
+## iOS App Roadmap (planned 2026-07-12; spec: `08-mobile-spec.md`, voice: ADR 0018)
+
+User direction: advisor chat first (with picture/PDF/CSV/spreadsheet/text attachments and voice in/out), then the rest of the phone-native surface. Feature inventory reviewed M1–M82; operator features (AI runtime, monitoring, backups, imports admin, categories) deliberately stay web-only. Implementation is blocked on macOS/Xcode hardware — each milestone below is spec-gated and ready to start the day a Mac is available. Standing non-goal: VIDEO attachments (the on-box models cannot process video; photos + PDFs cover receipts/statements/tax forms).
+
+## M83: iOS Foundation
+
+- [ ] Spec gate: SwiftUI app (iOS 18+ target) under `apps/ios`. (a) Swift client generated from `shared/openapi/family-cfo.v1.yaml` (contract-first, same discipline as Angular) + a CI drift check (closes the long-open "Swift client generation check" task). (b) QR pairing: the dashboard QR carries base URL + server-certificate fingerprint + pairing secret; the app pins the fingerprint (no CA install), server issues a revocable device credential stored in the Keychain behind Face ID. (c) Remote access documented: configurable base URL; the supported off-LAN path is the household's own tailnet/VPN — the box is never internet-exposed (ADR 0008). (d) Role-aware shell (owner/adult/viewer).
+- [ ] Implement + tests (client-gen check in CI; pairing/pinning unit tests) + verify on device + commit.
+
+## M84: iOS Advisor Chat v1
+
+- [ ] Spec gate: the flagship screen. Conversation list + chat against the existing grounded pipeline (`POST /chat/messages`): markdown rendering, history, memory and retrieval as-is. Attachments v1: images (camera/library; HEIC transcoded) through the existing vision path, and PDFs — the API generalizes the M77/M78 rasterize-pages approach from the W2 endpoint to chat attachments (pages → images → vision describer → grounded). No new data domain (spec-kit tools rule satisfied by reuse).
+- [ ] Implement + tests + live verify + commit.
+
+## M85: Data-File Chat Attachments (CSV / Spreadsheet / Text)
+
+- [ ] Spec gate: attaching a CSV, XLSX, or plain-text file to chat produces a bounded structured preview server-side (headers, row count, per-column numeric summaries, first N rows) that joins the prompt as grounded context — the model can answer about the file without hallucinating rows. Size caps per M18; NOTHING is written to household records unless the user separately runs an import. Applies to web chat too (shared endpoint).
+- [ ] Implement + tests + live verify + commit.
+
+## M86: iOS Voice v1 (On-Device Both Ways)
+
+- [ ] Spec gate: push-to-talk and hands-free modes. STT on the phone (`SpeechAnalyzer` iOS 26+, `SFSpeechRecognizer` fallback) — raw audio NEVER leaves the device; only the transcript hits the chat endpoint, so every grounded-numbers guarantee holds unchanged. Replies read aloud with `AVSpeechSynthesizer` (works offline, zero server infra). Editable transcript before send as an option; ADR 0018 records why speech-to-speech models are rejected.
+- [ ] Implement + tests + verify on device + commit.
+
+## M87: Natural Voice (On-Box Open-Source TTS)
+
+- [ ] Spec gate: a new optional `tts` compose service runs Kokoro-82M (Apache 2.0, ~82M params, faster than real time on CPU — cannot contend with the chat model's GPU), exposed only via the API: `POST /voice/tts` streams audio for sentence-chunked playback (time-to-first-audio, not batch). iOS plays the stream with barge-in (mic input interrupts playback) and degrades to `AVSpeechSynthesizer` whenever the service is absent. The engine is a replaceable seam; Chatterbox (MIT) is the designated upgrade for cloning/emotion. ADR 0018.
+- [ ] Implement + tests + live verify + commit.
+
+## M88: iOS Overview Dashboard
+
+- [ ] Spec gate: the daily-glance screen from the existing `GET /household` context: net worth + trend sparkline, goal-aware emergency-fund status, monthly cash flow, upcoming bills, budget alerts, goal progress, savings rate. Read-only v1; pull-to-refresh.
+- [ ] Implement + tests + verify on device + commit.
+
+## M89: iOS Camera Capture Flows
+
+- [ ] Spec gate: first-class camera buttons for (a) receipt capture → describe-then-ground into chat/records (existing endpoints), and (b) W2 scan → income-earner prefill (M73/M76 flow; confirm-before-save unchanged). Prefer on-device summarization (Vision framework / Foundation Models) per the 08-mobile-spec backlog note, falling back to the server vision model.
+- [ ] Implement + tests + verify on device + commit.
+
+## M90: iOS Review Queues
+
+- [ ] Spec gate: one-tap phone-sized decisions using existing endpoints — bill suggestions (confirm/dismiss, M58/M59) and income analysis (confirm/reject/add deposits, M61/M63). Badge counts on the tab.
+- [ ] Implement + tests + verify on device + commit.
+
+## M91: iOS Quick Transaction Categorization
+
+- [ ] Spec gate: swipe-to-categorize pending/uncategorized transactions (existing category + transaction PATCH endpoints); undo; role-gated to owner/adult.
+- [ ] Implement + tests + verify on device + commit.
+
+## M92: iOS System Integration
+
+- [ ] Spec gate: (a) home-screen widget: net worth + EF status (WidgetKit, reads cached last-known values; no background polling of the box beyond iOS budget). (b) App Intents/Siri: "Ask my CFO …" routes the spoken question into the chat pipeline. (c) Local notifications for upcoming bills computed on device from synced bill due dates — no push infrastructure, nothing leaves the LAN/tailnet.
+- [ ] Implement + tests + verify on device + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:
