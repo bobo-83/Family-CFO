@@ -234,7 +234,7 @@ async def test_state_setting_changes_the_tax_estimate(demo_client, demo_token) -
     tax = (await _analysis(demo_client, demo_token))["tax"]
     assert tax["state"] == "CA"
     assert tax["state_income_tax"] is not None
-    assert any("2024 FTB brackets" in a for a in tax["assumptions"])
+    assert any("2025 FTB brackets" in a for a in tax["assumptions"])
 
     bad = await demo_client.put(
         "/api/v1/income/analysis/settings",
