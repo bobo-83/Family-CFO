@@ -530,6 +530,12 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
                 }
                 for event in analysis.profile.expected_events
             ],
+            "note": (
+                "All profile amounts and upcoming income events are PRE-TAX "
+                "(gross). RSU taxes are typically withheld at vest (shares "
+                "sold to cover), so the cash or shares received are worth "
+                "less than the vest value."
+            ),
         }
     return {
         "compensation_profile": profile_out,

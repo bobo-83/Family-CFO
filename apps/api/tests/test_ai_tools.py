@@ -216,6 +216,8 @@ def test_income_tool_carries_structured_earner_and_w2(demo_engine: Engine) -> No
     assert w2["box2_federal_withheld"]["amount_minor"] == 7_890_315
     # The effective-rate calibration line rides along in the assumptions too.
     assert any("W2" in a for a in result["assumptions"])
+    # M79: the model is told profile amounts and vest events are pre-tax.
+    assert "PRE-TAX" in result["compensation_profile"]["note"]
 
 
 def test_bills_tool_lists_bills_and_upcoming(demo_engine: Engine) -> None:

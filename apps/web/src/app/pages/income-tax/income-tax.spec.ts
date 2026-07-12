@@ -257,6 +257,49 @@ describe('IncomeTax', () => {
     expect(apiMock.createIncomeEarner).not.toHaveBeenCalled();
   });
 
+  it('labels the compensation profile as pre-tax (M79)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(
+        response(
+          analysis({
+            profile: {
+              earners: [
+                {
+                  id: 'e1',
+                  label: 'Alex',
+                  base_salary: { amount_minor: 20_000_000, currency: 'USD' },
+                  rsu_annual: { amount_minor: 16_000_000, currency: 'USD' },
+                  rsu_frequency: 'quarterly',
+                  bonus_percent: 25,
+                },
+              ],
+              expected_annual_gross: { amount_minor: 41_000_000, currency: 'USD' },
+              expected_events: [
+                {
+                  date: '2026-08-12',
+                  label: 'Alex RSU vest',
+                  amount: { amount_minor: 4_000_000, currency: 'USD' },
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Upcoming income (pre-tax)');
+    expect(host.textContent).toContain('withhold shares for taxes at vest');
+    expect(host.textContent).toContain('RSU value (USD/yr, pre-tax)');
+    expect(host.textContent).toContain('pre-tax (gross) amounts');
+  });
+
   it('saves tax settings and recalculates', async () => {
     const apiMock = {
       getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),

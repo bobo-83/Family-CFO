@@ -1040,6 +1040,13 @@ User request (2026-07-12): "Add the page handling" — some payroll providers pu
 - [x] Spec gate: the scan tries each PDF page in order (rasterized as in M77) until one yields W-2 amounts (Box 1 or Box 2 parsed), capped at 4 pages so a huge PDF cannot hold the vision model for minutes. A hit on a later page prepends "Read from page N of the PDF." to the confirm note; no page yielding amounts returns the all-null candidates with a "no W-2 amounts found on the first N pages" note. Photos and single-page PDFs behave exactly as before; confirm-before-save unchanged; no contract change (the note field carries the page information).
 - [x] Implement + tests (cover-sheet-then-W2 PDF resolves from page 2 with the page note and two model calls; an all-cover-pages PDF returns the manual-entry note; the empty PDF 422) + deploy + live verify + commit.
 
+## M79: Pre-Tax Labeling for the Compensation Profile
+
+User correction (2026-07-12): "RSU is pre tax" — the tax math was already right (declared gross = base + RSU + bonus, taxed with no gross-up), but nothing SAID so: the form field, the "Upcoming income" vest amounts, the tax assumptions, and the advisor's tool payload all showed gross numbers unlabeled, while the household's actual brokerage deposits arrive AFTER sell-to-cover withholding and therefore always look smaller than the declared value.
+
+- [x] Spec gate: label the pre-tax nature everywhere the profile surfaces. (a) Web: the RSU field reads "RSU value (USD/yr, pre-tax)", the events section reads "Upcoming income (pre-tax)" with a hint that brokers typically sell/withhold shares for taxes at vest so the deposit lands smaller. (b) API: the tax assumptions gain an explicit line that declared amounts are pre-tax and RSU withholding happens at vest. (c) Advisor: the `get_income_and_tax` compensation_profile carries a note that all profile amounts and upcoming events are pre-tax so the model caveats correctly. No behavioral change to the tax estimate; no contract change.
+- [x] Implement + tests + deploy + verify + commit.
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:

@@ -434,6 +434,8 @@ async def test_declared_profile_drives_the_tax_estimate(demo_client, demo_token)
     assert tax["net_income"] is None  # declared amounts ARE gross — no gross-up
     assert any("DECLARED compensation profile" in a for a in tax["assumptions"])
     assert any("stock price" in a for a in tax["assumptions"])
+    # M79: the pre-tax nature of declared amounts is stated, not implied.
+    assert any("PRE-TAX" in a and "withheld at vest" in a for a in tax["assumptions"])
     # Declared profile removes the deposit-coverage caveat from the estimate.
     assert body["coverage_warning"] is None
     # Deposit-based rollup stays alongside as observed income.
