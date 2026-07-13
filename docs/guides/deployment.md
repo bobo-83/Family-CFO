@@ -322,6 +322,38 @@ which is **multicast**, and multicast does not cross a routed WireGuard tunnel. 
 away from home the phone shows as `unavailable` and cannot be deployed to, even
 though it reaches the box perfectly well over the VPN.
 
+### What remote (over-the-VPN) iOS patching requires
+
+All of these must hold. If one is missing the install silently does nothing —
+which is why the script verifies what it can and this list exists.
+
+| # | Requirement | How to check / get it |
+|---|---|---|
+| 1 | **The Mac can reach the box over SSH** — it builds the app and publishes it | `scripts/setup-ssh.sh --check` |
+| 2 | **The phone can reach the box over HTTPS** — WiFi, WireGuard, or any tunnel that routes to it | Open `https://<box>:8443` in Safari on the phone |
+| 3 | **The phone's UDID is in the provisioning profile** | True automatically if Xcode has ever deployed to it over a cable. A new phone must be plugged into the Mac once |
+| 4 | **An Apple signing identity on the Mac** (`Apple Development` is enough — an Apple *Distribution* certificate is **not** needed) | `security find-identity -v -p codesigning` |
+| 5 | **Developer Mode is ON on the phone** — required for development-signed apps | Settings → Privacy & Security → Developer Mode |
+| 6 | **The phone trusts the box's TLS certificate** — iOS refuses an OTA manifest over an untrusted HTTPS cert. One-time | See the trust steps below; the script publishes the certificate for you |
+| 7 | **The box's web tier serves `/ota/`** | Shipped in `docker/web-nginx.conf` + the `ios_ota` volume; `scripts/patch.sh web` if it's an older box |
+
+**Account tier caveat.** The app is signed with a *development* identity, so how
+long it keeps working depends on the Apple account behind it: a **paid** Developer
+Program membership gives a 1-year provisioning profile, while a **free** personal
+team gives 7 days — after which the app refuses to launch until you republish and
+reinstall. Nothing else changes: the flow below is identical either way. Check
+what you have with:
+
+```sh
+security cms -D -i ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/*.mobileprovision \
+  | plutil -extract ExpirationDate raw -   # ~1 year = paid, ~7 days = free
+```
+
+Note the box does **not** need to be exposed to the internet, and no Apple service
+is involved in the install — the phone downloads the app from your own hardware.
+
+### Using it
+
 The fix is to stop pushing and let the phone **pull**:
 
 ```sh
