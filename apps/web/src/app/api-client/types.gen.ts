@@ -652,6 +652,14 @@ export type ChatRequest = {
      */
     image_base64?: string;
     image_media_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+    /**
+     * Optional attached data file (CSV / spreadsheet / text), base64. The server builds a bounded grounded preview for the prompt; the file is never stored (M85).
+     */
+    data_file_base64?: string;
+    /**
+     * Filename of the attached data file (drives format detection)
+     */
+    data_file_name?: string;
 };
 
 export type ChatResponse = {

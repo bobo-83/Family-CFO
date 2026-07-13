@@ -1092,8 +1092,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M85: Data-File Chat Attachments (CSV / Spreadsheet / Text)
 
-- [ ] Spec gate: attaching a CSV, XLSX, or plain-text file to chat produces a bounded structured preview server-side (headers, row count, per-column numeric summaries, first N rows) that joins the prompt as grounded context — the model can answer about the file without hallucinating rows. Size caps per M18; NOTHING is written to household records unless the user separately runs an import. Applies to web chat too (shared endpoint).
-- [ ] Implement + tests + live verify + commit.
+- [x] Spec gate: attaching a CSV, XLSX, or plain-text file to chat produces a bounded structured preview server-side (headers, row count, per-column numeric summaries, first N rows) that joins the prompt as grounded context — the model can answer about the file without hallucinating rows. Size caps per M18; NOTHING is written to household records unless the user separately runs an import. Applies to web chat too (shared endpoint).
+- [x] Implemented (server + web, no Mac required, 2026-07-12): `chat_attachments.build_data_file_preview` (new module) handles `.csv/.tsv` (stdlib csv with dialect sniffing), `.xlsx/.xlsm` (openpyxl, read-only, first sheet), and `.txt/.md/.log` — bounded to 5k rows scanned / 15 shown / 40 cols / 4k chars, and never raises (corrupt files degrade to a note). `ChatRequest` gains `data_file_base64` + `data_file_name`; the endpoint builds the preview, injects it into the user turn, and adds its numbers to the guardrail's known values (the file is the user's own data — grounded, never stored, distinct from M7 imports). Web chat gains a 📎 Files picker (no `capture`, so it opens Files not the camera) with a preview chip. iOS inherits the finished endpoint.
+- [ ] iOS client file-attach UI (blocked on macOS).
 
 ## M86: iOS Voice v1 (On-Device Both Ways)
 
