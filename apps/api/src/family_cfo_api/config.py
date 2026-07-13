@@ -81,6 +81,9 @@ class Settings:
     # M32: single-tenant by default — POST /households refuses once a household
     # exists. Opt out for deliberate multi-household deployments.
     allow_multiple_households: bool = False
+    # M83a: path to the deployment's TLS certificate (PEM). When set, pairing
+    # QR payloads carry its SHA-256 fingerprint so the iOS app can pin it.
+    tls_cert_path: str = ""
 
     def allowed_ai_base_urls(self) -> tuple[str, ...]:
         """The effective AI base_url allowlist: configured set, else the default."""
@@ -151,6 +154,7 @@ class Settings:
             allow_multiple_households=_env_bool(
                 "FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS", cls.allow_multiple_households
             ),
+            tls_cert_path=os.getenv("FAMILY_CFO_TLS_CERT_PATH", cls.tls_cert_path),
         )
 
 

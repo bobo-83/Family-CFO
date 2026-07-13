@@ -1077,6 +1077,13 @@ User direction: advisor chat first (with picture/PDF/CSV/spreadsheet/text attach
 - [ ] Spec gate: SwiftUI app (iOS 18+ target) under `apps/ios`. (a) Swift client generated from `shared/openapi/family-cfo.v1.yaml` (contract-first, same discipline as Angular) + a CI drift check (closes the long-open "Swift client generation check" task). (b) QR pairing: the dashboard QR carries base URL + server-certificate fingerprint + pairing secret; the app pins the fingerprint (no CA install), server issues a revocable device credential stored in the Keychain behind Face ID. (c) Remote access documented: configurable base URL; the supported off-LAN path is the household's own tailnet/VPN — the box is never internet-exposed (ADR 0008). (d) Role-aware shell (owner/adult/viewer).
 - [ ] Implement + tests (client-gen check in CI; pairing/pinning unit tests) + verify on device + commit.
 
+### M83a: Dashboard Pairing Page (no Mac required — done ahead of M83)
+
+User request (2026-07-12): "do the things that do not need to be running on a Mac" — the M9 pairing API (session/QR payload/confirm/devices/revoke) never had a dashboard UI, and the QR payload lacked the certificate fingerprint M83 needs for pinning.
+
+- [x] Spec gate: (a) API — the pairing QR payload gains `certificate_sha256` (SHA-256 of the DER cert), read from `FAMILY_CFO_TLS_CERT_PATH`; compose mounts the web tier's `web_certs` volume into the api read-only, so self-signed and bring-your-own certs both work; null when unreadable (no contract change — the payload is an opaque string). (b) Web — new `/devices` page (Admin nav): owners/adults generate a one-time 10-minute pairing QR (rendered as SVG via the `qrcode` package) with the fingerprint displayed for manual verification; the paired-devices list shows created/last-seen/revoked and owners can revoke.
+- [x] Implement + tests (fingerprint unit + payload integration; 3 page tests incl. role gating) + deploy + verify + commit.
+
 ## M84: iOS Advisor Chat v1
 
 - [ ] Spec gate: the flagship screen. Conversation list + chat against the existing grounded pipeline (`POST /chat/messages`): markdown rendering, history, memory and retrieval as-is. Attachments v1: images (camera/library; HEIC transcoded) through the existing vision path, and PDFs — the API generalizes the M77/M78 rasterize-pages approach from the W2 endpoint to chat attachments (pages → images → vision describer → grounded). No new data domain (spec-kit tools rule satisfied by reuse).
