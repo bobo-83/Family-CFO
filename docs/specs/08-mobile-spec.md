@@ -90,7 +90,11 @@ Ordered by milestone:
 - Long-term storage of household financial data
 - Acting as the system of record
 - Operator features (AI runtime management, monitoring, backups, imports
-  administration, category management) — these stay on the web dashboard
+  administration, category *management* — rename/delete/reorganize) — these stay
+  on the web dashboard. **Exception (M91a):** *creating* a category inline while
+  categorizing is allowed on the phone (the `createCategory` endpoint), because
+  a categorize screen with no categories and no way to add one is a dead end;
+  full management still lives on the dashboard.
 
 ## Networking and trust
 

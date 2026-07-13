@@ -9,6 +9,10 @@ protocol CategorizeAPI: Sendable {
     func categories() async throws -> [Components.Schemas.Category]
     /// Assign a category. `nil` clears it (the undo path).
     func setCategory(transactionID: String, categoryID: String?) async throws
+    /// Create a category inline while categorizing, and return it (M91a). Full
+    /// category management still lives on the dashboard; this is just the
+    /// on-ramp so the phone isn't a dead end with no categories defined.
+    func createCategory(name: String) async throws -> Components.Schemas.Category
 }
 
 struct LiveCategorizeAPI: CategorizeAPI {
@@ -61,6 +65,35 @@ struct LiveCategorizeAPI: CategorizeAPI {
             return
         case .undocumented(let status, _):
             throw APIError.server(status)
+        }
+    }
+
+    func createCategory(name: String) async throws -> Components.Schemas.Category {
+        let request = Components.Schemas.CategoryCreateRequest(name: name)
+        switch try await client.createCategory(.init(body: .json(request))) {
+        case .created(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .conflict:
+            // A category by that name already exists — surface it plainly so the
+            // user knows to pick it rather than think the tap failed.
+            throw CategorizeError.categoryExists(name)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+}
+
+enum CategorizeError: Error, LocalizedError, Equatable {
+    case categoryExists(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .categoryExists(let name):
+            return "A category named “\(name)” already exists — pick it from the list."
         }
     }
 }

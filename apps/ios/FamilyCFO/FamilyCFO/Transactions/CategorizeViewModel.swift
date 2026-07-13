@@ -65,6 +65,33 @@ final class CategorizeViewModel {
         }
     }
 
+    /// Create a category and add it to the local list (M91a). Returns it so the
+    /// caller can immediately categorize the transaction that prompted it.
+    @discardableResult
+    func createCategory(named name: String) async -> Components.Schemas.Category? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        // If it already exists locally, reuse it rather than round-trip to a 409.
+        if let existing = categories.first(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return existing
+        }
+        do {
+            let category = try await api.createCategory(name: trimmed)
+            categories.append(category)
+            categories.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            errorMessage = nil
+            return category
+        } catch {
+            errorMessage = Self.describe(error)
+            return nil
+        }
+    }
+
+    private static func describe(_ error: Error) -> String {
+        if let e = error as? CategorizeError { return e.errorDescription ?? "\(e)" }
+        return ChatViewModel.describe(error)
+    }
+
     func undoLast() async {
         guard let action = lastAction else { return }
         lastAction = nil
