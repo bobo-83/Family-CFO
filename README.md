@@ -125,6 +125,8 @@ re-downloaded:
 
 ```bash
 scripts/patch.sh           # rebuild api + worker + web (or e.g. `scripts/patch.sh web`)
+scripts/patch.sh ios       # build + install the iPhone app onto a paired device over WiFi
+scripts/patch.sh api ios   # ship a server change and the phone that needs it, box first
 ```
 
 See [docker/README.md](./docker/README.md) for the development override, volumes,
