@@ -12,9 +12,15 @@ final class OverviewViewModel {
     var errorMessage: String?
 
     private let api: HouseholdAPI
+    private let notifications: BillNotificationScheduler?
 
-    init(api: HouseholdAPI) {
+    init(
+        api: HouseholdAPI,
+        notifications: BillNotificationScheduler? = BillNotificationScheduler(
+            scheduler: SystemNotificationScheduler())
+    ) {
         self.api = api
+        self.notifications = notifications
     }
 
     /// `refreshable` and `task` both call this; the guard keeps a pull-to-
@@ -24,8 +30,14 @@ final class OverviewViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            context = try await api.context()
+            let context = try await api.context()
+            self.context = context
             errorMessage = nil
+            // Refresh bill reminders from the freshly-loaded context (M92c) —
+            // no separate poll of the box; this data was already fetched.
+            if let notifications, let bills = context.upcomingBills {
+                await notifications.refresh(from: bills)
+            }
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
