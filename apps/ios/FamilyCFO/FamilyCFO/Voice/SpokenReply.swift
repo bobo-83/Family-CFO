@@ -31,4 +31,24 @@ enum SpokenReply {
             of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// Splits a spoken answer into sentence-sized chunks (M87). The on-box
+    /// voice synthesizes one sentence while the next is still being fetched,
+    /// so the user waits for ONE sentence to synthesize rather than the whole
+    /// answer — the difference between a natural voice and a slow one.
+    static func sentences(_ text: String) -> [String] {
+        var chunks: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: [.bySentences]) {
+            substring, _, _, _ in
+            let sentence = substring?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !sentence.isEmpty {
+                chunks.append(sentence)
+            }
+        }
+        if chunks.isEmpty {
+            let whole = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return whole.isEmpty ? [] : [whole]
+        }
+        return chunks
+    }
 }

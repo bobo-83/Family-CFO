@@ -2,13 +2,28 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The advisor chat screen (M84): grounded answers with confidence and
-/// warnings, image and PDF attachments through the server's vision path.
+/// The advisor chat screen: grounded answers with confidence and warnings,
+/// image and PDF attachments through the server's vision path (M84), and
+/// CSV / spreadsheet / text attachments through its data-file preview (M85).
 struct ChatView: View {
+    /// Exactly the formats the server's data-file preview parses (M85):
+    /// CSV/TSV, Excel workbooks, and plain text. Excel has no system UTType,
+    /// so it is resolved by extension; `.spreadsheet` is deliberately NOT used
+    /// because it would also offer Numbers files the server can't read.
+    static let dataFileContentTypes: [UTType] = [
+        .commaSeparatedText,
+        .tabSeparatedText,
+        .plainText,
+        UTType(filenameExtension: "xlsx"),
+        UTType(filenameExtension: "xlsm"),
+    ].compactMap { $0 }
+
+    @Environment(AppModel.self) private var model
     @State var viewModel: ChatViewModel
     @State private var draft = ""
     @State private var photoSelection: PhotosPickerItem?
     @State private var showingPDFImporter = false
+    @State private var showingDataFileImporter = false
     @State private var showingCamera = false
     @State private var attachmentError: String?
     @State private var dictationEngine: SpeechEngine?
@@ -38,7 +53,7 @@ struct ChatView: View {
                     api: viewModel.api,
                     conversationID: viewModel.conversationID,
                     engine: SpeechEngineFactory.make(),
-                    synthesizer: SpeechSynthesizerService()
+                    synthesizer: SpeechSynthesizerFactory.make(speechAudio: model.speechAudio)
                 )
             )
         }
@@ -52,6 +67,12 @@ struct ChatView: View {
             allowedContentTypes: [.pdf]
         ) { result in
             attachPDF(result)
+        }
+        .fileImporter(
+            isPresented: $showingDataFileImporter,
+            allowedContentTypes: Self.dataFileContentTypes
+        ) { result in
+            attachDataFile(result)
         }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
@@ -111,7 +132,7 @@ struct ChatView: View {
         VStack(spacing: 6) {
             if let attachment = viewModel.pendingAttachment {
                 HStack {
-                    Label(attachment.displayName, systemImage: attachment.mediaType == .applicationPdf ? "doc.richtext" : "photo")
+                    Label(attachment.displayName, systemImage: attachment.iconName)
                         .font(.caption)
                         .lineLimit(1)
                     Spacer()
@@ -176,6 +197,11 @@ struct ChatView: View {
             } label: {
                 Label("PDF", systemImage: "doc.richtext")
             }
+            Button {
+                showingDataFileImporter = true
+            } label: {
+                Label("Spreadsheet or CSV", systemImage: "tablecells")
+            }
         } label: {
             Image(systemName: "paperclip")
                 .font(.title3)
@@ -197,16 +223,35 @@ struct ChatView: View {
     }
 
     private func attachPDF(_ result: Result<URL, Error>) {
+        attachPickedFile(result, unreadable: "That PDF couldn't be read.") { data, name in
+            try AttachmentTranscoder.pdf(from: data, displayName: name)
+        }
+    }
+
+    /// CSV / spreadsheet / text (M85) — the server turns it into a bounded
+    /// grounded preview, so the answer cites real headers and sums.
+    private func attachDataFile(_ result: Result<URL, Error>) {
+        attachPickedFile(result, unreadable: "That file couldn't be read.") { data, name in
+            try AttachmentTranscoder.dataFile(from: data, displayName: name)
+        }
+    }
+
+    /// Files arrive from the importer security-scoped: the sandbox only grants
+    /// access between start/stop, so the bytes must be read inside that window.
+    private func attachPickedFile(
+        _ result: Result<URL, Error>,
+        unreadable: String,
+        transcode: (Data, String) throws -> ChatAttachment
+    ) {
         guard case .success(let url) = result else { return }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else {
-            attachmentError = "That PDF couldn't be read."
+            attachmentError = unreadable
             return
         }
         do {
-            viewModel.pendingAttachment = try AttachmentTranscoder.pdf(
-                from: data, displayName: url.lastPathComponent)
+            viewModel.pendingAttachment = try transcode(data, url.lastPathComponent)
         } catch {
             attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
         }

@@ -21,7 +21,7 @@ struct AttachmentTranscoderTests {
 
         let attachment = try AttachmentTranscoder.image(from: data, displayName: "Photo")
 
-        #expect(attachment.mediaType == .imageJpeg)
+        #expect(attachment.kind == .visual(.imageJpeg))
         #expect(attachment.data == data)
     }
 
@@ -47,7 +47,7 @@ struct AttachmentTranscoderTests {
 
         let attachment = try AttachmentTranscoder.pdf(from: data, displayName: "w2.pdf")
 
-        #expect(attachment.mediaType == .applicationPdf)
+        #expect(attachment.kind == .visual(.applicationPdf))
         #expect(attachment.displayName == "w2.pdf")
     }
 
@@ -56,6 +56,27 @@ struct AttachmentTranscoderTests {
 
         #expect(throws: AttachmentTranscoder.TranscodeError.pdfTooLarge(oversized.count)) {
             try AttachmentTranscoder.pdf(from: oversized, displayName: "big.pdf")
+        }
+    }
+
+    /// M85: data files go up verbatim, and the filename goes with them — the
+    /// server sniffs CSV vs XLSX vs text from the extension, so losing the name
+    /// would lose the format.
+    @Test func dataFilePassesThroughCarryingItsFilename() throws {
+        let data = Data("month,spend\nJan,412\n".utf8)
+
+        let attachment = try AttachmentTranscoder.dataFile(from: data, displayName: "spend.csv")
+
+        #expect(attachment.kind == .dataFile)
+        #expect(attachment.data == data)
+        #expect(attachment.displayName == "spend.csv")
+    }
+
+    @Test func dataFileOverTheCapIsRejected() {
+        let oversized = Data(count: AttachmentTranscoder.maxRawBytes + 1)
+
+        #expect(throws: AttachmentTranscoder.TranscodeError.dataFileTooLarge(oversized.count)) {
+            try AttachmentTranscoder.dataFile(from: oversized, displayName: "huge.xlsx")
         }
     }
 

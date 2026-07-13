@@ -1,10 +1,10 @@
 import Foundation
 import UIKit
 
-/// Normalizes picked attachments for `POST /chat/messages` (M84): images
-/// become bounded JPEGs (HEIC and oversized photos transcoded down), PDFs
-/// pass through with a size cap. The server's upload cap is 10 MB (M18);
-/// base64 inflates by 4/3, so raw payloads stay under 7 MB.
+/// Normalizes picked attachments for `POST /chat/messages`: images become
+/// bounded JPEGs (HEIC and oversized photos transcoded down), PDFs (M84) and
+/// data files (M85) pass through with a size cap. The server's upload cap is
+/// 10 MB (M18); base64 inflates by 4/3, so raw payloads stay under 7 MB.
 enum AttachmentTranscoder {
     static let maxRawBytes = 7_000_000
     static let maxImageDimension: CGFloat = 2048
@@ -13,6 +13,7 @@ enum AttachmentTranscoder {
         case undecodableImage
         case cannotEncodeUnderCap
         case pdfTooLarge(Int)
+        case dataFileTooLarge(Int)
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +23,8 @@ enum AttachmentTranscoder {
                 return "That image is too large to send, even after compression."
             case .pdfTooLarge(let bytes):
                 return "That PDF is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
+            case .dataFileTooLarge(let bytes):
+                return "That file is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
             }
         }
     }
@@ -31,7 +34,7 @@ enum AttachmentTranscoder {
     /// re-encoded as a bounded JPEG.
     static func image(from data: Data, displayName: String) throws -> ChatAttachment {
         if data.count <= maxRawBytes, let passthrough = passthroughMediaType(for: data) {
-            return ChatAttachment(data: data, mediaType: passthrough, displayName: displayName)
+            return ChatAttachment(data: data, kind: .visual(passthrough), displayName: displayName)
         }
         guard let image = UIImage(data: data) else {
             throw TranscodeError.undecodableImage
@@ -39,7 +42,8 @@ enum AttachmentTranscoder {
         let scaled = downscale(image, maxDimension: maxImageDimension)
         for quality in [0.8, 0.6, 0.4, 0.2] {
             if let jpeg = scaled.jpegData(compressionQuality: quality), jpeg.count <= maxRawBytes {
-                return ChatAttachment(data: jpeg, mediaType: .imageJpeg, displayName: displayName)
+                return ChatAttachment(
+                    data: jpeg, kind: .visual(.imageJpeg), displayName: displayName)
             }
         }
         throw TranscodeError.cannotEncodeUnderCap
@@ -49,7 +53,19 @@ enum AttachmentTranscoder {
         guard data.count <= maxRawBytes else {
             throw TranscodeError.pdfTooLarge(data.count)
         }
-        return ChatAttachment(data: data, mediaType: .applicationPdf, displayName: displayName)
+        return ChatAttachment(
+            data: data, kind: .visual(.applicationPdf), displayName: displayName)
+    }
+
+    /// Data files (M85) go up verbatim: the server parses CSV / XLSX / text
+    /// into a bounded grounded preview, so there is nothing to transcode
+    /// client-side — only the shared size cap to enforce. The filename rides
+    /// along because the server sniffs the format from its extension.
+    static func dataFile(from data: Data, displayName: String) throws -> ChatAttachment {
+        guard data.count <= maxRawBytes else {
+            throw TranscodeError.dataFileTooLarge(data.count)
+        }
+        return ChatAttachment(data: data, kind: .dataFile, displayName: displayName)
     }
 
     /// Sniffs the contract media types by magic bytes; HEIC returns nil so

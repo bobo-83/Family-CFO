@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Role-aware shell (M83d). Advisor chat is the flagship tab; operator
-/// features deliberately stay on the web dashboard (mobile spec
-/// non-responsibilities).
+/// Role-aware shell (M83d). Advisor chat is the flagship tab, with the M88
+/// daily-glance Overview beside it; operator features deliberately stay on the
+/// web dashboard (mobile spec non-responsibilities).
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
 
@@ -10,6 +10,9 @@ struct MainTabView: View {
         TabView {
             Tab("Advisor", systemImage: "bubble.left.and.text.bubble.right") {
                 ConversationListView()
+            }
+            Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
+                OverviewView()
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
