@@ -8,12 +8,21 @@ on:
 
 jobs:
   build-test:
-    runs-on: macos-15
+    # Needs Xcode 26 / the iOS 26 SDK: the M86 voice engine uses SpeechAnalyzer,
+    # which does not exist in earlier SDKs, so it is a COMPILE error on older
+    # Xcode even though the runtime is gated with `if #available(iOS 26.0, *)`.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | tail -1)"
+        # Newest Xcode on the runner rather than a pinned version, so this can't
+        # silently fall behind the SDK the app requires again.
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          echo "Selecting $newest"
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
 
       - name: Cache generator build
         uses: actions/cache@v4
@@ -27,8 +36,16 @@ jobs:
       - name: Build and test (iOS Simulator)
         working-directory: apps/ios/FamilyCFO
         run: |
+          # Target an available simulator by UDID, so we don't depend on a device
+          # name that changes between SDK versions (iPhone 16 Pro vs 17 Pro …).
+          # simctl prints "    iPhone 17 Pro (UDID) (Shutdown)"; split on parens
+          # and keep the last iPhone's UDID.
+          sim="$(xcrun simctl list devices available \
+            | awk -F '[()]' '/iPhone/ { udid = $2 } END { print udid }')"
+          echo "Using simulator $sim"
+          test -n "$sim" || { echo "No iPhone simulator available"; exit 1; }
           xcodebuild test \
             -project FamilyCFO.xcodeproj \
             -scheme FamilyCFO \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "id=$sim" \
             CODE_SIGNING_ALLOWED=NO
