@@ -221,7 +221,10 @@ patch_remote_host() { # patch_remote_host <host>
 
   log "── ${ssh_target} ─────────────────────────────────────────"
   log "Checking SSH + Docker on ${ssh_target}…"
-  remote true || die "Cannot SSH to ${ssh_target}."
+  remote true || die "Cannot SSH to ${ssh_target}.
+       If key-based SSH isn't set up yet, this does it (and never asks for a
+       password):  scripts/setup-ssh.sh
+       Check what's configured:      scripts/setup-ssh.sh --check"
   remote 'command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1' \
     || die "${ssh_target} is missing Docker Engine + Compose v2."
 

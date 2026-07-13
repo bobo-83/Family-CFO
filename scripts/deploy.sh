@@ -185,7 +185,10 @@ RSH="ssh ${SSH_OPTS[*]}"
 remote() { ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "$@"; }
 
 log "Checking SSH connectivity to ${SSH_TARGET}…"
-remote true || die "Cannot SSH to ${SSH_TARGET}. Check host/user/port/key."
+remote true || die "Cannot SSH to ${SSH_TARGET}.
+       If key-based SSH isn't set up yet, this does it (and never asks for a
+       password):  scripts/setup-ssh.sh
+       Check what's configured:      scripts/setup-ssh.sh --check"
 
 log "Verifying Docker on the remote host…"
 remote 'command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1' \
