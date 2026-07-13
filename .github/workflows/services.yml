@@ -2,9 +2,17 @@ name: Service Packages
 
 on:
   pull_request:
+    paths:
+      - 'services/**'
+      - 'shared/**'
+      - '.github/workflows/services.yml'
   push:
     branches:
       - main
+    paths:
+      - 'services/**'
+      - 'shared/**'
+      - '.github/workflows/services.yml'
 
 jobs:
   test:
