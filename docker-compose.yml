@@ -136,6 +136,10 @@ services:
       # replace the self-signed default (see ADR 0008). Uses a named volume by
       # default so the generated self-signed cert persists across restarts.
       - web_certs:/etc/nginx/certs
+      # Signed iOS builds for over-the-air install (M95). A named volume so a
+      # build survives `patch.sh web`, and so nothing about the app binary ever
+      # lands in the repo.
+      - ios_ota:/usr/share/nginx/html/ota
     depends_on:
       api:
         condition: service_healthy
@@ -323,6 +327,7 @@ services:
 
 volumes:
   postgres_data:
+  ios_ota:
   import_staging:
   backups:
   model_cache:
