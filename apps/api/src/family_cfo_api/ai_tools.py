@@ -636,6 +636,26 @@ def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[st
     }
 
 
+def _get_spending_by_category(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """M94: this month's outflow grouped by category — answers 'how much did I
+    spend on groceries/dining/…'. Reuses the Overview builder so the chat answer
+    and the Overview card can never disagree."""
+    from family_cfo_api.api.household import _spending_by_category
+
+    result = _spending_by_category(engine, household_id, currency)
+    if result is None:
+        return {"month": None, "categories": [], "note": "No spending recorded this month."}
+    return {
+        "month": result.month_label,
+        "categories": [
+            {"category": c.category_name, "spent": _schema_money_out(c.amount)}
+            for c in result.categories
+        ],
+        "categorized_total": _schema_money_out(result.categorized_total),
+        "uncategorized": _schema_money_out(result.uncategorized),
+    }
+
+
 def _get_spending_insights(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     """M64: month-to-date spending vs the same window last month + top merchants."""
     from family_cfo_api.api.household import _spending_insights
@@ -665,6 +685,7 @@ _HANDLERS = {
     "get_bills": _get_bills,
     "get_budgets": _get_budgets,
     "get_spending_insights": _get_spending_insights,
+    "get_spending_by_category": _get_spending_by_category,
 }
 
 _MONEY_FIELD = {"type": "integer", "description": "amount in minor currency units (e.g. cents)"}
@@ -823,6 +844,15 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             description=(
                 "Month-to-date spending vs the same window last month, plus the top merchants. "
                 "Use for questions about recent spending habits."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_spending_by_category",
+            description=(
+                "This month's spending grouped by category (Groceries, Dining, …), plus what's "
+                "still uncategorized. THE tool for 'how much did I spend on <category>' or 'where "
+                "did my money go this month'."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
