@@ -188,7 +188,11 @@ struct VoiceSessionViewModelTests {
                 api: api, conversationID: nil, engine: engine, synthesizer: synth)
             return (model, engine, synth, api)
         }()
-        model.silenceThreshold = .milliseconds(1)
+        model.endOfUtterance = EndOfUtterance(
+            settled: .milliseconds(1),
+            unsettled: .milliseconds(1),
+            hangingClause: .milliseconds(1)
+        )
 
         await model.begin()
         engine.hear("are we on track")

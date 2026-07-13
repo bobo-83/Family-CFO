@@ -1,11 +1,15 @@
 # Mobile Spec
 
 Updated 2026-07-13 (roadmap = M83–M92 in `12-implementation-tasks.md`).
-M83–M88 are implemented under `apps/ios/FamilyCFO` — foundation, advisor chat
+M83–M89 are implemented under `apps/ios/FamilyCFO` — foundation, advisor chat
 with image/PDF/data-file attachments, on-device voice with the on-box natural
-voice, and the Overview dashboard; see `apps/ios/README.md`. M89–M92 (camera
-flows, review queues, quick categorization, widget/Siri) remain spec-gated and
-ready to build.
+voice, the Overview dashboard, and the receipt/W-2 camera flows; see
+`apps/ios/README.md`. M90–M92 (review queues, quick categorization,
+widget/Siri) remain spec-gated and ready to build.
+
+The on-device photo-description backlog note below is **delivered for receipts**
+(M89): Vision reads the receipt on the phone and only the text is sent. Chat's
+own image attachments still use the server's vision model.
 
 ## Platform
 
