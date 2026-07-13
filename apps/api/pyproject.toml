@@ -22,6 +22,9 @@ dependencies = [
   "pypdfium2>=4.30,<6",
   # M85: read .xlsx chat attachments into a bounded preview (MIT, pure-Python).
   "openpyxl>=3.1,<4",
+  # Runtime HTTP client (vector store M69, bank sync, AI runtime probes, M87a
+  # TTS proxy). Previously pulled in transitively; pinned explicitly now.
+  "httpx>=0.27,<0.28",
   "python-multipart>=0.0.9,<0.1",
   "PyYAML>=6.0,<7",
   "SQLAlchemy>=2.0,<2.1",

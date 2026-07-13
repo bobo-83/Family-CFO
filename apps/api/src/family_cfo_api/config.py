@@ -84,6 +84,10 @@ class Settings:
     # M83a: path to the deployment's TLS certificate (PEM). When set, pairing
     # QR payloads carry its SHA-256 fingerprint so the iOS app can pin it.
     tls_cert_path: str = ""
+    # M87a (ADR 0018): OpenAI-compatible TTS service (Kokoro) for advisor voice.
+    # Empty disables the /voice/tts endpoint (clients fall back to system TTS).
+    tts_url: str = ""
+    tts_voice: str = "af_heart"
 
     def allowed_ai_base_urls(self) -> tuple[str, ...]:
         """The effective AI base_url allowlist: configured set, else the default."""
@@ -155,6 +159,8 @@ class Settings:
                 "FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS", cls.allow_multiple_households
             ),
             tls_cert_path=os.getenv("FAMILY_CFO_TLS_CERT_PATH", cls.tls_cert_path),
+            tts_url=os.getenv("FAMILY_CFO_TTS_URL", cls.tts_url),
+            tts_voice=os.getenv("FAMILY_CFO_TTS_VOICE", cls.tts_voice),
         )
 
 

@@ -46,6 +46,9 @@ x-api-env: &api-env
   # Vector retrieval (M69, ADR 0017); empty disables indexing + the
   # search_records chat tool.
   FAMILY_CFO_QDRANT_URL: ${FAMILY_CFO_QDRANT_URL-http://qdrant:6333}
+  # M87a (ADR 0018): on-box Kokoro TTS for advisor voice. Empty disables the
+  # /voice/tts endpoint (clients fall back to the platform's own voice).
+  FAMILY_CFO_TTS_URL: ${FAMILY_CFO_TTS_URL-http://tts:8880}
 
 services:
   db:
@@ -306,6 +309,15 @@ services:
     image: qdrant/qdrant:latest
     volumes:
       - qdrant_data:/qdrant/storage
+    networks: [internal]
+    restart: unless-stopped
+
+  # On-box neural TTS for the advisor's voice (M87a, ADR 0018). Kokoro-82M
+  # behind an OpenAI-compatible /v1/audio/speech API; CPU-only so it never
+  # contends with the chat/vision GPUs. Multi-arch (amd64 + arm64), model
+  # baked in. Opt out with FAMILY_CFO_TTS_URL= (empty) and --scale tts=0.
+  tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
     networks: [internal]
     restart: unless-stopped
 

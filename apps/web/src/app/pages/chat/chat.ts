@@ -169,6 +169,39 @@ export class Chat {
     this.attachedFile.set(null);
   }
 
+  // M87a: read an assistant answer aloud via the on-box voice service, falling
+  // back to the browser's built-in speech synthesizer when it isn't available.
+  protected readonly speaking = signal<number | null>(null);
+
+  protected async speak(text: string, index: number): Promise<void> {
+    if (this.speaking() !== null) {
+      return;
+    }
+    this.speaking.set(index);
+    try {
+      const url = await this.api.synthesizeSpeech(text);
+      if (url) {
+        const audio = new Audio(url);
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          this.speaking.set(null);
+        };
+        await audio.play();
+        return;
+      }
+      // No on-box voice — use the platform's own speech synthesizer.
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.onend = () => this.speaking.set(null);
+        window.speechSynthesis.speak(utterance);
+        return;
+      }
+      this.speaking.set(null);
+    } catch {
+      this.speaking.set(null);
+    }
+  }
+
   /** A coarse High/Medium/Low label for a 0..1 confidence score. */
   protected confidenceLabel(confidence: number): 'High' | 'Medium' | 'Low' {
     if (confidence >= 0.8) {

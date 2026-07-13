@@ -588,6 +588,12 @@ class ChatRequest(BaseModel):
     data_file_name: str | None = Field(default=None, max_length=255)
 
 
+class VoiceRequest(BaseModel):
+    # M87a: the advisor answer to speak. Capped to keep synthesis bounded.
+    text: str = Field(min_length=1, max_length=4000)
+    voice: str | None = None
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     recommendation: Recommendation

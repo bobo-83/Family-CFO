@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { getToken } from './token-store';
 import {
   applyAiModelSelection,
   applyImport,
@@ -134,6 +135,27 @@ export class ApiService {
   // --- Advisor chat ---
   createChatMessage(body: ChatRequest) {
     return createChatMessage({ body });
+  }
+
+  /**
+   * M87a: synthesize an advisor answer to speech. Fetched directly (not via
+   * the generated client) because the response is binary audio; returns the
+   * playable object URL, or null when no voice service is configured (503).
+   */
+  async synthesizeSpeech(text: string): Promise<string | null> {
+    const token = getToken();
+    const response = await fetch('/api/v1/voice/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return URL.createObjectURL(await response.blob());
   }
 
   listConversations() {

@@ -1103,8 +1103,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M87: Natural Voice (On-Box Open-Source TTS)
 
-- [ ] Spec gate: a new optional `tts` compose service runs Kokoro-82M (Apache 2.0, ~82M params, faster than real time on CPU — cannot contend with the chat model's GPU), exposed only via the API: `POST /voice/tts` streams audio for sentence-chunked playback (time-to-first-audio, not batch). iOS plays the stream with barge-in (mic input interrupts playback) and degrades to `AVSpeechSynthesizer` whenever the service is absent. The engine is a replaceable seam; Chatterbox (MIT) is the designated upgrade for cloning/emotion. ADR 0018.
-- [ ] Implement + tests + live verify + commit.
+- [x] Spec gate: a new optional `tts` compose service runs Kokoro-82M (Apache 2.0, ~82M params, faster than real time on CPU — cannot contend with the chat model's GPU), exposed only via the API: `POST /voice/tts` streams audio for sentence-chunked playback (time-to-first-audio, not batch). iOS plays the stream with barge-in (mic input interrupts playback) and degrades to `AVSpeechSynthesizer` whenever the service is absent. The engine is a replaceable seam; Chatterbox (MIT) is the designated upgrade for cloning/emotion. ADR 0018.
+- [x] M87a (server + web, no Mac required, 2026-07-12): `tts` compose service = `ghcr.io/remsky/kokoro-fastapi-cpu` (multi-arch, model baked in, CPU-only). API `POST /voice/tts` (`api/voice.py`) proxies to the service's OpenAI-compatible `/v1/audio/speech`, streaming `audio/mpeg`; auth-gated; 503 when `FAMILY_CFO_TTS_URL` is empty or the service is down (clients fall back to platform TTS). Web chat gains a 🔊 Read-aloud button per assistant answer that plays the on-box audio and falls back to the browser's `speechSynthesis`. Verified LIVE on the aarch64 box: the pulled arm64 image synthesized a real sentence to 54 KB of valid MP3 in ~1.0 s; the api reaches the service and nginx routes the endpoint (auth boundary confirmed); the authenticated proxy hop is covered by 4 endpoint unit tests (streaming shape, voice/format, down-service 503).
+- [ ] iOS voice playback client (blocked on macOS).
 
 ## M88: iOS Overview Dashboard
 

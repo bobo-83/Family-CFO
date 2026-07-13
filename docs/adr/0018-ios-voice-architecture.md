@@ -76,3 +76,24 @@ Options evaluated (2026-07):
 - The chat pipeline stays synchronous text; no protocol change is required
   for M86. Sentence-streaming TTS (M87) needs a chunked/streaming response
   on the new endpoint only.
+- On-device Kokoro (running the model on the iPhone itself, not the box) is
+  feasible on an A17 Pro / iPhone 15 Pro Max (82M params, community MLX/Core
+  ML ports exist) and would give zero-latency, offline, away-from-home voice.
+  It is deliberately NOT the first target: the mature tooling is server-side
+  Python, the iOS path needs model conversion plus an on-device
+  text-to-phoneme frontend and ~350 MB of app payload, and the box round-trip
+  on the home tailnet is inaudible with sentence-streaming. The M87 seam (the
+  app already falls back when the service is absent) accommodates a
+  client-side engine later with no redesign, so this stays a post-v1 option
+  rather than a rejected one.
+
+## Implementation notes (M87a, server + web)
+
+The box-side voice shipped ahead of the iOS client (Mac-independent work):
+the `tts` compose service is `ghcr.io/remsky/kokoro-fastapi-cpu` (multi-arch,
+model baked in, CPU-only), and `POST /voice/tts` proxies its
+OpenAI-compatible `/v1/audio/speech`, streaming MP3 and returning 503 (→
+client fallback) when unset or down. Verified on the aarch64 box: a real
+sentence synthesized to 54 KB of valid MP3 in ~1.0 s. The web dashboard's
+chat gained a Read-aloud button so the voice is auditionable before any Swift
+exists.
