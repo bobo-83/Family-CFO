@@ -1147,6 +1147,27 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 - [ ] Spec gate: (a) home-screen widget: net worth + EF status (WidgetKit, reads cached last-known values; no background polling of the box beyond iOS budget). (b) App Intents/Siri: "Ask my CFO …" routes the spoken question into the chat pipeline. (c) Local notifications for upcoming bills computed on device from synced bill due dates — no push infrastructure, nothing leaves the LAN/tailnet.
 - [ ] Implement + tests + verify on device + commit.
 
+## M93: Safe-to-Spend (advisor ignored bills and debt)
+
+User report (2026-07-13, from the phone): asked what was available to spend, the advisor answered "$8,103.43 liquid, minus $1,154.11 emergency fund, leaves **$6,949.32 truly available for discretionary spending**" — taking no account of bills about to fall due or debt owed.
+
+Not a model slip. `GROUNDING_RULES` *instructed* it: "base affordability on **liquid assets MINUS emergency_fund_reserved**". That rule (a) never mentions bills or debt, and (b) tells the model to do its own arithmetic, which the project forbids everywhere else ("LLMs may explain, summarize, and recommend, but must not be the sole calculator" — AGENTS.md). Money in checking is not money you can spend: the bills land whether or not you bought a birthday present.
+
+- [x] Spec gate: a deterministic `safe_to_spend` calculation — liquid cash (checking + savings only) MINUS designated emergency fund MINUS bills due within the horizon MINUS minimum debt payments — exposed as a grounded advisor tool, with the prompt rewritten to forbid deriving spendable money by subtraction. No contract change (chat-internal tool); no new data domain.
+- [x] Implement + tests + commit. (2026-07-13: `calculate_safe_to_spend` in the financial engine + `finance_service.compute_safe_to_spend` + the `get_safe_to_spend` tool. It reports every component so the answer can be explained, and **warns rather than flatters**: obligations exceeding cash is a warning not a cheerful number; liabilities with no recorded minimum payment say the figure is UNDERSTATED; no designated emergency fund says nothing is protected; no bills recorded says the figure may be overstated. Income during the window is deliberately NOT counted — this is what is safe to spend from money already in the bank. Only *explicitly designated* emergency money is held back: `emergency_fund_inputs` falls back to treating all liquid cash as the fund (M36), which is right for measuring coverage but here would reserve every cent and report nothing is ever spendable. Migration `0045` allowlists the new calculation type. 8 engine + 5 API tests; 95 engine / 412 API green.)
+- [ ] Verify live on the box against the real household (needs the box patched — this is a server change).
+- [ ] Follow-up: surface safe-to-spend on the Overview tab and the web dashboard (contract change: `HouseholdContext`), so the number is visible without asking.
+
+## M94: Voice conversations never appeared in the list
+
+User report (2026-07-13): "when I have a conversation it doesn't create a conversation in the end after I end it."
+
+The box *did* create the conversation — a hands-free session posts to the same `POST /chat/messages` pipeline. Two client bugs hid it:
+
+- [x] `ChatView` built the `VoiceSessionViewModel` inline inside the `fullScreenCover`, so the conversation id the server returned came back to the *voice* view model and died with it on dismissal. The chat never adopted it. Fixed: the session is held in state, and `ChatViewModel.adopt(conversationID:)` takes the thread over and loads its turns.
+- [x] `ConversationListView`'s `.task` runs once, so returning from a chat never reloaded the list — a conversation started while inside a chat (voice or text) only appeared after relaunching the app. Fixed: reload whenever the navigation path returns to the root.
+- [x] Tests + commit. (2026-07-13: 2 new tests; 84 iOS green.)
+
 ## Backlog: Dashboard Feature Ideas (proposed 2026-07-09)
 
 Candidate features surfaced while enriching the overview; each needs its own spec gate before implementation:

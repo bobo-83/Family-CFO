@@ -7,9 +7,10 @@ struct ConversationListView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: ConversationListViewModel?
     @State private var pendingDeletion: Components.Schemas.Conversation?
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let viewModel {
                     content(viewModel)
@@ -37,6 +38,13 @@ struct ConversationListView: View {
                 viewModel = ConversationListViewModel(api: api)
             }
             await viewModel?.load()
+        }
+        // `task` runs once, so a conversation started while inside a chat — a new
+        // thread, or one a hands-free voice session created — never appeared here
+        // until the app was relaunched. Reload whenever we come back to the root.
+        .onChange(of: path) { _, newPath in
+            guard newPath.isEmpty else { return }
+            Task { await viewModel?.load() }
         }
         // Deleting takes the thread's messages with it, server-side, for good —
         // so it is confirmed, exactly as the dashboard confirms it.

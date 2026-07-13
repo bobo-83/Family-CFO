@@ -15,6 +15,7 @@ from family_cfo_financial_engine import (
     PurchaseImpactInputs,
     RecurringAmount,
     RetirementInput,
+    SafeToSpendInputs,
     calculate_cash_flow,
     calculate_debt_payoff,
     calculate_emergency_fund_months,
@@ -22,6 +23,7 @@ from family_cfo_financial_engine import (
     calculate_net_worth,
     calculate_purchase_impact,
     calculate_retirement_projection,
+    calculate_safe_to_spend,
 )
 from sqlalchemy.engine import Engine
 
@@ -102,11 +104,21 @@ class UpcomingBill:
 
 
 def upcoming_bills(
-    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+    engine: Engine,
+    household_id: str,
+    currency: str,
+    *,
+    today: date | None = None,
+    window_days: int | None = None,
 ) -> list[UpcomingBill]:
-    """Bills whose next occurrence falls within UPCOMING_BILL_WINDOW_DAYS, soonest first."""
+    """Bills whose next occurrence falls within the window, soonest first.
+
+    Defaults to UPCOMING_BILL_WINDOW_DAYS (the Overview's "due soon" horizon);
+    safe-to-spend passes a longer one, because money is committed to a bill from
+    the moment you know it is coming, not when it becomes imminent.
+    """
     today = today or date.today()
-    horizon = today + timedelta(days=UPCOMING_BILL_WINDOW_DAYS)
+    horizon = today + timedelta(days=window_days or UPCOMING_BILL_WINDOW_DAYS)
     result: list[UpcomingBill] = []
     for bill in repository.list_bills(engine, household_id):
         if bill.next_due_date is None:
@@ -272,6 +284,66 @@ def compute_emergency_fund_with_ref(
 ) -> tuple[CalculationResult, str]:
     inputs = emergency_fund_inputs(engine, household_id, currency)
     result = calculate_emergency_fund_months(inputs.fund, inputs.monthly_bills)
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
+
+
+SAFE_TO_SPEND_HORIZON_DAYS = 30
+
+
+def compute_safe_to_spend(
+    engine: Engine,
+    household_id: str,
+    currency: str,
+    *,
+    horizon_days: int = SAFE_TO_SPEND_HORIZON_DAYS,
+    today: date | None = None,
+) -> tuple[CalculationResult, str]:
+    """What the family can actually spend today, net of everything already owed.
+
+    The advisor used to answer "how much can I spend?" by subtracting the
+    emergency fund from liquid cash and calling the rest discretionary. That
+    ignored every bill about to land and every minimum debt payment due, which
+    overstated the answer by precisely the amount the family owed.
+    """
+    balances = repository.list_account_balances(engine, household_id)
+    liquid_balance = Money.zero(currency)
+    for balance in balances:
+        if balance.account_type in LIQUID_ACCOUNT_TYPES and balance.currency == currency:
+            liquid_balance += Money(balance.balance_minor, balance.currency)
+
+    # Only money the family EXPLICITLY earmarked is held back. emergency_fund_inputs
+    # falls back to treating all liquid cash as the fund when nothing is designated
+    # (M36) — correct for measuring coverage, but here it would reserve every last
+    # cent and report that nothing is ever spendable.
+    fund = emergency_fund_inputs(engine, household_id, currency)
+    reserved = fund.fund if fund.using_designations else Money.zero(currency)
+
+    bills_due = Money.zero(currency)
+    for bill in upcoming_bills(
+        engine, household_id, currency, today=today, window_days=horizon_days
+    ):
+        if bill.amount.currency == currency:
+            bills_due += bill.amount
+
+    minimum_debt_payments = Money.zero(currency)
+    unmodeled = repository.count_liabilities_without_terms(engine, household_id)
+    for debt in repository.list_debts_with_terms(engine, household_id):
+        if debt.currency != currency or debt.minimum_payment_minor is None:
+            unmodeled += 1
+            continue
+        minimum_debt_payments += Money(debt.minimum_payment_minor, debt.currency)
+
+    result = calculate_safe_to_spend(
+        SafeToSpendInputs(
+            liquid_balance=liquid_balance,
+            emergency_fund_reserved=reserved,
+            bills_due=bills_due,
+            minimum_debt_payments=minimum_debt_payments,
+            horizon_days=horizon_days,
+            unmodeled_debt_count=unmodeled,
+        )
+    )
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 
