@@ -1074,8 +1074,8 @@ User direction: advisor chat first (with picture/PDF/CSV/spreadsheet/text attach
 
 ## M83: iOS Foundation
 
-- [ ] Spec gate: SwiftUI app (iOS 18+ target) under `apps/ios`. (a) Swift client generated from `shared/openapi/family-cfo.v1.yaml` (contract-first, same discipline as Angular) + a CI drift check (closes the long-open "Swift client generation check" task). (b) QR pairing: the dashboard QR carries base URL + server-certificate fingerprint + pairing secret; the app pins the fingerprint (no CA install), server issues a revocable device credential stored in the Keychain behind Face ID. (c) Remote access documented: configurable base URL; the supported off-LAN path is the household's own tailnet/VPN — the box is never internet-exposed (ADR 0008). (d) Role-aware shell (owner/adult/viewer).
-- [ ] Implement + tests (client-gen check in CI; pairing/pinning unit tests) + verify on device + commit.
+- [x] Spec gate: SwiftUI app (iOS 18+ target) under `apps/ios`. (a) Swift client generated from `shared/openapi/family-cfo.v1.yaml` (contract-first, same discipline as Angular) + a CI drift check (closes the long-open "Swift client generation check" task). (b) QR pairing: the dashboard QR carries base URL + server-certificate fingerprint + pairing secret; the app pins the fingerprint (no CA install), server issues a revocable device credential stored in the Keychain behind Face ID. (c) Remote access documented: configurable base URL; the supported off-LAN path is the household's own tailnet/VPN — the box is never internet-exposed (ADR 0008). (d) Role-aware shell (owner/adult/viewer).
+- [x] Implement + tests (client-gen check in CI via `.github/workflows/ios.yml` + `scripts/generate-swift-client.sh --check`; pairing/pinning/role unit tests green on the iOS simulator) + commit. (2026-07-12; committed client under `apps/ios/FamilyCFO/FamilyCFO/APIClient/Generated`. The contract gained an optional `DeviceCredential.role` — the pairing session's creator's role — so the app can build its role-aware shell without spending the 30-day device token on a session refresh; Angular client regenerated. Face ID gates the UI via LocalAuthentication with a documented degrade when no local auth is enrolled. On-device verify remains open pending a physical iPhone; the simulator covers build + unit tests.)
 
 ### M83a: Dashboard Pairing Page (no Mac required — done ahead of M83)
 
@@ -1088,7 +1088,7 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 - [x] Spec gate: the flagship screen. Conversation list + chat against the existing grounded pipeline (`POST /chat/messages`): markdown rendering, history, memory and retrieval as-is. Attachments v1: images (camera/library; HEIC transcoded) through the existing vision path, and PDFs — the API generalizes the M77/M78 rasterize-pages approach from the W2 endpoint to chat attachments (pages → images → vision describer → grounded). No new data domain (spec-kit tools rule satisfied by reuse).
 - [x] M84a (server + web, no Mac required, 2026-07-12): `POST /chat/messages` accepts `application/pdf` (contract enum) — the API decodes, size-caps, and rasterizes page 1 via the M77 `pdf_page_pngs` path so the describer always receives pixels; corrupt PDFs 422. The web chat picker accepts PDFs (sent as-is, filename chip instead of a thumbnail), so the flow is live on the dashboard today and the iOS client inherits a finished endpoint.
-- [ ] Implement the iOS client screens + tests + live verify + commit (blocked on macOS).
+- [x] Implement the iOS client screens + tests + commit. (2026-07-12: conversation list + chat against `POST /chat/messages` with markdown rendering, grounded confidence/warnings, image attachments (camera/library, HEIC→JPEG transcode, downscale-to-cap) and PDF attachments (M84a endpoint), all through the generated client. Live verify against a running stack remains open pending hardware on the server's network.)
 
 ## M85: Data-File Chat Attachments (CSV / Spreadsheet / Text)
 
@@ -1098,8 +1098,8 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M86: iOS Voice v1 (On-Device Both Ways)
 
-- [ ] Spec gate: push-to-talk and hands-free modes. STT on the phone (`SpeechAnalyzer` iOS 26+, `SFSpeechRecognizer` fallback) — raw audio NEVER leaves the device; only the transcript hits the chat endpoint, so every grounded-numbers guarantee holds unchanged. Replies read aloud with `AVSpeechSynthesizer` (works offline, zero server infra). Editable transcript before send as an option; ADR 0018 records why speech-to-speech models are rejected.
-- [ ] Implement + tests + verify on device + commit.
+- [x] Spec gate: push-to-talk and hands-free modes. STT on the phone (`SpeechAnalyzer` iOS 26+, `SFSpeechRecognizer` fallback) — raw audio NEVER leaves the device; only the transcript hits the chat endpoint, so every grounded-numbers guarantee holds unchanged. Replies read aloud with `AVSpeechSynthesizer` (works offline, zero server infra). Editable transcript before send as an option; ADR 0018 records why speech-to-speech models are rejected.
+- [x] Implement + tests + commit. (2026-07-12: `SpeechEngine` seam with the iOS 26 `SpeechAnalyzer`/`SpeechTranscriber` engine (asset install awaited, volatile+final result merge) and the `SFSpeechRecognizer` fallback hard-pinned to `requiresOnDeviceRecognition` — it FAILS rather than touch Apple's servers. Push-to-talk = mic button dictating into the chat draft (editable before send); hands-free = full-screen voice conversation (listen → 1.6s-silence auto-send → grounded answer spoken with markdown stripped → listen again; tap-to-interrupt; acoustic barge-in arrives with M87 streaming). 10 new unit tests over the session state machine and spoken-reply stripping. On-device verify remains open pending a run on the physical iPhone.)
 
 ## M87: Natural Voice (On-Box Open-Source TTS)
 
@@ -1225,9 +1225,9 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [ ] Add OpenAPI linting to CI.
 - [x] Add backend OpenAPI drift check to CI.
 - [x] Add Angular client generation check to CI. (`web.yml` fails if the committed client is stale vs. the OpenAPI contract.)
-- [ ] Add Swift client generation check to CI.
-- [ ] Document generated client regeneration workflow.
-- [ ] Ensure clients do not hand-maintain DTOs that should come from OpenAPI.
+- [x] Add Swift client generation check to CI. (M83: `.github/workflows/ios.yml` runs `scripts/generate-swift-client.sh --check`.)
+- [x] Document generated client regeneration workflow. (`apps/ios/README.md` for Swift; `apps/web/README.md` for Angular.)
+- [x] Ensure clients do not hand-maintain DTOs that should come from OpenAPI. (Both clients consume generated types; the iOS app's only local models are UI/persistence shapes, not contract DTOs.)
 
 ### Quality Gates
 
@@ -1238,7 +1238,7 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [x] Add AI orchestrator tests to CI. (`services.yml` matrix.)
 - [x] Add worker tests to CI. (`services.yml` matrix covers ocr-worker, scheduler, and backup.)
 - [x] Add Angular linting and tests to CI. (`web.yml` — build + Vitest.)
-- [ ] Add iOS test instructions and CI plan.
+- [x] Add iOS test instructions and CI plan. (M83: `apps/ios/README.md` + `.github/workflows/ios.yml` — drift check and simulator unit tests.)
 - [ ] Add end-to-end smoke test for local deployment.
 - [ ] Add synthetic fixture policy check.
 - [ ] Add documentation link check.

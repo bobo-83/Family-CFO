@@ -2121,6 +2121,12 @@ components:
         expires_at:
           type: string
           format: date-time
+        role:
+          description: >-
+            M83: household role of the user the device acts as (the pairing
+            session's creator), so the mobile app can build its role-aware
+            shell without spending the device token on a session refresh.
+          $ref: "#/components/schemas/HouseholdRole"
     PairedDevice:
       type: object
       required:

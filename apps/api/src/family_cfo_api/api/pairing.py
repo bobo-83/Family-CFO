@@ -175,6 +175,9 @@ async def confirm_pairing(
         device_id=credential.device_id,
         access_token=credential.access_token,
         expires_at=credential.expires_at,
+        # M83: the device acts as the pairing session's creator; surfacing
+        # that user's role lets the mobile app build its role-aware shell.
+        role=repository.get_membership_role(engine, credential.household_id, credential.user_id),
     )
 
 

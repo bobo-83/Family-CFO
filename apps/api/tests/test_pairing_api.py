@@ -47,6 +47,9 @@ async def test_owner_can_create_and_confirm_pairing_session(demo_client, demo_to
     credential = confirmed.json()
     assert credential["device_id"]
     assert credential["access_token"]
+    # M83: the device acts as the pairing session's creator (the demo owner),
+    # and the credential says so for the mobile app's role-aware shell.
+    assert credential["role"] == "owner"
 
     devices = await demo_client.get(
         "/api/v1/pairing/devices",

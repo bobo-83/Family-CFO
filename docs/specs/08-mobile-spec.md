@@ -1,8 +1,9 @@
 # Mobile Spec
 
-Updated 2026-07-12 (pre-implementation planning pass; roadmap = M83–M92 in
-`12-implementation-tasks.md`). Implementation is blocked on macOS/Xcode
-hardware; everything below is spec-gated and ready to build.
+Updated 2026-07-12 (roadmap = M83–M92 in `12-implementation-tasks.md`).
+M83 (foundation) and M84 (advisor chat) are implemented under
+`apps/ios/FamilyCFO` — see `apps/ios/README.md`; M85–M92 remain spec-gated
+and ready to build.
 
 ## Platform
 

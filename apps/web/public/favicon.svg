@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs><clipPath id="squircle"><rect width="1024" height="1024" rx="224"/></clipPath></defs>
+  <g clip-path="url(#squircle)">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c1f3f"/>
+      <stop offset="0.55" stop-color="#0e3350"/>
+      <stop offset="1" stop-color="#0a4a44"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#a7f3d0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.68" cy="0.4" r="0.75">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- full-bleed background (iOS applies its own squircle mask) -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- house: the family -->
+  <path d="M 512 148
+           L 178 428
+           L 178 810
+           Q 178 848 216 848
+           L 808 848
+           Q 846 848 846 810
+           L 846 428
+           Z"
+        fill="none" stroke="#f8fafc" stroke-width="54"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- rising sparkline: the CFO -->
+  <path d="M 296 716 L 448 596 L 560 660 L 654 556"
+        fill="none" stroke="url(#spark)" stroke-width="52"
+        stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- arrowhead: filled triangle aligned with the last segment -->
+  <path d="M 742 458 L 714 595 L 608 499 Z"
+        fill="url(#spark)" stroke="url(#spark)" stroke-width="26"
+        stroke-linejoin="round"/>
+  <!-- node dots -->
+  <circle cx="296" cy="716" r="34" fill="#f8fafc"/>
+  <circle cx="448" cy="596" r="30" fill="#a7f3d0"/>
+  <circle cx="560" cy="660" r="30" fill="#a7f3d0"/>
+  </g>
+</svg>
