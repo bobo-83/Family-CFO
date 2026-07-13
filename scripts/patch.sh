@@ -70,6 +70,13 @@ log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# The persisted destination (.deploy.env), so `scripts/patch.sh web` knows which
+# box it means instead of quietly defaulting to this machine. An explicit
+# environment variable still overrides it.
+# shellcheck source=lib/deploy-env.sh
+. "$REPO_ROOT/scripts/lib/deploy-env.sh"
+load_deploy_env "$REPO_ROOT"
+
 # How a target is routed: `ios` is the one reserved word and means the phone
 # (scripts/deploy-ios.sh, built here on the Mac). Everything else must name a
 # real service in the compose file, and is rebuilt on whichever host the stack
@@ -139,14 +146,11 @@ if [ "$PATCH_IOS" = "1" ] && [ "${#SERVICES[@]}" -eq 0 ]; then
   exit 0
 fi
 
-# Which machine gets patched. Unlike the phone, servers are DECLARED, never
-# discovered — so the danger isn't ambiguity, it's silently patching the wrong
-# box. Naming SSH_HOST means you meant a remote host, so honour that rather than
-# quietly rebuilding containers on the laptop you happen to be sitting at.
-if [ -z "${TARGET:-}" ] && [ -n "${SSH_HOST:-}" ]; then
-  TARGET="remote"
-fi
-TARGET="${TARGET:-local}"
+# Local or remote is derived from WHERE YOU ARE (see resolve_target): on the box
+# itself the stack is patched locally; from the MacBook it goes over SSH. The
+# same .deploy.env is therefore correct on both machines, and forgetting TARGET
+# can no longer rebuild containers on the laptop you happen to be sitting at.
+resolve_target
 [ "$TARGET" = "local" ] || [ "$TARGET" = "remote" ] || die "TARGET must be 'local' or 'remote'."
 
 # =============================================================================
@@ -165,6 +169,7 @@ if [ "$TARGET" = "local" ]; then
   docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
+  record_deployment "$REPO_ROOT" local "$(detect_host_ip)" "" "" "$REPO_ROOT" "$COMPOSE_FILES"
   log "Patched. Dashboard: https://$(detect_host_ip):${web_tls_port}"
   echo "  Verify: scripts/doctor.sh"
   # The phone goes last: it must never come up against a box that doesn't yet
@@ -193,7 +198,8 @@ IFS=', ' read -r -a SSH_HOSTS <<< "$SSH_HOST"
 
 patch_remote_host() { # patch_remote_host <host>
   local host="$1"
-  local ssh_opts=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
+  # ConnectTimeout so an unreachable box fails in seconds instead of hanging.
+  local ssh_opts=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
   [ -n "${SSH_KEY:-}" ] && ssh_opts+=(-i "$SSH_KEY")
   local ssh_target="${SSH_USER}@${host}"
   local rsh="ssh ${ssh_opts[*]}"
@@ -224,6 +230,7 @@ patch_remote_host() { # patch_remote_host <host>
   local port
   port="$(remote "grep -E '^WEB_TLS_PORT=' ${remote_abs}/.env | cut -d= -f2" || true)"
   port="${port:-8443}"
+  record_deployment "$REPO_ROOT" remote "$host" "$SSH_USER" "$SSH_PORT" "$remote_abs" "$COMPOSE_FILES"
   log "Patched ${host}. Dashboard: https://${host}:${port}"
   echo "  Verify: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
 }

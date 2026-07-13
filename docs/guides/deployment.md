@@ -131,6 +131,48 @@ TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
 
+## Remembering the destination (`.deploy.env`)
+
+Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set the box once:
+
+```sh
+SSH_HOST=192.168.1.10
+SSH_USER=you
+REMOTE_DIR=~/family-cfo
+```
+
+Both `deploy.sh` and `patch.sh` load it, so `scripts/patch.sh web` goes to the
+right place without retyping anything. A real environment variable still wins
+(`SSH_HOST=other-box scripts/patch.sh web`), so the file is a memory, not a cage.
+
+**There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
+*where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
+patched locally; if it isn't, you're on the MacBook, so it goes over SSH. The
+same file is correct on both machines, and a stale `TARGET` can't send a patch
+somewhere you didn't mean.
+
+## What have I deployed, and is it still running?
+
+Every successful deploy/patch records where it went (`.deploy.history`).
+
+```sh
+scripts/deployments.sh            # list everything, then offer to act on one
+scripts/deployments.sh list       # just list — never prompts
+scripts/deployments.sh stop 1     # containers down, data kept, restartable
+scripts/deployments.sh remove 1   # containers removed, VOLUMES KEPT (db + model survive)
+scripts/deployments.sh destroy 1  # containers AND volumes — DELETES THE DATABASE
+scripts/deployments.sh uninstall 2  # iOS entries: remove the app from the phone
+scripts/deployments.sh forget 1   # drop from the list only; touches nothing
+```
+
+The listing probes each place for live containers, and an unreachable box says
+`unreachable` rather than `0 running` — "I can't tell" and "nothing is running"
+are different answers, and only one of them is safe to act on.
+
+`destroy` makes you type the host name, because it deletes the PostgreSQL volume
+— every account, transaction and conversation in that household — and the model
+cache, which is a multi-GB re-download. Nothing is backed up for you.
+
 ## Choosing what gets patched
 
 The server and the phone are chosen by opposite mechanisms, on purpose:

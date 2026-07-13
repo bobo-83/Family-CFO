@@ -39,6 +39,12 @@ log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# The persisted destination (.deploy.env — see .deploy.env.example). An explicit
+# environment variable still overrides it.
+# shellcheck source=lib/deploy-env.sh
+. "$REPO_ROOT/scripts/lib/deploy-env.sh"
+load_deploy_env "$REPO_ROOT"
+
 # The address other machines on the network use to reach this host — the source
 # IP of the default route, falling back to the first `hostname -I` address.
 # Published Docker ports bind 0.0.0.0, so the stack is reachable here, not just
@@ -111,12 +117,10 @@ preflight_ai_advisory() {
 }
 
 # --- Target selection --------------------------------------------------------
-# Naming a host means you meant a remote one: infer it rather than prompting for
-# something you already answered (and rather than defaulting to 'local' and
-# standing a whole stack up on the laptop you happen to be sitting at).
-if [[ -z "${TARGET:-}" && -n "${SSH_HOST:-}" ]]; then
-  TARGET="remote"
-fi
+# Derived from where you are: on the box itself this is a local stand-up; from
+# the MacBook it goes over SSH to the box (see resolve_target). Only asks when
+# there is nothing to derive it from.
+resolve_target
 ask TARGET "Deploy target — 'local' or 'remote'" "local"
 [[ "$TARGET" == "local" || "$TARGET" == "remote" ]] || die "TARGET must be 'local' or 'remote'."
 
@@ -141,6 +145,7 @@ if [[ "$TARGET" == "local" ]]; then
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
   host_ip="$(detect_host_ip)"
+  record_deployment "$REPO_ROOT" local "$host_ip" "" "" "$REPO_ROOT" "$COMPOSE_FILES"
   log "Stack is up."
   echo
   echo "  Dashboard:  https://${host_ip}:${web_tls_port}      (reachable from other machines on the network)"
@@ -164,7 +169,7 @@ ask SSH_PORT "SSH port" "22"
 ask SSH_KEY  "SSH private key path (blank = ssh default)" ""
 ask REMOTE_DIR "Remote directory to deploy into" "~/family-cfo"
 
-SSH_OPTS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
+SSH_OPTS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
 [[ -n "${SSH_KEY:-}" ]] && SSH_OPTS+=(-i "$SSH_KEY")
 SSH_TARGET="${SSH_USER}@${SSH_HOST}"
 # rsync needs the ssh command as one string.
@@ -209,6 +214,7 @@ remote "cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} up -d ${BUILD_FLAG}"
 
 web_tls_port="$(remote "grep -E '^WEB_TLS_PORT=' ${REMOTE_ABS}/.env | cut -d= -f2" || true)"
 web_tls_port="${web_tls_port:-8443}"
+record_deployment "$REPO_ROOT" remote "$SSH_HOST" "$SSH_USER" "$SSH_PORT" "$REMOTE_ABS" "$COMPOSE_FILES"
 
 log "Deployed."
 echo
