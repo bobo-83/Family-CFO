@@ -131,6 +131,88 @@ TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
 
+## SSH setup (once per machine)
+
+Deploys to the box authenticate with an SSH **key**. No password is ever stored,
+prompted for by our scripts, or committed — see
+[the credential rule](../specs/06-security-model.md#credential-handling-humans-and-ai-agents-alike).
+
+### The scripted way
+
+```sh
+scripts/setup-ssh.sh           # key → authorise on the box → ~/.ssh/config → .deploy.env
+scripts/setup-ssh.sh --check   # report what is and isn't set up
+```
+
+It asks for a **hostname** and your **login name on the box**. Neither is a
+secret. The one moment a password is typed is `ssh-copy-id`'s own prompt, which
+reads from your terminal straight into `ssh` — the script never sees it and
+never writes it anywhere.
+
+**It refuses to run `ssh-copy-id` without a real terminal** (a CI job, an AI
+agent's tool call) and prints the command for you to run instead. A password
+prompt piped through another program is precisely the disclosure the rule exists
+to prevent.
+
+### The manual way
+
+Four steps. Do these in your own terminal; the scripted way just automates them.
+
+**1. Make a key, if you don't have one.** The passphrase is yours, protects the
+key on this machine, and is never sent anywhere. Empty is allowed; a passphrase
+plus `ssh-agent` is better.
+
+```sh
+ls ~/.ssh/id_ed25519 2>/dev/null || ssh-keygen -t ed25519 -C "family-cfo $(hostname -s)"
+```
+
+**2. Authorise the key on the box.** This is the *only* time you type your box
+password, and it goes directly to `ssh`:
+
+```sh
+ssh-copy-id -i ~/.ssh/id_ed25519.pub YOUR-LOGIN@192.168.1.10
+```
+
+If it fails, check on the box that `~/.ssh` is `700` and `~/.ssh/authorized_keys`
+is `600` — sshd silently ignores them otherwise.
+
+**3. Add an alias to `~/.ssh/config`** so nothing else ever needs your username
+or key path:
+
+```
+Host family-cfo-box
+    HostName 192.168.1.10
+    User YOUR-LOGIN
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+```
+
+```sh
+chmod 700 ~/.ssh && chmod 600 ~/.ssh/config
+```
+
+**4. Point the deploy config at the alias.** Create `.deploy.env` (gitignored):
+
+```sh
+SSH_HOST=family-cfo-box
+REMOTE_DIR=~/family-cfo
+```
+
+**Verify** — this must succeed with no password:
+
+```sh
+ssh family-cfo-box true && echo "key auth works"
+scripts/patch.sh api web
+```
+
+### Why the scripts don't ask for a username or key
+
+`SSH_USER`, `SSH_PORT` and `SSH_KEY` are left unset on purpose, so `ssh` resolves
+them from `~/.ssh/config`. An earlier version prompted for them and built
+`user@host` itself — which overrode the very mechanism that made a password
+unnecessary. They remain as escape hatches for a host you have no config entry
+for.
+
 ## Remembering the destination (`.deploy.env`)
 
 Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set the box once:
