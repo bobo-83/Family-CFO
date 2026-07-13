@@ -187,3 +187,61 @@ struct CategorizeCategoryCreationTests {
         #expect(vm.errorMessage?.contains("already exists") == true)
     }
 }
+
+@MainActor
+struct CategoryStarterSetTests {
+    @Test func addsEveryStarterCategoryWhenNoneExist() async {
+        let api = MockCategorizeAPI()
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        await vm.addStarterCategories()
+
+        #expect(api.created.count == CategoryDefaults.starter.count)
+        #expect(Set(vm.categories.map(\.name)) == Set(CategoryDefaults.starter))
+    }
+
+    @Test func skipsStartersThatAlreadyExistCaseInsensitively() async {
+        let api = MockCategorizeAPI()
+        api.cats = [.init(id: "c1", name: "groceries"), .init(id: "c2", name: "DINING")]
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        await vm.addStarterCategories()
+
+        // Groceries and Dining already present -> not recreated.
+        #expect(!api.created.contains("Groceries"))
+        #expect(!api.created.contains("Dining"))
+        #expect(api.created.count == CategoryDefaults.starter.count - 2)
+    }
+
+    /// A failure on one category leaves the rest created, and reports the error —
+    /// the batch isn't all-or-nothing.
+    @Test func oneFailureDoesNotAbortTheWholeBatch() async {
+        final class FlakyAPI: CategorizeAPI, @unchecked Sendable {
+            var madeCount = 0
+            func uncategorized() async throws -> [Components.Schemas.Transaction] { [] }
+            func categories() async throws -> [Components.Schemas.Category] { [] }
+            func setCategory(transactionID: String, categoryID: String?) async throws {}
+            func createCategory(name: String) async throws -> Components.Schemas.Category {
+                madeCount += 1
+                if name == "Transportation" { throw APIError.server(500) }
+                return .init(id: name, name: name)
+            }
+        }
+        let api = FlakyAPI()
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        await vm.addStarterCategories()
+
+        // Every name was attempted; all but the failing one landed.
+        #expect(api.madeCount == CategoryDefaults.starter.count)
+        #expect(vm.categories.count == CategoryDefaults.starter.count - 1)
+        #expect(vm.errorMessage != nil)
+    }
+
+    @Test func starterSetHasNoDuplicates() {
+        #expect(Set(CategoryDefaults.starter).count == CategoryDefaults.starter.count)
+    }
+}

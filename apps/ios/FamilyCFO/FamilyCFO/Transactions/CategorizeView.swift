@@ -30,13 +30,23 @@ struct CategorizeView: View {
             }
             .navigationTitle("Categorize")
             .toolbar {
-                if viewModel != nil {
+                if let viewModel {
                     ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            newCategoryName = ""
-                            creatingCategoryFor = CategoryCreationContext(transaction: nil)
+                        Menu {
+                            Button {
+                                newCategoryName = ""
+                                creatingCategoryFor = CategoryCreationContext(transaction: nil)
+                            } label: {
+                                Label("New category…", systemImage: "plus")
+                            }
+                            Button {
+                                Task { await viewModel.addStarterCategories() }
+                            } label: {
+                                Label("Add starter categories", systemImage: "square.stack.3d.up")
+                            }
+                            .disabled(viewModel.isAddingStarters)
                         } label: {
-                            Label("New category", systemImage: "plus")
+                            Label("Add category", systemImage: "plus")
                         }
                     }
                 }
@@ -99,15 +109,30 @@ struct CategorizeView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
-                    // No categories yet? Swipe still works — the picker offers
-                    // "New category…" so the screen isn't a dead end (M91a).
+                    // No categories yet? Offer the one-tap starter set right here,
+                    // so the screen isn't a dead end (M91a). Custom stays available
+                    // via the + menu and the per-transaction picker.
                     if viewModel.categories.isEmpty {
-                        Label(
-                            "No categories yet. Swipe a transaction and tap “New category…”, or use + above. Manage them fully on the dashboard.",
-                            systemImage: "info.circle"
-                        )
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(
+                                "No categories yet. Add a starter set, or make your own — full management is on the dashboard.",
+                                systemImage: "info.circle"
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            Button {
+                                Task { await viewModel.addStarterCategories() }
+                            } label: {
+                                if viewModel.isAddingStarters {
+                                    ProgressView()
+                                } else {
+                                    Label("Add starter categories", systemImage: "square.stack.3d.up")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(viewModel.isAddingStarters)
+                        }
+                        .padding(.vertical, 4)
                     }
                     ForEach(viewModel.transactions, id: \.id) { transaction in
                         row(transaction)
