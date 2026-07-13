@@ -2825,6 +2825,9 @@ components:
         budget_summary:
           description: "M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist."
           $ref: "#/components/schemas/BudgetSummary"
+        safe_to_spend:
+          description: "M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now."
+          $ref: "#/components/schemas/SafeToSpend"
     Budget:
       type: object
       required:
@@ -2906,6 +2909,45 @@ components:
           $ref: "#/components/schemas/Money"
         total_spent:
           $ref: "#/components/schemas/Money"
+    SafeToSpend:
+      type: object
+      description: "M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted."
+      required:
+        - liquid_balance
+        - emergency_fund_reserved
+        - bills_due
+        - minimum_debt_payments
+        - committed_total
+        - safe_to_spend
+        - total_debt
+        - warnings
+      properties:
+        liquid_balance:
+          description: Checking + savings only (never retirement/education funds).
+          $ref: "#/components/schemas/Money"
+        emergency_fund_reserved:
+          description: Money explicitly designated for emergencies; held back.
+          $ref: "#/components/schemas/Money"
+        bills_due:
+          description: Bills falling due within the horizon.
+          $ref: "#/components/schemas/Money"
+        minimum_debt_payments:
+          description: Minimum payments owed on liability accounts with recorded terms.
+          $ref: "#/components/schemas/Money"
+        committed_total:
+          description: emergency_fund_reserved + bills_due + minimum_debt_payments.
+          $ref: "#/components/schemas/Money"
+        safe_to_spend:
+          description: liquid_balance − committed_total. May be negative.
+          $ref: "#/components/schemas/Money"
+        total_debt:
+          description: "All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it."
+          $ref: "#/components/schemas/Money"
+        warnings:
+          description: "Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed)."
+          type: array
+          items:
+            type: string
     SavingsRate:
       type: object
       required:

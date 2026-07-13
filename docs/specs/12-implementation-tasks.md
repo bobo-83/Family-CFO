@@ -313,6 +313,13 @@ Rules:
 
 #### iPhone App Implementation (requires macOS)
 
+> **Superseded — delivered under M83–M89 (2026-07-12/13).** This original M6
+> checklist predates the macOS hardware and was re-scoped into the M83–M92
+> roadmap below, which is where the real, shipped work lives (foundation,
+> pairing, Face ID, chat with image/PDF/CSV attachments, on-device + Kokoro
+> voice, Overview, and the receipt/W-2 camera flows). The unchecked boxes here
+> are stale planning artifacts, not outstanding work; kept for provenance.
+
 - [ ] Add SwiftUI project scaffold under `apps/ios`.
 - [ ] Add generated Swift API client workflow from OpenAPI.
 - [ ] Add app navigation shell.
@@ -1124,13 +1131,13 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 - [x] Spec gate: the daily-glance screen from the existing `GET /household` context: net worth + trend sparkline, goal-aware emergency-fund status, monthly cash flow, upcoming bills, budget alerts, goal progress, savings rate. Read-only v1; pull-to-refresh.
 - [x] Implement + tests + commit. (2026-07-13: new **Overview** tab beside Advisor. `HouseholdAPI` seam over the existing `getHouseholdContext` — no contract change, no new endpoint, and no arithmetic on the phone: every figure is the server's, so the phone cannot drift from the dashboard or the advisor. Cards for net worth (with a Swift Charts sparkline over the M40 snapshots), the M38 emergency fund against the household's *own* target, monthly cash flow, savings rate, budget envelope health, top goal, and bills due soon — each rendered only when the server sends it, since every one of these is optional in the contract. Pull-to-refresh. 10 new tests covering load/failure, minor-unit money formatting, and the emergency-fund progress fraction — including that "no bills" yields no progress bar rather than a fabricated denominator.)
-- [ ] Verify on a physical iPhone against the live box.
+- [x] Verified on the physical iPhone against the live box (2026-07-13): app installed over-the-air, paired, and in daily use.
 
 ## M89: iOS Camera Capture Flows
 
 - [x] Spec gate: first-class camera buttons for (a) receipt capture → describe-then-ground into chat/records (existing endpoints), and (b) W2 scan → income-earner prefill (M73/M76 flow; confirm-before-save unchanged). Prefer on-device summarization (Vision framework / Foundation Models) per the 08-mobile-spec backlog note, falling back to the server vision model.
 - [x] Implement + tests + commit. (2026-07-13: a **Capture** menu on Overview. **Receipts** finally cash in the ADR 0011 backlog note — `ReceiptTextRecognizer` reads the receipt with Vision *on the phone*, and when it succeeds ONLY THE TEXT is sent: the photo never leaves the device and the box's vision model is never invoked. Below `ReceiptCapture.minimumUsableLines` the OCR has effectively failed — a blurry shot still yields a stray fragment, and passing that off as "what the receipt says" would be worse than sending nothing — so it falls back to attaching the photo for the server's vision model (the unchanged M84 path). Either way it opens chat with the question already asked. **W-2 scan** mirrors the web's M76 contract exactly: the scan only prefills an editable form (year, Box 1, Box 2, and the employer as a suggested label — never overwriting a label the user already typed), the model's note is shown so the user can judge the scan rather than trust it, and NOTHING is written until "Add earner" — a vision model does not write financial ground truth (M73). Adults-only, per the endpoint's own 403. Unreadable scans (422) and a missing vision model (503) both leave the form typeable by hand. 17 new tests, incl. exact Decimal→minor-unit rounding, since binary floating point mangles cents often enough to matter on a tax figure.)
-- [ ] Verify on a physical iPhone against the live box.
+- [x] Verified on the physical iPhone against the live box (2026-07-13): app installed over-the-air, paired, and in daily use.
 
 ## M90: iOS Review Queues
 
@@ -1157,7 +1164,7 @@ Not a model slip. `GROUNDING_RULES` *instructed* it: "base affordability on **li
 - [x] Implement + tests + commit. (2026-07-13: `calculate_safe_to_spend` in the financial engine + `finance_service.compute_safe_to_spend` + the `get_safe_to_spend` tool. It reports every component so the answer can be explained, and **warns rather than flatters**: obligations exceeding cash is a warning not a cheerful number; liabilities with no recorded minimum payment say the figure is UNDERSTATED; no designated emergency fund says nothing is protected; no bills recorded says the figure may be overstated. Income during the window is deliberately NOT counted — this is what is safe to spend from money already in the bank. Only *explicitly designated* emergency money is held back: `emergency_fund_inputs` falls back to treating all liquid cash as the fund (M36), which is right for measuring coverage but here would reserve every cent and report nothing is ever spendable. Migration `0045` allowlists the new calculation type. 8 engine + 5 API tests; 95 engine / 412 API green.)
 - [x] Verified LIVE on the box against the real household (2026-07-13). It reproduced the reported bug exactly — liquid $8,103.43 − emergency fund $1,154.11 = the $6,949.32 the app had shown — and corrected it to **$6,765.83** by subtracting $183.49 of bills due. End-to-end through the real vLLM the advisor called `get_safe_to_spend` (and only it), quoted the corrected figure, and stated the household's $29,931.44 of debt unprompted.
 - [x] Report the debt, don't just warn about it. The household carries $29,931.44 across three credit cards and NOT ONE has a minimum payment recorded, so nothing was subtracted for debt and the advisor said nothing about it. `total_debt` is now an output — deliberately NOT subtracted (a balance is not due this month) but always reported, because "$6,765 to spend" said beside a silent $29,931 of card debt is a true sentence that misleads. The unmodeled-debt warning names the amount and says how to fix it; the prompt REQUIRES the model to state the debt in the same answer.
-- [ ] Follow-up: surface safe-to-spend on the Overview tab and the web dashboard (contract change: `HouseholdContext`), so the number is visible without asking.
+- [x] Follow-up: surface safe-to-spend on the Overview tab and the web dashboard (2026-07-13). `HouseholdContext` gains an additive `safe_to_spend` block (new `SafeToSpend` schema: liquid, emergency fund, bills due, min debt payments, committed total, safe-to-spend, total_debt, warnings); both clients regenerated. The web Overview and the iOS Overview each render a prominent card showing the figure, its breakdown, the total debt beside it, and the calculation's warnings — so the number that used to require asking the advisor is now visible at a glance, and (since it reads the same engine calc) can never disagree with what the advisor says. Reused the `budget_summary` builder pattern; persists like `net_worth` already does per context fetch. API test asserts the Overview figure nets out obligations, not just the emergency fund.
 - [ ] Follow-up (DATA, user action): record a minimum payment on each of the three credit cards. Until then the debt is reported but not subtracted, and safe-to-spend stays optimistic by exactly those payments — the calculation says so rather than hiding it.
 
 ## M94: Voice conversations never appeared in the list
