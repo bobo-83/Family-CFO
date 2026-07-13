@@ -87,6 +87,36 @@ final class CategorizeViewModel {
         }
     }
 
+    private(set) var isAddingStarters = false
+
+    /// Create the starter categories that don't already exist (M91a), so a
+    /// household with none can get going in one tap. Resilient: an already-present
+    /// name is skipped, and a failure on one leaves the rest (and reports it)
+    /// rather than aborting the batch.
+    func addStarterCategories() async {
+        guard !isAddingStarters else { return }
+        isAddingStarters = true
+        defer { isAddingStarters = false }
+
+        var lastError: String?
+        for name in CategoryDefaults.starter {
+            if categories.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+                continue
+            }
+            do {
+                let category = try await api.createCategory(name: name)
+                categories.append(category)
+            } catch is CategorizeError {
+                // Exists on the server but not in our local list — treat as done.
+                continue
+            } catch {
+                lastError = Self.describe(error)
+            }
+        }
+        categories.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        errorMessage = lastError
+    }
+
     private static func describe(_ error: Error) -> String {
         if let e = error as? CategorizeError { return e.errorDescription ?? "\(e)" }
         return ChatViewModel.describe(error)
