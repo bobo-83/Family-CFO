@@ -37,7 +37,7 @@ struct OverviewViewModelTests {
     @Test func loadsTheHouseholdContext() async {
         let api = MockHouseholdAPI()
         api.context = context()
-        let viewModel = OverviewViewModel(api: api)
+        let viewModel = OverviewViewModel(api: api, notifications: nil)
 
         await viewModel.load()
 
@@ -49,7 +49,7 @@ struct OverviewViewModelTests {
     @Test func surfacesAFailureInsteadOfShowingStaleNumbers() async {
         let api = MockHouseholdAPI()
         api.error = APIError.unauthorized
-        let viewModel = OverviewViewModel(api: api)
+        let viewModel = OverviewViewModel(api: api, notifications: nil)
 
         await viewModel.load()
 
