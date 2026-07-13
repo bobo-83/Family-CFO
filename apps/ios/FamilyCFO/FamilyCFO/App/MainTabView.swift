@@ -5,6 +5,9 @@ import SwiftUI
 /// web dashboard (mobile spec non-responsibilities).
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
+    // Owned here, not in ReviewView, so its pendingCount can drive the tab badge
+    // and stay in sync the moment the screen clears an item (M90).
+    @State private var reviewModel: ReviewViewModel?
 
     var body: some View {
         TabView {
@@ -14,15 +17,27 @@ struct MainTabView: View {
             Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
                 OverviewView()
             }
-            // Categorizing changes money data (M91), so it's for the adults —
-            // the same gate the server enforces on the PATCH.
+            // Review and categorize both change money data (M90/M91), so they're
+            // for the adults — the same gate the server enforces on the writes.
             if model.rolePolicy.canEditFinances {
+                if let reviewModel {
+                    Tab("Review", systemImage: "tray.full") {
+                        ReviewView(viewModel: reviewModel)
+                    }
+                    .badge(reviewModel.pendingCount)
+                }
                 Tab("Categorize", systemImage: "tag") {
                     CategorizeView()
                 }
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
+            }
+        }
+        .task {
+            if reviewModel == nil, let api = model.review {
+                reviewModel = ReviewViewModel(api: api)
+                await reviewModel?.load()
             }
         }
     }

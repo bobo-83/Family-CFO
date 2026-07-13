@@ -3,8 +3,8 @@
 SwiftUI iPhone app (iOS 18+). Implements M83 (foundation), M84 + M85 (advisor
 chat with image / PDF / CSV-spreadsheet attachments), M86 + M87 (on-device
 speech, and the on-box Kokoro voice with a system-voice fallback), M88
-(Overview dashboard), M89 (receipt + W-2 camera flows), and M91
-(swipe-to-categorize); the remaining roadmap is M90 and M92 in `docs/specs/12-implementation-tasks.md`. Spec:
+(Overview dashboard), M89 (receipt + W-2 camera flows), M91
+(swipe-to-categorize), and M90 (review queues); the remaining roadmap is M92 in `docs/specs/12-implementation-tasks.md`. Spec:
 `docs/specs/08-mobile-spec.md`.
 
 ## Layout
@@ -23,6 +23,7 @@ apps/ios/
       Camera/                 on-device receipt OCR — the photo stays home (M89)
       Income/                 W-2 scan → confirm → add earner (M89)
       Transactions/           swipe-to-categorize with undo (M91)
+      Review/                 bill-suggestion + deposit review queues (M90)
       APIClient/Generated/    committed generated client — DO NOT EDIT
     FamilyCFOTests/           unit tests (Swift Testing)
   openapi-generator/          SPM tool package that runs swift-openapi-generator

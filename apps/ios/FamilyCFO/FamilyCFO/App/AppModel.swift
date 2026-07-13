@@ -78,6 +78,11 @@ final class AppModel {
         client.map { LiveCategorizeAPI(client: $0) }
     }
 
+    /// Review queues — bill suggestions + unclassified deposits (M90).
+    var review: ReviewAPI? {
+        client.map { LiveReviewAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
