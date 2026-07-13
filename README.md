@@ -129,6 +129,19 @@ scripts/patch.sh ios       # build + install the iPhone app onto a paired device
 scripts/patch.sh api ios   # ship a server change and the phone that needs it, box first
 ```
 
+Deploying to a remote box over SSH? Set up key auth once — no password is ever
+stored or prompted for by these scripts
+([why](./docs/specs/06-security-model.md#credential-handling-humans-and-ai-agents-alike)):
+
+```bash
+scripts/setup-ssh.sh           # key → authorise on the box → ~/.ssh/config → .deploy.env
+scripts/setup-ssh.sh --check   # report what is and isn't set up
+scripts/deployments.sh         # what have I deployed, and is it still running?
+```
+
+The manual equivalent is four commands — see
+[the deployment guide](./docs/guides/deployment.md#ssh-setup-once-per-machine).
+
 See [docker/README.md](./docker/README.md) for the development override, volumes,
 and secrets, and the [AI Advisor guide](./docs/guides/ai-advisor.md) for testing
 the model end-to-end.
