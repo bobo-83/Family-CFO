@@ -100,3 +100,18 @@
     cursor: not-allowed;
   }
 }
+
+.install-card__button {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+  margin: 0.25rem 0 0.75rem;
+
+  &:hover {
+    filter: brightness(0.95);
+  }
+}
