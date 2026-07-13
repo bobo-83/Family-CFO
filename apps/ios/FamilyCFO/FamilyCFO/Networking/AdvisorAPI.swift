@@ -1,11 +1,32 @@
 import Foundation
 
-/// Attachment ready to ride along on a chat message (M84): raw bytes plus
-/// the contract media type; base64 encoding happens at send time.
+/// Attachment ready to ride along on a chat message: raw bytes plus how the
+/// contract carries them; base64 encoding happens at send time.
+///
+/// The two kinds travel on *different* request fields and through different
+/// server pipelines, so the distinction is load-bearing rather than cosmetic:
+/// visuals (images, PDFs — M84) are rasterized for the vision describer, while
+/// data files (CSV / spreadsheet / text — M85) are parsed into a bounded
+/// grounded preview.
 struct ChatAttachment: Equatable {
+    enum Kind: Equatable {
+        /// `image_base64` + `image_media_type` → vision path (M84).
+        case visual(Components.Schemas.ChatRequest.ImageMediaTypePayload)
+        /// `data_file_base64` + `data_file_name` → data-file preview (M85).
+        case dataFile
+    }
+
     let data: Data
-    let mediaType: Components.Schemas.ChatRequest.ImageMediaTypePayload
+    let kind: Kind
     let displayName: String
+
+    var iconName: String {
+        switch kind {
+        case .visual(.applicationPdf): return "doc.richtext"
+        case .visual: return "photo"
+        case .dataFile: return "tablecells"
+        }
+    }
 }
 
 enum APIError: Error, LocalizedError, Equatable {
@@ -68,12 +89,22 @@ struct LiveAdvisorAPI: AdvisorAPI {
         conversationID: String?,
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse {
-        let request = Components.Schemas.ChatRequest(
+        var request = Components.Schemas.ChatRequest(
             conversationId: conversationID,
-            message: message,
-            imageBase64: attachment.map { $0.data.base64EncodedString() },
-            imageMediaType: attachment?.mediaType
+            message: message
         )
+        if let attachment {
+            switch attachment.kind {
+            case .visual(let mediaType):
+                request.imageBase64 = attachment.data.base64EncodedString()
+                request.imageMediaType = mediaType
+            case .dataFile:
+                request.dataFileBase64 = attachment.data.base64EncodedString()
+                // The server detects CSV vs XLSX vs text from the extension,
+                // so the filename is part of the payload, not decoration.
+                request.dataFileName = attachment.displayName
+            }
+        }
         switch try await client.createChatMessage(.init(body: .json(request))) {
         case .ok(let response):
             return try response.body.json
