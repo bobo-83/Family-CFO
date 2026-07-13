@@ -577,9 +577,10 @@ class Recommendation(BaseModel):
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
     message: str = Field(min_length=1, max_length=4000)
-    # Optional attached photo (ADR 0011): base64-encoded, downscaled client-side.
+    # Optional attached photo (ADR 0011) or PDF (M84a — the server rasterizes
+    # page 1 for the vision model): base64-encoded, images downscaled client-side.
     image_base64: str | None = None
-    image_media_type: ChatImageMediaType | None = None
+    image_media_type: W2ScanMediaType | None = None
 
 
 class ChatResponse(BaseModel):

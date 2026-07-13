@@ -15,8 +15,9 @@ interface ChatTurn {
 
 interface AttachedImage {
   base64: string;
-  mediaType: 'image/jpeg';
-  previewUrl: string;
+  mediaType: 'image/jpeg' | 'application/pdf';
+  previewUrl: string | null; // null for PDFs (no thumbnail; the name shows)
+  name?: string;
 }
 
 /**
@@ -37,6 +38,22 @@ export async function encodeImageFile(file: File, maxDimension = 1280): Promise<
   bitmap.close();
   const previewUrl = canvas.toDataURL('image/jpeg', 0.85);
   return { base64: previewUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl };
+}
+
+/** M84a: PDFs go up as-is — the server rasterizes page 1 for the vision model. */
+export function encodePdfFile(file: File): Promise<AttachedImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve({
+        base64: String(reader.result).split(',')[1],
+        mediaType: 'application/pdf',
+        previewUrl: null,
+        name: file.name,
+      });
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 const EXAMPLE_PROMPTS = [
@@ -109,10 +126,14 @@ export class Chat {
       return;
     }
     try {
-      this.attachedImage.set(await encodeImageFile(file));
+      this.attachedImage.set(
+        file.type === 'application/pdf'
+          ? await encodePdfFile(file)
+          : await encodeImageFile(file),
+      );
       this.errorMessage.set(null);
     } catch {
-      this.errorMessage.set('Could not read that image — try a different photo.');
+      this.errorMessage.set('Could not read that file — try a different photo or PDF.');
     }
   }
 
