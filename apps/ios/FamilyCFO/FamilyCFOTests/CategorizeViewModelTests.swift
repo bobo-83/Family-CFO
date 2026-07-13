@@ -24,6 +24,18 @@ final class MockCategorizeAPI: CategorizeAPI, @unchecked Sendable {
             if let setError { throw setError }
         }
     }
+
+    var createError: Error?
+    private(set) var created: [String] = []
+    var nextCreatedId = "new-cat"
+
+    nonisolated func createCategory(name: String) async throws -> Components.Schemas.Category {
+        try await MainActor.run {
+            if let createError { throw createError }
+            created.append(name)
+            return .init(id: nextCreatedId, name: name)
+        }
+    }
 }
 
 @MainActor
@@ -117,5 +129,61 @@ struct CategorizeViewModelTests {
         await vm.categorize(vm.transactions[0], as: api.cats[1])  // t2
 
         #expect(vm.lastAction?.transaction.id == "t2")
+    }
+}
+
+@MainActor
+struct CategorizeCategoryCreationTests {
+    private func txn(_ id: String) -> Components.Schemas.Transaction {
+        .init(id: id, accountId: "a", occurredAt: "2026-07-13",
+              amount: .init(amountMinor: -1000, currency: "USD"), merchant: "Shop")
+    }
+
+    @Test func creatingACategoryAddsItSortedAndReturnsIt() async {
+        let api = MockCategorizeAPI()
+        api.cats = [.init(id: "c1", name: "Rent")]
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        let created = await vm.createCategory(named: "  Groceries ")
+
+        #expect(created?.name == "Groceries")
+        #expect(api.created == ["Groceries"])  // trimmed
+        #expect(vm.categories.map(\.name) == ["Groceries", "Rent"])  // sorted
+    }
+
+    @Test func creatingAnExistingCategoryReusesItWithoutARoundTrip() async {
+        let api = MockCategorizeAPI()
+        api.cats = [.init(id: "c1", name: "Groceries")]
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        let created = await vm.createCategory(named: "groceries")  // case-insensitive
+
+        #expect(created?.id == "c1")
+        #expect(api.created.isEmpty)  // no server call
+    }
+
+    @Test func anEmptyNameCreatesNothing() async {
+        let api = MockCategorizeAPI()
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        let created = await vm.createCategory(named: "   ")
+
+        #expect(created == nil)
+        #expect(api.created.isEmpty)
+    }
+
+    @Test func aConflictSurfacesAReadableError() async {
+        let api = MockCategorizeAPI()
+        api.createError = CategorizeError.categoryExists("Gas")
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        let created = await vm.createCategory(named: "Gas")
+
+        #expect(created == nil)
+        #expect(vm.errorMessage?.contains("already exists") == true)
     }
 }

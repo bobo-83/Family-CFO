@@ -7,6 +7,17 @@ struct CategorizeView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: CategorizeViewModel?
     @State private var picking: Components.Schemas.Transaction?
+    @State private var newCategoryName = ""
+    /// When set, the "New category" prompt is shown; the transaction (if any) is
+    /// categorized with the created category once it's made.
+    @State private var creatingCategoryFor: CategoryCreationContext?
+
+    /// nil transaction = created from the toolbar (just add it); a transaction
+    /// = created mid-categorize (add it, then assign it to that transaction).
+    private struct CategoryCreationContext: Identifiable {
+        let id = UUID()
+        let transaction: Components.Schemas.Transaction?
+    }
 
     var body: some View {
         NavigationStack {
@@ -18,12 +29,48 @@ struct CategorizeView: View {
                 }
             }
             .navigationTitle("Categorize")
+            .toolbar {
+                if viewModel != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            newCategoryName = ""
+                            creatingCategoryFor = CategoryCreationContext(transaction: nil)
+                        } label: {
+                            Label("New category", systemImage: "plus")
+                        }
+                    }
+                }
+            }
+            .alert("New category", isPresented: .init(
+                get: { creatingCategoryFor != nil },
+                set: { if !$0 { creatingCategoryFor = nil } }
+            )) {
+                TextField("Name (e.g. Groceries)", text: $newCategoryName)
+                    .textInputAutocapitalization(.words)
+                Button("Create") { confirmCreateCategory() }
+                Button("Cancel", role: .cancel) { creatingCategoryFor = nil }
+            } message: {
+                Text("Create a category to sort transactions into. Manage them fully on the dashboard.")
+            }
         }
         .task {
             if viewModel == nil, let api = model.categorize {
                 viewModel = CategorizeViewModel(api: api)
             }
             await viewModel?.load()
+        }
+    }
+
+    private func confirmCreateCategory() {
+        guard let context = creatingCategoryFor, let viewModel else { return }
+        let name = newCategoryName
+        creatingCategoryFor = nil
+        Task {
+            guard let category = await viewModel.createCategory(named: name) else { return }
+            // Created mid-categorize: assign the transaction that prompted it.
+            if let transaction = context.transaction {
+                await viewModel.categorize(transaction, as: category)
+            }
         }
     }
 
@@ -52,32 +99,26 @@ struct CategorizeView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
-                    // Categorizing needs categories to assign, and category
-                    // management lives on the web dashboard (a mobile-spec
-                    // non-responsibility) — so point there rather than offer a
-                    // swipe that opens an empty picker.
+                    // No categories yet? Swipe still works — the picker offers
+                    // "New category…" so the screen isn't a dead end (M91a).
                     if viewModel.categories.isEmpty {
                         Label(
-                            "Create categories on the dashboard's Categories page to sort these.",
+                            "No categories yet. Swipe a transaction and tap “New category…”, or use + above. Manage them fully on the dashboard.",
                             systemImage: "info.circle"
                         )
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     }
                     ForEach(viewModel.transactions, id: \.id) { transaction in
-                        if viewModel.categories.isEmpty {
-                            row(transaction)
-                        } else {
-                            row(transaction)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button {
-                                        picking = transaction
-                                    } label: {
-                                        Label("Categorize", systemImage: "tag")
-                                    }
-                                    .tint(.accentColor)
+                        row(transaction)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    picking = transaction
+                                } label: {
+                                    Label("Categorize", systemImage: "tag")
                                 }
-                        }
+                                .tint(.accentColor)
+                            }
                     }
                 }
                 .refreshable { await viewModel.load() }
@@ -101,6 +142,11 @@ struct CategorizeView: View {
                         picking = nil
                         Task { await viewModel.categorize(transaction, as: category) }
                     }
+                }
+                Button("New category…") {
+                    picking = nil
+                    newCategoryName = ""
+                    creatingCategoryFor = CategoryCreationContext(transaction: transaction)
                 }
                 Button("Cancel", role: .cancel) { picking = nil }
             } message: { transaction in
