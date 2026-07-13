@@ -19,16 +19,33 @@ final class CategorizeViewModel {
     /// The most recent assignment, offered for undo until the next action.
     private(set) var lastAction: Action?
 
+    /// One assignment — possibly of several transactions at once, when they share
+    /// a merchant (M91b). Undo reverts every one of them.
     struct Action: Equatable {
-        let transaction: Components.Schemas.Transaction
-        let index: Int
+        struct Item: Equatable {
+            let transaction: Components.Schemas.Transaction
+            let index: Int
+        }
+        let items: [Item]
         let categoryName: String
+        let merchant: String
+
+        var count: Int { items.count }
     }
 
     private let api: CategorizeAPI
 
     init(api: CategorizeAPI) {
         self.api = api
+    }
+
+    /// The name two transactions must share to be categorized together — what the
+    /// user actually sees in the row (merchant, or description when there's no
+    /// merchant), normalized. nil means "don't bulk" (nothing to match on).
+    static func matchKey(_ transaction: Components.Schemas.Transaction) -> String? {
+        let name = transaction.merchant ?? transaction.description
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
     }
 
     func load() async {
@@ -46,22 +63,51 @@ final class CategorizeViewModel {
         }
     }
 
+    /// Categorize the tapped transaction AND every other uncategorized one with
+    /// the same merchant (M91b) — so filing "Starbucks" once files them all. Each
+    /// is set on the server; a row that the server refuses comes back in place,
+    /// and only the ones that actually took are recorded for undo.
     func categorize(
         _ transaction: Components.Schemas.Transaction,
         as category: Components.Schemas.Category
     ) async {
-        guard let index = transactions.firstIndex(where: { $0.id == transaction.id }) else {
-            return
+        let key = Self.matchKey(transaction)
+        // The tapped row, plus its merchant-mates (or just itself when there's no
+        // merchant to match on). Highest index first, so removals don't shift the
+        // indices of ones still to be removed.
+        let targets: [(transaction: Components.Schemas.Transaction, index: Int)] =
+            transactions.enumerated()
+            .filter { _, txn in
+                txn.id == transaction.id || (key != nil && Self.matchKey(txn) == key)
+            }
+            .map { (transaction: $0.element, index: $0.offset) }
+            .sorted { $0.index > $1.index }
+        guard !targets.isEmpty else { return }
+
+        for target in targets {
+            transactions.remove(at: target.index)
         }
-        transactions.remove(at: index)
-        do {
-            try await api.setCategory(transactionID: transaction.id, categoryID: category.id)
-            lastAction = Action(transaction: transaction, index: index, categoryName: category.name)
-            errorMessage = nil
-        } catch {
-            // Put it back exactly where it was; the categorization didn't take.
-            transactions.insert(transaction, at: min(index, transactions.count))
-            errorMessage = ChatViewModel.describe(error)
+
+        var succeeded: [Action.Item] = []
+        var failed = false
+        for target in targets {
+            do {
+                try await api.setCategory(transactionID: target.transaction.id, categoryID: category.id)
+                succeeded.append(Action.Item(transaction: target.transaction, index: target.index))
+            } catch {
+                // Put this one back where it was; it didn't take.
+                transactions.insert(target.transaction, at: min(target.index, transactions.count))
+                failed = true
+                errorMessage = ChatViewModel.describe(error)
+            }
+        }
+
+        if !failed { errorMessage = nil }
+        if !succeeded.isEmpty {
+            lastAction = Action(
+                items: succeeded.sorted { $0.index < $1.index },
+                categoryName: category.name,
+                merchant: transaction.merchant ?? transaction.description ?? "transactions")
         }
     }
 
@@ -125,15 +171,18 @@ final class CategorizeViewModel {
     func undoLast() async {
         guard let action = lastAction else { return }
         lastAction = nil
-        do {
-            try await api.setCategory(transactionID: action.transaction.id, categoryID: nil)
-            // Restore it to where it was, so the list looks like it did pre-action.
-            let at = min(action.index, transactions.count)
-            transactions.insert(action.transaction, at: at)
-            errorMessage = nil
-        } catch {
-            errorMessage = ChatViewModel.describe(error)
+        var failed = false
+        // Restore low index first, so each insert lands at the right spot.
+        for item in action.items.sorted(by: { $0.index < $1.index }) {
+            do {
+                try await api.setCategory(transactionID: item.transaction.id, categoryID: nil)
+                transactions.insert(item.transaction, at: min(item.index, transactions.count))
+            } catch {
+                failed = true
+                errorMessage = ChatViewModel.describe(error)
+            }
         }
+        if !failed { errorMessage = nil }
     }
 
     func dismissUndo() {
