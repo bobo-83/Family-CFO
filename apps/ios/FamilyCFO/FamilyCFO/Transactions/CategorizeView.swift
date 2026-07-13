@@ -200,7 +200,7 @@ struct CategorizeView: View {
         _ action: CategorizeViewModel.Action, _ viewModel: CategorizeViewModel
     ) -> some View {
         HStack {
-            Text("Set to \(action.categoryName)")
+            Text(undoText(action))
                 .font(.subheadline)
                 .lineLimit(1)
             Spacer()
@@ -215,6 +215,14 @@ struct CategorizeView: View {
         .padding(.horizontal)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    /// Names the batch so a bulk assignment isn't a silent surprise.
+    private func undoText(_ action: CategorizeViewModel.Action) -> String {
+        if action.count > 1 {
+            return "Set \(action.count) “\(action.merchant)” to \(action.categoryName)"
+        }
+        return "Set to \(action.categoryName)"
     }
 
     /// The contract sends an ISO date string; show it lightly rather than parse

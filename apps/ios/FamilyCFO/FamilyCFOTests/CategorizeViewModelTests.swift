@@ -128,7 +128,7 @@ struct CategorizeViewModelTests {
         await vm.categorize(vm.transactions[0], as: api.cats[0])  // t1
         await vm.categorize(vm.transactions[0], as: api.cats[1])  // t2
 
-        #expect(vm.lastAction?.transaction.id == "t2")
+        #expect(vm.lastAction?.items.first?.transaction.id == "t2")
     }
 }
 
@@ -243,5 +243,69 @@ struct CategoryStarterSetTests {
 
     @Test func starterSetHasNoDuplicates() {
         #expect(Set(CategoryDefaults.starter).count == CategoryDefaults.starter.count)
+    }
+}
+
+@MainActor
+struct CategorizeBulkByMerchantTests {
+    private func txn(_ id: String, merchant: String?, at: String = "2026-07-13") -> Components.Schemas.Transaction {
+        .init(id: id, accountId: "a", occurredAt: at,
+              amount: .init(amountMinor: -500, currency: "USD"), merchant: merchant)
+    }
+
+    private func vm(_ txns: [Components.Schemas.Transaction]) async -> (CategorizeViewModel, MockCategorizeAPI) {
+        let api = MockCategorizeAPI()
+        api.uncategorizedTxns = txns
+        api.cats = [.init(id: "dining", name: "Dining")]
+        let m = CategorizeViewModel(api: api)
+        await m.load()
+        return (m, api)
+    }
+
+    @Test func categorizingOneMerchantFilesAllOfThatMerchant() async {
+        let (m, api) = await vm([
+            txn("a", merchant: "Starbucks"),
+            txn("b", merchant: "Shell"),
+            txn("c", merchant: "starbucks"),  // case-insensitive match
+            txn("d", merchant: "Starbucks"),
+        ])
+
+        await m.categorize(m.transactions[0], as: api.cats[0])  // tap a Starbucks
+
+        // All three Starbucks gone; Shell remains.
+        #expect(m.transactions.map(\.id) == ["b"])
+        #expect(Set(api.setCalls.map(\.id)) == ["a", "c", "d"])
+        #expect(api.setCalls.allSatisfy { $0.categoryID == "dining" })
+        #expect(m.lastAction?.count == 3)
+    }
+
+    @Test func undoRevertsTheWholeBatchToTheirPlaces() async {
+        let (m, api) = await vm([
+            txn("a", merchant: "Starbucks"),
+            txn("b", merchant: "Shell"),
+            txn("c", merchant: "Starbucks"),
+        ])
+        await m.categorize(m.transactions[0], as: api.cats[0])
+        #expect(m.transactions.map(\.id) == ["b"])
+
+        await m.undoLast()
+
+        // Original order restored; each Starbucks cleared server-side.
+        #expect(m.transactions.map(\.id) == ["a", "b", "c"])
+        let clears = api.setCalls.filter { $0.categoryID == nil }
+        #expect(Set(clears.map(\.id)) == ["a", "c"])
+    }
+
+    @Test func transactionsWithNoMerchantAreNotBulked() async {
+        let (m, api) = await vm([
+            txn("a", merchant: nil),
+            txn("b", merchant: nil),
+        ])
+
+        await m.categorize(m.transactions[0], as: api.cats[0])
+
+        // No merchant to match on — only the tapped one is filed.
+        #expect(api.setCalls.map(\.id) == ["a"])
+        #expect(m.transactions.map(\.id) == ["b"])
     }
 }
