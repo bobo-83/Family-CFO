@@ -1118,6 +1118,8 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
   - Tests: fallback-on-503 and fallback-on-transport-error (stubbed client), plus cancellation resuming the `speak(_:)` continuation.
   - Done when: the phone answers in the Kokoro voice with the `tts` service up, and in the system voice with it stopped — no crash, no silence, no hang. Server side is already live-verified (54 KB MP3 in ~1.0 s on the aarch64 box).
 
+- [x] **M87b: end-of-utterance fix** (2026-07-13, user report after live-testing the natural voice: "my voice kept being cut off"). M86 shipped a flat rule — 1.6 s of transcript silence means the user is finished — and in real hands-free use it sent half-finished questions, because a natural thinking pause is routinely longer than 1.6 s. (Not an echo problem: the engine stops transcribing before the reply is spoken, so the phone never hears itself.) Replaced with `EndOfUtterance`, which scales the required pause to how finished the sentence sounds: 1.8 s when it ends in terminal punctuation, 3.0 s when it doesn't, and 6.0 s when it ends on a word that promises more ("...and", "...because", "...um") — with a hard stop so a trailing-off speaker still gets an answer. 6 new tests, incl. one asserting no threshold is ever again shorter than the 1.6 s that caused the bug.
+
 ## M88: iOS Overview Dashboard
 
 - [x] Spec gate: the daily-glance screen from the existing `GET /household` context: net worth + trend sparkline, goal-aware emergency-fund status, monthly cash flow, upcoming bills, budget alerts, goal progress, savings rate. Read-only v1; pull-to-refresh.
@@ -1126,8 +1128,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M89: iOS Camera Capture Flows
 
-- [ ] Spec gate: first-class camera buttons for (a) receipt capture → describe-then-ground into chat/records (existing endpoints), and (b) W2 scan → income-earner prefill (M73/M76 flow; confirm-before-save unchanged). Prefer on-device summarization (Vision framework / Foundation Models) per the 08-mobile-spec backlog note, falling back to the server vision model.
-- [ ] Implement + tests + verify on device + commit.
+- [x] Spec gate: first-class camera buttons for (a) receipt capture → describe-then-ground into chat/records (existing endpoints), and (b) W2 scan → income-earner prefill (M73/M76 flow; confirm-before-save unchanged). Prefer on-device summarization (Vision framework / Foundation Models) per the 08-mobile-spec backlog note, falling back to the server vision model.
+- [x] Implement + tests + commit. (2026-07-13: a **Capture** menu on Overview. **Receipts** finally cash in the ADR 0011 backlog note — `ReceiptTextRecognizer` reads the receipt with Vision *on the phone*, and when it succeeds ONLY THE TEXT is sent: the photo never leaves the device and the box's vision model is never invoked. Below `ReceiptCapture.minimumUsableLines` the OCR has effectively failed — a blurry shot still yields a stray fragment, and passing that off as "what the receipt says" would be worse than sending nothing — so it falls back to attaching the photo for the server's vision model (the unchanged M84 path). Either way it opens chat with the question already asked. **W-2 scan** mirrors the web's M76 contract exactly: the scan only prefills an editable form (year, Box 1, Box 2, and the employer as a suggested label — never overwriting a label the user already typed), the model's note is shown so the user can judge the scan rather than trust it, and NOTHING is written until "Add earner" — a vision model does not write financial ground truth (M73). Adults-only, per the endpoint's own 403. Unreadable scans (422) and a missing vision model (503) both leave the form typeable by hand. 17 new tests, incl. exact Decimal→minor-unit rounding, since binary floating point mangles cents often enough to matter on a tax figure.)
+- [ ] Verify on a physical iPhone against the live box.
 
 ## M90: iOS Review Queues
 

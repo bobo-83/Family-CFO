@@ -68,6 +68,11 @@ final class AppModel {
         client.map { LiveHouseholdAPI(client: $0) }
     }
 
+    /// W-2 scan and earner creation behind the camera flows (M89).
+    var income: IncomeAPI? {
+        client.map { LiveIncomeAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),

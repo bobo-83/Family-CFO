@@ -22,9 +22,10 @@ final class VoiceSessionViewModel {
     private(set) var lastAnswer: String?
     private(set) var conversationID: String?
 
-    /// How long the transcript must sit unchanged before the utterance is
-    /// considered finished and sent.
-    var silenceThreshold: Duration = .seconds(1.6)
+    /// When a pause counts as the end of what the user was saying. Not a flat
+    /// timer: a mid-sentence hesitation must not be mistaken for a finished
+    /// question (see `EndOfUtterance`).
+    var endOfUtterance = EndOfUtterance()
 
     private let api: AdvisorAPI
     private let engine: SpeechEngine
@@ -108,7 +109,8 @@ final class VoiceSessionViewModel {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard let self, self.phase == .listening else { return }
                 let quietFor = ContinuousClock.now - self.lastTranscriptChange
-                if !self.transcript.isEmpty, quietFor >= self.silenceThreshold {
+                let required = self.endOfUtterance.requiredSilence(after: self.transcript)
+                if !self.transcript.isEmpty, quietFor >= required {
                     // Hop to a fresh task: sendCurrentUtterance cancels the
                     // silence watcher as cleanup, and running it INSIDE the
                     // watcher would cancel the in-flight chat request

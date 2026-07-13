@@ -12,10 +12,19 @@ final class ChatViewModel {
     private(set) var isLoadingHistory = false
     var errorMessage: String?
     var pendingAttachment: ChatAttachment?
+    /// A message staged by another screen — the M89 receipt capture opens chat
+    /// with the receipt already asked about — sent once the view appears.
+    var queuedMessage: String?
 
     init(api: AdvisorAPI, conversationID: String? = nil) {
         self.api = api
         self.conversationID = conversationID
+    }
+
+    func sendQueuedMessageIfNeeded() async {
+        guard let queued = queuedMessage else { return }
+        queuedMessage = nil
+        await send(queued)
     }
 
     func loadHistory() async {

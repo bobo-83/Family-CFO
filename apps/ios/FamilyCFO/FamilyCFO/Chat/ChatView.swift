@@ -57,7 +57,10 @@ struct ChatView: View {
                 )
             )
         }
-        .task { await viewModel.loadHistory() }
+        .task {
+            await viewModel.loadHistory()
+            await viewModel.sendQueuedMessageIfNeeded()
+        }
         .onChange(of: photoSelection) { _, item in
             guard let item else { return }
             Task { await attachPhoto(item) }
