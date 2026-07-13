@@ -176,16 +176,46 @@ cat > "$EXPORT_DIR/index.html" <<HTML
   a.btn { display: block; background: #0a84ff; color: #fff; text-decoration: none;
           padding: 1rem; border-radius: 14px; font-weight: 600; font-size: 1.05rem; }
   small { display: block; margin-top: 2rem; color: #8e8e93; line-height: 1.5; }
+  #installed { display: none; margin-top: 1.5rem; padding: 1rem; border-radius: 14px;
+               background: rgba(52,199,89,0.12); color: #248a3d; line-height: 1.5; text-align: left; }
+  @media (prefers-color-scheme: dark) { #installed { color: #30d158; } }
+  #installed b { display: block; margin-bottom: 0.35rem; }
 </style>
 <h1>Family CFO</h1>
 <p>Built ${VERSION}</p>
-<a class="btn" href="itms-services://?action=download-manifest&amp;url=${MANIFEST_URL}">Install on this iPhone</a>
+<a class="btn" id="installBtn" href="itms-services://?action=download-manifest&amp;url=${MANIFEST_URL}">Install on this iPhone</a>
+
+<div id="installed">
+  <b>✓ Installing…</b>
+  Look for the <strong>Family CFO</strong> icon on your Home Screen — it appears with a
+  progress ring while it downloads, then it's ready. <strong>You can close this page.</strong>
+  <br><br>
+  <b>First launch after a box update?</b>
+  If the app says it can't reach your box, open the dashboard → <strong>Devices</strong>,
+  generate a pairing code, and scan it once. That re-links the app to the box.
+  <br><br>
+  Tapping Install again just reinstalls this same build over the top — harmless, and it
+  keeps your data and pairing.
+</div>
+
 <small>
   Installs straight from your own box — over WiFi or the VPN. Nothing leaves your network.<br><br>
-  If nothing happens, the box's certificate isn't trusted on this phone yet:
-  open <a href="/ota/box-cert.crt">the certificate</a>, install the profile, then enable it under
-  Settings → General → About → Certificate Trust Settings.
+  Nothing happening when you tap Install? The box's certificate isn't trusted on this phone yet:
+  open <a href="/ota/box-cert.crt">the certificate</a>, install the profile from the top of
+  Settings, then enable it under Settings → General → About → Certificate Trust Settings.
 </small>
+
+<script>
+  // A web page cannot see whether an app installed (iOS forbids it), so the best
+  // we can do is reveal the "what now" guidance the moment Install is tapped —
+  // rather than leave the user on an unchanged page wondering if it worked.
+  document.getElementById('installBtn').addEventListener('click', function () {
+    setTimeout(function () {
+      document.getElementById('installed').style.display = 'block';
+      document.getElementById('installed').scrollIntoView({ behavior: 'smooth' });
+    }, 600);
+  });
+</script>
 HTML
 
 # --- Publish to the box ------------------------------------------------------
