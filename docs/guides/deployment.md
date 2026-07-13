@@ -122,12 +122,40 @@ untouched:
 git pull
 scripts/patch.sh                 # rebuild api + worker + web
 scripts/patch.sh web             # or just one service
+scripts/patch.sh ios             # build + install the iPhone app over WiFi
+scripts/patch.sh api web ios     # ship both halves together
 TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 ```
 
 `patch.sh` never rebuilds `vllm` or `db` and never removes a volume, so the
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
+
+## Patching the iPhone app
+
+`ios` is a patch target like any other, but it is not in the default set — you
+ship the phone when you mean to:
+
+```bash
+scripts/patch.sh ios                     # the one connected phone
+scripts/deploy-ios.sh --list             # which devices are paired?
+IOS_TEST=1 scripts/patch.sh ios          # run the unit tests first
+IOS_DEVICE="Alex's iPhone" scripts/patch.sh ios
+```
+
+Two things worth knowing:
+
+- **It runs on the Mac, not the box.** Xcode only exists on macOS, so if the
+  stack is remote, patch the containers against the box and run the `ios` half
+  from your Mac. The script says so rather than failing obscurely.
+- **The phone is always deployed last.** When an iOS change needs an API or web
+  change, `scripts/patch.sh api web ios` ships the server first, so the phone
+  never comes up against a box that lacks the endpoint it was built to call.
+
+The device must have been paired with Xcode for network debugging once, over a
+cable (Xcode → Window → Devices and Simulators → tick **Connect via network**).
+After that it deploys over WiFi indefinitely; no script can do that first
+pairing for you.
 
 The API applies any new migrations on startup (so a schema change ships with an
 `api` patch). Migrations are additive; a rollback path is
