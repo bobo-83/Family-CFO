@@ -54,6 +54,7 @@ protocol AdvisorAPI: Sendable {
         conversationID: String?,
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse
+    func deleteConversation(id: String) async throws
 }
 
 /// Production implementation backed by the generated OpenAPI client.
@@ -79,6 +80,24 @@ struct LiveAdvisorAPI: AdvisorAPI {
             throw APIError.unauthorized
         case .notFound:
             throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    /// Deletes the thread and its messages, server-side and irreversibly — the
+    /// same endpoint the dashboard's chat page uses.
+    func deleteConversation(id: String) async throws {
+        switch try await client.deleteConversation(.init(path: .init(conversationId: id))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            // Already gone — the caller wanted it gone, so this is a success.
+            return
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
