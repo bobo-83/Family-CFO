@@ -26,6 +26,15 @@ DEVICE_SESSION_TTL = timedelta(days=30)
 
 
 def _api_base_url(request: Request) -> str:
+    # Behind the nginx TLS proxy, request.base_url reflects the INTERNAL
+    # http://api:8000 request, not the address a phone must reach. Prefer the
+    # forwarded scheme + host — X-Forwarded-Host carries the external port
+    # (e.g. 192.168.1.10:8443) — so the pairing QR points at the real,
+    # reachable endpoint. Falls back to request.base_url for direct/dev access.
+    proto = request.headers.get("x-forwarded-proto")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if proto and host:
+        return f"{proto}://{host}/api/v1"
     return f"{str(request.base_url).rstrip('/')}/api/v1"
 
 

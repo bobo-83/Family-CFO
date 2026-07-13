@@ -213,3 +213,21 @@ def test_pairing_session_id_column_fits_the_csprng_token() -> None:
         f"pairing token ({longest} chars) does not fit id column "
         f"({column_length} chars)"
     )
+
+
+@pytest.mark.anyio
+async def test_qr_base_url_uses_forwarded_proto_and_host(demo_client, demo_token) -> None:
+    """The QR must point at the externally reachable https host:port, not the
+    internal proxied request (regression: it encoded http without the port)."""
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions",
+        headers={
+            "Authorization": f"Bearer {demo_token}",
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "192.168.1.10:8443",
+        },
+    )
+
+    assert created.status_code == 201
+    payload = json.loads(created.json()["qr_payload"])
+    assert payload["api_base_url"] == "https://192.168.1.10:8443/api/v1"
