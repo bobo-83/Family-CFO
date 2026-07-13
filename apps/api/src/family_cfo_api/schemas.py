@@ -220,6 +220,21 @@ class SpendingInsights(BaseModel):
     top_merchants: list[MerchantSpend] = Field(default_factory=list)
 
 
+class SafeToSpend(BaseModel):
+    """M93: what's actually free to spend now — liquid cash net of the emergency
+    fund, bills due, and minimum debt payments. total_debt is reported (not
+    subtracted) so spendable cash is never shown without the debt beside it."""
+
+    liquid_balance: Money
+    emergency_fund_reserved: Money
+    bills_due: Money
+    minimum_debt_payments: Money
+    committed_total: Money
+    safe_to_spend: Money
+    total_debt: Money
+    warnings: list[str] = Field(default_factory=list)
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -237,6 +252,7 @@ class HouseholdContext(BaseModel):
     spending_insights: SpendingInsights | None = None
     savings_rate: SavingsRate | None = None
     budget_summary: BudgetSummary | None = None
+    safe_to_spend: SafeToSpend | None = None
 
 
 class Account(BaseModel):

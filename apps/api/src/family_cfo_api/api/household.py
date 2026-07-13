@@ -17,6 +17,7 @@ from family_cfo_api.schemas import (
     MerchantSpend,
     MonthlyCashFlow,
     NetWorthPoint,
+    SafeToSpend,
     SavingsRate,
     SpendingInsights,
     UpcomingBill,
@@ -203,6 +204,30 @@ def _budget_summary(engine: Engine, household_id: str, currency: str) -> BudgetS
     )
 
 
+def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSpend | None:
+    """M93: what's free to spend now, for the Overview. None when there is no
+    liquid balance to reason about (a brand-new household)."""
+    result, _ref = finance_service.compute_safe_to_spend(engine, household_id, currency)
+    out = result.outputs
+
+    def money(key: str) -> MoneySchema:
+        m = out[key]
+        return MoneySchema(amount_minor=m.amount_minor, currency=m.currency)
+
+    if out["liquid_balance"].amount_minor == 0 and out["committed_total"].amount_minor == 0:
+        return None
+    return SafeToSpend(
+        liquid_balance=money("liquid_balance"),
+        emergency_fund_reserved=money("emergency_fund_reserved"),
+        bills_due=money("bills_due"),
+        minimum_debt_payments=money("minimum_debt_payments"),
+        committed_total=money("committed_total"),
+        safe_to_spend=money("safe_to_spend"),
+        total_debt=money("total_debt"),
+        warnings=list(result.warnings),
+    )
+
+
 def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
     """M41: the highest-priority goal (list_goals is priority-ordered) with progress."""
     goals = repository.list_goals(engine, household_id)
@@ -302,6 +327,7 @@ async def get_household_context(
         spending_insights=_spending_insights(engine, household.id, currency),
         savings_rate=_savings_rate(engine, household.id, currency),
         budget_summary=_budget_summary(engine, household.id, currency),
+        safe_to_spend=_safe_to_spend(engine, household.id, currency),
     )
 
 

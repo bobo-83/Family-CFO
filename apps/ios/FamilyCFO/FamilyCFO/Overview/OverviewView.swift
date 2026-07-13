@@ -138,6 +138,9 @@ struct OverviewView: View {
         } else if let context = viewModel.context {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let sts = context.safeToSpend {
+                        safeToSpendCard(sts)
+                    }
                     netWorthCard(context)
                     if let fund = context.emergencyFund {
                         emergencyFundCard(fund)
@@ -167,6 +170,36 @@ struct OverviewView: View {
     }
 
     // MARK: Cards
+
+    /// M93: what's actually free to spend, net of the emergency fund, bills due,
+    /// and debt payments — with the household's debt stated beside it, never
+    /// hidden behind the cheerful number.
+    private func safeToSpendCard(
+        _ sts: Components.Schemas.SafeToSpend
+    ) -> some View {
+        Card("Safe to spend", systemImage: "wallet.pass") {
+            Text(sts.safeToSpend.formatted)
+                .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                .foregroundStyle(sts.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
+            Text(
+                "\(sts.liquidBalance.formatted) liquid − \(sts.emergencyFundReserved.formatted) "
+                    + "emergency fund − \(sts.billsDue.formatted) bills − "
+                    + "\(sts.minimumDebtPayments.formatted) min. debt"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            if sts.totalDebt.amountMinor > 0 {
+                LabeledContent("Total debt", value: sts.totalDebt.formatted)
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+            }
+            ForEach(sts.warnings, id: \.self) { warning in
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
 
     private func netWorthCard(_ context: Components.Schemas.HouseholdContext) -> some View {
         Card("Net worth", systemImage: "chart.line.uptrend.xyaxis") {
