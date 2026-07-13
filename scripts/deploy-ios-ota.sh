@@ -100,17 +100,22 @@ xcodebuild archive \
 ok "Archived."
 
 # --- Export a signed .ipa + manifest -----------------------------------------
-# `release-testing` is Xcode 15+'s name for ad-hoc: signed for the devices in the
-# provisioning profile, installable outside the App Store. Supplying `manifest`
-# makes xcodebuild emit the OTA manifest.plist itself, so its URLs and bundle
-# metadata cannot drift from the binary it just signed.
+# `debugging` is Xcode 15+'s name for a development export: signed with the Apple
+# DEVELOPMENT certificate and the team provisioning profile, which already lists
+# this phone's UDID. That is deliberate — `release-testing` (ad-hoc) would need an
+# Apple DISTRIBUTION certificate, which this machine doesn't have and which isn't
+# necessary to install onto a device the profile already provisions.
+#
+# Supplying `manifest` makes xcodebuild emit the OTA manifest.plist itself, so its
+# URLs and bundle metadata cannot drift from the binary it just signed.
 cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>method</key><string>release-testing</string>
+  <key>method</key><string>debugging</string>
   <key>signingStyle</key><string>automatic</string>
+  <key>teamID</key><string>${IOS_TEAM_ID:-YOUR_TEAM_ID}</string>
   <key>destination</key><string>export</string>
   <key>compileBitcode</key><false/>
   <key>thinning</key><string>&lt;none&gt;</string>
@@ -131,8 +136,9 @@ xcodebuild -exportArchive \
   -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
   -allowProvisioningUpdates \
   -quiet \
-  || die "Export failed. A 'release-testing' export needs a PAID Apple Developer
-       account; a free personal team cannot sign for ad-hoc distribution."
+  || die "Export failed. The build is signed for the devices in the team
+       provisioning profile — if this phone was added recently, open the project in
+       Xcode once so it can refresh the profile."
 
 IPA="$(find "$EXPORT_DIR" -name '*.ipa' | head -1)"
 [ -n "$IPA" ] || die "No .ipa was produced."
