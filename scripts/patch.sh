@@ -184,10 +184,20 @@ fi
 command -v rsync >/dev/null 2>&1 || die "rsync is required for remote patches."
 ask SSH_HOST "Remote host(s) — name or IP, space- or comma-separated for several"
 [ -n "${SSH_HOST:-}" ] || die "SSH_HOST is required for a remote patch."
-ask SSH_USER "SSH user" "${USER:-root}"
-ask SSH_PORT "SSH port" "22"
-ask SSH_KEY  "SSH private key path (blank = ssh default)" ""
 ask REMOTE_DIR "Remote directory" "~/family-cfo"
+
+# SSH_USER / SSH_PORT / SSH_KEY are all OPTIONAL and are NOT prompted for.
+#
+# Left unset, ssh resolves them itself from ~/.ssh/config — which is the point:
+# put a `Host` block there (User, Port, IdentityFile) and SSH_HOST can be a bare
+# alias, so no username, no key path and above all NO PASSWORD ever needs to be
+# typed into a script, stored in .deploy.env, or committed. Authentication stays
+# between you, ssh-agent and the box.
+#
+# Setting them still works for a one-off against a host you have no config for.
+SSH_USER="${SSH_USER:-}"
+SSH_PORT="${SSH_PORT:-}"
+SSH_KEY="${SSH_KEY:-}"
 
 # SSH_HOST may name several boxes: SSH_HOST="box1 box2" or "box1,box2". They are
 # patched one at a time, in order, and the run STOPS at the first failure — a
@@ -198,10 +208,14 @@ IFS=', ' read -r -a SSH_HOSTS <<< "$SSH_HOST"
 
 patch_remote_host() { # patch_remote_host <host>
   local host="$1"
+  # Only pass what was explicitly set: an empty -p or a forced user@ would
+  # override the ~/.ssh/config block that is doing the authentication for us.
   # ConnectTimeout so an unreachable box fails in seconds instead of hanging.
-  local ssh_opts=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+  local ssh_opts=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+  [ -n "${SSH_PORT:-}" ] && ssh_opts+=(-p "$SSH_PORT")
   [ -n "${SSH_KEY:-}" ] && ssh_opts+=(-i "$SSH_KEY")
-  local ssh_target="${SSH_USER}@${host}"
+  local ssh_target="$host"
+  [ -n "${SSH_USER:-}" ] && ssh_target="${SSH_USER}@${host}"
   local rsh="ssh ${ssh_opts[*]}"
   remote() { ssh "${ssh_opts[@]}" "$ssh_target" "$@"; }
 

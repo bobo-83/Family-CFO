@@ -162,16 +162,23 @@ fi
 # REMOTE
 # =============================================================================
 command -v rsync >/dev/null 2>&1 || die "rsync is required for remote deploys."
-ask SSH_HOST "Remote host (name or IP)"
+ask SSH_HOST "Remote host (name or IP, or a ~/.ssh/config alias)"
 [[ -n "${SSH_HOST:-}" ]] || die "SSH_HOST is required for a remote deploy."
-ask SSH_USER "SSH user" "${USER:-root}"
-ask SSH_PORT "SSH port" "22"
-ask SSH_KEY  "SSH private key path (blank = ssh default)" ""
 ask REMOTE_DIR "Remote directory to deploy into" "~/family-cfo"
 
-SSH_OPTS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+# Optional and never prompted for: unset, ssh resolves user/port/key from
+# ~/.ssh/config. That is how a password stays out of this script, out of
+# .deploy.env, and out of the repo — authentication is between you, ssh-agent
+# and the box.
+SSH_USER="${SSH_USER:-}"
+SSH_PORT="${SSH_PORT:-}"
+SSH_KEY="${SSH_KEY:-}"
+
+SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+[[ -n "${SSH_PORT:-}" ]] && SSH_OPTS+=(-p "$SSH_PORT")
 [[ -n "${SSH_KEY:-}" ]] && SSH_OPTS+=(-i "$SSH_KEY")
-SSH_TARGET="${SSH_USER}@${SSH_HOST}"
+SSH_TARGET="$SSH_HOST"
+[[ -n "${SSH_USER:-}" ]] && SSH_TARGET="${SSH_USER}@${SSH_HOST}"
 # rsync needs the ssh command as one string.
 RSH="ssh ${SSH_OPTS[*]}"
 
