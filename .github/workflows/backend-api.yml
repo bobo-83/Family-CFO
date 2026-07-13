@@ -2,9 +2,21 @@ name: Backend API
 
 on:
   pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'services/**'
+      - 'database/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/backend-api.yml'
   push:
     branches:
       - main
+    paths:
+      - 'apps/api/**'
+      - 'services/**'
+      - 'database/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/backend-api.yml'
 
 jobs:
   lint-test-contract:

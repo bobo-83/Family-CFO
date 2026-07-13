@@ -5,9 +5,33 @@ name: Deploy E2E
 # demo login, a grounded chat answer, and the TLS-served dashboard.
 on:
   pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'services/**'
+      - 'database/**'
+      - 'docker/**'
+      - 'docker-compose.yml'
+      - 'docker-compose.dev.yml'
+      - 'shared/**'
+      - 'scripts/deploy.sh'
+      - 'scripts/e2e-deploy-test.sh'
+      - '.github/workflows/deploy-e2e.yml'
   push:
     branches:
       - main
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'services/**'
+      - 'database/**'
+      - 'docker/**'
+      - 'docker-compose.yml'
+      - 'docker-compose.dev.yml'
+      - 'shared/**'
+      - 'scripts/deploy.sh'
+      - 'scripts/e2e-deploy-test.sh'
+      - '.github/workflows/deploy-e2e.yml'
 
 jobs:
   build-boot-smoke:
