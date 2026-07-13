@@ -28,6 +28,10 @@ export class Devices {
   protected readonly qrSvg = signal<SafeHtml | null>(null);
   protected readonly qrExpiresAt = signal<string | null>(null);
   protected readonly fingerprint = signal<string | null>(null);
+  // The raw payload text, so a phone loading THIS dashboard (which can't scan a
+  // QR on its own screen) can copy it and paste it into the app.
+  protected readonly qrPayload = signal<string | null>(null);
+  protected readonly copied = signal(false);
 
   protected readonly canPair = () => {
     const role = this.auth.role();
@@ -64,12 +68,29 @@ export class Devices {
     }
     const svg = await QRCode.toString(data.qr_payload, { type: 'svg', margin: 1 });
     this.qrSvg.set(this.sanitizer.bypassSecurityTrustHtml(svg));
+    this.qrPayload.set(data.qr_payload);
+    this.copied.set(false);
     this.qrExpiresAt.set(data.expires_at);
     try {
       const payload = JSON.parse(data.qr_payload) as { certificate_sha256?: string | null };
       this.fingerprint.set(payload.certificate_sha256 ?? null);
     } catch {
       this.fingerprint.set(null);
+    }
+  }
+
+  protected async copyPayload(): Promise<void> {
+    const payload = this.qrPayload();
+    if (!payload) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(payload);
+      this.copied.set(true);
+    } catch {
+      // Clipboard API needs a secure context and can be denied; the payload is
+      // shown in a selectable field regardless, so the user can select-and-copy.
+      this.actionError.set('Could not copy automatically — select the code below and copy it.');
     }
   }
 

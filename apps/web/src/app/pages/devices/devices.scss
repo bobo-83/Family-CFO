@@ -115,3 +115,24 @@
     filter: brightness(0.95);
   }
 }
+
+.pairing-card__paste {
+  margin: 0.75rem 0;
+}
+
+.pairing-card__copy {
+  margin-bottom: 0.5rem;
+}
+
+.pairing-card__payload {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: #5b6472;
+  border: 1px solid #d7dbe0;
+  border-radius: 6px;
+  padding: 0.5rem;
+  resize: vertical;
+  background: #f7f8fa;
+}
