@@ -242,3 +242,55 @@ async def test_corrupt_pdf_attachment_is_rejected(demo_client, demo_token) -> No
     )
 
     assert response.status_code == 422
+
+
+# --- M85: data-file attachments in chat ---
+
+
+@pytest.mark.anyio
+async def test_data_file_preview_reaches_the_model_and_grounds_its_numbers(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    runtime = _ScriptedRuntime(
+        [
+            RuntimeToolCompletion(
+                tool_calls=[],
+                # 151.69 comes only from the attached file's summary — grounded.
+                text="Your three deposits total $151.69 this week.",
+                model="stub",
+                raw={},
+            ),
+        ]
+    )
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+
+    csv_bytes = (
+        b"Date,Merchant,Amount\n"
+        b"2026-01-05,Whole Foods,84.20\n"
+        b"2026-01-06,Shell,52.00\n"
+        b"2026-01-07,Netflix,15.49\n"
+    )
+    response = await _post(
+        demo_client,
+        demo_token,
+        data_file_base64=base64.b64encode(csv_bytes).decode(),
+        data_file_name="spending.csv",
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # The figure from the file survived the guardrail (grounded context).
+    assert "151.69" in body["recommendation"]["answer"]
+    # The bounded preview was injected into the user turn.
+    user_msg = runtime.seen_messages[0][-1]
+    assert "Attached data file summary" in user_msg.content
+    assert "spending.csv" in user_msg.content
+
+
+@pytest.mark.anyio
+async def test_corrupt_data_file_base64_rejected(demo_client, demo_token) -> None:
+    response = await _post(
+        demo_client, demo_token, data_file_base64="not base64!!", data_file_name="x.csv"
+    )
+
+    assert response.status_code == 422
