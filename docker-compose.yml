@@ -131,6 +131,12 @@ services:
       - "${WEB_TLS_PORT:-8443}:443"
     environment:
       TLS_CERT_CN: ${TLS_CERT_CN:-family-cfo.local}
+      # Comma-separated extra hostnames/IPs the box is reached by, added to the
+      # cert's Subject Alternative Names. REQUIRED for iOS/Safari (and the
+      # over-the-air app install) when connecting by LAN IP — a cert without the
+      # connection host in its SAN is rejected no matter how it is trusted. e.g.
+      # TLS_CERT_SAN=192.168.1.10,family-cfo-box
+      TLS_CERT_SAN: ${TLS_CERT_SAN:-}
     volumes:
       # Bring-your-own certificate: mount a directory with tls.crt / tls.key to
       # replace the self-signed default (see ADR 0008). Uses a named volume by
