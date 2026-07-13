@@ -194,3 +194,22 @@ async def test_qr_payload_fingerprint_is_null_without_a_cert(demo_client, demo_t
 
     assert created.status_code == 201
     assert json.loads(created.json()["qr_payload"])["certificate_sha256"] is None
+
+
+def test_pairing_session_id_column_fits_the_csprng_token() -> None:
+    """Regression: the id column must hold the token_urlsafe secret.
+
+    SQLite ignores VARCHAR length, so the width mismatch (String(36) vs the
+    ~43-char token) only failed on PostgreSQL. This asserts the invariant
+    directly so it can never regress on either backend.
+    """
+    from family_cfo_api import models, security
+
+    column_length = models.pairing_sessions.c.id.type.length
+    # Sample several tokens; token_urlsafe length is deterministic per byte
+    # count but assert with margin against the actual generator.
+    longest = max(len(security.generate_pairing_secret()) for _ in range(50))
+    assert longest <= column_length, (
+        f"pairing token ({longest} chars) does not fit id column "
+        f"({column_length} chars)"
+    )
