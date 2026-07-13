@@ -22,6 +22,7 @@ x-api-env: &api-env
   FAMILY_CFO_BACKUP_RETENTION_COUNT: ${FAMILY_CFO_BACKUP_RETENTION_COUNT:-7}
   FAMILY_CFO_BACKUP_ENCRYPTION_KEY: ${FAMILY_CFO_BACKUP_ENCRYPTION_KEY:-}
   FAMILY_CFO_LOG_LEVEL: ${FAMILY_CFO_LOG_LEVEL:-INFO}
+  FAMILY_CFO_TLS_CERT_PATH: /etc/family-cfo/certs/tls.crt
   # AI runtime on by default; households inherit this until they save their own
   # ai_runtime_configs row. Must match the vllm service (model = VLLM_MODEL).
   FAMILY_CFO_AI_ENABLED: ${FAMILY_CFO_AI_ENABLED:-true}
@@ -77,6 +78,9 @@ services:
       - backups:/data/backups
       # M69: fastembed's ONNX model cache (downloaded once, ~130 MB).
       - embedding_cache:/root/.cache
+      # M83a: read the web tier's TLS cert so pairing QR codes can carry its
+      # SHA-256 fingerprint for the iOS app to pin.
+      - web_certs:/etc/family-cfo/certs:ro
     depends_on:
       db:
         condition: service_healthy
