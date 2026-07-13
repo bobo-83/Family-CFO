@@ -27,6 +27,7 @@ describe('Chat', () => {
     getConversation: ReturnType<typeof vi.fn>;
     createChatMessage: ReturnType<typeof vi.fn>;
     deleteConversation: ReturnType<typeof vi.fn>;
+    synthesizeSpeech: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -38,6 +39,7 @@ describe('Chat', () => {
       getConversation: vi.fn(),
       createChatMessage: vi.fn(),
       deleteConversation: vi.fn(),
+      synthesizeSpeech: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -83,6 +85,27 @@ describe('Chat', () => {
       message: 'And a case too?',
       conversation_id: 'conv-9',
     });
+  });
+
+  it('reads an answer aloud, falling back to system speech when no voice service (M87a)', async () => {
+    apiMock.synthesizeSpeech.mockResolvedValue(null); // 503 -> no on-box voice
+    const speak = vi.fn();
+    Object.defineProperty(window, 'speechSynthesis', {
+      value: { speak },
+      configurable: true,
+    });
+    // jsdom has neither symbol; the component uses both on the fallback path.
+    (window as unknown as { SpeechSynthesisUtterance: unknown }).SpeechSynthesisUtterance =
+      class {
+        onend: (() => void) | null = null;
+        constructor(public text: string) {}
+      };
+    const component = TestBed.createComponent(Chat).componentInstance;
+
+    await component['speak']('Your net worth is up.', 0);
+
+    expect(apiMock.synthesizeSpeech).toHaveBeenCalledWith('Your net worth is up.');
+    expect(speak).toHaveBeenCalledOnce();
   });
 
   it('surfaces an error and keeps the user turn', async () => {

@@ -417,6 +417,22 @@
   margin-bottom: 0.25rem;
 }
 
+.chat__speak {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  border: 1px solid #d4d8e0;
+  border-radius: 999px;
+  background: white;
+  color: #5b6472;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
 
 .chat__status-group {
   display: flex;
