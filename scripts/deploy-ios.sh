@@ -178,6 +178,12 @@ xcrun devicectl device process launch --device "$DEVICE_UDID" "$BUNDLE_ID" >/dev
        A brand-new signing identity needs to be trusted once on the device:
        Settings → General → VPN & Device Management → trust the developer."
 
+# Record the phone alongside the servers, so `scripts/deployments.sh` can show
+# where the app went and offer to remove it again.
+# shellcheck source=lib/deploy-env.sh
+. "$REPO_ROOT/scripts/lib/deploy-env.sh"
+record_deployment "$REPO_ROOT" ios "$DEVICE_NAME" "$DEVICE_UDID" "" "$IOS_CONFIG" "$BUNDLE_ID"
+
 log "Deployed to ${DEVICE_NAME}."
 echo "  The app talks to the box it was paired with — re-pair from the dashboard's"
 echo "  Devices page if you moved the server."
