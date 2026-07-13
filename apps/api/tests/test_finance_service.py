@@ -76,3 +76,19 @@ def test_safe_to_spend_flags_liabilities_with_no_recorded_minimum_payment(
     )
 
     assert any("UNDERSTATED" in w for w in result.warnings)
+
+
+def test_safe_to_spend_reports_liabilities_that_have_no_minimum_payment(
+    demo_engine: Engine,
+) -> None:
+    """The user's real household carried $29,931 across three credit cards, none
+    with a minimum payment recorded — so nothing was subtracted for debt and the
+    advisor said nothing about it. Now the debt is reported and the shortfall
+    named."""
+    result, _ref = finance_service.compute_safe_to_spend(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD"
+    )
+
+    # The demo mortgage is a liability, so the household owes something.
+    assert result.outputs["total_debt"].amount_minor > 0
+    assert any("owes" in w for w in result.warnings)

@@ -83,3 +83,32 @@ def test_income_is_not_counted_and_the_assumption_says_so() -> None:
 def test_mixed_currencies_are_refused_rather_than_silently_summed() -> None:
     with pytest.raises(CurrencyMismatchError):
         calculate_safe_to_spend(_inputs(bills_due=Money(100, "EUR")))
+
+
+def test_outstanding_debt_is_reported_even_though_it_is_not_subtracted() -> None:
+    """A balance is not due this month, so it isn't subtracted — but "you have
+    $6,765 to spend" said beside a silent $29,931 of card debt is a true sentence
+    that misleads. Both numbers must reach the family."""
+    result = calculate_safe_to_spend(_inputs(total_debt=Money(2_993_144, "USD")))
+
+    assert result.outputs["total_debt"] == Money(2_993_144, "USD")
+    assert any("owes 29,931.44 USD" in w for w in result.warnings)
+    assert any("never on its own" in w for w in result.warnings)
+
+
+def test_the_unpayable_debt_warning_names_the_amount() -> None:
+    result = calculate_safe_to_spend(
+        _inputs(unmodeled_debt_count=3, unmodeled_debt_total=Money(2_993_144, "USD"))
+    )
+
+    warning = next(w for w in result.warnings if "UNDERSTATED" in w)
+    assert "3 liability account(s)" in warning
+    assert "29,931.44 USD" in warning
+    assert "LOWER than shown" in warning
+
+
+def test_no_debt_means_no_debt_warning() -> None:
+    result = calculate_safe_to_spend(_inputs(total_debt=Money.zero("USD"), bills_due=Money(1, "USD")))
+
+    assert not any("owes" in w for w in result.warnings)
+    assert result.outputs["total_debt"] == Money.zero("USD")

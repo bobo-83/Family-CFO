@@ -32,8 +32,24 @@ class SafeToSpendInputs:
 
     horizon_days: int = 30
 
+    total_debt: Money | None = None
+    """What the household owes across all liability accounts, as a positive amount.
+
+    Not subtracted -- a balance is not due this month -- but reported, because
+    "you have $6,765 to spend" alongside a silent $29,931 of credit-card debt is
+    a true sentence that misleads. The family has to see both numbers together.
+    """
+
     unmodeled_debt_count: int = 0
     """Liabilities with no recorded minimum payment: their claim is invisible."""
+
+    unmodeled_debt_total: Money | None = None
+    """What those unrecorded liabilities owe, so the warning can name a number."""
+
+
+def _plain(money: Money) -> str:
+    """A bare amount for warning text (the API formats display strings)."""
+    return f"{money.amount_minor / 100:,.2f} {money.currency}"
 
 
 def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
@@ -59,10 +75,20 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
         )
 
     if inputs.unmodeled_debt_count > 0:
+        owed = ""
+        if inputs.unmodeled_debt_total is not None and not inputs.unmodeled_debt_total.is_zero():
+            owed = f" (owing {_plain(inputs.unmodeled_debt_total)})"
         warnings.append(
-            f"{inputs.unmodeled_debt_count} liability account(s) have no minimum payment "
-            "recorded, so the amount already committed to debt is UNDERSTATED and the "
-            "true safe-to-spend figure is lower than shown."
+            f"{inputs.unmodeled_debt_count} liability account(s){owed} have no minimum payment "
+            "recorded, so nothing was subtracted for them: the amount already committed to "
+            "debt is UNDERSTATED and the true safe-to-spend figure is LOWER than shown. "
+            "Record each account's minimum payment to fix this."
+        )
+
+    if inputs.total_debt is not None and not inputs.total_debt.is_zero():
+        warnings.append(
+            f"The household owes {_plain(inputs.total_debt)} across its liability accounts. "
+            "Spendable cash must be reported alongside that debt, never on its own."
         )
 
     if inputs.emergency_fund_reserved.is_zero():
@@ -101,6 +127,7 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
             "minimum_debt_payments": inputs.minimum_debt_payments,
             "committed_total": committed,
             "safe_to_spend": safe_to_spend,
+            "total_debt": inputs.total_debt or Money.zero(currency),
         },
         warnings=warnings,
     )
