@@ -2,9 +2,17 @@ name: Web Dashboard
 
 on:
   pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/web.yml'
   push:
     branches:
       - main
+    paths:
+      - 'apps/web/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/web.yml'
 
 jobs:
   build-test:

@@ -2,9 +2,17 @@ name: Spec Check
 
 on:
   pull_request:
+    paths:
+      - 'docs/**'
+      - 'shared/**'
+      - '.github/workflows/spec-check.yml'
   push:
     branches:
       - main
+    paths:
+      - 'docs/**'
+      - 'shared/**'
+      - '.github/workflows/spec-check.yml'
 
 jobs:
   required-specs:

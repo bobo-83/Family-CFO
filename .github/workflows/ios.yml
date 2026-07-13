@@ -2,9 +2,17 @@ name: iOS App
 
 on:
   pull_request:
+    paths:
+      - 'apps/ios/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/ios.yml'
   push:
     branches:
       - main
+    paths:
+      - 'apps/ios/**'
+      - 'shared/openapi/**'
+      - '.github/workflows/ios.yml'
 
 jobs:
   build-test:
