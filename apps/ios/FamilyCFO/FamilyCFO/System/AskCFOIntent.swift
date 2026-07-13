@@ -61,13 +61,22 @@ enum AskCFO {
 }
 
 /// Surfaces the intent to Siri/Spotlight with spoken trigger phrases.
+///
+/// Apple requires the app name in EVERY App Shortcut phrase, and Siri can't
+/// reliably capture a free-form question from the same utterance — so the
+/// working flow is "Ask Family CFO" (any phrase below), after which Siri prompts
+/// for the question. The app's display name is "Family CFO" (two words) so Siri
+/// hears it cleanly.
 struct FamilyCFOShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: AskCFOIntent(),
             phrases: [
-                "Ask my CFO in \(.applicationName)",
                 "Ask \(.applicationName)",
+                "Ask my CFO in \(.applicationName)",
+                "Ask my advisor in \(.applicationName)",
+                "\(.applicationName) how much money do I have",
+                "Talk to \(.applicationName)",
             ],
             shortTitle: "Ask my CFO",
             systemImageName: "bubble.left.and.text.bubble.right"
