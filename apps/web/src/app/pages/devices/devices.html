@@ -30,6 +30,24 @@
           you to confirm the connection manually on first pairing.
         </p>
       }
+      @if (qrPayload(); as payload) {
+        <div class="pairing-card__paste">
+          <p class="pairing-card__meta">
+            <strong>Pairing on this same iPhone?</strong> You can't scan a code on
+            your own screen — copy it instead, open the Family CFO app's pairing
+            screen, and paste it into “…or paste the pairing payload”.
+          </p>
+          <button type="button" class="pairing-card__copy" (click)="copyPayload()">
+            {{ copied() ? '✓ Copied — now paste it in the app' : 'Copy pairing code' }}
+          </button>
+          <textarea
+            class="pairing-card__payload"
+            readonly
+            rows="3"
+            (focus)="$any($event.target).select()"
+          >{{ payload }}</textarea>
+        </div>
+      }
       <button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
         Generate a new code
       </button>
