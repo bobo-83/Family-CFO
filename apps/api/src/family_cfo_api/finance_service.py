@@ -326,13 +326,34 @@ def compute_safe_to_spend(
         if bill.amount.currency == currency:
             bills_due += bill.amount
 
+    # Every liability the household carries, as a positive amount. Not subtracted
+    # (a balance is not due this month) but reported: "$6,765 to spend" said
+    # beside a silent $29,931 of card debt is true and still misleading.
+    total_debt = Money.zero(currency)
+    for balance in balances:
+        if balance.currency == currency and balance.balance_minor < 0:
+            total_debt += Money(-balance.balance_minor, balance.currency)
+
     minimum_debt_payments = Money.zero(currency)
-    unmodeled = repository.count_liabilities_without_terms(engine, household_id)
+    modeled_ids: set[str] = set()
     for debt in repository.list_debts_with_terms(engine, household_id):
         if debt.currency != currency or debt.minimum_payment_minor is None:
-            unmodeled += 1
             continue
         minimum_debt_payments += Money(debt.minimum_payment_minor, debt.currency)
+        modeled_ids.add(debt.account_id)
+
+    # A liability with no recorded minimum payment contributes nothing to the
+    # subtraction, so its claim on the cash is invisible. Count AND total them,
+    # so the warning can name the number rather than gesture at it.
+    unmodeled = 0
+    unmodeled_total = Money.zero(currency)
+    for balance in balances:
+        if balance.balance_minor >= 0 or balance.currency != currency:
+            continue
+        if balance.account_id in modeled_ids:
+            continue
+        unmodeled += 1
+        unmodeled_total += Money(-balance.balance_minor, balance.currency)
 
     result = calculate_safe_to_spend(
         SafeToSpendInputs(
@@ -341,7 +362,9 @@ def compute_safe_to_spend(
             bills_due=bills_due,
             minimum_debt_payments=minimum_debt_payments,
             horizon_days=horizon_days,
+            total_debt=total_debt,
             unmodeled_debt_count=unmodeled,
+            unmodeled_debt_total=unmodeled_total,
         )
     )
     calculation_id = _persist(engine, household_id, result)
