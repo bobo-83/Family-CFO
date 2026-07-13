@@ -39,7 +39,7 @@ Ordered by milestone:
    camera buttons.
 8. **Review queues (M90)** — one-tap bill-suggestion and income
    confirm/reject.
-9. **Quick categorization (M91)** — swipe-to-categorize transactions.
+9. **Quick categorization (M91)** — swipe-to-categorize transactions; one swipe files every same-merchant transaction at once (M91b); inline + starter-set category creation (M91a).
 10. **System integration (M92)** — net-worth widget, Siri/App Intents into
     chat, local notifications for upcoming bills.
 
