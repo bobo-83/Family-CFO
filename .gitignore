@@ -49,5 +49,8 @@ vllm-cache/
 
 # Generated clients and local artifacts
 generated/
+# … but the committed Swift API client is generated-and-committed by design
+# (same discipline as the Angular client; see scripts/generate-swift-client.sh)
+!apps/ios/FamilyCFO/FamilyCFO/APIClient/Generated/
 tmp/
 uv.lock

@@ -43,6 +43,10 @@ export type DeviceCredential = {
     device_id: string;
     access_token: string;
     expires_at: string;
+    /**
+     * M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
+     */
+    role?: HouseholdRole;
 };
 
 export type PairedDevice = {
