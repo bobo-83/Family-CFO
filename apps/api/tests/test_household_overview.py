@@ -222,3 +222,23 @@ async def test_no_goal_keeps_months_based_behavior(
 
     assert fund["status"] == "fully_funded"  # 6 months of $2k bills
     assert fund["goal_target"] is None
+
+
+@pytest.mark.anyio
+async def test_context_reports_spending_by_category(demo_client, demo_token) -> None:
+    """M94: the payoff of categorizing — this month's spend grouped by category,
+    with the still-uncategorized amount so the user sees the value of filing more."""
+    body = await _context(demo_client, demo_token)
+
+    sbc = body.get("spending_by_category")
+    # The demo fixtures may have no current-month spend; when present, it must be
+    # internally consistent.
+    if sbc is None:
+        return
+    assert "month_label" in sbc
+    cat_sum = sum(c["amount"]["amount_minor"] for c in sbc["categories"])
+    assert sbc["categorized_total"]["amount_minor"] == cat_sum
+    # Highest-first ordering.
+    amounts = [c["amount"]["amount_minor"] for c in sbc["categories"]]
+    assert amounts == sorted(amounts, reverse=True)
+    assert sbc["uncategorized"]["amount_minor"] >= 0

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, finance_service, repository
-from family_cfo_api.api.budgets import budgets_with_progress
+from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     AssetCategoryTotal,
@@ -15,10 +15,12 @@ from family_cfo_api.schemas import (
     HouseholdContext,
     HouseholdUpdateRequest,
     MerchantSpend,
+    CategorySpend,
     MonthlyCashFlow,
     NetWorthPoint,
     SafeToSpend,
     SavingsRate,
+    SpendingByCategory,
     SpendingInsights,
     UpcomingBill,
 )
@@ -204,6 +206,48 @@ def _budget_summary(engine: Engine, household_id: str, currency: str) -> BudgetS
     )
 
 
+_MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
+def _spending_by_category(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> SpendingByCategory | None:
+    """M94: this month's outflow grouped by category — the payoff of categorizing.
+    None when nothing has been spent this month (nothing to show)."""
+    today = today or date.today()
+    start, end = _month_window(today)
+
+    total = repository.sum_spending(engine, household_id, start, end, currency)
+    if total == 0:
+        return None
+
+    by_category = repository.sum_spending_by_category(engine, household_id, start, end, currency)
+    names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
+
+    categorized_minor = sum(by_category.values())
+    entries = [
+        CategorySpend(
+            category_id=cid,
+            # A category deleted after the spend still has transactions; label it
+            # rather than drop the money.
+            category_name=names.get(cid, "Uncategorized"),
+            amount=MoneySchema(amount_minor=minor, currency=currency),
+        )
+        for cid, minor in by_category.items()
+    ]
+    entries.sort(key=lambda e: e.amount.amount_minor, reverse=True)
+
+    return SpendingByCategory(
+        month_label=f"{_MONTHS[today.month - 1]} {today.year}",
+        categories=entries,
+        categorized_total=MoneySchema(amount_minor=categorized_minor, currency=currency),
+        uncategorized=MoneySchema(amount_minor=total - categorized_minor, currency=currency),
+    )
+
+
 def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSpend | None:
     """M93: what's free to spend now, for the Overview. None when there is no
     liquid balance to reason about (a brand-new household)."""
@@ -328,6 +372,7 @@ async def get_household_context(
         savings_rate=_savings_rate(engine, household.id, currency),
         budget_summary=_budget_summary(engine, household.id, currency),
         safe_to_spend=_safe_to_spend(engine, household.id, currency),
+        spending_by_category=_spending_by_category(engine, household.id, currency),
     )
 
 
