@@ -6,7 +6,6 @@ import SwiftUI
 struct ConversationListView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: ConversationListViewModel?
-    @State private var pendingDeletion: Components.Schemas.Conversation?
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -46,26 +45,6 @@ struct ConversationListView: View {
             guard newPath.isEmpty else { return }
             Task { await viewModel?.load() }
         }
-        // Deleting takes the thread's messages with it, server-side, for good —
-        // so it is confirmed, exactly as the dashboard confirms it.
-        .confirmationDialog(
-            "Delete this conversation?",
-            isPresented: .init(
-                get: { pendingDeletion != nil },
-                set: { if !$0 { pendingDeletion = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: pendingDeletion
-        ) { conversation in
-            Button("Delete", role: .destructive) {
-                let id = conversation.id
-                pendingDeletion = nil
-                Task { await viewModel?.delete(id: id) }
-            }
-            Button("Cancel", role: .cancel) { pendingDeletion = nil }
-        } message: { _ in
-            Text("This conversation and its messages are deleted from the box. This can't be undone.")
-        }
     }
 
     @ViewBuilder
@@ -104,9 +83,12 @@ struct ConversationListView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    // No confirmation: the swipe IS the deliberate act. The row
+                    // only leaves the list once the box confirms the delete —
+                    // and comes back if it refuses.
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
-                            pendingDeletion = conversation
+                            Task { await viewModel.delete(id: conversation.id) }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
