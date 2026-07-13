@@ -13,14 +13,17 @@ final class OverviewViewModel {
 
     private let api: HouseholdAPI
     private let notifications: BillNotificationScheduler?
+    private let snapshotStore: OverviewSnapshotStore?
 
     init(
         api: HouseholdAPI,
         notifications: BillNotificationScheduler? = BillNotificationScheduler(
-            scheduler: SystemNotificationScheduler())
+            scheduler: SystemNotificationScheduler()),
+        snapshotStore: OverviewSnapshotStore? = OverviewSnapshotStore()
     ) {
         self.api = api
         self.notifications = notifications
+        self.snapshotStore = snapshotStore
     }
 
     /// `refreshable` and `task` both call this; the guard keeps a pull-to-
@@ -37,6 +40,12 @@ final class OverviewViewModel {
             // no separate poll of the box; this data was already fetched.
             if let notifications, let bills = context.upcomingBills {
                 await notifications.refresh(from: bills)
+            }
+            // Cache the glance values for the home-screen widget (M92a), which
+            // reads this snapshot rather than polling the box itself.
+            if let snapshotStore {
+                snapshotStore.save(OverviewSnapshot(context: context, now: Date()))
+                WidgetRefresher.reloadOverview()
             }
         } catch {
             errorMessage = ChatViewModel.describe(error)

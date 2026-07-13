@@ -154,3 +154,36 @@ struct AskCFOIntentTests {
         #expect(api.sentMessages.isEmpty)
     }
 }
+
+struct OverviewSnapshotStoreTests {
+    // A unique suite per test so they don't collide in the shared defaults.
+    private func store(_ suite: String) -> OverviewSnapshotStore {
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        return OverviewSnapshotStore(suiteName: suite)
+    }
+
+    private func snapshot(_ minor: Int64) -> OverviewSnapshot {
+        OverviewSnapshot(
+            netWorthMinor: minor, currency: "USD",
+            emergencyFundStatus: "On track", emergencyFundMonths: 4.5,
+            capturedAt: Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    @Test func savesAndLoadsRoundTrip() {
+        let s = store("test.suite.roundtrip")
+        s.save(snapshot(1_234_500))
+
+        let loaded = s.load()
+        #expect(loaded?.netWorthMinor == 1_234_500)
+        #expect(loaded?.emergencyFundStatus == "On track")
+    }
+
+    @Test func loadReturnsNilWhenNothingSaved() {
+        let s = store("test.suite.empty")
+        #expect(s.load() == nil)
+    }
+
+    @Test func netWorthFormatsFromMinorUnits() {
+        #expect(snapshot(1_234_500).netWorthFormatted == "$12,345")
+    }
+}
