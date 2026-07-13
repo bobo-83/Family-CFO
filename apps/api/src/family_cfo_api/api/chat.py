@@ -78,6 +78,23 @@ def _validate_image(payload: ChatRequest, settings: Settings) -> str | None:
     return f"data:{payload.image_media_type};base64,{payload.image_base64}"
 
 
+def _data_file_preview(payload: ChatRequest, settings: Settings) -> str | None:
+    """M85: a bounded grounded summary of an attached data file, or None."""
+    if payload.data_file_base64 is None:
+        return None
+    try:
+        raw = base64.b64decode(payload.data_file_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="data_file_base64 is not valid base64") from exc
+    if not raw:
+        raise HTTPException(status_code=422, detail="attached data file is empty")
+    if len(raw) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail="attached data file exceeds the maximum size")
+    from family_cfo_api.chat_attachments import build_data_file_preview
+
+    return build_data_file_preview(payload.data_file_name or "attachment", raw)
+
+
 def _analyze_image(
     engine: Engine, household_id: str, settings: Settings, image_data_url: str, message: str
 ) -> _ImageAnalysis:
@@ -184,6 +201,7 @@ def _try_agentic_answer(
     message: str,
     *,
     image_description: str | None = None,
+    data_file_preview: str | None = None,
     settings: Settings | None = None,
     history: list[tuple[str, str]] | None = None,
     memories: list[str] | None = None,
@@ -206,6 +224,9 @@ def _try_agentic_answer(
     user_content = message
     if image_description:
         user_content = f"{message}\n\n[Attached photo, as described by the vision model: {image_description}]"
+    if data_file_preview:
+        # M85: the file summary is the user's own data — grounded context.
+        user_content = f"{user_content}\n\n[Attached data file summary:\n{data_file_preview}\n]"
     # M30: prior turns from this conversation give the model memory. Bounded
     # to the most recent messages, each truncated, to protect the context.
     history_messages = [
@@ -249,6 +270,8 @@ def _try_agentic_answer(
         context_values |= extract_numbers(content)
     if image_description:
         context_values |= extract_numbers(image_description)
+    if data_file_preview:
+        context_values |= extract_numbers(data_file_preview)
     for value in memories or []:
         context_values |= extract_numbers(value)
     if conversation_summary:
@@ -372,6 +395,9 @@ async def create_chat_message(
             engine, household.id, settings, image_data_url, payload.message
         )
 
+    # M85: an attached data file becomes a bounded, grounded prompt summary.
+    data_file_preview = _data_file_preview(payload, settings)
+
     # M57: facts remembered across all conversations + this thread's summary.
     memories = [m.value for m in repository.list_household_memories(engine, household.id)]
 
@@ -380,6 +406,7 @@ async def create_chat_message(
         household,
         payload.message,
         image_description=analysis.description if analysis else None,
+        data_file_preview=data_file_preview,
         settings=settings,
         history=history,
         memories=memories,
@@ -423,6 +450,8 @@ async def create_chat_message(
     if analysis is not None:
         note = analysis.description or "photo attached (not analyzed)"
         stored_user_content = f"{payload.message}\n\n[Photo: {note}]"
+    if data_file_preview is not None:
+        stored_user_content = f"{stored_user_content}\n\n[Data file: {payload.data_file_name or 'attachment'}]"
     repository.append_conversation_turn(
         engine,
         conversation_id=conversation.id,

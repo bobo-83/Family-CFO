@@ -581,6 +581,11 @@ class ChatRequest(BaseModel):
     # page 1 for the vision model): base64-encoded, images downscaled client-side.
     image_base64: str | None = None
     image_media_type: W2ScanMediaType | None = None
+    # Optional attached data file (M85): CSV / spreadsheet / text, base64. The
+    # server builds a bounded grounded PREVIEW that joins the prompt; the file
+    # is never stored and never written to records (distinct from imports).
+    data_file_base64: str | None = None
+    data_file_name: str | None = Field(default=None, max_length=255)
 
 
 class ChatResponse(BaseModel):

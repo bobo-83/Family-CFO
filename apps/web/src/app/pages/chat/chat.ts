@@ -141,6 +141,34 @@ export class Chat {
     this.attachedImage.set(null);
   }
 
+  // M85: a data file (CSV / spreadsheet / text) — summarized server-side.
+  protected readonly attachedFile = signal<{ base64: string; name: string } | null>(null);
+
+  protected async onDataFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    try {
+      const base64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      this.attachedFile.set({ base64, name: file.name });
+      this.errorMessage.set(null);
+    } catch {
+      this.errorMessage.set('Could not read that file — try a CSV, spreadsheet, or text file.');
+    }
+  }
+
+  protected removeFile(): void {
+    this.attachedFile.set(null);
+  }
+
   /** A coarse High/Medium/Low label for a 0..1 confidence score. */
   protected confidenceLabel(confidence: number): 'High' | 'Medium' | 'Low' {
     if (confidence >= 0.8) {
@@ -207,6 +235,7 @@ export class Chat {
     }
 
     const image = this.attachedImage();
+    const file = this.attachedFile();
     this.sending.set(true);
     this.errorMessage.set(null);
     this.turns.update((turns) => [
@@ -215,12 +244,15 @@ export class Chat {
     ]);
     this.form.reset({ message: '' });
     this.attachedImage.set(null);
+    this.attachedFile.set(null);
 
     const { data, error } = await this.api.createChatMessage({
       message,
       conversation_id: this.conversationId() ?? undefined,
       image_base64: image?.base64,
       image_media_type: image?.mediaType,
+      data_file_base64: file?.base64,
+      data_file_name: file?.name,
     });
 
     this.sending.set(false);

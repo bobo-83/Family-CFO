@@ -206,6 +206,15 @@
         </div>
       }
 
+      @if (attachedFile(); as file) {
+        <div class="chat__preview">
+          <span class="chat__preview-file">📊 {{ file.name }}</span>
+          <button type="button" class="chat__preview-remove" (click)="removeFile()" aria-label="Remove file">
+            ✕
+          </button>
+        </div>
+      }
+
       <form class="chat__input" [formGroup]="form" (ngSubmit)="send()" novalidate>
         <!-- accept+capture: on iPhone this offers Take Photo or Photo Library -->
         <input
@@ -216,6 +225,15 @@
           class="chat__file"
           (change)="onFileSelected($event)"
         />
+        <!-- M85: data files (CSV / spreadsheet / text) — no capture, so this
+             opens the Files picker rather than the camera. -->
+        <input
+          #dataInput
+          type="file"
+          accept=".csv,.tsv,.xlsx,.xlsm,.txt,.md,text/csv,text/plain"
+          class="chat__file"
+          (change)="onDataFileSelected($event)"
+        />
         <button
           type="button"
           class="chat__attach"
@@ -224,6 +242,15 @@
           title="Attach a photo"
         >
           📷
+        </button>
+        <button
+          type="button"
+          class="chat__attach"
+          (click)="dataInput.click()"
+          aria-label="Attach a spreadsheet, CSV, or text file"
+          title="Attach a spreadsheet, CSV, or text file"
+        >
+          📎
         </button>
         <input
           type="text"

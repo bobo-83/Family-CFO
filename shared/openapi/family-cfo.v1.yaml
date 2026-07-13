@@ -3305,6 +3305,16 @@ components:
             - image/png
             - image/webp
             - application/pdf
+        data_file_base64:
+          type: string
+          description: >-
+            Optional attached data file (CSV / spreadsheet / text), base64.
+            The server builds a bounded grounded preview for the prompt; the
+            file is never stored (M85).
+        data_file_name:
+          type: string
+          maxLength: 255
+          description: Filename of the attached data file (drives format detection)
     ChatResponse:
       type: object
       required:

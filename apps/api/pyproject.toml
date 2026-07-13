@@ -20,6 +20,8 @@ dependencies = [
   # M77: rasterize PDF W2s on-box for the vision model (Pillow rides in via
   # fastembed and does the PNG encode).
   "pypdfium2>=4.30,<6",
+  # M85: read .xlsx chat attachments into a bounded preview (MIT, pure-Python).
+  "openpyxl>=3.1,<4",
   "python-multipart>=0.0.9,<0.1",
   "PyYAML>=6.0,<7",
   "SQLAlchemy>=2.0,<2.1",
