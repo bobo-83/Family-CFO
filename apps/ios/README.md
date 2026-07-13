@@ -4,8 +4,10 @@ SwiftUI iPhone app (iOS 18+). Implements M83 (foundation), M84 + M85 (advisor
 chat with image / PDF / CSV-spreadsheet attachments), M86 + M87 (on-device
 speech, and the on-box Kokoro voice with a system-voice fallback), M88
 (Overview dashboard), M89 (receipt + W-2 camera flows), M91
-(swipe-to-categorize), and M90 (review queues); the remaining roadmap is M92 in `docs/specs/12-implementation-tasks.md`. Spec:
-`docs/specs/08-mobile-spec.md`.
+(swipe-to-categorize), M90 (review queues), and M92 (Siri, notifications, and
+the widget's code + data layer). The iOS roadmap (M83–M93) is complete; the
+widget's Xcode target is a one-time UI step documented below. Tasks:
+`docs/specs/12-implementation-tasks.md`. Spec: `docs/specs/08-mobile-spec.md`.
 
 ## Layout
 
@@ -67,6 +69,31 @@ Then open `https://<box>:8443/ota/` in Safari on the phone and tap Install. See
 [the deployment guide](../../docs/guides/deployment.md#what-remote-over-the-vpn-ios-patching-requires)
 for the full list of what this requires (device in the profile, Developer Mode,
 and a one-time trust of the box's certificate).
+
+## Home-screen widget (M92a) — one-time Xcode setup
+
+The widget's code lives in `FamilyCFOWidget/`, and the app already writes the
+snapshot it reads (`OverviewSnapshot` → shared App Group) and reloads its
+timeline. Only the Xcode *target* + App Group capability remain — deliberately
+not scripted, because adding an App Group entitlement is a signing/provisioning
+operation that can silently break the **device** build (and therefore the OTA
+install) if done by hand. Do it once in the UI:
+
+1. **File → New → Target… → Widget Extension.** Name it `FamilyCFOWidget`,
+   uncheck "Include Live Activity" and "Include Configuration Intent". When it
+   asks to activate the scheme, **Cancel** (the app scheme already builds it).
+2. Delete the template `.swift`/asset files Xcode added; the real widget source
+   is already in `FamilyCFOWidget/FamilyCFOWidget.swift`. Make sure that file (and
+   nothing else) is the widget target's member.
+3. Add `OverviewSnapshot.swift` to the **widget target** too (File Inspector →
+   Target Membership → tick `FamilyCFOWidget`). It's dependency-free on purpose.
+4. **Signing & Capabilities** on *both* the app and the widget target → **+
+   Capability → App Groups** → add `group.com.familycfo.ios` to each (matches
+   `OverviewSnapshot.appGroup`).
+5. Build the app scheme; add the widget from the Home Screen.
+
+Everything else (the snapshot write, timeline reload, Siri intent, bill
+notifications) already ships in the app target and needs none of this.
 
 ## Build and run
 
