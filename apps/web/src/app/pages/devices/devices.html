@@ -45,6 +45,23 @@
   </section>
 }
 
+<section class="pairing-card install-card">
+  <h2>Install the iPhone app</h2>
+  <p class="pairing-card__meta">
+    Open this page <strong>in Safari on the iPhone</strong> — on your home
+    Wi-Fi or over the household VPN — to install or update the app. It downloads
+    straight from this box; nothing leaves your network.
+  </p>
+  <a class="install-card__button" href="/ota/" target="_blank" rel="noopener">
+    Open the install page
+  </a>
+  <p class="pairing-card__meta">
+    First time on a device: you'll be asked to trust this box's certificate — the
+    install page walks you through it. If the button shows “not found”, no build
+    has been published yet (<code>scripts/deploy-ios-ota.sh</code>).
+  </p>
+</section>
+
 <h2>Paired devices</h2>
 @if (loading()) {
   <p>Loading…</p>
