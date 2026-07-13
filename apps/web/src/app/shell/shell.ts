@@ -53,6 +53,7 @@ export class Shell {
         { path: '/reports', label: 'Reports' },
         { path: '/backups', label: 'Backups' },
         { path: '/users', label: 'Users' },
+        { path: '/devices', label: 'Devices' },
       ],
     },
   ];

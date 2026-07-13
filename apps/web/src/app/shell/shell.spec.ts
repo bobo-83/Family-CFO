@@ -51,7 +51,7 @@ describe('Shell', () => {
     // The link list is its own scroll container so long menus never trap
     // the footer off-screen.
     expect(host.querySelector('nav.shell__nav-scroll')).not.toBeNull();
-    expect(host.querySelectorAll('.shell__nav-link').length).toBe(16); // 15 pages + System Health
+    expect(host.querySelectorAll('.shell__nav-link').length).toBe(17); // 16 pages + System Health
   });
 
   it('renders the scrim only while the menu is open', () => {

@@ -132,3 +132,65 @@ async def test_viewer_cannot_revoke_paired_device(
     )
 
     assert response.status_code == 403
+
+
+# --- M83a: certificate fingerprint in the QR payload ---
+
+
+def test_certificate_fingerprint_hashes_the_der_bytes(tmp_path) -> None:
+    import base64
+    import hashlib
+
+    from family_cfo_api.api.pairing import certificate_fingerprint
+
+    der = b"not-a-real-cert-but-der-shaped-bytes"
+    pem = (
+        "-----BEGIN CERTIFICATE-----\n"
+        + base64.encodebytes(der).decode()
+        + "-----END CERTIFICATE-----\n"
+    )
+    cert = tmp_path / "tls.crt"
+    cert.write_text(pem)
+
+    assert certificate_fingerprint(str(cert)) == hashlib.sha256(der).hexdigest()
+    assert certificate_fingerprint(str(tmp_path / "missing.crt")) is None
+    assert certificate_fingerprint("") is None
+
+
+@pytest.mark.anyio
+async def test_qr_payload_carries_the_fingerprint_when_cert_configured(
+    demo_client, demo_token, tmp_path, monkeypatch
+) -> None:
+    import base64
+    import hashlib
+
+    from family_cfo_api import config
+
+    der = b"qr-payload-cert"
+    cert = tmp_path / "tls.crt"
+    cert.write_text(
+        "-----BEGIN CERTIFICATE-----\n"
+        + base64.encodebytes(der).decode()
+        + "-----END CERTIFICATE-----\n"
+    )
+    monkeypatch.setattr(
+        config, "get_settings", lambda: config.Settings(tls_cert_path=str(cert))
+    )
+
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+
+    assert created.status_code == 201
+    payload = json.loads(created.json()["qr_payload"])
+    assert payload["certificate_sha256"] == hashlib.sha256(der).hexdigest()
+
+
+@pytest.mark.anyio
+async def test_qr_payload_fingerprint_is_null_without_a_cert(demo_client, demo_token) -> None:
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+
+    assert created.status_code == 201
+    assert json.loads(created.json()["qr_payload"])["certificate_sha256"] is None

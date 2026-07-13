@@ -1,0 +1,86 @@
+<h1>Devices</h1>
+
+<p class="page-hint">
+  Pair the Family CFO iPhone app by scanning a code from this screen. Paired
+  devices get their own revocable credential — losing a phone never means
+  changing your password.
+</p>
+
+@if (actionError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+}
+
+@if (canPair()) {
+  <section class="pairing-card">
+    <h2>Pair a device</h2>
+    @if (qrSvg(); as svg) {
+      <div class="pairing-card__qr" [innerHTML]="svg"></div>
+      <p class="pairing-card__meta">
+        Scan with the Family CFO app. This code expires
+        {{ qrExpiresAt() | date: 'shortTime' }} and can only be used once.
+      </p>
+      @if (fingerprint(); as fp) {
+        <p class="pairing-card__fingerprint">
+          Server certificate fingerprint (the app pins this):
+          <code>{{ fp }}</code>
+        </p>
+      } @else {
+        <p class="pairing-card__meta">
+          ⚠️ No server certificate fingerprint available — the app will ask
+          you to confirm the connection manually on first pairing.
+        </p>
+      }
+      <button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
+        Generate a new code
+      </button>
+    } @else {
+      <p class="pairing-card__meta">
+        The code carries the server address, its certificate fingerprint, and
+        a one-time secret — valid for 10 minutes.
+      </p>
+      <button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
+        {{ busy() === 'qr' ? 'Generating…' : 'Show pairing code' }}
+      </button>
+    }
+  </section>
+}
+
+<h2>Paired devices</h2>
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else if (devices().length === 0) {
+  <p class="page-empty">No devices paired yet.</p>
+} @else {
+  <ul class="device-list">
+    @for (device of devices(); track device.id) {
+      <li class="device-list__item">
+        <div class="device-list__main">
+          <div class="device-list__name">
+            {{ device.name }}
+            @if (device.revoked_at) {
+              <span class="device-list__revoked">revoked</span>
+            }
+          </div>
+          <div class="device-list__meta">
+            paired {{ device.created_at | date: 'MMM d, y' }}
+            @if (device.last_seen_at) {
+              · last seen {{ device.last_seen_at | date: 'MMM d, y h:mm a' }}
+            }
+          </div>
+        </div>
+        @if (canRevoke() && !device.revoked_at) {
+          <button
+            type="button"
+            class="device-list__revoke"
+            [disabled]="busy() !== null"
+            (click)="revoke(device)"
+          >
+            Revoke
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}

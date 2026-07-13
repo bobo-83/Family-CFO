@@ -29,6 +29,28 @@ def _api_base_url(request: Request) -> str:
     return f"{str(request.base_url).rstrip('/')}/api/v1"
 
 
+def certificate_fingerprint(cert_path: str) -> str | None:
+    """M83a: SHA-256 of the DER certificate — the value an iOS client pins."""
+    import base64
+    import hashlib
+    import re
+    from pathlib import Path
+
+    if not cert_path:
+        return None
+    try:
+        pem = Path(cert_path).read_text()
+    except OSError:
+        return None
+    match = re.search(
+        r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", pem, re.S
+    )
+    if match is None:
+        return None
+    der = base64.b64decode("".join(match.group(1).split()))
+    return hashlib.sha256(der).hexdigest()
+
+
 def _to_device_schema(record: repository.PairedDeviceRecord) -> PairedDevice:
     return PairedDevice(
         id=record.id,
@@ -63,6 +85,8 @@ async def create_pairing_session(
     # unauthenticated /pairing/confirm (ADR 0010).
     pairing_session_id = security.generate_pairing_secret()
     expires_at = repository.utcnow() + PAIRING_SESSION_TTL
+    from family_cfo_api.config import get_settings
+
     qr_payload = json.dumps(
         {
             "type": "family-cfo-pairing",
@@ -72,6 +96,9 @@ async def create_pairing_session(
             "household_id": household.id,
             "household_name": household.display_name,
             "expires_at": expires_at.isoformat(),
+            # M83a: lets the iOS app pin the self-signed cert (ADR 0018 era
+            # trust model) — null when the api cannot read the cert.
+            "certificate_sha256": certificate_fingerprint(get_settings().tls_cert_path),
         },
         separators=(",", ":"),
         sort_keys=True,

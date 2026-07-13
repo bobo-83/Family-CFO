@@ -1,0 +1,102 @@
+.pairing-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  max-width: 28rem;
+  margin-bottom: 1.5rem;
+
+  h2 {
+    margin-top: 0;
+  }
+
+  button {
+    padding: 0.55rem 1rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.pairing-card__qr {
+  max-width: 16rem;
+  margin: 0.5rem 0;
+
+  // The SVG the qrcode library emits scales to its container.
+  :first-child {
+    width: 100%;
+    height: auto;
+  }
+}
+
+.pairing-card__meta {
+  font-size: 0.9rem;
+  color: #5b6472;
+}
+
+.pairing-card__fingerprint {
+  font-size: 0.8rem;
+  color: #5b6472;
+
+  code {
+    overflow-wrap: anywhere;
+  }
+}
+
+.device-list {
+  list-style: none;
+  padding: 0;
+  max-width: 44rem;
+}
+
+.device-list__item {
+  background: white;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.device-list__main {
+  flex: 1;
+}
+
+.device-list__name {
+  font-weight: 600;
+}
+
+.device-list__revoked {
+  font-size: 0.75rem;
+  color: #b00020;
+  margin-left: 0.4rem;
+}
+
+.device-list__meta {
+  font-size: 0.85rem;
+  color: #5b6472;
+}
+
+.device-list__revoke {
+  color: #b00020;
+  background: none;
+  border: 1px solid #e5c1c7;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
