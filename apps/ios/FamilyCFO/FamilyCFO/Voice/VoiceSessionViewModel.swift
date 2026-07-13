@@ -7,7 +7,9 @@ import Observation
 /// `POST /chat/messages`; there is no second brain (ADR 0018).
 @MainActor
 @Observable
-final class VoiceSessionViewModel {
+final class VoiceSessionViewModel: Identifiable {
+    let id = UUID()
+
     enum Phase: Equatable {
         case idle
         case listening

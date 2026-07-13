@@ -28,7 +28,11 @@ struct ChatView: View {
     @State private var attachmentError: String?
     @State private var dictationEngine: SpeechEngine?
     @State private var isDictating = false
-    @State private var showingVoiceConversation = false
+    @State private var voiceSession: VoiceSessionViewModel?
+    /// Survives the cover's dismissal, which nils `voiceSession` before
+    /// `onDismiss` runs — this is where the conversation the session started is
+    /// read back from.
+    @State private var endedVoiceSession: VoiceSessionViewModel?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,21 +45,21 @@ struct ChatView: View {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     stopDictation()
-                    showingVoiceConversation = true
+                    let session = VoiceSessionViewModel(
+                        api: viewModel.api,
+                        conversationID: viewModel.conversationID,
+                        engine: SpeechEngineFactory.make(),
+                        synthesizer: SpeechSynthesizerFactory.make(speechAudio: model.speechAudio)
+                    )
+                    voiceSession = session
+                    endedVoiceSession = session
                 } label: {
                     Label("Voice conversation", systemImage: "waveform.circle")
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingVoiceConversation) {
-            VoiceConversationView(
-                viewModel: VoiceSessionViewModel(
-                    api: viewModel.api,
-                    conversationID: viewModel.conversationID,
-                    engine: SpeechEngineFactory.make(),
-                    synthesizer: SpeechSynthesizerFactory.make(speechAudio: model.speechAudio)
-                )
-            )
+        .fullScreenCover(item: $voiceSession, onDismiss: adoptVoiceConversation) { session in
+            VoiceConversationView(viewModel: session)
         }
         .task {
             await viewModel.loadHistory()
@@ -258,6 +262,15 @@ struct ChatView: View {
         } catch {
             attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
         }
+    }
+
+    /// A hands-free session runs through the same grounded pipeline, so the box
+    /// creates a real conversation. Adopt it here or the thread exists on the
+    /// server and the app never shows it.
+    private func adoptVoiceConversation() {
+        guard let id = endedVoiceSession?.conversationID else { return }
+        endedVoiceSession = nil
+        Task { await viewModel.adopt(conversationID: id) }
     }
 
     // MARK: Push-to-talk dictation (M86): transcribes on device into the

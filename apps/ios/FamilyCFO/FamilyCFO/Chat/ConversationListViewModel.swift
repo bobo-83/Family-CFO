@@ -17,6 +17,7 @@ final class ConversationListViewModel {
     }
 
     func load() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {

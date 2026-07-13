@@ -270,3 +270,35 @@ def test_spending_insights_tool_reports_month_comparison(demo_engine: Engine) ->
     assert "month_to_date_spending" in result
     assert "same_window_last_month" in result
     assert isinstance(result["top_merchants"], list)
+
+
+def test_safe_to_spend_tool_is_grounded_and_nets_out_obligations(demo_engine: Engine) -> None:
+    result = _execute(demo_engine, "get_safe_to_spend", {})
+
+    outputs = result["outputs"]
+    assert outputs["safe_to_spend"]["currency"] == "USD"
+    assert outputs["bills_due"]["amount_minor"] > 0
+    assert result["calculation_ref"].startswith("financial_calculations:")
+
+    liquid = outputs["liquid_balance"]["amount_minor"]
+    reserved = outputs["emergency_fund_reserved"]["amount_minor"]
+    bills = outputs["bills_due"]["amount_minor"]
+    debt = outputs["minimum_debt_payments"]["amount_minor"]
+    assert outputs["safe_to_spend"]["amount_minor"] == liquid - reserved - bills - debt
+
+
+def test_the_prompt_forbids_deriving_spendable_money_by_subtraction() -> None:
+    """The bug was in the prompt itself: it told the model to base affordability on
+    'liquid assets MINUS emergency_fund_reserved', which is the wrong figure and is
+    also the model doing its own arithmetic."""
+    rules = ai_tools.GROUNDING_RULES
+
+    assert "get_safe_to_spend" in rules
+    assert "NEVER derive a spendable amount yourself" in rules
+    assert "liquid assets MINUS emergency_fund_reserved" not in rules
+
+
+def test_safe_to_spend_is_advertised_to_the_model() -> None:
+    names = [tool.name for tool in ai_tools.build_tools()]
+
+    assert "get_safe_to_spend" in names

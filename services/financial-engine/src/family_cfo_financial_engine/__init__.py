@@ -8,6 +8,7 @@ from family_cfo_financial_engine.money import CurrencyMismatchError, Money
 from family_cfo_financial_engine.net_worth import AccountBalance, calculate_net_worth
 from family_cfo_financial_engine.purchase_impact import PurchaseImpactInputs, calculate_purchase_impact
 from family_cfo_financial_engine.results import CALCULATION_ENGINE_VERSION, CalculationResult
+from family_cfo_financial_engine.safe_to_spend import SafeToSpendInputs, calculate_safe_to_spend
 from family_cfo_financial_engine.retirement import RetirementInput, calculate_retirement_projection
 from family_cfo_financial_engine.tax_estimate import (
     FILING_STATUSES,
@@ -30,6 +31,7 @@ __all__ = [
     "PurchaseImpactInputs",
     "RecurringAmount",
     "RetirementInput",
+    "SafeToSpendInputs",
     "TAX_YEAR",
     "calculate_budget_summary",
     "calculate_cash_flow",
@@ -40,6 +42,7 @@ __all__ = [
     "calculate_net_worth",
     "calculate_purchase_impact",
     "calculate_retirement_projection",
+    "calculate_safe_to_spend",
     "estimate_annual_tax",
     "gross_up_from_net",
 ]
