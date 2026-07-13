@@ -69,6 +69,12 @@ def _validate_image(payload: ChatRequest, settings: Settings) -> str | None:
         raise HTTPException(status_code=422, detail="attached image is empty")
     if len(raw) > settings.max_upload_bytes:
         raise HTTPException(status_code=413, detail="attached image exceeds the maximum size")
+    if payload.image_media_type == "application/pdf":
+        # M84a: the vision model reads pixels — rasterize page 1 (M77 path).
+        from family_cfo_api.api.income_analysis import pdf_page_pngs
+
+        png = pdf_page_pngs(raw, max_pages=1)[0]
+        return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     return f"data:{payload.image_media_type};base64,{payload.image_base64}"
 
 

@@ -3297,13 +3297,14 @@ components:
           maxLength: 4000
         image_base64:
           type: string
-          description: Optional attached photo, base64-encoded (ADR 0011)
+          description: Optional attached photo or PDF, base64-encoded (ADR 0011 / M84a)
         image_media_type:
           type: string
           enum:
             - image/jpeg
             - image/png
             - image/webp
+            - application/pdf
     ChatResponse:
       type: object
       required:

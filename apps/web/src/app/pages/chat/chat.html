@@ -195,7 +195,11 @@
 
       @if (attachedImage(); as image) {
         <div class="chat__preview">
-          <img [src]="image.previewUrl" alt="Attached photo preview" />
+          @if (image.previewUrl; as previewUrl) {
+            <img [src]="previewUrl" alt="Attached photo preview" />
+          } @else {
+            <span class="chat__preview-file">📄 {{ image.name }}</span>
+          }
           <button type="button" class="chat__preview-remove" (click)="removeImage()" aria-label="Remove photo">
             ✕
           </button>
@@ -207,7 +211,7 @@
         <input
           #fileInput
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           capture="environment"
           class="chat__file"
           (change)="onFileSelected($event)"
