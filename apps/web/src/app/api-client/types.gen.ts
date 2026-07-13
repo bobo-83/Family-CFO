@@ -417,6 +417,10 @@ export type HouseholdContext = {
      * M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
      */
     budget_summary?: BudgetSummary;
+    /**
+     * M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
+     */
+    safe_to_spend?: SafeToSpend;
 };
 
 export type Budget = {
@@ -461,6 +465,44 @@ export type BudgetSummary = {
     warning_count: number;
     total_budgeted: Money;
     total_spent: Money;
+};
+
+/**
+ * M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted.
+ */
+export type SafeToSpend = {
+    /**
+     * Checking + savings only (never retirement/education funds).
+     */
+    liquid_balance: Money;
+    /**
+     * Money explicitly designated for emergencies; held back.
+     */
+    emergency_fund_reserved: Money;
+    /**
+     * Bills falling due within the horizon.
+     */
+    bills_due: Money;
+    /**
+     * Minimum payments owed on liability accounts with recorded terms.
+     */
+    minimum_debt_payments: Money;
+    /**
+     * emergency_fund_reserved + bills_due + minimum_debt_payments.
+     */
+    committed_total: Money;
+    /**
+     * liquid_balance − committed_total. May be negative.
+     */
+    safe_to_spend: Money;
+    /**
+     * All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
+     */
+    total_debt: Money;
+    /**
+     * Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
+     */
+    warnings: Array<string>;
 };
 
 export type SavingsRate = {

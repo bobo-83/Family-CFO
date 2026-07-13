@@ -3023,6 +3023,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/budget_summary`.
             public var budgetSummary: Components.Schemas.BudgetSummary?
+            /// M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/safe_to_spend`.
+            public var safeToSpend: Components.Schemas.SafeToSpend?
             /// Creates a new `HouseholdContext`.
             ///
             /// - Parameters:
@@ -3041,6 +3045,7 @@ public enum Components {
             ///   - spendingInsights: M42: month-to-date spending vs the same period last month, plus top merchants.
             ///   - savingsRate: M44: recurring income vs trailing-3-month average actual spending.
             ///   - budgetSummary: M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
+            ///   - safeToSpend: M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
@@ -3056,7 +3061,8 @@ public enum Components {
                 topGoal: Components.Schemas.GoalProgress? = nil,
                 spendingInsights: Components.Schemas.SpendingInsights? = nil,
                 savingsRate: Components.Schemas.SavingsRate? = nil,
-                budgetSummary: Components.Schemas.BudgetSummary? = nil
+                budgetSummary: Components.Schemas.BudgetSummary? = nil,
+                safeToSpend: Components.Schemas.SafeToSpend? = nil
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
@@ -3073,6 +3079,7 @@ public enum Components {
                 self.spendingInsights = spendingInsights
                 self.savingsRate = savingsRate
                 self.budgetSummary = budgetSummary
+                self.safeToSpend = safeToSpend
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -3090,6 +3097,7 @@ public enum Components {
                 case spendingInsights = "spending_insights"
                 case savingsRate = "savings_rate"
                 case budgetSummary = "budget_summary"
+                case safeToSpend = "safe_to_spend"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Budget`.
@@ -3257,6 +3265,83 @@ public enum Components {
                 case warningCount = "warning_count"
                 case totalBudgeted = "total_budgeted"
                 case totalSpent = "total_spent"
+            }
+        }
+        /// M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SafeToSpend`.
+        public struct SafeToSpend: Codable, Hashable, Sendable {
+            /// Checking + savings only (never retirement/education funds).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/liquid_balance`.
+            public var liquidBalance: Components.Schemas.Money
+            /// Money explicitly designated for emergencies; held back.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/emergency_fund_reserved`.
+            public var emergencyFundReserved: Components.Schemas.Money
+            /// Bills falling due within the horizon.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/bills_due`.
+            public var billsDue: Components.Schemas.Money
+            /// Minimum payments owed on liability accounts with recorded terms.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/minimum_debt_payments`.
+            public var minimumDebtPayments: Components.Schemas.Money
+            /// emergency_fund_reserved + bills_due + minimum_debt_payments.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_total`.
+            public var committedTotal: Components.Schemas.Money
+            /// liquid_balance − committed_total. May be negative.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/safe_to_spend`.
+            public var safeToSpend: Components.Schemas.Money
+            /// All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/total_debt`.
+            public var totalDebt: Components.Schemas.Money
+            /// Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/warnings`.
+            public var warnings: [Swift.String]
+            /// Creates a new `SafeToSpend`.
+            ///
+            /// - Parameters:
+            ///   - liquidBalance: Checking + savings only (never retirement/education funds).
+            ///   - emergencyFundReserved: Money explicitly designated for emergencies; held back.
+            ///   - billsDue: Bills falling due within the horizon.
+            ///   - minimumDebtPayments: Minimum payments owed on liability accounts with recorded terms.
+            ///   - committedTotal: emergency_fund_reserved + bills_due + minimum_debt_payments.
+            ///   - safeToSpend: liquid_balance − committed_total. May be negative.
+            ///   - totalDebt: All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
+            ///   - warnings: Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
+            public init(
+                liquidBalance: Components.Schemas.Money,
+                emergencyFundReserved: Components.Schemas.Money,
+                billsDue: Components.Schemas.Money,
+                minimumDebtPayments: Components.Schemas.Money,
+                committedTotal: Components.Schemas.Money,
+                safeToSpend: Components.Schemas.Money,
+                totalDebt: Components.Schemas.Money,
+                warnings: [Swift.String]
+            ) {
+                self.liquidBalance = liquidBalance
+                self.emergencyFundReserved = emergencyFundReserved
+                self.billsDue = billsDue
+                self.minimumDebtPayments = minimumDebtPayments
+                self.committedTotal = committedTotal
+                self.safeToSpend = safeToSpend
+                self.totalDebt = totalDebt
+                self.warnings = warnings
+            }
+            public enum CodingKeys: String, CodingKey {
+                case liquidBalance = "liquid_balance"
+                case emergencyFundReserved = "emergency_fund_reserved"
+                case billsDue = "bills_due"
+                case minimumDebtPayments = "minimum_debt_payments"
+                case committedTotal = "committed_total"
+                case safeToSpend = "safe_to_spend"
+                case totalDebt = "total_debt"
+                case warnings
             }
         }
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.

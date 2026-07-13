@@ -40,6 +40,22 @@ async def test_context_includes_enriched_summary(demo_client, demo_token) -> Non
     assert categories == [c for c in order if c in categories]
     assert body["total_debt"]["amount_minor"] >= 0
 
+    # M93: safe-to-spend on the Overview — liquid minus every obligation, the
+    # same figure the advisor now quotes, so the two can never disagree.
+    sts = body["safe_to_spend"]
+    liquid = sts["liquid_balance"]["amount_minor"]
+    assert liquid == 2_000_000  # checking 500_000 + savings 1_500_000
+    assert sts["bills_due"]["amount_minor"] > 0  # demo household has bills
+    committed = (
+        sts["emergency_fund_reserved"]["amount_minor"]
+        + sts["bills_due"]["amount_minor"]
+        + sts["minimum_debt_payments"]["amount_minor"]
+    )
+    assert sts["committed_total"]["amount_minor"] == committed
+    assert sts["safe_to_spend"]["amount_minor"] == liquid - committed
+    # Not the old, obligation-blind figure (liquid − emergency fund only).
+    assert sts["safe_to_spend"]["amount_minor"] != liquid - sts["emergency_fund_reserved"]["amount_minor"]
+
 
 @pytest.mark.anyio
 async def test_designation_drives_status_and_gap(demo_client, demo_token) -> None:

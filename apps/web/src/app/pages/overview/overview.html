@@ -15,6 +15,27 @@
           <span class="overview__value">{{ context.display_name }}</span>
         </div>
 
+        @if (context.safe_to_spend; as sts) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label">Safe to spend</span>
+            <span class="overview__value">{{ formatMoney(sts.safe_to_spend) }}</span>
+            <span class="overview__value-context">
+              {{ formatMoney(sts.liquid_balance) }} liquid
+              − {{ formatMoney(sts.emergency_fund_reserved) }} emergency fund
+              − {{ formatMoney(sts.bills_due) }} bills due
+              − {{ formatMoney(sts.minimum_debt_payments) }} min. debt payments
+            </span>
+            @if (sts.total_debt.amount_minor > 0) {
+              <span class="overview__detail overview__value--negative">
+                {{ formatMoney(sts.total_debt) }} total debt
+              </span>
+            }
+            @for (warning of sts.warnings; track warning) {
+              <span class="overview__hint">⚠ {{ warning }}</span>
+            }
+          </div>
+        }
+
         <div class="overview__card">
           <span class="overview__label">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
