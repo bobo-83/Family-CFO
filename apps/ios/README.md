@@ -2,9 +2,10 @@
 
 SwiftUI iPhone app (iOS 18+). Implements M83 (foundation), M84 + M85 (advisor
 chat with image / PDF / CSV-spreadsheet attachments), M86 + M87 (on-device
-speech, and the on-box Kokoro voice with a system-voice fallback), and M88
-(Overview dashboard); the remaining roadmap is M89–M92 in
-`docs/specs/12-implementation-tasks.md`. Spec: `docs/specs/08-mobile-spec.md`.
+speech, and the on-box Kokoro voice with a system-voice fallback), M88
+(Overview dashboard), and M89 (receipt + W-2 camera flows); the remaining
+roadmap is M90–M92 in `docs/specs/12-implementation-tasks.md`. Spec:
+`docs/specs/08-mobile-spec.md`.
 
 ## Layout
 
@@ -19,6 +20,8 @@ apps/ios/
       Chat/                   advisor chat (M84/M85): conversations, attachments
       Voice/                  on-device STT + spoken replies (M86), on-box voice (M87)
       Overview/               daily-glance dashboard over GET /household (M88)
+      Camera/                 on-device receipt OCR — the photo stays home (M89)
+      Income/                 W-2 scan → confirm → add earner (M89)
       APIClient/Generated/    committed generated client — DO NOT EDIT
     FamilyCFOTests/           unit tests (Swift Testing)
   openapi-generator/          SPM tool package that runs swift-openapi-generator
