@@ -54,3 +54,7 @@ generated/
 !apps/ios/FamilyCFO/FamilyCFO/APIClient/Generated/
 tmp/
 uv.lock
+
+# Persisted deploy destination (scripts/deploy.sh, scripts/patch.sh)
+.deploy.env
+.deploy.history
