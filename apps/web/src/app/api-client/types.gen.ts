@@ -662,6 +662,14 @@ export type ChatRequest = {
     data_file_name?: string;
 };
 
+export type VoiceRequest = {
+    text: string;
+    /**
+     * Optional voice id; defaults to the server's configured voice
+     */
+    voice?: string;
+};
+
 export type ChatResponse = {
     conversation_id: string;
     recommendation: Recommendation;
@@ -2641,6 +2649,35 @@ export type CreateChatMessageResponses = {
 };
 
 export type CreateChatMessageResponse = CreateChatMessageResponses[keyof CreateChatMessageResponses];
+
+export type SynthesizeSpeechData = {
+    body: VoiceRequest;
+    path?: never;
+    query?: never;
+    url: '/voice/tts';
+};
+
+export type SynthesizeSpeechErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type SynthesizeSpeechError = SynthesizeSpeechErrors[keyof SynthesizeSpeechErrors];
+
+export type SynthesizeSpeechResponses = {
+    /**
+     * Synthesized speech
+     */
+    200: Blob | File;
+};
+
+export type SynthesizeSpeechResponse = SynthesizeSpeechResponses[keyof SynthesizeSpeechResponses];
 
 export type ListMemoriesData = {
     body?: never;

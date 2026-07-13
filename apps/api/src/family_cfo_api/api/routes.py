@@ -25,6 +25,7 @@ from family_cfo_api.api.memories import router as memories_router
 from family_cfo_api.api.pairing import router as pairing_router
 from family_cfo_api.api.reports import router as reports_router
 from family_cfo_api.api.transactions import router as transactions_router
+from family_cfo_api.api.voice import router as voice_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router)
@@ -44,6 +45,7 @@ api_router.include_router(goals_router)
 api_router.include_router(advisor_router)
 api_router.include_router(ai_runtime_router)
 api_router.include_router(chat_router)
+api_router.include_router(voice_router)
 api_router.include_router(memories_router)
 api_router.include_router(connections_router)
 api_router.include_router(conversations_router)

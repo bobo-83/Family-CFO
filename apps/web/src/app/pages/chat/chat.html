@@ -107,6 +107,19 @@
               }
               <p class="chat__answer">{{ turn.content }}</p>
 
+              @if (turn.role === 'assistant') {
+                <button
+                  type="button"
+                  class="chat__speak"
+                  [disabled]="speaking() === $index"
+                  (click)="speak(turn.content, $index)"
+                  aria-label="Read this answer aloud"
+                  title="Read aloud"
+                >
+                  {{ speaking() === $index ? '🔊 …' : '🔊 Read aloud' }}
+                </button>
+              }
+
               @if (turn.recommendation; as rec) {
                 <div
                   class="chat__confidence"

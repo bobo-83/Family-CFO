@@ -1254,6 +1254,32 @@ paths:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /voice/tts:
+    post:
+      tags:
+        - Voice
+      operationId: synthesizeSpeech
+      summary: Synthesize an advisor answer to speech (Kokoro; falls back client-side)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoiceRequest"
+      responses:
+        "200":
+          description: Synthesized speech
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /memories:
     get:
       tags:
@@ -3315,6 +3341,17 @@ components:
           type: string
           maxLength: 255
           description: Filename of the attached data file (drives format detection)
+    VoiceRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        voice:
+          type: string
+          description: Optional voice id; defaults to the server's configured voice
     ChatResponse:
       type: object
       required:
