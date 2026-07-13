@@ -220,6 +220,25 @@ class SpendingInsights(BaseModel):
     top_merchants: list[MerchantSpend] = Field(default_factory=list)
 
 
+class CategorySpend(BaseModel):
+    """M94: one category's spend this month."""
+
+    category_id: str
+    category_name: str
+    amount: Money
+
+
+class SpendingByCategory(BaseModel):
+    """M94: this month's outflow grouped by category — the visible payoff of
+    categorizing. `uncategorized` is what's still unsorted, so the user can see
+    the value of filing more."""
+
+    month_label: str
+    categories: list[CategorySpend] = Field(default_factory=list)
+    categorized_total: Money
+    uncategorized: Money
+
+
 class SafeToSpend(BaseModel):
     """M93: what's actually free to spend now — liquid cash net of the emergency
     fund, bills due, and minimum debt payments. total_debt is reported (not
@@ -253,6 +272,7 @@ class HouseholdContext(BaseModel):
     savings_rate: SavingsRate | None = None
     budget_summary: BudgetSummary | None = None
     safe_to_spend: SafeToSpend | None = None
+    spending_by_category: SpendingByCategory | None = None
 
 
 class Account(BaseModel):

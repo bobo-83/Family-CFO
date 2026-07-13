@@ -2828,6 +2828,9 @@ components:
         safe_to_spend:
           description: "M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now."
           $ref: "#/components/schemas/SafeToSpend"
+        spending_by_category:
+          description: "M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month."
+          $ref: "#/components/schemas/SpendingByCategory"
     Budget:
       type: object
       required:
@@ -2908,6 +2911,42 @@ components:
         total_budgeted:
           $ref: "#/components/schemas/Money"
         total_spent:
+          $ref: "#/components/schemas/Money"
+    SpendingByCategory:
+      type: object
+      description: "M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions."
+      required:
+        - month_label
+        - categories
+        - categorized_total
+        - uncategorized
+      properties:
+        month_label:
+          description: "The month this covers, e.g. \"July 2026\"."
+          type: string
+        categories:
+          description: "Per-category spend this month, highest first."
+          type: array
+          items:
+            $ref: "#/components/schemas/CategorySpend"
+        categorized_total:
+          description: "Sum of all categorized spend this month."
+          $ref: "#/components/schemas/Money"
+        uncategorized:
+          description: "This month's outflow not yet categorized — files it and it moves into a category above."
+          $ref: "#/components/schemas/Money"
+    CategorySpend:
+      type: object
+      required:
+        - category_id
+        - category_name
+        - amount
+      properties:
+        category_id:
+          type: string
+        category_name:
+          type: string
+        amount:
           $ref: "#/components/schemas/Money"
     SafeToSpend:
       type: object

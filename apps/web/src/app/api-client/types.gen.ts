@@ -421,6 +421,10 @@ export type HouseholdContext = {
      * M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
      */
     safe_to_spend?: SafeToSpend;
+    /**
+     * M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
+     */
+    spending_by_category?: SpendingByCategory;
 };
 
 export type Budget = {
@@ -465,6 +469,34 @@ export type BudgetSummary = {
     warning_count: number;
     total_budgeted: Money;
     total_spent: Money;
+};
+
+/**
+ * M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions.
+ */
+export type SpendingByCategory = {
+    /**
+     * The month this covers, e.g. "July 2026".
+     */
+    month_label: string;
+    /**
+     * Per-category spend this month, highest first.
+     */
+    categories: Array<CategorySpend>;
+    /**
+     * Sum of all categorized spend this month.
+     */
+    categorized_total: Money;
+    /**
+     * This month's outflow not yet categorized — files it and it moves into a category above.
+     */
+    uncategorized: Money;
+};
+
+export type CategorySpend = {
+    category_id: string;
+    category_name: string;
+    amount: Money;
 };
 
 /**

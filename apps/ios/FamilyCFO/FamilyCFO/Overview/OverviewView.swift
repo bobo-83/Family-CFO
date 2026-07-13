@@ -151,6 +151,9 @@ struct OverviewView: View {
                     if let savingsRate = context.savingsRate {
                         savingsRateCard(savingsRate)
                     }
+                    if let spending = context.spendingByCategory, !spending.categories.isEmpty {
+                        spendingByCategoryCard(spending)
+                    }
                     if let budgets = context.budgetSummary, budgets.envelopeCount > 0 {
                         budgetCard(budgets)
                     }
@@ -313,6 +316,54 @@ struct OverviewView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
+    }
+
+    /// M94: the payoff of categorizing — this month's spend per category, with a
+    /// proportion bar and the still-uncategorized amount as a nudge to file more.
+    private func spendingByCategoryCard(
+        _ spending: Components.Schemas.SpendingByCategory
+    ) -> some View {
+        let maxAmount = spending.categories.map(\.amount.amountMinor).max() ?? 1
+        return Card("Spending · \(spending.monthLabel)", systemImage: "chart.pie") {
+            ForEach(spending.categories.prefix(8), id: \.categoryId) { entry in
+                VStack(spacing: 3) {
+                    HStack {
+                        Text(entry.categoryName).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        Text(entry.amount.formatted)
+                            .font(.subheadline.weight(.medium))
+                    }
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(.tint)
+                            .frame(
+                                width: geo.size.width
+                                    * proportion(entry.amount.amountMinor, of: maxAmount),
+                                height: 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 4)
+                }
+            }
+            if spending.uncategorized.amountMinor > 0 {
+                Divider()
+                HStack {
+                    Text("Uncategorized").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(spending.uncategorized.formatted)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                Text("Categorize more on the Categorize tab to sort this in.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func proportion(_ amount: Int64, of maxAmount: Int64) -> CGFloat {
+        guard maxAmount > 0 else { return 0 }
+        return CGFloat(max(0, amount)) / CGFloat(maxAmount)
     }
 
     private func budgetCard(_ budgets: Components.Schemas.BudgetSummary) -> some View {

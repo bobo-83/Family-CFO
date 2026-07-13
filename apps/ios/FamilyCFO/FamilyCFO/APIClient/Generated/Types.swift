@@ -3027,6 +3027,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/safe_to_spend`.
             public var safeToSpend: Components.Schemas.SafeToSpend?
+            /// M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/spending_by_category`.
+            public var spendingByCategory: Components.Schemas.SpendingByCategory?
             /// Creates a new `HouseholdContext`.
             ///
             /// - Parameters:
@@ -3046,6 +3050,7 @@ public enum Components {
             ///   - savingsRate: M44: recurring income vs trailing-3-month average actual spending.
             ///   - budgetSummary: M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
             ///   - safeToSpend: M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
+            ///   - spendingByCategory: M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
@@ -3062,7 +3067,8 @@ public enum Components {
                 spendingInsights: Components.Schemas.SpendingInsights? = nil,
                 savingsRate: Components.Schemas.SavingsRate? = nil,
                 budgetSummary: Components.Schemas.BudgetSummary? = nil,
-                safeToSpend: Components.Schemas.SafeToSpend? = nil
+                safeToSpend: Components.Schemas.SafeToSpend? = nil,
+                spendingByCategory: Components.Schemas.SpendingByCategory? = nil
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
@@ -3080,6 +3086,7 @@ public enum Components {
                 self.savingsRate = savingsRate
                 self.budgetSummary = budgetSummary
                 self.safeToSpend = safeToSpend
+                self.spendingByCategory = spendingByCategory
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -3098,6 +3105,7 @@ public enum Components {
                 case savingsRate = "savings_rate"
                 case budgetSummary = "budget_summary"
                 case safeToSpend = "safe_to_spend"
+                case spendingByCategory = "spending_by_category"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Budget`.
@@ -3265,6 +3273,80 @@ public enum Components {
                 case warningCount = "warning_count"
                 case totalBudgeted = "total_budgeted"
                 case totalSpent = "total_spent"
+            }
+        }
+        /// M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SpendingByCategory`.
+        public struct SpendingByCategory: Codable, Hashable, Sendable {
+            /// The month this covers, e.g. "July 2026".
+            ///
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/month_label`.
+            public var monthLabel: Swift.String
+            /// Per-category spend this month, highest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categories`.
+            public var categories: [Components.Schemas.CategorySpend]
+            /// Sum of all categorized spend this month.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categorized_total`.
+            public var categorizedTotal: Components.Schemas.Money
+            /// This month's outflow not yet categorized — files it and it moves into a category above.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/uncategorized`.
+            public var uncategorized: Components.Schemas.Money
+            /// Creates a new `SpendingByCategory`.
+            ///
+            /// - Parameters:
+            ///   - monthLabel: The month this covers, e.g. "July 2026".
+            ///   - categories: Per-category spend this month, highest first.
+            ///   - categorizedTotal: Sum of all categorized spend this month.
+            ///   - uncategorized: This month's outflow not yet categorized — files it and it moves into a category above.
+            public init(
+                monthLabel: Swift.String,
+                categories: [Components.Schemas.CategorySpend],
+                categorizedTotal: Components.Schemas.Money,
+                uncategorized: Components.Schemas.Money
+            ) {
+                self.monthLabel = monthLabel
+                self.categories = categories
+                self.categorizedTotal = categorizedTotal
+                self.uncategorized = uncategorized
+            }
+            public enum CodingKeys: String, CodingKey {
+                case monthLabel = "month_label"
+                case categories
+                case categorizedTotal = "categorized_total"
+                case uncategorized
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CategorySpend`.
+        public struct CategorySpend: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CategorySpend/category_id`.
+            public var categoryId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CategorySpend/category_name`.
+            public var categoryName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CategorySpend/amount`.
+            public var amount: Components.Schemas.Money
+            /// Creates a new `CategorySpend`.
+            ///
+            /// - Parameters:
+            ///   - categoryId:
+            ///   - categoryName:
+            ///   - amount:
+            public init(
+                categoryId: Swift.String,
+                categoryName: Swift.String,
+                amount: Components.Schemas.Money
+            ) {
+                self.categoryId = categoryId
+                self.categoryName = categoryName
+                self.amount = amount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case categoryId = "category_id"
+                case categoryName = "category_name"
+                case amount
             }
         }
         /// M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted.
