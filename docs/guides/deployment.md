@@ -131,6 +131,20 @@ TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
 
+## Choosing what gets patched
+
+The server and the phone are chosen by opposite mechanisms, on purpose:
+
+| | Server | iPhone |
+|---|---|---|
+| How it's chosen | **Declared** — `TARGET=local`, or `SSH_HOST` names a box | **Discovered** — `devicectl` enumerates paired devices |
+| Several available | `SSH_HOST="box1 box2"` patches each in turn, stopping at the first failure | **Refuses** and prints each UDID; name one with `IOS_DEVICE` |
+| Wrong-target risk | Setting `SSH_HOST` implies `TARGET=remote`, so forgetting `TARGET` can't silently rebuild containers on your laptop | Unreachable/asleep devices are never candidates |
+
+A server is never guessed at because it's never enumerated; a phone is never
+guessed at because installing a debug build onto the wrong family member's phone
+is exactly the kind of helpful default that ruins an afternoon.
+
 ## Patching the iPhone app
 
 `ios` is a patch target like any other, but it is not in the default set — you

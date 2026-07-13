@@ -29,10 +29,21 @@
 #   scripts/patch.sh api worker      # a subset
 #   scripts/patch.sh ios             # only the iPhone app (over WiFi)
 #   scripts/patch.sh web ios         # the box's web tier AND the phone
-#   TARGET=remote SSH_HOST=box SSH_USER=me scripts/patch.sh web
+#   SSH_HOST=box scripts/patch.sh web            # a remote box (TARGET inferred)
+#   SSH_HOST="box1 box2" scripts/patch.sh web    # several boxes, in order
+#
+# Choosing the destination — the two halves differ, deliberately:
+#   * The SERVER is DECLARED, never discovered. TARGET=local is this machine;
+#     SSH_HOST names a remote box (and setting it implies TARGET=remote, so you
+#     can't silently rebuild containers on your laptop by forgetting TARGET).
+#     SSH_HOST may list several hosts — they are patched one at a time, in
+#     order, stopping at the first failure.
+#   * The PHONE is DISCOVERED, and never guessed at: with exactly one connected
+#     device it is used, with several the run refuses until you name one with
+#     IOS_DEVICE. See scripts/deploy-ios.sh.
 #
 # Environment overrides (same as scripts/deploy.sh):
-#   TARGET local|remote  SSH_HOST  SSH_USER  SSH_PORT  SSH_KEY  REMOTE_DIR
+#   TARGET local|remote  SSH_HOST (one or more)  SSH_USER  SSH_PORT  SSH_KEY  REMOTE_DIR
 #   COMPOSE_FILES (default: -f docker-compose.yml)
 #   iOS-specific: IOS_DEVICE  IOS_CONFIG  IOS_TEST  NO_LAUNCH  (see scripts/deploy-ios.sh)
 set -euo pipefail
@@ -128,6 +139,13 @@ if [ "$PATCH_IOS" = "1" ] && [ "${#SERVICES[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# Which machine gets patched. Unlike the phone, servers are DECLARED, never
+# discovered — so the danger isn't ambiguity, it's silently patching the wrong
+# box. Naming SSH_HOST means you meant a remote host, so honour that rather than
+# quietly rebuilding containers on the laptop you happen to be sitting at.
+if [ -z "${TARGET:-}" ] && [ -n "${SSH_HOST:-}" ]; then
+  TARGET="remote"
+fi
 TARGET="${TARGET:-local}"
 [ "$TARGET" = "local" ] || [ "$TARGET" = "remote" ] || die "TARGET must be 'local' or 'remote'."
 
@@ -159,43 +177,63 @@ fi
 # REMOTE
 # =============================================================================
 command -v rsync >/dev/null 2>&1 || die "rsync is required for remote patches."
-ask SSH_HOST "Remote host (name or IP)"
+ask SSH_HOST "Remote host(s) — name or IP, space- or comma-separated for several"
 [ -n "${SSH_HOST:-}" ] || die "SSH_HOST is required for a remote patch."
 ask SSH_USER "SSH user" "${USER:-root}"
 ask SSH_PORT "SSH port" "22"
 ask SSH_KEY  "SSH private key path (blank = ssh default)" ""
 ask REMOTE_DIR "Remote directory" "~/family-cfo"
 
-SSH_OPTS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
-[ -n "${SSH_KEY:-}" ] && SSH_OPTS+=(-i "$SSH_KEY")
-SSH_TARGET="${SSH_USER}@${SSH_HOST}"
-RSH="ssh ${SSH_OPTS[*]}"
-remote() { ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "$@"; }
+# SSH_HOST may name several boxes: SSH_HOST="box1 box2" or "box1,box2". They are
+# patched one at a time, in order, and the run STOPS at the first failure — a
+# half-patched fleet is easier to reason about than one that kept going after a
+# box refused, and you can re-run for the rest.
+IFS=', ' read -r -a SSH_HOSTS <<< "$SSH_HOST"
+[ "${#SSH_HOSTS[@]}" -gt 0 ] || die "SSH_HOST is required for a remote patch."
 
-log "Checking SSH + Docker on ${SSH_TARGET}…"
-remote true || die "Cannot SSH to ${SSH_TARGET}."
-remote 'command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1' \
-  || die "Remote host is missing Docker Engine + Compose v2."
-REMOTE_ABS="$(remote "cd ${REMOTE_DIR} 2>/dev/null && pwd")" \
-  || die "Remote directory ${REMOTE_DIR} not found — deploy there first with scripts/deploy.sh."
+patch_remote_host() { # patch_remote_host <host>
+  local host="$1"
+  local ssh_opts=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
+  [ -n "${SSH_KEY:-}" ] && ssh_opts+=(-i "$SSH_KEY")
+  local ssh_target="${SSH_USER}@${host}"
+  local rsh="ssh ${ssh_opts[*]}"
+  remote() { ssh "${ssh_opts[@]}" "$ssh_target" "$@"; }
 
-validate_services "$(remote "cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
+  log "── ${ssh_target} ─────────────────────────────────────────"
+  log "Checking SSH + Docker on ${ssh_target}…"
+  remote true || die "Cannot SSH to ${ssh_target}."
+  remote 'command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1' \
+    || die "${ssh_target} is missing Docker Engine + Compose v2."
 
-log "Syncing code to ${SSH_TARGET}:${REMOTE_ABS} (excluding .env, data, build artifacts)…"
-rsync -az --delete \
-  --exclude '.git' --exclude 'node_modules' --exclude '.venv' \
-  --exclude '__pycache__' --exclude 'dist' --exclude '.angular' \
-  --exclude 'data' --exclude '*.db' --exclude '.env' \
-  -e "$RSH" "$REPO_ROOT/" "${SSH_TARGET}:${REMOTE_ABS}/"
+  local remote_abs
+  remote_abs="$(remote "cd ${REMOTE_DIR} 2>/dev/null && pwd")" \
+    || die "Remote directory ${REMOTE_DIR} not found on ${ssh_target} — deploy there first with scripts/deploy.sh."
 
-log "Rebuilding and recreating on the remote host…"
-remote "cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+  validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
 
-web_tls_port="$(remote "grep -E '^WEB_TLS_PORT=' ${REMOTE_ABS}/.env | cut -d= -f2" || true)"
-web_tls_port="${web_tls_port:-8443}"
-log "Patched. Dashboard: https://${SSH_HOST}:${web_tls_port}"
-echo "  Verify: ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && bash scripts/doctor.sh'"
+  log "Syncing code to ${ssh_target}:${remote_abs} (excluding .env, data, build artifacts)…"
+  rsync -az --delete \
+    --exclude '.git' --exclude 'node_modules' --exclude '.venv' \
+    --exclude '__pycache__' --exclude 'dist' --exclude '.angular' \
+    --exclude 'data' --exclude '*.db' --exclude '.env' \
+    -e "$rsh" "$REPO_ROOT/" "${ssh_target}:${remote_abs}/"
 
-# The phone goes last, and builds here on the Mac — not on the remote box, which
-# has no Xcode.
+  log "Rebuilding and recreating on ${ssh_target}…"
+  remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+
+  local port
+  port="$(remote "grep -E '^WEB_TLS_PORT=' ${remote_abs}/.env | cut -d= -f2" || true)"
+  port="${port:-8443}"
+  log "Patched ${host}. Dashboard: https://${host}:${port}"
+  echo "  Verify: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
+}
+
+log "Remote hosts to patch: ${SSH_HOSTS[*]}"
+for host in "${SSH_HOSTS[@]}"; do
+  patch_remote_host "$host"
+done
+
+# The phone goes last, and builds here on the Mac — not on any remote box, which
+# has no Xcode. It is built ONCE regardless of how many servers were patched;
+# the phone talks to whichever box it was paired with.
 [ "$PATCH_IOS" = "1" ] && patch_ios
