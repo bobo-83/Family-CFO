@@ -40,6 +40,42 @@ Each feature should include:
 - Documentation updates
 - A clear commit message
 
+## Credentials — Never Ask, Never Handle
+
+**Never ask the user for a password, passphrase, private key, API token, or any
+other secret — and never accept one if it is offered.** This binds AI agents and
+any tool they drive. It is not a style preference; a secret pasted into a chat,
+a prompt, a config file, or a shell command has been disclosed: it lands in
+transcripts, scrollback, shell history, process listings and logs, and cannot be
+un-disclosed. The correct response to "I need to authenticate" is never "what is
+your password".
+
+Instead, build the path where the secret never reaches you:
+
+- **Delegate the authentication to a tool the user drives themselves**, so the
+  secret goes straight from the user to that tool. `ssh-copy-id` typed in the
+  user's own terminal; `gh auth login`; `docker login`. Point at the command and
+  let them run it.
+- **Use the credential store the platform already has**, rather than a value you
+  hold: `~/.ssh/config` + `ssh-agent`, the macOS Keychain, an existing CLI's
+  logged-in session. Read *through* it; never read *out of* it.
+- **Never force past it.** `scripts/deploy.sh` and `scripts/patch.sh` leave
+  `SSH_USER`/`SSH_PORT`/`SSH_KEY` unset by default precisely so `ssh` resolves
+  them from `~/.ssh/config` — an earlier version prompted for them and built
+  `user@host` itself, which overrode the very mechanism that made a password
+  unnecessary. If your code needs a secret to work, the design is wrong; fix the
+  design.
+- **Config files hold destinations, not secrets.** `.deploy.env` names a host;
+  it must never name a password. If a file would need a secret to be useful,
+  that secret belongs in the platform's store instead.
+- **A secret in the repo is an incident, not a mistake.** If one is disclosed
+  anyway — pasted in chat, committed, printed to a log — say so plainly and tell
+  the user to rotate it. Do not quietly use it.
+
+The user should be able to hand an agent this repository and never be asked to
+type a secret to it. If a task genuinely cannot proceed without one, stop and
+explain what the user must run themselves.
+
 ## Sensitive Data
 
 Never commit:

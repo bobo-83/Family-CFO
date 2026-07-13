@@ -27,6 +27,10 @@ The product combines deterministic financial calculations with local AI explanat
 - Explainable AI
 - Deterministic financial engine
 - Replaceable major components
+- **Never ask the user for a secret** — no tool or AI agent prompts for a
+  password, passphrase, private key, or token. Authentication is delegated to
+  the platform's own credential store, so the secret never reaches us
+  ([`06-security-model.md`](./06-security-model.md), [`AGENTS.md`](../../AGENTS.md)).
 
 ## High-Level Architecture
 
