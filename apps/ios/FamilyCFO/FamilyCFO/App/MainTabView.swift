@@ -14,6 +14,13 @@ struct MainTabView: View {
             Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
                 OverviewView()
             }
+            // Categorizing changes money data (M91), so it's for the adults —
+            // the same gate the server enforces on the PATCH.
+            if model.rolePolicy.canEditFinances {
+                Tab("Categorize", systemImage: "tag") {
+                    CategorizeView()
+                }
+            }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
             }

@@ -1146,8 +1146,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M91: iOS Quick Transaction Categorization
 
-- [ ] Spec gate: swipe-to-categorize pending/uncategorized transactions (existing category + transaction PATCH endpoints); undo; role-gated to owner/adult.
-- [ ] Implement + tests + verify on device + commit.
+- [x] Spec gate: swipe-to-categorize pending/uncategorized transactions (existing category + transaction PATCH endpoints); undo; role-gated to owner/adult.
+- [x] Implement + tests + commit. (2026-07-13: a **Categorize** tab, shown only to owner/adult — the same gate the server enforces on the PATCH. "Uncategorized" is `category_id == nil`: the contract has no review-status field and the list endpoint takes no filter, so the phone pulls transactions and picks out the ones with no category, newest first. Swipe a row → a category picker → assign; the row leaves the list optimistically but comes BACK in its original position if the server refuses (a list that hides a transaction the box still shows as uncategorized is a lie). The last assignment is undoable via a bottom bar — undo clears the category server-side (`clear_category`) and restores the row. No server change; no new endpoint. 6 new tests over optimistic assign / failure-restore / undo. **Live-data gap caught in testing:** the real household has 200 uncategorized transactions but ZERO categories, so the screen would offer an empty picker — since category *management* stays on the web dashboard (mobile-spec non-responsibility), the empty-categories state points there instead of adding category creation to the phone.)
+- [x] Verified against the live box's real data (2026-07-13): 200 uncategorized transactions, 0 categories — which surfaced the empty-categories case above.
 
 ## M92: iOS System Integration
 

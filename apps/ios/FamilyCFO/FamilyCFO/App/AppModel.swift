@@ -73,6 +73,11 @@ final class AppModel {
         client.map { LiveIncomeAPI(client: $0) }
     }
 
+    /// Quick transaction categorization (M91).
+    var categorize: CategorizeAPI? {
+        client.map { LiveCategorizeAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
