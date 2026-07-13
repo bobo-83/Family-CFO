@@ -32,6 +32,24 @@ dashboard's favicon). To regenerate the rasters after editing it:
 `qlmanage -t -s 1024 -o . shared/brand/icon.svg` for the asset-catalog
 1024px PNG, `sips -z <n> <n>` for the web PNG sizes.
 
+## Deploy to a real iPhone (over WiFi)
+
+```sh
+scripts/patch.sh ios          # build, sign, install and launch on the paired phone
+scripts/deploy-ios.sh --list  # which devices are paired, and are they reachable?
+IOS_TEST=1 scripts/patch.sh ios   # run the unit tests before shipping to the phone
+```
+
+Runs on the Mac (Xcode lives here, not on the box). The phone must have been
+paired with Xcode for network debugging once over a cable — Xcode → Window →
+Devices and Simulators → tick **Connect via network** — after which it deploys
+over WiFi indefinitely. See `scripts/deploy-ios.sh` for `IOS_DEVICE`,
+`IOS_CONFIG`, and `NO_LAUNCH`.
+
+When an iOS change also needs an API or web change, ship both halves together
+with `scripts/patch.sh api web ios`: the box is patched first, so the phone
+never launches against a server that lacks the endpoint it calls.
+
 ## Build and run
 
 Open `apps/ios/FamilyCFO/FamilyCFO.xcodeproj` in Xcode 16+ and run the

@@ -9,15 +9,32 @@
 # new database migrations on startup (additive), so a schema change ships with
 # an `api` patch automatically.
 #
+# `ios` is a target too — it builds and installs the iPhone app onto a paired
+# device over WiFi (scripts/deploy-ios.sh). It is NOT in the default set: you
+# patch the phone when you mean to. But it composes with the container targets,
+# which matters because an iOS change that needs an API or web change must ship
+# BOTH halves — a phone talking to a box that lacks its endpoint is the failure
+# this composition exists to prevent:
+#
+#   scripts/patch.sh api web ios
+#
+# The two halves run in different places: containers are rebuilt wherever the
+# stack lives (local or remote over SSH), while `ios` always builds on the Mac
+# you are sitting at, because that is where Xcode is. So if the box is remote,
+# run the container half against it and the `ios` half from the Mac.
+#
 # Usage:
 #   scripts/patch.sh                 # rebuild api + worker + web (local)
 #   scripts/patch.sh web             # only the web container
 #   scripts/patch.sh api worker      # a subset
+#   scripts/patch.sh ios             # only the iPhone app (over WiFi)
+#   scripts/patch.sh web ios         # the box's web tier AND the phone
 #   TARGET=remote SSH_HOST=box SSH_USER=me scripts/patch.sh web
 #
 # Environment overrides (same as scripts/deploy.sh):
 #   TARGET local|remote  SSH_HOST  SSH_USER  SSH_PORT  SSH_KEY  REMOTE_DIR
 #   COMPOSE_FILES (default: -f docker-compose.yml)
+#   iOS-specific: IOS_DEVICE  IOS_CONFIG  IOS_TEST  NO_LAUNCH  (see scripts/deploy-ios.sh)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,16 +48,31 @@ COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 DEFAULT_SERVICES=(api worker web)
 PROTECTED_SERVICES="vllm db"
 
-# Requested services = positional args, or the safe default set.
+# Requested targets = positional args, or the safe default set.
 if [ "$#" -gt 0 ]; then
-  SERVICES=("$@")
+  REQUESTED=("$@")
 else
-  SERVICES=("${DEFAULT_SERVICES[@]}")
+  REQUESTED=("${DEFAULT_SERVICES[@]}")
 fi
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# How a target is routed: `ios` is the one reserved word and means the phone
+# (scripts/deploy-ios.sh, built here on the Mac). Everything else must name a
+# real service in the compose file, and is rebuilt on whichever host the stack
+# lives on. Anything else is a typo, and is rejected below rather than being
+# handed to Docker to fail on later.
+PATCH_IOS=0
+SERVICES=()
+for target in "${REQUESTED[@]}"; do
+  if [ "$target" = "ios" ]; then
+    PATCH_IOS=1
+  else
+    SERVICES+=("$target")
+  fi
+done
 
 detect_host_ip() {
   local ip
@@ -62,7 +94,7 @@ ask() {
 }
 
 # Refuse to patch a protected service (the whole point is to leave them alone).
-for svc in "${SERVICES[@]}"; do
+for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
   for protected in $PROTECTED_SERVICES; do
     if [ "$svc" = "$protected" ]; then
       die "Refusing to rebuild '$svc' — it is protected (would reload the model / recreate the database). Restart it manually if you really need to."
@@ -70,7 +102,31 @@ for svc in "${SERVICES[@]}"; do
   done
 done
 
-log "Patching services: ${SERVICES[*]}  (vllm + db left running, no volumes removed)"
+# Reject a name that is neither `ios` nor a real compose service, so a typo
+# fails here with something readable instead of surfacing as a Docker error
+# three steps later (or, worse, as a no-op that looks like success).
+validate_services() { # validate_services <known-services...>
+  local known="$*" svc
+  for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
+    case " $known " in
+      *" $svc "*) ;;
+      *) die "Unknown target '$svc'. Valid targets: ios (the iPhone app) or a compose service — ${known}." ;;
+    esac
+  done
+  log "Patching services: ${SERVICES[*]}  (vllm + db left running, no volumes removed)"
+}
+
+patch_ios() {
+  log "Patching the iPhone app over WiFi…"
+  bash "$REPO_ROOT/scripts/deploy-ios.sh"
+}
+
+# Phone-only: nothing to do with Docker, so don't demand it (this may well be a
+# Mac with no stack on it at all).
+if [ "$PATCH_IOS" = "1" ] && [ "${#SERVICES[@]}" -eq 0 ]; then
+  patch_ios
+  exit 0
+fi
 
 TARGET="${TARGET:-local}"
 [ "$TARGET" = "local" ] || [ "$TARGET" = "remote" ] || die "TARGET must be 'local' or 'remote'."
@@ -83,6 +139,9 @@ if [ "$TARGET" = "local" ]; then
   docker compose version >/dev/null 2>&1 || die "docker compose v2 is required."
   [ -f .env ] || die ".env not found — is this deployment set up? Use scripts/deploy.sh first."
 
+  # shellcheck disable=SC2086
+  validate_services "$(docker compose $COMPOSE_FILES config --services 2>/dev/null | tr '\n' ' ')"
+
   log "Rebuilding and recreating…"
   # shellcheck disable=SC2086
   docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
@@ -90,6 +149,9 @@ if [ "$TARGET" = "local" ]; then
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
   log "Patched. Dashboard: https://$(detect_host_ip):${web_tls_port}"
   echo "  Verify: scripts/doctor.sh"
+  # The phone goes last: it must never come up against a box that doesn't yet
+  # have the endpoint it was built to call.
+  [ "$PATCH_IOS" = "1" ] && patch_ios
   exit 0
 fi
 
@@ -117,6 +179,8 @@ remote 'command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2
 REMOTE_ABS="$(remote "cd ${REMOTE_DIR} 2>/dev/null && pwd")" \
   || die "Remote directory ${REMOTE_DIR} not found — deploy there first with scripts/deploy.sh."
 
+validate_services "$(remote "cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
+
 log "Syncing code to ${SSH_TARGET}:${REMOTE_ABS} (excluding .env, data, build artifacts)…"
 rsync -az --delete \
   --exclude '.git' --exclude 'node_modules' --exclude '.venv' \
@@ -131,3 +195,7 @@ web_tls_port="$(remote "grep -E '^WEB_TLS_PORT=' ${REMOTE_ABS}/.env | cut -d= -f
 web_tls_port="${web_tls_port:-8443}"
 log "Patched. Dashboard: https://${SSH_HOST}:${web_tls_port}"
 echo "  Verify: ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && bash scripts/doctor.sh'"
+
+# The phone goes last, and builds here on the Mac — not on the remote box, which
+# has no Xcode.
+[ "$PATCH_IOS" = "1" ] && patch_ios

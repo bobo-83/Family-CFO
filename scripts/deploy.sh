@@ -22,6 +22,10 @@
 #   REMOTE_DIR   remote checkout dir    (default: ~/family-cfo)
 #   COMPOSE_FILES  compose files        (default: -f docker-compose.yml)
 #   NO_BUILD=1   skip image build (use existing images)
+#   IOS=1        also build + install the iPhone app onto a paired device over
+#                WiFi once the stack is up (macOS only — see scripts/deploy-ios.sh).
+#                The phone is deployed LAST, so it never comes up against a box
+#                that isn't serving yet.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,6 +48,11 @@ detect_host_ip() {
   ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
   [ -z "$ip" ] && ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   echo "${ip:-localhost}"
+}
+
+deploy_ios() { # the phone half — Xcode lives on this Mac, never on the box
+  log "Deploying the iPhone app over WiFi…"
+  bash "$REPO_ROOT/scripts/deploy-ios.sh"
 }
 
 ask() { # ask VAR "prompt" "default"
@@ -134,6 +143,7 @@ if [[ "$TARGET" == "local" ]]; then
   echo "  Health:     scripts/doctor.sh"
   echo "  Logs:       docker compose $COMPOSE_FILES logs -f"
   echo "  AI status:  docker compose $COMPOSE_FILES logs -f vllm   # first boot downloads the model"
+  [ "${IOS:-0}" = "1" ] && deploy_ios
   exit 0
 fi
 
@@ -203,3 +213,7 @@ echo "  Logs:       ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && docker compose ${COMP
 echo "  AI status:  ssh ${SSH_TARGET} 'cd ${REMOTE_ABS} && docker compose ${COMPOSE_FILES} logs -f vllm'"
 echo
 warn "First boot downloads the vLLM model (multi-GB) — the AI advisor is ready once 'vllm' finishes loading."
+
+# The phone builds here on the Mac, not on the remote box (no Xcode there), and
+# goes last so it never comes up against a stack that isn't serving yet.
+[ "${IOS:-0}" = "1" ] && deploy_ios
