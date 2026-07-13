@@ -1086,8 +1086,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M84: iOS Advisor Chat v1
 
-- [ ] Spec gate: the flagship screen. Conversation list + chat against the existing grounded pipeline (`POST /chat/messages`): markdown rendering, history, memory and retrieval as-is. Attachments v1: images (camera/library; HEIC transcoded) through the existing vision path, and PDFs — the API generalizes the M77/M78 rasterize-pages approach from the W2 endpoint to chat attachments (pages → images → vision describer → grounded). No new data domain (spec-kit tools rule satisfied by reuse).
-- [ ] Implement + tests + live verify + commit.
+- [x] Spec gate: the flagship screen. Conversation list + chat against the existing grounded pipeline (`POST /chat/messages`): markdown rendering, history, memory and retrieval as-is. Attachments v1: images (camera/library; HEIC transcoded) through the existing vision path, and PDFs — the API generalizes the M77/M78 rasterize-pages approach from the W2 endpoint to chat attachments (pages → images → vision describer → grounded). No new data domain (spec-kit tools rule satisfied by reuse).
+- [x] M84a (server + web, no Mac required, 2026-07-12): `POST /chat/messages` accepts `application/pdf` (contract enum) — the API decodes, size-caps, and rasterizes page 1 via the M77 `pdf_page_pngs` path so the describer always receives pixels; corrupt PDFs 422. The web chat picker accepts PDFs (sent as-is, filename chip instead of a thumbnail), so the flow is live on the dashboard today and the iOS client inherits a finished endpoint.
+- [ ] Implement the iOS client screens + tests + live verify + commit (blocked on macOS).
 
 ## M85: Data-File Chat Attachments (CSV / Spreadsheet / Text)
 

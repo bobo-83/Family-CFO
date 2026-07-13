@@ -648,10 +648,10 @@ export type ChatRequest = {
     conversation_id?: string;
     message: string;
     /**
-     * Optional attached photo, base64-encoded (ADR 0011)
+     * Optional attached photo or PDF, base64-encoded (ADR 0011 / M84a)
      */
     image_base64?: string;
-    image_media_type?: 'image/jpeg' | 'image/png' | 'image/webp';
+    image_media_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
 };
 
 export type ChatResponse = {

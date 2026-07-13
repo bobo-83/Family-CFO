@@ -186,3 +186,59 @@ async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None
     assert rec["answered_by"] == "Qwen/Qwen2.5-32B-Instruct"
     assert rec["photo_described_by"] == "Qwen/Qwen2.5-VL-7B-Instruct"
     assert any("Qwen2.5-VL-7B" in a for a in rec["assumptions"])
+
+
+# --- M84a: PDF attachments in chat ---
+
+
+def _pdf_base64() -> str:
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=14)
+    pdf.cell(text="Statement: total due 123.45")
+    return base64.b64encode(bytes(pdf.output())).decode("ascii")
+
+
+@pytest.mark.anyio
+async def test_pdf_attachment_is_rasterized_for_the_describer(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    captured: dict[str, str] = {}
+
+    class _Describer:
+        def close(self) -> None:
+            pass
+
+    def _fake_describe(describer, image_data_url, user_context=""):
+        captured["data_url"] = image_data_url
+        return "A statement PDF showing a total due of $123.45."
+
+    monkeypatch.setattr(
+        chat_module, "select_vision_describer", lambda e, h, s: (_Describer(), "describer")
+    )
+    monkeypatch.setattr(chat_module, "describe_image", _fake_describe)
+
+    response = await _post(
+        demo_client,
+        demo_token,
+        image_base64=_pdf_base64(),
+        image_media_type="application/pdf",
+    )
+
+    assert response.status_code == 200
+    # The describer got a rendered page image, never raw PDF bytes.
+    assert captured["data_url"].startswith("data:image/png;base64,")
+
+
+@pytest.mark.anyio
+async def test_corrupt_pdf_attachment_is_rejected(demo_client, demo_token) -> None:
+    response = await _post(
+        demo_client,
+        demo_token,
+        image_base64=base64.b64encode(b"not a pdf").decode(),
+        image_media_type="application/pdf",
+    )
+
+    assert response.status_code == 422
