@@ -43,15 +43,29 @@ final class AppModel {
     /// The generated client for the paired server, or nil before pairing.
     /// The token is captured by value: the credential only changes at
     /// pairing/unpairing, which tears down and rebuilds the whole shell.
-    var api: AdvisorAPI? {
+    private var client: Client? {
         guard let server, let credential else { return nil }
         let token = credential.accessToken
-        let client = APIClientFactory.makeClient(
+        return APIClientFactory.makeClient(
             baseURL: server.apiBaseURL,
             pinnedCertificateSHA256: server.certificateSHA256,
             token: { token }
         )
-        return LiveAdvisorAPI(client: client)
+    }
+
+    var api: AdvisorAPI? {
+        client.map { LiveAdvisorAPI(client: $0) }
+    }
+
+    /// The on-box natural voice (M87); nil before pairing, and 503-degrading to
+    /// the system voice whenever the optional `tts` service isn't there.
+    var speechAudio: SpeechAudioAPI? {
+        client.map { LiveSpeechAudioAPI(client: $0) }
+    }
+
+    /// The daily-glance context behind the Overview tab (M88).
+    var household: HouseholdAPI? {
+        client.map { LiveHouseholdAPI(client: $0) }
     }
 
     func bootstrap() {

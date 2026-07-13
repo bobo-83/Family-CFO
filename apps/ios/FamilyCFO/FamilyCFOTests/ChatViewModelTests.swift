@@ -76,7 +76,7 @@ struct ChatViewModelTests {
             conversationId: "conv-1", recommendation: recommendation(answer: "Looks like a receipt."))
         let viewModel = ChatViewModel(api: api)
         viewModel.pendingAttachment = ChatAttachment(
-            data: Data([0xFF, 0xD8, 0xFF, 0x00]), mediaType: .imageJpeg, displayName: "Photo")
+            data: Data([0xFF, 0xD8, 0xFF, 0x00]), kind: .visual(.imageJpeg), displayName: "Photo")
 
         await viewModel.send("What's this?")
         await viewModel.send("And without attachment?")

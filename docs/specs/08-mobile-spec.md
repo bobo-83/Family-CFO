@@ -1,9 +1,11 @@
 # Mobile Spec
 
-Updated 2026-07-12 (roadmap = M83–M92 in `12-implementation-tasks.md`).
-M83 (foundation) and M84 (advisor chat) are implemented under
-`apps/ios/FamilyCFO` — see `apps/ios/README.md`; M85–M92 remain spec-gated
-and ready to build.
+Updated 2026-07-13 (roadmap = M83–M92 in `12-implementation-tasks.md`).
+M83–M88 are implemented under `apps/ios/FamilyCFO` — foundation, advisor chat
+with image/PDF/data-file attachments, on-device voice with the on-box natural
+voice, and the Overview dashboard; see `apps/ios/README.md`. M89–M92 (camera
+flows, review queues, quick categorization, widget/Siri) remain spec-gated and
+ready to build.
 
 ## Platform
 
