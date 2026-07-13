@@ -53,10 +53,28 @@ done < "$HISTORY"
 COUNT="${#KINDS[@]}"
 [ "$COUNT" -gt 0 ] || { log "No deployments recorded yet."; exit 0; }
 
+# Recorded user/port may be empty, meaning "ssh works it out from ~/.ssh/config".
+# Passing an empty -p or a bare `@host` would break exactly that.
+ssh_target_for() { # ssh_target_for <index>
+  if [ -n "${USERS[$1]}" ]; then
+    printf '%s@%s' "${USERS[$1]}" "${HOSTS[$1]}"
+  else
+    printf '%s' "${HOSTS[$1]}"
+  fi
+}
+
+ssh_opts_for() { # ssh_opts_for <index> -> prints options, one per line
+  printf '%s\n' -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8
+  [ -n "${PORTS[$1]}" ] && printf '%s\n' -p "${PORTS[$1]}"
+  return 0
+}
+
 ssh_to() { # ssh_to <index> <command...>
   local i="$1"; shift
-  local opts=(-p "${PORTS[$i]}" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -o BatchMode=yes)
-  ssh "${opts[@]}" "${USERS[$i]}@${HOSTS[$i]}" "$@" 2>/dev/null
+  local opts=()
+  while IFS= read -r opt; do opts+=("$opt"); done < <(ssh_opts_for "$i")
+  # BatchMode: probing status must never sit at a password prompt.
+  ssh "${opts[@]}" -o BatchMode=yes "$(ssh_target_for "$i")" "$@" 2>/dev/null
 }
 
 # Running containers at a place, or a word explaining why we can't tell. Never
@@ -121,8 +139,11 @@ compose_at() { # compose_at <index> <compose-args...>
       (cd "${DIRS[$i]}" && docker compose ${COMPOSES[$i]} "$@")
       ;;
     remote)
-      local opts=(-p "${PORTS[$i]}" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
-      ssh "${opts[@]}" "${USERS[$i]}@${HOSTS[$i]}" \
+      local opts=()
+      while IFS= read -r opt; do opts+=("$opt"); done < <(ssh_opts_for "$i")
+      # No BatchMode here: acting on a stack may legitimately need a passphrase
+      # prompt, and that prompt belongs to ssh — not to this script.
+      ssh "${opts[@]}" "$(ssh_target_for "$i")" \
         "cd ${DIRS[$i]} && docker compose ${COMPOSES[$i]} $*"
       ;;
     ios)
