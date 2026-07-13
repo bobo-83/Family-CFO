@@ -5,7 +5,9 @@ M83–M89 and M91 are implemented under `apps/ios/FamilyCFO` — foundation, adv
 chat with image/PDF/data-file attachments, on-device voice with the on-box
 natural voice, the Overview dashboard (incl. M93 safe-to-spend), the receipt/W-2
 camera flows, swipe-to-categorize transactions, and the review queues; see
-`apps/ios/README.md`. Only M92 (widget/Siri) remains spec-gated.
+`apps/ios/README.md`. M92 is implemented in the app (Siri intent, bill notifications, and the
+widget's code + data layer); the widget's Xcode target + App Group capability
+is a one-time UI step (see `apps/ios/README.md`). The iOS roadmap is complete.
 
 The on-device photo-description backlog note below is **delivered for receipts**
 (M89): Vision reads the receipt on the phone and only the text is sent. Chat's
