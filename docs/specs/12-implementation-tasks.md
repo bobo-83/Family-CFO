@@ -1141,8 +1141,9 @@ User request (2026-07-12): "do the things that do not need to be running on a Ma
 
 ## M90: iOS Review Queues
 
-- [ ] Spec gate: one-tap phone-sized decisions using existing endpoints — bill suggestions (confirm/dismiss, M58/M59) and income analysis (confirm/reject/add deposits, M61/M63). Badge counts on the tab.
-- [ ] Implement + tests + verify on device + commit.
+- [x] Spec gate: one-tap phone-sized decisions using existing endpoints — bill suggestions (confirm/dismiss, M58/M59) and income analysis (confirm/reject/add deposits, M61/M63). Badge counts on the tab.
+- [x] Implement + tests + commit. (2026-07-13: a **Review** tab, owner/adult only, with two queues. **Recurring bills to confirm** — bill suggestions (M58); swipe → *Add bill* (`createBill` from the suggestion) or *Dismiss* (`dismissBillSuggestion`). **Deposits — income?** — the active unclassified inflows from the income analysis (M63, `other_inflows` where `!excluded`); swipe → *Income* (`include`) or *Not income* (`exclude`). Every action is optimistic and restores the item in place if the server refuses. The tab shows a **badge** = suggestions + deposits; the `ReviewViewModel` is owned by the shell so the badge stays in sync the instant the screen clears an item, with no extra fetch. No server change. 7 new tests over both queues, the badge count, and failure-restore.)
+- [x] Verified against the live box's real data (2026-07-13): the household's 3 recurring charges are ALREADY bills (so 0 new suggestions) and there are 0 unclassified deposits — a correctly-empty queue, which the "Nothing to review" state handles. Detection itself works (3 candidates found, all matched to existing bills).
 
 ## M91: iOS Quick Transaction Categorization
 
