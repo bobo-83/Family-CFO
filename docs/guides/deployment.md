@@ -313,3 +313,41 @@ The API applies any new migrations on startup (so a schema change ships with an
   backups (see [Backup and Restore](./backup-and-restore.md)).
 
 See [Troubleshooting](./troubleshooting.md) if the stack doesn't come up.
+
+## Installing the iPhone app over the VPN (over-the-air)
+
+`scripts/patch.sh ios` pushes a build from the Mac to the phone — but only when
+both are on the same local network. Xcode discovers the device with Bonjour/mDNS,
+which is **multicast**, and multicast does not cross a routed WireGuard tunnel. So
+away from home the phone shows as `unavailable` and cannot be deployed to, even
+though it reaches the box perfectly well over the VPN.
+
+The fix is to stop pushing and let the phone **pull**:
+
+```sh
+scripts/deploy-ios-ota.sh            # archive, sign, publish to the box, print the link
+scripts/deploy-ios-ota.sh --url-only # reprint the link
+```
+
+It archives a Release build, exports a signed `.ipa` (method `debugging` — the
+development certificate and the team profile, which already lists the phone's
+UDID; ad-hoc would need an Apple *Distribution* certificate and buys nothing
+here), and publishes the `.ipa`, an OTA manifest and a small install page into the
+box's nginx at `/ota/`. Then open `https://<box>:8443/ota/` in Safari **on the
+phone** — over WiFi or WireGuard — and tap Install.
+
+**One-time:** iOS refuses an OTA install unless the manifest is served over HTTPS
+with a *trusted* certificate, and the box's certificate is self-signed. The script
+publishes it at `/ota/box-cert.crt`; install it on the phone and enable it under
+Settings → General → About → Certificate Trust Settings.
+
+Two nginx details that will silently break the install if you touch that config:
+an nginx `types` block **replaces** the defaults rather than adding to them (so
+`text/html` must be re-declared, or Safari downloads the install page instead of
+rendering it), and `/ota/` must not fall through to the dashboard's SPA
+`index.html` — a missing build has to 404.
+
+| | Same WiFi | Over WireGuard |
+|---|---|---|
+| `scripts/patch.sh ios` (push) | ✅ | ❌ Bonjour can't cross the tunnel |
+| `scripts/deploy-ios-ota.sh` (pull) | ✅ | ✅ |
