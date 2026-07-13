@@ -111,6 +111,12 @@ preflight_ai_advisory() {
 }
 
 # --- Target selection --------------------------------------------------------
+# Naming a host means you meant a remote one: infer it rather than prompting for
+# something you already answered (and rather than defaulting to 'local' and
+# standing a whole stack up on the laptop you happen to be sitting at).
+if [[ -z "${TARGET:-}" && -n "${SSH_HOST:-}" ]]; then
+  TARGET="remote"
+fi
 ask TARGET "Deploy target — 'local' or 'remote'" "local"
 [[ "$TARGET" == "local" || "$TARGET" == "remote" ]] || die "TARGET must be 'local' or 'remote'."
 

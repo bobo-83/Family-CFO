@@ -21,6 +21,15 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
         return detail!
     }
 
+    var deleteError: Error?
+    private(set) var deleted: [String] = []
+
+    func deleteConversation(id: String) async throws {
+        if let deleteError { throw deleteError }
+        deleted.append(id)
+        conversations.removeAll { $0.id == id }
+    }
+
     func sendMessage(
         _ message: String,
         conversationID: String?,
