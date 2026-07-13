@@ -59,6 +59,7 @@ CALCULATION_TYPES = (
     "debt_payoff",
     "retirement_projection",
     "future_value",
+    "safe_to_spend",
 )
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
 EXPLANATION_SOURCES = ("deterministic_stub", "llm", "agentic_tool_calling")

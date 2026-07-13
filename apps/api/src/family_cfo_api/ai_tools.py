@@ -70,13 +70,22 @@ GROUNDING_RULES = (
     "back to the user. If a tool reports \"error\": \"missing_input\", ask the "
     "user to supply that fact instead of guessing. If a tool reports "
     "\"error\": \"invalid_arguments\", correct the arguments and try again. Keep "
-    "the final answer to a few plain-language sentences. For currency "
-    "For affordability questions (a house, a car, any purchase), never treat "
-    "net worth as spendable: use get_net_worth's asset_breakdown — retirement "
-    "and education funds are NOT available for purchases; base affordability on "
-    "liquid assets MINUS emergency_fund_reserved (money the family earmarked "
-    "for emergencies is untouchable; taxable investments only with a tax "
-    "caveat), and use project_purchase_impact for the cash-flow view. For currency "
+    "the final answer to a few plain-language sentences. "
+    "NEVER derive a spendable amount yourself by subtracting one tool's number "
+    "from another's — arithmetic you perform is not grounded, and cash that is "
+    "merely sitting in an account is not the same as cash that is free to spend. "
+    "For ANY question about what the family can spend or afford ('how much money "
+    "do I have to spend', 'can I afford this', 'is there room for X'), ALWAYS "
+    "call get_safe_to_spend and quote its safe_to_spend display value: it already "
+    "subtracts the designated emergency fund, the bills falling due, AND the "
+    "minimum debt payments owed. Report its warnings — they say when the figure "
+    "is overstated (e.g. debts with no recorded minimum payment). Never present "
+    "liquid balances, or liquid minus the emergency fund, as though it were "
+    "spendable money: that is the family's bill and debt money too. For a "
+    "specific purchase also call project_purchase_impact for the cash-flow view, "
+    "and never treat net worth as spendable — see get_net_worth's asset_breakdown, "
+    "where retirement and education funds are NOT available (taxable investments "
+    "only with a tax caveat). For currency "
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
@@ -220,6 +229,11 @@ def _get_emergency_fund(engine: Engine, household_id: str, currency: str, args: 
     result, calc_id = finance_service.compute_emergency_fund_with_ref(
         engine, household_id, currency
     )
+    return _result_payload(result, calc_id)
+
+
+def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    result, calc_id = finance_service.compute_safe_to_spend(engine, household_id, currency)
     return _result_payload(result, calc_id)
 
 
@@ -638,6 +652,7 @@ def _get_spending_insights(engine: Engine, household_id: str, currency: str, arg
 _HANDLERS = {
     "get_net_worth": _get_net_worth,
     "get_emergency_fund": _get_emergency_fund,
+    "get_safe_to_spend": _get_safe_to_spend,
     "get_debt_outlook": _get_debt_outlook,
     "project_purchase_impact": _project_purchase_impact,
     "future_value": _future_value,
@@ -669,6 +684,17 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="get_emergency_fund",
             description="Months of essential expenses the household's liquid savings would cover.",
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_safe_to_spend",
+            description=(
+                "THE tool for 'how much money do I have to spend', 'can I afford X', or any "
+                "discretionary-spending question. Returns safe_to_spend: liquid cash MINUS the "
+                "designated emergency fund, MINUS bills falling due, MINUS minimum debt "
+                "payments. Never derive spendable money yourself — this figure already nets "
+                "out every obligation, and its warnings say when it is overstated."
+            ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
         ToolSpec(

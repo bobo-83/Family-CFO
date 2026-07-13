@@ -137,3 +137,45 @@ struct ChatViewModelTests {
         #expect(viewModel.messages[1].author == .assistant)
     }
 }
+
+@MainActor
+struct VoiceConversationAdoptionTests {
+    /// The reported bug (2026-07-13): a hands-free session runs through the same
+    /// grounded pipeline, so the box DOES create a conversation — but the id came
+    /// back to the voice view model and died with it, so the thread existed on the
+    /// server and the app never showed it.
+    @Test func adoptingAVoiceConversationLoadsItsTurns() async {
+        let api = MockAdvisorAPI()
+        api.detail = .init(
+            id: "conv-voice",
+            title: "How much can I spend?",
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: [
+                .init(
+                    id: "m1", role: .user, content: "How much can I spend?", sequence: 1,
+                    createdAt: .now),
+                .init(
+                    id: "m2", role: .assistant, content: "$1,792.00 is safe to spend.",
+                    sequence: 2, createdAt: .now),
+            ]
+        )
+        let viewModel = ChatViewModel(api: api)
+        #expect(viewModel.conversationID == nil)
+
+        await viewModel.adopt(conversationID: "conv-voice")
+
+        #expect(viewModel.conversationID == "conv-voice")
+        #expect(viewModel.messages.count == 2)
+        #expect(viewModel.messages.first?.text == "How much can I spend?")
+    }
+
+    @Test func adoptingTheConversationAlreadyOpenIsANoOp() async {
+        let api = MockAdvisorAPI()
+        let viewModel = ChatViewModel(api: api, conversationID: "conv-1")
+
+        await viewModel.adopt(conversationID: "conv-1")
+
+        #expect(viewModel.conversationID == "conv-1")
+    }
+}
