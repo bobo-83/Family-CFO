@@ -1,0 +1,7 @@
+# Configuration for apple/swift-openapi-generator when regenerating the
+# committed Swift client (scripts/generate-swift-client.sh).
+generate:
+  - types
+  - client
+accessModifier: public
+namingStrategy: idiomatic

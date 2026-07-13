@@ -85,6 +85,10 @@ class DeviceCredential(BaseModel):
     device_id: str
     access_token: str
     expires_at: datetime
+    # M83: role of the user the device acts as (the pairing session's
+    # creator), so the mobile app can build its role-aware shell without
+    # spending the device token on a session refresh.
+    role: HouseholdRole | None = None
 
 
 class PairedDevice(BaseModel):

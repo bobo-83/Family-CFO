@@ -1,0 +1,34 @@
+name: iOS App
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | tail -1)"
+
+      - name: Cache generator build
+        uses: actions/cache@v4
+        with:
+          path: apps/ios/openapi-generator/.build
+          key: openapi-generator-${{ runner.os }}-${{ hashFiles('apps/ios/openapi-generator/Package.swift') }}
+
+      - name: Check generated Swift client is up to date with the OpenAPI contract
+        run: scripts/generate-swift-client.sh --check
+
+      - name: Build and test (iOS Simulator)
+        working-directory: apps/ios/FamilyCFO
+        run: |
+          xcodebuild test \
+            -project FamilyCFO.xcodeproj \
+            -scheme FamilyCFO \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            CODE_SIGNING_ALLOWED=NO
