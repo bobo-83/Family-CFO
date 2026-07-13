@@ -142,6 +142,14 @@ scripts/deployments.sh         # what have I deployed, and is it still running?
 The manual equivalent is four commands — see
 [the deployment guide](./docs/guides/deployment.md#ssh-setup-once-per-machine).
 
+Phone not on the home network? `scripts/patch.sh ios` can't reach it (Xcode finds
+devices with multicast Bonjour, which no VPN carries). Publish a signed build to
+the box and let the phone pull it over the VPN instead:
+
+```bash
+scripts/deploy-ios-ota.sh   # then open https://<box>:8443/ota/ in Safari on the phone
+```
+
 See [docker/README.md](./docker/README.md) for the development override, volumes,
 and secrets, and the [AI Advisor guide](./docs/guides/ai-advisor.md) for testing
 the model end-to-end.

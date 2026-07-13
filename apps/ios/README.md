@@ -50,6 +50,22 @@ When an iOS change also needs an API or web change, ship both halves together
 with `scripts/patch.sh api web ios`: the box is patched first, so the phone
 never launches against a server that lacks the endpoint it calls.
 
+## Deploy to a phone that ISN'T on the home network (over WiFi *or* VPN)
+
+`patch.sh ios` only works when the Mac and phone share a local network: Xcode
+finds the device with Bonjour/mDNS, which is multicast and cannot cross a routed
+WireGuard tunnel. Away from home, publish a signed build to the box instead and
+let the phone pull it:
+
+```sh
+scripts/deploy-ios-ota.sh          # archive, sign, publish to the box, print the link
+```
+
+Then open `https://<box>:8443/ota/` in Safari on the phone and tap Install. See
+[the deployment guide](../../docs/guides/deployment.md#what-remote-over-the-vpn-ios-patching-requires)
+for the full list of what this requires (device in the profile, Developer Mode,
+and a one-time trust of the box's certificate).
+
 ## Build and run
 
 Open `apps/ios/FamilyCFO/FamilyCFO.xcodeproj` in Xcode 16+ and run the
