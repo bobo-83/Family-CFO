@@ -92,3 +92,25 @@ def test_safe_to_spend_reports_liabilities_that_have_no_minimum_payment(
     # The demo mortgage is a liability, so the household owes something.
     assert result.outputs["total_debt"].amount_minor > 0
     assert any("owes" in w for w in result.warnings)
+
+
+def test_monthly_income_counts_compensation_profiles(demo_engine: Engine) -> None:
+    """M73/M94: a compensation profile (W2/declared) must show up as income on the
+    Overview, not just recurring income sources — the user's reported $0 bug."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    before = finance_service.monthly_income_total(demo_engine, hh, "USD")
+
+    repository.create_income_profile(
+        demo_engine, hh, label="ACME",
+        base_salary_minor=12_000_000,   # $120k base
+        rsu_annual_minor=6_000_000,     # $60k RSU
+        rsu_frequency="quarterly", rsu_next_vest_date=None,
+        bonus_percent=10.0, bonus_month=None,      # +$12k bonus
+        w2_year=None, w2_wages_minor=None, w2_withheld_minor=None,
+    )
+
+    after = finance_service.monthly_income_total(demo_engine, hh, "USD")
+    # (120k + 60k + 12k) / 12 = $16,000/mo added.
+    assert after.amount_minor - before.amount_minor == 1_600_000

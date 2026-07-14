@@ -431,6 +431,17 @@ def monthly_income_total(engine: Engine, household_id: str, currency: str) -> Mo
             income.name, Money(income.amount_minor, income.currency), income.frequency
         )
         total += recurring.monthly_amount()
+    # M73 compensation profiles (W2 / declared salary): count each earner's
+    # expected monthly gross too, so a household that set up a profile — but no
+    # recurring income source — still shows its income on the Overview, instead
+    # of $0. Gross (base + RSU + bonus), matching how the profile is declared.
+    for profile in repository.list_income_profiles(engine, household_id):
+        annual_gross = (
+            profile.base_salary_minor
+            + profile.rsu_annual_minor
+            + int(profile.base_salary_minor * profile.bonus_percent / 100)
+        )
+        total += Money(annual_gross // 12, currency)
     return total
 
 
