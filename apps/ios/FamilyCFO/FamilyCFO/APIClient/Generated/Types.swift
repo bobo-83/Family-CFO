@@ -3279,6 +3279,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/SpendingByCategory`.
         public struct SpendingByCategory: Codable, Hashable, Sendable {
+            /// The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/month`.
+            public var month: Swift.String
             /// The month this covers, e.g. "July 2026".
             ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/month_label`.
@@ -3298,22 +3302,26 @@ public enum Components {
             /// Creates a new `SpendingByCategory`.
             ///
             /// - Parameters:
+            ///   - month: The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
             ///   - monthLabel: The month this covers, e.g. "July 2026".
             ///   - categories: Per-category spend this month, highest first.
             ///   - categorizedTotal: Sum of all categorized spend this month.
             ///   - uncategorized: This month's outflow not yet categorized — files it and it moves into a category above.
             public init(
+                month: Swift.String,
                 monthLabel: Swift.String,
                 categories: [Components.Schemas.CategorySpend],
                 categorizedTotal: Components.Schemas.Money,
                 uncategorized: Components.Schemas.Money
             ) {
+                self.month = month
                 self.monthLabel = monthLabel
                 self.categories = categories
                 self.categorizedTotal = categorizedTotal
                 self.uncategorized = uncategorized
             }
             public enum CodingKeys: String, CodingKey {
+                case month
                 case monthLabel = "month_label"
                 case categories
                 case categorizedTotal = "categorized_total"

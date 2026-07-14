@@ -233,6 +233,7 @@ class SpendingByCategory(BaseModel):
     categorizing. `uncategorized` is what's still unsorted, so the user can see
     the value of filing more."""
 
+    month: str
     month_label: str
     categories: list[CategorySpend] = Field(default_factory=list)
     categorized_total: Money

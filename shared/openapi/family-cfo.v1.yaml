@@ -2916,11 +2916,15 @@ components:
       type: object
       description: "M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions."
       required:
+        - month
         - month_label
         - categories
         - categorized_total
         - uncategorized
       properties:
+        month:
+          description: "The covered month as ISO year-month, e.g. \"2026-07\" — so a client can filter transactions to exactly this window."
+          type: string
         month_label:
           description: "The month this covers, e.g. \"July 2026\"."
           type: string
