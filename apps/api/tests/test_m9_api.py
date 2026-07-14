@@ -316,3 +316,46 @@ async def test_bill_with_unknown_category_is_rejected(demo_client, demo_token) -
             "category_id": "nonexistent",
         })
     assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_categorizing_a_bill_files_its_matching_transactions(
+    demo_client, demo_engine, demo_token
+) -> None:
+    """M96 rule: filing a bill under a category also files its still-uncategorized
+    matching transactions — so the user doesn't categorize the same merchant twice.
+    Already-categorized transactions are left alone."""
+    from datetime import date
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    acct = repository.list_account_balances(demo_engine, hh)[0].account_id
+    subs = (await demo_client.post(
+        "/api/v1/categories", headers=headers, json={"name": "Subscriptions"})).json()["id"]
+    other = (await demo_client.post(
+        "/api/v1/categories", headers=headers, json={"name": "Other"})).json()["id"]
+
+    # Three Disney+ transactions: two uncategorized, one already set to Other.
+    def mk(merchant, category_id=None):
+        return repository.create_transaction(
+            demo_engine, hh, account_id=acct, occurred_at=date(2026, 7, 5),
+            amount_minor=-3299, currency="USD", merchant=merchant, description=None,
+            import_source=None, import_id=None, review_state="reviewed",
+            category_id=category_id)
+
+    t_uncat = [mk("DISNEY+ *4029"), mk("DISNEY+ 8811")]
+    t_locked = mk("Disney+", category_id=other)
+
+    created = await demo_client.post(
+        "/api/v1/bills", headers=headers,
+        json={"name": "Disney+", "amount": {"amount_minor": 3299, "currency": "USD"},
+              "frequency": "monthly", "category_id": subs})
+    assert created.status_code == 201
+    # Both uncategorized Disney+ transactions were filed; the count is reported.
+    assert created.json()["transactions_categorized"] == 2
+
+    # The two uncategorized are now Subscriptions; the locked one stays Other.
+    for tid in t_uncat:
+        assert repository.get_transaction(demo_engine, hh, tid).category_id == subs
+    assert repository.get_transaction(demo_engine, hh, t_locked).category_id == other
