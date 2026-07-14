@@ -11,17 +11,23 @@ import Observation
 /// cleared, with no extra fetch.
 @MainActor
 @Observable
-final class ReviewViewModel {
+final class BillsViewModel {
     private(set) var billSuggestions: [Components.Schemas.BillSuggestion] = []
+    private(set) var bills: [Components.Schemas.Bill] = []
     private(set) var deposits: [Components.Schemas.IncomeAnalysisTransaction] = []
     private(set) var isLoading = false
+    private(set) var isSyncing = false
     var errorMessage: String?
+    /// A brief note after a sync, e.g. "Imported 12 transactions".
+    var syncResult: String?
 
+    /// The badge only counts things that NEED a decision — suggestions and
+    /// unclassified deposits — not the current bills, which are just informational.
     var pendingCount: Int { billSuggestions.count + deposits.count }
 
-    private let api: ReviewAPI
+    private let api: BillsAPI
 
-    init(api: ReviewAPI) {
+    init(api: BillsAPI) {
         self.api = api
     }
 
@@ -30,11 +36,71 @@ final class ReviewViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            async let bills = api.billSuggestions()
+            async let suggestions = api.billSuggestions()
+            async let current = api.bills()
             async let dep = api.unclassifiedDeposits()
-            billSuggestions = try await bills
+            billSuggestions = try await suggestions
+            bills = try await current
             deposits = try await dep
             errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    // MARK: Current bills
+
+    func addBill(
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?
+    ) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, amountMinor > 0 else { return }
+        let request = Components.Schemas.BillCreateRequest(
+            name: trimmed,
+            amount: .init(amountMinor: amountMinor, currency: currency),
+            frequency: frequency,
+            nextDueDate: nextDueDate)
+        do {
+            try await api.createBill(request)
+            await load()  // pull the created bill back with its server id
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    func deleteBill(_ bill: Components.Schemas.Bill) async {
+        guard let index = bills.firstIndex(where: { $0.id == bill.id }) else { return }
+        bills.remove(at: index)
+        do {
+            try await api.deleteBill(id: bill.id)
+            errorMessage = nil
+        } catch {
+            bills.insert(bill, at: min(index, bills.count))
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    // MARK: Bank sync
+
+    /// Re-pull transactions from linked accounts, then reload so new bill
+    /// suggestions and deposits appear.
+    func sync() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        syncResult = nil
+        do {
+            let imported = try await api.syncAllTransactions()
+            syncResult =
+                imported == 0
+                ? "Already up to date."
+                : "Imported \(imported) new transaction\(imported == 1 ? "" : "s")."
+            errorMessage = nil
+            await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }

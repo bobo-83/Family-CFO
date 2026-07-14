@@ -5,9 +5,9 @@ import SwiftUI
 /// web dashboard (mobile spec non-responsibilities).
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
-    // Owned here, not in ReviewView, so its pendingCount can drive the tab badge
+    // Owned here, not in BillsView, so its pendingCount can drive the tab badge
     // and stay in sync the moment the screen clears an item (M90).
-    @State private var reviewModel: ReviewViewModel?
+    @State private var billsModel: BillsViewModel?
 
     var body: some View {
         TabView {
@@ -17,14 +17,14 @@ struct MainTabView: View {
             Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
                 OverviewView()
             }
-            // Review and categorize both change money data (M90/M91), so they're
+            // Bills and categorize both change money data (M90/M91), so they're
             // for the adults — the same gate the server enforces on the writes.
             if model.rolePolicy.canEditFinances {
-                if let reviewModel {
-                    Tab("Review", systemImage: "tray.full") {
-                        ReviewView(viewModel: reviewModel)
+                if let billsModel {
+                    Tab("Bills", systemImage: "calendar") {
+                        BillsView(viewModel: billsModel)
                     }
-                    .badge(reviewModel.pendingCount)
+                    .badge(billsModel.pendingCount)
                 }
                 Tab("Categorize", systemImage: "tag") {
                     CategorizeView()
@@ -35,9 +35,9 @@ struct MainTabView: View {
             }
         }
         .task {
-            if reviewModel == nil, let api = model.review {
-                reviewModel = ReviewViewModel(api: api)
-                await reviewModel?.load()
+            if billsModel == nil, let api = model.bills {
+                billsModel = BillsViewModel(api: api)
+                await billsModel?.load()
             }
         }
     }

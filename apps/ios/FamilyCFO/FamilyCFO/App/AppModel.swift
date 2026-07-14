@@ -78,9 +78,10 @@ final class AppModel {
         client.map { LiveCategorizeAPI(client: $0) }
     }
 
-    /// Review queues — bill suggestions + unclassified deposits (M90).
-    var review: ReviewAPI? {
-        client.map { LiveReviewAPI(client: $0) }
+    /// The Bills tab — suggestions, current bills, add/delete, and bank sync
+    /// (M90/M95).
+    var bills: BillsAPI? {
+        client.map { LiveBillsAPI(client: $0) }
     }
 
     func bootstrap() {
