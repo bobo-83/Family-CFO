@@ -114,6 +114,10 @@ export type Bill = {
      */
     category_id?: string;
     category_name?: string;
+    /**
+     * M96: matching transactions auto-filed under this category by the create/update that set it; null when listing.
+     */
+    transactions_categorized?: number;
 };
 
 export type IncomeSource = {

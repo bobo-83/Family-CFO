@@ -47,7 +47,9 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
         try await MainActor.run { cats }
     }
 
-    nonisolated func setBillCategory(id: String, categoryID: String) async throws {
+    var propagatedCount = 0
+
+    nonisolated func setBillCategory(id: String, categoryID: String) async throws -> Int {
         try await MainActor.run {
             if let actionError { throw actionError }
             billCategorySets.append((id, categoryID))
@@ -59,6 +61,7 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
                     categoryId: categoryID,
                     categoryName: cats.first { $0.id == categoryID }?.name)
             }
+            return propagatedCount
         }
     }
 
@@ -345,5 +348,41 @@ struct BillCategoryTests {
             frequency: .monthly, nextDueDate: nil, categoryID: "subs")
 
         #expect(api.createdBills == ["Spotify"])
+    }
+}
+
+@MainActor
+struct BillCategoryPropagationTests {
+    @Test func categorizingABillReportsPropagatedTransactions() async {
+        let api = MockBillsAPI()
+        api.cats = [.init(id: "subs", name: "Subscriptions")]
+        api.currentBills = [.init(
+            id: "b1", name: "Disney+",
+            amount: .init(amountMinor: 3299, currency: "USD"),
+            frequency: .monthly, nextDueDate: nil)]
+        api.propagatedCount = 5
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+
+        await vm.setBillCategory(vm.bills[0], to: api.cats[0])
+
+        #expect(vm.syncResult?.contains("5 matching transactions") == true)
+        #expect(vm.syncResult?.contains("Subscriptions") == true)
+    }
+
+    @Test func noMatchesReportsJustTheBill() async {
+        let api = MockBillsAPI()
+        api.cats = [.init(id: "subs", name: "Subscriptions")]
+        api.currentBills = [.init(
+            id: "b1", name: "AAA",
+            amount: .init(amountMinor: 250, currency: "USD"),
+            frequency: .monthly, nextDueDate: nil)]
+        api.propagatedCount = 0
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+
+        await vm.setBillCategory(vm.bills[0], to: api.cats[0])
+
+        #expect(vm.syncResult == "Filed AAA under Subscriptions.")
     }
 }

@@ -71,7 +71,13 @@ final class BillsViewModel {
 
     func setBillCategory(_ bill: Components.Schemas.Bill, to category: Components.Schemas.Category) async {
         do {
-            try await api.setBillCategory(id: bill.id, categoryID: category.id)
+            let alsoFiled = try await api.setBillCategory(id: bill.id, categoryID: category.id)
+            // M96 rule: filing the bill also filed its matching transactions —
+            // tell the user, so the propagation isn't invisible.
+            syncResult =
+                alsoFiled > 0
+                ? "Filed \(bill.name) and \(alsoFiled) matching transaction\(alsoFiled == 1 ? "" : "s") under \(category.name)."
+                : "Filed \(bill.name) under \(category.name)."
             await load()
             errorMessage = nil
         } catch {

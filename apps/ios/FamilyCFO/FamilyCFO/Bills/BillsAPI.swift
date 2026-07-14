@@ -17,10 +17,11 @@ protocol BillsAPI: Sendable {
     /// Add a bill by hand (not from a suggestion).
     func createBill(_ request: Components.Schemas.BillCreateRequest) async throws
     func deleteBill(id: String) async throws
-    /// File a bill under a category (M96). Set-only: the generated client omits a
-    /// nil optional rather than sending null, so a category can't be cleared this
-    /// way — un-filing is a dashboard action.
-    func setBillCategory(id: String, categoryID: String) async throws
+    /// File a bill under a category (M96); returns how many matching transactions
+    /// were also auto-filed (the M96 propagation rule). Set-only: the generated
+    /// client omits a nil optional rather than sending null, so a category can't be
+    /// cleared this way — un-filing is a dashboard action.
+    func setBillCategory(id: String, categoryID: String) async throws -> Int
 
     /// Deposits the analysis couldn't classify and the user hasn't ruled on yet.
     func unclassifiedDeposits() async throws -> [Components.Schemas.IncomeAnalysisTransaction]
@@ -116,11 +117,11 @@ struct LiveBillsAPI: BillsAPI {
         }
     }
 
-    func setBillCategory(id: String, categoryID: String) async throws {
+    func setBillCategory(id: String, categoryID: String) async throws -> Int {
         let request = Components.Schemas.BillUpdateRequest(categoryId: categoryID)
         switch try await client.updateBill(.init(path: .init(billId: id), body: .json(request))) {
-        case .ok:
-            return
+        case .ok(let response):
+            return try response.body.json.transactionsCategorized ?? 0
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:

@@ -2300,6 +2300,10 @@ components:
         category_name:
           type: string
           nullable: true
+        transactions_categorized:
+          description: "M96: matching transactions auto-filed under this category by the create/update that set it; null when listing."
+          type: integer
+          nullable: true
     IncomeSource:
       type: object
       required:
