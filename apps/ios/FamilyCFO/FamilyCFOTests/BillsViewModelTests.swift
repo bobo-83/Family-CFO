@@ -36,8 +36,30 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
     private(set) var deletedBills: [String] = []
     private(set) var syncCalls = 0
 
+    var cats: [Components.Schemas.Category] = []
+    private(set) var billCategorySets: [(id: String, categoryID: String)] = []
+
     nonisolated func bills() async throws -> [Components.Schemas.Bill] {
         try await MainActor.run { currentBills }
+    }
+
+    nonisolated func categories() async throws -> [Components.Schemas.Category] {
+        try await MainActor.run { cats }
+    }
+
+    nonisolated func setBillCategory(id: String, categoryID: String) async throws {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            billCategorySets.append((id, categoryID))
+            if let i = currentBills.firstIndex(where: { $0.id == id }) {
+                let b = currentBills[i]
+                currentBills[i] = .init(
+                    id: b.id, name: b.name, amount: b.amount, frequency: b.frequency,
+                    nextDueDate: b.nextDueDate,
+                    categoryId: categoryID,
+                    categoryName: cats.first { $0.id == categoryID }?.name)
+            }
+        }
     }
 
     nonisolated func createBill(_ request: Components.Schemas.BillCreateRequest) async throws {
@@ -268,5 +290,60 @@ struct BillsManagementTests {
         await vm.sync()
 
         #expect(vm.syncResult?.contains("up to date") == true)
+    }
+}
+
+@MainActor
+struct BillCategoryTests {
+    private func bill(_ id: String, _ name: String, category: (String, String)? = nil) -> Components.Schemas.Bill {
+        .init(id: id, name: name,
+              amount: .init(amountMinor: 3299, currency: "USD"),
+              frequency: .monthly, nextDueDate: "2026-08-01",
+              categoryId: category?.0, categoryName: category?.1)
+    }
+
+    private func loaded() async -> (BillsViewModel, MockBillsAPI) {
+        let api = MockBillsAPI()
+        api.cats = [.init(id: "subs", name: "Subscriptions"), .init(id: "kids", name: "Kids")]
+        api.currentBills = [
+            bill("b1", "Disney+", category: ("subs", "Subscriptions")),
+            bill("b2", "Netflix", category: ("subs", "Subscriptions")),
+            bill("b3", "Swim School", category: ("kids", "Kids")),
+            bill("b4", "AAA"),  // uncategorized
+        ]
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+        return (vm, api)
+    }
+
+    @Test func groupsBillsByCategoryWithOtherLast() async {
+        let (vm, _) = await loaded()
+
+        let names = vm.billsByCategory.map(\.name)
+        #expect(names == ["Kids", "Subscriptions", "Other"])  // alpha, Other last
+        let subs = vm.billsByCategory.first { $0.name == "Subscriptions" }
+        #expect(subs?.bills.map(\.name).sorted() == ["Disney+", "Netflix"])
+    }
+
+    @Test func categorizingABillFilesIt() async {
+        let (vm, api) = await loaded()
+        let aaa = vm.bills.first { $0.name == "AAA" }!
+
+        await vm.setBillCategory(aaa, to: api.cats[0])  // Subscriptions
+
+        #expect(api.billCategorySets.map(\.id) == ["b4"])
+        #expect(api.billCategorySets.map(\.categoryID) == ["subs"])
+        // AAA is now under Subscriptions, so "Other" is gone.
+        #expect(!vm.billsByCategory.map(\.name).contains("Other"))
+    }
+
+    @Test func addingABillPassesItsCategory() async {
+        let (vm, api) = await loaded()
+
+        await vm.addBill(
+            name: "Spotify", amountMinor: 1099, currency: "USD",
+            frequency: .monthly, nextDueDate: nil, categoryID: "subs")
+
+        #expect(api.createdBills == ["Spotify"])
     }
 }

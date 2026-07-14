@@ -21,14 +21,23 @@ from family_cfo_api.schemas import Money as MoneySchema
 router = APIRouter(tags=["Bills"])
 
 
-def _to_schema(record: repository.RecurringRecord) -> Bill:
+def _to_schema(
+    record: repository.RecurringRecord, category_names: dict[str, str] | None = None
+) -> Bill:
+    names = category_names or {}
     return Bill(
         id=record.id,
         name=record.name,
         amount=MoneySchema(amount_minor=record.amount_minor, currency=record.currency),
         frequency=record.frequency,
         next_due_date=record.next_due_date,
+        category_id=record.category_id,
+        category_name=record.category_id and names.get(record.category_id),
     )
+
+
+def _category_names(engine: Engine, household_id: str) -> dict[str, str]:
+    return {c.id: c.name for c in repository.list_categories(engine, household_id)}
 
 
 @router.get(
@@ -43,7 +52,8 @@ async def list_bills(
     engine: Engine = Depends(get_engine),
 ) -> BillListResponse:
     records = repository.list_bills(engine, session.household_id)
-    return BillListResponse(bills=[_to_schema(record) for record in records])
+    names = _category_names(engine, session.household_id)
+    return BillListResponse(bills=[_to_schema(record, names) for record in records])
 
 
 @router.get(
@@ -183,6 +193,9 @@ async def create_bill(
     if payload.account_id is not None:
         if repository.get_account(engine, session.household_id, payload.account_id) is None:
             raise HTTPException(status_code=404, detail="Account not found")
+    if payload.category_id is not None:
+        if repository.get_category(engine, session.household_id, payload.category_id) is None:
+            raise HTTPException(status_code=404, detail="Category not found")
     record = repository.create_bill(
         engine,
         household_id=session.household_id,
@@ -192,6 +205,7 @@ async def create_bill(
         frequency=payload.frequency,
         account_id=payload.account_id,
         next_due_date=payload.next_due_date,
+        category_id=payload.category_id,
     )
     audit.write_audit(
         engine,
@@ -202,7 +216,7 @@ async def create_bill(
         record.id,
         f"Created bill '{record.name}'",
     )
-    return _to_schema(record)
+    return _to_schema(record, _category_names(engine, session.household_id))
 
 
 @router.patch(
@@ -226,6 +240,12 @@ async def update_bill(
         raise HTTPException(status_code=404, detail="Bill not found")
     amount_minor = payload.amount.amount_minor if payload.amount is not None else None
     currency = payload.amount.currency if payload.amount is not None else None
+    # Only touch the category if the client actually sent the field (set OR clear);
+    # a value must name a real category.
+    category_changed = "category_id" in payload.model_fields_set
+    if category_changed and payload.category_id is not None:
+        if repository.get_category(engine, session.household_id, payload.category_id) is None:
+            raise HTTPException(status_code=404, detail="Category not found")
     repository.update_bill(
         engine,
         session.household_id,
@@ -235,6 +255,7 @@ async def update_bill(
         currency=currency,
         frequency=payload.frequency,
         next_due_date=payload.next_due_date,
+        category_id=payload.category_id if category_changed else repository._UNSET,
     )
     audit.write_audit(
         engine,
@@ -247,7 +268,7 @@ async def update_bill(
     )
     record = repository.get_bill(engine, session.household_id, bill_id)
     assert record is not None
-    return _to_schema(record)
+    return _to_schema(record, _category_names(engine, session.household_id))
 
 
 @router.delete(

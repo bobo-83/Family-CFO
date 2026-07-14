@@ -7,6 +7,7 @@ import SwiftUI
 struct BillsView: View {
     @Bindable var viewModel: BillsViewModel
     @State private var addingBill = false
+    @State private var categorizing: Components.Schemas.Bill?
 
     var body: some View {
         NavigationStack {
@@ -49,6 +50,24 @@ struct BillsView: View {
             .sheet(isPresented: $addingBill) {
                 AddBillView(viewModel: viewModel)
             }
+            .confirmationDialog(
+                "File under",
+                isPresented: .init(
+                    get: { categorizing != nil },
+                    set: { if !$0 { categorizing = nil } }),
+                titleVisibility: .visible,
+                presenting: categorizing
+            ) { bill in
+                ForEach(viewModel.categories, id: \.id) { category in
+                    Button(category.name) {
+                        categorizing = nil
+                        Task { await viewModel.setBillCategory(bill, to: category) }
+                    }
+                }
+                Button("Cancel", role: .cancel) { categorizing = nil }
+            } message: { bill in
+                Text(bill.name)
+            }
         }
         .task { await viewModel.load() }
     }
@@ -76,21 +95,32 @@ struct BillsView: View {
                 }
             }
 
-            Section("Your bills") {
-                if viewModel.bills.isEmpty {
+            if viewModel.bills.isEmpty {
+                Section("Your bills") {
                     Text(viewModel.isLoading ? "Loading…" : "No bills yet. Add one with +, or confirm a suggestion.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(viewModel.bills, id: \.id) { bill in
-                    billRow(bill)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await viewModel.deleteBill(bill) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+            }
+            // Grouped by category (M96), so subscriptions land under Subscriptions.
+            ForEach(viewModel.billsByCategory, id: \.name) { group in
+                Section(group.name) {
+                    ForEach(group.bills, id: \.id) { bill in
+                        billRow(bill)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteBill(bill) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    categorizing = bill
+                                } label: {
+                                    Label("Categorize", systemImage: "tag")
+                                }
+                                .tint(.accentColor)
                             }
-                        }
+                    }
                 }
             }
 
@@ -187,6 +217,7 @@ struct AddBillView: View {
     @State private var amount: Decimal?
     @State private var frequency: Components.Schemas.RecurringFrequency = .monthly
     @State private var nextDue = Date()
+    @State private var categoryID = ""  // "" = none
 
     private var currency: String { "USD" }
 
@@ -203,6 +234,12 @@ struct AddBillView: View {
                         }
                     }
                     DatePicker("Next due", selection: $nextDue, displayedComponents: .date)
+                    Picker("Category", selection: $categoryID) {
+                        Text("None").tag("")
+                        ForEach(viewModel.categories, id: \.id) { c in
+                            Text(c.name).tag(c.id)
+                        }
+                    }
                 }
             }
             .navigationTitle("Add bill")
@@ -227,11 +264,12 @@ struct AddBillView: View {
         NSDecimalRound(&rounded, &cents, 0, .plain)
         let minor = Int64(truncating: rounded as NSDecimalNumber)
         let due = Self.isoDate(nextDue)
+        let category = categoryID.isEmpty ? nil : categoryID
         dismiss()
         Task {
             await viewModel.addBill(
                 name: name, amountMinor: minor, currency: currency,
-                frequency: frequency, nextDueDate: due)
+                frequency: frequency, nextDueDate: due, categoryID: category)
         }
     }
 

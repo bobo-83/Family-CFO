@@ -323,6 +323,9 @@ class Bill(BaseModel):
     frequency: RecurringFrequency
     next_due_date: date | None = None
     account_id: str | None = None
+    # M96: the spending category this bill is filed under (e.g. Subscriptions).
+    category_id: str | None = None
+    category_name: str | None = None
 
 
 class IncomeSource(BaseModel):
@@ -896,6 +899,7 @@ class BillCreateRequest(BaseModel):
     frequency: RecurringFrequency
     account_id: str | None = None
     next_due_date: date | None = None
+    category_id: str | None = None
 
 
 class BillUpdateRequest(BaseModel):
@@ -903,6 +907,9 @@ class BillUpdateRequest(BaseModel):
     amount: Money | None = None
     frequency: RecurringFrequency | None = None
     next_due_date: date | None = None
+    # Present + a value sets the category; present + null clears it; absent leaves
+    # it (checked via model_fields_set in the endpoint).
+    category_id: str | None = None
 
 
 class IncomeCreateRequest(BaseModel):

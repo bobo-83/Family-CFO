@@ -525,6 +525,9 @@ class RecurringRecord:
     frequency: str
     # Bills carry a due date; income sources leave it None.
     next_due_date: date | None = None
+    # M96: a bill may be filed under a spending category (e.g. Subscriptions);
+    # income sources leave it None.
+    category_id: str | None = None
 
 
 def list_transactions(
@@ -852,6 +855,7 @@ def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
             currency=row["currency"],
             frequency=row["frequency"],
             next_due_date=row["next_due_date"],
+            category_id=row["category_id"],
         )
         for row in rows
     ]
@@ -2617,7 +2621,7 @@ def delete_transaction(engine: Engine, household_id: str, transaction_id: str) -
 
 
 def _recurring_record_from_row(row: Any) -> RecurringRecord:
-    # Shared by bills and income sources; only bills carry a due-date column.
+    # Shared by bills and income sources; only bills carry due-date/category cols.
     return RecurringRecord(
         id=row["id"],
         name=row["name"],
@@ -2625,6 +2629,7 @@ def _recurring_record_from_row(row: Any) -> RecurringRecord:
         currency=row["currency"],
         frequency=row["frequency"],
         next_due_date=row.get("next_due_date"),
+        category_id=row.get("category_id"),
     )
 
 
@@ -2646,6 +2651,7 @@ def create_bill(
     frequency: str,
     account_id: str | None = None,
     next_due_date: date | None = None,
+    category_id: str | None = None,
 ) -> RecurringRecord:
     bill_id = new_id()
     now = utcnow()
@@ -2660,7 +2666,7 @@ def create_bill(
                 currency=currency,
                 frequency=frequency,
                 next_due_date=next_due_date,
-                category_id=None,
+                category_id=category_id,
                 created_at=now,
                 updated_at=now,
             )
@@ -2672,7 +2678,11 @@ def create_bill(
         currency=currency,
         frequency=frequency,
         next_due_date=next_due_date,
+        category_id=category_id,
     )
+
+
+_UNSET: Any = object()
 
 
 def update_bill(
@@ -2684,6 +2694,7 @@ def update_bill(
     currency: str | None = None,
     frequency: str | None = None,
     next_due_date: date | None = None,
+    category_id: str | None | Any = _UNSET,
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
@@ -2696,6 +2707,9 @@ def update_bill(
         values["frequency"] = frequency
     if next_due_date is not None:
         values["next_due_date"] = next_due_date
+    # Sentinel so passing None explicitly CLEARS the category (vs. leaving it).
+    if category_id is not _UNSET:
+        values["category_id"] = category_id
     with engine.begin() as conn:
         result = conn.execute(
             update(models.bills)
