@@ -46,6 +46,13 @@ struct MainTabView: View {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingUnpair = false
+    @AppStorage(VoicePreference.storageKey) private var voiceRaw = VoicePreference.default.rawValue
+
+    private var voice: Binding<VoicePreference> {
+        Binding(
+            get: { VoicePreference(rawValue: voiceRaw) ?? .default },
+            set: { voiceRaw = $0.rawValue })
+    }
 
     var body: some View {
         NavigationStack {
@@ -53,6 +60,17 @@ struct SettingsView: View {
                 Section("Household") {
                     LabeledContent("Name", value: model.server?.householdName ?? "—")
                     LabeledContent("Acting as", value: model.rolePolicy.displayName)
+                }
+                Section {
+                    Picker("Voice", selection: voice) {
+                        ForEach(VoicePreference.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                } header: {
+                    Text("Voice")
+                } footer: {
+                    Text(voice.wrappedValue.detail)
                 }
                 Section {
                     LabeledContent("Address", value: model.server?.apiBaseURL.absoluteString ?? "—")
