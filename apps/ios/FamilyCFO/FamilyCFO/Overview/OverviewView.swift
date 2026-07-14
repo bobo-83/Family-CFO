@@ -328,24 +328,42 @@ struct OverviewView: View {
         let maxAmount = spending.categories.map(\.amount.amountMinor).max() ?? 1
         return Card("Spending · \(spending.monthLabel)", systemImage: "chart.pie") {
             ForEach(spending.categories.prefix(8), id: \.categoryId) { entry in
-                VStack(spacing: 3) {
-                    HStack {
-                        Text(entry.categoryName).font(.subheadline).lineLimit(1)
-                        Spacer()
-                        Text(entry.amount.formatted)
-                            .font(.subheadline.weight(.medium))
+                NavigationLink {
+                    if let api = model.household {
+                        CategorySpendingDetailView(
+                            categoryID: entry.categoryId,
+                            categoryName: entry.categoryName,
+                            month: spending.month,
+                            monthLabel: spending.monthLabel,
+                            currency: entry.amount.currency,
+                            api: api)
                     }
-                    GeometryReader { geo in
-                        Capsule()
-                            .fill(.tint)
-                            .frame(
-                                width: geo.size.width
-                                    * proportion(entry.amount.amountMinor, of: maxAmount),
-                                height: 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    VStack(spacing: 3) {
+                        HStack {
+                            Text(entry.categoryName).font(.subheadline).lineLimit(1)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text(entry.amount.formatted)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        GeometryReader { geo in
+                            Capsule()
+                                .fill(.tint)
+                                .frame(
+                                    width: geo.size.width
+                                        * proportion(entry.amount.amountMinor, of: maxAmount),
+                                    height: 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(height: 4)
                     }
-                    .frame(height: 4)
                 }
+                .buttonStyle(.plain)
             }
             if spending.uncategorized.amountMinor > 0 {
                 Divider()

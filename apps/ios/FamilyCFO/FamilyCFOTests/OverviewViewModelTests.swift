@@ -9,12 +9,18 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
     var error: Error?
     private(set) var callCount = 0
 
+    var txns: [Components.Schemas.Transaction] = []
+
     nonisolated func context() async throws -> Components.Schemas.HouseholdContext {
         try await MainActor.run {
             callCount += 1
             if let error { throw error }
             return context!
         }
+    }
+
+    nonisolated func transactions() async throws -> [Components.Schemas.Transaction] {
+        try await MainActor.run { txns }
     }
 }
 
@@ -128,5 +134,45 @@ struct SpokenReplySentenceTests {
 
     @Test func emptyTextYieldsNothingToSay() {
         #expect(SpokenReply.sentences("   ").isEmpty)
+    }
+}
+
+struct CategorySpendingDetailTests {
+    private func txn(_ id: String, cat: String?, amount: Int64, at: String, merchant: String = "M")
+        -> Components.Schemas.Transaction
+    {
+        .init(id: id, accountId: "a", occurredAt: at,
+              amount: .init(amountMinor: amount, currency: "USD"),
+              merchant: merchant, categoryId: cat)
+    }
+
+    private var sample: [Components.Schemas.Transaction] {
+        [
+            txn("a", cat: "dining", amount: -2000, at: "2026-07-12"),
+            txn("b", cat: "dining", amount: -500, at: "2026-07-03"),
+            txn("c", cat: "dining", amount: -9999, at: "2026-06-30"),  // last month
+            txn("d", cat: "gas", amount: -1000, at: "2026-07-05"),     // other category
+            txn("e", cat: "dining", amount: 4000, at: "2026-07-08"),   // income (positive)
+            txn("f", cat: nil, amount: -700, at: "2026-07-09"),        // uncategorized
+        ]
+    }
+
+    @Test func filtersToTheCategoryMonthAndOutflowsOnly() {
+        let items = CategorySpendingDetail.items(in: sample, categoryID: "dining", month: "2026-07")
+
+        // Only a and b: same category, July, outflow. c is last month; e is income.
+        #expect(items.map(\.id) == ["a", "b"])  // biggest spend first
+    }
+
+    @Test func totalReconcilesWithTheCard() {
+        let items = CategorySpendingDetail.items(in: sample, categoryID: "dining", month: "2026-07")
+        let total = CategorySpendingDetail.total(items, currency: "USD")
+
+        #expect(total.amountMinor == 2500)  // 2000 + 500, as positive spend
+    }
+
+    @Test func emptyWhenNothingMatches() {
+        let items = CategorySpendingDetail.items(in: sample, categoryID: "travel", month: "2026-07")
+        #expect(items.isEmpty)
     }
 }

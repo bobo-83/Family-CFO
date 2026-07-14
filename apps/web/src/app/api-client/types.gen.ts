@@ -476,6 +476,10 @@ export type BudgetSummary = {
  */
 export type SpendingByCategory = {
     /**
+     * The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
+     */
+    month: string;
+    /**
      * The month this covers, e.g. "July 2026".
      */
     month_label: string;
