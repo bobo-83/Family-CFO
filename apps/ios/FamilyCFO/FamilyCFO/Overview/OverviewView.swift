@@ -141,6 +141,11 @@ struct OverviewView: View {
                     if let sts = context.safeToSpend {
                         safeToSpendCard(sts)
                     }
+                    // Spending-by-category sits high: it's the freshest result of
+                    // the user's categorizing, and the thing they came to see.
+                    if let spending = context.spendingByCategory, !spending.categories.isEmpty {
+                        spendingByCategoryCard(spending)
+                    }
                     netWorthCard(context)
                     if let fund = context.emergencyFund {
                         emergencyFundCard(fund)
@@ -150,9 +155,6 @@ struct OverviewView: View {
                     }
                     if let savingsRate = context.savingsRate {
                         savingsRateCard(savingsRate)
-                    }
-                    if let spending = context.spendingByCategory, !spending.categories.isEmpty {
-                        spendingByCategoryCard(spending)
                     }
                     if let budgets = context.budgetSummary, budgets.envelopeCount > 0 {
                         budgetCard(budgets)
