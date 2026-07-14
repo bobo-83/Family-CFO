@@ -61,7 +61,14 @@ struct VoiceConversationView: View {
             .padding(.bottom, 24)
         }
         .task { await viewModel.begin() }
-        .onDisappear { viewModel.end() }
+        // Keep the screen awake for the whole hands-free conversation: otherwise
+        // auto-lock suspends the app mid-answer and cuts the spoken reply off.
+        // Restored when the conversation screen goes away.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            viewModel.end()
+        }
     }
 
     private var statusLine: String {
