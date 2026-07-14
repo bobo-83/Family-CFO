@@ -242,3 +242,29 @@ async def test_context_reports_spending_by_category(demo_client, demo_token) -> 
     amounts = [c["amount"]["amount_minor"] for c in sbc["categories"]]
     assert amounts == sorted(amounts, reverse=True)
     assert sbc["uncategorized"]["amount_minor"] >= 0
+
+
+@pytest.mark.anyio
+async def test_emergency_fund_goal_tracks_the_reserved_fund(
+    demo_client, demo_engine, demo_token
+) -> None:
+    """M41 fix: an emergency-fund goal must show the household's actual reserved
+    fund as its progress, not a stale stored current of $0."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    # A savings account holding $1,500, all designated as emergency fund.
+    acct = repository.create_account(
+        engine=demo_engine, household_id=hh, name="EF", account_type="savings", currency="USD")
+    repository.record_account_balance(demo_engine, acct.id, 150_000)
+    repository.update_account(demo_engine, hh, acct.id, emergency_fund_percent=100.0)
+    # An emergency-fund goal with current stored as 0.
+    repository.create_goal(
+        demo_engine, hh, "6mo EF", "emergency_fund", 9_000_000, "USD", None, 1)
+
+    body = await _context(demo_client, demo_token)
+    goal = body["top_goal"]
+    assert goal["type"] == "emergency_fund"
+    # Progress reflects the reserved fund ($1,500), not the stored $0.
+    assert goal["current"]["amount_minor"] == 150_000
+    assert goal["percent_complete"] == round(150_000 / 9_000_000 * 100)
