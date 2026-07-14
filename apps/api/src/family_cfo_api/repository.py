@@ -2620,6 +2620,25 @@ def delete_transaction(engine: Engine, household_id: str, transaction_id: str) -
 # --- Bill writes -------------------------------------------------------------
 
 
+def set_transactions_category(
+    engine: Engine, household_id: str, transaction_ids: list[str], category_id: str
+) -> int:
+    """Bulk-file a set of transactions under one category (M96). Returns the count
+    updated. Used to propagate a bill's category to its matching transactions."""
+    if not transaction_ids:
+        return 0
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id.in_(transaction_ids),
+            )
+            .values(category_id=category_id)
+        )
+    return result.rowcount
+
+
 def _recurring_record_from_row(row: Any) -> RecurringRecord:
     # Shared by bills and income sources; only bills carry due-date/category cols.
     return RecurringRecord(

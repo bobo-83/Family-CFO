@@ -1887,6 +1887,10 @@ public enum Components {
             public var categoryId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Bill/category_name`.
             public var categoryName: Swift.String?
+            /// M96: matching transactions auto-filed under this category by the create/update that set it; null when listing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bill/transactions_categorized`.
+            public var transactionsCategorized: Swift.Int?
             /// Creates a new `Bill`.
             ///
             /// - Parameters:
@@ -1898,6 +1902,7 @@ public enum Components {
             ///   - accountId:
             ///   - categoryId: M96: the spending category this bill is filed under.
             ///   - categoryName:
+            ///   - transactionsCategorized: M96: matching transactions auto-filed under this category by the create/update that set it; null when listing.
             public init(
                 id: Swift.String,
                 name: Swift.String,
@@ -1906,7 +1911,8 @@ public enum Components {
                 nextDueDate: Swift.String? = nil,
                 accountId: Swift.String? = nil,
                 categoryId: Swift.String? = nil,
-                categoryName: Swift.String? = nil
+                categoryName: Swift.String? = nil,
+                transactionsCategorized: Swift.Int? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -1916,6 +1922,7 @@ public enum Components {
                 self.accountId = accountId
                 self.categoryId = categoryId
                 self.categoryName = categoryName
+                self.transactionsCategorized = transactionsCategorized
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1926,6 +1933,7 @@ public enum Components {
                 case accountId = "account_id"
                 case categoryId = "category_id"
                 case categoryName = "category_name"
+                case transactionsCategorized = "transactions_categorized"
             }
         }
         /// - Remark: Generated from `#/components/schemas/IncomeSource`.

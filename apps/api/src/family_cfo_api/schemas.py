@@ -326,6 +326,10 @@ class Bill(BaseModel):
     # M96: the spending category this bill is filed under (e.g. Subscriptions).
     category_id: str | None = None
     category_name: str | None = None
+    # M96: how many matching transactions were auto-filed under this category by
+    # the create/update that set it — so the client can confirm the propagation.
+    # Only set on those responses; null when listing.
+    transactions_categorized: int | None = None
 
 
 class IncomeSource(BaseModel):

@@ -22,7 +22,9 @@ router = APIRouter(tags=["Bills"])
 
 
 def _to_schema(
-    record: repository.RecurringRecord, category_names: dict[str, str] | None = None
+    record: repository.RecurringRecord,
+    category_names: dict[str, str] | None = None,
+    transactions_categorized: int | None = None,
 ) -> Bill:
     names = category_names or {}
     return Bill(
@@ -33,11 +35,32 @@ def _to_schema(
         next_due_date=record.next_due_date,
         category_id=record.category_id,
         category_name=record.category_id and names.get(record.category_id),
+        transactions_categorized=transactions_categorized,
     )
 
 
 def _category_names(engine: Engine, household_id: str) -> dict[str, str]:
     return {c.id: c.name for c in repository.list_categories(engine, household_id)}
+
+
+def _propagate_bill_category(
+    engine: Engine, household_id: str, bill_name: str, category_id: str
+) -> int:
+    """M96 rule (minimize duplicate input): filing a bill under a category also
+    files its still-UNCATEGORIZED matching transactions under the same category —
+    match on the same normalized merchant the bill was detected from. Already-
+    categorized transactions are left alone; the user's explicit choices win.
+    Returns how many transactions were categorized, so the client can say so."""
+    key = bill_detection.normalize_merchant(bill_name)
+    if not key:
+        return 0
+    matched = [
+        txn.id
+        for txn in repository.list_transactions(engine, household_id, limit=10_000)
+        if txn.category_id is None
+        and bill_detection.normalize_merchant(txn.merchant or txn.description) == key
+    ]
+    return repository.set_transactions_category(engine, household_id, matched, category_id)
 
 
 @router.get(
@@ -216,7 +239,14 @@ async def create_bill(
         record.id,
         f"Created bill '{record.name}'",
     )
-    return _to_schema(record, _category_names(engine, session.household_id))
+    propagated = (
+        _propagate_bill_category(engine, session.household_id, record.name, payload.category_id)
+        if payload.category_id is not None
+        else None
+    )
+    return _to_schema(
+        record, _category_names(engine, session.household_id), propagated
+    )
 
 
 @router.patch(
@@ -268,7 +298,15 @@ async def update_bill(
     )
     record = repository.get_bill(engine, session.household_id, bill_id)
     assert record is not None
-    return _to_schema(record, _category_names(engine, session.household_id))
+    # Propagate when this update SET a category (not on a clear).
+    propagated = (
+        _propagate_bill_category(engine, session.household_id, record.name, payload.category_id)
+        if category_changed and payload.category_id is not None
+        else None
+    )
+    return _to_schema(
+        record, _category_names(engine, session.household_id), propagated
+    )
 
 
 @router.delete(

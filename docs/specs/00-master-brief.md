@@ -31,6 +31,10 @@ The product combines deterministic financial calculations with local AI explanat
   password, passphrase, private key, or token. Authentication is delegated to
   the platform's own credential store, so the secret never reaches us
   ([`06-security-model.md`](./06-security-model.md), [`AGENTS.md`](../../AGENTS.md)).
+- **One input, not two** — when the user tells the system something, don't make
+  them repeat it for a related record the system could infer. Propagate the fact
+  (apply to un-decided records, never overwrite explicit choices) and say what
+  was done. Reducing user input is a first-class goal ([`AGENTS.md`](../../AGENTS.md)).
 
 ## High-Level Architecture
 
