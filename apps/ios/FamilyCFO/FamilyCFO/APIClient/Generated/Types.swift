@@ -1881,6 +1881,12 @@ public enum Components {
             public var nextDueDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Bill/account_id`.
             public var accountId: Swift.String?
+            /// M96: the spending category this bill is filed under.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bill/category_id`.
+            public var categoryId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Bill/category_name`.
+            public var categoryName: Swift.String?
             /// Creates a new `Bill`.
             ///
             /// - Parameters:
@@ -1890,13 +1896,17 @@ public enum Components {
             ///   - frequency:
             ///   - nextDueDate:
             ///   - accountId:
+            ///   - categoryId: M96: the spending category this bill is filed under.
+            ///   - categoryName:
             public init(
                 id: Swift.String,
                 name: Swift.String,
                 amount: Components.Schemas.Money,
                 frequency: Components.Schemas.RecurringFrequency,
                 nextDueDate: Swift.String? = nil,
-                accountId: Swift.String? = nil
+                accountId: Swift.String? = nil,
+                categoryId: Swift.String? = nil,
+                categoryName: Swift.String? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -1904,6 +1914,8 @@ public enum Components {
                 self.frequency = frequency
                 self.nextDueDate = nextDueDate
                 self.accountId = accountId
+                self.categoryId = categoryId
+                self.categoryName = categoryName
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1912,6 +1924,8 @@ public enum Components {
                 case frequency
                 case nextDueDate = "next_due_date"
                 case accountId = "account_id"
+                case categoryId = "category_id"
+                case categoryName = "category_name"
             }
         }
         /// - Remark: Generated from `#/components/schemas/IncomeSource`.
@@ -5253,6 +5267,10 @@ public enum Components {
             public var accountId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BillCreateRequest/next_due_date`.
             public var nextDueDate: Swift.String?
+            /// M96: file the bill under a spending category.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BillCreateRequest/category_id`.
+            public var categoryId: Swift.String?
             /// Creates a new `BillCreateRequest`.
             ///
             /// - Parameters:
@@ -5261,18 +5279,21 @@ public enum Components {
             ///   - frequency:
             ///   - accountId:
             ///   - nextDueDate:
+            ///   - categoryId: M96: file the bill under a spending category.
             public init(
                 name: Swift.String,
                 amount: Components.Schemas.Money,
                 frequency: Components.Schemas.RecurringFrequency,
                 accountId: Swift.String? = nil,
-                nextDueDate: Swift.String? = nil
+                nextDueDate: Swift.String? = nil,
+                categoryId: Swift.String? = nil
             ) {
                 self.name = name
                 self.amount = amount
                 self.frequency = frequency
                 self.accountId = accountId
                 self.nextDueDate = nextDueDate
+                self.categoryId = categoryId
             }
             public enum CodingKeys: String, CodingKey {
                 case name
@@ -5280,6 +5301,7 @@ public enum Components {
                 case frequency
                 case accountId = "account_id"
                 case nextDueDate = "next_due_date"
+                case categoryId = "category_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/BillUpdateRequest`.
@@ -5292,6 +5314,10 @@ public enum Components {
             public var frequency: Components.Schemas.RecurringFrequency?
             /// - Remark: Generated from `#/components/schemas/BillUpdateRequest/next_due_date`.
             public var nextDueDate: Swift.String?
+            /// M96: set (value) or clear (null) the bill's category.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BillUpdateRequest/category_id`.
+            public var categoryId: Swift.String?
             /// Creates a new `BillUpdateRequest`.
             ///
             /// - Parameters:
@@ -5299,22 +5325,26 @@ public enum Components {
             ///   - amount:
             ///   - frequency:
             ///   - nextDueDate:
+            ///   - categoryId: M96: set (value) or clear (null) the bill's category.
             public init(
                 name: Swift.String? = nil,
                 amount: Components.Schemas.Money? = nil,
                 frequency: Components.Schemas.RecurringFrequency? = nil,
-                nextDueDate: Swift.String? = nil
+                nextDueDate: Swift.String? = nil,
+                categoryId: Swift.String? = nil
             ) {
                 self.name = name
                 self.amount = amount
                 self.frequency = frequency
                 self.nextDueDate = nextDueDate
+                self.categoryId = categoryId
             }
             public enum CodingKeys: String, CodingKey {
                 case name
                 case amount
                 case frequency
                 case nextDueDate = "next_due_date"
+                case categoryId = "category_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/IncomeCreateRequest`.

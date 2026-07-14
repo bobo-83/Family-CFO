@@ -109,6 +109,11 @@ export type Bill = {
     frequency: RecurringFrequency;
     next_due_date?: string;
     account_id?: string;
+    /**
+     * M96: the spending category this bill is filed under.
+     */
+    category_id?: string;
+    category_name?: string;
 };
 
 export type IncomeSource = {
@@ -970,6 +975,10 @@ export type BillCreateRequest = {
     frequency: RecurringFrequency;
     account_id?: string;
     next_due_date?: string;
+    /**
+     * M96: file the bill under a spending category.
+     */
+    category_id?: string;
 };
 
 export type BillUpdateRequest = {
@@ -977,6 +986,10 @@ export type BillUpdateRequest = {
     amount?: Money;
     frequency?: RecurringFrequency;
     next_due_date?: string;
+    /**
+     * M96: set (value) or clear (null) the bill's category.
+     */
+    category_id?: string;
 };
 
 export type IncomeCreateRequest = {

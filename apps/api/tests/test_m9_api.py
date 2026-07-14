@@ -261,3 +261,58 @@ async def test_viewer_cannot_read_audit(demo_client, demo_viewer_token) -> None:
         "/api/v1/audit", headers={"Authorization": f"Bearer {demo_viewer_token}"}
     )
     assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_bill_can_be_filed_under_a_category(demo_client, demo_token) -> None:
+    """M96: a bill can carry a spending category (e.g. Subscriptions), settable
+    on create and change/clearable on update, with the name resolved on read."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    cat = await demo_client.post(
+        "/api/v1/categories", headers=headers, json={"name": "Subscriptions"})
+    cat_id = cat.json()["id"]
+
+    created = await demo_client.post(
+        "/api/v1/bills", headers=headers,
+        json={
+            "name": "Disney+",
+            "amount": {"amount_minor": 3299, "currency": "USD"},
+            "frequency": "monthly",
+            "category_id": cat_id,
+        })
+    assert created.status_code == 201
+    body = created.json()
+    assert body["category_id"] == cat_id
+    assert body["category_name"] == "Subscriptions"
+    bill_id = body["id"]
+
+    # It shows on the list with the name resolved.
+    listed = (await demo_client.get("/api/v1/bills", headers=headers)).json()["bills"]
+    disney = next(b for b in listed if b["id"] == bill_id)
+    assert disney["category_name"] == "Subscriptions"
+
+    # Clearing it (explicit null) removes the category.
+    cleared = await demo_client.patch(
+        f"/api/v1/bills/{bill_id}", headers=headers, json={"category_id": None})
+    assert cleared.json()["category_id"] is None
+
+    # An unrelated update must NOT wipe the category.
+    await demo_client.patch(
+        f"/api/v1/bills/{bill_id}", headers=headers, json={"category_id": cat_id})
+    renamed = await demo_client.patch(
+        f"/api/v1/bills/{bill_id}", headers=headers, json={"name": "Disney Plus"})
+    assert renamed.json()["category_id"] == cat_id  # untouched by a name-only edit
+
+
+@pytest.mark.anyio
+async def test_bill_with_unknown_category_is_rejected(demo_client, demo_token) -> None:
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    resp = await demo_client.post(
+        "/api/v1/bills", headers=headers,
+        json={
+            "name": "Ghost",
+            "amount": {"amount_minor": 100, "currency": "USD"},
+            "frequency": "monthly",
+            "category_id": "nonexistent",
+        })
+    assert resp.status_code == 404
