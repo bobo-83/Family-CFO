@@ -279,14 +279,15 @@ def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
     if not goals:
         return None
     goal = goals[0]
+    current_minor = finance_service.goal_current_minor(engine, household_id, goal)
     percent = 0
     if goal.target_minor > 0:
-        percent = min(100, round(goal.current_minor / goal.target_minor * 100))
+        percent = min(100, round(current_minor / goal.target_minor * 100))
     return GoalProgress(
         id=goal.id,
         name=goal.name,
         type=goal.goal_type,
-        current=MoneySchema(amount_minor=goal.current_minor, currency=goal.currency),
+        current=MoneySchema(amount_minor=current_minor, currency=goal.currency),
         target=MoneySchema(amount_minor=goal.target_minor, currency=goal.currency),
         percent_complete=percent,
         target_date=goal.target_date,

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import finance_service, repository
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import ErrorResponse, Goal, GoalCreateRequest, GoalListResponse
 from family_cfo_api.schemas import Money as MoneySchema
@@ -9,13 +9,15 @@ from family_cfo_api.schemas import Money as MoneySchema
 router = APIRouter(tags=["Goals"])
 
 
-def _to_goal_schema(record: repository.GoalRecord) -> Goal:
+def _to_goal_schema(engine: Engine, household_id: str, record: repository.GoalRecord) -> Goal:
+    # Emergency-fund goals track the reserved fund, not a stale stored current.
+    current = finance_service.goal_current_minor(engine, household_id, record)
     return Goal(
         id=record.id,
         name=record.name,
         type=record.goal_type,
         target=MoneySchema(amount_minor=record.target_minor, currency=record.currency),
-        current=MoneySchema(amount_minor=record.current_minor, currency=record.currency),
+        current=MoneySchema(amount_minor=current, currency=record.currency),
         target_date=record.target_date,
         priority=record.priority,
     )
@@ -33,7 +35,7 @@ async def list_goals(
     engine: Engine = Depends(get_engine),
 ) -> GoalListResponse:
     records = repository.list_goals(engine, session.household_id)
-    return GoalListResponse(goals=[_to_goal_schema(record) for record in records])
+    return GoalListResponse(goals=[_to_goal_schema(engine, session.household_id, record) for record in records])
 
 
 @router.post(
@@ -62,4 +64,4 @@ async def create_goal(
         target_date=payload.target_date,
         priority=payload.priority,
     )
-    return _to_goal_schema(record)
+    return _to_goal_schema(engine, session.household_id, record)

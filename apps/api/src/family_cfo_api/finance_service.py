@@ -424,6 +424,22 @@ def compute_purchase_impact(
     return result, calculation_id
 
 
+def goal_current_minor(
+    engine: Engine, household_id: str, goal: repository.GoalRecord
+) -> int:
+    """A goal's real progress. An emergency-fund goal tracks the household's
+    DESIGNATED emergency fund (the same figure the Overview's Emergency Fund card
+    shows) — otherwise the goal reads $0 while the fund holds real money (M41
+    fix). Only when the family has actually earmarked emergency money: with no
+    designation there's no live figure to trust, so it falls back to the stored
+    current. Every other goal type uses its stored current."""
+    if goal.goal_type == "emergency_fund":
+        ef = emergency_fund_inputs(engine, household_id, goal.currency)
+        if ef.using_designations:
+            return ef.fund.amount_minor
+    return goal.current_minor
+
+
 def monthly_income_total(engine: Engine, household_id: str, currency: str) -> Money:
     total = Money.zero(currency)
     for income in repository.list_income_sources(engine, household_id):
