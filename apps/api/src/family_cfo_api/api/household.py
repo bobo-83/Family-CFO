@@ -241,6 +241,7 @@ def _spending_by_category(
     entries.sort(key=lambda e: e.amount.amount_minor, reverse=True)
 
     return SpendingByCategory(
+        month=f"{today.year}-{today.month:02d}",
         month_label=f"{_MONTHS[today.month - 1]} {today.year}",
         categories=entries,
         categorized_total=MoneySchema(amount_minor=categorized_minor, currency=currency),
