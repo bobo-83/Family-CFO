@@ -242,16 +242,12 @@ final class FallbackSpeechSynthesizer: SpeechSynthesizing {
 }
 
 enum SpeechSynthesizerFactory {
-    /// Honors the user's voice choice (M87c): the on-box Kokoro voice (with the
-    /// device voice underneath) when they've picked Natural and the box is paired,
-    /// or the device voice alone when they've picked Device — or when unpaired.
+    /// The on-box Kokoro voice when the app is paired to a box, with the system
+    /// voice underneath; the system voice alone when it isn't.
     @MainActor
-    static func make(
-        speechAudio: SpeechAudioAPI?,
-        preference: VoicePreference = .current
-    ) -> SpeechSynthesizing {
+    static func make(speechAudio: SpeechAudioAPI?) -> SpeechSynthesizing {
         let system = SpeechSynthesizerService()
-        guard preference == .natural, let speechAudio else { return system }
+        guard let speechAudio else { return system }
         return FallbackSpeechSynthesizer(
             primary: KokoroSpeechSynthesizer(api: speechAudio),
             fallback: system
