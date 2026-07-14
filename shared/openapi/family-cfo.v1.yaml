@@ -2293,6 +2293,13 @@ components:
         account_id:
           type: string
           format: uuid
+        category_id:
+          description: "M96: the spending category this bill is filed under."
+          type: string
+          nullable: true
+        category_name:
+          type: string
+          nullable: true
     IncomeSource:
       type: object
       required:
@@ -3933,6 +3940,10 @@ components:
         next_due_date:
           type: string
           format: date
+        category_id:
+          description: "M96: file the bill under a spending category."
+          type: string
+          nullable: true
     BillUpdateRequest:
       type: object
       properties:
@@ -3945,6 +3956,10 @@ components:
         next_due_date:
           type: string
           format: date
+        category_id:
+          description: "M96: set (value) or clear (null) the bill's category."
+          type: string
+          nullable: true
     IncomeCreateRequest:
       type: object
       required:

@@ -12,9 +12,15 @@ protocol BillsAPI: Sendable {
 
     /// The household's current recurring bills.
     func bills() async throws -> [Components.Schemas.Bill]
+    /// The spending categories, to file bills under (M96).
+    func categories() async throws -> [Components.Schemas.Category]
     /// Add a bill by hand (not from a suggestion).
     func createBill(_ request: Components.Schemas.BillCreateRequest) async throws
     func deleteBill(id: String) async throws
+    /// File a bill under a category (M96). Set-only: the generated client omits a
+    /// nil optional rather than sending null, so a category can't be cleared this
+    /// way — un-filing is a dashboard action.
+    func setBillCategory(id: String, categoryID: String) async throws
 
     /// Deposits the analysis couldn't classify and the user hasn't ruled on yet.
     func unclassifiedDeposits() async throws -> [Components.Schemas.IncomeAnalysisTransaction]
@@ -94,6 +100,33 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func categories() async throws -> [Components.Schemas.Category] {
+        switch try await client.listCategories(.init()) {
+        case .ok(let response):
+            return try response.body.json.categories
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func setBillCategory(id: String, categoryID: String) async throws {
+        let request = Components.Schemas.BillUpdateRequest(categoryId: categoryID)
+        switch try await client.updateBill(.init(path: .init(billId: id), body: .json(request))) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
