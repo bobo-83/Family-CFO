@@ -31,7 +31,11 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
     }
 
     var currentBills: [Components.Schemas.Bill] = []
-    var importCount = 0
+    var importCount: Int {
+        get { syncTotals.imported }
+        set { syncTotals.imported = newValue }
+    }
+    var syncTotals = SyncTotals()
     private(set) var createdBills: [String] = []
     private(set) var deletedBills: [String] = []
     private(set) var syncCalls = 0
@@ -39,8 +43,19 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
     var cats: [Components.Schemas.Category] = []
     private(set) var billCategorySets: [(id: String, categoryID: String)] = []
 
+    var obligs: [Components.Schemas.AccountObligation] = []
+    var timelineResponse: Components.Schemas.PaymentTimelineResponse?
+
     nonisolated func bills() async throws -> [Components.Schemas.Bill] {
         try await MainActor.run { currentBills }
+    }
+
+    nonisolated func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse? {
+        try await MainActor.run { timelineResponse }
+    }
+
+    nonisolated func obligations() async throws -> [Components.Schemas.AccountObligation] {
+        try await MainActor.run { obligs }
     }
 
     nonisolated func categories() async throws -> [Components.Schemas.Category] {
@@ -76,6 +91,44 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
         }
     }
 
+    struct BillEdit: Equatable {
+        var id: String
+        var name: String
+        var amountMinor: Int64
+        var frequency: String
+        var nextDueDate: String?
+        var categoryID: String?
+    }
+    private(set) var editedBills: [BillEdit] = []
+
+    nonisolated func updateBill(
+        id: String,
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?,
+        categoryID: String?
+    ) async throws {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            editedBills.append(
+                .init(
+                    id: id, name: name, amountMinor: amountMinor,
+                    frequency: frequency.rawValue, nextDueDate: nextDueDate,
+                    categoryID: categoryID))
+            if let i = currentBills.firstIndex(where: { $0.id == id }) {
+                let b = currentBills[i]
+                currentBills[i] = .init(
+                    id: b.id, name: name,
+                    amount: .init(amountMinor: amountMinor, currency: currency),
+                    frequency: frequency, nextDueDate: nextDueDate,
+                    categoryId: categoryID ?? b.categoryId,
+                    categoryName: cats.first { $0.id == (categoryID ?? b.categoryId) }?.name)
+            }
+        }
+    }
+
     nonisolated func deleteBill(id: String) async throws {
         try await MainActor.run {
             if let actionError { throw actionError }
@@ -84,11 +137,11 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
         }
     }
 
-    nonisolated func syncAllTransactions() async throws -> Int {
+    nonisolated func syncAllTransactions() async throws -> SyncTotals {
         try await MainActor.run {
             if let actionError { throw actionError }
             syncCalls += 1
-            return importCount
+            return syncTotals
         }
     }
 
@@ -251,6 +304,44 @@ struct BillsManagementTests {
         #expect(api.createdBills.isEmpty)
     }
 
+    @Test func editingABillUpdatesItAndReloads() async {
+        let (vm, api) = await loaded()
+
+        await vm.editBill(
+            vm.bills[0], name: "Rent (updated)", amountMinor: 210_000, currency: "USD",
+            frequency: .monthly, nextDueDate: "2026-09-01", categoryID: nil)
+
+        #expect(api.editedBills.count == 1)
+        #expect(api.editedBills[0].id == "b1")
+        #expect(api.editedBills[0].name == "Rent (updated)")
+        #expect(api.editedBills[0].amountMinor == 210_000)
+        #expect(vm.bills.map(\.name) == ["Rent (updated)"])
+        #expect(vm.bills[0].amount.amountMinor == 210_000)
+        #expect(vm.bills[0].nextDueDate == "2026-09-01")
+    }
+
+    @Test func aBlankOrZeroEditIsNotSent() async {
+        let (vm, api) = await loaded()
+
+        await vm.editBill(
+            vm.bills[0], name: "  ", amountMinor: 0, currency: "USD",
+            frequency: .monthly, nextDueDate: nil, categoryID: nil)
+
+        #expect(api.editedBills.isEmpty)
+        #expect(vm.bills.map(\.name) == ["Rent"])
+    }
+
+    @Test func aFailedEditSurfacesAnError() async {
+        let (vm, api) = await loaded()
+        api.actionError = APIError.server(500)
+
+        await vm.editBill(
+            vm.bills[0], name: "Rent (updated)", amountMinor: 210_000, currency: "USD",
+            frequency: .monthly, nextDueDate: "2026-09-01", categoryID: nil)
+
+        #expect(vm.errorMessage != nil)
+    }
+
     @Test func deletingABillRemovesItOptimistically() async {
         let (vm, api) = await loaded()
 
@@ -284,6 +375,18 @@ struct BillsManagementTests {
 
         #expect(api.syncCalls == 1)
         #expect(vm.syncResult?.contains("12") == true)
+    }
+
+    @Test func syncReportsAutoFiledCounts() async {
+        let (vm, api) = await loaded()
+        api.syncTotals = SyncTotals(imported: 12, transfersFiled: 3, autoCategorized: 5)
+
+        await vm.sync()
+
+        let message = vm.syncResult ?? ""
+        #expect(message.contains("12"))
+        #expect(message.contains("categorized 5"))
+        #expect(message.contains("3 as transfers"))
     }
 
     @Test func syncWithNothingNewSaysUpToDate() async {
@@ -348,6 +451,66 @@ struct BillCategoryTests {
             frequency: .monthly, nextDueDate: nil, categoryID: "subs")
 
         #expect(api.createdBills == ["Spotify"])
+    }
+
+    private static func timelineItem(
+        _ id: String, _ name: String,
+        kind: Components.Schemas.PaymentTimelineItem.KindPayload = .bill,
+        status: Components.Schemas.PaymentTimelineItem.StatusPayload,
+        amountMinor: Int = 10_000
+    ) -> Components.Schemas.PaymentTimelineItem {
+        .init(
+            id: id, kind: kind, name: name,
+            amount: .init(amountMinor: Int64(amountMinor), currency: "USD"),
+            dueDate: nil, daysUntil: nil, status: status, paidWith: nil)
+    }
+
+    /// The timeline groups render in bill-paying order — Overdue first, then Due
+    /// soon, undated, paid, upcoming — and empty groups are dropped (M111).
+    @Test func timelineSectionsGroupByStatusInPayingOrder() async {
+        let api = MockBillsAPI()
+        api.timelineResponse = .init(
+            items: [
+                Self.timelineItem("b1", "Netflix", status: .upcoming),
+                Self.timelineItem("c1", "Visa", kind: .creditCard, status: .dueSoon),
+                Self.timelineItem("b2", "Water", status: .overdue),
+                Self.timelineItem("b3", "Mortgage", kind: .mortgage, status: .paid),
+            ],
+            dueTotal: .init(amountMinor: 10_000, currency: "USD"),
+            liquidBalance: .init(amountMinor: 50_000, currency: "USD"),
+            covered: true, windowDays: 14)
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+
+        let sections = vm.timelineSections
+        #expect(sections.map(\.title) == ["Overdue", "Due soon", "Paid this cycle", "Upcoming"])
+        #expect(sections[0].items.map(\.name) == ["Water"])
+        #expect(sections[1].items.map(\.name) == ["Visa"])
+    }
+
+    /// A "Loans" bill category and the "Loans" account-obligation section must
+    /// collapse into ONE section, not render two identical "Loans" headers
+    /// (M110 bugfix).
+    @Test func sameNamedBillCategoryAndObligationSectionMerge() async {
+        let api = MockBillsAPI()
+        api.cats = [.init(id: "loans", name: "Loans")]
+        api.currentBills = [
+            bill("b1", "Department of Education", category: ("loans", "Loans")),
+        ]
+        api.obligs = [
+            .init(
+                accountId: "acct-mortgage", name: "MORTGAGE (8953)",
+                amount: .init(amountMinor: 334387, currency: "USD"),
+                kind: .mortgage, note: "Pays down principal.", reserved: true),
+        ]
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+
+        let loans = vm.billSections.filter { $0.title == "Loans" }
+        #expect(loans.count == 1)  // not two "Loans" sections
+        #expect(loans.first?.bills.map(\.name) == ["Department of Education"])
+        #expect(loans.first?.obligations.map(\.name) == ["MORTGAGE (8953)"])
+        #expect(loans.first?.obligationFooter != nil)
     }
 }
 

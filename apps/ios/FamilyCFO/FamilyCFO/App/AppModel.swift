@@ -35,6 +35,13 @@ final class AppModel {
     private(set) var server: ServerConfig?
     private(set) var credential: StoredCredential?
 
+    /// Shared bank-data freshness, shown identically on every synced screen (M103).
+    let syncStatus = SyncStatusModel()
+
+    /// Memoizes a month's transactions so category drill-downs don't re-fetch the
+    /// whole month each time (M105).
+    let monthTransactions = MonthTransactionsCache()
+
     var rolePolicy: RolePolicy { RolePolicy(role: credential?.role) }
 
     private static let serverDefaultsKey = "family-cfo.server"
@@ -82,6 +89,44 @@ final class AppModel {
     /// (M90/M95).
     var bills: BillsAPI? {
         client.map { LiveBillsAPI(client: $0) }
+    }
+
+    /// Debts & loans — add/list installment loans (M96).
+    var budgetsAPI: BudgetsAPI? {
+        client.map { LiveBudgetsAPI(client: $0) }
+    }
+
+    var goalsAPI: GoalsAPI? {
+        client.map { LiveGoalsAPI(client: $0) }
+    }
+
+    var debts: DebtsAPI? {
+        client.map { LiveDebtsAPI(client: $0) }
+    }
+
+    /// Review queue — possible duplicate charges to keep/dispute/delete (M97).
+    var review: ReviewAPI? {
+        client.map { LiveReviewAPI(client: $0) }
+    }
+
+    /// Off-box backups — configure a Synology share, schedule, restore (M98).
+    var backups: BackupAPI? {
+        client.map { LiveBackupAPI(client: $0) }
+    }
+
+    /// Accounts — where the money is, and emergency-fund designation (M99).
+    var accounts: AccountsAPI? {
+        client.map { LiveAccountsAPI(client: $0) }
+    }
+
+    /// The shared transaction-detail surface — category, note, check photo (M100).
+    var transactionDetail: TransactionDetailAPI? {
+        client.map { LiveTransactionDetailAPI(client: $0) }
+    }
+
+    /// The Activity/History log with durable undo (M101).
+    var activity: ActivityAPI? {
+        client.map { LiveActivityAPI(client: $0) }
     }
 
     func bootstrap() {

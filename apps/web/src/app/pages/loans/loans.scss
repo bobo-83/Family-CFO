@@ -1,0 +1,190 @@
+// Debts & loans (M116). Row/form classes mirror the Bills page's look — Angular
+// styles are component-scoped, so the shared names are redefined here.
+
+.loan-summary {
+  display: flex;
+  gap: 1rem;
+  max-width: 32rem;
+  margin-bottom: 1.5rem;
+}
+
+.loan-summary__item {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.loan-summary__label {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.loan-summary__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.bill-list {
+  list-style: none;
+  padding: 0;
+  max-width: 40rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.bill-list__item {
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.bill-list__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bill-list__main {
+  flex: 1;
+}
+
+.bill-list__name {
+  font-weight: 600;
+}
+
+.bill-list__frequency {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.bill-list__amount {
+  font-weight: 600;
+}
+
+.bill-list__delete {
+  color: #b00020;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.bill-list__confirm {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.bill-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 26rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+  }
+
+  input,
+  select {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid #ccd2da;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+
+  button[type='submit'] {
+    padding: 0.55rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--color-accent);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .bill-form__actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+}
+
+.loan-form__scan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.earner-form__scan {
+  flex-shrink: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--color-accent);
+  border-radius: 6px;
+  color: var(--color-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loan-form__scan-hint {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.loan-form__scan-note {
+  font-size: 0.85rem;
+  color: #5b6472;
+  background: #eef1f5;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+
+.loan-form__end {
+  border: 1px solid #ccd2da;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  legend {
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0 0.3rem;
+  }
+}
+
+.loan-form__end-mode {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem !important;
+}
+
+.loan-form__derived {
+  font-size: 0.8rem;
+  color: #5b6472;
+}

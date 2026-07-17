@@ -17,6 +17,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
+COPY VERSION /app/VERSION
 COPY services/ /app/services/
 COPY apps/api/ /app/apps/api/
 COPY database/ /app/database/

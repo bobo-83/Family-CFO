@@ -84,7 +84,61 @@ async def test_sync_returns_counts(demo_client, demo_token, monkeypatch) -> None
         headers={"Authorization": f"Bearer {demo_token}"},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"accounts_synced": 2, "imported": 14, "duplicates_skipped": 3}
+    assert resp.json() == {
+        "accounts_synced": 2,
+        "imported": 14,
+        "duplicates_skipped": 3,
+        "transfers_filed": 0,
+        "auto_categorized": 0,
+    }
+
+
+@pytest.mark.anyio
+async def test_sync_all_connections_aggregates(demo_client, demo_token, monkeypatch) -> None:
+    await _create(demo_client, demo_token, name="Bank A")
+    await _create(demo_client, demo_token, name="Bank B")
+
+    monkeypatch.setattr(
+        connections_module.banksync,
+        "sync_connection",
+        lambda engine, settings, record: banksync.SyncResult(
+            accounts_synced=1, imported=5, duplicates_skipped=2
+        ),
+    )
+    resp = await demo_client.post(
+        "/api/v1/connections/sync",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # Two connections, each syncing 1 account / 5 imported / 2 dupes -> summed.
+    assert body["accounts_synced"] == 2
+    assert body["imported"] == 10
+    assert body["duplicates_skipped"] == 4
+
+
+@pytest.mark.anyio
+async def test_pull_to_refresh_always_syncs(demo_client, demo_token, monkeypatch) -> None:
+    """M107/ADR 0019: a user pull-to-refresh is an explicit 'fetch now', so it hits
+    the provider every time — even right after linking already synced. Only the
+    automatic daily poller is throttled, not this."""
+    await _create(demo_client, demo_token, name="Bank A")
+
+    called = {"n": 0}
+
+    def spy(engine, settings, record):
+        called["n"] += 1
+        return banksync.SyncResult(accounts_synced=1, imported=5, duplicates_skipped=2)
+
+    monkeypatch.setattr(connections_module.banksync, "sync_connection", spy)
+    resp = await demo_client.post(
+        "/api/v1/connections/sync",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    # Synced despite the connection having just been synced at link time — no throttle.
+    assert called["n"] == 1
+    assert resp.json()["imported"] == 5
 
 
 @pytest.mark.anyio
