@@ -49,7 +49,13 @@ describe('Goals', () => {
     expect(form).toBeTruthy();
 
     const component = fixture.componentInstance;
-    component['form'].setValue({ name: 'New car fund', type: 'vehicle', targetAmount: 5000, priority: 2 });
+    component['form'].setValue({
+      name: 'New car fund',
+      type: 'vehicle',
+      targetAmount: 5000,
+      priority: 2,
+      monthlyContribution: 0,
+    });
     await component['submit']();
 
     expect(apiMock.createGoal).toHaveBeenCalledWith({

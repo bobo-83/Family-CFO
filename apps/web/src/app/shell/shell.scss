@@ -230,3 +230,9 @@ $breakpoint: 820px;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 }
+
+// M120: the running monorepo version, quiet in the footer.
+.shell__version {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}

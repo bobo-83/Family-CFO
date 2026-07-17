@@ -257,6 +257,61 @@ describe('IncomeTax', () => {
     expect(apiMock.createIncomeEarner).not.toHaveBeenCalled();
   });
 
+  it('pastes a copied W2 into the same scan path (M114, ADR 0028)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      scanW2: vi.fn().mockResolvedValue(
+        response({ year: 2025, employer: 'ACME CORP', note: 'Read.' }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const file = new File(['w2'], 'w2.png', { type: 'image/png' });
+    const cmp = fixture.componentInstance as unknown as {
+      onPaste(event: ClipboardEvent): Promise<void>;
+    };
+    let prevented = false;
+    await cmp.onPaste({
+      clipboardData: { items: [{ kind: 'file', getAsFile: () => file }] },
+      preventDefault: () => {
+        prevented = true;
+      },
+    } as unknown as ClipboardEvent);
+
+    expect(prevented).toBe(true);
+    expect(apiMock.scanW2).toHaveBeenCalledWith(
+      expect.objectContaining({ image_media_type: 'image/png' }),
+    );
+  });
+
+  it('ignores a paste for a viewer role (M114)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      scanW2: vi.fn(),
+    };
+    configure(apiMock, 'viewer');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const file = new File(['w2'], 'w2.png', { type: 'image/png' });
+    const cmp = fixture.componentInstance as unknown as {
+      onPaste(event: ClipboardEvent): Promise<void>;
+    };
+    await cmp.onPaste({
+      clipboardData: { items: [{ kind: 'file', getAsFile: () => file }] },
+      preventDefault: () => {},
+    } as unknown as ClipboardEvent);
+
+    expect(apiMock.scanW2).not.toHaveBeenCalled();
+  });
+
   it('labels the compensation profile as pre-tax (M79)', async () => {
     const apiMock = {
       getIncomeAnalysis: vi.fn().mockResolvedValue(

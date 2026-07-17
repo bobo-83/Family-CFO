@@ -19,6 +19,22 @@ def test_net_worth_sums_assets_and_liabilities() -> None:
     assert result.warnings == []
 
 
+def test_401k_loan_is_net_worth_neutral() -> None:
+    """A 401(k) loan is borrowed from and repaid to your own retirement, so it is
+    excluded from net worth entirely — neither asset nor liability nor total — and
+    it does not trigger the unrecognized-type warning."""
+    balances = [
+        AccountBalance("checking-1", "checking", Money(500_000, "USD")),
+        AccountBalance("401k-loan-1", "401k_loan", Money(-2_000_000, "USD")),
+    ]
+
+    result = calculate_net_worth(balances, "USD")
+
+    assert result.outputs["net_worth"] == Money(500_000, "USD")  # loan excluded
+    assert result.outputs["liability_total"] == Money.zero("USD")
+    assert result.warnings == []
+
+
 def test_net_worth_with_no_accounts_is_zero() -> None:
     result = calculate_net_worth([], "USD")
 

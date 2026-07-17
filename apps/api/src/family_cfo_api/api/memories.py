@@ -10,7 +10,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     ErrorResponse,
@@ -84,6 +84,7 @@ async def create_memory(
         "memory",
         record.id,
         "Added an advisor memory",
+        undo_token=undo_actions.created("memory", record.id),
     )
     return _to_schema(record)
 
@@ -104,7 +105,20 @@ async def delete_memory(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
-    if not repository.delete_household_memory(engine, session.household_id, memory_id):
+    # Capture the fact before deleting so undo can recreate it (M110). Fetch it
+    # from the user-visible list, which is exactly the set this endpoint may
+    # delete — a missing row is a 404 either way.
+    before = next(
+        (
+            m
+            for m in repository.list_household_memories(engine, session.household_id)
+            if m.id == memory_id
+        ),
+        None,
+    )
+    if before is None or not repository.delete_household_memory(
+        engine, session.household_id, memory_id
+    ):
         raise HTTPException(status_code=404, detail="Memory not found")
     audit.write_audit(
         engine,
@@ -114,5 +128,6 @@ async def delete_memory(
         "memory",
         memory_id,
         "Deleted an advisor memory",
+        undo_token=undo_actions.memory_deleted(before),
     )
     return Response(status_code=204)

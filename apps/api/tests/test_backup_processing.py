@@ -21,6 +21,21 @@ def _run_backup(engine: Engine, settings: Settings) -> repository.BackupJobRecor
     return record
 
 
+def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
+    demo_file_engine: Engine, demo_file_settings: Settings
+) -> None:
+    """M108/ADR 0019 regression guard: the scheduled backup pass must actually run
+    (exercising the repository/smb/banksync wiring the old worker closure hid, where
+    a bare `NameError` shipped) AND honour the cadence. The demo household defaults
+    to a 'daily' schedule with no prior backup, so the first pass backs it up and an
+    immediate second pass is skipped by the cadence gate."""
+    ran = backup_processing.run_due_backups(demo_file_engine, demo_file_settings)
+    assert ran == 1
+
+    skipped = backup_processing.run_due_backups(demo_file_engine, demo_file_settings)
+    assert skipped == 0  # a backup just completed → within the daily window
+
+
 def test_run_backup_once_creates_completed_encrypted_archive(
     demo_file_engine: Engine, demo_file_settings: Settings
 ) -> None:
@@ -128,6 +143,40 @@ def test_restore_backup_recovers_staged_documents(
     assert os.path.exists(staged_file)
     with open(staged_file) as handle:
         assert handle.read() == "synthetic receipt contents"
+
+
+def test_restore_backup_recovers_transaction_attachments(
+    demo_file_engine: Engine, demo_file_settings: Settings
+) -> None:
+    """M100/M108: a check/receipt image attached to a transaction is stored under the
+    staging dir's `attachments/` subfolder. It must survive a backup→restore roundtrip
+    — the whole staging tree is archived — so this guards the check-image case
+    explicitly (the other test only covers a top-level staged file)."""
+    attach_dir = os.path.join(demo_file_settings.import_staging_dir, "attachments")
+    os.makedirs(attach_dir, exist_ok=True)
+    image_path = os.path.join(attach_dir, "txn-probe.jpg")
+    image_bytes = b"\xff\xd8\xff-synthetic-check-image"
+    with open(image_path, "wb") as handle:
+        handle.write(image_bytes)
+
+    record = _run_backup(demo_file_engine, demo_file_settings)
+    assert record.status == "completed"
+
+    os.remove(image_path)
+    assert not os.path.exists(image_path)
+
+    backup_processing.restore_backup(
+        demo_file_engine,
+        record.id,
+        database_url=demo_file_settings.database_url,
+        staging_dir=demo_file_settings.import_staging_dir,
+        backup_dir=demo_file_settings.backup_dir,
+        encryption_key=demo_file_settings.backup_encryption_key,
+    )
+
+    assert os.path.exists(image_path)
+    with open(image_path, "rb") as handle:
+        assert handle.read() == image_bytes
 
 
 def test_restore_backup_wrong_key_raises(

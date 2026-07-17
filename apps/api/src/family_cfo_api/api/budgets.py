@@ -12,7 +12,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     Budget,
@@ -139,6 +139,7 @@ async def create_budget(
         "budget",
         budget_id,
         f"Created a budget for '{category.name}'",
+        undo_token=undo_actions.created("budget", budget_id),
     )
     record = repository.get_budget(engine, session.household_id, budget_id)
     assert record is not None
@@ -170,10 +171,14 @@ async def update_budget(
 ) -> Budget:
     if payload.limit.amount_minor <= 0:
         raise HTTPException(status_code=400, detail="Budget limit must be positive")
-    if not repository.update_budget_limit(
-        engine, session.household_id, budget_id, payload.limit.amount_minor
-    ):
+    before = repository.get_budget(engine, session.household_id, budget_id)
+    if before is None:
         raise HTTPException(status_code=404, detail="Budget not found")
+    repository.update_budget_limit(
+        engine, session.household_id, budget_id, payload.limit.amount_minor
+    )
+    record = repository.get_budget(engine, session.household_id, budget_id)
+    assert record is not None
     audit.write_audit(
         engine,
         session.household_id,
@@ -181,10 +186,9 @@ async def update_budget(
         "budget.updated",
         "budget",
         budget_id,
-        "Changed a budget limit",
+        f"Changed the budget for “{record.category_name}”",
+        undo_token=undo_actions.budget_updated(before),
     )
-    record = repository.get_budget(engine, session.household_id, budget_id)
-    assert record is not None
     currency = _household_currency(engine, session.household_id)
     start, end = _month_window()
     spent = repository.sum_spending_by_category(
@@ -209,8 +213,10 @@ async def delete_budget(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
+    existing = repository.get_budget(engine, session.household_id, budget_id)
     if not repository.delete_budget(engine, session.household_id, budget_id):
         raise HTTPException(status_code=404, detail="Budget not found")
+    category = existing.category_name if existing is not None else "a category"
     audit.write_audit(
         engine,
         session.household_id,
@@ -218,6 +224,7 @@ async def delete_budget(
         "budget.deleted",
         "budget",
         budget_id,
-        "Deleted a budget",
+        f"Deleted the budget for “{category}”",
+        undo_token=undo_actions.budget_deleted(existing) if existing is not None else None,
     )
     return Response(status_code=204)

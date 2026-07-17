@@ -3,15 +3,27 @@ import { getToken } from './token-store';
 import {
   applyAiModelSelection,
   applyImport,
+  checkBackupDestination,
   createAccount,
   createAuthSession,
   createBackup,
+  deleteBackup,
+  deleteRemoteBackup,
+  getBackupConfig,
+  getBackupEncryptionKey,
+  listRemoteBackups,
+  restoreRemoteBackup,
+  updateBackupConfig,
+  type BackupConfigUpdateRequest,
+  type BackupDestinationCheckRequest,
   createBill,
   createBudget,
   createCategory,
   createChatMessage,
   createConnection,
   createGoal,
+  deleteGoal,
+  updateGoal,
   createHousehold,
   createImport,
   createIncomeSource,
@@ -49,6 +61,9 @@ import {
   listAccounts,
   listAuditEvents,
   listBackups,
+  getCashOutlook,
+  getPaymentTimeline,
+  getSpendingPlan,
   listBills,
   listBillSuggestions,
   listBudgets,
@@ -66,6 +81,7 @@ import {
   listTransactions,
   recordAccountBalance,
   restoreBackup,
+  scanLoanStatement,
   searchAiModels,
   syncConnection,
   revokePairedDevice,
@@ -90,6 +106,7 @@ import {
   type ChatRequest,
   type ConnectionCreateRequest,
   type GoalCreateRequest,
+  type GoalUpdateRequest,
   type HouseholdCreateRequest,
   type HouseholdUpdateRequest,
   type ImportCreateRequest,
@@ -194,6 +211,16 @@ export class ApiService {
     });
   }
 
+  // M116 (ADR 0025 parity): read a loan/lease statement into candidate values.
+  scanLoanStatement(imageBase64: string, mediaType: string) {
+    return scanLoanStatement({
+      body: {
+        image_base64: imageBase64,
+        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+      },
+    });
+  }
+
   // --- Goals ---
   listGoals() {
     return listGoals();
@@ -201,6 +228,16 @@ export class ApiService {
 
   createGoal(body: GoalCreateRequest) {
     return createGoal({ body });
+  }
+
+  // M118: update a goal (incl. the planned monthly contribution).
+  updateGoal(goalId: string, body: GoalUpdateRequest) {
+    return updateGoal({ path: { goal_id: goalId }, body });
+  }
+
+  // M119: delete a goal (undoable from Activity).
+  deleteGoal(goalId: string) {
+    return deleteGoal({ path: { goal_id: goalId } });
   }
 
   // --- Transactions ---
@@ -253,6 +290,23 @@ export class ApiService {
   // --- Bills ---
   listBills() {
     return listBills();
+  }
+
+  // M111 (ADR 0024): the payment timeline — bills, card payments, loan/lease
+  // payments as one time-ordered list with a cash-versus-due headline.
+  getPaymentTimeline() {
+    return getPaymentTimeline();
+  }
+
+  // M112 (ADR 0026): the 30-day cash outlook — paychecks in, payments out,
+  // lowest point reached.
+  getCashOutlook() {
+    return getCashOutlook();
+  }
+
+  // M113 (ADR 0027): left to spend this month — income minus spent and committed.
+  getSpendingPlan() {
+    return getSpendingPlan();
   }
 
   listBillSuggestions() {
@@ -393,6 +447,38 @@ export class ApiService {
 
   restoreBackup(backupId: string) {
     return restoreBackup({ path: { backup_id: backupId } });
+  }
+
+  getBackupConfig() {
+    return getBackupConfig();
+  }
+
+  updateBackupConfig(body: BackupConfigUpdateRequest) {
+    return updateBackupConfig({ body });
+  }
+
+  checkBackupDestination(body: BackupDestinationCheckRequest) {
+    return checkBackupDestination({ body });
+  }
+
+  listRemoteBackups() {
+    return listRemoteBackups();
+  }
+
+  restoreRemoteBackup(filename: string) {
+    return restoreRemoteBackup({ body: { filename } });
+  }
+
+  getBackupEncryptionKey() {
+    return getBackupEncryptionKey();
+  }
+
+  deleteBackup(backupId: string) {
+    return deleteBackup({ path: { backup_id: backupId } });
+  }
+
+  deleteRemoteBackup(filename: string) {
+    return deleteRemoteBackup({ body: { filename } });
   }
 
   // --- Members ---

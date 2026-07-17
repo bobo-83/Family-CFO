@@ -36,6 +36,17 @@ final class MockCategorizeAPI: CategorizeAPI, @unchecked Sendable {
             return .init(id: nextCreatedId, name: name)
         }
     }
+
+    var deleteError: Error?
+    private(set) var deleted: [String] = []
+
+    nonisolated func deleteCategory(id: String) async throws {
+        try await MainActor.run {
+            deleted.append(id)
+            if let deleteError { throw deleteError }
+            cats.removeAll { $0.id == id }
+        }
+    }
 }
 
 @MainActor
@@ -152,6 +163,18 @@ struct CategorizeCategoryCreationTests {
         #expect(vm.categories.map(\.name) == ["Groceries", "Rent"])  // sorted
     }
 
+    @Test func deletingACategoryRemovesItAndReloads() async {
+        let api = MockCategorizeAPI()
+        api.cats = [.init(id: "c1", name: "Rent"), .init(id: "c2", name: "Tennis")]
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        await vm.deleteCategory(id: "c2")
+
+        #expect(api.deleted == ["c2"])
+        #expect(vm.categories.map(\.name) == ["Rent"])  // gone after the reload
+    }
+
     @Test func creatingAnExistingCategoryReusesItWithoutARoundTrip() async {
         let api = MockCategorizeAPI()
         api.cats = [.init(id: "c1", name: "Groceries")]
@@ -228,6 +251,7 @@ struct CategoryStarterSetTests {
                 if name == "Transportation" { throw APIError.server(500) }
                 return .init(id: name, name: name)
             }
+            func deleteCategory(id: String) async throws {}
         }
         let api = FlakyAPI()
         let vm = CategorizeViewModel(api: api)

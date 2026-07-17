@@ -15,10 +15,64 @@
         <ul class="goal-list">
           @for (goal of goalList; track goal.id) {
             <li class="goal-list__item">
-              <div class="goal-list__name">{{ goal.name }}</div>
+              <div class="goal-list__name">
+                {{ goal.name }}
+                @if (canCreateGoals()) {
+                  <button
+                    type="button"
+                    class="goal-list__cancel"
+                    (click)="removeGoal(goal.id, goal.name)"
+                    aria-label="Delete goal"
+                  >
+                    Delete
+                  </button>
+                }
+              </div>
               <div class="goal-list__type">{{ goalTypeLabel(goal.type) }}</div>
               <div class="goal-list__amounts">
                 {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
+              </div>
+              <div class="goal-list__contribution">
+                @if (editingContributionId() === goal.id) {
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="USD / month"
+                    [(ngModel)]="contributionInput"
+                    [ngModelOptions]="{ standalone: true }"
+                  />
+                  <button
+                    type="button"
+                    class="goal-list__save"
+                    [disabled]="savingContribution()"
+                    (click)="saveContribution(goal.id)"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    class="goal-list__cancel"
+                    (click)="editingContributionId.set(null)"
+                  >
+                    Cancel
+                  </button>
+                } @else {
+                  @if (goal.monthly_contribution; as contribution) {
+                    saving {{ formatMoney(contribution) }}/month
+                  } @else {
+                    no monthly savings plan
+                  }
+                  @if (canCreateGoals()) {
+                    <button
+                      type="button"
+                      class="goal-list__save"
+                      (click)="startEditContribution(goal.id, goal.monthly_contribution?.amount_minor ?? null)"
+                    >
+                      Edit
+                    </button>
+                  }
+                }
               </div>
             </li>
           }
@@ -53,6 +107,11 @@
     <label>
       <span>Priority (1 = highest)</span>
       <input type="number" step="1" min="1" max="5" formControlName="priority" />
+    </label>
+
+    <label>
+      <span>Planned monthly contribution (USD, optional)</span>
+      <input type="number" step="0.01" min="0" formControlName="monthlyContribution" />
     </label>
 
     @if (submitError(); as message) {

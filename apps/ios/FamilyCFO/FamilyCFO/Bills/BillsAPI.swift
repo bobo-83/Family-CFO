@@ -12,10 +12,29 @@ protocol BillsAPI: Sendable {
 
     /// The household's current recurring bills.
     func bills() async throws -> [Components.Schemas.Bill]
+    /// The payment timeline (M111, ADR 0024): bills, card payments, and loan/lease
+    /// payments as one time-ordered list with a cash-versus-due headline.
+    func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse?
+    /// Recurring obligations that live on liability accounts — loans, leases,
+    /// payroll-deducted 401(k) loans (M106). Shown on Bills so every recurring
+    /// commitment is in one place.
+    func obligations() async throws -> [Components.Schemas.AccountObligation]
     /// The spending categories, to file bills under (M96).
     func categories() async throws -> [Components.Schemas.Category]
     /// Add a bill by hand (not from a suggestion).
     func createBill(_ request: Components.Schemas.BillCreateRequest) async throws
+    /// Edit an existing bill's core fields (name, amount, frequency, next-due date,
+    /// and — set-only — its category). Backed by the same `updateBill` endpoint as
+    /// `setBillCategory`; the server records it as an undoable action.
+    func updateBill(
+        id: String,
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?,
+        categoryID: String?
+    ) async throws
     func deleteBill(id: String) async throws
     /// File a bill under a category (M96); returns how many matching transactions
     /// were also auto-filed (the M96 propagation rule). Set-only: the generated
@@ -30,9 +49,35 @@ protocol BillsAPI: Sendable {
         verdict: Components.Schemas.IncomeOverrideRequest.VerdictPayload
     ) async throws
 
-    /// Re-pull transactions from every linked bank connection. Returns how many
-    /// were newly imported across all connections.
-    func syncAllTransactions() async throws -> Int
+    /// Re-pull transactions from every linked bank connection, returning the
+    /// totals across all connections.
+    func syncAllTransactions() async throws -> SyncTotals
+    /// Delete a category so the shared picker's long-press delete works here too.
+    func deleteCategory(id: String) async throws
+}
+
+extension BillsAPI {
+    /// Defaults so mocks/tests needn't implement them; the live client overrides.
+    func obligations() async throws -> [Components.Schemas.AccountObligation] { [] }
+    func deleteCategory(id: String) async throws {}
+    func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse? { nil }
+    func updateBill(
+        id: String,
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?,
+        categoryID: String?
+    ) async throws {}
+}
+
+/// Aggregate outcome of syncing every connection (M96): what was newly imported,
+/// and how much the system filed on the user's behalf so they need not tag it.
+struct SyncTotals: Equatable {
+    var imported = 0
+    var transfersFiled = 0
+    var autoCategorized = 0
 }
 
 struct LiveBillsAPI: BillsAPI {
@@ -93,6 +138,37 @@ struct LiveBillsAPI: BillsAPI {
         }
     }
 
+    func obligations() async throws -> [Components.Schemas.AccountObligation] {
+        switch try await client.listBills(.init()) {
+        case .ok(let response):
+            return try response.body.json.accountObligations ?? []
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse? {
+        switch try await client.getPaymentTimeline(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteCategory(id: String) async throws {
+        switch try await client.deleteCategory(.init(path: .init(categoryId: id))) {
+        case .noContent, .notFound: return
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let status, _): throw APIError.server(status)
+        }
+    }
+
     func createBill(_ request: Components.Schemas.BillCreateRequest) async throws {
         switch try await client.createBill(.init(body: .json(request))) {
         case .created:
@@ -101,6 +177,38 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateBill(
+        id: String,
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?,
+        categoryID: String?
+    ) async throws {
+        // The generated client omits a nil `categoryId` rather than sending null,
+        // so passing nil leaves the existing category untouched (clearing a
+        // category is a dashboard action, same constraint as setBillCategory).
+        let request = Components.Schemas.BillUpdateRequest(
+            name: name,
+            amount: .init(amountMinor: amountMinor, currency: currency),
+            frequency: frequency,
+            nextDueDate: nextDueDate,
+            categoryId: categoryID)
+        switch try await client.updateBill(.init(path: .init(billId: id), body: .json(request))) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -148,37 +256,22 @@ struct LiveBillsAPI: BillsAPI {
         }
     }
 
-    func syncAllTransactions() async throws -> Int {
-        let connections: [Components.Schemas.InstitutionConnection]
-        switch try await client.listConnections(.init()) {
+    func syncAllTransactions() async throws -> SyncTotals {
+        switch try await client.syncAllConnections(.init()) {
         case .ok(let response):
-            connections = try response.body.json.connections
+            let r = try response.body.json
+            return SyncTotals(
+                imported: r.imported,
+                transfersFiled: r.transfersFiled ?? 0,
+                autoCategorized: r.autoCategorized ?? 0
+            )
         case .unauthorized:
             throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
-
-        var imported = 0
-        for connection in connections {
-            switch try await client.syncConnection(.init(path: .init(connectionId: connection.id))) {
-            case .ok(let response):
-                imported += try response.body.json.imported
-            case .unauthorized:
-                throw APIError.unauthorized
-            case .forbidden:
-                throw APIError.server(403)
-            case .notFound:
-                continue  // connection removed between list and sync
-            case .badGateway:
-                // The bank/provider failed this connection; skip it rather than
-                // abandon the whole sync, and let the imported count reflect the rest.
-                continue
-            case .undocumented(let status, _):
-                throw APIError.server(status)
-            }
-        }
-        return imported
     }
 
     func unclassifiedDeposits() async throws -> [Components.Schemas.IncomeAnalysisTransaction] {

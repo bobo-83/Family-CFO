@@ -34,6 +34,22 @@ def test_bills_and_debt_are_subtracted_not_just_the_emergency_fund() -> None:
     assert result.outputs["committed_total"] == Money(400_411, "USD")
 
 
+def test_credit_card_payments_are_committed_when_paid_in_full() -> None:
+    """A pay-in-full household's whole card balance is about to leave liquid cash,
+    so it is committed (not just a minimum) and reported as its own component."""
+    result = calculate_safe_to_spend(
+        _inputs(
+            liquid_balance=Money(2_457_800, "USD"),
+            emergency_fund_reserved=Money(115_400, "USD"),
+            credit_card_payments=Money(3_146_363, "USD"),  # full card balances
+        )
+    )
+    assert result.outputs["credit_card_payments"] == Money(3_146_363, "USD")
+    # committed = 115_400 + 0 + 0 + 3_146_363; safe = 2_457_800 − that = negative.
+    assert result.outputs["committed_total"] == Money(3_261_763, "USD")
+    assert result.outputs["safe_to_spend"] == Money(-803_963, "USD")
+
+
 def test_every_component_is_reported_so_the_answer_can_be_explained() -> None:
     result = calculate_safe_to_spend(
         _inputs(bills_due=Money(100_000, "USD"), minimum_debt_payments=Money(50_000, "USD"))

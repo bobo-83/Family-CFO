@@ -1,0 +1,214 @@
+<h1>Debts &amp; loans</h1>
+
+<p class="page-hint">
+  A loan's monthly payment counts against safe-to-spend and its balance against
+  net worth — except 401(k) loans, which are payroll-deducted and net against
+  your retirement, so they affect neither.
+</p>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (loadError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+} @else {
+  @if (loans().length > 0) {
+    <div class="loan-summary">
+      <div class="loan-summary__item">
+        <span class="loan-summary__label">Total owed</span>
+        <span class="loan-summary__value">
+          {{ formatMoney({ amount_minor: totalOwed(), currency: 'USD' }) }}
+        </span>
+      </div>
+      <div class="loan-summary__item">
+        <span class="loan-summary__label">Monthly payments</span>
+        <span class="loan-summary__value">
+          {{ formatMoney({ amount_minor: totalMonthly(), currency: 'USD' }) }}
+        </span>
+      </div>
+    </div>
+  }
+
+  @if (actionError(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+
+  <ul class="bill-list loan-list">
+    @for (loan of loans(); track loan.id) {
+      <li class="bill-list__item bill-list__item--stacked">
+        @if (editingId() === loan.id) {
+          <ng-container *ngTemplateOutlet="loanForm"></ng-container>
+        } @else {
+          <div class="bill-list__row">
+            <div class="bill-list__main">
+              <div class="bill-list__name">{{ loan.name }}</div>
+              <div class="bill-list__frequency">
+                {{ typeLabel(loan.type) }}
+                @if (loan.minimum_payment; as payment) {
+                  · {{ formatMoney(payment) }}/mo
+                }
+                @if (loan.annual_interest_rate; as apr) {
+                  · {{ apr }}% APR
+                }
+                @if (loan.maturity_date; as maturity) {
+                  · matures {{ maturity | date: 'MMM y' }}
+                  @if (monthsLeft(maturity); as left) {
+                    · {{ left }} payment{{ left === 1 ? '' : 's' }} left
+                  }
+                }
+                @if (loan.type === '401k_loan') {
+                  · payroll-deducted, not in safe-to-spend
+                }
+              </div>
+            </div>
+            <div class="bill-list__amount">
+              {{ formatMoney({ amount_minor: owed(loan), currency: loan.balance.currency }) }}
+            </div>
+            @if (canWrite()) {
+              <button type="button" class="bill-list__confirm" (click)="startEdit(loan)">
+                Edit
+              </button>
+              <button type="button" class="bill-list__delete" (click)="remove(loan)">
+                Delete
+              </button>
+            }
+          </div>
+        }
+      </li>
+    }
+    @if (loans().length === 0) {
+      <li class="page-empty">
+        No loans yet. Add a mortgage, auto, student, 401(k), or other loan to
+        track its payment and balance.
+      </li>
+    }
+  </ul>
+
+  @if (canWrite()) {
+    @if (editingId() === '') {
+      <ng-container *ngTemplateOutlet="loanForm"></ng-container>
+    } @else if (editingId() === null) {
+      <button type="button" class="bill-list__confirm" (click)="startAdd()">
+        Add a loan
+      </button>
+    }
+  } @else {
+    <p class="page-empty">Only the household owner or an adult member can manage loans.</p>
+  }
+}
+
+<ng-template #loanForm>
+  <form class="bill-form bill-form--inline loan-form" (ngSubmit)="save()">
+    <div class="loan-form__scan-row">
+      <label class="earner-form__scan">
+        {{ scanning() ? 'Reading…' : '📄 Scan a statement' }}
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          (change)="onStatementSelected($event)"
+          hidden
+        />
+      </label>
+      <span class="loan-form__scan-hint">
+        Photograph, upload, or paste (Ctrl/⌘+V) your loan or lease statement and
+        the on-box vision model fills in what it can read. Confirm every value
+        before saving.
+      </span>
+    </div>
+    @if (scanNote(); as note) {
+      <p class="loan-form__scan-note">{{ note }}</p>
+    }
+
+    <label>
+      <span>Name</span>
+      <input type="text" [(ngModel)]="form.name" name="loanName" required />
+    </label>
+    <label>
+      <span>Type</span>
+      <select [(ngModel)]="form.type" name="loanType">
+        @for (t of loanTypes; track t.value) {
+          <option [value]="t.value">{{ t.label }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Balance you still owe (USD)</span>
+      <input type="number" step="0.01" min="0" [(ngModel)]="form.balanceOwed" name="loanBalance" />
+    </label>
+    <label>
+      <span>Monthly payment (USD)</span>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        [(ngModel)]="form.monthlyPayment"
+        name="loanPayment"
+      />
+    </label>
+
+    <fieldset class="loan-form__end">
+      <legend>Loan / lease end</legend>
+      <label class="loan-form__end-mode">
+        <input
+          type="radio"
+          name="endMode"
+          value="none"
+          [(ngModel)]="form.endMode"
+        />
+        No end date
+      </label>
+      <label class="loan-form__end-mode">
+        <input
+          type="radio"
+          name="endMode"
+          value="date"
+          [(ngModel)]="form.endMode"
+          (ngModelChange)="onEndModeChange('date')"
+        />
+        End date
+      </label>
+      <label class="loan-form__end-mode">
+        <input
+          type="radio"
+          name="endMode"
+          value="payments"
+          [(ngModel)]="form.endMode"
+          (ngModelChange)="onEndModeChange('payments')"
+        />
+        Payments left
+      </label>
+      @if (form.endMode === 'date') {
+        <input type="date" [(ngModel)]="form.maturityDate" name="loanMaturity" />
+        @if (monthsLeft(form.maturityDate); as left) {
+          <span class="loan-form__derived">
+            {{ left }} payment{{ left === 1 ? '' : 's' }} left
+          </span>
+        }
+      } @else if (form.endMode === 'payments') {
+        <input
+          type="number"
+          min="1"
+          placeholder="Number of payments remaining"
+          [(ngModel)]="form.paymentsLeft"
+          name="loanPaymentsLeft"
+        />
+        @if (form.paymentsLeft && form.paymentsLeft > 0) {
+          <span class="loan-form__derived">
+            ends around {{ dateAfterPayments(form.paymentsLeft) | date: 'MMM y' }}
+          </span>
+        }
+      }
+    </fieldset>
+
+    <label>
+      <span>Interest rate (% APR, optional)</span>
+      <input type="number" step="0.01" min="0" [(ngModel)]="form.apr" name="loanApr" />
+    </label>
+
+    <div class="bill-form__actions">
+      <button type="submit" [disabled]="saving() || !form.name.trim()">
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+      <button type="button" class="bill-list__delete" (click)="cancelEdit()">Cancel</button>
+    </div>
+  </form>
+</ng-template>

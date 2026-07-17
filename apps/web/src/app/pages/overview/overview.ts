@@ -2,7 +2,12 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import type { EmergencyFundSummary, Money, NetWorthPoint } from '../../api-client';
+import type {
+  EmergencyFundSummary,
+  Money,
+  NetWorthPoint,
+  OutlookEvent as OutlookEventDto,
+} from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -64,6 +69,39 @@ export class Overview {
       return data;
     },
   });
+
+  // M112 (ADR 0026): the 30-day cash outlook. Degrades gracefully — the rest
+  // of the overview renders without it.
+  protected readonly outlook = resource({
+    loader: async () => {
+      const { data } = await this.api.getCashOutlook();
+      return data ?? null;
+    },
+  });
+
+  // M113 (ADR 0027): left to spend this month. Degrades gracefully.
+  protected readonly plan = resource({
+    loader: async () => {
+      const { data } = await this.api.getSpendingPlan();
+      return data ?? null;
+    },
+  });
+
+  /** Running balance after each outlook event, for the day-by-day table. */
+  protected outlookRows(): { event: OutlookEventDto; balance: Money }[] {
+    const data = this.outlook.value();
+    if (!data) {
+      return [];
+    }
+    let running = data.starting_cash.amount_minor;
+    return data.events.map((event) => {
+      running += event.amount.amount_minor;
+      return {
+        event,
+        balance: { amount_minor: running, currency: data.starting_cash.currency },
+      };
+    });
+  }
 
   protected readonly formatMoney = formatMoney;
 

@@ -14,6 +14,10 @@ import Observation
 final class BillsViewModel {
     private(set) var billSuggestions: [Components.Schemas.BillSuggestion] = []
     private(set) var bills: [Components.Schemas.Bill] = []
+    /// The payment timeline (M111): the tab's primary view. nil until first load.
+    private(set) var timeline: Components.Schemas.PaymentTimelineResponse?
+    /// Recurring obligations on liability accounts — loans, leases, 401(k) loans (M106).
+    private(set) var obligations: [Components.Schemas.AccountObligation] = []
     private(set) var categories: [Components.Schemas.Category] = []
     private(set) var deposits: [Components.Schemas.IncomeAnalysisTransaction] = []
     private(set) var isLoading = false
@@ -39,12 +43,16 @@ final class BillsViewModel {
         do {
             async let suggestions = api.billSuggestions()
             async let current = api.bills()
+            async let obligated = api.obligations()
             async let cats = api.categories()
             async let dep = api.unclassifiedDeposits()
+            async let line = api.paymentTimeline()
             billSuggestions = try await suggestions
             bills = try await current
+            obligations = try await obligated
             categories = try await cats
             deposits = try await dep
+            timeline = try await line
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -67,6 +75,103 @@ final class BillsViewModel {
                 return lhs.key.localizedCaseInsensitiveCompare(rhs.key) == .orderedAscending
             }
             .map { (name: $0.key, bills: $0.value) }
+    }
+
+    /// The timeline grouped for display (M111): Overdue → Due soon → No due date →
+    /// Paid this cycle → Upcoming. Empty groups are dropped.
+    var timelineSections: [(title: String, items: [Components.Schemas.PaymentTimelineItem])] {
+        guard let timeline else { return [] }
+        let order: [(Components.Schemas.PaymentTimelineItem.StatusPayload, String)] = [
+            (.overdue, "Overdue"),
+            (.dueSoon, "Due soon"),
+            (.noDate, "No due date yet"),
+            (.paid, "Paid this cycle"),
+            (.upcoming, "Upcoming"),
+        ]
+        return order.compactMap { status, title in
+            let items = timeline.items.filter { $0.status == status }
+            return items.isEmpty ? nil : (title: title, items: items)
+        }
+    }
+
+    /// One rendered section of the Bills tab: a title with the hand-entered bills
+    /// filed under it and/or the account obligations that share that title. Bills
+    /// and obligations that carry the SAME name (e.g. a "Loans" category and the
+    /// loan/mortgage accounts) collapse into a single section instead of two
+    /// identically-titled ones (M110 bugfix).
+    struct BillSection: Identifiable {
+        var title: String
+        var bills: [Components.Schemas.Bill]
+        var obligations: [Components.Schemas.AccountObligation]
+        /// The account-obligation explainer, shown only when the section has any.
+        var obligationFooter: String?
+        var id: String { title }
+    }
+
+    /// The Bills-tab sections in display order: category-grouped bills first (with
+    /// any same-named obligation section merged in), then the remaining
+    /// obligation-only sections (Leases, Payroll-deducted, and Loans when no
+    /// "Loans" category exists).
+    var billSections: [BillSection] {
+        var remaining = obligationSections
+        func takeObligations(named title: String)
+            -> (items: [Components.Schemas.AccountObligation], footer: String?)?
+        {
+            guard let i = remaining.firstIndex(where: { $0.title == title }) else { return nil }
+            let section = remaining.remove(at: i)
+            return (section.items, Self.obligationFooter(for: section.title))
+        }
+
+        var sections: [BillSection] = billsByCategory.map { group in
+            let merged = takeObligations(named: group.name)
+            return BillSection(
+                title: group.name, bills: group.bills,
+                obligations: merged?.items ?? [], obligationFooter: merged?.footer)
+        }
+        // Whatever obligation sections weren't merged into a bill category.
+        sections += remaining.map {
+            BillSection(
+                title: $0.title, bills: [], obligations: $0.items,
+                obligationFooter: Self.obligationFooter(for: $0.title))
+        }
+        return sections
+    }
+
+    static func obligationFooter(for title: String) -> String {
+        title == "Payroll-deducted"
+            ? "Managed on your accounts — shown here for the full picture. These come out of your paycheck, so safe-to-spend doesn't reserve them again."
+            : "Managed on your accounts — shown here so every recurring payment is in one place. Safe-to-spend already reserves these."
+    }
+
+    /// Account obligations grouped into display sections (M106): Loans (mortgage +
+    /// loans), Leases, and Payroll-deducted (401k loans). Highest payment first.
+    var obligationSections: [(title: String, items: [Components.Schemas.AccountObligation])] {
+        func items(
+            _ kinds: [Components.Schemas.AccountObligation.KindPayload]
+        ) -> [Components.Schemas.AccountObligation] {
+            obligations
+                .filter { kinds.contains($0.kind) }
+                .sorted { $0.amount.amountMinor > $1.amount.amountMinor }
+        }
+        var sections: [(String, [Components.Schemas.AccountObligation])] = []
+        let loans = items([.mortgage, .loan])
+        if !loans.isEmpty { sections.append(("Loans", loans)) }
+        let leases = items([.lease])
+        if !leases.isEmpty { sections.append(("Leases", leases)) }
+        let payroll = items([.retirementLoan])
+        if !payroll.isEmpty { sections.append(("Payroll-deducted", payroll)) }
+        return sections.map { (title: $0.0, items: $0.1) }
+    }
+
+    /// Delete a category from the shared picker (long-press) — the server
+    /// un-categorizes its transactions and any bills; reload to reflect it.
+    func deleteCategory(id: String) async {
+        do {
+            try await api.deleteCategory(id: id)
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
     func setBillCategory(_ bill: Components.Schemas.Bill, to category: Components.Schemas.Category) async {
@@ -111,6 +216,30 @@ final class BillsViewModel {
         }
     }
 
+    /// Edit an existing bill's fields. Reloads on success so the row reflects the
+    /// server's copy; the server records it as an undoable action.
+    func editBill(
+        _ bill: Components.Schemas.Bill,
+        name: String,
+        amountMinor: Int64,
+        currency: String,
+        frequency: Components.Schemas.RecurringFrequency,
+        nextDueDate: String?,
+        categoryID: String?
+    ) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, amountMinor > 0 else { return }
+        do {
+            try await api.updateBill(
+                id: bill.id, name: trimmed, amountMinor: amountMinor, currency: currency,
+                frequency: frequency, nextDueDate: nextDueDate, categoryID: categoryID)
+            await load()
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
     func deleteBill(_ bill: Components.Schemas.Bill) async {
         guard let index = bills.firstIndex(where: { $0.id == bill.id }) else { return }
         bills.remove(at: index)
@@ -133,16 +262,25 @@ final class BillsViewModel {
         defer { isSyncing = false }
         syncResult = nil
         do {
-            let imported = try await api.syncAllTransactions()
-            syncResult =
-                imported == 0
-                ? "Already up to date."
-                : "Imported \(imported) new transaction\(imported == 1 ? "" : "s")."
+            let totals = try await api.syncAllTransactions()
+            syncResult = Self.syncSummary(totals)
             errorMessage = nil
             await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
+    }
+
+    /// Human summary of a sync: what came in, and what the app filed so the user
+    /// doesn't have to (M96 "say what you did").
+    static func syncSummary(_ totals: SyncTotals) -> String {
+        guard totals.imported > 0 else { return "Already up to date." }
+        var message = "Imported \(totals.imported) new transaction\(totals.imported == 1 ? "" : "s")."
+        var filed: [String] = []
+        if totals.autoCategorized > 0 { filed.append("categorized \(totals.autoCategorized)") }
+        if totals.transfersFiled > 0 { filed.append("filed \(totals.transfersFiled) as transfers") }
+        if !filed.isEmpty { message += " Auto-\(filed.joined(separator: ", ")) for you." }
+        return message
     }
 
     // MARK: Bill suggestions

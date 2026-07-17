@@ -26,6 +26,11 @@ LIABILITY_ACCOUNT_TYPES = frozenset(
         "other_liability",
     }
 )
+# A 401(k) loan is borrowed from — and repaid to — the household's own retirement,
+# so it is net-worth-neutral: excluded from net worth entirely rather than shown as
+# an external asset or liability. Its monthly repayment is still a cash-flow claim
+# (handled in safe-to-spend), but the balance is a wash against retirement.
+RETIREMENT_LOAN_TYPES = frozenset({"401k_loan"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +54,10 @@ def calculate_net_worth(balances: list[AccountBalance], currency: str) -> Calcul
     warnings: list[str] = []
 
     for balance in balances:
+        # A 401(k) loan is owed to yourself — net-worth-neutral, so it counts as
+        # neither an asset nor a liability nor toward the total.
+        if balance.account_type in RETIREMENT_LOAN_TYPES:
+            continue
         total += balance.balance
 
         if balance.account_type in ASSET_ACCOUNT_TYPES:

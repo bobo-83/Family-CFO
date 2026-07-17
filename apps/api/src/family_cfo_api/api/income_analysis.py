@@ -20,7 +20,7 @@ from family_cfo_financial_engine import (
     gross_up_from_net,
 )
 
-from family_cfo_api import audit, income_detection, repository
+from family_cfo_api import audit, finance_service, income_detection, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.finance_service import add_months
 from family_cfo_api.schemas import (
@@ -238,49 +238,10 @@ def build_income_analysis(
 ) -> IncomeAnalysisResponse:
     """The full M61–M63 income analysis; shared by the endpoint and the chat tool (M64)."""
     since = date.today() - timedelta(days=ANALYSIS_WINDOW_DAYS)
-    rows = repository.list_income_detection_transactions(engine, household.id, since=since)
-    transactions = [
-        income_detection.IncomeTransaction(
-            id=txn_id,
-            occurred_at=occurred_at,
-            amount_minor=amount_minor,
-            currency=currency,
-            merchant=merchant,
-            description=description,
-            account_name=account_name,
-        )
-        for (
-            txn_id,
-            occurred_at,
-            amount_minor,
-            currency,
-            merchant,
-            description,
-            account_name,
-        ) in rows
-    ]
-    overrides = repository.list_income_overrides(engine, household.id)
-    excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
-    included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
-
-    # M63: internal transfers (money moving between the household's own
-    # accounts) are dropped from the analysis entirely — not counted, not
-    # offered. An explicit "include" verdict overrides: the user is the
-    # authority on what is income.
-    outflows_by_amount: dict[int, list[date]] = {}
-    for occurred_at, amount_minor in repository.list_household_outflows(
-        engine, household.id, since=since
-    ):
-        outflows_by_amount.setdefault(amount_minor, []).append(occurred_at)
-    transactions = [
-        t
-        for t in transactions
-        if t.id in included_ids
-        or not income_detection.is_internal_transfer(t, outflows_by_amount)
-    ]
-
-    candidates = income_detection.detect_income_sources(
-        transactions, excluded_ids=excluded_ids
+    # M112: detection (transfer exclusion + overrides + grouping) is shared with
+    # the cash outlook, so both features see the same income sources.
+    transactions, candidates, included_ids, excluded_ids = (
+        finance_service.recurring_income_candidates(engine, household.id, since=since)
     )
     detected_ids = {t.id for c in candidates for t in c.transactions}
 
@@ -346,8 +307,13 @@ def build_income_analysis(
     ][:_OTHER_INFLOWS_CAP]
 
     # M63: disclose when the synced history does not span the full window —
-    # a mid-year start understates both income and the tax on it.
-    coverage_start = rows[0][1] if rows else None
+    # a mid-year start understates both income and the tax on it. Uses the raw
+    # inflow rows (pre transfer-exclusion): coverage is about how far back the
+    # SYNCED history goes, not how much of it counted as income.
+    raw_rows = repository.list_income_detection_transactions(
+        engine, household.id, since=since
+    )
+    coverage_start = raw_rows[0][1] if raw_rows else None
     coverage_days = (date.today() - coverage_start).days if coverage_start else 0
     coverage_warning: str | None = None
     if coverage_start is None:
@@ -473,6 +439,7 @@ async def create_income_earner(
         "income_profile",
         profile_id,
         f"Declared compensation for '{payload.label.strip()}'",
+        undo_token=undo_actions.created("income_profile", profile_id),
     )
     records = [
         r for r in repository.list_income_profiles(engine, session.household_id)
@@ -497,7 +464,14 @@ async def delete_income_earner(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
-    if not repository.delete_income_profile(engine, session.household_id, earner_id):
+    before = next(
+        (r for r in repository.list_income_profiles(engine, session.household_id)
+         if r.id == earner_id),
+        None,
+    )
+    if before is None or not repository.delete_income_profile(
+        engine, session.household_id, earner_id
+    ):
         raise HTTPException(status_code=404, detail="Earner not found")
     audit.write_audit(
         engine,
@@ -506,7 +480,8 @@ async def delete_income_earner(
         "income_profile.deleted",
         "income_profile",
         earner_id,
-        "Removed a declared compensation entry",
+        f"Removed declared compensation for '{before.label}'",
+        undo_token=undo_actions.income_profile_deleted(before),
     )
     return Response(status_code=204)
 
@@ -674,6 +649,9 @@ async def set_income_override(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
+    previous = repository.list_income_overrides(engine, session.household_id).get(
+        payload.transaction_id
+    )
     if not repository.set_income_override(
         engine, session.household_id, payload.transaction_id, payload.verdict
     ):
@@ -686,6 +664,7 @@ async def set_income_override(
         "transaction",
         payload.transaction_id,
         f"Income analysis override: {payload.verdict}",
+        undo_token=undo_actions.income_override_set(payload.transaction_id, previous),
     )
     return Response(status_code=204)
 
@@ -710,6 +689,9 @@ async def update_income_tax_settings(
     state = payload.state.upper() if payload.state else None
     if state is not None and state not in US_STATES:
         raise HTTPException(status_code=422, detail="Unknown state code")
+    before = repository.get_household(engine, session.household_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail="Household not found")
     repository.update_tax_settings(
         engine,
         session.household_id,
@@ -726,5 +708,6 @@ async def update_income_tax_settings(
         session.household_id,
         f"Tax settings: {payload.tax_filing_status}, net={payload.income_treated_as_net}, "
         f"state={state or 'unset'}",
+        undo_token=undo_actions.tax_settings_updated(before),
     )
     return Response(status_code=204)
