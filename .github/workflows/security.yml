@@ -9,6 +9,13 @@ on:
 jobs:
   secret-scan:
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits via the API on pull_request events;
+    # without these read scopes the default GITHUB_TOKEN gets 403 "Resource not
+    # accessible by integration" and the job fails for every PR (it only ever ran
+    # on direct pushes to main before, which use a different scan path).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
