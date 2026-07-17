@@ -137,7 +137,12 @@ if [ "${IOS_TEST:-0}" = "1" ]; then
 fi
 
 # --- Build -------------------------------------------------------------------
-log "Building ${IOS_SCHEME} (${IOS_CONFIG}) for the device…"
+# M120 (ADR 0029): the monorepo ships ONE version. The app's marketing version is
+# stamped from the repo VERSION file, and the build number from the clock (always
+# increasing, so over-the-top installs never fight a stale build number).
+APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
+log "Building ${IOS_SCHEME} (${IOS_CONFIG}) v${APP_VERSION} (${BUILD_NUMBER}) for the device…"
 xcodebuild build \
   -project "$IOS_PROJECT" \
   -scheme "$IOS_SCHEME" \
@@ -145,6 +150,8 @@ xcodebuild build \
   -destination "id=${DEVICE_UDID}" \
   -derivedDataPath "$DERIVED" \
   -allowProvisioningUpdates \
+  MARKETING_VERSION="$APP_VERSION" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   -quiet \
   || die "Build failed. Run without -quiet for the full log:
        xcodebuild build -project $IOS_PROJECT -scheme $IOS_SCHEME -destination 'id=${DEVICE_UDID}' -allowProvisioningUpdates"
