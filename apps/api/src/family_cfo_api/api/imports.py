@@ -6,7 +6,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
@@ -150,6 +150,7 @@ async def apply_import(
     if record is None:
         raise HTTPException(status_code=404, detail="Import not found")
 
+    previous_status = record.status
     updated_count = repository.apply_import(engine, session.household_id, import_id)
     logger.info("import applied import_id=%s transactions_updated=%s", import_id, updated_count)
     audit.write_audit(
@@ -160,6 +161,7 @@ async def apply_import(
         "import",
         import_id,
         f"Applied import ({updated_count} transactions confirmed)",
+        undo_token=undo_actions.import_applied(import_id, previous_status),
     )
 
     updated = repository.get_import(engine, session.household_id, import_id)

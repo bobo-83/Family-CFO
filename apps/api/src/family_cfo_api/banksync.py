@@ -39,6 +39,12 @@ _TIMEOUT_SECONDS = 30.0
 # a full ~13 months to work with.
 SYNC_LOOKBACK_DAYS = 400
 
+# M107: SimpleFIN publishes new data ~once per day and rate-limits a token to ~24
+# requests/day. The AUTOMATIC background poller therefore syncs a connection at most
+# once per this interval (≈ once a day). User-initiated pull-to-refresh is NOT
+# gated — a human explicitly asking for fresh data always hits the provider.
+SCHEDULED_SYNC_INTERVAL = timedelta(hours=24)
+
 
 class BankSyncError(RuntimeError):
     """A sync/claim failure with a user-safe message (no credentials inside)."""
@@ -126,6 +132,8 @@ class ExternalAccount:
     name: str
     currency: str
     balance_minor: int | None
+    # The real institution behind this account (SimpleFIN's per-account `org`).
+    institution: str | None = None
     transactions: list[ExternalTransaction] = field(default_factory=list)
 
 
@@ -193,6 +201,8 @@ class SimpleFINConnector:
                 for txn in item.get("transactions", [])
                 if txn.get("id") and txn.get("posted") is not None
             ]
+            org = item.get("org") or {}
+            institution = org.get("name") or org.get("domain")
             accounts.append(
                 ExternalAccount(
                     external_id=str(item["id"]),
@@ -201,6 +211,7 @@ class SimpleFINConnector:
                     balance_minor=(
                         _decimal_to_minor(str(item["balance"])) if item.get("balance") else None
                     ),
+                    institution=str(institution) if institution else None,
                     transactions=transactions,
                 )
             )
@@ -215,6 +226,36 @@ class SyncResult:
     accounts_synced: int
     imported: int
     duplicates_skipped: int
+
+
+def due_for_sync(connection: repository.InstitutionConnectionRecord) -> bool:
+    """Whether the AUTOMATIC daily poller should sync this connection now — i.e. it
+    hasn't been synced within ``SCHEDULED_SYNC_INTERVAL`` (≈ once a day). SimpleFIN
+    only refreshes ~daily and rate-limits, so the background job must not exceed
+    this (M107). Only the poller uses this gate; user pull-to-refresh always syncs."""
+    if connection.last_synced_at is None:
+        return True
+    return datetime.now(timezone.utc) - connection.last_synced_at >= SCHEDULED_SYNC_INTERVAL
+
+
+def sync_due_connections(engine: Engine, settings: Settings) -> set[str]:
+    """The scheduled poller's unit of work: sync every connection that's due (at
+    most once/day each), returning the household ids that were synced so the caller
+    can auto-file. One connection failing is recorded and never stops the rest.
+
+    Kept here (not inline in the worker) so the once-a-day cadence is directly
+    testable — the regression guard for the old un-gated 5-minute poll (ADR 0019)."""
+    households: set[str] = set()
+    for connection in repository.list_all_institution_connections(engine):
+        if not due_for_sync(connection):
+            continue
+        try:
+            sync_connection(engine, settings, connection)
+            households.add(connection.household_id)
+        except BankSyncError:
+            # Error already recorded on the connection; keep syncing others.
+            continue
+    return households
 
 
 def sync_connection(
@@ -252,6 +293,7 @@ def sync_connection(
             name=ext.name,
             currency=ext.currency,
             account_type=infer_account_type(ext.name),
+            institution=ext.institution,
         )
         if ext.balance_minor is not None:
             repository.record_account_balance(engine, account_id, ext.balance_minor)

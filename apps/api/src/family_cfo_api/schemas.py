@@ -15,6 +15,7 @@ AccountType = Literal[
     "mortgage",
     "auto_loan",
     "student_loan",
+    "401k_loan",
     "real_estate",
     "other_asset",
     "other_liability",
@@ -123,6 +124,12 @@ class MonthlyCashFlow(BaseModel):
     income: Money
     bills: Money
     net: Money
+    # Monthly gross from the W2 / compensation profile, when one exists. Shown as a
+    # baseline next to actual income (which is net money-in) — not added to it.
+    income_baseline: Money | None = None
+    # Tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, out of the
+    # discretionary spending breakdown. None/absent when the household has no taxes filed.
+    taxes: Money | None = None
 
 
 class AssetCategoryTotal(BaseModel):
@@ -240,6 +247,20 @@ class SpendingByCategory(BaseModel):
     uncategorized: Money
 
 
+class LiquidAccountBalance(BaseModel):
+    """One account that contributes to the liquid balance (M96 drill-down)."""
+
+    name: str
+    balance: Money
+
+
+class NamedAmount(BaseModel):
+    """A labelled line behind a safe-to-spend total (a bill, a debt, a card)."""
+
+    name: str
+    amount: Money
+
+
 class SafeToSpend(BaseModel):
     """M93: what's actually free to spend now — liquid cash net of the emergency
     fund, bills due, and minimum debt payments. total_debt is reported (not
@@ -249,10 +270,31 @@ class SafeToSpend(BaseModel):
     emergency_fund_reserved: Money
     bills_due: Money
     minimum_debt_payments: Money
+    # M96: full credit-card balances when the household pays in full monthly; 0 otherwise.
+    credit_card_payments: Money | None = None
+    # M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the
+    # 'bill way' (never a monthly total, so already-paid charges aren't double-counted).
+    subscription_forecast: Money | None = None
     committed_total: Money
     safe_to_spend: Money
     total_debt: Money
     warnings: list[str] = Field(default_factory=list)
+    # M96: the checking/savings accounts that add up to liquid_balance, so the
+    # detail view can show exactly which accounts (and balances) make the total.
+    liquid_accounts: list[LiquidAccountBalance] = Field(default_factory=list)
+    # M96 drill-downs behind each committed line: the debts and their minimum
+    # payments, and the credit cards and their balances (when paid in full).
+    minimum_debt_items: list[NamedAmount] = Field(default_factory=list)
+    credit_card_items: list[NamedAmount] = Field(default_factory=list)
+    # M98: the bills that make up bills_due, over the safe-to-spend horizon (a
+    # longer window than the Overview's 14-day upcoming list), so the drill-down
+    # matches the number.
+    bill_items: list[NamedAmount] = Field(default_factory=list)
+    # M98: the accounts and how much of each is reserved as emergency fund.
+    emergency_fund_items: list[NamedAmount] = Field(default_factory=list)
+    # M109: the recurring subscriptions behind subscription_forecast — the next
+    # charge and its amount, so the drill-down explains the reserved total.
+    subscription_forecast_items: list[NamedAmount] = Field(default_factory=list)
 
 
 class HouseholdContext(BaseModel):
@@ -274,6 +316,13 @@ class HouseholdContext(BaseModel):
     budget_summary: BudgetSummary | None = None
     safe_to_spend: SafeToSpend | None = None
     spending_by_category: SpendingByCategory | None = None
+    # M96: most recent successful bank sync across linked institutions, so the
+    # Overview can show how fresh the underlying data is. None when never synced.
+    last_synced_at: datetime | None = None
+    # M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
+    earliest_month: str | None = None
+    # M97: transactions awaiting duplicate review, for the Review tab's badge.
+    review_count: int = 0
 
 
 class Account(BaseModel):
@@ -283,6 +332,8 @@ class Account(BaseModel):
     balance: Money
     annual_interest_rate: float | None = None
     minimum_payment: Money | None = None
+    # M96: loan/lease end date, for showing maturity and months remaining.
+    maturity_date: date | None = None
     # M33: set when the account is fed by a linked institution (M27).
     institution: str | None = None
     last_synced_at: datetime | None = None
@@ -301,6 +352,23 @@ class Transaction(BaseModel):
     category: str | None = None
     category_id: str | None = None
     description: str | None = None
+    # M96: the account this transaction lives in, and — for a transfer whose other
+    # leg is a linked account — the counterparty account, so the UI can show a
+    # generic "Online Transfer" as e.g. "Brokerage → Rewards Checking".
+    account_name: str | None = None
+    counterparty: str | None = None
+    # M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a
+    # legitimate repeat the user kept), or 'disputed' (contesting with the bank).
+    duplicate_state: str | None = None
+    # M97: the bank/aggregator's reference for this record — the distinguisher
+    # between two otherwise-identical duplicate legs, shown in the Review queue.
+    external_id: str | None = None
+    # M97: the institution (bank) this account was synced from, so the user knows
+    # where to look the transaction up. None for manually-added accounts.
+    institution: str | None = None
+    # M100: a user's free-text note, and whether an image is attached.
+    note: str | None = None
+    has_attachment: bool = False
 
 
 class Category(BaseModel):
@@ -347,6 +415,19 @@ class Goal(BaseModel):
     current: Money
     target_date: date | None = None
     priority: int = Field(ge=1, le=5)
+    # M118: planned monthly contribution — reserved by the spending plan.
+    monthly_contribution: Money | None = None
+
+
+class GoalUpdateRequest(BaseModel):
+    """M118: update a goal's declared fields. Sending monthly_contribution null
+    clears the plan; omitting it leaves it unchanged."""
+
+    name: str | None = None
+    target: Money | None = None
+    target_date: date | None = None
+    priority: int | None = Field(default=None, ge=1, le=5)
+    monthly_contribution: Money | None = None
 
 
 class GoalCreateRequest(BaseModel):
@@ -355,6 +436,7 @@ class GoalCreateRequest(BaseModel):
     target: Money
     target_date: date | None = None
     priority: int = Field(default=3, ge=1, le=5)
+    monthly_contribution: Money | None = None
 
 
 class AccountListResponse(BaseModel):
@@ -369,8 +451,115 @@ class TransactionListResponse(BaseModel):
     transactions: list[Transaction]
 
 
+class AccountObligation(BaseModel):
+    """M106: a recurring monthly payment on a liability account — a mortgage/loan
+    payment, a lease, or a payroll-deducted 401(k)-loan repayment — surfaced on the
+    Bills tab alongside actual bills. `note` explains its balance-sheet effect;
+    `reserved` is whether safe-to-spend already holds this money back."""
+
+    account_id: str
+    name: str
+    amount: Money
+    kind: Literal["mortgage", "loan", "lease", "retirement_loan"]
+    note: str
+    reserved: bool
+
+
 class BillListResponse(BaseModel):
     bills: list[Bill]
+    # M106: recurring obligations that live on liability accounts (loans, leases),
+    # shown on the Bills tab so every recurring commitment is in one place.
+    account_obligations: list[AccountObligation] = Field(default_factory=list)
+
+
+# --- Payment timeline (M111, ADR 0024) ---
+
+
+TimelineItemKind = Literal["bill", "credit_card", "mortgage", "loan", "lease"]
+TimelineItemStatus = Literal["overdue", "due_soon", "upcoming", "paid", "no_date"]
+
+
+class TimelinePaidWith(BaseModel):
+    """The actual transaction that satisfied a timeline item — the receipt behind
+    the checkmark, so a 'Paid' claim is always verifiable."""
+
+    transaction_id: str
+    occurred_at: date
+    amount: Money
+    label: str
+
+
+class PaymentTimelineItem(BaseModel):
+    id: str  # bill id, or liability account id
+    kind: TimelineItemKind
+    name: str
+    # Expected amount: a bill's estimate (variable utilities show their typical
+    # amount), a card's pay-in-full balance, a loan/lease's monthly payment.
+    amount: Money
+    due_date: date | None = None  # None = couldn't infer one (status "no_date")
+    days_until: int | None = None
+    status: TimelineItemStatus
+    paid_with: TimelinePaidWith | None = None
+
+
+class PaymentTimelineResponse(BaseModel):
+    items: list[PaymentTimelineItem]
+    # The bill-paying headline: what's due in the window vs the cash on hand.
+    due_total: Money
+    liquid_balance: Money
+    covered: bool
+    window_days: int
+
+
+# --- 30-day cash outlook (M112, ADR 0026) ---
+
+
+class OutlookEvent(BaseModel):
+    """One expected cash movement: a payday (positive) or a payment (negative)."""
+
+    occurred_on: date
+    name: str
+    amount: Money  # signed: inflow positive, outflow negative
+    kind: Literal["income", "bill", "credit_card", "mortgage", "loan", "lease"]
+
+
+class CashOutlookResponse(BaseModel):
+    """Projected cash over the horizon: paychecks in, payments out, and the
+    lowest point the balance reaches — the lived counterpart to safe-to-spend's
+    zero-income stress test."""
+
+    starting_cash: Money
+    events: list[OutlookEvent]
+    ending_cash: Money
+    lowest_balance: Money
+    lowest_date: date | None = None
+    expected_income: Money
+    obligations: Money
+    horizon_days: int
+    # The Bills tab's due-vs-cash headline (14-day window), repeated here so the
+    # Overview shows the SAME figures as Bills (ADR 0025 vocabulary parity).
+    due_soon: Money
+    due_soon_covered: bool
+    due_soon_window_days: int
+
+
+class SpendingPlanResponse(BaseModel):
+    """M113 (ADR 0027): left to spend this month — expected income minus what's
+    already spent and what's still committed. The accrual counterpart to the
+    cash outlook's cash-timing view."""
+
+    month: str  # "YYYY-MM"
+    income_received: Money
+    income_projected: Money
+    expected_income: Money
+    spent: Money
+    bills_remaining: Money
+    account_obligations: Money
+    # M118: goals' declared monthly contributions, reserved by the plan.
+    planned_savings: Money
+    left_to_spend: Money
+    per_day: Money  # a pace, not a rule; zero when left_to_spend is negative
+    days_remaining: int
 
 
 # --- Bill suggestions from transactions (M58) ---
@@ -531,6 +720,26 @@ class W2ScanResult(BaseModel):
     employer: str | None = None
     wages_minor: int | None = None
     federal_withheld_minor: int | None = None
+    note: str
+
+
+class LoanScanRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_media_type: W2ScanMediaType
+
+
+class LoanScanResult(BaseModel):
+    """Candidate loan/lease values read from a statement — the user confirms and
+    edits before anything is saved. For a lease with no stated payoff, the balance
+    is estimated as payments_remaining × monthly payment (the remaining obligation)."""
+
+    name: str | None = None
+    monthly_payment_minor: int | None = None
+    balance_minor: int | None = None
+    payments_remaining: int | None = None
+    maturity_date: date | None = None
+    apr_percent: float | None = None
+    is_lease: bool = False
     note: str
 
 
@@ -807,10 +1016,78 @@ class BackupJob(BaseModel):
     completed_at: datetime | None = None
     pruned_at: datetime | None = None
     created_at: datetime
+    # M98: whether this backup reached the off-box share, and the reason if not.
+    remote_status: str | None = None
+    remote_error: str | None = None
 
 
 class BackupJobListResponse(BaseModel):
     backups: list[BackupJob]
+
+
+class BackupConfig(BaseModel):
+    """M98: the Synology SMB target off-box backups upload to, and the cadence.
+    The password is never returned — `has_password` says whether one is stored.
+    `latest` is the most recent job so the UI can show status + failure reason."""
+    frequency: str = "daily"
+    smb_host: str | None = None
+    smb_share: str | None = None
+    smb_folder: str | None = None
+    smb_username: str | None = None
+    smb_domain: str | None = None
+    has_password: bool = False
+    # M98: cap on the combined size of all backups (bytes); null = no cap.
+    max_bytes: int | None = None
+    latest: BackupJob | None = None
+
+
+class BackupConfigUpdateRequest(BaseModel):
+    frequency: Literal["every_15min", "hourly", "every_6h", "daily", "weekly", "off"] = "daily"
+    smb_host: str | None = None
+    smb_share: str | None = None
+    smb_folder: str | None = None
+    smb_username: str | None = None
+    # Write-only. Omit/null to keep the stored password unchanged.
+    smb_password: str | None = None
+    smb_domain: str | None = None
+    max_bytes: int | None = None
+
+
+class BackupDestinationCheckRequest(BaseModel):
+    """Test the entered connection before saving. Password omitted → use the
+    stored one (so re-testing a saved target doesn't require retyping it)."""
+    smb_host: str = Field(min_length=1, max_length=255)
+    smb_share: str = Field(min_length=1, max_length=255)
+    smb_folder: str | None = None
+    smb_username: str = Field(min_length=1, max_length=255)
+    smb_password: str | None = None
+    smb_domain: str | None = None
+
+
+class BackupDestinationCheckResponse(BaseModel):
+    writable: bool
+    reason: str | None = None
+
+
+class RemoteBackup(BaseModel):
+    filename: str
+    size_bytes: int
+    modified_at: int  # epoch seconds
+
+
+class RemoteBackupListResponse(BaseModel):
+    backups: list[RemoteBackup]
+
+
+class RemoteRestoreRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=300)
+
+
+class BackupEncryptionKey(BaseModel):
+    """M98: the key that decrypts every backup. Returned only to the owner so they
+    can store it safely — without it, backups can't be restored on a rebuilt box."""
+    configured: bool
+    key: str | None = None
 
 
 # --- M9: household setup, data management, and audit --------------------------
@@ -830,6 +1107,9 @@ class HouseholdUpdateRequest(BaseModel):
     emergency_fund_target_months: float | None = Field(default=None, ge=1, le=60)
     # Distinguishes "reset to default" (True) from "leave unchanged" (field omitted).
     clear_emergency_fund_target: bool = False
+    # M96: pays credit cards in full monthly → safe-to-spend commits full card
+    # balances. None leaves it unchanged.
+    credit_cards_paid_in_full: bool | None = None
 
 
 class Member(BaseModel):
@@ -861,6 +1141,7 @@ class AccountCreateRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
+    maturity_date: date | None = None
 
 
 class AccountUpdateRequest(BaseModel):
@@ -868,6 +1149,7 @@ class AccountUpdateRequest(BaseModel):
     type: AccountType | None = None
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
+    maturity_date: date | None = None
     # M36: percent XOR amount; clear_emergency_fund removes the designation.
     emergency_fund_percent: float | None = Field(default=None, ge=0, le=100)
     emergency_fund_amount: Money | None = None
@@ -895,6 +1177,12 @@ class TransactionUpdateRequest(BaseModel):
     description: str | None = None
     category_id: str | None = None
     clear_category: bool = False
+    # M97: resolve a Review-queue flag — 'dismissed' (keep both, a real repeat) or
+    # 'disputed' (contesting). When present, it's applied to this transaction.
+    duplicate_state: Literal["dismissed", "disputed"] | None = None
+    # M100: present (even null/empty) sets the note; absent leaves it (checked via
+    # model_fields_set in the endpoint).
+    note: str | None = None
 
 
 class BillCreateRequest(BaseModel):
@@ -936,6 +1224,9 @@ class AuditEvent(BaseModel):
     entity_id: str | None = None
     summary: str
     created_at: datetime
+    # M101: True when this action can still be reversed from the History screen.
+    undoable: bool = False
+    reverted_at: datetime | None = None
 
 
 class AuditEventListResponse(BaseModel):
@@ -1006,3 +1297,8 @@ class ConnectionSyncResult(BaseModel):
     accounts_synced: int
     imported: int
     duplicates_skipped: int
+    # Imported transactions the system filed automatically so the user need not
+    # tag them: transfers routed to the Transfers category, and known merchants
+    # reusing the category the user gave them before.
+    transfers_filed: int = 0
+    auto_categorized: int = 0

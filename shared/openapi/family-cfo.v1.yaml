@@ -194,14 +194,47 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "409":
           $ref: "#/components/responses/Error"
+  /spending:
+    get:
+      tags:
+        - Household
+      operationId: getSpendingByCategory
+      summary: Spending by category for a month (defaults to the current month)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: "Month as YYYY-MM; omit for the current month."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Spending by category for the month
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpendingByCategory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
   /household:
     get:
       tags:
         - Household
       operationId: getHouseholdContext
-      summary: Get household financial context summary
+      summary: Get household financial context summary (current, or a past month's snapshot)
       security:
         - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: "YYYY-MM; a past month returns its frozen snapshot. Omit for the live current month."
+          schema:
+            type: string
       responses:
         "200":
           description: Household context
@@ -234,6 +267,54 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /overview/cash-outlook:
+    get:
+      tags:
+        - Household
+      operationId: getCashOutlook
+      summary: Projected cash over the next 30 days — paychecks in, payments out
+      description: >-
+        M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income
+        stress test. Expected paydays (recurring-income detection) and every
+        payment-timeline obligation, projected day by day, with the lowest point
+        the balance reaches. Repeats the Bills due-vs-cash headline so the
+        Overview and Bills screens say the same thing.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cash outlook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashOutlookResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /overview/spending-plan:
+    get:
+      tags:
+        - Household
+      operationId: getSpendingPlan
+      summary: Left to spend this month — income minus spent and committed
+      description: >-
+        M113 (ADR 0027): expected income (received + projected paydays) minus
+        month-to-date spending, unpaid bills through month end, and the month's
+        loan/lease payments. The accrual counterpart to the cash outlook.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Spending plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpendingPlanResponse"
+        "401":
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
@@ -359,6 +440,38 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+  /audit/{audit_id}/undo:
+    post:
+      tags:
+        - Audit
+      operationId: undoAuditEvent
+      summary: Reverse a previously-recorded action
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: audit_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The updated audit event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEvent"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
           $ref: "#/components/responses/Error"
   /accounts:
     get:
@@ -499,9 +612,16 @@ paths:
       tags:
         - Transactions
       operationId: listTransactions
-      summary: List transactions for the household
+      summary: List transactions (recent, or every one in a given YYYY-MM month)
       security:
         - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: "YYYY-MM; returns every transaction in that month. Omit for the recent set."
+          schema:
+            type: string
       responses:
         "200":
           description: Transactions
@@ -510,6 +630,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionListResponse"
         "401":
+          $ref: "#/components/responses/Error"
+        "422":
           $ref: "#/components/responses/Error"
     post:
       tags:
@@ -536,6 +658,33 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+  /transactions/review:
+    get:
+      tags:
+        - Transactions
+      operationId: listTransactionsForReview
+      summary: Transactions to review — duplicates (default), transfers, or credits/refunds
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: "duplicates (default) | transfers | credits"
+          schema:
+            type: string
+            enum: [duplicates, transfers, credits]
+      responses:
+        "200":
+          description: Transactions to review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
           $ref: "#/components/responses/Error"
   /transactions/{transaction_id}:
     patch:
@@ -588,6 +737,103 @@ paths:
       responses:
         "204":
           description: Transaction deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /transactions/{transaction_id}/attachment:
+    put:
+      tags:
+        - Transactions
+      operationId: uploadTransactionAttachment
+      summary: Attach an image to a transaction (parsed for a description)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Updated transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+    get:
+      tags:
+        - Transactions
+      operationId: getTransactionAttachment
+      summary: Download a transaction's attached image
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Transactions
+      operationId: deleteTransactionAttachment
+      summary: Remove a transaction's attached image
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Attachment removed
         "401":
           $ref: "#/components/responses/Error"
         "403":
@@ -807,6 +1053,28 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+  /bills/timeline:
+    get:
+      tags:
+        - Bills
+      operationId: getPaymentTimeline
+      summary: Everything that needs paying, as one time-ordered list
+      description: >-
+        M111 (ADR 0024): bills, credit-card payments, and loan/lease payments in
+        one list organized by time (overdue / due soon / upcoming / paid this
+        cycle) with a cash-versus-due headline. Paid rows carry the actual matched
+        transaction so the checkmark is verifiable.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment timeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentTimelineResponse"
+        "401":
           $ref: "#/components/responses/Error"
   /bills/suggestions:
     get:
@@ -1111,6 +1379,35 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /accounts/scan-statement:
+    post:
+      tags:
+        - Accounts
+      operationId: scanLoanStatement
+      summary: Read a loan/lease statement photo or PDF into candidate values
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoanScanRequest"
+      responses:
+        "200":
+          description: Candidate loan values extracted by the on-box vision model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoanScanResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /income/profile/scan-w2:
     post:
       tags:
@@ -1180,6 +1477,61 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+  /goals/{goal_id}:
+    patch:
+      tags:
+        - Goals
+      operationId: updateGoal
+      summary: "Update a goal (M118: incl. the planned monthly contribution)"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalUpdateRequest"
+      responses:
+        "200":
+          description: Updated goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Goals
+      operationId: deleteGoal
+      summary: Delete a goal
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Goal deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
   /advisor/purchase:
     post:
@@ -1730,6 +2082,192 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /backups/config:
+    get:
+      tags:
+        - Backups
+      operationId: getBackupConfig
+      summary: Backup destination + schedule, with the latest backup's status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Backup configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupConfig"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    put:
+      tags:
+        - Backups
+      operationId: updateBackupConfig
+      summary: Set the backup destination (a mounted share) and schedule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupConfigUpdateRequest"
+      responses:
+        "200":
+          description: Updated configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupConfig"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/destination-check:
+    post:
+      tags:
+        - Backups
+      operationId: checkBackupDestination
+      summary: Test whether the server can write backups to a path (a mounted share)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupDestinationCheckRequest"
+      responses:
+        "200":
+          description: Check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupDestinationCheckResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/remote:
+    get:
+      tags:
+        - Backups
+      operationId: listRemoteBackups
+      summary: List the .enc backups on the configured off-box share
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Backups on the share
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemoteBackupListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/remote/restore:
+    post:
+      tags:
+        - Backups
+      operationId: restoreRemoteBackup
+      summary: Restore from a backup file on the off-box share (destructive)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemoteRestoreRequest"
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupDestinationCheckResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /backups/remote/delete:
+    post:
+      tags:
+        - Backups
+      operationId: deleteRemoteBackup
+      summary: Delete a backup file from the Synology share
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemoteRestoreRequest"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupDestinationCheckResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/encryption-key:
+    get:
+      tags:
+        - Backups
+      operationId: getBackupEncryptionKey
+      summary: Reveal the backup encryption key (owner only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The encryption key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupEncryptionKey"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /backups/{backup_id}:
+    delete:
+      tags:
+        - Backups
+      operationId: deleteBackup
+      summary: Delete an on-box backup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /ai/runtime:
     get:
       tags:
@@ -1984,6 +2522,25 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+  /connections/sync:
+    post:
+      tags:
+        - Connections
+      operationId: syncAllConnections
+      summary: Pull the latest statements from every linked institution at once
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Aggregate sync result across all connections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionSyncResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
   /connections/{connection_id}/sync:
     post:
@@ -2241,6 +2798,42 @@ components:
           nullable: true
         description:
           type: string
+        account_name:
+          description: "M96: display name of the account this transaction lives in."
+          type: string
+          nullable: true
+        counterparty:
+          description: >-
+            M96: for a transfer whose other leg is a linked account, that account's
+            name — so a generic 'Online Transfer' can be shown as source → destination.
+          type: string
+          nullable: true
+        duplicate_state:
+          description: >-
+            M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed'
+            (a legitimate repeat the user kept), or 'disputed' (contesting).
+          type: string
+          enum: [flagged, dismissed, disputed]
+          nullable: true
+        external_id:
+          description: >-
+            M97: the bank/aggregator's reference for this record — distinguishes
+            two otherwise-identical duplicate legs in the Review queue.
+          type: string
+          nullable: true
+        institution:
+          description: >-
+            M97: the institution (bank) this account was synced from, so the user
+            knows where to look the transaction up. Null for manual accounts.
+          type: string
+          nullable: true
+        note:
+          description: "M100: a user's free-text note."
+          type: string
+          nullable: true
+        has_attachment:
+          description: "M100: whether an image is attached to this transaction."
+          type: boolean
     Category:
       type: object
       required:
@@ -2339,6 +2932,35 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Transaction"
+    AccountObligation:
+      type: object
+      description: >
+        M106: a recurring monthly payment on a liability account — a mortgage/loan
+        payment, a lease, or a payroll-deducted 401(k)-loan repayment — shown on
+        the Bills tab alongside actual bills. `note` explains its balance-sheet
+        effect; `reserved` is whether safe-to-spend already holds it back.
+      required:
+        - account_id
+        - name
+        - amount
+        - kind
+        - note
+        - reserved
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        kind:
+          type: string
+          enum: [mortgage, loan, lease, retirement_loan]
+        note:
+          type: string
+        reserved:
+          type: boolean
     BillListResponse:
       type: object
       required:
@@ -2348,6 +2970,195 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bill"
+        account_obligations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountObligation"
+    OutlookEvent:
+      type: object
+      description: >-
+        One expected cash movement in the outlook window (M112): a payday
+        (positive amount) or a payment (negative amount).
+      required:
+        - occurred_on
+        - name
+        - amount
+        - kind
+      properties:
+        occurred_on:
+          type: string
+          format: date
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        kind:
+          type: string
+          enum: [income, bill, credit_card, mortgage, loan, lease]
+    CashOutlookResponse:
+      type: object
+      description: >-
+        Projected cash over the horizon (M112, ADR 0026): paychecks in, payments
+        out, and the lowest point the balance reaches — the lived counterpart to
+        safe-to-spend's zero-income stress test.
+      required:
+        - starting_cash
+        - events
+        - ending_cash
+        - lowest_balance
+        - expected_income
+        - obligations
+        - horizon_days
+        - due_soon
+        - due_soon_covered
+        - due_soon_window_days
+      properties:
+        starting_cash:
+          $ref: "#/components/schemas/Money"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutlookEvent"
+        ending_cash:
+          $ref: "#/components/schemas/Money"
+        lowest_balance:
+          $ref: "#/components/schemas/Money"
+        lowest_date:
+          type: string
+          format: date
+          nullable: true
+        expected_income:
+          $ref: "#/components/schemas/Money"
+        obligations:
+          $ref: "#/components/schemas/Money"
+        horizon_days:
+          type: integer
+        due_soon:
+          $ref: "#/components/schemas/Money"
+        due_soon_covered:
+          type: boolean
+        due_soon_window_days:
+          type: integer
+    SpendingPlanResponse:
+      type: object
+      description: >-
+        M113 (ADR 0027): left to spend this month — expected income minus
+        what's already spent and what's still committed. `per_day` is a pace,
+        not a rule; zero when `left_to_spend` is negative.
+      required:
+        - month
+        - income_received
+        - income_projected
+        - expected_income
+        - spent
+        - bills_remaining
+        - account_obligations
+        - planned_savings
+        - left_to_spend
+        - per_day
+        - days_remaining
+      properties:
+        month:
+          type: string
+        income_received:
+          $ref: "#/components/schemas/Money"
+        income_projected:
+          $ref: "#/components/schemas/Money"
+        expected_income:
+          $ref: "#/components/schemas/Money"
+        spent:
+          $ref: "#/components/schemas/Money"
+        bills_remaining:
+          $ref: "#/components/schemas/Money"
+        account_obligations:
+          $ref: "#/components/schemas/Money"
+        planned_savings:
+          $ref: "#/components/schemas/Money"
+        left_to_spend:
+          $ref: "#/components/schemas/Money"
+        per_day:
+          $ref: "#/components/schemas/Money"
+        days_remaining:
+          type: integer
+    TimelinePaidWith:
+      type: object
+      description: >-
+        The actual transaction that satisfied a timeline item — the receipt
+        behind the checkmark, so a "Paid" claim is always verifiable (ADR 0024).
+      required:
+        - transaction_id
+        - occurred_at
+        - amount
+        - label
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date
+        amount:
+          $ref: "#/components/schemas/Money"
+        label:
+          type: string
+    PaymentTimelineItem:
+      type: object
+      description: >-
+        One payment on the Bills timeline (M111): a bill, a credit-card payment,
+        or a loan/lease payment. `amount` is the expected figure (a bill's
+        estimate — variable utilities show their typical amount — a card's
+        pay-in-full balance, a loan's monthly payment); `paid_with` carries the
+        matched actual charge when status is "paid".
+      required:
+        - id
+        - kind
+        - name
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [bill, credit_card, mortgage, loan, lease]
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        days_until:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [overdue, due_soon, upcoming, paid, no_date]
+        paid_with:
+          $ref: "#/components/schemas/TimelinePaidWith"
+          nullable: true
+    PaymentTimelineResponse:
+      type: object
+      required:
+        - items
+        - due_total
+        - liquid_balance
+        - covered
+        - window_days
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentTimelineItem"
+        due_total:
+          $ref: "#/components/schemas/Money"
+        liquid_balance:
+          $ref: "#/components/schemas/Money"
+        covered:
+          type: boolean
+        window_days:
+          type: integer
     BillSuggestion:
       type: object
       description: >
@@ -2701,6 +3512,30 @@ components:
         wages_minor: { type: integer }
         federal_withheld_minor: { type: integer }
         note: { type: string }
+    LoanScanRequest:
+      type: object
+      required: [image_base64, image_media_type]
+      properties:
+        image_base64: { type: string }
+        image_media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+    LoanScanResult:
+      type: object
+      description: >-
+        Candidate loan/lease values read from a statement — the user confirms and
+        edits before saving. For a lease with no stated payoff, balance is estimated
+        as payments_remaining × the monthly payment.
+      required: [note]
+      properties:
+        name: { type: string }
+        monthly_payment_minor: { type: integer }
+        balance_minor: { type: integer }
+        payments_remaining: { type: integer }
+        maturity_date: { type: string, format: date }
+        apr_percent: { type: number }
+        is_lease: { type: boolean }
+        note: { type: string }
     IncomeAnalysisResponse:
       type: object
       required:
@@ -2842,6 +3677,18 @@ components:
         spending_by_category:
           description: "M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month."
           $ref: "#/components/schemas/SpendingByCategory"
+        last_synced_at:
+          description: "M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced."
+          type: string
+          format: date-time
+          nullable: true
+        earliest_month:
+          description: "M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there."
+          type: string
+          nullable: true
+        review_count:
+          description: "M97: transactions awaiting duplicate review, for the Review tab badge."
+          type: integer
     Budget:
       type: object
       required:
@@ -2929,7 +3776,6 @@ components:
       required:
         - month
         - month_label
-        - categories
         - categorized_total
         - uncategorized
       properties:
@@ -2988,6 +3834,16 @@ components:
         minimum_debt_payments:
           description: Minimum payments owed on liability accounts with recorded terms.
           $ref: "#/components/schemas/Money"
+        credit_card_payments:
+          description: "M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise."
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Money"
+        subscription_forecast:
+          description: "M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming."
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Money"
         committed_total:
           description: emergency_fund_reserved + bills_due + minimum_debt_payments.
           $ref: "#/components/schemas/Money"
@@ -3002,6 +3858,56 @@ components:
           type: array
           items:
             type: string
+        liquid_accounts:
+          description: "M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down."
+          type: array
+          items:
+            $ref: "#/components/schemas/LiquidAccountBalance"
+        minimum_debt_items:
+          description: "M96: the debts and their minimum payments behind minimum_debt_payments."
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        credit_card_items:
+          description: "M96: the cards and their balances behind credit_card_payments (when paid in full)."
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        bill_items:
+          description: "M98: the bills behind bills_due, over the safe-to-spend horizon."
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        emergency_fund_items:
+          description: "M98: the accounts and how much of each is reserved as emergency fund."
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        subscription_forecast_items:
+          description: "M109: the recurring subscriptions (next charge + amount) behind subscription_forecast."
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+    LiquidAccountBalance:
+      type: object
+      required:
+        - name
+        - balance
+      properties:
+        name:
+          type: string
+        balance:
+          $ref: "#/components/schemas/Money"
+    NamedAmount:
+      type: object
+      required:
+        - name
+        - amount
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
     SavingsRate:
       type: object
       required:
@@ -3157,6 +4063,20 @@ components:
         net:
           description: Income minus bills; excludes discretionary spending.
           $ref: "#/components/schemas/Money"
+        income_baseline:
+          description: >-
+            M96: monthly gross from the W2 / compensation profile, when one exists.
+            A baseline shown next to actual income (net money-in); NOT added to it.
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Money"
+        taxes:
+          description: >-
+            M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own,
+            outside the discretionary spending breakdown. Absent when none is filed.
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Money"
     AssetCategoryTotal:
       type: object
       required:
@@ -3190,6 +4110,11 @@ components:
           minimum: 0
         minimum_payment:
           $ref: "#/components/schemas/Money"
+        maturity_date:
+          description: "M96: loan/lease end date, for maturity and months-remaining."
+          type: string
+          format: date
+          nullable: true
         institution:
           type: string
           nullable: true
@@ -3222,6 +4147,7 @@ components:
         - mortgage
         - auto_loan
         - student_loan
+        - 401k_loan
         - real_estate
         - other_asset
         - other_liability
@@ -3253,6 +4179,31 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        monthly_contribution:
+          description: "M118: planned monthly contribution, reserved by the spending plan."
+          $ref: "#/components/schemas/Money"
+          nullable: true
+    GoalUpdateRequest:
+      type: object
+      description: >-
+        M118: update a goal's declared fields. Sending monthly_contribution null
+        clears the plan; omitting it leaves it unchanged.
+      properties:
+        name:
+          type: string
+        target:
+          $ref: "#/components/schemas/Money"
+        target_date:
+          type: string
+          format: date
+          nullable: true
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+        monthly_contribution:
+          $ref: "#/components/schemas/Money"
+          nullable: true
     GoalCreateRequest:
       type: object
       required:
@@ -3273,6 +4224,9 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        monthly_contribution:
+          $ref: "#/components/schemas/Money"
+          nullable: true
           default: 3
     GoalType:
       type: string
@@ -3733,6 +4687,14 @@ components:
         created_at:
           type: string
           format: date-time
+        remote_status:
+          description: "M98: whether this backup reached the off-box share (synced/failed/skipped)."
+          type: string
+          nullable: true
+        remote_error:
+          description: "M98: the reason a copy to the share failed."
+          type: string
+          nullable: true
     BackupJobListResponse:
       type: object
       required:
@@ -3742,6 +4704,142 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BackupJob"
+    BackupConfig:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [every_15min, hourly, every_6h, daily, weekly, off]
+        smb_host:
+          description: "M98: Synology address (IP or hostname) backups upload to over SMB."
+          type: string
+          nullable: true
+        smb_share:
+          type: string
+          nullable: true
+        smb_folder:
+          type: string
+          nullable: true
+        smb_username:
+          type: string
+          nullable: true
+        smb_domain:
+          type: string
+          nullable: true
+        has_password:
+          description: "M98: whether a Synology password is stored (the password itself is never returned)."
+          type: boolean
+        max_bytes:
+          description: "M98: cap on combined size of all backups (bytes); null = no cap."
+          type: integer
+          format: int64
+          nullable: true
+        latest:
+          $ref: "#/components/schemas/BackupJob"
+    BackupConfigUpdateRequest:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [every_15min, hourly, every_6h, daily, weekly, off]
+        smb_host:
+          type: string
+          nullable: true
+        smb_share:
+          type: string
+          nullable: true
+        smb_folder:
+          type: string
+          nullable: true
+        smb_username:
+          type: string
+          nullable: true
+        smb_password:
+          description: "M98: write-only; omit/null to keep the stored password."
+          type: string
+          nullable: true
+        smb_domain:
+          type: string
+          nullable: true
+        max_bytes:
+          type: integer
+          format: int64
+          nullable: true
+    BackupDestinationCheckRequest:
+      type: object
+      required:
+        - smb_host
+        - smb_share
+        - smb_username
+      properties:
+        smb_host:
+          type: string
+        smb_share:
+          type: string
+        smb_folder:
+          type: string
+          nullable: true
+        smb_username:
+          type: string
+        smb_password:
+          type: string
+          nullable: true
+        smb_domain:
+          type: string
+          nullable: true
+    BackupDestinationCheckResponse:
+      type: object
+      required:
+        - writable
+      properties:
+        writable:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+    RemoteBackup:
+      type: object
+      required:
+        - filename
+        - size_bytes
+        - modified_at
+      properties:
+        filename:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        modified_at:
+          description: "Epoch seconds of the file's last-modified time."
+          type: integer
+          format: int64
+    RemoteBackupListResponse:
+      type: object
+      required:
+        - backups
+      properties:
+        backups:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemoteBackup"
+    RemoteRestoreRequest:
+      type: object
+      required:
+        - filename
+      properties:
+        filename:
+          type: string
+    BackupEncryptionKey:
+      type: object
+      required:
+        - configured
+      properties:
+        configured:
+          type: boolean
+        key:
+          description: "M98: the key that decrypts every backup — store it safely."
+          type: string
+          nullable: true
     HouseholdCreateRequest:
       type: object
       required:
@@ -3776,6 +4874,10 @@ components:
         clear_emergency_fund_target:
           description: Reset the emergency-fund target to the default (6 months).
           type: boolean
+        credit_cards_paid_in_full:
+          description: "M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged."
+          type: boolean
+          nullable: true
     Member:
       type: object
       required:
@@ -3850,6 +4952,10 @@ components:
           minimum: 0
         minimum_payment:
           $ref: "#/components/schemas/Money"
+        maturity_date:
+          type: string
+          format: date
+          nullable: true
     AccountUpdateRequest:
       type: object
       properties:
@@ -3862,6 +4968,10 @@ components:
           minimum: 0
         minimum_payment:
           $ref: "#/components/schemas/Money"
+        maturity_date:
+          type: string
+          format: date
+          nullable: true
         emergency_fund_percent:
           description: "M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount."
           type: number
@@ -3925,6 +5035,16 @@ components:
         clear_category:
           description: "M45: remove the category from this transaction."
           type: boolean
+        duplicate_state:
+          description: >-
+            M97: resolve a Review-queue flag — 'dismissed' (keep both, a real
+            repeat) or 'disputed' (contesting with the bank).
+          type: string
+          enum: [dismissed, disputed]
+        note:
+          description: "M100: set/clear the free-text note (present = set, absent = leave)."
+          type: string
+          nullable: true
     BillCreateRequest:
       type: object
       required:
@@ -4010,6 +5130,11 @@ components:
         summary:
           type: string
         created_at:
+          type: string
+          format: date-time
+        undoable:
+          type: boolean
+        reverted_at:
           type: string
           format: date-time
     AuditEventListResponse:
@@ -4274,6 +5399,19 @@ components:
           type: integer
         duplicates_skipped:
           type: integer
+        transfers_filed:
+          type: integer
+          default: 0
+          description: >-
+            Imported transactions auto-filed under the Transfers category
+            (credit-card payments, bank-to-bank transfers) so the user need not
+            tag them and they do not inflate spending.
+        auto_categorized:
+          type: integer
+          default: 0
+          description: >-
+            Imported transactions auto-categorized by reusing the category the
+            household previously assigned to the same merchant.
     AiApplyRequest:
       type: object
       required:

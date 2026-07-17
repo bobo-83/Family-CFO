@@ -142,7 +142,9 @@ def test_description_is_the_fallback_grouping_key() -> None:
 # --- API ---
 
 
-async def _seed_recurring_charges(client, token: str, merchant: str, day_offsets: int = 3) -> None:
+async def _seed_recurring_charges(
+    client, token: str, merchant: str, day_offsets: int = 3, amount_minor: int = 1_549
+) -> None:
     """Create a checking account with a recent monthly charge history."""
     headers = _headers(token)
     account = await client.post(
@@ -160,7 +162,7 @@ async def _seed_recurring_charges(client, token: str, merchant: str, day_offsets
             json={
                 "account_id": account_id,
                 "occurred_at": occurred.isoformat(),
-                "amount": {"amount_minor": -1_549, "currency": "USD"},
+                "amount": {"amount_minor": -amount_minor, "currency": "USD"},
                 "merchant": merchant,
             },
         )
@@ -195,6 +197,36 @@ async def test_suggestions_round_trip_confirm_and_dismiss(demo_client, demo_toke
     assert created.status_code == 201
     listed = (await demo_client.get("/api/v1/bills/suggestions", headers=headers)).json()
     assert listed["suggestions"] == []
+
+
+@pytest.mark.anyio
+async def test_payment_tracked_as_loan_account_is_not_suggested(demo_client, demo_token) -> None:
+    """M110: a recurring payment already modelled as a loan account (its monthly
+    payment reserved via minimum-debt-payments) must not also be suggested as a
+    bill — that would nag the user to double-model the same obligation."""
+    headers = _headers(demo_token)
+    await _seed_recurring_charges(demo_client, demo_token, "DEPT OF EDUCATION", amount_minor=7_801)
+
+    # Without a loan account, the recurring charge IS a bill suggestion.
+    before = (await demo_client.get("/api/v1/bills/suggestions", headers=headers)).json()
+    assert any(s["merchant_key"] == "dept of education" for s in before["suggestions"])
+
+    # Model it as a student-loan account with the same $78.01 monthly payment.
+    created = await demo_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={
+            "name": "Student Loan",
+            "type": "student_loan",
+            "currency": "USD",
+            "minimum_payment": {"amount_minor": 7_801, "currency": "USD"},
+        },
+    )
+    assert created.status_code == 201
+
+    # Now it's tracked as a loan, so it's no longer suggested as a bill.
+    after = (await demo_client.get("/api/v1/bills/suggestions", headers=headers)).json()
+    assert not any(s["merchant_key"] == "dept of education" for s in after["suggestions"])
 
 
 @pytest.mark.anyio
