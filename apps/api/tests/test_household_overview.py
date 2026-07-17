@@ -12,6 +12,42 @@ async def _context(demo_client, demo_token):
 
 
 @pytest.mark.anyio
+async def test_current_month_snapshots_and_past_month_is_historical(
+    demo_client, demo_token
+) -> None:
+    """M96: viewing the current month stores a snapshot; a past month with none
+    yet returns a historical view where the 'now-only' cards are absent."""
+    await _context(demo_client, demo_token)  # current month → snapshot stored
+
+    resp = await demo_client.get(
+        "/api/v1/household?month=2020-01",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # A pre-snapshot past month has no live-only cards. emergency_fund_months is a
+    # required, non-nullable contract field, so a historical view sends 0 as filler
+    # (the emergency-fund *summary* card is what's actually omitted); the client
+    # decodes a plain Double and would fail on null.
+    assert body.get("safe_to_spend") is None
+    assert body.get("emergency_fund") is None
+    assert body.get("emergency_fund_months") == 0.0
+    assert "net_worth" in body  # net worth still comes from snapshots
+
+
+def test_overview_snapshot_round_trip(demo_engine) -> None:
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    assert repository.get_overview_snapshot(demo_engine, hh, "2026-06") is None
+    repository.upsert_overview_snapshot(demo_engine, hh, "2026-06", '{"v": 1}')
+    assert repository.get_overview_snapshot(demo_engine, hh, "2026-06") == '{"v": 1}'
+    # Same month overwrites (the current month refreshes until it passes).
+    repository.upsert_overview_snapshot(demo_engine, hh, "2026-06", '{"v": 2}')
+    assert repository.get_overview_snapshot(demo_engine, hh, "2026-06") == '{"v": 2}'
+
+
+@pytest.mark.anyio
 async def test_context_includes_enriched_summary(demo_client, demo_token) -> None:
     body = await _context(demo_client, demo_token)
 

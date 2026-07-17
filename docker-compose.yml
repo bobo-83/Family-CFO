@@ -79,6 +79,14 @@ services:
     volumes:
       - import_staging:/data/import-staging
       - backups:/data/backups
+      # M98: expose host mounts (e.g. a Synology share mounted under /mnt) so
+      # off-box backups can be written to them. rslave propagates mounts made on
+      # the host after the container starts.
+      - type: bind
+        source: /mnt
+        target: /mnt
+        bind:
+          propagation: rslave
       # M69: fastembed's ONNX model cache (downloaded once, ~130 MB).
       - embedding_cache:/root/.cache
       # M83a: read the web tier's TLS cert so pairing QR codes can carry its
@@ -112,6 +120,14 @@ services:
     volumes:
       - import_staging:/data/import-staging
       - backups:/data/backups
+      # M98: expose host mounts (e.g. a Synology share mounted under /mnt) so
+      # off-box backups can be written to them. rslave propagates mounts made on
+      # the host after the container starts.
+      - type: bind
+        source: /mnt
+        target: /mnt
+        bind:
+          propagation: rslave
       # M69: shared with the api so the model downloads once.
       - embedding_cache:/root/.cache
     depends_on:

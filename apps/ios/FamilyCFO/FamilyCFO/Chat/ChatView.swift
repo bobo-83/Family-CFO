@@ -135,56 +135,81 @@ struct ChatView: View {
         }
     }
 
+    private var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isSending
+    }
+
     private var inputBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             if let attachment = viewModel.pendingAttachment {
-                HStack {
+                HStack(spacing: 8) {
                     Label(attachment.displayName, systemImage: attachment.iconName)
                         .font(.caption)
                         .lineLimit(1)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(Color(.secondarySystemBackground), in: Capsule())
                     Spacer()
                     Button {
                         viewModel.pendingAttachment = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.horizontal)
             }
-            HStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
                 attachmentMenu
-                Button {
-                    toggleDictation()
-                } label: {
-                    Image(systemName: isDictating ? "mic.fill" : "mic")
-                        .font(.title3)
-                        .foregroundStyle(isDictating ? AnyShapeStyle(.red) : AnyShapeStyle(.tint))
-                        .symbolEffect(.pulse, isActive: isDictating)
+                HStack(alignment: .bottom, spacing: 4) {
+                    TextField(
+                        isDictating ? "Listening…" : "Ask about your money…",
+                        text: $draft, axis: .vertical
+                    )
+                    .lineLimit(1...5)
+                    .padding(.vertical, 9)
+                    Button {
+                        toggleDictation()
+                    } label: {
+                        Image(systemName: isDictating ? "mic.fill" : "mic")
+                            .font(.system(size: 18))
+                            .foregroundStyle(isDictating ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                            .symbolEffect(.pulse, isActive: isDictating)
+                            .frame(width: 30, height: 34)
+                    }
                 }
-                TextField(
-                    isDictating ? "Listening…" : "Ask about your money…",
-                    text: $draft, axis: .vertical
-                )
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...4)
-                Button {
-                    stopDictation()
-                    let text = draft
-                    draft = ""
-                    Task { await viewModel.send(text) }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                }
-                .disabled(
-                    draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || viewModel.isSending
-                )
+                .padding(.leading, 16)
+                .padding(.trailing, 6)
+                .background(
+                    Color(.secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                sendButton
             }
-            .padding([.horizontal, .bottom])
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+            .padding(.top, 4)
         }
         .background(.bar)
+    }
+
+    private var sendButton: some View {
+        Button {
+            stopDictation()
+            let text = draft
+            draft = ""
+            Task { await viewModel.send(text) }
+        } label: {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(
+                    canSend ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.systemGray4)),
+                    in: Circle())
+        }
+        .disabled(!canSend)
+        .animation(.easeInOut(duration: 0.15), value: canSend)
     }
 
     private var attachmentMenu: some View {
@@ -209,9 +234,45 @@ struct ChatView: View {
             } label: {
                 Label("Spreadsheet or CSV", systemImage: "tablecells")
             }
+            Button {
+                pasteAttachment()
+            } label: {
+                Label("Paste from clipboard", systemImage: "doc.on.clipboard")
+            }
         } label: {
-            Image(systemName: "paperclip")
-                .font(.title3)
+            Image(systemName: "plus")
+                .foregroundStyle(.secondary)
+                .composerIconButton()
+        }
+    }
+
+    /// Attach whatever's on the clipboard (M118, ADR 0028) — a copied image or
+    /// PDF lands exactly like a picked one.
+    private func pasteAttachment() {
+        let vm = viewModel
+        ClipboardImage.read { contents in
+            switch contents {
+            case .image(let image):
+                guard let data = image.jpegData(compressionQuality: 0.9) else {
+                    attachmentError = "That image couldn't be processed."
+                    return
+                }
+                do {
+                    vm.pendingAttachment = try AttachmentTranscoder.image(
+                        from: data, displayName: "Pasted image")
+                } catch {
+                    attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                }
+            case .pdf(let data):
+                do {
+                    vm.pendingAttachment = try AttachmentTranscoder.pdf(
+                        from: data, displayName: "Pasted PDF")
+                } catch {
+                    attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                }
+            case .none:
+                attachmentError = "There's no image or PDF on your clipboard to paste."
+            }
         }
     }
 

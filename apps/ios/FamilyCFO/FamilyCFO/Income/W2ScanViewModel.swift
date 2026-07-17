@@ -54,6 +54,20 @@ final class W2ScanViewModel {
         }
     }
 
+    /// A pasted or picked PDF W-2 (M114) — same confirm-before-save contract.
+    func scan(pdfData: Data) async {
+        guard !isScanning else { return }
+        isScanning = true
+        defer { isScanning = false }
+        do {
+            let attachment = try AttachmentTranscoder.pdf(from: pdfData, displayName: "W-2")
+            apply(try await api.scanW2(attachment))
+            errorMessage = nil
+        } catch {
+            errorMessage = Self.describe(error)
+        }
+    }
+
     /// Prefill only what the scan actually found, and never overwrite something
     /// the user already typed — their correction outranks the model's reading.
     func apply(_ result: Components.Schemas.W2ScanResult) {

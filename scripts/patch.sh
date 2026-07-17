@@ -250,6 +250,20 @@ patch_remote_host() { # patch_remote_host <host>
   record_deployment "$REPO_ROOT" remote "$host" "$SSH_USER" "$SSH_PORT" "$remote_abs" "$COMPOSE_FILES"
   log "Patched ${host}. Dashboard: https://${host}:${port}"
   echo "  Verify: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
+
+  # M120 (ADR 0029): one monorepo version — after patching the box, check the
+  # published OTA app bundle still matches. A silent drift here is exactly how
+  # the phone ends up running old code against a new backend.
+  local repo_version ota_version
+  repo_version="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION" 2>/dev/null || true)"
+  ota_version="$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} exec -T web cat /usr/share/nginx/html/ota/VERSION 2>/dev/null" | tr -d '[:space:]' || true)"
+  if [ -z "$ota_version" ]; then
+    warn "No OTA bundle published yet (or it predates versioning) — run scripts/deploy-ios-ota.sh so the phone can install v${repo_version}."
+  elif [ "$ota_version" != "$repo_version" ]; then
+    warn "OTA bundle is v${ota_version} but the box now runs v${repo_version} — the published app is STALE. Run scripts/deploy-ios-ota.sh."
+  else
+    log "OTA bundle matches (v${ota_version})."
+  fi
 }
 
 log "Remote hosts to patch: ${SSH_HOSTS[*]}"

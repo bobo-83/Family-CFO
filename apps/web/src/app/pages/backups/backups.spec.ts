@@ -42,7 +42,10 @@ describe('Backups', () => {
   it('creates a backup for an owner', async () => {
     const apiMock = {
       listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
       createBackup: vi.fn().mockResolvedValue(response({ id: 'b1', status: 'completed' })),
+      // M98: a fresh backup also refreshes the Synology (remote) list.
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
     };
     configure(apiMock, 'owner');
 
@@ -58,6 +61,7 @@ describe('Backups', () => {
   it('confirms before restoring', async () => {
     const apiMock = {
       listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
       restoreBackup: vi.fn().mockResolvedValue(response({ id: 'b1' })),
     };
     configure(apiMock, 'owner');
