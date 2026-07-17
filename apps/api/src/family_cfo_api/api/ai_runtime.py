@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
@@ -273,6 +273,7 @@ async def update_ai_runtime_config(
     settings: Settings = Depends(get_app_settings),
 ) -> AiRuntimeConfig:
     _validate_base_url(payload.base_url, settings)
+    before = repository.get_ai_runtime_config(engine, session.household_id)
     audit.write_audit(
         engine,
         session.household_id,
@@ -281,6 +282,7 @@ async def update_ai_runtime_config(
         "ai_runtime_config",
         session.household_id,
         f"AI runtime set to {payload.provider}/{payload.model} (enabled={payload.enabled})",
+        undo_token=undo_actions.ai_runtime_updated(before),
     )
     record = repository.upsert_ai_runtime_config(
         engine,

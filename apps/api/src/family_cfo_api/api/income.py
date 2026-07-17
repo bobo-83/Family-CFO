@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     ErrorResponse,
@@ -71,6 +71,7 @@ async def create_income_source(
         "income",
         record.id,
         f"Created income source '{record.name}'",
+        undo_token=undo_actions.created("income", record.id),
     )
     return _to_schema(record)
 
@@ -92,7 +93,8 @@ async def update_income_source(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> IncomeSource:
-    if repository.get_income_source(engine, session.household_id, income_id) is None:
+    before = repository.get_income_source(engine, session.household_id, income_id)
+    if before is None:
         raise HTTPException(status_code=404, detail="Income source not found")
     amount_minor = payload.amount.amount_minor if payload.amount is not None else None
     currency = payload.amount.currency if payload.amount is not None else None
@@ -113,6 +115,7 @@ async def update_income_source(
         "income",
         income_id,
         "Updated an income source",
+        undo_token=undo_actions.income_updated(before),
     )
     record = repository.get_income_source(engine, session.household_id, income_id)
     assert record is not None
@@ -135,7 +138,8 @@ async def delete_income_source(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
-    if repository.get_income_source(engine, session.household_id, income_id) is None:
+    before = repository.get_income_source(engine, session.household_id, income_id)
+    if before is None:
         raise HTTPException(status_code=404, detail="Income source not found")
     repository.delete_income_source(engine, session.household_id, income_id)
     audit.write_audit(
@@ -145,6 +149,7 @@ async def delete_income_source(
         "income.deleted",
         "income",
         income_id,
-        "Deleted an income source",
+        f"Deleted income source '{before.name}'",
+        undo_token=undo_actions.income_deleted(before),
     )
     return Response(status_code=204)

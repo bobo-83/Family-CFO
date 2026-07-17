@@ -27,6 +27,9 @@ dependencies = [
   "httpx>=0.27,<0.28",
   "python-multipart>=0.0.9,<0.1",
   "PyYAML>=6.0,<7",
+  # M98: userspace SMB client so backups upload straight to a Synology share with
+  # just the user's credentials — no host CIFS mount or container privileges.
+  "smbprotocol>=1.12,<2",
   "SQLAlchemy>=2.0,<2.1",
   "uvicorn[standard]>=0.30,<0.51",
 ]

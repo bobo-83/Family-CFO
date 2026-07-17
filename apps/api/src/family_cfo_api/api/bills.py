@@ -3,9 +3,10 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, bill_detection, repository
+from family_cfo_api import audit, bill_detection, finance_service, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
+    AccountObligation,
     Bill,
     BillCreateRequest,
     BillListResponse,
@@ -15,6 +16,9 @@ from family_cfo_api.schemas import (
     BillUpdateSuggestion,
     BillUpdateRequest,
     ErrorResponse,
+    PaymentTimelineItem,
+    PaymentTimelineResponse,
+    TimelinePaidWith,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -76,7 +80,78 @@ async def list_bills(
 ) -> BillListResponse:
     records = repository.list_bills(engine, session.household_id)
     names = _category_names(engine, session.household_id)
-    return BillListResponse(bills=[_to_schema(record, names) for record in records])
+    household = repository.get_household(engine, session.household_id)
+    currency = household.base_currency if household else "USD"
+    obligations = [
+        AccountObligation(
+            account_id=obligation.account_id,
+            name=obligation.name,
+            amount=MoneySchema(amount_minor=obligation.amount_minor, currency=obligation.currency),
+            kind=obligation.kind,
+            note=obligation.note,
+            reserved=obligation.reserved,
+        )
+        for obligation in finance_service.recurring_liability_obligations(
+            engine, session.household_id, currency
+        )
+    ]
+    return BillListResponse(
+        bills=[_to_schema(record, names) for record in records],
+        account_obligations=obligations,
+    )
+
+
+@router.get(
+    "/bills/timeline",
+    operation_id="getPaymentTimeline",
+    response_model=PaymentTimelineResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Everything that needs paying, as one time-ordered list",
+)
+async def get_payment_timeline(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> PaymentTimelineResponse:
+    """M111 (ADR 0024): the Bills tab's primary view. Bills, credit-card payments,
+    and loan/lease payments in one list organized by time — overdue, due soon,
+    upcoming, paid this cycle — with a cash-versus-due headline. Paid rows carry
+    the actual matched transaction so the checkmark is verifiable."""
+    household = repository.get_household(engine, session.household_id)
+    currency = household.base_currency if household else "USD"
+    today = date.today()
+    timeline = finance_service.payment_timeline(
+        engine, session.household_id, currency, today=today
+    )
+    return PaymentTimelineResponse(
+        items=[
+            PaymentTimelineItem(
+                id=item.id,
+                kind=item.kind,
+                name=item.name,
+                amount=MoneySchema(amount_minor=item.amount_minor, currency=item.currency),
+                due_date=item.due_date,
+                days_until=(item.due_date - today).days if item.due_date else None,
+                status=item.status,
+                paid_with=(
+                    TimelinePaidWith(
+                        transaction_id=item.paid.transaction_id,
+                        occurred_at=item.paid.occurred_at,
+                        amount=MoneySchema(
+                            amount_minor=item.paid.amount_minor, currency=item.currency
+                        ),
+                        label=item.paid.label,
+                    )
+                    if item.paid
+                    else None
+                ),
+            )
+            for item in timeline.items
+        ],
+        due_total=MoneySchema(amount_minor=timeline.due_total_minor, currency=currency),
+        liquid_balance=MoneySchema(amount_minor=timeline.liquid_minor, currency=currency),
+        covered=timeline.covered,
+        window_days=timeline.window_days,
+    )
 
 
 @router.get(
@@ -114,12 +189,36 @@ async def list_bill_suggestions(
         bills_by_key.setdefault(bill_detection.normalize_merchant(bill.name), bill)
     dismissed = repository.list_bill_suggestion_dismissals(engine, session.household_id)
 
+    # A recurring payment already tracked as a loan/lease account has its monthly
+    # payment reserved via minimum-debt-payments (ADR 0020); don't also suggest it
+    # as a bill, which would nag the user to double-model the same obligation
+    # (ADR 0020 "each commitment reserved once"). Match a monthly candidate whose
+    # amount equals a liability account's monthly payment (fixed loan/lease
+    # payments are exact; allow a small tolerance for rounding).
+    liability_amounts: dict[str, list[int]] = {}
+    for currency in {candidate.currency for candidate in candidates}:
+        liability_amounts[currency] = [
+            obligation.amount_minor
+            for obligation in finance_service.recurring_liability_obligations(
+                engine, session.household_id, currency
+            )
+        ]
+
+    def _tracked_as_loan(candidate: bill_detection.BillCandidate) -> bool:
+        if candidate.frequency != "monthly":
+            return False
+        return any(
+            abs(candidate.amount_minor - amount)
+            <= max(200, int(amount * bill_detection.DRIFT_TOLERANCE))
+            for amount in liability_amounts.get(candidate.currency, [])
+        )
+
     suggestions: list[BillSuggestion] = []
     updates: list[BillUpdateSuggestion] = []
     for candidate in candidates:
         existing = bills_by_key.get(candidate.merchant_key)
         if existing is None:
-            if candidate.merchant_key not in dismissed:
+            if candidate.merchant_key not in dismissed and not _tracked_as_loan(candidate):
                 suggestions.append(
                     BillSuggestion(
                         merchant_key=candidate.merchant_key,
@@ -193,6 +292,7 @@ async def dismiss_bill_suggestion(
         "bill_suggestion",
         payload.merchant_key,
         f"Dismissed suggested bill '{payload.merchant_key}'",
+        undo_token=undo_actions.suggestion_dismissed(payload.merchant_key),
     )
     return Response(status_code=204)
 
@@ -238,6 +338,7 @@ async def create_bill(
         "bill",
         record.id,
         f"Created bill '{record.name}'",
+        undo_token=undo_actions.created("bill", record.id),
     )
     propagated = (
         _propagate_bill_category(engine, session.household_id, record.name, payload.category_id)
@@ -266,7 +367,8 @@ async def update_bill(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Bill:
-    if repository.get_bill(engine, session.household_id, bill_id) is None:
+    before = repository.get_bill(engine, session.household_id, bill_id)
+    if before is None:
         raise HTTPException(status_code=404, detail="Bill not found")
     amount_minor = payload.amount.amount_minor if payload.amount is not None else None
     currency = payload.amount.currency if payload.amount is not None else None
@@ -287,6 +389,8 @@ async def update_bill(
         next_due_date=payload.next_due_date,
         category_id=payload.category_id if category_changed else repository._UNSET,
     )
+    record = repository.get_bill(engine, session.household_id, bill_id)
+    assert record is not None
     audit.write_audit(
         engine,
         session.household_id,
@@ -294,10 +398,9 @@ async def update_bill(
         "bill.updated",
         "bill",
         bill_id,
-        "Updated a bill",
+        f"Updated bill “{record.name}”",
+        undo_token=undo_actions.bill_updated(before),
     )
-    record = repository.get_bill(engine, session.household_id, bill_id)
-    assert record is not None
     # Propagate when this update SET a category (not on a clear).
     propagated = (
         _propagate_bill_category(engine, session.household_id, record.name, payload.category_id)
@@ -325,7 +428,8 @@ async def delete_bill(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
-    if repository.get_bill(engine, session.household_id, bill_id) is None:
+    existing = repository.get_bill(engine, session.household_id, bill_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Bill not found")
     repository.delete_bill(engine, session.household_id, bill_id)
     audit.write_audit(
@@ -335,6 +439,7 @@ async def delete_bill(
         "bill.deleted",
         "bill",
         bill_id,
-        "Deleted a bill",
+        f"Deleted bill “{existing.name}”",
+        undo_token=undo_actions.bill_deleted(existing),
     )
     return Response(status_code=204)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository
+from family_cfo_api import audit, repository, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     Category,
@@ -64,6 +64,7 @@ async def create_category(
         "category",
         record.id,
         f"Created category '{name}'",
+        undo_token=undo_actions.created("category", record.id),
     )
     return _to_schema(record)
 
@@ -84,8 +85,10 @@ async def delete_category(
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> Response:
+    existing = repository.get_category(engine, session.household_id, category_id)
     if not repository.delete_category(engine, session.household_id, category_id):
         raise HTTPException(status_code=404, detail="Category not found")
+    name = existing.name if existing is not None else "a category"
     audit.write_audit(
         engine,
         session.household_id,
@@ -93,6 +96,7 @@ async def delete_category(
         "category.deleted",
         "category",
         category_id,
-        "Deleted a category",
+        f"Deleted category “{name}”",
+        undo_token=undo_actions.category_deleted(existing) if existing is not None else None,
     )
     return Response(status_code=204)
