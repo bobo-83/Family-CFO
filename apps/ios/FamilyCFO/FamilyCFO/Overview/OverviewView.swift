@@ -71,7 +71,21 @@ struct OverviewView: View {
                 viewModel = OverviewViewModel(api: api)
             }
             await viewModel?.load()
+            // Seed the shared freshness clock so every tab agrees (M103).
+            model.syncStatus.observe(viewModel?.context?.lastSyncedAt)
+            if let month = viewModel?.selectedMonth { await warmMonthCache(month) }
         }
+    }
+
+    /// Load the month's transactions + categories into the shared cache (M105) so
+    /// spending drill-downs read from memory. This is the one explicit fetch —
+    /// triggered by Overview loading or a pull-to-refresh, not by drilling in.
+    private func warmMonthCache(_ month: String) async {
+        guard let household = model.household, let categorize = model.categorize else { return }
+        await model.monthTransactions.reload(
+            month: month,
+            transactions: { try await household.transactions(month: month) },
+            categories: { try await categorize.categories() })
     }
 
     /// M89's first-class camera flows. W-2 scanning writes an income earner, so
@@ -124,6 +138,40 @@ struct OverviewView: View {
         receiptChat = ReceiptChat(viewModel: chat)
     }
 
+    /// The Overview-wide month selector (M96): step the whole page back through
+    /// history. Next is disabled at the current month.
+    private func monthPicker(_ viewModel: OverviewViewModel) -> some View {
+        HStack {
+            Button {
+                Task {
+                    await viewModel.shiftMonth(-1)
+                    await warmMonthCache(viewModel.selectedMonth)
+                }
+            } label: {
+                Image(systemName: "chevron.left").font(.headline)
+            }
+            .disabled(!viewModel.canGoBack || viewModel.isLoading)
+            Spacer()
+            HStack(spacing: 6) {
+                if viewModel.isLoading {
+                    ProgressView()
+                }
+                Text(viewModel.monthLabel).font(.headline)
+            }
+            Spacer()
+            Button {
+                Task {
+                    await viewModel.shiftMonth(1)
+                    await warmMonthCache(viewModel.selectedMonth)
+                }
+            } label: {
+                Image(systemName: "chevron.right").font(.headline)
+            }
+            .disabled(viewModel.isCurrentMonth || viewModel.isLoading)
+        }
+        .padding(.horizontal, 4)
+    }
+
     @ViewBuilder
     private func content(_ viewModel: OverviewViewModel) -> some View {
         if let errorMessage = viewModel.errorMessage, viewModel.context == nil {
@@ -138,13 +186,39 @@ struct OverviewView: View {
         } else if let context = viewModel.context {
             ScrollView {
                 VStack(spacing: 16) {
+                    monthPicker(viewModel)
+                    // M120 (ADR 0029): the box and the app ship one monorepo
+                    // version - say so loudly when they have drifted apart.
+                    if viewModel.versionMismatch, let server = viewModel.serverVersion {
+                        versionMismatchBanner(server: server)
+                    }
+                    if !viewModel.isCurrentMonth {
+                        Text("Historical view of \(viewModel.monthLabel). “Right now” figures like safe-to-spend and upcoming bills only appear for the current month.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    // M112 (ADR 0026): the lived cash picture leads — the same
+                    // due-vs-cash verdict as the Bills tab, plus the 30-day
+                    // projection with paychecks counted.
+                    if let outlook = viewModel.outlook {
+                        cashOutlookCard(outlook)
+                    }
+                    // M113 (ADR 0027): the month plan — income vs spent vs committed.
+                    if let plan = viewModel.plan {
+                        spendingPlanCard(plan)
+                    }
                     if let sts = context.safeToSpend {
-                        safeToSpendCard(sts)
+                        safeToSpendCard(sts, context.upcomingBills ?? [])
                     }
                     // Spending-by-category sits high: it's the freshest result of
                     // the user's categorizing, and the thing they came to see.
-                    if let spending = context.spendingByCategory, !spending.categories.isEmpty {
-                        spendingByCategoryCard(spending)
+                    if let spending = context.spendingByCategory,
+                        !(spending.categories ?? []).isEmpty,
+                        let api = model.household, let categorize = model.categorize {
+                        SpendingCard(
+                            spending: spending, api: api, categorizeAPI: categorize,
+                            onChanged: { await viewModel.reload() })
                     }
                     netWorthCard(context)
                     if let fund = context.emergencyFund {
@@ -168,42 +242,192 @@ struct OverviewView: View {
                 }
                 .padding()
             }
-            .refreshable { await viewModel.load() }
+            // Pull-to-refresh runs the bank sync, same as every other tab, and
+            // re-warms the drill-down cache (M105) so it reflects the new data.
+            .refreshable {
+                await viewModel.syncNow()
+                model.syncStatus.markSynced()
+                model.monthTransactions.invalidate()
+                await warmMonthCache(viewModel.selectedMonth)
+            }
+            .safeAreaInset(edge: .bottom) {
+                SyncStatusFooter(status: model.syncStatus)
+                    .padding(.vertical, 6)
+            }
         } else {
             ProgressView()
         }
     }
 
-    // MARK: Cards
-
-    /// M93: what's actually free to spend, net of the emergency fund, bills due,
-    /// and debt payments — with the household's debt stated beside it, never
-    /// hidden behind the cheerful number.
-    private func safeToSpendCard(
-        _ sts: Components.Schemas.SafeToSpend
-    ) -> some View {
-        Card("Safe to spend", systemImage: "wallet.pass") {
-            Text(sts.safeToSpend.formatted)
-                .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                .foregroundStyle(sts.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
+    /// M120: the app is stale (or the box is) - point at the OTA page.
+    private func versionMismatchBanner(server: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(
+                "App v\(OverviewViewModel.appVersion) · box v\(server)",
+                systemImage: "exclamationmark.arrow.triangle.2.circlepath"
+            )
+            .font(.subheadline.weight(.semibold))
             Text(
-                "\(sts.liquidBalance.formatted) liquid − \(sts.emergencyFundReserved.formatted) "
-                    + "emergency fund − \(sts.billsDue.formatted) bills − "
-                    + "\(sts.minimumDebtPayments.formatted) min. debt"
+                "Versions differ, so screens may not match the server. "
+                    + "Install the update from your box's OTA page."
             )
             .font(.caption)
-            .foregroundStyle(.secondary)
-            if sts.totalDebt.amountMinor > 0 {
-                LabeledContent("Total debt", value: sts.totalDebt.formatted)
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
-            }
-            ForEach(sts.warnings, id: \.self) { warning in
-                Label(warning, systemImage: "exclamationmark.triangle")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
+            if let base = model.server?.apiBaseURL,
+                let ota = URL(string: "/ota/", relativeTo: base) {
+                Link("Open the install page", destination: ota)
+                    .font(.caption.weight(.semibold))
             }
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+        .foregroundStyle(.orange)
+    }
+
+    // MARK: Cards
+
+    /// M112 (ADR 0026): the lived cash picture — the Bills tab's due-vs-cash
+    /// verdict, then 30 days of paychecks and payments with the lowest point
+    /// the balance reaches. This is the "can I spend?" answer that counts income.
+    private func cashOutlookCard(_ outlook: Components.Schemas.CashOutlookResponse) -> some View {
+        NavigationLink {
+            CashOutlookDetailView(outlook: outlook)
+        } label: {
+            Card("Cash outlook", systemImage: "calendar.badge.clock") {
+                Label(
+                    outlook.dueSoonCovered
+                        ? "\(outlook.dueSoon.formatted) due in \(outlook.dueSoonWindowDays) days — covered"
+                        : "\(outlook.dueSoon.formatted) due in \(outlook.dueSoonWindowDays) days — exceeds your cash",
+                    systemImage: outlook.dueSoonCovered
+                        ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(outlook.dueSoonCovered ? .green : .orange)
+                Text(outlook.lowestBalance.formatted)
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                    .foregroundStyle(outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
+                Text(
+                    outlook.lowestDate.map {
+                        "lowest your cash reaches in the next \(outlook.horizonDays) days"
+                            + " · \(BillsView.shortDate($0))"
+                    } ?? "no payments or paydays expected in the next \(outlook.horizonDays) days"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    "\(outlook.startingCash.formatted) cash + \(outlook.expectedIncome.formatted) "
+                        + "expected paychecks − \(outlook.obligations.formatted) payments "
+                        + "= \(outlook.endingCash.formatted)"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                HStack(spacing: 3) {
+                    Text("Tap for the day-by-day projection")
+                    Image(systemName: "chevron.right")
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.tint)
+                .padding(.top, 2)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// M113 (ADR 0027): left to spend this month — expected income minus what's
+    /// already spent and what's still committed. The accrual counterpart to the
+    /// cash outlook's cash-timing view.
+    private func spendingPlanCard(_ plan: Components.Schemas.SpendingPlanResponse) -> some View {
+        Card("Left to spend this month", systemImage: "chart.pie") {
+            Text(plan.leftToSpend.formatted)
+                .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                .foregroundStyle(plan.leftToSpend.amountMinor >= 0 ? Color.primary : .red)
+            if plan.leftToSpend.amountMinor >= 0 {
+                Text(
+                    "about \(plan.perDay.formatted)/day for the remaining "
+                        + "\(plan.daysRemaining) day\(plan.daysRemaining == 1 ? "" : "s")"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                Text(
+                    "this month's spending has outrun this month's income — "
+                        + "the gap is drawing on cash you already had"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+            Text(Self.planEquation(plan))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The plan's equation, built in plain string pieces — a single interpolated
+    /// expression here is too much for the type checker.
+    static func planEquation(_ plan: Components.Schemas.SpendingPlanResponse) -> String {
+        var parts: [String] = []
+        let income = plan.expectedIncome.formatted
+        let received = plan.incomeReceived.formatted
+        let toCome = plan.incomeProjected.formatted
+        parts.append("\(income) expected income (\(received) received + \(toCome) to come)")
+        parts.append("\(plan.spent.formatted) spent")
+        parts.append("\(plan.billsRemaining.formatted) bills still due")
+        parts.append("\(plan.accountObligations.formatted) loan & lease payments")
+        if plan.plannedSavings.amountMinor > 0 {
+            parts.append("\(plan.plannedSavings.formatted) planned savings")
+        }
+        return parts.joined(separator: " − ")
+    }
+
+    /// M93, reframed by M112: the zero-income worst case. The cash outlook above
+    /// answers "can I spend?"; this answers "what if every commitment were called
+    /// today and no paycheck ever arrived?" — deliberately harsher.
+    private func safeToSpendCard(
+        _ sts: Components.Schemas.SafeToSpend,
+        _ upcomingBills: [Components.Schemas.UpcomingBill]
+    ) -> some View {
+        NavigationLink {
+            SafeToSpendDetailView(safeToSpend: sts, upcomingBills: upcomingBills)
+        } label: {
+            Card("Stress test", systemImage: "shield.lefthalf.filled") {
+                Text(sts.safeToSpend.formatted)
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                    .foregroundStyle(sts.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
+                Text(
+                    "If every commitment were called today — full card balances, all "
+                        + "bills, the emergency fund held back — with no paycheck counted. "
+                        + "Deliberately worst-case; the cash outlook above counts income."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    "\(sts.liquidBalance.formatted) liquid − \(sts.emergencyFundReserved.formatted) "
+                        + "emergency fund − \(sts.billsDue.formatted) bills − "
+                        + "\(sts.minimumDebtPayments.formatted) min. debt"
+                        + ((sts.creditCardPayments?.value1).map { " − \($0.formatted) cards" } ?? "")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                if sts.totalDebt.amountMinor > 0 {
+                    LabeledContent("Total debt", value: sts.totalDebt.formatted)
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                }
+                ForEach(sts.warnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                HStack(spacing: 3) {
+                    Text("Tap to see how this is calculated")
+                    Image(systemName: "chevron.right")
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.tint)
+                .padding(.top, 2)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func netWorthCard(_ context: Components.Schemas.HouseholdContext) -> some View {
@@ -299,6 +523,19 @@ struct OverviewView: View {
                     "Net", flow.net.formatted,
                     tint: flow.net.amountMinor >= 0 ? .green : .red)
             }
+            // Income is actual money in (net take-home). Show the W2 gross as a
+            // labelled baseline for context — they differ because tax and 401(k)
+            // are withheld before pay lands.
+            if let baseline = flow.incomeBaseline?.value1 {
+                Text("Actual take-home; \(baseline.formatted)/mo W-2 gross baseline")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let taxes = flow.taxes?.value1 {
+                Text("Taxes withheld: \(taxes.formatted)/mo (RSU & payroll), tracked separately")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -320,74 +557,12 @@ struct OverviewView: View {
         }
     }
 
-    /// M94: the payoff of categorizing — this month's spend per category, with a
-    /// proportion bar and the still-uncategorized amount as a nudge to file more.
-    private func spendingByCategoryCard(
-        _ spending: Components.Schemas.SpendingByCategory
-    ) -> some View {
-        let maxAmount = spending.categories.map(\.amount.amountMinor).max() ?? 1
-        return Card("Spending · \(spending.monthLabel)", systemImage: "chart.pie") {
-            ForEach(spending.categories.prefix(8), id: \.categoryId) { entry in
-                NavigationLink {
-                    if let api = model.household {
-                        CategorySpendingDetailView(
-                            categoryID: entry.categoryId,
-                            categoryName: entry.categoryName,
-                            month: spending.month,
-                            monthLabel: spending.monthLabel,
-                            currency: entry.amount.currency,
-                            api: api)
-                    }
-                } label: {
-                    VStack(spacing: 3) {
-                        HStack {
-                            Text(entry.categoryName).font(.subheadline).lineLimit(1)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text(entry.amount.formatted)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.primary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        GeometryReader { geo in
-                            Capsule()
-                                .fill(.tint)
-                                .frame(
-                                    width: geo.size.width
-                                        * proportion(entry.amount.amountMinor, of: maxAmount),
-                                    height: 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(height: 4)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            if spending.uncategorized.amountMinor > 0 {
-                Divider()
-                HStack {
-                    Text("Uncategorized").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Text(spending.uncategorized.formatted)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-                Text("Categorize more on the Categorize tab to sort this in.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
 
-    private func proportion(_ amount: Int64, of maxAmount: Int64) -> CGFloat {
-        guard maxAmount > 0 else { return 0 }
-        return CGFloat(max(0, amount)) / CGFloat(maxAmount)
-    }
-
+    /// M118: the summary card now opens the full envelope manager (parity with
+    /// the dashboard's Budgets page).
+    @ViewBuilder
     private func budgetCard(_ budgets: Components.Schemas.BudgetSummary) -> some View {
-        Card("Budgets", systemImage: "chart.pie") {
+        let card = Card("Budgets", systemImage: "chart.pie") {
             HStack {
                 stat("Envelopes", "\(budgets.envelopeCount)", tint: .secondary)
                 Divider()
@@ -400,16 +575,53 @@ struct OverviewView: View {
             Text("\(budgets.totalSpent.formatted) spent of \(budgets.totalBudgeted.formatted)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                Text("Tap to manage envelopes")
+                Image(systemName: "chevron.right")
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.tint)
+            .padding(.top, 2)
+        }
+        if let api = model.budgetsAPI {
+            NavigationLink {
+                BudgetsView(viewModel: BudgetsViewModel(api: api))
+            } label: {
+                card
+            }
+            .buttonStyle(.plain)
+        } else {
+            card
         }
     }
 
+    /// M119: the summary card opens the full goal manager (parity with the
+    /// dashboard's Goals page).
+    @ViewBuilder
     private func goalCard(_ goal: Components.Schemas.GoalProgress) -> some View {
-        Card("Top goal", systemImage: "target") {
+        let card = Card("Top goal", systemImage: "target") {
             Text(goal.name).font(.headline)
             ProgressView(value: Double(goal.percentComplete), total: 100)
             Text("\(goal.current.formatted) of \(goal.target.formatted) · \(goal.percentComplete)%")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                Text("Tap to manage goals")
+                Image(systemName: "chevron.right")
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.tint)
+            .padding(.top, 2)
+        }
+        if let api = model.goalsAPI {
+            NavigationLink {
+                GoalsView(viewModel: GoalsViewModel(api: api))
+            } label: {
+                card
+            }
+            .buttonStyle(.plain)
+        } else {
+            card
         }
     }
 
@@ -471,7 +683,7 @@ extension Components.Schemas.EmergencyFundSummary {
 
 /// A titled card. Every Overview section is one, so the screen reads as a stack
 /// of equals rather than a hierarchy the data doesn't have.
-private struct Card<Content: View>: View {
+struct Card<Content: View>: View {
     let title: String
     let systemImage: String
     @ViewBuilder let content: Content

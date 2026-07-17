@@ -56,7 +56,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /households`.
     /// - Remark: Generated from `#/paths//households/post(createHousehold)`.
     func createHousehold(_ input: Operations.CreateHousehold.Input) async throws -> Operations.CreateHousehold.Output
-    /// Get household financial context summary
+    /// Spending by category for a month (defaults to the current month)
+    ///
+    /// - Remark: HTTP `GET /spending`.
+    /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)`.
+    func getSpendingByCategory(_ input: Operations.GetSpendingByCategory.Input) async throws -> Operations.GetSpendingByCategory.Output
+    /// Get household financial context summary (current, or a past month's snapshot)
     ///
     /// - Remark: HTTP `GET /household`.
     /// - Remark: Generated from `#/paths//household/get(getHouseholdContext)`.
@@ -66,6 +71,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PATCH /household`.
     /// - Remark: Generated from `#/paths//household/patch(updateHousehold)`.
     func updateHousehold(_ input: Operations.UpdateHousehold.Input) async throws -> Operations.UpdateHousehold.Output
+    /// Projected cash over the next 30 days — paychecks in, payments out
+    ///
+    /// M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income stress test. Expected paydays (recurring-income detection) and every payment-timeline obligation, projected day by day, with the lowest point the balance reaches. Repeats the Bills due-vs-cash headline so the Overview and Bills screens say the same thing.
+    ///
+    /// - Remark: HTTP `GET /overview/cash-outlook`.
+    /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)`.
+    func getCashOutlook(_ input: Operations.GetCashOutlook.Input) async throws -> Operations.GetCashOutlook.Output
+    /// Left to spend this month — income minus spent and committed
+    ///
+    /// M113 (ADR 0027): expected income (received + projected paydays) minus month-to-date spending, unpaid bills through month end, and the month's loan/lease payments. The accrual counterpart to the cash outlook.
+    ///
+    /// - Remark: HTTP `GET /overview/spending-plan`.
+    /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)`.
+    func getSpendingPlan(_ input: Operations.GetSpendingPlan.Input) async throws -> Operations.GetSpendingPlan.Output
     /// List household members
     ///
     /// - Remark: HTTP `GET /household/members`.
@@ -91,6 +110,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /audit`.
     /// - Remark: Generated from `#/paths//audit/get(listAuditEvents)`.
     func listAuditEvents(_ input: Operations.ListAuditEvents.Input) async throws -> Operations.ListAuditEvents.Output
+    /// Reverse a previously-recorded action
+    ///
+    /// - Remark: HTTP `POST /audit/{audit_id}/undo`.
+    /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)`.
+    func undoAuditEvent(_ input: Operations.UndoAuditEvent.Input) async throws -> Operations.UndoAuditEvent.Output
     /// List accounts
     ///
     /// - Remark: HTTP `GET /accounts`.
@@ -116,7 +140,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /accounts/{account_id}/balances`.
     /// - Remark: Generated from `#/paths//accounts/{account_id}/balances/post(recordAccountBalance)`.
     func recordAccountBalance(_ input: Operations.RecordAccountBalance.Input) async throws -> Operations.RecordAccountBalance.Output
-    /// List transactions for the household
+    /// List transactions (recent, or every one in a given YYYY-MM month)
     ///
     /// - Remark: HTTP `GET /transactions`.
     /// - Remark: Generated from `#/paths//transactions/get(listTransactions)`.
@@ -126,6 +150,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /transactions`.
     /// - Remark: Generated from `#/paths//transactions/post(createTransaction)`.
     func createTransaction(_ input: Operations.CreateTransaction.Input) async throws -> Operations.CreateTransaction.Output
+    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    ///
+    /// - Remark: HTTP `GET /transactions/review`.
+    /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
+    func listTransactionsForReview(_ input: Operations.ListTransactionsForReview.Input) async throws -> Operations.ListTransactionsForReview.Output
     /// Update a transaction
     ///
     /// - Remark: HTTP `PATCH /transactions/{transaction_id}`.
@@ -136,6 +165,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /transactions/{transaction_id}`.
     /// - Remark: Generated from `#/paths//transactions/{transaction_id}/delete(deleteTransaction)`.
     func deleteTransaction(_ input: Operations.DeleteTransaction.Input) async throws -> Operations.DeleteTransaction.Output
+    /// Download a transaction's attached image
+    ///
+    /// - Remark: HTTP `GET /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)`.
+    func getTransactionAttachment(_ input: Operations.GetTransactionAttachment.Input) async throws -> Operations.GetTransactionAttachment.Output
+    /// Attach an image to a transaction (parsed for a description)
+    ///
+    /// - Remark: HTTP `PUT /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)`.
+    func uploadTransactionAttachment(_ input: Operations.UploadTransactionAttachment.Input) async throws -> Operations.UploadTransactionAttachment.Output
+    /// Remove a transaction's attached image
+    ///
+    /// - Remark: HTTP `DELETE /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)`.
+    func deleteTransactionAttachment(_ input: Operations.DeleteTransactionAttachment.Input) async throws -> Operations.DeleteTransactionAttachment.Output
     /// List spending categories
     ///
     /// - Remark: HTTP `GET /categories`.
@@ -181,6 +225,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /bills`.
     /// - Remark: Generated from `#/paths//bills/post(createBill)`.
     func createBill(_ input: Operations.CreateBill.Input) async throws -> Operations.CreateBill.Output
+    /// Everything that needs paying, as one time-ordered list
+    ///
+    /// M111 (ADR 0024): bills, credit-card payments, and loan/lease payments in one list organized by time (overdue / due soon / upcoming / paid this cycle) with a cash-versus-due headline. Paid rows carry the actual matched transaction so the checkmark is verifiable.
+    ///
+    /// - Remark: HTTP `GET /bills/timeline`.
+    /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
+    func getPaymentTimeline(_ input: Operations.GetPaymentTimeline.Input) async throws -> Operations.GetPaymentTimeline.Output
     /// Suggest bills detected from recurring account transactions
     ///
     /// - Remark: HTTP `GET /bills/suggestions`.
@@ -246,6 +297,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /income/profile/earners/{earner_id}`.
     /// - Remark: Generated from `#/paths//income/profile/earners/{earner_id}/delete(deleteIncomeEarner)`.
     func deleteIncomeEarner(_ input: Operations.DeleteIncomeEarner.Input) async throws -> Operations.DeleteIncomeEarner.Output
+    /// Read a loan/lease statement photo or PDF into candidate values
+    ///
+    /// - Remark: HTTP `POST /accounts/scan-statement`.
+    /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
+    func scanLoanStatement(_ input: Operations.ScanLoanStatement.Input) async throws -> Operations.ScanLoanStatement.Output
     /// Read a W-2 photo or PDF into candidate values (user confirms before saving)
     ///
     /// - Remark: HTTP `POST /income/profile/scan-w2`.
@@ -261,6 +317,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /goals`.
     /// - Remark: Generated from `#/paths//goals/post(createGoal)`.
     func createGoal(_ input: Operations.CreateGoal.Input) async throws -> Operations.CreateGoal.Output
+    /// Update a goal (M118: incl. the planned monthly contribution)
+    ///
+    /// - Remark: HTTP `PATCH /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)`.
+    func updateGoal(_ input: Operations.UpdateGoal.Input) async throws -> Operations.UpdateGoal.Output
+    /// Delete a goal
+    ///
+    /// - Remark: HTTP `DELETE /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)`.
+    func deleteGoal(_ input: Operations.DeleteGoal.Input) async throws -> Operations.DeleteGoal.Output
     /// Analyze the financial impact of a potential purchase
     ///
     /// - Remark: HTTP `POST /advisor/purchase`.
@@ -376,6 +442,46 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /backups/{backup_id}/restore`.
     /// - Remark: Generated from `#/paths//backups/{backup_id}/restore/post(restoreBackup)`.
     func restoreBackup(_ input: Operations.RestoreBackup.Input) async throws -> Operations.RestoreBackup.Output
+    /// Backup destination + schedule, with the latest backup's status
+    ///
+    /// - Remark: HTTP `GET /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
+    func getBackupConfig(_ input: Operations.GetBackupConfig.Input) async throws -> Operations.GetBackupConfig.Output
+    /// Set the backup destination (a mounted share) and schedule
+    ///
+    /// - Remark: HTTP `PUT /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
+    func updateBackupConfig(_ input: Operations.UpdateBackupConfig.Input) async throws -> Operations.UpdateBackupConfig.Output
+    /// Test whether the server can write backups to a path (a mounted share)
+    ///
+    /// - Remark: HTTP `POST /backups/destination-check`.
+    /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
+    func checkBackupDestination(_ input: Operations.CheckBackupDestination.Input) async throws -> Operations.CheckBackupDestination.Output
+    /// List the .enc backups on the configured off-box share
+    ///
+    /// - Remark: HTTP `GET /backups/remote`.
+    /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)`.
+    func listRemoteBackups(_ input: Operations.ListRemoteBackups.Input) async throws -> Operations.ListRemoteBackups.Output
+    /// Restore from a backup file on the off-box share (destructive)
+    ///
+    /// - Remark: HTTP `POST /backups/remote/restore`.
+    /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)`.
+    func restoreRemoteBackup(_ input: Operations.RestoreRemoteBackup.Input) async throws -> Operations.RestoreRemoteBackup.Output
+    /// Delete a backup file from the Synology share
+    ///
+    /// - Remark: HTTP `POST /backups/remote/delete`.
+    /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)`.
+    func deleteRemoteBackup(_ input: Operations.DeleteRemoteBackup.Input) async throws -> Operations.DeleteRemoteBackup.Output
+    /// Reveal the backup encryption key (owner only)
+    ///
+    /// - Remark: HTTP `GET /backups/encryption-key`.
+    /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)`.
+    func getBackupEncryptionKey(_ input: Operations.GetBackupEncryptionKey.Input) async throws -> Operations.GetBackupEncryptionKey.Output
+    /// Delete an on-box backup
+    ///
+    /// - Remark: HTTP `DELETE /backups/{backup_id}`.
+    /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)`.
+    func deleteBackup(_ input: Operations.DeleteBackup.Input) async throws -> Operations.DeleteBackup.Output
     /// Get active AI runtime configuration
     ///
     /// - Remark: HTTP `GET /ai/runtime`.
@@ -431,6 +537,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /connections/{connection_id}`.
     /// - Remark: Generated from `#/paths//connections/{connection_id}/delete(deleteConnection)`.
     func deleteConnection(_ input: Operations.DeleteConnection.Input) async throws -> Operations.DeleteConnection.Output
+    /// Pull the latest statements from every linked institution at once
+    ///
+    /// - Remark: HTTP `POST /connections/sync`.
+    /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)`.
+    func syncAllConnections(_ input: Operations.SyncAllConnections.Input) async throws -> Operations.SyncAllConnections.Output
     /// Pull the latest statements from a linked institution
     ///
     /// - Remark: HTTP `POST /connections/{connection_id}/sync`.
@@ -527,12 +638,31 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Get household financial context summary
+    /// Spending by category for a month (defaults to the current month)
+    ///
+    /// - Remark: HTTP `GET /spending`.
+    /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)`.
+    public func getSpendingByCategory(
+        query: Operations.GetSpendingByCategory.Input.Query = .init(),
+        headers: Operations.GetSpendingByCategory.Input.Headers = .init()
+    ) async throws -> Operations.GetSpendingByCategory.Output {
+        try await getSpendingByCategory(Operations.GetSpendingByCategory.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Get household financial context summary (current, or a past month's snapshot)
     ///
     /// - Remark: HTTP `GET /household`.
     /// - Remark: Generated from `#/paths//household/get(getHouseholdContext)`.
-    public func getHouseholdContext(headers: Operations.GetHouseholdContext.Input.Headers = .init()) async throws -> Operations.GetHouseholdContext.Output {
-        try await getHouseholdContext(Operations.GetHouseholdContext.Input(headers: headers))
+    public func getHouseholdContext(
+        query: Operations.GetHouseholdContext.Input.Query = .init(),
+        headers: Operations.GetHouseholdContext.Input.Headers = .init()
+    ) async throws -> Operations.GetHouseholdContext.Output {
+        try await getHouseholdContext(Operations.GetHouseholdContext.Input(
+            query: query,
+            headers: headers
+        ))
     }
     /// Update household settings (M43: emergency-fund target)
     ///
@@ -546,6 +676,24 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Projected cash over the next 30 days — paychecks in, payments out
+    ///
+    /// M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income stress test. Expected paydays (recurring-income detection) and every payment-timeline obligation, projected day by day, with the lowest point the balance reaches. Repeats the Bills due-vs-cash headline so the Overview and Bills screens say the same thing.
+    ///
+    /// - Remark: HTTP `GET /overview/cash-outlook`.
+    /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)`.
+    public func getCashOutlook(headers: Operations.GetCashOutlook.Input.Headers = .init()) async throws -> Operations.GetCashOutlook.Output {
+        try await getCashOutlook(Operations.GetCashOutlook.Input(headers: headers))
+    }
+    /// Left to spend this month — income minus spent and committed
+    ///
+    /// M113 (ADR 0027): expected income (received + projected paydays) minus month-to-date spending, unpaid bills through month end, and the month's loan/lease payments. The accrual counterpart to the cash outlook.
+    ///
+    /// - Remark: HTTP `GET /overview/spending-plan`.
+    /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)`.
+    public func getSpendingPlan(headers: Operations.GetSpendingPlan.Input.Headers = .init()) async throws -> Operations.GetSpendingPlan.Output {
+        try await getSpendingPlan(Operations.GetSpendingPlan.Input(headers: headers))
     }
     /// List household members
     ///
@@ -601,6 +749,19 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//audit/get(listAuditEvents)`.
     public func listAuditEvents(headers: Operations.ListAuditEvents.Input.Headers = .init()) async throws -> Operations.ListAuditEvents.Output {
         try await listAuditEvents(Operations.ListAuditEvents.Input(headers: headers))
+    }
+    /// Reverse a previously-recorded action
+    ///
+    /// - Remark: HTTP `POST /audit/{audit_id}/undo`.
+    /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)`.
+    public func undoAuditEvent(
+        path: Operations.UndoAuditEvent.Input.Path,
+        headers: Operations.UndoAuditEvent.Input.Headers = .init()
+    ) async throws -> Operations.UndoAuditEvent.Output {
+        try await undoAuditEvent(Operations.UndoAuditEvent.Input(
+            path: path,
+            headers: headers
+        ))
     }
     /// List accounts
     ///
@@ -665,12 +826,18 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// List transactions for the household
+    /// List transactions (recent, or every one in a given YYYY-MM month)
     ///
     /// - Remark: HTTP `GET /transactions`.
     /// - Remark: Generated from `#/paths//transactions/get(listTransactions)`.
-    public func listTransactions(headers: Operations.ListTransactions.Input.Headers = .init()) async throws -> Operations.ListTransactions.Output {
-        try await listTransactions(Operations.ListTransactions.Input(headers: headers))
+    public func listTransactions(
+        query: Operations.ListTransactions.Input.Query = .init(),
+        headers: Operations.ListTransactions.Input.Headers = .init()
+    ) async throws -> Operations.ListTransactions.Output {
+        try await listTransactions(Operations.ListTransactions.Input(
+            query: query,
+            headers: headers
+        ))
     }
     /// Manually create a transaction
     ///
@@ -683,6 +850,19 @@ extension APIProtocol {
         try await createTransaction(Operations.CreateTransaction.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    ///
+    /// - Remark: HTTP `GET /transactions/review`.
+    /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
+    public func listTransactionsForReview(
+        query: Operations.ListTransactionsForReview.Input.Query = .init(),
+        headers: Operations.ListTransactionsForReview.Input.Headers = .init()
+    ) async throws -> Operations.ListTransactionsForReview.Output {
+        try await listTransactionsForReview(Operations.ListTransactionsForReview.Input(
+            query: query,
+            headers: headers
         ))
     }
     /// Update a transaction
@@ -709,6 +889,47 @@ extension APIProtocol {
         headers: Operations.DeleteTransaction.Input.Headers = .init()
     ) async throws -> Operations.DeleteTransaction.Output {
         try await deleteTransaction(Operations.DeleteTransaction.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Download a transaction's attached image
+    ///
+    /// - Remark: HTTP `GET /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)`.
+    public func getTransactionAttachment(
+        path: Operations.GetTransactionAttachment.Input.Path,
+        headers: Operations.GetTransactionAttachment.Input.Headers = .init()
+    ) async throws -> Operations.GetTransactionAttachment.Output {
+        try await getTransactionAttachment(Operations.GetTransactionAttachment.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Attach an image to a transaction (parsed for a description)
+    ///
+    /// - Remark: HTTP `PUT /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)`.
+    public func uploadTransactionAttachment(
+        path: Operations.UploadTransactionAttachment.Input.Path,
+        headers: Operations.UploadTransactionAttachment.Input.Headers = .init(),
+        body: Operations.UploadTransactionAttachment.Input.Body
+    ) async throws -> Operations.UploadTransactionAttachment.Output {
+        try await uploadTransactionAttachment(Operations.UploadTransactionAttachment.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Remove a transaction's attached image
+    ///
+    /// - Remark: HTTP `DELETE /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)`.
+    public func deleteTransactionAttachment(
+        path: Operations.DeleteTransactionAttachment.Input.Path,
+        headers: Operations.DeleteTransactionAttachment.Input.Headers = .init()
+    ) async throws -> Operations.DeleteTransactionAttachment.Output {
+        try await deleteTransactionAttachment(Operations.DeleteTransactionAttachment.Input(
             path: path,
             headers: headers
         ))
@@ -813,6 +1034,15 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Everything that needs paying, as one time-ordered list
+    ///
+    /// M111 (ADR 0024): bills, credit-card payments, and loan/lease payments in one list organized by time (overdue / due soon / upcoming / paid this cycle) with a cash-versus-due headline. Paid rows carry the actual matched transaction so the checkmark is verifiable.
+    ///
+    /// - Remark: HTTP `GET /bills/timeline`.
+    /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
+    public func getPaymentTimeline(headers: Operations.GetPaymentTimeline.Input.Headers = .init()) async throws -> Operations.GetPaymentTimeline.Output {
+        try await getPaymentTimeline(Operations.GetPaymentTimeline.Input(headers: headers))
     }
     /// Suggest bills detected from recurring account transactions
     ///
@@ -969,6 +1199,19 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Read a loan/lease statement photo or PDF into candidate values
+    ///
+    /// - Remark: HTTP `POST /accounts/scan-statement`.
+    /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
+    public func scanLoanStatement(
+        headers: Operations.ScanLoanStatement.Input.Headers = .init(),
+        body: Operations.ScanLoanStatement.Input.Body
+    ) async throws -> Operations.ScanLoanStatement.Output {
+        try await scanLoanStatement(Operations.ScanLoanStatement.Input(
+            headers: headers,
+            body: body
+        ))
+    }
     /// Read a W-2 photo or PDF into candidate values (user confirms before saving)
     ///
     /// - Remark: HTTP `POST /income/profile/scan-w2`.
@@ -1000,6 +1243,34 @@ extension APIProtocol {
         try await createGoal(Operations.CreateGoal.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Update a goal (M118: incl. the planned monthly contribution)
+    ///
+    /// - Remark: HTTP `PATCH /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)`.
+    public func updateGoal(
+        path: Operations.UpdateGoal.Input.Path,
+        headers: Operations.UpdateGoal.Input.Headers = .init(),
+        body: Operations.UpdateGoal.Input.Body
+    ) async throws -> Operations.UpdateGoal.Output {
+        try await updateGoal(Operations.UpdateGoal.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Delete a goal
+    ///
+    /// - Remark: HTTP `DELETE /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)`.
+    public func deleteGoal(
+        path: Operations.DeleteGoal.Input.Path,
+        headers: Operations.DeleteGoal.Input.Headers = .init()
+    ) async throws -> Operations.DeleteGoal.Output {
+        try await deleteGoal(Operations.DeleteGoal.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Analyze the financial impact of a potential purchase
@@ -1261,6 +1532,92 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Backup destination + schedule, with the latest backup's status
+    ///
+    /// - Remark: HTTP `GET /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
+    public func getBackupConfig(headers: Operations.GetBackupConfig.Input.Headers = .init()) async throws -> Operations.GetBackupConfig.Output {
+        try await getBackupConfig(Operations.GetBackupConfig.Input(headers: headers))
+    }
+    /// Set the backup destination (a mounted share) and schedule
+    ///
+    /// - Remark: HTTP `PUT /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
+    public func updateBackupConfig(
+        headers: Operations.UpdateBackupConfig.Input.Headers = .init(),
+        body: Operations.UpdateBackupConfig.Input.Body
+    ) async throws -> Operations.UpdateBackupConfig.Output {
+        try await updateBackupConfig(Operations.UpdateBackupConfig.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Test whether the server can write backups to a path (a mounted share)
+    ///
+    /// - Remark: HTTP `POST /backups/destination-check`.
+    /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
+    public func checkBackupDestination(
+        headers: Operations.CheckBackupDestination.Input.Headers = .init(),
+        body: Operations.CheckBackupDestination.Input.Body
+    ) async throws -> Operations.CheckBackupDestination.Output {
+        try await checkBackupDestination(Operations.CheckBackupDestination.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List the .enc backups on the configured off-box share
+    ///
+    /// - Remark: HTTP `GET /backups/remote`.
+    /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)`.
+    public func listRemoteBackups(headers: Operations.ListRemoteBackups.Input.Headers = .init()) async throws -> Operations.ListRemoteBackups.Output {
+        try await listRemoteBackups(Operations.ListRemoteBackups.Input(headers: headers))
+    }
+    /// Restore from a backup file on the off-box share (destructive)
+    ///
+    /// - Remark: HTTP `POST /backups/remote/restore`.
+    /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)`.
+    public func restoreRemoteBackup(
+        headers: Operations.RestoreRemoteBackup.Input.Headers = .init(),
+        body: Operations.RestoreRemoteBackup.Input.Body
+    ) async throws -> Operations.RestoreRemoteBackup.Output {
+        try await restoreRemoteBackup(Operations.RestoreRemoteBackup.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Delete a backup file from the Synology share
+    ///
+    /// - Remark: HTTP `POST /backups/remote/delete`.
+    /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)`.
+    public func deleteRemoteBackup(
+        headers: Operations.DeleteRemoteBackup.Input.Headers = .init(),
+        body: Operations.DeleteRemoteBackup.Input.Body
+    ) async throws -> Operations.DeleteRemoteBackup.Output {
+        try await deleteRemoteBackup(Operations.DeleteRemoteBackup.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Reveal the backup encryption key (owner only)
+    ///
+    /// - Remark: HTTP `GET /backups/encryption-key`.
+    /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)`.
+    public func getBackupEncryptionKey(headers: Operations.GetBackupEncryptionKey.Input.Headers = .init()) async throws -> Operations.GetBackupEncryptionKey.Output {
+        try await getBackupEncryptionKey(Operations.GetBackupEncryptionKey.Input(headers: headers))
+    }
+    /// Delete an on-box backup
+    ///
+    /// - Remark: HTTP `DELETE /backups/{backup_id}`.
+    /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)`.
+    public func deleteBackup(
+        path: Operations.DeleteBackup.Input.Path,
+        headers: Operations.DeleteBackup.Input.Headers = .init()
+    ) async throws -> Operations.DeleteBackup.Output {
+        try await deleteBackup(Operations.DeleteBackup.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Get active AI runtime configuration
     ///
     /// - Remark: HTTP `GET /ai/runtime`.
@@ -1367,6 +1724,13 @@ extension APIProtocol {
             path: path,
             headers: headers
         ))
+    }
+    /// Pull the latest statements from every linked institution at once
+    ///
+    /// - Remark: HTTP `POST /connections/sync`.
+    /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)`.
+    public func syncAllConnections(headers: Operations.SyncAllConnections.Input.Headers = .init()) async throws -> Operations.SyncAllConnections.Output {
+        try await syncAllConnections(Operations.SyncAllConnections.Input(headers: headers))
     }
     /// Pull the latest statements from a linked institution
     ///
@@ -1773,6 +2137,42 @@ public enum Components {
             public var categoryId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Transaction/description`.
             public var description: Swift.String?
+            /// M96: display name of the account this transaction lives in.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/account_name`.
+            public var accountName: Swift.String?
+            /// M96: for a transfer whose other leg is a linked account, that account's name — so a generic 'Online Transfer' can be shown as source → destination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/counterparty`.
+            public var counterparty: Swift.String?
+            /// M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a legitimate repeat the user kept), or 'disputed' (contesting).
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/duplicate_state`.
+            @frozen public enum DuplicateStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case flagged = "flagged"
+                case dismissed = "dismissed"
+                case disputed = "disputed"
+            }
+            /// M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a legitimate repeat the user kept), or 'disputed' (contesting).
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/duplicate_state`.
+            public var duplicateState: Components.Schemas.Transaction.DuplicateStatePayload?
+            /// M97: the bank/aggregator's reference for this record — distinguishes two otherwise-identical duplicate legs in the Review queue.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/external_id`.
+            public var externalId: Swift.String?
+            /// M97: the institution (bank) this account was synced from, so the user knows where to look the transaction up. Null for manual accounts.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/institution`.
+            public var institution: Swift.String?
+            /// M100: a user's free-text note.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/note`.
+            public var note: Swift.String?
+            /// M100: whether an image is attached to this transaction.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/has_attachment`.
+            public var hasAttachment: Swift.Bool?
             /// Creates a new `Transaction`.
             ///
             /// - Parameters:
@@ -1784,6 +2184,13 @@ public enum Components {
             ///   - category:
             ///   - categoryId:
             ///   - description:
+            ///   - accountName: M96: display name of the account this transaction lives in.
+            ///   - counterparty: M96: for a transfer whose other leg is a linked account, that account's name — so a generic 'Online Transfer' can be shown as source → destination.
+            ///   - duplicateState: M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a legitimate repeat the user kept), or 'disputed' (contesting).
+            ///   - externalId: M97: the bank/aggregator's reference for this record — distinguishes two otherwise-identical duplicate legs in the Review queue.
+            ///   - institution: M97: the institution (bank) this account was synced from, so the user knows where to look the transaction up. Null for manual accounts.
+            ///   - note: M100: a user's free-text note.
+            ///   - hasAttachment: M100: whether an image is attached to this transaction.
             public init(
                 id: Swift.String,
                 accountId: Swift.String,
@@ -1792,7 +2199,14 @@ public enum Components {
                 merchant: Swift.String? = nil,
                 category: Swift.String? = nil,
                 categoryId: Swift.String? = nil,
-                description: Swift.String? = nil
+                description: Swift.String? = nil,
+                accountName: Swift.String? = nil,
+                counterparty: Swift.String? = nil,
+                duplicateState: Components.Schemas.Transaction.DuplicateStatePayload? = nil,
+                externalId: Swift.String? = nil,
+                institution: Swift.String? = nil,
+                note: Swift.String? = nil,
+                hasAttachment: Swift.Bool? = nil
             ) {
                 self.id = id
                 self.accountId = accountId
@@ -1802,6 +2216,13 @@ public enum Components {
                 self.category = category
                 self.categoryId = categoryId
                 self.description = description
+                self.accountName = accountName
+                self.counterparty = counterparty
+                self.duplicateState = duplicateState
+                self.externalId = externalId
+                self.institution = institution
+                self.note = note
+                self.hasAttachment = hasAttachment
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -1812,6 +2233,13 @@ public enum Components {
                 case category
                 case categoryId = "category_id"
                 case description
+                case accountName = "account_name"
+                case counterparty
+                case duplicateState = "duplicate_state"
+                case externalId = "external_id"
+                case institution
+                case note
+                case hasAttachment = "has_attachment"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Category`.
@@ -2001,19 +2429,443 @@ public enum Components {
                 case transactions
             }
         }
+        /// M106: a recurring monthly payment on a liability account — a mortgage/loan payment, a lease, or a payroll-deducted 401(k)-loan repayment — shown on the Bills tab alongside actual bills. `note` explains its balance-sheet effect; `reserved` is whether safe-to-spend already holds it back.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountObligation`.
+        public struct AccountObligation: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/account_id`.
+            public var accountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/kind`.
+            @frozen public enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case mortgage = "mortgage"
+                case loan = "loan"
+                case lease = "lease"
+                case retirementLoan = "retirement_loan"
+            }
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/kind`.
+            public var kind: Components.Schemas.AccountObligation.KindPayload
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/note`.
+            public var note: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AccountObligation/reserved`.
+            public var reserved: Swift.Bool
+            /// Creates a new `AccountObligation`.
+            ///
+            /// - Parameters:
+            ///   - accountId:
+            ///   - name:
+            ///   - amount:
+            ///   - kind:
+            ///   - note:
+            ///   - reserved:
+            public init(
+                accountId: Swift.String,
+                name: Swift.String,
+                amount: Components.Schemas.Money,
+                kind: Components.Schemas.AccountObligation.KindPayload,
+                note: Swift.String,
+                reserved: Swift.Bool
+            ) {
+                self.accountId = accountId
+                self.name = name
+                self.amount = amount
+                self.kind = kind
+                self.note = note
+                self.reserved = reserved
+            }
+            public enum CodingKeys: String, CodingKey {
+                case accountId = "account_id"
+                case name
+                case amount
+                case kind
+                case note
+                case reserved
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BillListResponse`.
         public struct BillListResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BillListResponse/bills`.
             public var bills: [Components.Schemas.Bill]
+            /// - Remark: Generated from `#/components/schemas/BillListResponse/account_obligations`.
+            public var accountObligations: [Components.Schemas.AccountObligation]?
             /// Creates a new `BillListResponse`.
             ///
             /// - Parameters:
             ///   - bills:
-            public init(bills: [Components.Schemas.Bill]) {
+            ///   - accountObligations:
+            public init(
+                bills: [Components.Schemas.Bill],
+                accountObligations: [Components.Schemas.AccountObligation]? = nil
+            ) {
                 self.bills = bills
+                self.accountObligations = accountObligations
             }
             public enum CodingKeys: String, CodingKey {
                 case bills
+                case accountObligations = "account_obligations"
+            }
+        }
+        /// One expected cash movement in the outlook window (M112): a payday (positive amount) or a payment (negative amount).
+        ///
+        /// - Remark: Generated from `#/components/schemas/OutlookEvent`.
+        public struct OutlookEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/occurred_on`.
+            public var occurredOn: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/kind`.
+            @frozen public enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case income = "income"
+                case bill = "bill"
+                case creditCard = "credit_card"
+                case mortgage = "mortgage"
+                case loan = "loan"
+                case lease = "lease"
+            }
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/kind`.
+            public var kind: Components.Schemas.OutlookEvent.KindPayload
+            /// Creates a new `OutlookEvent`.
+            ///
+            /// - Parameters:
+            ///   - occurredOn:
+            ///   - name:
+            ///   - amount:
+            ///   - kind:
+            public init(
+                occurredOn: Swift.String,
+                name: Swift.String,
+                amount: Components.Schemas.Money,
+                kind: Components.Schemas.OutlookEvent.KindPayload
+            ) {
+                self.occurredOn = occurredOn
+                self.name = name
+                self.amount = amount
+                self.kind = kind
+            }
+            public enum CodingKeys: String, CodingKey {
+                case occurredOn = "occurred_on"
+                case name
+                case amount
+                case kind
+            }
+        }
+        /// Projected cash over the horizon (M112, ADR 0026): paychecks in, payments out, and the lowest point the balance reaches — the lived counterpart to safe-to-spend's zero-income stress test.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CashOutlookResponse`.
+        public struct CashOutlookResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/starting_cash`.
+            public var startingCash: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/events`.
+            public var events: [Components.Schemas.OutlookEvent]
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/ending_cash`.
+            public var endingCash: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/lowest_balance`.
+            public var lowestBalance: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/lowest_date`.
+            public var lowestDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/expected_income`.
+            public var expectedIncome: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/obligations`.
+            public var obligations: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/horizon_days`.
+            public var horizonDays: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon`.
+            public var dueSoon: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon_covered`.
+            public var dueSoonCovered: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon_window_days`.
+            public var dueSoonWindowDays: Swift.Int
+            /// Creates a new `CashOutlookResponse`.
+            ///
+            /// - Parameters:
+            ///   - startingCash:
+            ///   - events:
+            ///   - endingCash:
+            ///   - lowestBalance:
+            ///   - lowestDate:
+            ///   - expectedIncome:
+            ///   - obligations:
+            ///   - horizonDays:
+            ///   - dueSoon:
+            ///   - dueSoonCovered:
+            ///   - dueSoonWindowDays:
+            public init(
+                startingCash: Components.Schemas.Money,
+                events: [Components.Schemas.OutlookEvent],
+                endingCash: Components.Schemas.Money,
+                lowestBalance: Components.Schemas.Money,
+                lowestDate: Swift.String? = nil,
+                expectedIncome: Components.Schemas.Money,
+                obligations: Components.Schemas.Money,
+                horizonDays: Swift.Int,
+                dueSoon: Components.Schemas.Money,
+                dueSoonCovered: Swift.Bool,
+                dueSoonWindowDays: Swift.Int
+            ) {
+                self.startingCash = startingCash
+                self.events = events
+                self.endingCash = endingCash
+                self.lowestBalance = lowestBalance
+                self.lowestDate = lowestDate
+                self.expectedIncome = expectedIncome
+                self.obligations = obligations
+                self.horizonDays = horizonDays
+                self.dueSoon = dueSoon
+                self.dueSoonCovered = dueSoonCovered
+                self.dueSoonWindowDays = dueSoonWindowDays
+            }
+            public enum CodingKeys: String, CodingKey {
+                case startingCash = "starting_cash"
+                case events
+                case endingCash = "ending_cash"
+                case lowestBalance = "lowest_balance"
+                case lowestDate = "lowest_date"
+                case expectedIncome = "expected_income"
+                case obligations
+                case horizonDays = "horizon_days"
+                case dueSoon = "due_soon"
+                case dueSoonCovered = "due_soon_covered"
+                case dueSoonWindowDays = "due_soon_window_days"
+            }
+        }
+        /// M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse`.
+        public struct SpendingPlanResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/month`.
+            public var month: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/income_received`.
+            public var incomeReceived: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/income_projected`.
+            public var incomeProjected: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/expected_income`.
+            public var expectedIncome: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/spent`.
+            public var spent: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/bills_remaining`.
+            public var billsRemaining: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/account_obligations`.
+            public var accountObligations: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/planned_savings`.
+            public var plannedSavings: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/left_to_spend`.
+            public var leftToSpend: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/per_day`.
+            public var perDay: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/days_remaining`.
+            public var daysRemaining: Swift.Int
+            /// Creates a new `SpendingPlanResponse`.
+            ///
+            /// - Parameters:
+            ///   - month:
+            ///   - incomeReceived:
+            ///   - incomeProjected:
+            ///   - expectedIncome:
+            ///   - spent:
+            ///   - billsRemaining:
+            ///   - accountObligations:
+            ///   - plannedSavings:
+            ///   - leftToSpend:
+            ///   - perDay:
+            ///   - daysRemaining:
+            public init(
+                month: Swift.String,
+                incomeReceived: Components.Schemas.Money,
+                incomeProjected: Components.Schemas.Money,
+                expectedIncome: Components.Schemas.Money,
+                spent: Components.Schemas.Money,
+                billsRemaining: Components.Schemas.Money,
+                accountObligations: Components.Schemas.Money,
+                plannedSavings: Components.Schemas.Money,
+                leftToSpend: Components.Schemas.Money,
+                perDay: Components.Schemas.Money,
+                daysRemaining: Swift.Int
+            ) {
+                self.month = month
+                self.incomeReceived = incomeReceived
+                self.incomeProjected = incomeProjected
+                self.expectedIncome = expectedIncome
+                self.spent = spent
+                self.billsRemaining = billsRemaining
+                self.accountObligations = accountObligations
+                self.plannedSavings = plannedSavings
+                self.leftToSpend = leftToSpend
+                self.perDay = perDay
+                self.daysRemaining = daysRemaining
+            }
+            public enum CodingKeys: String, CodingKey {
+                case month
+                case incomeReceived = "income_received"
+                case incomeProjected = "income_projected"
+                case expectedIncome = "expected_income"
+                case spent
+                case billsRemaining = "bills_remaining"
+                case accountObligations = "account_obligations"
+                case plannedSavings = "planned_savings"
+                case leftToSpend = "left_to_spend"
+                case perDay = "per_day"
+                case daysRemaining = "days_remaining"
+            }
+        }
+        /// The actual transaction that satisfied a timeline item — the receipt behind the checkmark, so a "Paid" claim is always verifiable (ADR 0024).
+        ///
+        /// - Remark: Generated from `#/components/schemas/TimelinePaidWith`.
+        public struct TimelinePaidWith: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/transaction_id`.
+            public var transactionId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/occurred_at`.
+            public var occurredAt: Swift.String
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/label`.
+            public var label: Swift.String
+            /// Creates a new `TimelinePaidWith`.
+            ///
+            /// - Parameters:
+            ///   - transactionId:
+            ///   - occurredAt:
+            ///   - amount:
+            ///   - label:
+            public init(
+                transactionId: Swift.String,
+                occurredAt: Swift.String,
+                amount: Components.Schemas.Money,
+                label: Swift.String
+            ) {
+                self.transactionId = transactionId
+                self.occurredAt = occurredAt
+                self.amount = amount
+                self.label = label
+            }
+            public enum CodingKeys: String, CodingKey {
+                case transactionId = "transaction_id"
+                case occurredAt = "occurred_at"
+                case amount
+                case label
+            }
+        }
+        /// One payment on the Bills timeline (M111): a bill, a credit-card payment, or a loan/lease payment. `amount` is the expected figure (a bill's estimate — variable utilities show their typical amount — a card's pay-in-full balance, a loan's monthly payment); `paid_with` carries the matched actual charge when status is "paid".
+        ///
+        /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem`.
+        public struct PaymentTimelineItem: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/kind`.
+            @frozen public enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case bill = "bill"
+                case creditCard = "credit_card"
+                case mortgage = "mortgage"
+                case loan = "loan"
+                case lease = "lease"
+            }
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/kind`.
+            public var kind: Components.Schemas.PaymentTimelineItem.KindPayload
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/due_date`.
+            public var dueDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/days_until`.
+            public var daysUntil: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case overdue = "overdue"
+                case dueSoon = "due_soon"
+                case upcoming = "upcoming"
+                case paid = "paid"
+                case noDate = "no_date"
+            }
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/status`.
+            public var status: Components.Schemas.PaymentTimelineItem.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/paid_with`.
+            public var paidWith: Components.Schemas.TimelinePaidWith?
+            /// Creates a new `PaymentTimelineItem`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - kind:
+            ///   - name:
+            ///   - amount:
+            ///   - dueDate:
+            ///   - daysUntil:
+            ///   - status:
+            ///   - paidWith:
+            public init(
+                id: Swift.String,
+                kind: Components.Schemas.PaymentTimelineItem.KindPayload,
+                name: Swift.String,
+                amount: Components.Schemas.Money,
+                dueDate: Swift.String? = nil,
+                daysUntil: Swift.Int? = nil,
+                status: Components.Schemas.PaymentTimelineItem.StatusPayload,
+                paidWith: Components.Schemas.TimelinePaidWith? = nil
+            ) {
+                self.id = id
+                self.kind = kind
+                self.name = name
+                self.amount = amount
+                self.dueDate = dueDate
+                self.daysUntil = daysUntil
+                self.status = status
+                self.paidWith = paidWith
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case kind
+                case name
+                case amount
+                case dueDate = "due_date"
+                case daysUntil = "days_until"
+                case status
+                case paidWith = "paid_with"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse`.
+        public struct PaymentTimelineResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/items`.
+            public var items: [Components.Schemas.PaymentTimelineItem]
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/due_total`.
+            public var dueTotal: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/liquid_balance`.
+            public var liquidBalance: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/covered`.
+            public var covered: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/window_days`.
+            public var windowDays: Swift.Int
+            /// Creates a new `PaymentTimelineResponse`.
+            ///
+            /// - Parameters:
+            ///   - items:
+            ///   - dueTotal:
+            ///   - liquidBalance:
+            ///   - covered:
+            ///   - windowDays:
+            public init(
+                items: [Components.Schemas.PaymentTimelineItem],
+                dueTotal: Components.Schemas.Money,
+                liquidBalance: Components.Schemas.Money,
+                covered: Swift.Bool,
+                windowDays: Swift.Int
+            ) {
+                self.items = items
+                self.dueTotal = dueTotal
+                self.liquidBalance = liquidBalance
+                self.covered = covered
+                self.windowDays = windowDays
+            }
+            public enum CodingKeys: String, CodingKey {
+                case items
+                case dueTotal = "due_total"
+                case liquidBalance = "liquid_balance"
+                case covered
+                case windowDays = "window_days"
             }
         }
         /// A recurring charge detected in checking/credit-card transactions (M58). Deterministic pattern-matching, not an AI guess — every suggestion is explainable as "N charges of ~amount at ~cadence".
@@ -2846,6 +3698,97 @@ public enum Components {
                 case note
             }
         }
+        /// - Remark: Generated from `#/components/schemas/LoanScanRequest`.
+        public struct LoanScanRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LoanScanRequest/image_base64`.
+            public var imageBase64: Swift.String
+            /// - Remark: Generated from `#/components/schemas/LoanScanRequest/image_media_type`.
+            @frozen public enum ImageMediaTypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case imageJpeg = "image/jpeg"
+                case imagePng = "image/png"
+                case imageWebp = "image/webp"
+                case applicationPdf = "application/pdf"
+            }
+            /// - Remark: Generated from `#/components/schemas/LoanScanRequest/image_media_type`.
+            public var imageMediaType: Components.Schemas.LoanScanRequest.ImageMediaTypePayload
+            /// Creates a new `LoanScanRequest`.
+            ///
+            /// - Parameters:
+            ///   - imageBase64:
+            ///   - imageMediaType:
+            public init(
+                imageBase64: Swift.String,
+                imageMediaType: Components.Schemas.LoanScanRequest.ImageMediaTypePayload
+            ) {
+                self.imageBase64 = imageBase64
+                self.imageMediaType = imageMediaType
+            }
+            public enum CodingKeys: String, CodingKey {
+                case imageBase64 = "image_base64"
+                case imageMediaType = "image_media_type"
+            }
+        }
+        /// Candidate loan/lease values read from a statement — the user confirms and edits before saving. For a lease with no stated payoff, balance is estimated as payments_remaining × the monthly payment.
+        ///
+        /// - Remark: Generated from `#/components/schemas/LoanScanResult`.
+        public struct LoanScanResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/monthly_payment_minor`.
+            public var monthlyPaymentMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/balance_minor`.
+            public var balanceMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/payments_remaining`.
+            public var paymentsRemaining: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/maturity_date`.
+            public var maturityDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/apr_percent`.
+            public var aprPercent: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/is_lease`.
+            public var isLease: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/note`.
+            public var note: Swift.String
+            /// Creates a new `LoanScanResult`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - monthlyPaymentMinor:
+            ///   - balanceMinor:
+            ///   - paymentsRemaining:
+            ///   - maturityDate:
+            ///   - aprPercent:
+            ///   - isLease:
+            ///   - note:
+            public init(
+                name: Swift.String? = nil,
+                monthlyPaymentMinor: Swift.Int? = nil,
+                balanceMinor: Swift.Int? = nil,
+                paymentsRemaining: Swift.Int? = nil,
+                maturityDate: Swift.String? = nil,
+                aprPercent: Swift.Double? = nil,
+                isLease: Swift.Bool? = nil,
+                note: Swift.String
+            ) {
+                self.name = name
+                self.monthlyPaymentMinor = monthlyPaymentMinor
+                self.balanceMinor = balanceMinor
+                self.paymentsRemaining = paymentsRemaining
+                self.maturityDate = maturityDate
+                self.aprPercent = aprPercent
+                self.isLease = isLease
+                self.note = note
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case monthlyPaymentMinor = "monthly_payment_minor"
+                case balanceMinor = "balance_minor"
+                case paymentsRemaining = "payments_remaining"
+                case maturityDate = "maturity_date"
+                case aprPercent = "apr_percent"
+                case isLease = "is_lease"
+                case note
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse`.
         public struct IncomeAnalysisResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/sources`.
@@ -3053,6 +3996,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/spending_by_category`.
             public var spendingByCategory: Components.Schemas.SpendingByCategory?
+            /// M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/last_synced_at`.
+            public var lastSyncedAt: Foundation.Date?
+            /// M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/earliest_month`.
+            public var earliestMonth: Swift.String?
+            /// M97: transactions awaiting duplicate review, for the Review tab badge.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/review_count`.
+            public var reviewCount: Swift.Int?
             /// Creates a new `HouseholdContext`.
             ///
             /// - Parameters:
@@ -3073,6 +4028,9 @@ public enum Components {
             ///   - budgetSummary: M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
             ///   - safeToSpend: M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
             ///   - spendingByCategory: M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
+            ///   - lastSyncedAt: M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
+            ///   - earliestMonth: M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
+            ///   - reviewCount: M97: transactions awaiting duplicate review, for the Review tab badge.
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
@@ -3090,7 +4048,10 @@ public enum Components {
                 savingsRate: Components.Schemas.SavingsRate? = nil,
                 budgetSummary: Components.Schemas.BudgetSummary? = nil,
                 safeToSpend: Components.Schemas.SafeToSpend? = nil,
-                spendingByCategory: Components.Schemas.SpendingByCategory? = nil
+                spendingByCategory: Components.Schemas.SpendingByCategory? = nil,
+                lastSyncedAt: Foundation.Date? = nil,
+                earliestMonth: Swift.String? = nil,
+                reviewCount: Swift.Int? = nil
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
@@ -3109,6 +4070,9 @@ public enum Components {
                 self.budgetSummary = budgetSummary
                 self.safeToSpend = safeToSpend
                 self.spendingByCategory = spendingByCategory
+                self.lastSyncedAt = lastSyncedAt
+                self.earliestMonth = earliestMonth
+                self.reviewCount = reviewCount
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -3128,6 +4092,9 @@ public enum Components {
                 case budgetSummary = "budget_summary"
                 case safeToSpend = "safe_to_spend"
                 case spendingByCategory = "spending_by_category"
+                case lastSyncedAt = "last_synced_at"
+                case earliestMonth = "earliest_month"
+                case reviewCount = "review_count"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Budget`.
@@ -3312,7 +4279,7 @@ public enum Components {
             /// Per-category spend this month, highest first.
             ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categories`.
-            public var categories: [Components.Schemas.CategorySpend]
+            public var categories: [Components.Schemas.CategorySpend]?
             /// Sum of all categorized spend this month.
             ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categorized_total`.
@@ -3332,7 +4299,7 @@ public enum Components {
             public init(
                 month: Swift.String,
                 monthLabel: Swift.String,
-                categories: [Components.Schemas.CategorySpend],
+                categories: [Components.Schemas.CategorySpend]? = nil,
                 categorizedTotal: Components.Schemas.Money,
                 uncategorized: Components.Schemas.Money
             ) {
@@ -3399,6 +4366,54 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/minimum_debt_payments`.
             public var minimumDebtPayments: Components.Schemas.Money
+            /// M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments`.
+            public struct CreditCardPaymentsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `CreditCardPaymentsPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments`.
+            public var creditCardPayments: Components.Schemas.SafeToSpend.CreditCardPaymentsPayload?
+            /// M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast`.
+            public struct SubscriptionForecastPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `SubscriptionForecastPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast`.
+            public var subscriptionForecast: Components.Schemas.SafeToSpend.SubscriptionForecastPayload?
             /// emergency_fund_reserved + bills_due + minimum_debt_payments.
             ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_total`.
@@ -3415,6 +4430,30 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/warnings`.
             public var warnings: [Swift.String]
+            /// M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/liquid_accounts`.
+            public var liquidAccounts: [Components.Schemas.LiquidAccountBalance]?
+            /// M96: the debts and their minimum payments behind minimum_debt_payments.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/minimum_debt_items`.
+            public var minimumDebtItems: [Components.Schemas.NamedAmount]?
+            /// M96: the cards and their balances behind credit_card_payments (when paid in full).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_items`.
+            public var creditCardItems: [Components.Schemas.NamedAmount]?
+            /// M98: the bills behind bills_due, over the safe-to-spend horizon.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/bill_items`.
+            public var billItems: [Components.Schemas.NamedAmount]?
+            /// M98: the accounts and how much of each is reserved as emergency fund.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/emergency_fund_items`.
+            public var emergencyFundItems: [Components.Schemas.NamedAmount]?
+            /// M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast_items`.
+            public var subscriptionForecastItems: [Components.Schemas.NamedAmount]?
             /// Creates a new `SafeToSpend`.
             ///
             /// - Parameters:
@@ -3422,38 +4461,116 @@ public enum Components {
             ///   - emergencyFundReserved: Money explicitly designated for emergencies; held back.
             ///   - billsDue: Bills falling due within the horizon.
             ///   - minimumDebtPayments: Minimum payments owed on liability accounts with recorded terms.
+            ///   - creditCardPayments: M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
+            ///   - subscriptionForecast: M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
             ///   - committedTotal: emergency_fund_reserved + bills_due + minimum_debt_payments.
             ///   - safeToSpend: liquid_balance − committed_total. May be negative.
             ///   - totalDebt: All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
             ///   - warnings: Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
+            ///   - liquidAccounts: M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
+            ///   - minimumDebtItems: M96: the debts and their minimum payments behind minimum_debt_payments.
+            ///   - creditCardItems: M96: the cards and their balances behind credit_card_payments (when paid in full).
+            ///   - billItems: M98: the bills behind bills_due, over the safe-to-spend horizon.
+            ///   - emergencyFundItems: M98: the accounts and how much of each is reserved as emergency fund.
+            ///   - subscriptionForecastItems: M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
             public init(
                 liquidBalance: Components.Schemas.Money,
                 emergencyFundReserved: Components.Schemas.Money,
                 billsDue: Components.Schemas.Money,
                 minimumDebtPayments: Components.Schemas.Money,
+                creditCardPayments: Components.Schemas.SafeToSpend.CreditCardPaymentsPayload? = nil,
+                subscriptionForecast: Components.Schemas.SafeToSpend.SubscriptionForecastPayload? = nil,
                 committedTotal: Components.Schemas.Money,
                 safeToSpend: Components.Schemas.Money,
                 totalDebt: Components.Schemas.Money,
-                warnings: [Swift.String]
+                warnings: [Swift.String],
+                liquidAccounts: [Components.Schemas.LiquidAccountBalance]? = nil,
+                minimumDebtItems: [Components.Schemas.NamedAmount]? = nil,
+                creditCardItems: [Components.Schemas.NamedAmount]? = nil,
+                billItems: [Components.Schemas.NamedAmount]? = nil,
+                emergencyFundItems: [Components.Schemas.NamedAmount]? = nil,
+                subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil
             ) {
                 self.liquidBalance = liquidBalance
                 self.emergencyFundReserved = emergencyFundReserved
                 self.billsDue = billsDue
                 self.minimumDebtPayments = minimumDebtPayments
+                self.creditCardPayments = creditCardPayments
+                self.subscriptionForecast = subscriptionForecast
                 self.committedTotal = committedTotal
                 self.safeToSpend = safeToSpend
                 self.totalDebt = totalDebt
                 self.warnings = warnings
+                self.liquidAccounts = liquidAccounts
+                self.minimumDebtItems = minimumDebtItems
+                self.creditCardItems = creditCardItems
+                self.billItems = billItems
+                self.emergencyFundItems = emergencyFundItems
+                self.subscriptionForecastItems = subscriptionForecastItems
             }
             public enum CodingKeys: String, CodingKey {
                 case liquidBalance = "liquid_balance"
                 case emergencyFundReserved = "emergency_fund_reserved"
                 case billsDue = "bills_due"
                 case minimumDebtPayments = "minimum_debt_payments"
+                case creditCardPayments = "credit_card_payments"
+                case subscriptionForecast = "subscription_forecast"
                 case committedTotal = "committed_total"
                 case safeToSpend = "safe_to_spend"
                 case totalDebt = "total_debt"
                 case warnings
+                case liquidAccounts = "liquid_accounts"
+                case minimumDebtItems = "minimum_debt_items"
+                case creditCardItems = "credit_card_items"
+                case billItems = "bill_items"
+                case emergencyFundItems = "emergency_fund_items"
+                case subscriptionForecastItems = "subscription_forecast_items"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/LiquidAccountBalance`.
+        public struct LiquidAccountBalance: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/LiquidAccountBalance/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/LiquidAccountBalance/balance`.
+            public var balance: Components.Schemas.Money
+            /// Creates a new `LiquidAccountBalance`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - balance:
+            public init(
+                name: Swift.String,
+                balance: Components.Schemas.Money
+            ) {
+                self.name = name
+                self.balance = balance
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case balance
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/NamedAmount`.
+        public struct NamedAmount: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/NamedAmount/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/NamedAmount/amount`.
+            public var amount: Components.Schemas.Money
+            /// Creates a new `NamedAmount`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - amount:
+            public init(
+                name: Swift.String,
+                amount: Components.Schemas.Money
+            ) {
+                self.name = name
+                self.amount = amount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case amount
             }
         }
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.
@@ -3762,25 +4879,81 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/net`.
             public var net: Components.Schemas.Money
+            /// M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline`.
+            public struct IncomeBaselinePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `IncomeBaselinePayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline`.
+            public var incomeBaseline: Components.Schemas.MonthlyCashFlow.IncomeBaselinePayload?
+            /// M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes`.
+            public struct TaxesPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `TaxesPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes`.
+            public var taxes: Components.Schemas.MonthlyCashFlow.TaxesPayload?
             /// Creates a new `MonthlyCashFlow`.
             ///
             /// - Parameters:
             ///   - income:
             ///   - bills:
             ///   - net: Income minus bills; excludes discretionary spending.
+            ///   - incomeBaseline: M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
+            ///   - taxes: M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
             public init(
                 income: Components.Schemas.Money,
                 bills: Components.Schemas.Money,
-                net: Components.Schemas.Money
+                net: Components.Schemas.Money,
+                incomeBaseline: Components.Schemas.MonthlyCashFlow.IncomeBaselinePayload? = nil,
+                taxes: Components.Schemas.MonthlyCashFlow.TaxesPayload? = nil
             ) {
                 self.income = income
                 self.bills = bills
                 self.net = net
+                self.incomeBaseline = incomeBaseline
+                self.taxes = taxes
             }
             public enum CodingKeys: String, CodingKey {
                 case income
                 case bills
                 case net
+                case incomeBaseline = "income_baseline"
+                case taxes
             }
         }
         /// - Remark: Generated from `#/components/schemas/AssetCategoryTotal`.
@@ -3828,6 +5001,10 @@ public enum Components {
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/Account/minimum_payment`.
             public var minimumPayment: Components.Schemas.Money?
+            /// M96: loan/lease end date, for maturity and months-remaining.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/maturity_date`.
+            public var maturityDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Account/institution`.
             public var institution: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Account/last_synced_at`.
@@ -3853,6 +5030,7 @@ public enum Components {
             ///   - balance:
             ///   - annualInterestRate:
             ///   - minimumPayment:
+            ///   - maturityDate: M96: loan/lease end date, for maturity and months-remaining.
             ///   - institution:
             ///   - lastSyncedAt:
             ///   - emergencyFundPercent: M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount).
@@ -3865,6 +5043,7 @@ public enum Components {
                 balance: Components.Schemas.Money,
                 annualInterestRate: Swift.Double? = nil,
                 minimumPayment: Components.Schemas.Money? = nil,
+                maturityDate: Swift.String? = nil,
                 institution: Swift.String? = nil,
                 lastSyncedAt: Foundation.Date? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
@@ -3877,6 +5056,7 @@ public enum Components {
                 self.balance = balance
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
+                self.maturityDate = maturityDate
                 self.institution = institution
                 self.lastSyncedAt = lastSyncedAt
                 self.emergencyFundPercent = emergencyFundPercent
@@ -3890,6 +5070,7 @@ public enum Components {
                 case balance
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
+                case maturityDate = "maturity_date"
                 case institution
                 case lastSyncedAt = "last_synced_at"
                 case emergencyFundPercent = "emergency_fund_percent"
@@ -3909,6 +5090,7 @@ public enum Components {
             case mortgage = "mortgage"
             case autoLoan = "auto_loan"
             case studentLoan = "student_loan"
+            case _401kLoan = "401k_loan"
             case realEstate = "real_estate"
             case otherAsset = "other_asset"
             case otherLiability = "other_liability"
@@ -3929,6 +5111,10 @@ public enum Components {
             public var targetDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Goal/priority`.
             public var priority: Swift.Int
+            /// M118: planned monthly contribution, reserved by the spending plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Goal/monthly_contribution`.
+            public var monthlyContribution: Components.Schemas.Money?
             /// Creates a new `Goal`.
             ///
             /// - Parameters:
@@ -3939,6 +5125,7 @@ public enum Components {
             ///   - current:
             ///   - targetDate:
             ///   - priority:
+            ///   - monthlyContribution: M118: planned monthly contribution, reserved by the spending plan.
             public init(
                 id: Swift.String,
                 name: Swift.String,
@@ -3946,7 +5133,8 @@ public enum Components {
                 target: Components.Schemas.Money,
                 current: Components.Schemas.Money,
                 targetDate: Swift.String? = nil,
-                priority: Swift.Int
+                priority: Swift.Int,
+                monthlyContribution: Components.Schemas.Money? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -3955,6 +5143,7 @@ public enum Components {
                 self.current = current
                 self.targetDate = targetDate
                 self.priority = priority
+                self.monthlyContribution = monthlyContribution
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -3964,6 +5153,50 @@ public enum Components {
                 case current
                 case targetDate = "target_date"
                 case priority
+                case monthlyContribution = "monthly_contribution"
+            }
+        }
+        /// M118: update a goal's declared fields. Sending monthly_contribution null clears the plan; omitting it leaves it unchanged.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest`.
+        public struct GoalUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest/target`.
+            public var target: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest/target_date`.
+            public var targetDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest/priority`.
+            public var priority: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/GoalUpdateRequest/monthly_contribution`.
+            public var monthlyContribution: Components.Schemas.Money?
+            /// Creates a new `GoalUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - target:
+            ///   - targetDate:
+            ///   - priority:
+            ///   - monthlyContribution:
+            public init(
+                name: Swift.String? = nil,
+                target: Components.Schemas.Money? = nil,
+                targetDate: Swift.String? = nil,
+                priority: Swift.Int? = nil,
+                monthlyContribution: Components.Schemas.Money? = nil
+            ) {
+                self.name = name
+                self.target = target
+                self.targetDate = targetDate
+                self.priority = priority
+                self.monthlyContribution = monthlyContribution
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case target
+                case targetDate = "target_date"
+                case priority
+                case monthlyContribution = "monthly_contribution"
             }
         }
         /// - Remark: Generated from `#/components/schemas/GoalCreateRequest`.
@@ -3978,6 +5211,8 @@ public enum Components {
             public var targetDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/GoalCreateRequest/priority`.
             public var priority: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/GoalCreateRequest/monthly_contribution`.
+            public var monthlyContribution: Components.Schemas.Money?
             /// Creates a new `GoalCreateRequest`.
             ///
             /// - Parameters:
@@ -3986,18 +5221,21 @@ public enum Components {
             ///   - target:
             ///   - targetDate:
             ///   - priority:
+            ///   - monthlyContribution:
             public init(
                 name: Swift.String,
                 _type: Components.Schemas.GoalType,
                 target: Components.Schemas.Money,
                 targetDate: Swift.String? = nil,
-                priority: Swift.Int? = nil
+                priority: Swift.Int? = nil,
+                monthlyContribution: Components.Schemas.Money? = nil
             ) {
                 self.name = name
                 self._type = _type
                 self.target = target
                 self.targetDate = targetDate
                 self.priority = priority
+                self.monthlyContribution = monthlyContribution
             }
             public enum CodingKeys: String, CodingKey {
                 case name
@@ -4005,6 +5243,7 @@ public enum Components {
                 case target
                 case targetDate = "target_date"
                 case priority
+                case monthlyContribution = "monthly_contribution"
             }
         }
         /// - Remark: Generated from `#/components/schemas/GoalType`.
@@ -4810,6 +6049,14 @@ public enum Components {
             public var prunedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/BackupJob/created_at`.
             public var createdAt: Foundation.Date
+            /// M98: whether this backup reached the off-box share (synced/failed/skipped).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupJob/remote_status`.
+            public var remoteStatus: Swift.String?
+            /// M98: the reason a copy to the share failed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupJob/remote_error`.
+            public var remoteError: Swift.String?
             /// Creates a new `BackupJob`.
             ///
             /// - Parameters:
@@ -4821,6 +6068,8 @@ public enum Components {
             ///   - completedAt:
             ///   - prunedAt:
             ///   - createdAt:
+            ///   - remoteStatus: M98: whether this backup reached the off-box share (synced/failed/skipped).
+            ///   - remoteError: M98: the reason a copy to the share failed.
             public init(
                 id: Swift.String,
                 status: Components.Schemas.BackupJobStatus,
@@ -4829,7 +6078,9 @@ public enum Components {
                 startedAt: Foundation.Date,
                 completedAt: Foundation.Date? = nil,
                 prunedAt: Foundation.Date? = nil,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                remoteStatus: Swift.String? = nil,
+                remoteError: Swift.String? = nil
             ) {
                 self.id = id
                 self.status = status
@@ -4839,6 +6090,8 @@ public enum Components {
                 self.completedAt = completedAt
                 self.prunedAt = prunedAt
                 self.createdAt = createdAt
+                self.remoteStatus = remoteStatus
+                self.remoteError = remoteError
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -4849,6 +6102,8 @@ public enum Components {
                 case completedAt = "completed_at"
                 case prunedAt = "pruned_at"
                 case createdAt = "created_at"
+                case remoteStatus = "remote_status"
+                case remoteError = "remote_error"
             }
         }
         /// - Remark: Generated from `#/components/schemas/BackupJobListResponse`.
@@ -4864,6 +6119,312 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case backups
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupConfig`.
+        public struct BackupConfig: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/frequency`.
+            @frozen public enum FrequencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case every15min = "every_15min"
+                case hourly = "hourly"
+                case every6h = "every_6h"
+                case daily = "daily"
+                case weekly = "weekly"
+                case off = "off"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/frequency`.
+            public var frequency: Components.Schemas.BackupConfig.FrequencyPayload?
+            /// M98: Synology address (IP or hostname) backups upload to over SMB.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_host`.
+            public var smbHost: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_share`.
+            public var smbShare: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_folder`.
+            public var smbFolder: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_username`.
+            public var smbUsername: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_domain`.
+            public var smbDomain: Swift.String?
+            /// M98: whether a Synology password is stored (the password itself is never returned).
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/has_password`.
+            public var hasPassword: Swift.Bool?
+            /// M98: cap on combined size of all backups (bytes); null = no cap.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/max_bytes`.
+            public var maxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/latest`.
+            public var latest: Components.Schemas.BackupJob?
+            /// Creates a new `BackupConfig`.
+            ///
+            /// - Parameters:
+            ///   - frequency:
+            ///   - smbHost: M98: Synology address (IP or hostname) backups upload to over SMB.
+            ///   - smbShare:
+            ///   - smbFolder:
+            ///   - smbUsername:
+            ///   - smbDomain:
+            ///   - hasPassword: M98: whether a Synology password is stored (the password itself is never returned).
+            ///   - maxBytes: M98: cap on combined size of all backups (bytes); null = no cap.
+            ///   - latest:
+            public init(
+                frequency: Components.Schemas.BackupConfig.FrequencyPayload? = nil,
+                smbHost: Swift.String? = nil,
+                smbShare: Swift.String? = nil,
+                smbFolder: Swift.String? = nil,
+                smbUsername: Swift.String? = nil,
+                smbDomain: Swift.String? = nil,
+                hasPassword: Swift.Bool? = nil,
+                maxBytes: Swift.Int64? = nil,
+                latest: Components.Schemas.BackupJob? = nil
+            ) {
+                self.frequency = frequency
+                self.smbHost = smbHost
+                self.smbShare = smbShare
+                self.smbFolder = smbFolder
+                self.smbUsername = smbUsername
+                self.smbDomain = smbDomain
+                self.hasPassword = hasPassword
+                self.maxBytes = maxBytes
+                self.latest = latest
+            }
+            public enum CodingKeys: String, CodingKey {
+                case frequency
+                case smbHost = "smb_host"
+                case smbShare = "smb_share"
+                case smbFolder = "smb_folder"
+                case smbUsername = "smb_username"
+                case smbDomain = "smb_domain"
+                case hasPassword = "has_password"
+                case maxBytes = "max_bytes"
+                case latest
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest`.
+        public struct BackupConfigUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/frequency`.
+            @frozen public enum FrequencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case every15min = "every_15min"
+                case hourly = "hourly"
+                case every6h = "every_6h"
+                case daily = "daily"
+                case weekly = "weekly"
+                case off = "off"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/frequency`.
+            public var frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_host`.
+            public var smbHost: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_share`.
+            public var smbShare: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_folder`.
+            public var smbFolder: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_username`.
+            public var smbUsername: Swift.String?
+            /// M98: write-only; omit/null to keep the stored password.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_password`.
+            public var smbPassword: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_domain`.
+            public var smbDomain: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/max_bytes`.
+            public var maxBytes: Swift.Int64?
+            /// Creates a new `BackupConfigUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - frequency:
+            ///   - smbHost:
+            ///   - smbShare:
+            ///   - smbFolder:
+            ///   - smbUsername:
+            ///   - smbPassword: M98: write-only; omit/null to keep the stored password.
+            ///   - smbDomain:
+            ///   - maxBytes:
+            public init(
+                frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload? = nil,
+                smbHost: Swift.String? = nil,
+                smbShare: Swift.String? = nil,
+                smbFolder: Swift.String? = nil,
+                smbUsername: Swift.String? = nil,
+                smbPassword: Swift.String? = nil,
+                smbDomain: Swift.String? = nil,
+                maxBytes: Swift.Int64? = nil
+            ) {
+                self.frequency = frequency
+                self.smbHost = smbHost
+                self.smbShare = smbShare
+                self.smbFolder = smbFolder
+                self.smbUsername = smbUsername
+                self.smbPassword = smbPassword
+                self.smbDomain = smbDomain
+                self.maxBytes = maxBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case frequency
+                case smbHost = "smb_host"
+                case smbShare = "smb_share"
+                case smbFolder = "smb_folder"
+                case smbUsername = "smb_username"
+                case smbPassword = "smb_password"
+                case smbDomain = "smb_domain"
+                case maxBytes = "max_bytes"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest`.
+        public struct BackupDestinationCheckRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_host`.
+            public var smbHost: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_share`.
+            public var smbShare: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_folder`.
+            public var smbFolder: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_username`.
+            public var smbUsername: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_password`.
+            public var smbPassword: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_domain`.
+            public var smbDomain: Swift.String?
+            /// Creates a new `BackupDestinationCheckRequest`.
+            ///
+            /// - Parameters:
+            ///   - smbHost:
+            ///   - smbShare:
+            ///   - smbFolder:
+            ///   - smbUsername:
+            ///   - smbPassword:
+            ///   - smbDomain:
+            public init(
+                smbHost: Swift.String,
+                smbShare: Swift.String,
+                smbFolder: Swift.String? = nil,
+                smbUsername: Swift.String,
+                smbPassword: Swift.String? = nil,
+                smbDomain: Swift.String? = nil
+            ) {
+                self.smbHost = smbHost
+                self.smbShare = smbShare
+                self.smbFolder = smbFolder
+                self.smbUsername = smbUsername
+                self.smbPassword = smbPassword
+                self.smbDomain = smbDomain
+            }
+            public enum CodingKeys: String, CodingKey {
+                case smbHost = "smb_host"
+                case smbShare = "smb_share"
+                case smbFolder = "smb_folder"
+                case smbUsername = "smb_username"
+                case smbPassword = "smb_password"
+                case smbDomain = "smb_domain"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckResponse`.
+        public struct BackupDestinationCheckResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckResponse/writable`.
+            public var writable: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckResponse/reason`.
+            public var reason: Swift.String?
+            /// Creates a new `BackupDestinationCheckResponse`.
+            ///
+            /// - Parameters:
+            ///   - writable:
+            ///   - reason:
+            public init(
+                writable: Swift.Bool,
+                reason: Swift.String? = nil
+            ) {
+                self.writable = writable
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case writable
+                case reason
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteBackup`.
+        public struct RemoteBackup: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RemoteBackup/filename`.
+            public var filename: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RemoteBackup/size_bytes`.
+            public var sizeBytes: Swift.Int64
+            /// Epoch seconds of the file's last-modified time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteBackup/modified_at`.
+            public var modifiedAt: Swift.Int64
+            /// Creates a new `RemoteBackup`.
+            ///
+            /// - Parameters:
+            ///   - filename:
+            ///   - sizeBytes:
+            ///   - modifiedAt: Epoch seconds of the file's last-modified time.
+            public init(
+                filename: Swift.String,
+                sizeBytes: Swift.Int64,
+                modifiedAt: Swift.Int64
+            ) {
+                self.filename = filename
+                self.sizeBytes = sizeBytes
+                self.modifiedAt = modifiedAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case filename
+                case sizeBytes = "size_bytes"
+                case modifiedAt = "modified_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse`.
+        public struct RemoteBackupListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/backups`.
+            public var backups: [Components.Schemas.RemoteBackup]
+            /// Creates a new `RemoteBackupListResponse`.
+            ///
+            /// - Parameters:
+            ///   - backups:
+            public init(backups: [Components.Schemas.RemoteBackup]) {
+                self.backups = backups
+            }
+            public enum CodingKeys: String, CodingKey {
+                case backups
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteRestoreRequest`.
+        public struct RemoteRestoreRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RemoteRestoreRequest/filename`.
+            public var filename: Swift.String
+            /// Creates a new `RemoteRestoreRequest`.
+            ///
+            /// - Parameters:
+            ///   - filename:
+            public init(filename: Swift.String) {
+                self.filename = filename
+            }
+            public enum CodingKeys: String, CodingKey {
+                case filename
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupEncryptionKey`.
+        public struct BackupEncryptionKey: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupEncryptionKey/configured`.
+            public var configured: Swift.Bool
+            /// M98: the key that decrypts every backup — store it safely.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupEncryptionKey/key`.
+            public var key: Swift.String?
+            /// Creates a new `BackupEncryptionKey`.
+            ///
+            /// - Parameters:
+            ///   - configured:
+            ///   - key: M98: the key that decrypts every backup — store it safely.
+            public init(
+                configured: Swift.Bool,
+                key: Swift.String? = nil
+            ) {
+                self.configured = configured
+                self.key = key
+            }
+            public enum CodingKeys: String, CodingKey {
+                case configured
+                case key
             }
         }
         /// - Remark: Generated from `#/components/schemas/HouseholdCreateRequest`.
@@ -4919,21 +6480,29 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/clear_emergency_fund_target`.
             public var clearEmergencyFundTarget: Swift.Bool?
+            /// M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/credit_cards_paid_in_full`.
+            public var creditCardsPaidInFull: Swift.Bool?
             /// Creates a new `HouseholdUpdateRequest`.
             ///
             /// - Parameters:
             ///   - emergencyFundTargetMonths: Months of expenses to target for the emergency fund (1-60).
             ///   - clearEmergencyFundTarget: Reset the emergency-fund target to the default (6 months).
+            ///   - creditCardsPaidInFull: M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
             public init(
                 emergencyFundTargetMonths: Swift.Double? = nil,
-                clearEmergencyFundTarget: Swift.Bool? = nil
+                clearEmergencyFundTarget: Swift.Bool? = nil,
+                creditCardsPaidInFull: Swift.Bool? = nil
             ) {
                 self.emergencyFundTargetMonths = emergencyFundTargetMonths
                 self.clearEmergencyFundTarget = clearEmergencyFundTarget
+                self.creditCardsPaidInFull = creditCardsPaidInFull
             }
             public enum CodingKeys: String, CodingKey {
                 case emergencyFundTargetMonths = "emergency_fund_target_months"
                 case clearEmergencyFundTarget = "clear_emergency_fund_target"
+                case creditCardsPaidInFull = "credit_cards_paid_in_full"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Member`.
@@ -5054,6 +6623,8 @@ public enum Components {
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/minimum_payment`.
             public var minimumPayment: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/maturity_date`.
+            public var maturityDate: Swift.String?
             /// Creates a new `AccountCreateRequest`.
             ///
             /// - Parameters:
@@ -5062,18 +6633,21 @@ public enum Components {
             ///   - currency:
             ///   - annualInterestRate:
             ///   - minimumPayment:
+            ///   - maturityDate:
             public init(
                 name: Swift.String,
                 _type: Components.Schemas.AccountType,
                 currency: Swift.String,
                 annualInterestRate: Swift.Double? = nil,
-                minimumPayment: Components.Schemas.Money? = nil
+                minimumPayment: Components.Schemas.Money? = nil,
+                maturityDate: Swift.String? = nil
             ) {
                 self.name = name
                 self._type = _type
                 self.currency = currency
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
+                self.maturityDate = maturityDate
             }
             public enum CodingKeys: String, CodingKey {
                 case name
@@ -5081,6 +6655,7 @@ public enum Components {
                 case currency
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
+                case maturityDate = "maturity_date"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest`.
@@ -5093,6 +6668,8 @@ public enum Components {
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/minimum_payment`.
             public var minimumPayment: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/maturity_date`.
+            public var maturityDate: Swift.String?
             /// M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
             ///
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/emergency_fund_percent`.
@@ -5112,6 +6689,7 @@ public enum Components {
             ///   - _type:
             ///   - annualInterestRate:
             ///   - minimumPayment:
+            ///   - maturityDate:
             ///   - emergencyFundPercent: M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
             ///   - emergencyFundAmount: M36: reserve this fixed amount for emergencies. Clears any percent designation. 400 if sent with emergency_fund_percent.
             ///   - clearEmergencyFund: M36: remove the emergency-fund designation from this account.
@@ -5120,6 +6698,7 @@ public enum Components {
                 _type: Components.Schemas.AccountType? = nil,
                 annualInterestRate: Swift.Double? = nil,
                 minimumPayment: Components.Schemas.Money? = nil,
+                maturityDate: Swift.String? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
                 emergencyFundAmount: Components.Schemas.Money? = nil,
                 clearEmergencyFund: Swift.Bool? = nil
@@ -5128,6 +6707,7 @@ public enum Components {
                 self._type = _type
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
+                self.maturityDate = maturityDate
                 self.emergencyFundPercent = emergencyFundPercent
                 self.emergencyFundAmount = emergencyFundAmount
                 self.clearEmergencyFund = clearEmergencyFund
@@ -5137,6 +6717,7 @@ public enum Components {
                 case _type = "type"
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
+                case maturityDate = "maturity_date"
                 case emergencyFundPercent = "emergency_fund_percent"
                 case emergencyFundAmount = "emergency_fund_amount"
                 case clearEmergencyFund = "clear_emergency_fund"
@@ -5226,6 +6807,21 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TransactionUpdateRequest/clear_category`.
             public var clearCategory: Swift.Bool?
+            /// M97: resolve a Review-queue flag — 'dismissed' (keep both, a real repeat) or 'disputed' (contesting with the bank).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TransactionUpdateRequest/duplicate_state`.
+            @frozen public enum DuplicateStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case dismissed = "dismissed"
+                case disputed = "disputed"
+            }
+            /// M97: resolve a Review-queue flag — 'dismissed' (keep both, a real repeat) or 'disputed' (contesting with the bank).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TransactionUpdateRequest/duplicate_state`.
+            public var duplicateState: Components.Schemas.TransactionUpdateRequest.DuplicateStatePayload?
+            /// M100: set/clear the free-text note (present = set, absent = leave).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TransactionUpdateRequest/note`.
+            public var note: Swift.String?
             /// Creates a new `TransactionUpdateRequest`.
             ///
             /// - Parameters:
@@ -5236,6 +6832,8 @@ public enum Components {
             ///   - description:
             ///   - categoryId: M45: assign a spending category.
             ///   - clearCategory: M45: remove the category from this transaction.
+            ///   - duplicateState: M97: resolve a Review-queue flag — 'dismissed' (keep both, a real repeat) or 'disputed' (contesting with the bank).
+            ///   - note: M100: set/clear the free-text note (present = set, absent = leave).
             public init(
                 accountId: Swift.String? = nil,
                 occurredAt: Swift.String? = nil,
@@ -5243,7 +6841,9 @@ public enum Components {
                 merchant: Swift.String? = nil,
                 description: Swift.String? = nil,
                 categoryId: Swift.String? = nil,
-                clearCategory: Swift.Bool? = nil
+                clearCategory: Swift.Bool? = nil,
+                duplicateState: Components.Schemas.TransactionUpdateRequest.DuplicateStatePayload? = nil,
+                note: Swift.String? = nil
             ) {
                 self.accountId = accountId
                 self.occurredAt = occurredAt
@@ -5252,6 +6852,8 @@ public enum Components {
                 self.description = description
                 self.categoryId = categoryId
                 self.clearCategory = clearCategory
+                self.duplicateState = duplicateState
+                self.note = note
             }
             public enum CodingKeys: String, CodingKey {
                 case accountId = "account_id"
@@ -5261,6 +6863,8 @@ public enum Components {
                 case description
                 case categoryId = "category_id"
                 case clearCategory = "clear_category"
+                case duplicateState = "duplicate_state"
+                case note
             }
         }
         /// - Remark: Generated from `#/components/schemas/BillCreateRequest`.
@@ -5429,6 +7033,10 @@ public enum Components {
             public var summary: Swift.String
             /// - Remark: Generated from `#/components/schemas/AuditEvent/created_at`.
             public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/AuditEvent/undoable`.
+            public var undoable: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/AuditEvent/reverted_at`.
+            public var revertedAt: Foundation.Date?
             /// Creates a new `AuditEvent`.
             ///
             /// - Parameters:
@@ -5439,6 +7047,8 @@ public enum Components {
             ///   - entityId:
             ///   - summary:
             ///   - createdAt:
+            ///   - undoable:
+            ///   - revertedAt:
             public init(
                 id: Swift.String,
                 actorUserId: Swift.String? = nil,
@@ -5446,7 +7056,9 @@ public enum Components {
                 entityType: Swift.String,
                 entityId: Swift.String? = nil,
                 summary: Swift.String,
-                createdAt: Foundation.Date
+                createdAt: Foundation.Date,
+                undoable: Swift.Bool? = nil,
+                revertedAt: Foundation.Date? = nil
             ) {
                 self.id = id
                 self.actorUserId = actorUserId
@@ -5455,6 +7067,8 @@ public enum Components {
                 self.entityId = entityId
                 self.summary = summary
                 self.createdAt = createdAt
+                self.undoable = undoable
+                self.revertedAt = revertedAt
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -5464,6 +7078,8 @@ public enum Components {
                 case entityId = "entity_id"
                 case summary
                 case createdAt = "created_at"
+                case undoable
+                case revertedAt = "reverted_at"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AuditEventListResponse`.
@@ -5973,25 +7589,41 @@ public enum Components {
             public var imported: Swift.Int
             /// - Remark: Generated from `#/components/schemas/ConnectionSyncResult/duplicates_skipped`.
             public var duplicatesSkipped: Swift.Int
+            /// Imported transactions auto-filed under the Transfers category (credit-card payments, bank-to-bank transfers) so the user need not tag them and they do not inflate spending.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ConnectionSyncResult/transfers_filed`.
+            public var transfersFiled: Swift.Int?
+            /// Imported transactions auto-categorized by reusing the category the household previously assigned to the same merchant.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ConnectionSyncResult/auto_categorized`.
+            public var autoCategorized: Swift.Int?
             /// Creates a new `ConnectionSyncResult`.
             ///
             /// - Parameters:
             ///   - accountsSynced:
             ///   - imported:
             ///   - duplicatesSkipped:
+            ///   - transfersFiled: Imported transactions auto-filed under the Transfers category (credit-card payments, bank-to-bank transfers) so the user need not tag them and they do not inflate spending.
+            ///   - autoCategorized: Imported transactions auto-categorized by reusing the category the household previously assigned to the same merchant.
             public init(
                 accountsSynced: Swift.Int,
                 imported: Swift.Int,
-                duplicatesSkipped: Swift.Int
+                duplicatesSkipped: Swift.Int,
+                transfersFiled: Swift.Int? = nil,
+                autoCategorized: Swift.Int? = nil
             ) {
                 self.accountsSynced = accountsSynced
                 self.imported = imported
                 self.duplicatesSkipped = duplicatesSkipped
+                self.transfersFiled = transfersFiled
+                self.autoCategorized = autoCategorized
             }
             public enum CodingKeys: String, CodingKey {
                 case accountsSynced = "accounts_synced"
                 case imported
                 case duplicatesSkipped = "duplicates_skipped"
+                case transfersFiled = "transfers_filed"
+                case autoCategorized = "auto_categorized"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiApplyRequest`.
@@ -7399,13 +9031,204 @@ public enum Operations {
             }
         }
     }
-    /// Get household financial context summary
+    /// Spending by category for a month (defaults to the current month)
+    ///
+    /// - Remark: HTTP `GET /spending`.
+    /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)`.
+    public enum GetSpendingByCategory {
+        public static let id: Swift.String = "getSpendingByCategory"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/spending/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Month as YYYY-MM; omit for the current month.
+                ///
+                /// - Remark: Generated from `#/paths/spending/GET/query/month`.
+                public var month: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - month: Month as YYYY-MM; omit for the current month.
+                public init(month: Swift.String? = nil) {
+                    self.month = month
+                }
+            }
+            public var query: Operations.GetSpendingByCategory.Input.Query
+            /// - Remark: Generated from `#/paths/spending/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSpendingByCategory.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSpendingByCategory.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetSpendingByCategory.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GetSpendingByCategory.Input.Query = .init(),
+                headers: Operations.GetSpendingByCategory.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/spending/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/spending/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SpendingByCategory)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SpendingByCategory {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetSpendingByCategory.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetSpendingByCategory.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Spending by category for the month
+            ///
+            /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetSpendingByCategory.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetSpendingByCategory.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//spending/get(getSpendingByCategory)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get household financial context summary (current, or a past month's snapshot)
     ///
     /// - Remark: HTTP `GET /household`.
     /// - Remark: Generated from `#/paths//household/get(getHouseholdContext)`.
     public enum GetHouseholdContext {
         public static let id: Swift.String = "getHouseholdContext"
         public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// YYYY-MM; a past month returns its frozen snapshot. Omit for the live current month.
+                ///
+                /// - Remark: Generated from `#/paths/household/GET/query/month`.
+                public var month: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - month: YYYY-MM; a past month returns its frozen snapshot. Omit for the live current month.
+                public init(month: Swift.String? = nil) {
+                    self.month = month
+                }
+            }
+            public var query: Operations.GetHouseholdContext.Input.Query
             /// - Remark: Generated from `#/paths/household/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetHouseholdContext.AcceptableContentType>]
@@ -7421,8 +9244,13 @@ public enum Operations {
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.GetHouseholdContext.Input.Headers = .init()) {
+            public init(
+                query: Operations.GetHouseholdContext.Input.Query = .init(),
+                headers: Operations.GetHouseholdContext.Input.Headers = .init()
+            ) {
+                self.query = query
                 self.headers = headers
             }
         }
@@ -7671,6 +9499,322 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//household/patch(updateHousehold)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Projected cash over the next 30 days — paychecks in, payments out
+    ///
+    /// M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income stress test. Expected paydays (recurring-income detection) and every payment-timeline obligation, projected day by day, with the lowest point the balance reaches. Repeats the Bills due-vs-cash headline so the Overview and Bills screens say the same thing.
+    ///
+    /// - Remark: HTTP `GET /overview/cash-outlook`.
+    /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)`.
+    public enum GetCashOutlook {
+        public static let id: Swift.String = "getCashOutlook"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/overview/cash-outlook/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetCashOutlook.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetCashOutlook.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetCashOutlook.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetCashOutlook.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/cash-outlook/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/overview/cash-outlook/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CashOutlookResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.CashOutlookResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetCashOutlook.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetCashOutlook.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Cash outlook
+            ///
+            /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetCashOutlook.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetCashOutlook.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/cash-outlook/get(getCashOutlook)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Left to spend this month — income minus spent and committed
+    ///
+    /// M113 (ADR 0027): expected income (received + projected paydays) minus month-to-date spending, unpaid bills through month end, and the month's loan/lease payments. The accrual counterpart to the cash outlook.
+    ///
+    /// - Remark: HTTP `GET /overview/spending-plan`.
+    /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)`.
+    public enum GetSpendingPlan {
+        public static let id: Swift.String = "getSpendingPlan"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/overview/spending-plan/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSpendingPlan.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSpendingPlan.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetSpendingPlan.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetSpendingPlan.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/spending-plan/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/overview/spending-plan/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SpendingPlanResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SpendingPlanResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetSpendingPlan.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetSpendingPlan.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Spending plan
+            ///
+            /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetSpendingPlan.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetSpendingPlan.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/spending-plan/get(getSpendingPlan)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Components.Responses._Error)
@@ -8634,6 +10778,249 @@ public enum Operations {
             }
         }
     }
+    /// Reverse a previously-recorded action
+    ///
+    /// - Remark: HTTP `POST /audit/{audit_id}/undo`.
+    /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)`.
+    public enum UndoAuditEvent {
+        public static let id: Swift.String = "undoAuditEvent"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/audit/{audit_id}/undo/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/audit/{audit_id}/undo/POST/path/audit_id`.
+                public var auditId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - auditId:
+                public init(auditId: Swift.String) {
+                    self.auditId = auditId
+                }
+            }
+            public var path: Operations.UndoAuditEvent.Input.Path
+            /// - Remark: Generated from `#/paths/audit/{audit_id}/undo/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UndoAuditEvent.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UndoAuditEvent.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UndoAuditEvent.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.UndoAuditEvent.Input.Path,
+                headers: Operations.UndoAuditEvent.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/audit/{audit_id}/undo/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/audit/{audit_id}/undo/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AuditEvent)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AuditEvent {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UndoAuditEvent.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UndoAuditEvent.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The updated audit event
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UndoAuditEvent.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UndoAuditEvent.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//audit/{audit_id}/undo/post(undoAuditEvent)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List accounts
     ///
     /// - Remark: HTTP `GET /accounts`.
@@ -9550,13 +11937,28 @@ public enum Operations {
             }
         }
     }
-    /// List transactions for the household
+    /// List transactions (recent, or every one in a given YYYY-MM month)
     ///
     /// - Remark: HTTP `GET /transactions`.
     /// - Remark: Generated from `#/paths//transactions/get(listTransactions)`.
     public enum ListTransactions {
         public static let id: Swift.String = "listTransactions"
         public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/transactions/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// YYYY-MM; returns every transaction in that month. Omit for the recent set.
+                ///
+                /// - Remark: Generated from `#/paths/transactions/GET/query/month`.
+                public var month: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - month: YYYY-MM; returns every transaction in that month. Omit for the recent set.
+                public init(month: Swift.String? = nil) {
+                    self.month = month
+                }
+            }
+            public var query: Operations.ListTransactions.Input.Query
             /// - Remark: Generated from `#/paths/transactions/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListTransactions.AcceptableContentType>]
@@ -9572,8 +11974,13 @@ public enum Operations {
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.ListTransactions.Input.Headers = .init()) {
+            public init(
+                query: Operations.ListTransactions.Input.Query = .init(),
+                headers: Operations.ListTransactions.Input.Headers = .init()
+            ) {
+                self.query = query
                 self.headers = headers
             }
         }
@@ -9647,6 +12054,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/get(listTransactions)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
@@ -9837,6 +12267,188 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    ///
+    /// - Remark: HTTP `GET /transactions/review`.
+    /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
+    public enum ListTransactionsForReview {
+        public static let id: Swift.String = "listTransactionsForReview"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/transactions/review/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/review/GET/query/kind`.
+                @frozen public enum KindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case duplicates = "duplicates"
+                    case transfers = "transfers"
+                    case credits = "credits"
+                }
+                /// duplicates (default) | transfers | credits
+                ///
+                /// - Remark: Generated from `#/paths/transactions/review/GET/query/kind`.
+                public var kind: Operations.ListTransactionsForReview.Input.Query.KindPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - kind: duplicates (default) | transfers | credits
+                public init(kind: Operations.ListTransactionsForReview.Input.Query.KindPayload? = nil) {
+                    self.kind = kind
+                }
+            }
+            public var query: Operations.ListTransactionsForReview.Input.Query
+            /// - Remark: Generated from `#/paths/transactions/review/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListTransactionsForReview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListTransactionsForReview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListTransactionsForReview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.ListTransactionsForReview.Input.Query = .init(),
+                headers: Operations.ListTransactionsForReview.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/review/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/transactions/review/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TransactionListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TransactionListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListTransactionsForReview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListTransactionsForReview.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Transactions to review
+            ///
+            /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListTransactionsForReview.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListTransactionsForReview.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
@@ -10209,6 +12821,665 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//transactions/{transaction_id}/delete(deleteTransaction)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Download a transaction's attached image
+    ///
+    /// - Remark: HTTP `GET /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)`.
+    public enum GetTransactionAttachment {
+        public static let id: Swift.String = "getTransactionAttachment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/path/transaction_id`.
+                public var transactionId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - transactionId:
+                public init(transactionId: Swift.String) {
+                    self.transactionId = transactionId
+                }
+            }
+            public var path: Operations.GetTransactionAttachment.Input.Path
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetTransactionAttachment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetTransactionAttachment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetTransactionAttachment.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.GetTransactionAttachment.Input.Path,
+                headers: Operations.GetTransactionAttachment.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/responses/200/content/image\/jpeg`.
+                    case jpeg(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.jpeg`.
+                    ///
+                    /// - Throws: An error if `self` is not `.jpeg`.
+                    /// - SeeAlso: `.jpeg`.
+                    public var jpeg: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .jpeg(body):
+                                return body
+                            default:
+                                try throwUnexpectedResponseBody(
+                                    expectedContent: "image/jpeg",
+                                    body: self
+                                )
+                            }
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/GET/responses/200/content/image\/png`.
+                    case png(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.png`.
+                    ///
+                    /// - Throws: An error if `self` is not `.png`.
+                    /// - SeeAlso: `.png`.
+                    public var png: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .png(body):
+                                return body
+                            default:
+                                try throwUnexpectedResponseBody(
+                                    expectedContent: "image/png",
+                                    body: self
+                                )
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetTransactionAttachment.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetTransactionAttachment.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The image
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetTransactionAttachment.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetTransactionAttachment.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/get(getTransactionAttachment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case jpeg
+            case png
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "image/jpeg":
+                    self = .jpeg
+                case "image/png":
+                    self = .png
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .jpeg:
+                    return "image/jpeg"
+                case .png:
+                    return "image/png"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .jpeg,
+                    .png,
+                    .json
+                ]
+            }
+        }
+    }
+    /// Attach an image to a transaction (parsed for a description)
+    ///
+    /// - Remark: HTTP `PUT /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)`.
+    public enum UploadTransactionAttachment {
+        public static let id: Swift.String = "uploadTransactionAttachment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/path/transaction_id`.
+                public var transactionId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - transactionId:
+                public init(transactionId: Swift.String) {
+                    self.transactionId = transactionId
+                }
+            }
+            public var path: Operations.UploadTransactionAttachment.Input.Path
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UploadTransactionAttachment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UploadTransactionAttachment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UploadTransactionAttachment.Input.Headers
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/requestBody/multipartForm`.
+                @frozen public enum MultipartFormPayload: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/requestBody/multipartForm/file`.
+                    public struct FilePayload: Sendable, Hashable {
+                        public var body: OpenAPIRuntime.HTTPBody
+                        /// Creates a new `FilePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - body:
+                        public init(body: OpenAPIRuntime.HTTPBody) {
+                            self.body = body
+                        }
+                    }
+                    case file(OpenAPIRuntime.MultipartPart<Operations.UploadTransactionAttachment.Input.Body.MultipartFormPayload.FilePayload>)
+                    case undocumented(OpenAPIRuntime.MultipartRawPart)
+                }
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/requestBody/content/multipart\/form-data`.
+                case multipartForm(OpenAPIRuntime.MultipartBody<Operations.UploadTransactionAttachment.Input.Body.MultipartFormPayload>)
+            }
+            public var body: Operations.UploadTransactionAttachment.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UploadTransactionAttachment.Input.Path,
+                headers: Operations.UploadTransactionAttachment.Input.Headers = .init(),
+                body: Operations.UploadTransactionAttachment.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Transaction)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Transaction {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UploadTransactionAttachment.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UploadTransactionAttachment.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Updated transaction
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UploadTransactionAttachment.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UploadTransactionAttachment.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/put(uploadTransactionAttachment)/responses/413`.
+            ///
+            /// HTTP response code: `413 contentTooLarge`.
+            case contentTooLarge(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.contentTooLarge`.
+            ///
+            /// - Throws: An error if `self` is not `.contentTooLarge`.
+            /// - SeeAlso: `.contentTooLarge`.
+            public var contentTooLarge: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .contentTooLarge(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "contentTooLarge",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Remove a transaction's attached image
+    ///
+    /// - Remark: HTTP `DELETE /transactions/{transaction_id}/attachment`.
+    /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)`.
+    public enum DeleteTransactionAttachment {
+        public static let id: Swift.String = "deleteTransactionAttachment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/DELETE/path/transaction_id`.
+                public var transactionId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - transactionId:
+                public init(transactionId: Swift.String) {
+                    self.transactionId = transactionId
+                }
+            }
+            public var path: Operations.DeleteTransactionAttachment.Input.Path
+            /// - Remark: Generated from `#/paths/transactions/{transaction_id}/attachment/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteTransactionAttachment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteTransactionAttachment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteTransactionAttachment.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteTransactionAttachment.Input.Path,
+                headers: Operations.DeleteTransactionAttachment.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Attachment removed
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteTransactionAttachment.Output.NoContent)
+            /// Attachment removed
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteTransactionAttachment.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/attachment/delete(deleteTransactionAttachment)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Components.Responses._Error)
@@ -11807,6 +15078,141 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Everything that needs paying, as one time-ordered list
+    ///
+    /// M111 (ADR 0024): bills, credit-card payments, and loan/lease payments in one list organized by time (overdue / due soon / upcoming / paid this cycle) with a cash-versus-due headline. Paid rows carry the actual matched transaction so the checkmark is verifiable.
+    ///
+    /// - Remark: HTTP `GET /bills/timeline`.
+    /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
+    public enum GetPaymentTimeline {
+        public static let id: Swift.String = "getPaymentTimeline"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/timeline/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetPaymentTimeline.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetPaymentTimeline.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetPaymentTimeline.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetPaymentTimeline.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/timeline/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/timeline/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.PaymentTimelineResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.PaymentTimelineResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetPaymentTimeline.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetPaymentTimeline.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Payment timeline
+            ///
+            /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetPaymentTimeline.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetPaymentTimeline.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }
@@ -14007,6 +17413,219 @@ public enum Operations {
             }
         }
     }
+    /// Read a loan/lease statement photo or PDF into candidate values
+    ///
+    /// - Remark: HTTP `POST /accounts/scan-statement`.
+    /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
+    public enum ScanLoanStatement {
+        public static let id: Swift.String = "scanLoanStatement"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/scan-statement/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanLoanStatement.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanLoanStatement.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ScanLoanStatement.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/scan-statement/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/scan-statement/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.LoanScanRequest)
+            }
+            public var body: Operations.ScanLoanStatement.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ScanLoanStatement.Input.Headers = .init(),
+                body: Operations.ScanLoanStatement.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/scan-statement/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/scan-statement/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.LoanScanResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.LoanScanResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanLoanStatement.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanLoanStatement.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Candidate loan values extracted by the on-box vision model
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ScanLoanStatement.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ScanLoanStatement.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Read a W-2 photo or PDF into candidate values (user confirms before saving)
     ///
     /// - Remark: HTTP `POST /income/profile/scan-w2`.
@@ -14484,6 +18103,393 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update a goal (M118: incl. the planned monthly contribution)
+    ///
+    /// - Remark: HTTP `PATCH /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)`.
+    public enum UpdateGoal {
+        public static let id: Swift.String = "updateGoal"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/path/goal_id`.
+                public var goalId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - goalId:
+                public init(goalId: Swift.String) {
+                    self.goalId = goalId
+                }
+            }
+            public var path: Operations.UpdateGoal.Input.Path
+            /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateGoal.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateGoal.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateGoal.Input.Headers
+            /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/requestBody/content/application\/json`.
+                case json(Components.Schemas.GoalUpdateRequest)
+            }
+            public var body: Operations.UpdateGoal.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UpdateGoal.Input.Path,
+                headers: Operations.UpdateGoal.Input.Headers = .init(),
+                body: Operations.UpdateGoal.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/goals/{goal_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Goal)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Goal {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateGoal.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateGoal.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Updated goal
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateGoal.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateGoal.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/patch(updateGoal)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete a goal
+    ///
+    /// - Remark: HTTP `DELETE /goals/{goal_id}`.
+    /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)`.
+    public enum DeleteGoal {
+        public static let id: Swift.String = "deleteGoal"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/goals/{goal_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/goals/{goal_id}/DELETE/path/goal_id`.
+                public var goalId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - goalId:
+                public init(goalId: Swift.String) {
+                    self.goalId = goalId
+                }
+            }
+            public var path: Operations.DeleteGoal.Input.Path
+            /// - Remark: Generated from `#/paths/goals/{goal_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteGoal.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteGoal.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteGoal.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteGoal.Input.Path,
+                headers: Operations.DeleteGoal.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Goal deleted
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteGoal.Output.NoContent)
+            /// Goal deleted
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteGoal.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//goals/{goal_id}/delete(deleteGoal)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -18378,6 +22384,1392 @@ public enum Operations {
             }
         }
     }
+    /// Backup destination + schedule, with the latest backup's status
+    ///
+    /// - Remark: HTTP `GET /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
+    public enum GetBackupConfig {
+        public static let id: Swift.String = "getBackupConfig"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/config/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupConfig.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupConfig.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetBackupConfig.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetBackupConfig.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/config/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/config/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupConfig)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupConfig {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetBackupConfig.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetBackupConfig.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Backup configuration
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetBackupConfig.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetBackupConfig.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Set the backup destination (a mounted share) and schedule
+    ///
+    /// - Remark: HTTP `PUT /backups/config`.
+    /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
+    public enum UpdateBackupConfig {
+        public static let id: Swift.String = "updateBackupConfig"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/config/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateBackupConfig.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateBackupConfig.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateBackupConfig.Input.Headers
+            /// - Remark: Generated from `#/paths/backups/config/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/config/PUT/requestBody/content/application\/json`.
+                case json(Components.Schemas.BackupConfigUpdateRequest)
+            }
+            public var body: Operations.UpdateBackupConfig.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.UpdateBackupConfig.Input.Headers = .init(),
+                body: Operations.UpdateBackupConfig.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/config/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/config/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupConfig)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupConfig {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateBackupConfig.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateBackupConfig.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Updated configuration
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateBackupConfig.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateBackupConfig.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Test whether the server can write backups to a path (a mounted share)
+    ///
+    /// - Remark: HTTP `POST /backups/destination-check`.
+    /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
+    public enum CheckBackupDestination {
+        public static let id: Swift.String = "checkBackupDestination"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/destination-check/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CheckBackupDestination.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CheckBackupDestination.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CheckBackupDestination.Input.Headers
+            /// - Remark: Generated from `#/paths/backups/destination-check/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/destination-check/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BackupDestinationCheckRequest)
+            }
+            public var body: Operations.CheckBackupDestination.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CheckBackupDestination.Input.Headers = .init(),
+                body: Operations.CheckBackupDestination.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/destination-check/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/destination-check/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupDestinationCheckResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupDestinationCheckResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CheckBackupDestination.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CheckBackupDestination.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Check result
+            ///
+            /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.CheckBackupDestination.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.CheckBackupDestination.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the .enc backups on the configured off-box share
+    ///
+    /// - Remark: HTTP `GET /backups/remote`.
+    /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)`.
+    public enum ListRemoteBackups {
+        public static let id: Swift.String = "listRemoteBackups"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/remote/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRemoteBackups.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRemoteBackups.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListRemoteBackups.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListRemoteBackups.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/remote/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/remote/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RemoteBackupListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RemoteBackupListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListRemoteBackups.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListRemoteBackups.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Backups on the share
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListRemoteBackups.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListRemoteBackups.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/get(listRemoteBackups)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Restore from a backup file on the off-box share (destructive)
+    ///
+    /// - Remark: HTTP `POST /backups/remote/restore`.
+    /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)`.
+    public enum RestoreRemoteBackup {
+        public static let id: Swift.String = "restoreRemoteBackup"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/remote/restore/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RestoreRemoteBackup.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RestoreRemoteBackup.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RestoreRemoteBackup.Input.Headers
+            /// - Remark: Generated from `#/paths/backups/remote/restore/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/remote/restore/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RemoteRestoreRequest)
+            }
+            public var body: Operations.RestoreRemoteBackup.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.RestoreRemoteBackup.Input.Headers = .init(),
+                body: Operations.RestoreRemoteBackup.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/remote/restore/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/remote/restore/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupDestinationCheckResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupDestinationCheckResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RestoreRemoteBackup.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RestoreRemoteBackup.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Restored
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.RestoreRemoteBackup.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.RestoreRemoteBackup.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete a backup file from the Synology share
+    ///
+    /// - Remark: HTTP `POST /backups/remote/delete`.
+    /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)`.
+    public enum DeleteRemoteBackup {
+        public static let id: Swift.String = "deleteRemoteBackup"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/remote/delete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRemoteBackup.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRemoteBackup.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteRemoteBackup.Input.Headers
+            /// - Remark: Generated from `#/paths/backups/remote/delete/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/remote/delete/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RemoteRestoreRequest)
+            }
+            public var body: Operations.DeleteRemoteBackup.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.DeleteRemoteBackup.Input.Headers = .init(),
+                body: Operations.DeleteRemoteBackup.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/remote/delete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/remote/delete/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupDestinationCheckResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupDestinationCheckResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.DeleteRemoteBackup.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.DeleteRemoteBackup.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Deleted
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.DeleteRemoteBackup.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.DeleteRemoteBackup.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Reveal the backup encryption key (owner only)
+    ///
+    /// - Remark: HTTP `GET /backups/encryption-key`.
+    /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)`.
+    public enum GetBackupEncryptionKey {
+        public static let id: Swift.String = "getBackupEncryptionKey"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/encryption-key/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupEncryptionKey.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupEncryptionKey.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetBackupEncryptionKey.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetBackupEncryptionKey.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/encryption-key/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/encryption-key/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupEncryptionKey)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupEncryptionKey {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetBackupEncryptionKey.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetBackupEncryptionKey.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The encryption key
+            ///
+            /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetBackupEncryptionKey.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetBackupEncryptionKey.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/encryption-key/get(getBackupEncryptionKey)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete an on-box backup
+    ///
+    /// - Remark: HTTP `DELETE /backups/{backup_id}`.
+    /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)`.
+    public enum DeleteBackup {
+        public static let id: Swift.String = "deleteBackup"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/{backup_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/{backup_id}/DELETE/path/backup_id`.
+                public var backupId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - backupId:
+                public init(backupId: Swift.String) {
+                    self.backupId = backupId
+                }
+            }
+            public var path: Operations.DeleteBackup.Input.Path
+            /// - Remark: Generated from `#/paths/backups/{backup_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteBackup.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteBackup.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteBackup.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteBackup.Input.Path,
+                headers: Operations.DeleteBackup.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Deleted
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteBackup.Output.NoContent)
+            /// Deleted
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteBackup.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get active AI runtime configuration
     ///
     /// - Remark: HTTP `GET /ai/runtime`.
@@ -20115,6 +25507,162 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Pull the latest statements from every linked institution at once
+    ///
+    /// - Remark: HTTP `POST /connections/sync`.
+    /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)`.
+    public enum SyncAllConnections {
+        public static let id: Swift.String = "syncAllConnections"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/connections/sync/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SyncAllConnections.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SyncAllConnections.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.SyncAllConnections.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.SyncAllConnections.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/connections/sync/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/connections/sync/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ConnectionSyncResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ConnectionSyncResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.SyncAllConnections.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.SyncAllConnections.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Aggregate sync result across all connections
+            ///
+            /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.SyncAllConnections.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.SyncAllConnections.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//connections/sync/post(syncAllConnections)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

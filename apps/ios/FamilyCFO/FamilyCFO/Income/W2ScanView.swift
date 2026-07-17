@@ -23,6 +23,11 @@ struct W2ScanView: View {
                 PhotosPicker(selection: $photoSelection, matching: .images) {
                     Label("Choose from library", systemImage: "photo.on.rectangle")
                 }
+                Button {
+                    pasteW2()
+                } label: {
+                    Label("Paste from clipboard", systemImage: "doc.on.clipboard")
+                }
                 if viewModel.isScanning {
                     HStack {
                         ProgressView()
@@ -80,6 +85,7 @@ struct W2ScanView: View {
             }
         }
         .navigationTitle("Scan W-2")
+        .keyboardDoneButton()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -100,6 +106,22 @@ struct W2ScanView: View {
                     let image = UIImage(data: data)
                 else { return }
                 await viewModel.scan(image)
+            }
+        }
+    }
+
+    /// Scan a W-2 straight off the clipboard (M114, ADR 0028) — a copied
+    /// screenshot or PDF works exactly like a photographed one.
+    private func pasteW2() {
+        let vm = viewModel
+        ClipboardImage.read { contents in
+            switch contents {
+            case .image(let image):
+                Task { await vm.scan(image) }
+            case .pdf(let data):
+                Task { await vm.scan(pdfData: data) }
+            case .none:
+                vm.errorMessage = "There's no image or PDF on your clipboard to paste."
             }
         }
     }
