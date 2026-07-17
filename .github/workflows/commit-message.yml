@@ -29,7 +29,11 @@ jobs:
             range="${{ github.event.before }}..${{ github.sha }}"
           fi
 
-          git rev-list --reverse "$range" | while read -r commit_sha; do
+          # Skip merge commits: GitHub generates their message ("Merge pull
+          # request #N from …"), which cannot follow the convention, and the
+          # commits they bring in were already validated on the PR. Without this,
+          # every push to main via a merged PR fails this check.
+          git rev-list --reverse --no-merges "$range" | while read -r commit_sha; do
             echo "Validating $commit_sha"
             git log --format=%B -n 1 "$commit_sha" > /tmp/commit-message.txt
             scripts/validate-commit-message.sh /tmp/commit-message.txt
