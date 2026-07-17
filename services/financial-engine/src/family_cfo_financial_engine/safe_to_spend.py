@@ -32,6 +32,17 @@ class SafeToSpendInputs:
 
     horizon_days: int = 30
 
+    credit_card_payments: Money | None = None
+    """Full credit-card balances, when the household pays its cards in full each
+    month — the whole balance is about to leave liquid cash, so it is committed,
+    not just the minimum. Zero/None keeps the minimum-payment behaviour."""
+
+    subscription_forecast: Money | None = None
+    """Recurring subscription charges whose NEXT occurrence falls within
+    `horizon_days` and has not yet been paid this cycle (ADR 0020). Reserved the
+    'bill way' — only the upcoming in-window charge, never a monthly total — so a
+    charge already deducted from liquid is never double-counted."""
+
     total_debt: Money | None = None
     """What the household owes across all liability accounts, as a positive amount.
 
@@ -62,7 +73,19 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
         if other.currency != currency:
             raise CurrencyMismatchError(currency, other.currency)
 
-    committed = inputs.emergency_fund_reserved + inputs.bills_due + inputs.minimum_debt_payments
+    card_payments = inputs.credit_card_payments or Money.zero(currency)
+    if card_payments.currency != currency:
+        raise CurrencyMismatchError(currency, card_payments.currency)
+    subscription_forecast = inputs.subscription_forecast or Money.zero(currency)
+    if subscription_forecast.currency != currency:
+        raise CurrencyMismatchError(currency, subscription_forecast.currency)
+    committed = (
+        inputs.emergency_fund_reserved
+        + inputs.bills_due
+        + inputs.minimum_debt_payments
+        + card_payments
+        + subscription_forecast
+    )
     safe_to_spend = inputs.liquid_balance - committed
 
     warnings: list[str] = []
@@ -125,6 +148,8 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
             "emergency_fund_reserved": inputs.emergency_fund_reserved,
             "bills_due": inputs.bills_due,
             "minimum_debt_payments": inputs.minimum_debt_payments,
+            "credit_card_payments": card_payments,
+            "subscription_forecast": subscription_forecast,
             "committed_total": committed,
             "safe_to_spend": safe_to_spend,
             "total_debt": inputs.total_debt or Money.zero(currency),
