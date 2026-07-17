@@ -18,6 +18,8 @@ describe('Overview', () => {
   let apiMock: {
     getHouseholdContext: ReturnType<typeof vi.fn>;
     updateHousehold: ReturnType<typeof vi.fn>;
+    getCashOutlook: ReturnType<typeof vi.fn>;
+    getSpendingPlan: ReturnType<typeof vi.fn>;
   };
 
   function configure(role = 'owner') {
@@ -35,6 +37,10 @@ describe('Overview', () => {
     apiMock = {
       getHouseholdContext: vi.fn(),
       updateHousehold: vi.fn().mockResolvedValue(response({})),
+      // M112: every overview load also fetches the cash outlook; default to
+      // "no data" so existing tests render without the card.
+      getCashOutlook: vi.fn().mockResolvedValue(response(null)),
+      getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
     };
     configure();
   });
@@ -275,5 +281,104 @@ describe('Overview', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('.overview__target-edit'),
     ).toBeNull();
+  });
+
+  it('renders the cash outlook with the lowest point and day-by-day rows (M112)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+      }),
+    );
+    apiMock.getCashOutlook.mockResolvedValue(
+      response({
+        starting_cash: { amount_minor: 1_632_600, currency: 'USD' },
+        events: [
+          {
+            occurred_on: '2026-07-21',
+            name: 'Costco Visa',
+            amount: { amount_minor: -717_624, currency: 'USD' },
+            kind: 'credit_card',
+          },
+          {
+            occurred_on: '2026-07-30',
+            name: 'Paycheck',
+            amount: { amount_minor: 283_078, currency: 'USD' },
+            kind: 'income',
+          },
+        ],
+        ending_cash: { amount_minor: 1_198_054, currency: 'USD' },
+        lowest_balance: { amount_minor: 914_976, currency: 'USD' },
+        lowest_date: '2026-07-21',
+        expected_income: { amount_minor: 283_078, currency: 'USD' },
+        obligations: { amount_minor: 717_624, currency: 'USD' },
+        horizon_days: 30,
+        due_soon: { amount_minor: 825_400, currency: 'USD' },
+        due_soon_covered: true,
+        due_soon_window_days: 14,
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
+    expect(text).toContain('Cash outlook');
+    expect(text).toContain('USD 8,254.00 due in 14 days');
+    expect(text).toContain('covered');
+    expect(text).toContain('USD 9,149.76'); // the lowest point
+    // Day-by-day rows carry the running balance beside each event.
+    const rows = host.querySelectorAll('.outlook-card__table tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain('Costco Visa');
+    expect(rows[0].textContent).toContain('USD 9,149.76');
+    // Safe-to-spend is reframed as the stress test, not a spending allowance.
+    expect(text).not.toContain('Safe to spend');
+  });
+
+  it('renders the month spending plan (M113)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+      }),
+    );
+    apiMock.getSpendingPlan.mockResolvedValue(
+      response({
+        month: '2026-07',
+        income_received: { amount_minor: 401_000, currency: 'USD' },
+        income_projected: { amount_minor: 324_100, currency: 'USD' },
+        expected_income: { amount_minor: 725_100, currency: 'USD' },
+        spent: { amount_minor: 300_000, currency: 'USD' },
+        bills_remaining: { amount_minor: 3_800, currency: 'USD' },
+        account_obligations: { amount_minor: 100_000, currency: 'USD' },
+        planned_savings: { amount_minor: 0, currency: 'USD' },
+        left_to_spend: { amount_minor: 321_300, currency: 'USD' },
+        per_day: { amount_minor: 21_420, currency: 'USD' },
+        days_remaining: 15,
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Left to spend this month');
+    expect(text).toContain('USD 3,213.00');
+    expect(text).toContain('USD 214.20/day for the remaining 15 days');
+    expect(text).toContain('USD 4,010.00 received');
   });
 });

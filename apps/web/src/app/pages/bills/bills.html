@@ -1,40 +1,152 @@
 <h1>Bills</h1>
 
 <p class="page-hint">
-  Recurring bills feed the Overview page's emergency-fund coverage estimate — add
-  your regular monthly expenses so it can show how many months your emergency
-  fund would cover.
+  Everything that needs paying — bills, credit-card payments, and loan or lease
+  payments — in one place, organized by when it's due (ADR 0024).
 </p>
 
 @if (loading()) {
   <p>Loading…</p>
 } @else if (loadError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
-} @else if (bills().length === 0) {
-  <p class="page-empty">No bills yet.</p>
-} @else {
-  <ul class="bill-list">
-    @for (bill of bills(); track bill.id) {
-      <li class="bill-list__item">
-        <div class="bill-list__main">
-          <div class="bill-list__name">{{ bill.name }}</div>
-          <div class="bill-list__frequency">
-            {{ bill.frequency }}
-            @if (bill.next_due_date) {
-              · next due {{ bill.next_due_date | date: 'MMM d, y' }}
+}
+
+@if (timeline(); as headline) {
+  <section class="timeline-headline" [class.timeline-headline--short]="!headline.covered">
+    <div class="timeline-headline__figures">
+      <div>
+        <div class="timeline-headline__amount">{{ formatMoney(headline.due_total) }}</div>
+        <div class="timeline-headline__label">due in the next {{ headline.window_days }} days</div>
+      </div>
+      <div class="timeline-headline__cash">
+        <div class="timeline-headline__amount timeline-headline__amount--secondary">
+          {{ formatMoney(headline.liquid_balance) }}
+        </div>
+        <div class="timeline-headline__label">cash on hand</div>
+      </div>
+    </div>
+    <div class="timeline-headline__verdict">
+      {{
+        headline.covered
+          ? '✓ Covered — your cash clears everything due.'
+          : '⚠ Short — what’s due exceeds your cash on hand.'
+      }}
+    </div>
+  </section>
+
+  @for (section of timelineSections(); track section.status) {
+    <h2>{{ section.title }}</h2>
+    @if (section.status === 'paid') {
+      <p class="page-hint">Matched to the actual charge — the receipt behind every checkmark.</p>
+    } @else if (section.status === 'no_date') {
+      <p class="page-hint">
+        No payment seen on this account yet, so its due day can't be inferred.
+      </p>
+    }
+    <ul class="bill-list timeline-list" [attr.data-status]="section.status">
+      @for (item of section.items; track item.id) {
+        <li class="bill-list__item">
+          <span class="timeline-list__kind">{{ timelineKindLabel(item.kind) }}</span>
+          <div class="bill-list__main">
+            <div class="bill-list__name">{{ item.name }}</div>
+            <div
+              class="bill-list__frequency"
+              [class.timeline-list__status--overdue]="item.status === 'overdue'"
+            >
+              {{ timelineStatusLine(item) }}
+            </div>
+          </div>
+          <div class="bill-list__amount">
+            {{ formatMoney(item.amount) }}
+            @if (item.status === 'paid') {
+              <span class="timeline-list__check" aria-label="Paid">✓</span>
             }
           </div>
-        </div>
-        <div class="bill-list__amount">{{ formatMoney(bill.amount) }}</div>
-        @if (canWrite()) {
-          <button
-            type="button"
-            class="bill-list__delete"
-            (click)="remove(bill.id)"
-            aria-label="Delete bill"
+        </li>
+      }
+    </ul>
+  }
+}
+
+<h2>Manage bills</h2>
+<p class="page-hint">
+  Recurring bills also feed the Overview page's emergency-fund coverage estimate.
+</p>
+
+@if (!loading() && bills().length === 0) {
+  <p class="page-empty">No bills yet.</p>
+} @else if (bills().length > 0) {
+  @if (editError(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+  <ul class="bill-list">
+    @for (bill of bills(); track bill.id) {
+      <li class="bill-list__item bill-list__item--stacked">
+        @if (editingId() === bill.id) {
+          <form
+            [formGroup]="editForm"
+            (ngSubmit)="saveEdit()"
+            novalidate
+            class="bill-form bill-form--inline"
           >
-            Delete
-          </button>
+            <label>
+              <span>Name</span>
+              <input type="text" formControlName="name" />
+            </label>
+            <label>
+              <span>Amount (USD)</span>
+              <input type="number" step="0.01" min="0.01" formControlName="amount" />
+            </label>
+            <label>
+              <span>Frequency</span>
+              <select formControlName="frequency">
+                @for (frequency of frequencies; track frequency) {
+                  <option [value]="frequency">{{ frequency }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>Next due date</span>
+              <input type="date" formControlName="nextDueDate" />
+            </label>
+            <div class="bill-form__actions">
+              <button type="submit">Save</button>
+              <button type="button" class="bill-list__delete" (click)="cancelEdit()">
+                Cancel
+              </button>
+            </div>
+          </form>
+        } @else {
+          <div class="bill-list__row">
+            <div class="bill-list__main">
+              <div class="bill-list__name">{{ bill.name }}</div>
+              <div class="bill-list__frequency">
+                {{ bill.frequency }}
+                @if (bill.next_due_date) {
+                  · next due {{ bill.next_due_date | date: 'MMM d, y' }}
+                }
+              </div>
+            </div>
+            <div class="bill-list__amount">{{ formatMoney(bill.amount) }}</div>
+            @if (canWrite()) {
+              <button
+                type="button"
+                class="bill-list__confirm"
+                (click)="startEdit(bill)"
+                aria-label="Edit bill"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="bill-list__delete"
+                (click)="remove(bill.id)"
+                aria-label="Delete bill"
+              >
+                Delete
+              </button>
+            }
+          </div>
         }
       </li>
     }

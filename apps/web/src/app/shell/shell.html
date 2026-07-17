@@ -44,6 +44,11 @@
       @if (role(); as currentRole) {
         <span class="shell__role">{{ currentRole }}</span>
       }
+      @if (serverVersion(); as version) {
+        <span class="shell__version" title="The monorepo version this box runs (ADR 0029)">
+          v{{ version }}
+        </span>
+      }
       <button type="button" class="shell__logout" (click)="logout()">Log out</button>
     </div>
   </aside>

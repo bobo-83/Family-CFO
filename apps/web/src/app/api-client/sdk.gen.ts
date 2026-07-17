@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AnalyzePurchaseData, AnalyzePurchaseErrors, AnalyzePurchaseResponses, AnalyzeRetirementData, AnalyzeRetirementErrors, AnalyzeRetirementResponses, ApplyAiModelSelectionData, ApplyAiModelSelectionErrors, ApplyAiModelSelectionResponses, ApplyImportData, ApplyImportErrors, ApplyImportResponses, ConfirmPairingData, ConfirmPairingErrors, ConfirmPairingResponses, CreateAccountData, CreateAccountErrors, CreateAccountResponses, CreateAuthSessionData, CreateAuthSessionErrors, CreateAuthSessionResponses, CreateBackupData, CreateBackupErrors, CreateBackupResponses, CreateBillData, CreateBillErrors, CreateBillResponses, CreateBudgetData, CreateBudgetErrors, CreateBudgetResponses, CreateCategoryData, CreateCategoryErrors, CreateCategoryResponses, CreateChatMessageData, CreateChatMessageErrors, CreateChatMessageResponses, CreateConnectionData, CreateConnectionErrors, CreateConnectionResponses, CreateDocumentData, CreateDocumentErrors, CreateDocumentResponses, CreateGoalData, CreateGoalErrors, CreateGoalResponses, CreateHouseholdData, CreateHouseholdErrors, CreateHouseholdResponses, CreateImportData, CreateImportErrors, CreateImportResponses, CreateIncomeEarnerData, CreateIncomeEarnerErrors, CreateIncomeEarnerResponses, CreateIncomeSourceData, CreateIncomeSourceErrors, CreateIncomeSourceResponses, CreateMemberData, CreateMemberErrors, CreateMemberResponses, CreateMemoryData, CreateMemoryErrors, CreateMemoryResponses, CreatePairingSessionData, CreatePairingSessionErrors, CreatePairingSessionResponses, CreateTransactionData, CreateTransactionErrors, CreateTransactionResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteAuthSessionData, DeleteAuthSessionErrors, DeleteAuthSessionResponses, DeleteBillData, DeleteBillErrors, DeleteBillResponses, DeleteBudgetData, DeleteBudgetErrors, DeleteBudgetResponses, DeleteCategoryData, DeleteCategoryErrors, DeleteCategoryResponses, DeleteConnectionData, DeleteConnectionErrors, DeleteConnectionResponses, DeleteConversationData, DeleteConversationErrors, DeleteConversationResponses, DeleteIncomeEarnerData, DeleteIncomeEarnerErrors, DeleteIncomeEarnerResponses, DeleteIncomeSourceData, DeleteIncomeSourceErrors, DeleteIncomeSourceResponses, DeleteMemberData, DeleteMemberErrors, DeleteMemberResponses, DeleteMemoryData, DeleteMemoryErrors, DeleteMemoryResponses, DeleteTransactionData, DeleteTransactionErrors, DeleteTransactionResponses, DiscardImportData, DiscardImportErrors, DiscardImportResponses, DismissBillSuggestionData, DismissBillSuggestionErrors, DismissBillSuggestionResponses, GenerateReportData, GenerateReportErrors, GenerateReportResponses, GetAiApplyStatusData, GetAiApplyStatusErrors, GetAiApplyStatusResponses, GetAiHardwareProfileData, GetAiHardwareProfileErrors, GetAiHardwareProfileResponses, GetAiRuntimeConfigData, GetAiRuntimeConfigErrors, GetAiRuntimeConfigResponses, GetAiRuntimeStatusData, GetAiRuntimeStatusErrors, GetAiRuntimeStatusResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetHealthData, GetHealthResponses, GetHouseholdContextData, GetHouseholdContextErrors, GetHouseholdContextResponses, GetIncomeAnalysisData, GetIncomeAnalysisErrors, GetIncomeAnalysisResponses, GetReportData, GetReportErrors, GetReportResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListAiModelsData, ListAiModelsErrors, ListAiModelsResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListBackupsData, ListBackupsErrors, ListBackupsResponses, ListBillsData, ListBillsErrors, ListBillsResponses, ListBillSuggestionsData, ListBillSuggestionsErrors, ListBillSuggestionsResponses, ListBudgetsData, ListBudgetsErrors, ListBudgetsResponses, ListCategoriesData, ListCategoriesErrors, ListCategoriesResponses, ListConnectionsData, ListConnectionsErrors, ListConnectionsResponses, ListConversationsData, ListConversationsErrors, ListConversationsResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, ListGoalsData, ListGoalsErrors, ListGoalsResponses, ListImportsData, ListImportsErrors, ListImportsResponses, ListIncomeSourcesData, ListIncomeSourcesErrors, ListIncomeSourcesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListMemoriesData, ListMemoriesErrors, ListMemoriesResponses, ListPairedDevicesData, ListPairedDevicesErrors, ListPairedDevicesResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListTransactionsData, ListTransactionsErrors, ListTransactionsResponses, RecordAccountBalanceData, RecordAccountBalanceErrors, RecordAccountBalanceResponses, RefreshAuthSessionData, RefreshAuthSessionErrors, RefreshAuthSessionResponses, RestoreBackupData, RestoreBackupErrors, RestoreBackupResponses, RevokePairedDeviceData, RevokePairedDeviceErrors, RevokePairedDeviceResponses, ScanW2Data, ScanW2Errors, ScanW2Responses, SearchAiModelsData, SearchAiModelsErrors, SearchAiModelsResponses, SetIncomeOverrideData, SetIncomeOverrideErrors, SetIncomeOverrideResponses, SyncConnectionData, SyncConnectionErrors, SyncConnectionResponses, SynthesizeSpeechData, SynthesizeSpeechErrors, SynthesizeSpeechResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateAiRuntimeConfigData, UpdateAiRuntimeConfigErrors, UpdateAiRuntimeConfigResponses, UpdateBillData, UpdateBillErrors, UpdateBillResponses, UpdateBudgetData, UpdateBudgetErrors, UpdateBudgetResponses, UpdateHouseholdData, UpdateHouseholdErrors, UpdateHouseholdResponses, UpdateIncomeSourceData, UpdateIncomeSourceErrors, UpdateIncomeSourceResponses, UpdateIncomeTaxSettingsData, UpdateIncomeTaxSettingsErrors, UpdateIncomeTaxSettingsResponses, UpdateMemberRoleData, UpdateMemberRoleErrors, UpdateMemberRoleResponses, UpdateTransactionData, UpdateTransactionErrors, UpdateTransactionResponses, UploadImportFileData, UploadImportFileErrors, UploadImportFileResponses } from './types.gen';
+import type { AnalyzePurchaseData, AnalyzePurchaseErrors, AnalyzePurchaseResponses, AnalyzeRetirementData, AnalyzeRetirementErrors, AnalyzeRetirementResponses, ApplyAiModelSelectionData, ApplyAiModelSelectionErrors, ApplyAiModelSelectionResponses, ApplyImportData, ApplyImportErrors, ApplyImportResponses, CheckBackupDestinationData, CheckBackupDestinationErrors, CheckBackupDestinationResponses, ConfirmPairingData, ConfirmPairingErrors, ConfirmPairingResponses, CreateAccountData, CreateAccountErrors, CreateAccountResponses, CreateAuthSessionData, CreateAuthSessionErrors, CreateAuthSessionResponses, CreateBackupData, CreateBackupErrors, CreateBackupResponses, CreateBillData, CreateBillErrors, CreateBillResponses, CreateBudgetData, CreateBudgetErrors, CreateBudgetResponses, CreateCategoryData, CreateCategoryErrors, CreateCategoryResponses, CreateChatMessageData, CreateChatMessageErrors, CreateChatMessageResponses, CreateConnectionData, CreateConnectionErrors, CreateConnectionResponses, CreateDocumentData, CreateDocumentErrors, CreateDocumentResponses, CreateGoalData, CreateGoalErrors, CreateGoalResponses, CreateHouseholdData, CreateHouseholdErrors, CreateHouseholdResponses, CreateImportData, CreateImportErrors, CreateImportResponses, CreateIncomeEarnerData, CreateIncomeEarnerErrors, CreateIncomeEarnerResponses, CreateIncomeSourceData, CreateIncomeSourceErrors, CreateIncomeSourceResponses, CreateMemberData, CreateMemberErrors, CreateMemberResponses, CreateMemoryData, CreateMemoryErrors, CreateMemoryResponses, CreatePairingSessionData, CreatePairingSessionErrors, CreatePairingSessionResponses, CreateTransactionData, CreateTransactionErrors, CreateTransactionResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteAuthSessionData, DeleteAuthSessionErrors, DeleteAuthSessionResponses, DeleteBackupData, DeleteBackupErrors, DeleteBackupResponses, DeleteBillData, DeleteBillErrors, DeleteBillResponses, DeleteBudgetData, DeleteBudgetErrors, DeleteBudgetResponses, DeleteCategoryData, DeleteCategoryErrors, DeleteCategoryResponses, DeleteConnectionData, DeleteConnectionErrors, DeleteConnectionResponses, DeleteConversationData, DeleteConversationErrors, DeleteConversationResponses, DeleteGoalData, DeleteGoalErrors, DeleteGoalResponses, DeleteIncomeEarnerData, DeleteIncomeEarnerErrors, DeleteIncomeEarnerResponses, DeleteIncomeSourceData, DeleteIncomeSourceErrors, DeleteIncomeSourceResponses, DeleteMemberData, DeleteMemberErrors, DeleteMemberResponses, DeleteMemoryData, DeleteMemoryErrors, DeleteMemoryResponses, DeleteRemoteBackupData, DeleteRemoteBackupErrors, DeleteRemoteBackupResponses, DeleteTransactionAttachmentData, DeleteTransactionAttachmentErrors, DeleteTransactionAttachmentResponses, DeleteTransactionData, DeleteTransactionErrors, DeleteTransactionResponses, DiscardImportData, DiscardImportErrors, DiscardImportResponses, DismissBillSuggestionData, DismissBillSuggestionErrors, DismissBillSuggestionResponses, GenerateReportData, GenerateReportErrors, GenerateReportResponses, GetAiApplyStatusData, GetAiApplyStatusErrors, GetAiApplyStatusResponses, GetAiHardwareProfileData, GetAiHardwareProfileErrors, GetAiHardwareProfileResponses, GetAiRuntimeConfigData, GetAiRuntimeConfigErrors, GetAiRuntimeConfigResponses, GetAiRuntimeStatusData, GetAiRuntimeStatusErrors, GetAiRuntimeStatusResponses, GetBackupConfigData, GetBackupConfigErrors, GetBackupConfigResponses, GetBackupEncryptionKeyData, GetBackupEncryptionKeyErrors, GetBackupEncryptionKeyResponses, GetCashOutlookData, GetCashOutlookErrors, GetCashOutlookResponses, GetConversationData, GetConversationErrors, GetConversationResponses, GetHealthData, GetHealthResponses, GetHouseholdContextData, GetHouseholdContextErrors, GetHouseholdContextResponses, GetIncomeAnalysisData, GetIncomeAnalysisErrors, GetIncomeAnalysisResponses, GetPaymentTimelineData, GetPaymentTimelineErrors, GetPaymentTimelineResponses, GetReportData, GetReportErrors, GetReportResponses, GetSpendingByCategoryData, GetSpendingByCategoryErrors, GetSpendingByCategoryResponses, GetSpendingPlanData, GetSpendingPlanErrors, GetSpendingPlanResponses, GetTransactionAttachmentData, GetTransactionAttachmentErrors, GetTransactionAttachmentResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListAiModelsData, ListAiModelsErrors, ListAiModelsResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListBackupsData, ListBackupsErrors, ListBackupsResponses, ListBillsData, ListBillsErrors, ListBillsResponses, ListBillSuggestionsData, ListBillSuggestionsErrors, ListBillSuggestionsResponses, ListBudgetsData, ListBudgetsErrors, ListBudgetsResponses, ListCategoriesData, ListCategoriesErrors, ListCategoriesResponses, ListConnectionsData, ListConnectionsErrors, ListConnectionsResponses, ListConversationsData, ListConversationsErrors, ListConversationsResponses, ListDocumentsData, ListDocumentsErrors, ListDocumentsResponses, ListGoalsData, ListGoalsErrors, ListGoalsResponses, ListImportsData, ListImportsErrors, ListImportsResponses, ListIncomeSourcesData, ListIncomeSourcesErrors, ListIncomeSourcesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListMemoriesData, ListMemoriesErrors, ListMemoriesResponses, ListPairedDevicesData, ListPairedDevicesErrors, ListPairedDevicesResponses, ListRemoteBackupsData, ListRemoteBackupsErrors, ListRemoteBackupsResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListTransactionsData, ListTransactionsErrors, ListTransactionsForReviewData, ListTransactionsForReviewErrors, ListTransactionsForReviewResponses, ListTransactionsResponses, RecordAccountBalanceData, RecordAccountBalanceErrors, RecordAccountBalanceResponses, RefreshAuthSessionData, RefreshAuthSessionErrors, RefreshAuthSessionResponses, RestoreBackupData, RestoreBackupErrors, RestoreBackupResponses, RestoreRemoteBackupData, RestoreRemoteBackupErrors, RestoreRemoteBackupResponses, RevokePairedDeviceData, RevokePairedDeviceErrors, RevokePairedDeviceResponses, ScanLoanStatementData, ScanLoanStatementErrors, ScanLoanStatementResponses, ScanW2Data, ScanW2Errors, ScanW2Responses, SearchAiModelsData, SearchAiModelsErrors, SearchAiModelsResponses, SetIncomeOverrideData, SetIncomeOverrideErrors, SetIncomeOverrideResponses, SyncAllConnectionsData, SyncAllConnectionsErrors, SyncAllConnectionsResponses, SyncConnectionData, SyncConnectionErrors, SyncConnectionResponses, SynthesizeSpeechData, SynthesizeSpeechErrors, SynthesizeSpeechResponses, UndoAuditEventData, UndoAuditEventErrors, UndoAuditEventResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateAiRuntimeConfigData, UpdateAiRuntimeConfigErrors, UpdateAiRuntimeConfigResponses, UpdateBackupConfigData, UpdateBackupConfigErrors, UpdateBackupConfigResponses, UpdateBillData, UpdateBillErrors, UpdateBillResponses, UpdateBudgetData, UpdateBudgetErrors, UpdateBudgetResponses, UpdateGoalData, UpdateGoalErrors, UpdateGoalResponses, UpdateHouseholdData, UpdateHouseholdErrors, UpdateHouseholdResponses, UpdateIncomeSourceData, UpdateIncomeSourceErrors, UpdateIncomeSourceResponses, UpdateIncomeTaxSettingsData, UpdateIncomeTaxSettingsErrors, UpdateIncomeTaxSettingsResponses, UpdateMemberRoleData, UpdateMemberRoleErrors, UpdateMemberRoleResponses, UpdateTransactionData, UpdateTransactionErrors, UpdateTransactionResponses, UploadImportFileData, UploadImportFileErrors, UploadImportFileResponses, UploadTransactionAttachmentData, UploadTransactionAttachmentErrors, UploadTransactionAttachmentResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -105,7 +105,16 @@ export const createHousehold = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * Get household financial context summary
+ * Spending by category for a month (defaults to the current month)
+ */
+export const getSpendingByCategory = <ThrowOnError extends boolean = false>(options?: Options<GetSpendingByCategoryData, ThrowOnError>): RequestResult<GetSpendingByCategoryResponses, GetSpendingByCategoryErrors, ThrowOnError> => (options?.client ?? client).get<GetSpendingByCategoryResponses, GetSpendingByCategoryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/spending',
+    ...options
+});
+
+/**
+ * Get household financial context summary (current, or a past month's snapshot)
  */
 export const getHouseholdContext = <ThrowOnError extends boolean = false>(options?: Options<GetHouseholdContextData, ThrowOnError>): RequestResult<GetHouseholdContextResponses, GetHouseholdContextErrors, ThrowOnError> => (options?.client ?? client).get<GetHouseholdContextResponses, GetHouseholdContextErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -124,6 +133,28 @@ export const updateHousehold = <ThrowOnError extends boolean = false>(options: O
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Projected cash over the next 30 days — paychecks in, payments out
+ *
+ * M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income stress test. Expected paydays (recurring-income detection) and every payment-timeline obligation, projected day by day, with the lowest point the balance reaches. Repeats the Bills due-vs-cash headline so the Overview and Bills screens say the same thing.
+ */
+export const getCashOutlook = <ThrowOnError extends boolean = false>(options?: Options<GetCashOutlookData, ThrowOnError>): RequestResult<GetCashOutlookResponses, GetCashOutlookErrors, ThrowOnError> => (options?.client ?? client).get<GetCashOutlookResponses, GetCashOutlookErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/overview/cash-outlook',
+    ...options
+});
+
+/**
+ * Left to spend this month — income minus spent and committed
+ *
+ * M113 (ADR 0027): expected income (received + projected paydays) minus month-to-date spending, unpaid bills through month end, and the month's loan/lease payments. The accrual counterpart to the cash outlook.
+ */
+export const getSpendingPlan = <ThrowOnError extends boolean = false>(options?: Options<GetSpendingPlanData, ThrowOnError>): RequestResult<GetSpendingPlanResponses, GetSpendingPlanErrors, ThrowOnError> => (options?.client ?? client).get<GetSpendingPlanResponses, GetSpendingPlanErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/overview/spending-plan',
+    ...options
 });
 
 /**
@@ -176,6 +207,15 @@ export const updateMemberRole = <ThrowOnError extends boolean = false>(options: 
 export const listAuditEvents = <ThrowOnError extends boolean = false>(options?: Options<ListAuditEventsData, ThrowOnError>): RequestResult<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError> => (options?.client ?? client).get<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/audit',
+    ...options
+});
+
+/**
+ * Reverse a previously-recorded action
+ */
+export const undoAuditEvent = <ThrowOnError extends boolean = false>(options: Options<UndoAuditEventData, ThrowOnError>): RequestResult<UndoAuditEventResponses, UndoAuditEventErrors, ThrowOnError> => (options.client ?? client).post<UndoAuditEventResponses, UndoAuditEventErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/audit/{audit_id}/undo',
     ...options
 });
 
@@ -237,7 +277,7 @@ export const recordAccountBalance = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
- * List transactions for the household
+ * List transactions (recent, or every one in a given YYYY-MM month)
  */
 export const listTransactions = <ThrowOnError extends boolean = false>(options?: Options<ListTransactionsData, ThrowOnError>): RequestResult<ListTransactionsResponses, ListTransactionsErrors, ThrowOnError> => (options?.client ?? client).get<ListTransactionsResponses, ListTransactionsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -259,6 +299,15 @@ export const createTransaction = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
+ * Transactions to review — duplicates (default), transfers, or credits/refunds
+ */
+export const listTransactionsForReview = <ThrowOnError extends boolean = false>(options?: Options<ListTransactionsForReviewData, ThrowOnError>): RequestResult<ListTransactionsForReviewResponses, ListTransactionsForReviewErrors, ThrowOnError> => (options?.client ?? client).get<ListTransactionsForReviewResponses, ListTransactionsForReviewErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/transactions/review',
+    ...options
+});
+
+/**
  * Delete a transaction
  */
 export const deleteTransaction = <ThrowOnError extends boolean = false>(options: Options<DeleteTransactionData, ThrowOnError>): RequestResult<DeleteTransactionResponses, DeleteTransactionErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTransactionResponses, DeleteTransactionErrors, ThrowOnError>({
@@ -276,6 +325,38 @@ export const updateTransaction = <ThrowOnError extends boolean = false>(options:
     ...options,
     headers: {
         'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove a transaction's attached image
+ */
+export const deleteTransactionAttachment = <ThrowOnError extends boolean = false>(options: Options<DeleteTransactionAttachmentData, ThrowOnError>): RequestResult<DeleteTransactionAttachmentResponses, DeleteTransactionAttachmentErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTransactionAttachmentResponses, DeleteTransactionAttachmentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/transactions/{transaction_id}/attachment',
+    ...options
+});
+
+/**
+ * Download a transaction's attached image
+ */
+export const getTransactionAttachment = <ThrowOnError extends boolean = false>(options: Options<GetTransactionAttachmentData, ThrowOnError>): RequestResult<GetTransactionAttachmentResponses, GetTransactionAttachmentErrors, ThrowOnError> => (options.client ?? client).get<GetTransactionAttachmentResponses, GetTransactionAttachmentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/transactions/{transaction_id}/attachment',
+    ...options
+});
+
+/**
+ * Attach an image to a transaction (parsed for a description)
+ */
+export const uploadTransactionAttachment = <ThrowOnError extends boolean = false>(options: Options<UploadTransactionAttachmentData, ThrowOnError>): RequestResult<UploadTransactionAttachmentResponses, UploadTransactionAttachmentErrors, ThrowOnError> => (options.client ?? client).put<UploadTransactionAttachmentResponses, UploadTransactionAttachmentErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/transactions/{transaction_id}/attachment',
+    ...options,
+    headers: {
+        'Content-Type': null,
         ...options.headers
     }
 });
@@ -375,6 +456,17 @@ export const createBill = <ThrowOnError extends boolean = false>(options: Option
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Everything that needs paying, as one time-ordered list
+ *
+ * M111 (ADR 0024): bills, credit-card payments, and loan/lease payments in one list organized by time (overdue / due soon / upcoming / paid this cycle) with a cash-versus-due headline. Paid rows carry the actual matched transaction so the checkmark is verifiable.
+ */
+export const getPaymentTimeline = <ThrowOnError extends boolean = false>(options?: Options<GetPaymentTimelineData, ThrowOnError>): RequestResult<GetPaymentTimelineResponses, GetPaymentTimelineErrors, ThrowOnError> => (options?.client ?? client).get<GetPaymentTimelineResponses, GetPaymentTimelineErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/bills/timeline',
+    ...options
 });
 
 /**
@@ -523,6 +615,19 @@ export const deleteIncomeEarner = <ThrowOnError extends boolean = false>(options
 });
 
 /**
+ * Read a loan/lease statement photo or PDF into candidate values
+ */
+export const scanLoanStatement = <ThrowOnError extends boolean = false>(options: Options<ScanLoanStatementData, ThrowOnError>): RequestResult<ScanLoanStatementResponses, ScanLoanStatementErrors, ThrowOnError> => (options.client ?? client).post<ScanLoanStatementResponses, ScanLoanStatementErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/accounts/scan-statement',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Read a W-2 photo or PDF into candidate values (user confirms before saving)
  */
 export const scanW2 = <ThrowOnError extends boolean = false>(options: Options<ScanW2Data, ThrowOnError>): RequestResult<ScanW2Responses, ScanW2Errors, ThrowOnError> => (options.client ?? client).post<ScanW2Responses, ScanW2Errors, ThrowOnError>({
@@ -550,6 +655,28 @@ export const listGoals = <ThrowOnError extends boolean = false>(options?: Option
 export const createGoal = <ThrowOnError extends boolean = false>(options: Options<CreateGoalData, ThrowOnError>): RequestResult<CreateGoalResponses, CreateGoalErrors, ThrowOnError> => (options.client ?? client).post<CreateGoalResponses, CreateGoalErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/goals',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a goal
+ */
+export const deleteGoal = <ThrowOnError extends boolean = false>(options: Options<DeleteGoalData, ThrowOnError>): RequestResult<DeleteGoalResponses, DeleteGoalErrors, ThrowOnError> => (options.client ?? client).delete<DeleteGoalResponses, DeleteGoalErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/goals/{goal_id}',
+    ...options
+});
+
+/**
+ * Update a goal (M118: incl. the planned monthly contribution)
+ */
+export const updateGoal = <ThrowOnError extends boolean = false>(options: Options<UpdateGoalData, ThrowOnError>): RequestResult<UpdateGoalResponses, UpdateGoalErrors, ThrowOnError> => (options.client ?? client).patch<UpdateGoalResponses, UpdateGoalErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/goals/{goal_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -803,6 +930,94 @@ export const restoreBackup = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Backup destination + schedule, with the latest backup's status
+ */
+export const getBackupConfig = <ThrowOnError extends boolean = false>(options?: Options<GetBackupConfigData, ThrowOnError>): RequestResult<GetBackupConfigResponses, GetBackupConfigErrors, ThrowOnError> => (options?.client ?? client).get<GetBackupConfigResponses, GetBackupConfigErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/config',
+    ...options
+});
+
+/**
+ * Set the backup destination (a mounted share) and schedule
+ */
+export const updateBackupConfig = <ThrowOnError extends boolean = false>(options: Options<UpdateBackupConfigData, ThrowOnError>): RequestResult<UpdateBackupConfigResponses, UpdateBackupConfigErrors, ThrowOnError> => (options.client ?? client).put<UpdateBackupConfigResponses, UpdateBackupConfigErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/config',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Test whether the server can write backups to a path (a mounted share)
+ */
+export const checkBackupDestination = <ThrowOnError extends boolean = false>(options: Options<CheckBackupDestinationData, ThrowOnError>): RequestResult<CheckBackupDestinationResponses, CheckBackupDestinationErrors, ThrowOnError> => (options.client ?? client).post<CheckBackupDestinationResponses, CheckBackupDestinationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/destination-check',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the .enc backups on the configured off-box share
+ */
+export const listRemoteBackups = <ThrowOnError extends boolean = false>(options?: Options<ListRemoteBackupsData, ThrowOnError>): RequestResult<ListRemoteBackupsResponses, ListRemoteBackupsErrors, ThrowOnError> => (options?.client ?? client).get<ListRemoteBackupsResponses, ListRemoteBackupsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/remote',
+    ...options
+});
+
+/**
+ * Restore from a backup file on the off-box share (destructive)
+ */
+export const restoreRemoteBackup = <ThrowOnError extends boolean = false>(options: Options<RestoreRemoteBackupData, ThrowOnError>): RequestResult<RestoreRemoteBackupResponses, RestoreRemoteBackupErrors, ThrowOnError> => (options.client ?? client).post<RestoreRemoteBackupResponses, RestoreRemoteBackupErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/remote/restore',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a backup file from the Synology share
+ */
+export const deleteRemoteBackup = <ThrowOnError extends boolean = false>(options: Options<DeleteRemoteBackupData, ThrowOnError>): RequestResult<DeleteRemoteBackupResponses, DeleteRemoteBackupErrors, ThrowOnError> => (options.client ?? client).post<DeleteRemoteBackupResponses, DeleteRemoteBackupErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/remote/delete',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reveal the backup encryption key (owner only)
+ */
+export const getBackupEncryptionKey = <ThrowOnError extends boolean = false>(options?: Options<GetBackupEncryptionKeyData, ThrowOnError>): RequestResult<GetBackupEncryptionKeyResponses, GetBackupEncryptionKeyErrors, ThrowOnError> => (options?.client ?? client).get<GetBackupEncryptionKeyResponses, GetBackupEncryptionKeyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/encryption-key',
+    ...options
+});
+
+/**
+ * Delete an on-box backup
+ */
+export const deleteBackup = <ThrowOnError extends boolean = false>(options: Options<DeleteBackupData, ThrowOnError>): RequestResult<DeleteBackupResponses, DeleteBackupErrors, ThrowOnError> => (options.client ?? client).delete<DeleteBackupResponses, DeleteBackupErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/backups/{backup_id}',
+    ...options
+});
+
+/**
  * Get active AI runtime configuration
  */
 export const getAiRuntimeConfig = <ThrowOnError extends boolean = false>(options?: Options<GetAiRuntimeConfigData, ThrowOnError>): RequestResult<GetAiRuntimeConfigResponses, GetAiRuntimeConfigErrors, ThrowOnError> => (options?.client ?? client).get<GetAiRuntimeConfigResponses, GetAiRuntimeConfigErrors, ThrowOnError>({
@@ -910,6 +1125,15 @@ export const createConnection = <ThrowOnError extends boolean = false>(options: 
 export const deleteConnection = <ThrowOnError extends boolean = false>(options: Options<DeleteConnectionData, ThrowOnError>): RequestResult<DeleteConnectionResponses, DeleteConnectionErrors, ThrowOnError> => (options.client ?? client).delete<DeleteConnectionResponses, DeleteConnectionErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/connections/{connection_id}',
+    ...options
+});
+
+/**
+ * Pull the latest statements from every linked institution at once
+ */
+export const syncAllConnections = <ThrowOnError extends boolean = false>(options?: Options<SyncAllConnectionsData, ThrowOnError>): RequestResult<SyncAllConnectionsResponses, SyncAllConnectionsErrors, ThrowOnError> => (options?.client ?? client).post<SyncAllConnectionsResponses, SyncAllConnectionsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/connections/sync',
     ...options
 });
 
