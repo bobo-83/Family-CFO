@@ -6,8 +6,14 @@ import SwiftUI
 struct CategorizeView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: CategorizeViewModel?
-    @State private var picking: Components.Schemas.Transaction?
+    @State private var picking: PickTarget?
     @State private var newCategoryName = ""
+
+    /// Identifiable wrapper so a tapped transaction can drive `.sheet(item:)`.
+    private struct PickTarget: Identifiable {
+        let txn: Components.Schemas.Transaction
+        var id: String { txn.id }
+    }
     /// When set, the "New category" prompt is shown; the transaction (if any) is
     /// categorized with the created category once it's made.
     @State private var creatingCategoryFor: CategoryCreationContext?
@@ -29,6 +35,10 @@ struct CategorizeView: View {
                 }
             }
             .navigationTitle("Categorize")
+            .safeAreaInset(edge: .bottom) {
+                SyncStatusFooter(status: model.syncStatus)
+                    .padding(.vertical, 6)
+            }
             .toolbar {
                 if let viewModel {
                     ToolbarItem(placement: .primaryAction) {
@@ -135,10 +145,10 @@ struct CategorizeView: View {
                         .padding(.vertical, 4)
                     }
                     ForEach(viewModel.transactions, id: \.id) { transaction in
-                        row(transaction)
+                        transactionLink(transaction, viewModel)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button {
-                                    picking = transaction
+                                    picking = PickTarget(txn: transaction)
                                 } label: {
                                     Label("Categorize", systemImage: "tag")
                                 }
@@ -146,37 +156,56 @@ struct CategorizeView: View {
                             }
                     }
                 }
-                .refreshable { await viewModel.load() }
+                .refreshable {
+                    await viewModel.sync()
+                    model.syncStatus.markSynced()
+                }
 
                 if let action = viewModel.lastAction {
                     undoBar(action, viewModel)
                 }
             }
-            // Swipe reveals "Categorize"; tapping it opens the category picker.
-            .confirmationDialog(
-                "Category",
-                isPresented: .init(
-                    get: { picking != nil },
-                    set: { if !$0 { picking = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: picking
-            ) { transaction in
-                ForEach(viewModel.categories, id: \.id) { category in
-                    Button(category.name) {
-                        picking = nil
-                        Task { await viewModel.categorize(transaction, as: category) }
+            // Swipe reveals "Categorize"; tapping it opens the searchable picker.
+            .sheet(item: $picking) { target in
+                CategoryPickerSheet(
+                    title: target.txn.merchant ?? target.txn.description ?? "Transaction",
+                    categories: viewModel.categories,
+                    currentCategoryID: target.txn.categoryId,
+                    onSelect: { newID in
+                        guard let id = newID,
+                            let category = viewModel.categories.first(where: { $0.id == id })
+                        else { return }
+                        Task { await viewModel.categorize(target.txn, as: category) }
+                    },
+                    onCreate: { name in
+                        newCategoryName = name
+                        creatingCategoryFor = CategoryCreationContext(transaction: target.txn)
+                    },
+                    onDelete: { category in
+                        Task { await viewModel.deleteCategory(id: category.id) }
                     }
-                }
-                Button("New category…") {
-                    picking = nil
-                    newCategoryName = ""
-                    creatingCategoryFor = CategoryCreationContext(transaction: transaction)
-                }
-                Button("Cancel", role: .cancel) { picking = nil }
-            } message: { transaction in
-                Text(transaction.merchant ?? "Transaction")
+                )
             }
+        }
+    }
+
+    /// Tap the row to open the shared detail screen (category, note, check photo);
+    /// swipe still offers the quick category picker. Adding a note or photo doesn't
+    /// move the transaction, but recategorizing there should refresh this list.
+    @ViewBuilder private func transactionLink(
+        _ transaction: Components.Schemas.Transaction, _ viewModel: CategorizeViewModel
+    ) -> some View {
+        if let api = model.transactionDetail {
+            NavigationLink {
+                TransactionDetailView(
+                    viewModel: TransactionDetailViewModel(
+                        transaction: transaction, api: api,
+                        onChange: { await viewModel.load() }))
+            } label: {
+                row(transaction)
+            }
+        } else {
+            row(transaction)
         }
     }
 
@@ -184,7 +213,25 @@ struct CategorizeView: View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(transaction.merchant ?? transaction.description ?? "Transaction")
-                    .lineLimit(1)
+                    .lineLimit(2)
+                if let note = transaction.note, !note.isEmpty {
+                    Label(note, systemImage: "note.text")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let flow = transaction.accountFlow {
+                    Text(flow)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let detail = transaction.rawDetail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
                 Text(Self.dateText(transaction.occurredAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -63,6 +63,17 @@ final class CategorizeViewModel {
         }
     }
 
+    /// Pull-to-refresh: sync the banks first, then reload — same gesture as every
+    /// other tab (M103), and a sync brings in new uncategorized transactions.
+    func sync() async {
+        do {
+            try await api.syncBanks()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+        await load()
+    }
+
     /// Categorize the tapped transaction AND every other uncategorized one with
     /// the same merchant (M91b) — so filing "Starbucks" once files them all. Each
     /// is set on the server; a row that the server refuses comes back in place,
@@ -131,6 +142,19 @@ final class CategorizeViewModel {
             errorMessage = Self.describe(error)
             return nil
         }
+    }
+
+    /// Delete a category (M96). The server un-categorizes its transactions, so we
+    /// reload to pull them back into the uncategorized list.
+    func deleteCategory(id: String) async {
+        categories.removeAll { $0.id == id }
+        do {
+            try await api.deleteCategory(id: id)
+            errorMessage = nil
+        } catch {
+            errorMessage = Self.describe(error)
+        }
+        await load()
     }
 
     private(set) var isAddingStarters = false

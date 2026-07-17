@@ -50,9 +50,9 @@ struct PairingView: View {
 
             VStack(spacing: 8) {
                 TextField("…or paste the pairing payload", text: $pastedPayload, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .roundedField()
                 Button("Use pasted payload") {
                     viewModel.handleScanned(pastedPayload)
                 }
