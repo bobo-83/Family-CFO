@@ -8,8 +8,26 @@ import Observation
 @Observable
 final class OverviewViewModel {
     private(set) var context: Components.Schemas.HouseholdContext?
+    /// The 30-day cash outlook (M112) — a "now" concept, nil on historical months.
+    private(set) var outlook: Components.Schemas.CashOutlookResponse?
+    /// Left to spend this month (M113) — same "now" scoping as the outlook.
+    private(set) var plan: Components.Schemas.SpendingPlanResponse?
+    /// The box running version (M120) - nil until fetched or unreachable.
+    private(set) var serverVersion: String?
     private(set) var isLoading = false
+    private(set) var isSyncing = false
+    private(set) var selectedMonth = MonthKey.current()
+    var syncResult: String?
     var errorMessage: String?
+
+    var isCurrentMonth: Bool { selectedMonth == MonthKey.current() }
+    var monthLabel: String { MonthKey.label(selectedMonth) }
+    /// Don't scroll past the oldest month with data ("YYYY-MM" compares lexically).
+    /// False until a context has loaded, so you can't run past the cap mid-load.
+    var canGoBack: Bool {
+        guard let earliest = context?.earliestMonth else { return false }
+        return selectedMonth > earliest
+    }
 
     private let api: HouseholdAPI
     private let notifications: BillNotificationScheduler?
@@ -29,27 +47,91 @@ final class OverviewViewModel {
     /// `refreshable` and `task` both call this; the guard keeps a pull-to-
     /// refresh during the first load from firing a second request.
     func load() async {
-        guard !isLoading else { return }
+        // Bind to the month requested at call time; a result the user has already
+        // navigated away from is discarded rather than shown for the wrong month.
+        let requested = selectedMonth
+        let onCurrent = requested == MonthKey.current()
         isLoading = true
-        defer { isLoading = false }
+        defer { if selectedMonth == requested { isLoading = false } }
         do {
-            let context = try await api.context()
-            self.context = context
+            async let outlookLoad = onCurrent ? api.cashOutlook() : nil
+            async let planLoad = onCurrent ? api.spendingPlan() : nil
+            let loaded = try await api.context(month: onCurrent ? nil : requested)
+            let loadedOutlook = try await outlookLoad
+            let loadedPlan = try await planLoad
+            let version = await api.serverVersion()
+            guard selectedMonth == requested else { return }
+            serverVersion = version
+            context = loaded
+            outlook = loadedOutlook
+            plan = loadedPlan
             errorMessage = nil
-            // Refresh bill reminders from the freshly-loaded context (M92c) —
-            // no separate poll of the box; this data was already fetched.
-            if let notifications, let bills = context.upcomingBills {
-                await notifications.refresh(from: bills)
+            // Reminders and the widget snapshot are "now" concepts — only refresh
+            // them from the live current month, never from a historical one.
+            if onCurrent {
+                if let notifications, let bills = loaded.upcomingBills {
+                    await notifications.refresh(from: bills)
+                }
+                if let snapshotStore {
+                    snapshotStore.save(OverviewSnapshot(context: loaded, now: Date()))
+                    WidgetRefresher.reloadOverview()
+                }
             }
-            // Cache the glance values for the home-screen widget (M92a), which
-            // reads this snapshot rather than polling the box itself.
-            if let snapshotStore {
-                snapshotStore.save(OverviewSnapshot(context: context, now: Date()))
-                WidgetRefresher.reloadOverview()
-            }
+        } catch {
+            guard selectedMonth == requested else { return }
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// Step the whole Overview to another month. Next is capped at the current
+    /// month (there is no future to show).
+    func shiftMonth(_ delta: Int) async {
+        if delta > 0 && isCurrentMonth { return }  // no future
+        if delta < 0 && !canGoBack { return }  // no data before the earliest month
+        guard let month = MonthKey.shift(selectedMonth, by: delta) else { return }
+        selectedMonth = month
+        await load()
+    }
+
+    /// Reload the selected month — used after an in-place recategorize.
+    func reload() async { await load() }
+
+    /// The slow path: fetch new statements from the banks, then recompute. Pull-to-
+    /// refresh only recomputes what's stored; this is how new bank data arrives.
+    func syncNow() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        syncResult = nil
+        do {
+            let totals = try await api.syncAll()
+            syncResult = BillsViewModel.syncSummary(totals)
+            errorMessage = nil
+            await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
+    }
+
+    /// The version this build was stamped with (the monorepo VERSION file, via
+    /// MARKETING_VERSION at build time - M120, ADR 0029).
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
+    /// True when the box runs a different version than this build - the app is
+    /// stale (or the box is), and the OTA page has the fix.
+    var versionMismatch: Bool {
+        guard let serverVersion else { return false }
+        return serverVersion != Self.appVersion
+    }
+
+    /// "Last synced 3 hours ago" for the freshness line, or nil when never synced.
+    var lastSyncedText: String? {
+        guard let date = context?.lastSyncedAt else { return nil }
+        let elapsed = RelativeDateTimeFormatter()
+        elapsed.unitsStyle = .full
+        return "Last synced " + elapsed.localizedString(for: date, relativeTo: Date())
     }
 }
 

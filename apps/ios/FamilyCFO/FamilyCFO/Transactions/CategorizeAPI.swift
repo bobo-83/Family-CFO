@@ -13,10 +13,31 @@ protocol CategorizeAPI: Sendable {
     /// category management still lives on the dashboard; this is just the
     /// on-ramp so the phone isn't a dead end with no categories defined.
     func createCategory(name: String) async throws -> Components.Schemas.Category
+    /// Delete a category. The server un-categorizes every transaction that
+    /// referenced it (and drops any budget envelope) — nothing is lost, those
+    /// transactions just return to Uncategorized.
+    func deleteCategory(id: String) async throws
+    /// Pull fresh transactions from the linked banks (so pull-to-refresh brings in
+    /// new uncategorized items), matching every other synced tab (M103).
+    func syncBanks() async throws
+}
+
+extension CategorizeAPI {
+    /// Default no-op so mocks/tests needn't implement it; the live client overrides.
+    func syncBanks() async throws {}
 }
 
 struct LiveCategorizeAPI: CategorizeAPI {
     let client: Client
+
+    func syncBanks() async throws {
+        switch try await client.syncAllConnections(.init()) {
+        case .ok: return
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let status, _): throw APIError.server(status)
+        }
+    }
 
     func uncategorized() async throws -> [Components.Schemas.Transaction] {
         switch try await client.listTransactions(.init()) {
@@ -27,6 +48,8 @@ struct LiveCategorizeAPI: CategorizeAPI {
                 .sorted { $0.occurredAt > $1.occurredAt }
         case .unauthorized:
             throw APIError.unauthorized
+        case .unprocessableContent:
+            throw APIError.server(422)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -81,6 +104,22 @@ struct LiveCategorizeAPI: CategorizeAPI {
             // A category by that name already exists — surface it plainly so the
             // user knows to pick it rather than think the tap failed.
             throw CategorizeError.categoryExists(name)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteCategory(id: String) async throws {
+        switch try await client.deleteCategory(.init(path: .init(categoryId: id))) {
+        case .noContent:
+            return
+        case .notFound:
+            // Already gone — the end state the caller wanted is achieved.
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

@@ -5,8 +5,10 @@ import SwiftUI
 /// analysis flags any — deposits to mark as income. Adults-only; every action
 /// changes household money data, the same gate the server enforces.
 struct BillsView: View {
+    @Environment(AppModel.self) private var model
     @Bindable var viewModel: BillsViewModel
     @State private var addingBill = false
+    @State private var editingBill: Components.Schemas.Bill?
     @State private var categorizing: Components.Schemas.Bill?
 
     var body: some View {
@@ -34,39 +36,26 @@ struct BillsView: View {
                         Label("Add bill", systemImage: "plus")
                     }
                 }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        Task { await viewModel.sync() }
-                    } label: {
-                        if viewModel.isSyncing {
-                            ProgressView()
-                        } else {
-                            Label("Sync", systemImage: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(viewModel.isSyncing)
-                }
             }
             .sheet(isPresented: $addingBill) {
-                AddBillView(viewModel: viewModel)
+                BillFormView(viewModel: viewModel, mode: .add)
             }
-            .confirmationDialog(
-                "File under",
-                isPresented: .init(
-                    get: { categorizing != nil },
-                    set: { if !$0 { categorizing = nil } }),
-                titleVisibility: .visible,
-                presenting: categorizing
-            ) { bill in
-                ForEach(viewModel.categories, id: \.id) { category in
-                    Button(category.name) {
-                        categorizing = nil
+            .sheet(item: $editingBill) { bill in
+                BillFormView(viewModel: viewModel, mode: .edit(bill))
+            }
+            .sheet(item: $categorizing) { bill in
+                CategoryPickerSheet(
+                    title: bill.name,
+                    categories: viewModel.categories,
+                    currentCategoryID: bill.categoryId,
+                    onSelect: { newID in
+                        guard let id = newID,
+                            let category = viewModel.categories.first(where: { $0.id == id })
+                        else { return }
                         Task { await viewModel.setBillCategory(bill, to: category) }
-                    }
-                }
-                Button("Cancel", role: .cancel) { categorizing = nil }
-            } message: { bill in
-                Text(bill.name)
+                    },
+                    onDelete: { category in Task { await viewModel.deleteCategory(id: category.id) } }
+                )
             }
         }
         .task { await viewModel.load() }
@@ -83,6 +72,31 @@ struct BillsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            // M111 (ADR 0024): the bill-paying headline — what's due vs cash on hand.
+            if let timeline = viewModel.timeline {
+                Section {
+                    headline(timeline)
+                }
+            }
+
+            // The payment timeline: every payment (bills, cards, loans, leases)
+            // organized by time, not by category. Bills open their edit sheet.
+            ForEach(viewModel.timelineSections, id: \.title) { section in
+                Section {
+                    ForEach(section.items, id: \.id) { item in
+                        timelineRow(item)
+                    }
+                } header: {
+                    Text(section.title)
+                } footer: {
+                    if section.title == "Paid this cycle" {
+                        Text("Matched to the actual charge — tap to see the amount that settled it.")
+                    } else if section.title == "No due date yet" {
+                        Text("We haven't seen a payment on this account yet, so we can't infer its due day.")
+                    }
+                }
+            }
+
             if !viewModel.billSuggestions.isEmpty {
                 Section {
                     ForEach(viewModel.billSuggestions, id: \.merchantKey) { suggestion in
@@ -92,35 +106,6 @@ struct BillsView: View {
                     Text("Suggested bills")
                 } footer: {
                     Text("Recurring charges found in your spending. Swipe to add or dismiss.")
-                }
-            }
-
-            if viewModel.bills.isEmpty {
-                Section("Your bills") {
-                    Text(viewModel.isLoading ? "Loading…" : "No bills yet. Add one with +, or confirm a suggestion.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            // Grouped by category (M96), so subscriptions land under Subscriptions.
-            ForEach(viewModel.billsByCategory, id: \.name) { group in
-                Section(group.name) {
-                    ForEach(group.bills, id: \.id) { bill in
-                        billRow(bill)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    Task { await viewModel.deleteBill(bill) }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                                Button {
-                                    categorizing = bill
-                                } label: {
-                                    Label("Categorize", systemImage: "tag")
-                                }
-                                .tint(.accentColor)
-                            }
-                    }
                 }
             }
 
@@ -135,8 +120,158 @@ struct BillsView: View {
                     Text("Money that came in that we couldn't classify. Swipe to mark it.")
                 }
             }
+
+            // Add/edit/categorize/delete and the balance-sheet notes live one
+            // level down, so the primary view stays a clean payment timeline.
+            Section {
+                NavigationLink {
+                    ManageBillsView(
+                        viewModel: viewModel,
+                        editingBill: $editingBill,
+                        categorizing: $categorizing
+                    )
+                } label: {
+                    Label("Manage bills", systemImage: "slider.horizontal.3")
+                }
+                if viewModel.bills.isEmpty && !viewModel.isLoading {
+                    Text("No bills yet. Add one with +, or confirm a suggestion.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
-        .refreshable { await viewModel.load() }
+        // Pull-to-refresh runs a full bank sync (then reloads), matching the
+        // Accounts tab — one gesture, no separate refresh button.
+        .refreshable {
+            await viewModel.sync()
+            model.syncStatus.markSynced()
+        }
+        .safeAreaInset(edge: .bottom) {
+            SyncStatusFooter(status: model.syncStatus)
+                .padding(.vertical, 6)
+        }
+    }
+
+    /// "$8,254 due soon · $16,326 cash" — the bill-paying big picture (M111).
+    private func headline(_ timeline: Components.Schemas.PaymentTimelineResponse) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(timeline.dueTotal.formattedExact)
+                        .font(.system(.title, design: .rounded).weight(.semibold))
+                    Text("due in the next \(timeline.windowDays) days")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(timeline.liquidBalance.formattedExact)
+                        .font(.system(.title3, design: .rounded).weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text("cash on hand")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Label(
+                timeline.covered
+                    ? "Covered — your cash clears everything due."
+                    : "Short — what's due exceeds your cash on hand.",
+                systemImage: timeline.covered ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+            )
+            .font(.caption.weight(.medium))
+            .foregroundStyle(timeline.covered ? .green : .orange)
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// One payment on the timeline. Bills open their edit sheet; account-backed
+    /// rows (cards, loans, leases) are informational.
+    @ViewBuilder
+    private func timelineRow(_ item: Components.Schemas.PaymentTimelineItem) -> some View {
+        let row = HStack(spacing: 12) {
+            Image(systemName: Self.kindIcon(item.kind))
+                .foregroundStyle(item.status == .overdue ? Color.red : Color.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name).lineLimit(1)
+                Text(Self.statusLine(item))
+                    .font(.caption)
+                    .foregroundStyle(item.status == .overdue ? Color.red : Color.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(item.amount.formattedExact)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(item.status == .paid ? Color.secondary : Color.primary)
+                if item.status == .paid {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        if item.kind == .bill, let bill = viewModel.bills.first(where: { $0.id == item.id }) {
+            row
+                .contentShape(Rectangle())
+                .onTapGesture { editingBill = bill }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        Task { await viewModel.deleteBill(bill) }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    Button {
+                        categorizing = bill
+                    } label: {
+                        Label("Categorize", systemImage: "tag")
+                    }
+                    .tint(.accentColor)
+                }
+        } else {
+            row
+        }
+    }
+
+    static func kindIcon(_ kind: Components.Schemas.PaymentTimelineItem.KindPayload) -> String {
+        switch kind {
+        case .bill: return "doc.text"
+        case .creditCard: return "creditcard"
+        case .mortgage: return "house"
+        case .loan: return "building.columns"
+        case .lease: return "car"
+        }
+    }
+
+    /// The row's one-line story: when it's due, or the receipt that settled it.
+    static func statusLine(_ item: Components.Schemas.PaymentTimelineItem) -> String {
+        switch item.status {
+        case .paid:
+            if let paid = item.paidWith {
+                return "Paid \(shortDate(paid.occurredAt)) · \(paid.amount.formattedExact)"
+                    + (item.dueDate.map { " · next \(shortDate($0))" } ?? "")
+            }
+            return "Paid"
+        case .overdue:
+            return "Was due \(shortDate(item.dueDate ?? "")) · no payment seen"
+        case .dueSoon, .upcoming:
+            let due = item.dueDate.map(shortDate) ?? "—"
+            switch item.daysUntil {
+            case .some(0): return "Due today"
+            case .some(1): return "Due tomorrow"
+            case .some(let days) where days > 1 && days <= 14: return "Due \(due) · in \(days) days"
+            default: return "Due \(due)"
+            }
+        case .noDate:
+            return item.kind == .creditCard ? "Current balance · due date unknown" : "Due date unknown"
+        }
+    }
+
+    /// "2026-08-01" → "Aug 1".
+    static func shortDate(_ iso: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: String(iso.prefix(10))) else { return iso }
+        return date.formatted(.dateTime.month(.abbreviated).day())
     }
 
     private func suggestionRow(_ suggestion: Components.Schemas.BillSuggestion) -> some View {
@@ -160,21 +295,6 @@ struct BillsView: View {
             Button(role: .destructive) {
                 Task { await viewModel.dismissBill(suggestion) }
             } label: { Label("Dismiss", systemImage: "xmark") }
-        }
-    }
-
-    private func billRow(_ bill: Components.Schemas.Bill) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(bill.name).lineLimit(1)
-                Text(
-                    Self.frequencyText(bill.frequency)
-                        + (bill.nextDueDate.map { " · next \(String($0.prefix(10)))" } ?? "")
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(bill.amount.formattedExact).font(.subheadline.weight(.medium))
         }
     }
 
@@ -208,18 +328,154 @@ struct BillsView: View {
     }
 }
 
-/// Add a bill by hand (M95): name, amount, how often, and when it's next due.
-struct AddBillView: View {
+/// The management level of the Bills tab (M111): the category-grouped bills with
+/// edit/categorize/delete, and the account obligations with their balance-sheet
+/// notes. The primary tab view stays a clean payment timeline; everything about
+/// *defining* bills lives here.
+struct ManageBillsView: View {
+    @Bindable var viewModel: BillsViewModel
+    @Binding var editingBill: Components.Schemas.Bill?
+    @Binding var categorizing: Components.Schemas.Bill?
+
+    var body: some View {
+        List {
+            if viewModel.bills.isEmpty {
+                Section {
+                    Text("No bills yet. Add one with +, or confirm a suggestion on the Bills tab.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            // Grouped by category (M96); a category sharing a title with an
+            // obligation section renders as ONE section (M110).
+            ForEach(viewModel.billSections) { section in
+                Section {
+                    ForEach(section.bills, id: \.id) { bill in
+                        billRow(bill)
+                            .contentShape(Rectangle())
+                            .onTapGesture { editingBill = bill }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteBill(bill) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    categorizing = bill
+                                } label: {
+                                    Label("Categorize", systemImage: "tag")
+                                }
+                                .tint(.accentColor)
+                            }
+                    }
+                    ForEach(section.obligations, id: \.accountId) { obligation in
+                        obligationRow(obligation)
+                    }
+                } header: {
+                    Text(section.title)
+                } footer: {
+                    if let footer = section.obligationFooter {
+                        Text(footer)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Manage bills")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func billRow(_ bill: Components.Schemas.Bill) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(bill.name).lineLimit(1)
+                Text(
+                    BillsView.frequencyText(bill.frequency)
+                        + (bill.nextDueDate.map { " · next \(String($0.prefix(10)))" } ?? "")
+                )
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(bill.amount.formattedExact).font(.subheadline.weight(.medium))
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func obligationRow(_ obligation: Components.Schemas.AccountObligation) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(obligation.name).lineLimit(1)
+                Spacer()
+                Text(obligation.amount.formattedExact)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(obligation.reserved ? .primary : .secondary)
+            }
+            HStack(spacing: 6) {
+                Text("Monthly").font(.caption).foregroundStyle(.secondary)
+                if !obligation.reserved {
+                    Text("Not reserved")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(obligation.note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// Add or edit a bill by hand (M95/M110): name, amount, how often, when it's next
+/// due, and its category. One form for both so the two flows stay identical (the
+/// "uniform experience" rule) — the mode only changes the title, the button, and
+/// whether fields start blank or pre-filled from an existing bill.
+struct BillFormView: View {
+    enum Mode {
+        case add
+        case edit(Components.Schemas.Bill)
+    }
+
     @Environment(\.dismiss) private var dismiss
     let viewModel: BillsViewModel
+    let mode: Mode
 
-    @State private var name = ""
+    @State private var name: String
     @State private var amount: Decimal?
-    @State private var frequency: Components.Schemas.RecurringFrequency = .monthly
-    @State private var nextDue = Date()
-    @State private var categoryID = ""  // "" = none
+    @State private var frequency: Components.Schemas.RecurringFrequency
+    @State private var nextDue: Date
+    @State private var categoryID: String  // "" = none
+    private let currency: String
 
-    private var currency: String { "USD" }
+    init(viewModel: BillsViewModel, mode: Mode) {
+        self.viewModel = viewModel
+        self.mode = mode
+        switch mode {
+        case .add:
+            _name = State(initialValue: "")
+            _amount = State(initialValue: nil)
+            _frequency = State(initialValue: .monthly)
+            _nextDue = State(initialValue: Date())
+            _categoryID = State(initialValue: "")
+            currency = "USD"
+        case .edit(let bill):
+            _name = State(initialValue: bill.name)
+            _amount = State(initialValue: Decimal(bill.amount.amountMinor) / 100)
+            _frequency = State(initialValue: bill.frequency)
+            _nextDue = State(initialValue: Self.parseDate(bill.nextDueDate) ?? Date())
+            _categoryID = State(initialValue: bill.categoryId ?? "")
+            currency = bill.amount.currency
+        }
+    }
+
+    private var isEditing: Bool {
+        if case .edit = mode { return true }
+        return false
+    }
 
     var body: some View {
         NavigationStack {
@@ -242,14 +498,15 @@ struct AddBillView: View {
                     }
                 }
             }
-            .navigationTitle("Add bill")
+            .navigationTitle(isEditing ? "Edit bill" : "Add bill")
+            .keyboardDoneButton()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { add() }
+                    Button(isEditing ? "Save" : "Add") { save() }
                         .disabled(
                             name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                 || (amount ?? 0) <= 0)
@@ -258,18 +515,28 @@ struct AddBillView: View {
         }
     }
 
-    private func add() {
+    private func save() {
         var cents = (amount ?? 0) * 100
         var rounded = Decimal()
         NSDecimalRound(&rounded, &cents, 0, .plain)
         let minor = Int64(truncating: rounded as NSDecimalNumber)
         let due = Self.isoDate(nextDue)
+        // "None" can only be sent on create; on edit the generated client omits a
+        // nil category, so picking "None" keeps the current one (clearing is a
+        // dashboard action) — same set-only constraint as Categorize.
         let category = categoryID.isEmpty ? nil : categoryID
         dismiss()
         Task {
-            await viewModel.addBill(
-                name: name, amountMinor: minor, currency: currency,
-                frequency: frequency, nextDueDate: due, categoryID: category)
+            switch mode {
+            case .add:
+                await viewModel.addBill(
+                    name: name, amountMinor: minor, currency: currency,
+                    frequency: frequency, nextDueDate: due, categoryID: category)
+            case .edit(let bill):
+                await viewModel.editBill(
+                    bill, name: name, amountMinor: minor, currency: currency,
+                    frequency: frequency, nextDueDate: due, categoryID: category)
+            }
         }
     }
 
@@ -282,4 +549,16 @@ struct AddBillView: View {
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
     }
+
+    /// Parse a `yyyy-MM-dd` (optionally longer ISO) date string to a `Date`.
+    static func parseDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: String(value.prefix(10)))
+    }
 }
+
+/// `Bill` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
+extension Components.Schemas.Bill: @retroactive Identifiable {}
