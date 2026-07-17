@@ -74,6 +74,110 @@
   }
 }
 
+// --- Payment timeline (M111, ADR 0024) ---
+
+.timeline-headline {
+  max-width: 32rem;
+  background: white;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #2e7d32;
+
+  &--short {
+    border-left-color: #e65100;
+  }
+}
+
+.timeline-headline__figures {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.timeline-headline__cash {
+  text-align: right;
+}
+
+.timeline-headline__amount {
+  font-size: 1.6rem;
+  font-weight: 700;
+
+  &--secondary {
+    font-size: 1.2rem;
+    color: #5b6472;
+  }
+}
+
+.timeline-headline__label {
+  font-size: 0.8rem;
+  color: #5b6472;
+}
+
+.timeline-headline__verdict {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2e7d32;
+
+  .timeline-headline--short & {
+    color: #e65100;
+  }
+}
+
+.timeline-list__kind {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #5b6472;
+  background: #eef1f5;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.timeline-list[data-status='overdue'] .bill-list__item {
+  border-left: 3px solid #b00020;
+}
+
+.timeline-list__status--overdue {
+  color: #b00020;
+}
+
+.timeline-list__check {
+  color: #2e7d32;
+  margin-left: 0.25rem;
+}
+
+.timeline-list[data-status='paid'] .bill-list__amount {
+  color: #5b6472;
+  font-weight: 500;
+}
+
+// --- Manage list: stacked rows so the inline edit form has room (M110) ---
+
+.bill-list__item--stacked {
+  display: block;
+}
+
+.bill-list__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bill-form--inline {
+  max-width: none;
+
+  .bill-form__actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+}
+
 .bill-form {
   display: flex;
   flex-direction: column;

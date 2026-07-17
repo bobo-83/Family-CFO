@@ -1,5 +1,5 @@
 import { DatePipe, PercentPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, HostListener, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type {
   IncomeAnalysisResponse,
@@ -184,6 +184,34 @@ export class IncomeTax {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
+    await this.scanW2File(file);
+  }
+
+  /**
+   * M114 (ADR 0028): every statement input accepts paste. Ctrl/Cmd+V anywhere
+   * on this page feeds a copied screenshot or PDF into the same scan path as
+   * the file picker.
+   */
+  @HostListener('window:paste', ['$event'])
+  async onPaste(event: ClipboardEvent): Promise<void> {
+    if (!this.canWrite()) {
+      return;
+    }
+    const items = event.clipboardData?.items ?? [];
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file && /^(image\/|application\/pdf)/.test(file.type)) {
+        event.preventDefault();
+        await this.scanW2File(file);
+        return;
+      }
+    }
+  }
+
+  protected async scanW2File(file: File | undefined | null): Promise<void> {
     if (!file || this.scanning()) {
       return;
     }
