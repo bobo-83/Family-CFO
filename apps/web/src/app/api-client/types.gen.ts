@@ -87,6 +87,34 @@ export type Transaction = {
     category?: string;
     category_id?: string;
     description?: string;
+    /**
+     * M96: display name of the account this transaction lives in.
+     */
+    account_name?: string;
+    /**
+     * M96: for a transfer whose other leg is a linked account, that account's name — so a generic 'Online Transfer' can be shown as source → destination.
+     */
+    counterparty?: string;
+    /**
+     * M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a legitimate repeat the user kept), or 'disputed' (contesting).
+     */
+    duplicate_state?: 'flagged' | 'dismissed' | 'disputed';
+    /**
+     * M97: the bank/aggregator's reference for this record — distinguishes two otherwise-identical duplicate legs in the Review queue.
+     */
+    external_id?: string;
+    /**
+     * M97: the institution (bank) this account was synced from, so the user knows where to look the transaction up. Null for manual accounts.
+     */
+    institution?: string;
+    /**
+     * M100: a user's free-text note.
+     */
+    note?: string;
+    /**
+     * M100: whether an image is attached to this transaction.
+     */
+    has_attachment?: boolean;
 };
 
 export type Category = {
@@ -135,8 +163,98 @@ export type TransactionListResponse = {
     transactions: Array<Transaction>;
 };
 
+/**
+ * M106: a recurring monthly payment on a liability account — a mortgage/loan payment, a lease, or a payroll-deducted 401(k)-loan repayment — shown on the Bills tab alongside actual bills. `note` explains its balance-sheet effect; `reserved` is whether safe-to-spend already holds it back.
+ *
+ */
+export type AccountObligation = {
+    account_id: string;
+    name: string;
+    amount: Money;
+    kind: 'mortgage' | 'loan' | 'lease' | 'retirement_loan';
+    note: string;
+    reserved: boolean;
+};
+
 export type BillListResponse = {
     bills: Array<Bill>;
+    account_obligations?: Array<AccountObligation>;
+};
+
+/**
+ * One expected cash movement in the outlook window (M112): a payday (positive amount) or a payment (negative amount).
+ */
+export type OutlookEvent = {
+    occurred_on: string;
+    name: string;
+    amount: Money;
+    kind: 'income' | 'bill' | 'credit_card' | 'mortgage' | 'loan' | 'lease';
+};
+
+/**
+ * Projected cash over the horizon (M112, ADR 0026): paychecks in, payments out, and the lowest point the balance reaches — the lived counterpart to safe-to-spend's zero-income stress test.
+ */
+export type CashOutlookResponse = {
+    starting_cash: Money;
+    events: Array<OutlookEvent>;
+    ending_cash: Money;
+    lowest_balance: Money;
+    lowest_date?: string;
+    expected_income: Money;
+    obligations: Money;
+    horizon_days: number;
+    due_soon: Money;
+    due_soon_covered: boolean;
+    due_soon_window_days: number;
+};
+
+/**
+ * M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.
+ */
+export type SpendingPlanResponse = {
+    month: string;
+    income_received: Money;
+    income_projected: Money;
+    expected_income: Money;
+    spent: Money;
+    bills_remaining: Money;
+    account_obligations: Money;
+    planned_savings: Money;
+    left_to_spend: Money;
+    per_day: Money;
+    days_remaining: number;
+};
+
+/**
+ * The actual transaction that satisfied a timeline item — the receipt behind the checkmark, so a "Paid" claim is always verifiable (ADR 0024).
+ */
+export type TimelinePaidWith = {
+    transaction_id: string;
+    occurred_at: string;
+    amount: Money;
+    label: string;
+};
+
+/**
+ * One payment on the Bills timeline (M111): a bill, a credit-card payment, or a loan/lease payment. `amount` is the expected figure (a bill's estimate — variable utilities show their typical amount — a card's pay-in-full balance, a loan's monthly payment); `paid_with` carries the matched actual charge when status is "paid".
+ */
+export type PaymentTimelineItem = {
+    id: string;
+    kind: 'bill' | 'credit_card' | 'mortgage' | 'loan' | 'lease';
+    name: string;
+    amount: Money;
+    due_date?: string;
+    days_until?: number;
+    status: 'overdue' | 'due_soon' | 'upcoming' | 'paid' | 'no_date';
+    paid_with?: TimelinePaidWith;
+};
+
+export type PaymentTimelineResponse = {
+    items: Array<PaymentTimelineItem>;
+    due_total: Money;
+    liquid_balance: Money;
+    covered: boolean;
+    window_days: number;
 };
 
 /**
@@ -344,6 +462,25 @@ export type W2ScanResult = {
     note: string;
 };
 
+export type LoanScanRequest = {
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * Candidate loan/lease values read from a statement — the user confirms and edits before saving. For a lease with no stated payoff, balance is estimated as payments_remaining × the monthly payment.
+ */
+export type LoanScanResult = {
+    name?: string;
+    monthly_payment_minor?: number;
+    balance_minor?: number;
+    payments_remaining?: number;
+    maturity_date?: string;
+    apr_percent?: number;
+    is_lease?: boolean;
+    note: string;
+};
+
 export type IncomeAnalysisResponse = {
     sources: Array<IncomeSourceAnalysis>;
     other_inflows: Array<IncomeAnalysisTransaction>;
@@ -434,6 +571,18 @@ export type HouseholdContext = {
      * M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
      */
     spending_by_category?: SpendingByCategory;
+    /**
+     * M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
+     */
+    last_synced_at?: string;
+    /**
+     * M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
+     */
+    earliest_month?: string;
+    /**
+     * M97: transactions awaiting duplicate review, for the Review tab badge.
+     */
+    review_count?: number;
 };
 
 export type Budget = {
@@ -495,7 +644,7 @@ export type SpendingByCategory = {
     /**
      * Per-category spend this month, highest first.
      */
-    categories: Array<CategorySpend>;
+    categories?: Array<CategorySpend>;
     /**
      * Sum of all categorized spend this month.
      */
@@ -533,6 +682,14 @@ export type SafeToSpend = {
      */
     minimum_debt_payments: Money;
     /**
+     * M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
+     */
+    credit_card_payments?: Money;
+    /**
+     * M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
+     */
+    subscription_forecast?: Money;
+    /**
      * emergency_fund_reserved + bills_due + minimum_debt_payments.
      */
     committed_total: Money;
@@ -548,6 +705,40 @@ export type SafeToSpend = {
      * Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
      */
     warnings: Array<string>;
+    /**
+     * M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
+     */
+    liquid_accounts?: Array<LiquidAccountBalance>;
+    /**
+     * M96: the debts and their minimum payments behind minimum_debt_payments.
+     */
+    minimum_debt_items?: Array<NamedAmount>;
+    /**
+     * M96: the cards and their balances behind credit_card_payments (when paid in full).
+     */
+    credit_card_items?: Array<NamedAmount>;
+    /**
+     * M98: the bills behind bills_due, over the safe-to-spend horizon.
+     */
+    bill_items?: Array<NamedAmount>;
+    /**
+     * M98: the accounts and how much of each is reserved as emergency fund.
+     */
+    emergency_fund_items?: Array<NamedAmount>;
+    /**
+     * M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
+     */
+    subscription_forecast_items?: Array<NamedAmount>;
+};
+
+export type LiquidAccountBalance = {
+    name: string;
+    balance: Money;
+};
+
+export type NamedAmount = {
+    name: string;
+    amount: Money;
 };
 
 export type SavingsRate = {
@@ -638,6 +829,14 @@ export type MonthlyCashFlow = {
      * Income minus bills; excludes discretionary spending.
      */
     net: Money;
+    /**
+     * M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
+     */
+    income_baseline?: Money;
+    /**
+     * M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
+     */
+    taxes?: Money;
 };
 
 export type AssetCategoryTotal = {
@@ -652,6 +851,10 @@ export type Account = {
     balance: Money;
     annual_interest_rate?: number;
     minimum_payment?: Money;
+    /**
+     * M96: loan/lease end date, for maturity and months-remaining.
+     */
+    maturity_date?: string;
     institution?: string;
     last_synced_at?: string;
     /**
@@ -668,7 +871,7 @@ export type Account = {
     emergency_fund_reserved?: Money;
 };
 
-export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | 'real_estate' | 'other_asset' | 'other_liability';
+export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | '401k_loan' | 'real_estate' | 'other_asset' | 'other_liability';
 
 export type Goal = {
     id: string;
@@ -678,6 +881,21 @@ export type Goal = {
     current: Money;
     target_date?: string;
     priority: number;
+    /**
+     * M118: planned monthly contribution, reserved by the spending plan.
+     */
+    monthly_contribution?: Money;
+};
+
+/**
+ * M118: update a goal's declared fields. Sending monthly_contribution null clears the plan; omitting it leaves it unchanged.
+ */
+export type GoalUpdateRequest = {
+    name?: string;
+    target?: Money;
+    target_date?: string;
+    priority?: number;
+    monthly_contribution?: Money;
 };
 
 export type GoalCreateRequest = {
@@ -686,6 +904,7 @@ export type GoalCreateRequest = {
     target: Money;
     target_date?: string;
     priority?: number;
+    monthly_contribution?: Money;
 };
 
 export type GoalType = 'emergency_fund' | 'vacation' | 'retirement' | 'college' | 'vehicle' | 'renovation' | 'other';
@@ -863,10 +1082,92 @@ export type BackupJob = {
     completed_at?: string;
     pruned_at?: string;
     created_at: string;
+    /**
+     * M98: whether this backup reached the off-box share (synced/failed/skipped).
+     */
+    remote_status?: string;
+    /**
+     * M98: the reason a copy to the share failed.
+     */
+    remote_error?: string;
 };
 
 export type BackupJobListResponse = {
     backups: Array<BackupJob>;
+};
+
+export type BackupConfig = {
+    frequency?: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
+    /**
+     * M98: Synology address (IP or hostname) backups upload to over SMB.
+     */
+    smb_host?: string;
+    smb_share?: string;
+    smb_folder?: string;
+    smb_username?: string;
+    smb_domain?: string;
+    /**
+     * M98: whether a Synology password is stored (the password itself is never returned).
+     */
+    has_password?: boolean;
+    /**
+     * M98: cap on combined size of all backups (bytes); null = no cap.
+     */
+    max_bytes?: number;
+    latest?: BackupJob;
+};
+
+export type BackupConfigUpdateRequest = {
+    frequency?: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
+    smb_host?: string;
+    smb_share?: string;
+    smb_folder?: string;
+    smb_username?: string;
+    /**
+     * M98: write-only; omit/null to keep the stored password.
+     */
+    smb_password?: string;
+    smb_domain?: string;
+    max_bytes?: number;
+};
+
+export type BackupDestinationCheckRequest = {
+    smb_host: string;
+    smb_share: string;
+    smb_folder?: string;
+    smb_username: string;
+    smb_password?: string;
+    smb_domain?: string;
+};
+
+export type BackupDestinationCheckResponse = {
+    writable: boolean;
+    reason?: string;
+};
+
+export type RemoteBackup = {
+    filename: string;
+    size_bytes: number;
+    /**
+     * Epoch seconds of the file's last-modified time.
+     */
+    modified_at: number;
+};
+
+export type RemoteBackupListResponse = {
+    backups: Array<RemoteBackup>;
+};
+
+export type RemoteRestoreRequest = {
+    filename: string;
+};
+
+export type BackupEncryptionKey = {
+    configured: boolean;
+    /**
+     * M98: the key that decrypts every backup — store it safely.
+     */
+    key?: string;
 };
 
 export type HouseholdCreateRequest = {
@@ -889,6 +1190,10 @@ export type HouseholdUpdateRequest = {
      * Reset the emergency-fund target to the default (6 months).
      */
     clear_emergency_fund_target?: boolean;
+    /**
+     * M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
+     */
+    credit_cards_paid_in_full?: boolean;
 };
 
 export type Member = {
@@ -920,6 +1225,7 @@ export type AccountCreateRequest = {
     currency: string;
     annual_interest_rate?: number;
     minimum_payment?: Money;
+    maturity_date?: string;
 };
 
 export type AccountUpdateRequest = {
@@ -927,6 +1233,7 @@ export type AccountUpdateRequest = {
     type?: AccountType;
     annual_interest_rate?: number;
     minimum_payment?: Money;
+    maturity_date?: string;
     /**
      * M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
      */
@@ -971,6 +1278,14 @@ export type TransactionUpdateRequest = {
      * M45: remove the category from this transaction.
      */
     clear_category?: boolean;
+    /**
+     * M97: resolve a Review-queue flag — 'dismissed' (keep both, a real repeat) or 'disputed' (contesting with the bank).
+     */
+    duplicate_state?: 'dismissed' | 'disputed';
+    /**
+     * M100: set/clear the free-text note (present = set, absent = leave).
+     */
+    note?: string;
 };
 
 export type BillCreateRequest = {
@@ -1016,6 +1331,8 @@ export type AuditEvent = {
     entity_id?: string;
     summary: string;
     created_at: string;
+    undoable?: boolean;
+    reverted_at?: string;
 };
 
 export type AuditEventListResponse = {
@@ -1124,6 +1441,14 @@ export type ConnectionSyncResult = {
     accounts_synced: number;
     imported: number;
     duplicates_skipped: number;
+    /**
+     * Imported transactions auto-filed under the Transfers category (credit-card payments, bank-to-bank transfers) so the user need not tag them and they do not inflate spending.
+     */
+    transfers_filed?: number;
+    /**
+     * Imported transactions auto-categorized by reusing the category the household previously assigned to the same merchant.
+     */
+    auto_categorized?: number;
 };
 
 export type AiApplyRequest = {
@@ -1375,10 +1700,49 @@ export type CreateHouseholdResponses = {
 
 export type CreateHouseholdResponse = CreateHouseholdResponses[keyof CreateHouseholdResponses];
 
+export type GetSpendingByCategoryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Month as YYYY-MM; omit for the current month.
+         */
+        month?: string;
+    };
+    url: '/spending';
+};
+
+export type GetSpendingByCategoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+};
+
+export type GetSpendingByCategoryError = GetSpendingByCategoryErrors[keyof GetSpendingByCategoryErrors];
+
+export type GetSpendingByCategoryResponses = {
+    /**
+     * Spending by category for the month
+     */
+    200: SpendingByCategory;
+};
+
+export type GetSpendingByCategoryResponse = GetSpendingByCategoryResponses[keyof GetSpendingByCategoryResponses];
+
 export type GetHouseholdContextData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * YYYY-MM; a past month returns its frozen snapshot. Omit for the live current month.
+         */
+        month?: string;
+    };
     url: '/household';
 };
 
@@ -1432,6 +1796,64 @@ export type UpdateHouseholdResponses = {
 };
 
 export type UpdateHouseholdResponse = UpdateHouseholdResponses[keyof UpdateHouseholdResponses];
+
+export type GetCashOutlookData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/overview/cash-outlook';
+};
+
+export type GetCashOutlookErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetCashOutlookError = GetCashOutlookErrors[keyof GetCashOutlookErrors];
+
+export type GetCashOutlookResponses = {
+    /**
+     * Cash outlook
+     */
+    200: CashOutlookResponse;
+};
+
+export type GetCashOutlookResponse = GetCashOutlookResponses[keyof GetCashOutlookResponses];
+
+export type GetSpendingPlanData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/overview/spending-plan';
+};
+
+export type GetSpendingPlanErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetSpendingPlanError = GetSpendingPlanErrors[keyof GetSpendingPlanErrors];
+
+export type GetSpendingPlanResponses = {
+    /**
+     * Spending plan
+     */
+    200: SpendingPlanResponse;
+};
+
+export type GetSpendingPlanResponse = GetSpendingPlanResponses[keyof GetSpendingPlanResponses];
 
 export type ListMembersData = {
     body?: never;
@@ -1597,6 +2019,49 @@ export type ListAuditEventsResponses = {
 };
 
 export type ListAuditEventsResponse = ListAuditEventsResponses[keyof ListAuditEventsResponses];
+
+export type UndoAuditEventData = {
+    body?: never;
+    path: {
+        audit_id: string;
+    };
+    query?: never;
+    url: '/audit/{audit_id}/undo';
+};
+
+export type UndoAuditEventErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type UndoAuditEventError = UndoAuditEventErrors[keyof UndoAuditEventErrors];
+
+export type UndoAuditEventResponses = {
+    /**
+     * The updated audit event
+     */
+    200: AuditEvent;
+};
+
+export type UndoAuditEventResponse = UndoAuditEventResponses[keyof UndoAuditEventResponses];
 
 export type ListAccountsData = {
     body?: never;
@@ -1764,7 +2229,12 @@ export type RecordAccountBalanceResponse = RecordAccountBalanceResponses[keyof R
 export type ListTransactionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * YYYY-MM; returns every transaction in that month. Omit for the recent set.
+         */
+        month?: string;
+    };
     url: '/transactions';
 };
 
@@ -1773,6 +2243,10 @@ export type ListTransactionsErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
 };
 
 export type ListTransactionsError = ListTransactionsErrors[keyof ListTransactionsErrors];
@@ -1818,6 +2292,40 @@ export type CreateTransactionResponses = {
 };
 
 export type CreateTransactionResponse = CreateTransactionResponses[keyof CreateTransactionResponses];
+
+export type ListTransactionsForReviewData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * duplicates (default) | transfers | credits
+         */
+        kind?: 'duplicates' | 'transfers' | 'credits';
+    };
+    url: '/transactions/review';
+};
+
+export type ListTransactionsForReviewErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+};
+
+export type ListTransactionsForReviewError = ListTransactionsForReviewErrors[keyof ListTransactionsForReviewErrors];
+
+export type ListTransactionsForReviewResponses = {
+    /**
+     * Transactions to review
+     */
+    200: TransactionListResponse;
+};
+
+export type ListTransactionsForReviewResponse = ListTransactionsForReviewResponses[keyof ListTransactionsForReviewResponses];
 
 export type DeleteTransactionData = {
     body?: never;
@@ -1888,6 +2396,117 @@ export type UpdateTransactionResponses = {
 };
 
 export type UpdateTransactionResponse = UpdateTransactionResponses[keyof UpdateTransactionResponses];
+
+export type DeleteTransactionAttachmentData = {
+    body?: never;
+    path: {
+        transaction_id: string;
+    };
+    query?: never;
+    url: '/transactions/{transaction_id}/attachment';
+};
+
+export type DeleteTransactionAttachmentErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteTransactionAttachmentError = DeleteTransactionAttachmentErrors[keyof DeleteTransactionAttachmentErrors];
+
+export type DeleteTransactionAttachmentResponses = {
+    /**
+     * Attachment removed
+     */
+    204: void;
+};
+
+export type DeleteTransactionAttachmentResponse = DeleteTransactionAttachmentResponses[keyof DeleteTransactionAttachmentResponses];
+
+export type GetTransactionAttachmentData = {
+    body?: never;
+    path: {
+        transaction_id: string;
+    };
+    query?: never;
+    url: '/transactions/{transaction_id}/attachment';
+};
+
+export type GetTransactionAttachmentErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetTransactionAttachmentError = GetTransactionAttachmentErrors[keyof GetTransactionAttachmentErrors];
+
+export type GetTransactionAttachmentResponses = {
+    /**
+     * The image
+     */
+    200: Blob | File;
+};
+
+export type GetTransactionAttachmentResponse = GetTransactionAttachmentResponses[keyof GetTransactionAttachmentResponses];
+
+export type UploadTransactionAttachmentData = {
+    body: {
+        file: Blob | File;
+    };
+    path: {
+        transaction_id: string;
+    };
+    query?: never;
+    url: '/transactions/{transaction_id}/attachment';
+};
+
+export type UploadTransactionAttachmentErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    413: ErrorResponse;
+};
+
+export type UploadTransactionAttachmentError = UploadTransactionAttachmentErrors[keyof UploadTransactionAttachmentErrors];
+
+export type UploadTransactionAttachmentResponses = {
+    /**
+     * Updated transaction
+     */
+    200: Transaction;
+};
+
+export type UploadTransactionAttachmentResponse = UploadTransactionAttachmentResponses[keyof UploadTransactionAttachmentResponses];
 
 export type ListCategoriesData = {
     body?: never;
@@ -2175,6 +2794,31 @@ export type CreateBillResponses = {
 };
 
 export type CreateBillResponse = CreateBillResponses[keyof CreateBillResponses];
+
+export type GetPaymentTimelineData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/bills/timeline';
+};
+
+export type GetPaymentTimelineErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetPaymentTimelineError = GetPaymentTimelineErrors[keyof GetPaymentTimelineErrors];
+
+export type GetPaymentTimelineResponses = {
+    /**
+     * Payment timeline
+     */
+    200: PaymentTimelineResponse;
+};
+
+export type GetPaymentTimelineResponse = GetPaymentTimelineResponses[keyof GetPaymentTimelineResponses];
 
 export type ListBillSuggestionsData = {
     body?: never;
@@ -2575,6 +3219,43 @@ export type DeleteIncomeEarnerResponses = {
 
 export type DeleteIncomeEarnerResponse = DeleteIncomeEarnerResponses[keyof DeleteIncomeEarnerResponses];
 
+export type ScanLoanStatementData = {
+    body: LoanScanRequest;
+    path?: never;
+    query?: never;
+    url: '/accounts/scan-statement';
+};
+
+export type ScanLoanStatementErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type ScanLoanStatementError = ScanLoanStatementErrors[keyof ScanLoanStatementErrors];
+
+export type ScanLoanStatementResponses = {
+    /**
+     * Candidate loan values extracted by the on-box vision model
+     */
+    200: LoanScanResult;
+};
+
+export type ScanLoanStatementResponse = ScanLoanStatementResponses[keyof ScanLoanStatementResponses];
+
 export type ScanW2Data = {
     body: W2ScanRequest;
     path?: never;
@@ -2665,6 +3346,76 @@ export type CreateGoalResponses = {
 };
 
 export type CreateGoalResponse = CreateGoalResponses[keyof CreateGoalResponses];
+
+export type DeleteGoalData = {
+    body?: never;
+    path: {
+        goal_id: string;
+    };
+    query?: never;
+    url: '/goals/{goal_id}';
+};
+
+export type DeleteGoalErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteGoalError = DeleteGoalErrors[keyof DeleteGoalErrors];
+
+export type DeleteGoalResponses = {
+    /**
+     * Goal deleted
+     */
+    204: void;
+};
+
+export type DeleteGoalResponse = DeleteGoalResponses[keyof DeleteGoalResponses];
+
+export type UpdateGoalData = {
+    body: GoalUpdateRequest;
+    path: {
+        goal_id: string;
+    };
+    query?: never;
+    url: '/goals/{goal_id}';
+};
+
+export type UpdateGoalErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateGoalError = UpdateGoalErrors[keyof UpdateGoalErrors];
+
+export type UpdateGoalResponses = {
+    /**
+     * Updated goal
+     */
+    200: Goal;
+};
+
+export type UpdateGoalResponse = UpdateGoalResponses[keyof UpdateGoalResponses];
 
 export type AnalyzePurchaseData = {
     body: PurchaseAdvisorRequest;
@@ -3357,6 +4108,256 @@ export type RestoreBackupResponses = {
 
 export type RestoreBackupResponse = RestoreBackupResponses[keyof RestoreBackupResponses];
 
+export type GetBackupConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups/config';
+};
+
+export type GetBackupConfigErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type GetBackupConfigError = GetBackupConfigErrors[keyof GetBackupConfigErrors];
+
+export type GetBackupConfigResponses = {
+    /**
+     * Backup configuration
+     */
+    200: BackupConfig;
+};
+
+export type GetBackupConfigResponse = GetBackupConfigResponses[keyof GetBackupConfigResponses];
+
+export type UpdateBackupConfigData = {
+    body: BackupConfigUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/backups/config';
+};
+
+export type UpdateBackupConfigErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type UpdateBackupConfigError = UpdateBackupConfigErrors[keyof UpdateBackupConfigErrors];
+
+export type UpdateBackupConfigResponses = {
+    /**
+     * Updated configuration
+     */
+    200: BackupConfig;
+};
+
+export type UpdateBackupConfigResponse = UpdateBackupConfigResponses[keyof UpdateBackupConfigResponses];
+
+export type CheckBackupDestinationData = {
+    body: BackupDestinationCheckRequest;
+    path?: never;
+    query?: never;
+    url: '/backups/destination-check';
+};
+
+export type CheckBackupDestinationErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type CheckBackupDestinationError = CheckBackupDestinationErrors[keyof CheckBackupDestinationErrors];
+
+export type CheckBackupDestinationResponses = {
+    /**
+     * Check result
+     */
+    200: BackupDestinationCheckResponse;
+};
+
+export type CheckBackupDestinationResponse = CheckBackupDestinationResponses[keyof CheckBackupDestinationResponses];
+
+export type ListRemoteBackupsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups/remote';
+};
+
+export type ListRemoteBackupsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListRemoteBackupsError = ListRemoteBackupsErrors[keyof ListRemoteBackupsErrors];
+
+export type ListRemoteBackupsResponses = {
+    /**
+     * Backups on the share
+     */
+    200: RemoteBackupListResponse;
+};
+
+export type ListRemoteBackupsResponse = ListRemoteBackupsResponses[keyof ListRemoteBackupsResponses];
+
+export type RestoreRemoteBackupData = {
+    body: RemoteRestoreRequest;
+    path?: never;
+    query?: never;
+    url: '/backups/remote/restore';
+};
+
+export type RestoreRemoteBackupErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type RestoreRemoteBackupError = RestoreRemoteBackupErrors[keyof RestoreRemoteBackupErrors];
+
+export type RestoreRemoteBackupResponses = {
+    /**
+     * Restored
+     */
+    200: BackupDestinationCheckResponse;
+};
+
+export type RestoreRemoteBackupResponse = RestoreRemoteBackupResponses[keyof RestoreRemoteBackupResponses];
+
+export type DeleteRemoteBackupData = {
+    body: RemoteRestoreRequest;
+    path?: never;
+    query?: never;
+    url: '/backups/remote/delete';
+};
+
+export type DeleteRemoteBackupErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type DeleteRemoteBackupError = DeleteRemoteBackupErrors[keyof DeleteRemoteBackupErrors];
+
+export type DeleteRemoteBackupResponses = {
+    /**
+     * Deleted
+     */
+    200: BackupDestinationCheckResponse;
+};
+
+export type DeleteRemoteBackupResponse = DeleteRemoteBackupResponses[keyof DeleteRemoteBackupResponses];
+
+export type GetBackupEncryptionKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups/encryption-key';
+};
+
+export type GetBackupEncryptionKeyErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type GetBackupEncryptionKeyError = GetBackupEncryptionKeyErrors[keyof GetBackupEncryptionKeyErrors];
+
+export type GetBackupEncryptionKeyResponses = {
+    /**
+     * The encryption key
+     */
+    200: BackupEncryptionKey;
+};
+
+export type GetBackupEncryptionKeyResponse = GetBackupEncryptionKeyResponses[keyof GetBackupEncryptionKeyResponses];
+
+export type DeleteBackupData = {
+    body?: never;
+    path: {
+        backup_id: string;
+    };
+    query?: never;
+    url: '/backups/{backup_id}';
+};
+
+export type DeleteBackupErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteBackupError = DeleteBackupErrors[keyof DeleteBackupErrors];
+
+export type DeleteBackupResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeleteBackupResponse = DeleteBackupResponses[keyof DeleteBackupResponses];
+
 export type GetAiRuntimeConfigData = {
     body?: never;
     path?: never;
@@ -3684,6 +4685,35 @@ export type DeleteConnectionResponses = {
 };
 
 export type DeleteConnectionResponse = DeleteConnectionResponses[keyof DeleteConnectionResponses];
+
+export type SyncAllConnectionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/connections/sync';
+};
+
+export type SyncAllConnectionsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type SyncAllConnectionsError = SyncAllConnectionsErrors[keyof SyncAllConnectionsErrors];
+
+export type SyncAllConnectionsResponses = {
+    /**
+     * Aggregate sync result across all connections
+     */
+    200: ConnectionSyncResult;
+};
+
+export type SyncAllConnectionsResponse = SyncAllConnectionsResponses[keyof SyncAllConnectionsResponses];
 
 export type SyncConnectionData = {
     body?: never;

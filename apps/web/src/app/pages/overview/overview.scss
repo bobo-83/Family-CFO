@@ -263,3 +263,54 @@
   font-weight: 600;
   text-align: right;
 }
+
+// --- M112: cash outlook (ADR 0026) ---
+
+.outlook-card {
+  border-left: 4px solid var(--color-accent);
+}
+
+.outlook-card__details {
+  margin-top: 0.5rem;
+
+  summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+}
+
+.outlook-card__table {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  td {
+    padding: 0.25rem 0.4rem;
+    border-top: 1px solid #eef1f5;
+  }
+}
+
+.outlook-card__date {
+  white-space: nowrap;
+  color: #5b6472;
+}
+
+.outlook-card__amount,
+.outlook-card__balance {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.outlook-card__balance {
+  color: #5b6472;
+}
+
+// --- M113: month spending plan (ADR 0027) ---
+
+.plan-card {
+  border-left: 4px solid #7c5cd6;
+}

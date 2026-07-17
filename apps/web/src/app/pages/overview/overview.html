@@ -15,11 +15,114 @@
           <span class="overview__value">{{ context.display_name }}</span>
         </div>
 
+        @if (outlook.value(); as cash) {
+          <div class="overview__card overview__card--wide outlook-card">
+            <span class="overview__label">Cash outlook</span>
+            <span
+              class="overview__detail"
+              [class.overview__value--positive]="cash.due_soon_covered"
+              [class.overview__value--negative]="!cash.due_soon_covered"
+            >
+              {{ cash.due_soon_covered ? '✓' : '⚠' }}
+              {{ formatMoney(cash.due_soon) }} due in {{ cash.due_soon_window_days }} days —
+              {{ cash.due_soon_covered ? 'covered' : 'exceeds your cash' }}
+            </span>
+            <span
+              class="overview__value"
+              [class.overview__value--negative]="cash.lowest_balance.amount_minor < 0"
+            >
+              {{ formatMoney(cash.lowest_balance) }}
+            </span>
+            <span class="overview__value-context">
+              @if (cash.lowest_date) {
+                lowest your cash reaches in the next {{ cash.horizon_days }} days ·
+                {{ cash.lowest_date | date: 'MMM d' }}
+              } @else {
+                no payments or paydays expected in the next {{ cash.horizon_days }} days
+              }
+            </span>
+            <span class="overview__detail">
+              {{ formatMoney(cash.starting_cash) }} cash +
+              {{ formatMoney(cash.expected_income) }} expected paychecks −
+              {{ formatMoney(cash.obligations) }} payments =
+              {{ formatMoney(cash.ending_cash) }}
+            </span>
+            @if (outlookRows().length > 0) {
+              <details class="outlook-card__details">
+                <summary>Day by day</summary>
+                <table class="outlook-card__table">
+                  @for (row of outlookRows(); track $index) {
+                    <tr>
+                      <td class="outlook-card__date">{{ row.event.occurred_on | date: 'MMM d' }}</td>
+                      <td class="outlook-card__name">{{ row.event.name }}</td>
+                      <td
+                        class="outlook-card__amount"
+                        [class.overview__value--positive]="row.event.amount.amount_minor > 0"
+                      >
+                        {{ row.event.amount.amount_minor > 0 ? '+' : ''
+                        }}{{ formatMoney(row.event.amount) }}
+                      </td>
+                      <td
+                        class="outlook-card__balance"
+                        [class.overview__value--negative]="row.balance.amount_minor < 0"
+                      >
+                        {{ formatMoney(row.balance) }}
+                      </td>
+                    </tr>
+                  }
+                </table>
+                <p class="overview__hint">
+                  Paydays come from your recurring deposits; payments from the Bills
+                  timeline. Card amounts are today's balances — the real figure may be
+                  higher by the due date.
+                </p>
+              </details>
+            }
+          </div>
+        }
+
+        @if (plan.value(); as month) {
+          <div class="overview__card overview__card--wide plan-card">
+            <span class="overview__label">Left to spend this month</span>
+            <span
+              class="overview__value"
+              [class.overview__value--negative]="month.left_to_spend.amount_minor < 0"
+            >
+              {{ formatMoney(month.left_to_spend) }}
+            </span>
+            <span class="overview__value-context">
+              @if (month.left_to_spend.amount_minor >= 0) {
+                about {{ formatMoney(month.per_day) }}/day for the remaining
+                {{ month.days_remaining }} day{{ month.days_remaining === 1 ? '' : 's' }}
+              } @else {
+                this month's spending has outrun this month's income — the gap is
+                drawing on cash you already had
+              }
+            </span>
+            <span class="overview__detail">
+              {{ formatMoney(month.expected_income) }} expected income
+              ({{ formatMoney(month.income_received) }} received +
+              {{ formatMoney(month.income_projected) }} to come)
+              − {{ formatMoney(month.spent) }} spent
+              − {{ formatMoney(month.bills_remaining) }} bills still due
+              − {{ formatMoney(month.account_obligations) }} loan & lease payments
+              @if (month.planned_savings.amount_minor > 0) {
+                − {{ formatMoney(month.planned_savings) }} planned savings
+              }
+            </span>
+          </div>
+        }
+
         @if (context.safe_to_spend; as sts) {
           <div class="overview__card overview__card--wide">
-            <span class="overview__label">Safe to spend</span>
+            <span class="overview__label">Stress test</span>
             <span class="overview__value">{{ formatMoney(sts.safe_to_spend) }}</span>
             <span class="overview__value-context">
+              If every commitment were called today — full card balances, all bills, the
+              emergency fund held back — with no paycheck counted. Deliberately
+              worst-case; the cash outlook counts income.
+            </span>
+            <span class="overview__detail">
               {{ formatMoney(sts.liquid_balance) }} liquid
               − {{ formatMoney(sts.emergency_fund_reserved) }} emergency fund
               − {{ formatMoney(sts.bills_due) }} bills due

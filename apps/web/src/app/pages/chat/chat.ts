@@ -1,4 +1,4 @@
-import { Component, inject, resource, signal } from '@angular/core';
+import { Component, HostListener, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Recommendation } from '../../api-client';
 import { ApiService } from '../../core/api.service';
@@ -122,6 +122,27 @@ export class Chat {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = ''; // allow re-selecting the same file
+    await this.attachFile(file);
+  }
+
+  /** M118 (ADR 0028): Ctrl/⌘+V attaches a copied image or PDF to the composer. */
+  @HostListener('window:paste', ['$event'])
+  async onPaste(event: ClipboardEvent): Promise<void> {
+    const items = event.clipboardData?.items ?? [];
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file && /^(image\/|application\/pdf)/.test(file.type)) {
+        event.preventDefault();
+        await this.attachFile(file);
+        return;
+      }
+    }
+  }
+
+  protected async attachFile(file: File | undefined | null): Promise<void> {
     if (!file) {
       return;
     }

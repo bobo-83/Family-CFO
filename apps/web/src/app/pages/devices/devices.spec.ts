@@ -94,7 +94,9 @@ describe('Devices', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('.pairing-card')).toBeNull();
+    // The OTA install card shares the pairing-card class and shows for every
+    // role; only the QR *pairing* card must be hidden from a viewer.
+    expect(host.querySelector('.pairing-card:not(.install-card)')).toBeNull();
     expect(host.textContent).toContain('revoked');
     expect(host.querySelector('.device-list__revoke')).toBeNull();
   });

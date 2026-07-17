@@ -9,6 +9,24 @@ import { AuthService } from '../core/auth.service';
   styleUrl: './shell.scss',
 })
 export class Shell {
+  // M120 (ADR 0029): the monorepo version this box runs, shown in the footer so
+  // "which version is live?" never needs a terminal. Plain fetch: same origin,
+  // unauthenticated, and a failed check must never break the shell.
+  protected readonly serverVersion = signal<string | null>(null);
+
+  private loadVersion(): void {
+    void fetch('/api/v1/health')
+      .then((response) => response.json())
+      .then((health: { version?: string }) => {
+        this.serverVersion.set(health.version ?? null);
+      })
+      .catch(() => this.serverVersion.set(null));
+  }
+
+  constructor() {
+    this.loadVersion();
+  }
+
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -33,6 +51,7 @@ export class Shell {
         { path: '/accounts', label: 'Accounts' },
         { path: '/transactions', label: 'Transactions' },
         { path: '/bills', label: 'Bills' },
+        { path: '/loans', label: 'Debts & Loans' },
         { path: '/income-tax', label: 'Income & Tax' },
         { path: '/budgets', label: 'Budgets' },
         { path: '/categories', label: 'Categories' },
