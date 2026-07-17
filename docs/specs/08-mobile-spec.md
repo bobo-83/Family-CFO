@@ -154,6 +154,31 @@ Photos should remain on device whenever structured extraction is sufficient.
 - Every feature exposed on iOS reads through existing contract endpoints —
   no iOS-only data paths.
 
+## Loans: entering the end of a loan or lease (M115)
+
+Some statements state a maturity date; others only "N payments remaining." The
+loan form accepts **either**, as a segmented choice ("End date" / "Payments
+left"), and both store the same single fact — the maturity date (`payments
+left` derives it as N months from today; switching modes carries the value
+over, and `monthsLeft`/`dateAfter` are exact inverses, test-guarded). No new
+schema field: one source of truth, two entries. A scanned statement that reads
+a concrete date switches the form to date mode to show it.
+
+The dashboard has the matching editor (M116): the "Debts & Loans" page mirrors
+this capability set — list/add/edit/delete, statement scan via file picker or
+paste (ADR 0028), and the same date-or-payments-left end entry with identical
+derivation, test-guarded on both clients (ADR 0025 parity closed).
+
+## Budgets & Goals on iOS (M118/M119)
+
+Budgets (monthly per-category envelopes) and Goals (targets, progress, planned
+monthly contribution) are full iOS screens with create/edit/delete, reachable
+from the Overview's Budgets and Top-goal cards and the More tab's "Money"
+section — ADR 0025 parity with the dashboard's pages. Goal deletion is a new,
+undoable endpoint (`deleteGoal`, ADR 0023) available to both clients. The goal
+form's planned-contribution field feeds the spending plan's savings term
+(ADR 0027).
+
 ## Backlog: On-device photo description (from M21 / ADR 0011)
 
 The web dashboard's chat photo attachments are described server-side by a small
