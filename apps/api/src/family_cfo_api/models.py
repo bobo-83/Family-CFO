@@ -35,6 +35,7 @@ ACCOUNT_TYPES = (
     "mortgage",
     "auto_loan",
     "student_loan",
+    "401k_loan",
     "real_estate",
     "other_asset",
     "other_liability",
@@ -98,6 +99,22 @@ households = Table(
     # M65: USPS state code for state income tax; only the state, never a
     # street address (privacy-first).
     Column("state", String(2), nullable=True),
+    # M96: when true, safe-to-spend treats full credit-card balances as committed
+    # (paid in full monthly), not just recorded minimum payments. Null = false.
+    Column("credit_cards_paid_in_full", Boolean, nullable=True),
+    # M98: off-box backup destination (a mounted network share) + cadence.
+    Column("backup_destination_path", String(500), nullable=True),
+    Column("backup_frequency", String(20), nullable=False, server_default="daily"),
+    # M98: Synology SMB target — the app uploads over SMB, no host mount. Password
+    # is Fernet-encrypted and never returned by the API.
+    Column("backup_smb_host", String(255), nullable=True),
+    Column("backup_smb_share", String(255), nullable=True),
+    Column("backup_smb_folder", String(500), nullable=True),
+    Column("backup_smb_username", String(255), nullable=True),
+    Column("backup_smb_password_encrypted", Text, nullable=True),
+    Column("backup_smb_domain", String(120), nullable=True),
+    # M98: cap the combined size of all backups; oldest deleted first over it.
+    Column("backup_max_bytes", BigInteger, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("length(base_currency) = 3", name="ck_households_currency_length"),
@@ -194,11 +211,16 @@ accounts = Table(
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("name", String(120), nullable=False),
     Column("type", String(30), nullable=False),
+    # M97: the real institution (bank) behind this account, from the provider's
+    # per-account org — SimpleFIN's connection name is a generic aggregator label.
+    Column("institution", String(120), nullable=True),
     _currency_column(),
     # Debt terms, meaningful only for liability account types (M14). Nullable —
     # an account without both set is not modeled for payoff.
     Column("annual_interest_rate", Float, nullable=True),
     Column("minimum_payment_minor", BigInteger, nullable=True),
+    # M96: loan/lease end date, so the app can show maturity and months remaining.
+    Column("maturity_date", Date, nullable=True),
     # Emergency fund designation (M36): percent of balance OR a fixed amount,
     # never both. Reserved money is derived at read time from the latest balance.
     Column("emergency_fund_percent", Float, nullable=True),
@@ -287,6 +309,15 @@ transactions = Table(
     ),
     Column("possible_duplicate", Boolean, nullable=False, server_default="0"),
     Column("review_state", String(20), nullable=False, server_default="reviewed"),
+    # M97 duplicate review: NULL normally; 'flagged' by detection, then 'dismissed'
+    # (legitimate repeat) or 'disputed' (contesting) once the user reviews it.
+    Column("duplicate_state", String(20), nullable=True),
+    # M100: a user's free-text note + an optional attached image (e.g. a check
+    # photo). Attachment stored on disk (path) under the staging dir so backups
+    # include it.
+    Column("note", Text, nullable=True),
+    Column("attachment_path", String(500), nullable=True),
+    Column("attachment_content_type", String(100), nullable=True),
     # M27 dedupe (ADR 0015): provider transaction id (hard idempotency) and a
     # content hash (soft fallback for CSV rows without provider ids).
     Column("external_id", String(120), nullable=True),
@@ -389,6 +420,8 @@ goals = Table(
     _currency_column(),
     Column("target_date", Date, nullable=True),
     Column("priority", Integer, nullable=False, server_default="3"),
+    # M118: planned monthly contribution — the spending plan's savings term.
+    Column("monthly_contribution_minor", BigInteger, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"type in {_sql_in(GOAL_TYPES)}", name="ck_goals_type"),
@@ -562,6 +595,9 @@ backup_jobs = Table(
     Column("storage_path", String(500), nullable=True),
     Column("size_bytes", BigInteger, nullable=True),
     Column("error_message", Text, nullable=True),
+    # M98: whether the completed backup reached the off-box share, and why not.
+    Column("remote_status", String(20), nullable=True),
+    Column("remote_error", Text, nullable=True),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
     Column("pruned_at", DateTime(timezone=True), nullable=True),
@@ -580,6 +616,9 @@ audit_events = Table(
     Column("entity_id", String(36), nullable=True),
     Column("summary", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    # M101: how to reverse this action (JSON) and when it was undone, if ever.
+    Column("undo_token", Text, nullable=True),
+    Column("reverted_at", DateTime(timezone=True), nullable=True),
 )
 
 conversations = Table(
@@ -664,4 +703,17 @@ conversation_messages = Table(
     CheckConstraint(
         f"role in {_sql_in(CONVERSATION_MESSAGE_ROLES)}", name="ck_conversation_messages_role"
     ),
+)
+
+# M96: per-month snapshot of the whole Overview, so a past month shows every card
+# as it was (safe-to-spend etc. have no other history). One row per household/month.
+overview_snapshots = Table(
+    "overview_snapshots",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("month", String(7), nullable=False),
+    Column("snapshot", Text, nullable=False),
+    Column("captured_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("household_id", "month", name="uq_overview_snapshots_household_month"),
 )

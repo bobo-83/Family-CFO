@@ -72,6 +72,10 @@ def get_primary_household_id(engine: Engine, user_id: str) -> str | None:
     return row[0] if row else None
 
 
+# Sentinel distinguishing "leave unchanged" from an explicit None/clear.
+_UNSET: Any = object()
+
+
 def get_membership_role(engine: Engine, household_id: str, user_id: str) -> str | None:
     with engine.connect() as conn:
         row = conn.execute(
@@ -377,6 +381,19 @@ class HouseholdRecord:
     income_treated_as_net: bool | None = None
     # M65: USPS state code for state income tax (null = not set).
     state: str | None = None
+    # M96: pays credit cards in full monthly → full balances count as committed.
+    credit_cards_paid_in_full: bool = False
+    # M98: off-box backup destination (mounted share) + cadence.
+    backup_destination_path: str | None = None
+    backup_frequency: str = "daily"
+    # M98: Synology SMB target (the app uploads over SMB). Password encrypted.
+    backup_smb_host: str | None = None
+    backup_smb_share: str | None = None
+    backup_smb_folder: str | None = None
+    backup_smb_username: str | None = None
+    backup_smb_password_encrypted: str | None = None
+    backup_smb_domain: str | None = None
+    backup_max_bytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,6 +405,7 @@ class AccountBalanceRecord:
     balance_minor: int
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
+    maturity_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
 
@@ -411,7 +429,67 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         tax_filing_status=row["tax_filing_status"],
         income_treated_as_net=row["income_treated_as_net"],
         state=row["state"],
+        credit_cards_paid_in_full=bool(row["credit_cards_paid_in_full"]),
+        backup_destination_path=row["backup_destination_path"],
+        backup_frequency=row["backup_frequency"] or "daily",
+        backup_smb_host=row["backup_smb_host"],
+        backup_smb_share=row["backup_smb_share"],
+        backup_smb_folder=row["backup_smb_folder"],
+        backup_smb_username=row["backup_smb_username"],
+        backup_smb_password_encrypted=row["backup_smb_password_encrypted"],
+        backup_smb_domain=row["backup_smb_domain"],
+        backup_max_bytes=row["backup_max_bytes"],
     )
+
+
+def set_credit_cards_paid_in_full(engine: Engine, household_id: str, value: bool) -> None:
+    """M96: whether the household pays its credit cards in full each month."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(credit_cards_paid_in_full=value, updated_at=utcnow())
+        )
+
+
+BACKUP_FREQUENCIES = ("every_15min", "hourly", "every_6h", "daily", "weekly", "off")
+
+
+def set_backup_config(
+    engine: Engine,
+    household_id: str,
+    *,
+    frequency: str,
+    smb_host: str | None,
+    smb_share: str | None,
+    smb_folder: str | None,
+    smb_username: str | None,
+    smb_password_encrypted: str | None,
+    smb_domain: str | None,
+    update_password: bool,
+    max_bytes: int | None,
+) -> None:
+    """M98: the Synology SMB target off-box backups upload to, and the cadence. The
+    password is only written when `update_password` is set, so leaving the field
+    blank in the UI keeps the stored one."""
+    values: dict[str, Any] = {
+        "backup_frequency": frequency,
+        "backup_smb_host": smb_host or None,
+        "backup_smb_share": smb_share or None,
+        "backup_smb_folder": smb_folder or None,
+        "backup_smb_username": smb_username or None,
+        "backup_smb_domain": smb_domain or None,
+        "backup_max_bytes": max_bytes,
+        "updated_at": utcnow(),
+    }
+    if update_password:
+        values["backup_smb_password_encrypted"] = smb_password_encrypted
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(**values)
+        )
 
 
 def update_emergency_fund_target(
@@ -448,6 +526,71 @@ def update_tax_settings(
         )
 
 
+def upsert_overview_snapshot(
+    engine: Engine, household_id: str, month: str, snapshot_json: str
+) -> None:
+    """M96: store (or refresh) a month's full Overview snapshot. The current month
+    is overwritten as it changes; once the month passes it is never rewritten, so
+    it freezes at its final captured state."""
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.overview_snapshots.c.id).where(
+                models.overview_snapshots.c.household_id == household_id,
+                models.overview_snapshots.c.month == month,
+            )
+        ).first()
+        if existing is None:
+            conn.execute(
+                insert(models.overview_snapshots).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    month=month,
+                    snapshot=snapshot_json,
+                    captured_at=now,
+                )
+            )
+        else:
+            conn.execute(
+                update(models.overview_snapshots)
+                .where(models.overview_snapshots.c.id == existing[0])
+                .values(snapshot=snapshot_json, captured_at=now)
+            )
+
+
+def get_overview_snapshot(engine: Engine, household_id: str, month: str) -> str | None:
+    """The stored Overview JSON for a month, or None if none was captured."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.overview_snapshots.c.snapshot).where(
+                models.overview_snapshots.c.household_id == household_id,
+                models.overview_snapshots.c.month == month,
+            )
+        ).first()
+    return row[0] if row is not None else None
+
+
+def account_name_map(engine: Engine, household_id: str) -> dict[str, str]:
+    """Every account's id → display name (including accounts with no balance yet)."""
+    query = select(models.accounts.c.id, models.accounts.c.name).where(
+        models.accounts.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        return {row.id: row.name for row in conn.execute(query)}
+
+
+def account_institution_map(engine: Engine, household_id: str) -> dict[str, str]:
+    """Account id → the institution (bank) behind it, when known — so the UI can
+    say where to look a transaction up. Absent for manual accounts and for synced
+    ones not yet backfilled from the provider's org."""
+    query = select(models.accounts.c.id, models.accounts.c.institution).where(
+        models.accounts.c.household_id == household_id,
+        models.accounts.c.institution.is_not(None),
+    )
+    with engine.connect() as conn:
+        return {row.id: row.institution for row in conn.execute(query)}
+
+
 def list_account_balances(engine: Engine, household_id: str) -> list[AccountBalanceRecord]:
     latest_balance = (
         select(
@@ -467,6 +610,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.account_balances.c.balance_minor,
             models.accounts.c.annual_interest_rate,
             models.accounts.c.minimum_payment_minor,
+            models.accounts.c.maturity_date,
             models.accounts.c.emergency_fund_percent,
             models.accounts.c.emergency_fund_minor,
         )
@@ -493,6 +637,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             balance_minor=row.balance_minor,
             annual_interest_rate=row.annual_interest_rate,
             minimum_payment_minor=row.minimum_payment_minor,
+            maturity_date=row.maturity_date,
             emergency_fund_percent=row.emergency_fund_percent,
             emergency_fund_minor=row.emergency_fund_minor,
         )
@@ -514,6 +659,15 @@ class TransactionRecord:
     category: str | None
     description: str | None
     category_id: str | None = None
+    # M97: NULL normally; 'flagged'/'dismissed'/'disputed' for the Review queue.
+    duplicate_state: str | None = None
+    # M97: the bank/aggregator's own reference for this record — the one thing that
+    # differs between two otherwise-identical duplicate legs.
+    external_id: str | None = None
+    # M100: user note + optional attached image (path on disk, content type).
+    note: str | None = None
+    attachment_path: str | None = None
+    attachment_content_type: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -531,8 +685,21 @@ class RecurringRecord:
 
 
 def list_transactions(
-    engine: Engine, household_id: str, limit: int = 200
+    engine: Engine,
+    household_id: str,
+    limit: int = 200,
+    *,
+    start: date | None = None,
+    end: date | None = None,
+    duplicate_states: tuple[str, ...] | None = None,
 ) -> list[TransactionRecord]:
+    conditions = [models.transactions.c.household_id == household_id]
+    if start is not None:
+        conditions.append(models.transactions.c.occurred_at >= start)
+    if end is not None:
+        conditions.append(models.transactions.c.occurred_at <= end)
+    if duplicate_states is not None:
+        conditions.append(models.transactions.c.duplicate_state.in_(duplicate_states))
     query = (
         select(
             models.transactions.c.id,
@@ -544,6 +711,11 @@ def list_transactions(
             models.transaction_categories.c.name.label("category"),
             models.transactions.c.category_id,
             models.transactions.c.description,
+            models.transactions.c.duplicate_state,
+            models.transactions.c.external_id,
+            models.transactions.c.note,
+            models.transactions.c.attachment_path,
+            models.transactions.c.attachment_content_type,
         )
         .select_from(models.transactions)
         .join(
@@ -551,7 +723,7 @@ def list_transactions(
             models.transaction_categories.c.id == models.transactions.c.category_id,
             isouter=True,
         )
-        .where(models.transactions.c.household_id == household_id)
+        .where(*conditions)
         .order_by(models.transactions.c.occurred_at.desc())
         .limit(limit)
     )
@@ -570,6 +742,11 @@ def list_transactions(
             category=row.category,
             category_id=row.category_id,
             description=row.description,
+            duplicate_state=row.duplicate_state,
+            external_id=row.external_id,
+            note=row.note,
+            attachment_path=row.attachment_path,
+            attachment_content_type=row.attachment_content_type,
         )
         for row in rows
     ]
@@ -791,14 +968,100 @@ def sum_spending_by_category(
 # --- Spending insights (M42) -------------------------------------------------
 
 
-def _spending_window(household_id: str, start: date, end: date, currency: str):
-    """A predicate selecting outflows (negative amounts) in [start, end], base currency."""
-    return (
+# Categories (by name, case-insensitive) whose transactions are money moving
+# between the household's own accounts — credit-card payments, bank-to-bank
+# transfers — not consumption. Excluded from spending so a transfer settled from
+# checking isn't double-counted against the expense it paid off.
+TRANSFER_CATEGORY_NAMES = ("transfers", "transfer")
+
+
+# The category (by name, case-insensitive) that marks an inflow as earnings.
+INCOME_CATEGORY_NAMES = ("income",)
+
+# Tax withholding (e.g. RSU sell-to-cover) — a non-discretionary outflow tracked
+# on its own, kept out of the discretionary spending breakdown.
+TAXES_CATEGORY_NAMES = ("taxes",)
+
+# Categories that are not discretionary consumption and must never appear in a
+# spending total or breakdown: money moving between the household's own accounts,
+# earnings, and tax withholding.
+NON_SPENDING_CATEGORY_NAMES = (
+    TRANSFER_CATEGORY_NAMES + INCOME_CATEGORY_NAMES + TAXES_CATEGORY_NAMES
+)
+
+
+def sum_taxes(
+    engine: Engine, household_id: str, start: date, end: date, currency: str
+) -> int:
+    """Total outflow (positive) filed under the Taxes category over [start, end]."""
+    tax_ids = select(models.transaction_categories.c.id).where(
+        (models.transaction_categories.c.household_id == household_id)
+        & (func.lower(models.transaction_categories.c.name).in_(TAXES_CATEGORY_NAMES))
+    )
+    query = select(func.coalesce(func.sum(-models.transactions.c.amount_minor), 0)).where(
         (models.transactions.c.household_id == household_id)
         & (models.transactions.c.currency == currency)
         & (models.transactions.c.amount_minor < 0)
         & (models.transactions.c.occurred_at >= start)
         & (models.transactions.c.occurred_at <= end)
+        & (models.transactions.c.category_id.in_(tax_ids))
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
+def _non_spending_category_ids(household_id: str):
+    return select(models.transaction_categories.c.id).where(
+        (models.transaction_categories.c.household_id == household_id)
+        & (func.lower(models.transaction_categories.c.name).in_(NON_SPENDING_CATEGORY_NAMES))
+    )
+
+
+def sum_income(
+    engine: Engine, household_id: str, start: date, end: date, currency: str
+) -> int:
+    """Total inflow (positive) filed under the Income category over [start, end]."""
+    income_ids = select(models.transaction_categories.c.id).where(
+        (models.transaction_categories.c.household_id == household_id)
+        & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
+    )
+    query = select(func.coalesce(func.sum(models.transactions.c.amount_minor), 0)).where(
+        (models.transactions.c.household_id == household_id)
+        & (models.transactions.c.currency == currency)
+        & (models.transactions.c.amount_minor > 0)
+        & (models.transactions.c.occurred_at >= start)
+        & (models.transactions.c.occurred_at <= end)
+        & (models.transactions.c.category_id.in_(income_ids))
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
+def _spending_window(household_id: str, start: date, end: date, currency: str):
+    """A predicate selecting spending in [start, end], base currency, summed as
+    -amount so outflows add and refunds subtract.
+
+    - Non-spending categories (Transfers, Income, Taxes) are excluded entirely.
+    - Every outflow counts (categorized or not).
+    - A categorized INFLOW is a refund/credit for that category, so it nets against
+      its spending (a Lululemon return filed under Shopping cancels the purchase).
+    - An UNcategorized inflow is a stray deposit, not a refund, so it is excluded.
+    """
+    return (
+        (models.transactions.c.household_id == household_id)
+        & (models.transactions.c.currency == currency)
+        & (models.transactions.c.occurred_at >= start)
+        & (models.transactions.c.occurred_at <= end)
+        # NULL-safe: uncategorized outflows still count as spending.
+        & (
+            models.transactions.c.category_id.is_(None)
+            | models.transactions.c.category_id.not_in(_non_spending_category_ids(household_id))
+        )
+        # Outflows always; categorized inflows (refunds) net; uncategorized inflows out.
+        & (
+            (models.transactions.c.amount_minor < 0)
+            | models.transactions.c.category_id.is_not(None)
+        )
     )
 
 
@@ -896,6 +1159,8 @@ class GoalRecord:
     currency: str
     target_date: date | None
     priority: int
+    # M118: planned monthly contribution (None = no plan declared).
+    monthly_contribution_minor: int | None = None
 
 
 def list_goals(engine: Engine, household_id: str) -> list[GoalRecord]:
@@ -920,6 +1185,8 @@ def create_goal(
     currency: str,
     target_date: date | None,
     priority: int,
+    monthly_contribution_minor: int | None = None,
+    current_minor: int = 0,
 ) -> GoalRecord:
     goal_id = new_id()
     now = utcnow()
@@ -931,10 +1198,11 @@ def create_goal(
                 name=name,
                 type=goal_type,
                 target_minor=target_minor,
-                current_minor=0,
+                current_minor=current_minor,
                 currency=currency,
                 target_date=target_date,
                 priority=priority,
+                monthly_contribution_minor=monthly_contribution_minor,
                 created_at=now,
                 updated_at=now,
             )
@@ -959,7 +1227,63 @@ def _goal_record_from_row(row: Any) -> GoalRecord:
         currency=row["currency"],
         target_date=row["target_date"],
         priority=row["priority"],
+        monthly_contribution_minor=row["monthly_contribution_minor"],
     )
+
+
+def delete_goal(engine: Engine, household_id: str, goal_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.goals).where(
+                models.goals.c.household_id == household_id, models.goals.c.id == goal_id
+            )
+        )
+    return result.rowcount > 0
+
+
+def get_goal(engine: Engine, household_id: str, goal_id: str) -> GoalRecord | None:
+    query = select(models.goals).where(
+        models.goals.c.household_id == household_id, models.goals.c.id == goal_id
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _goal_record_from_row(row) if row is not None else None
+
+
+def update_goal(
+    engine: Engine,
+    household_id: str,
+    goal_id: str,
+    *,
+    name: str | None = None,
+    target_minor: int | None = None,
+    target_date: date | None = _UNSET,  # type: ignore[assignment]
+    priority: int | None = None,
+    monthly_contribution_minor: int | None = _UNSET,  # type: ignore[assignment]
+) -> bool:
+    """M118: update a goal's declared fields. `_UNSET` distinguishes "leave
+    unchanged" from an explicit clear (None)."""
+    values: dict[str, Any] = {}
+    if name is not None:
+        values["name"] = name
+    if target_minor is not None:
+        values["target_minor"] = target_minor
+    if target_date is not _UNSET:
+        values["target_date"] = target_date
+    if priority is not None:
+        values["priority"] = priority
+    if monthly_contribution_minor is not _UNSET:
+        values["monthly_contribution_minor"] = monthly_contribution_minor
+    if not values:
+        return get_goal(engine, household_id, goal_id) is not None
+    values["updated_at"] = utcnow()
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.goals)
+            .where(models.goals.c.household_id == household_id, models.goals.c.id == goal_id)
+            .values(**values)
+        )
+    return result.rowcount > 0
 
 
 # --- Financial calculation audit ------------------------------------------------
@@ -1467,6 +1791,28 @@ def apply_import(engine: Engine, household_id: str, import_id: str) -> int:
     return result.rowcount
 
 
+def unapply_import(
+    engine: Engine, household_id: str, import_id: str, previous_status: str
+) -> None:
+    """Undo of apply_import (M117): the import's reviewed transactions go back to
+    pending and the import returns to its pre-apply status."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.import_id == import_id,
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.review_state == "reviewed",
+            )
+            .values(review_state="pending")
+        )
+        conn.execute(
+            update(models.imports)
+            .where(models.imports.c.id == import_id, models.imports.c.household_id == household_id)
+            .values(status=previous_status, updated_at=utcnow())
+        )
+
+
 def discard_import(engine: Engine, household_id: str, import_id: str) -> int:
     """Delete every pending transaction from this import. Returns the count deleted."""
     with engine.begin() as conn:
@@ -1862,6 +2208,37 @@ def record_net_worth_snapshot(
             )
 
 
+def earliest_transaction_month(engine: Engine, household_id: str) -> str | None:
+    """The 'YYYY-MM' of the household's oldest transaction, so the month picker can
+    stop there instead of scrolling into empty months forever. None if no history."""
+    query = select(func.min(models.transactions.c.occurred_at)).where(
+        models.transactions.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        earliest = conn.execute(query).scalar_one_or_none()
+    if earliest is None:
+        return None
+    return f"{earliest.year}-{earliest.month:02d}"
+
+
+def net_worth_as_of(engine: Engine, household_id: str, on_or_before: date, currency: str) -> int:
+    """Net worth from the latest snapshot on or before a date (0 if none). Used for
+    a past month's historical Overview when no full snapshot was captured."""
+    query = (
+        select(models.net_worth_snapshots.c.net_worth_minor)
+        .where(
+            models.net_worth_snapshots.c.household_id == household_id,
+            models.net_worth_snapshots.c.currency == currency,
+            models.net_worth_snapshots.c.as_of <= on_or_before,
+        )
+        .order_by(models.net_worth_snapshots.c.as_of.desc())
+        .limit(1)
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).first()
+    return int(row[0]) if row is not None else 0
+
+
 def list_net_worth_snapshots(
     engine: Engine, household_id: str, limit: int = 30
 ) -> list[NetWorthSnapshotRecord]:
@@ -1898,6 +2275,9 @@ class BackupJobRecord:
     completed_at: datetime | None
     pruned_at: datetime | None
     created_at: datetime
+    # M98: whether the completed archive reached the off-box share, and why not.
+    remote_status: str | None = None
+    remote_error: str | None = None
 
 
 def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
@@ -1911,6 +2291,8 @@ def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
         completed_at=row["completed_at"],
         pruned_at=row["pruned_at"],
         created_at=row["created_at"],
+        remote_status=row.get("remote_status"),
+        remote_error=row.get("remote_error"),
     )
 
 
@@ -1951,6 +2333,8 @@ def update_backup_job(
     storage_path: str | None = None,
     size_bytes: int | None = None,
     error_message: str | None = None,
+    remote_status: str | None = None,
+    remote_error: str | None = None,
 ) -> None:
     values: dict[str, Any] = {"status": status}
     if storage_path is not None:
@@ -1959,6 +2343,10 @@ def update_backup_job(
         values["size_bytes"] = size_bytes
     if error_message is not None:
         values["error_message"] = error_message
+    if remote_status is not None:
+        values["remote_status"] = remote_status
+    if remote_error is not None:
+        values["remote_error"] = remote_error
     if status in ("completed", "failed"):
         values["completed_at"] = utcnow()
 
@@ -1982,6 +2370,14 @@ def list_backup_jobs(engine: Engine) -> list[BackupJobRecord]:
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
     return [_backup_job_record_from_row(row) for row in rows]
+
+
+def delete_backup_job(engine: Engine, backup_job_id: str) -> None:
+    """Remove a backup job row (its .enc file is removed by the caller)."""
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.backup_jobs).where(models.backup_jobs.c.id == backup_job_id)
+        )
 
 
 def list_completed_backup_jobs_for_retention(engine: Engine) -> list[BackupJobRecord]:
@@ -2018,6 +2414,8 @@ class AuditEventRecord:
     entity_id: str | None
     summary: str
     created_at: datetime
+    undo_token: str | None = None
+    reverted_at: datetime | None = None
 
 
 def record_audit_event(
@@ -2028,6 +2426,7 @@ def record_audit_event(
     entity_type: str,
     entity_id: str | None,
     summary: str,
+    undo_token: str | None = None,
 ) -> str:
     audit_id = new_id()
     with engine.begin() as conn:
@@ -2041,9 +2440,25 @@ def record_audit_event(
                 entity_id=entity_id,
                 summary=summary,
                 created_at=utcnow(),
+                undo_token=undo_token,
             )
         )
     return audit_id
+
+
+def _audit_record(row: Any) -> AuditEventRecord:
+    return AuditEventRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        actor_user_id=row["actor_user_id"],
+        action=row["action"],
+        entity_type=row["entity_type"],
+        entity_id=row["entity_id"],
+        summary=row["summary"],
+        created_at=row["created_at"],
+        undo_token=row["undo_token"],
+        reverted_at=row["reverted_at"],
+    )
 
 
 def list_audit_events(
@@ -2057,19 +2472,31 @@ def list_audit_events(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [
-        AuditEventRecord(
-            id=row["id"],
-            household_id=row["household_id"],
-            actor_user_id=row["actor_user_id"],
-            action=row["action"],
-            entity_type=row["entity_type"],
-            entity_id=row["entity_id"],
-            summary=row["summary"],
-            created_at=row["created_at"],
+    return [_audit_record(row) for row in rows]
+
+
+def get_audit_event(
+    engine: Engine, household_id: str, audit_id: str
+) -> AuditEventRecord | None:
+    query = select(models.audit_events).where(
+        models.audit_events.c.household_id == household_id,
+        models.audit_events.c.id == audit_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _audit_record(row) if row is not None else None
+
+
+def mark_audit_reverted(engine: Engine, household_id: str, audit_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.audit_events)
+            .where(
+                models.audit_events.c.household_id == household_id,
+                models.audit_events.c.id == audit_id,
+            )
+            .values(reverted_at=utcnow())
         )
-        for row in rows
-    ]
 
 
 # --- Household bootstrap and membership --------------------------------------
@@ -2237,6 +2664,39 @@ def update_member_role(engine: Engine, household_id: str, user_id: str, role: st
     return result.rowcount > 0
 
 
+def restore_membership(engine: Engine, household_id: str, user_id: str, role: str) -> None:
+    """Undo of a member removal (M117): the user row survives removal, so
+    re-inserting the membership restores access. No-op if already a member."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.household_memberships.c.id).where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.user_id == user_id,
+            )
+        ).first()
+        if existing is not None:
+            return
+        conn.execute(
+            insert(models.household_memberships).values(
+                id=new_id(),
+                household_id=household_id,
+                user_id=user_id,
+                role=role,
+                created_at=utcnow(),
+            )
+        )
+
+
+def delete_ai_runtime_config(engine: Engine, household_id: str) -> None:
+    """Undo of the FIRST runtime configuration (M117): back to 'not configured'."""
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.ai_runtime_configs).where(
+                models.ai_runtime_configs.c.household_id == household_id
+            )
+        )
+
+
 def delete_member(engine: Engine, household_id: str, user_id: str) -> bool:
     now = utcnow()
     with engine.begin() as conn:
@@ -2270,6 +2730,7 @@ class AccountRecord:
     currency: str
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
+    maturity_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
 
@@ -2282,6 +2743,7 @@ def _account_record_from_row(row: Any) -> AccountRecord:
         currency=row["currency"],
         annual_interest_rate=row["annual_interest_rate"],
         minimum_payment_minor=row["minimum_payment_minor"],
+        maturity_date=row["maturity_date"],
         emergency_fund_percent=row["emergency_fund_percent"],
         emergency_fund_minor=row["emergency_fund_minor"],
     )
@@ -2316,8 +2778,13 @@ def emergency_fund_reserved_minor(
     return 0
 
 
+# A 401(k) loan is a liability for cash-flow purposes (its monthly repayment is a
+# real claim on cash, so it flows through list_debts_with_terms into safe-to-spend),
+# but it is owed to your own retirement — so it is excluded from external-debt
+# reporting and is net-worth-neutral (see the engine's RETIREMENT_LOAN_TYPES).
+RETIREMENT_LOAN_TYPES = frozenset({"401k_loan"})
 LIABILITY_ACCOUNT_TYPES = frozenset(
-    {"credit_card", "mortgage", "auto_loan", "student_loan", "other_liability"}
+    {"credit_card", "mortgage", "auto_loan", "student_loan", "other_liability", "401k_loan"}
 )
 
 
@@ -2329,6 +2796,7 @@ class DebtAccountRecord:
     balance_owed_minor: int  # positive amount owed (abs of the negative balance)
     annual_interest_rate: float
     minimum_payment_minor: int
+    account_type: str = "other_liability"
 
 
 def list_liability_accounts(engine: Engine, household_id: str) -> list[AccountRecord]:
@@ -2364,6 +2832,7 @@ def list_debts_with_terms(engine: Engine, household_id: str) -> list[DebtAccount
                 balance_owed_minor=abs(balance.balance_minor),
                 annual_interest_rate=account.annual_interest_rate,
                 minimum_payment_minor=account.minimum_payment_minor,
+                account_type=account.account_type,
             )
         )
     return debts
@@ -2390,6 +2859,7 @@ def create_account(
     currency: str,
     annual_interest_rate: float | None = None,
     minimum_payment_minor: int | None = None,
+    maturity_date: date | None = None,
 ) -> AccountRecord:
     account_id = new_id()
     now = utcnow()
@@ -2403,6 +2873,7 @@ def create_account(
                 currency=currency,
                 annual_interest_rate=annual_interest_rate,
                 minimum_payment_minor=minimum_payment_minor,
+                maturity_date=maturity_date,
                 created_at=now,
                 updated_at=now,
             )
@@ -2414,6 +2885,7 @@ def create_account(
         currency=currency,
         annual_interest_rate=annual_interest_rate,
         minimum_payment_minor=minimum_payment_minor,
+        maturity_date=maturity_date,
     )
 
 
@@ -2425,6 +2897,7 @@ def update_account(
     account_type: str | None = None,
     annual_interest_rate: float | None = None,
     minimum_payment_minor: int | None = None,
+    maturity_date: date | None = None,
     emergency_fund_percent: float | None = None,
     emergency_fund_minor: int | None = None,
     clear_emergency_fund: bool = False,
@@ -2438,6 +2911,8 @@ def update_account(
         values["annual_interest_rate"] = annual_interest_rate
     if minimum_payment_minor is not None:
         values["minimum_payment_minor"] = minimum_payment_minor
+    if maturity_date is not None:
+        values["maturity_date"] = maturity_date
     # M36: setting one designation clears the other (mutually exclusive by CHECK).
     if clear_emergency_fund:
         values["emergency_fund_percent"] = None
@@ -2499,6 +2974,22 @@ def get_latest_balance_minor(engine: Engine, account_id: str) -> int:
     return int(row[0]) if row is not None else 0
 
 
+def delete_account_balance(engine: Engine, household_id: str, balance_id: str) -> bool:
+    """Undo of a recorded balance snapshot (M117): the prior snapshot becomes
+    current again. Household-scoped through the owning account."""
+    owned_accounts = select(models.accounts.c.id).where(
+        models.accounts.c.household_id == household_id
+    )
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.account_balances).where(
+                models.account_balances.c.id == balance_id,
+                models.account_balances.c.account_id.in_(owned_accounts),
+            )
+        )
+    return result.rowcount > 0
+
+
 def record_account_balance(engine: Engine, account_id: str, balance_minor: int) -> str:
     balance_id = new_id()
     now = utcnow()
@@ -2532,6 +3023,11 @@ def get_transaction(
             models.transaction_categories.c.name.label("category"),
             models.transactions.c.category_id,
             models.transactions.c.description,
+            models.transactions.c.duplicate_state,
+            models.transactions.c.external_id,
+            models.transactions.c.note,
+            models.transactions.c.attachment_path,
+            models.transactions.c.attachment_content_type,
         )
         .select_from(models.transactions)
         .join(
@@ -2558,7 +3054,41 @@ def get_transaction(
         category=row.category,
         category_id=row.category_id,
         description=row.description,
+        duplicate_state=row.duplicate_state,
+        external_id=row.external_id,
+        note=row.note,
+        attachment_path=row.attachment_path,
+        attachment_content_type=row.attachment_content_type,
     )
+
+
+def set_transaction_note(engine: Engine, household_id: str, transaction_id: str, note: str | None) -> bool:
+    """M100: set/clear a transaction's free-text note. True if a row updated."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+            .values(note=(note or None))
+        )
+    return result.rowcount > 0
+
+
+def set_transaction_attachment(
+    engine: Engine, household_id: str, transaction_id: str, path: str | None, content_type: str | None
+) -> None:
+    """M100: point a transaction at its stored attachment (or clear it with None)."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+            .values(attachment_path=path, attachment_content_type=content_type)
+        )
 
 
 def update_transaction(
@@ -2617,6 +3147,54 @@ def delete_transaction(engine: Engine, household_id: str, transaction_id: str) -
     return result.rowcount > 0
 
 
+def restore_deleted_transaction(
+    engine: Engine,
+    household_id: str,
+    *,
+    transaction_id: str,
+    account_id: str,
+    occurred_at: date,
+    amount_minor: int,
+    currency: str,
+    merchant: str | None,
+    description: str | None,
+    category_id: str | None,
+    duplicate_state: str | None,
+    external_id: str | None,
+    note: str | None,
+    attachment_path: str | None,
+    attachment_content_type: str | None,
+) -> None:
+    """Re-insert a transaction that was deleted, for undo (M110). Reuses the
+    original id and every preserved field — same aggregator id (so bank dedupe
+    still recognises it), note, attachment, category and duplicate flag — so the
+    row comes back exactly as it was. A no-op if a row with that id already
+    exists (undo applied twice)."""
+    if get_transaction(engine, household_id, transaction_id) is not None:
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.transactions).values(
+                id=transaction_id,
+                household_id=household_id,
+                account_id=account_id,
+                occurred_at=occurred_at,
+                amount_minor=amount_minor,
+                currency=currency,
+                merchant=merchant,
+                category_id=category_id,
+                description=description,
+                duplicate_state=duplicate_state,
+                external_id=external_id,
+                note=note,
+                attachment_path=attachment_path,
+                attachment_content_type=attachment_content_type,
+                review_state="reviewed",
+                created_at=utcnow(),
+            )
+        )
+
+
 # --- Bill writes -------------------------------------------------------------
 
 
@@ -2637,6 +3215,113 @@ def set_transactions_category(
             .values(category_id=category_id)
         )
     return result.rowcount
+
+
+# --- M97: duplicate review queue ---------------------------------------------
+
+REVIEW_DUPLICATE_STATES = ("flagged", "disputed")
+USER_DUPLICATE_STATES = ("dismissed", "disputed")
+
+
+def flag_possible_duplicates(engine: Engine, household_id: str) -> int:
+    """Flag exact-duplicate groups — same account AND content hash, 2+ rows — as
+    'flagged' for the Review queue. Only touches rows still at NULL, so a user's
+    'dismissed'/'disputed' decision is never re-flagged on the next sync. Also
+    clears a now-stale 'flagged' whose group has fallen below two (e.g. after the
+    user deleted the other leg) or that has since been categorized as a
+    non-spending movement. Returns how many were newly flagged.
+
+    Non-spending categories (Transfers/Income/Taxes) are excluded: those are the
+    movements that *legitimately* repeat — RSU sell-to-cover lots journaled out as
+    Taxes, identical-price share sales booked as Income, paired transfers — and
+    they aren't charges the user could dispute."""
+    from collections import defaultdict
+
+    with engine.begin() as conn:
+        rows = conn.execute(
+            select(
+                models.transactions.c.id,
+                models.transactions.c.account_id,
+                models.transactions.c.import_hash,
+                models.transactions.c.duplicate_state,
+                func.lower(models.transaction_categories.c.name).label("category"),
+            )
+            .select_from(models.transactions)
+            .join(
+                models.transaction_categories,
+                models.transaction_categories.c.id == models.transactions.c.category_id,
+                isouter=True,
+            )
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.import_hash.is_not(None),
+                # A $0 line (e.g. an RSU vest lot) is not a charge to dispute.
+                models.transactions.c.amount_minor != 0,
+            )
+        ).all()
+
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for row in rows:
+            groups[(row.account_id, row.import_hash)].append(row)
+
+        to_flag: list[str] = []
+        to_clear: list[str] = []
+        for members in groups.values():
+            is_duplicate = len(members) > 1
+            for member in members:
+                non_spending = (member.category or "") in NON_SPENDING_CATEGORY_NAMES
+                flaggable = is_duplicate and not non_spending
+                if flaggable and member.duplicate_state is None:
+                    to_flag.append(member.id)
+                elif not flaggable and member.duplicate_state == "flagged":
+                    to_clear.append(member.id)
+
+        if to_flag:
+            conn.execute(
+                update(models.transactions)
+                .where(models.transactions.c.id.in_(to_flag))
+                .values(duplicate_state="flagged")
+            )
+        if to_clear:
+            conn.execute(
+                update(models.transactions)
+                .where(models.transactions.c.id.in_(to_clear))
+                .values(duplicate_state=None)
+            )
+    return len(to_flag)
+
+
+def set_transaction_duplicate_state(
+    engine: Engine, household_id: str, transaction_id: str, state: str | None
+) -> bool:
+    """Set (or clear, with None) a transaction's duplicate_state. True if a row
+    was updated."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id == transaction_id,
+            )
+            .values(duplicate_state=state)
+        )
+    return result.rowcount > 0
+
+
+def count_review_transactions(engine: Engine, household_id: str) -> int:
+    """How many transactions are awaiting review (flagged or disputed) — drives
+    the Review tab's badge."""
+    with engine.connect() as conn:
+        return int(
+            conn.execute(
+                select(func.count())
+                .select_from(models.transactions)
+                .where(
+                    models.transactions.c.household_id == household_id,
+                    models.transactions.c.duplicate_state.in_(REVIEW_DUPLICATE_STATES),
+                )
+            ).scalar_one()
+        )
 
 
 def _recurring_record_from_row(row: Any) -> RecurringRecord:
@@ -2701,7 +3386,6 @@ def create_bill(
     )
 
 
-_UNSET: Any = object()
 
 
 def update_bill(
@@ -3096,6 +3780,17 @@ def list_bill_suggestion_dismissals(engine: Engine, household_id: str) -> set[st
     )
     with engine.connect() as conn:
         return {row[0] for row in conn.execute(query).all()}
+
+
+def remove_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_key: str) -> None:
+    """Undo of a dismissal (M117): the suggestion reappears on the next fetch."""
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.bill_suggestion_dismissals).where(
+                models.bill_suggestion_dismissals.c.household_id == household_id,
+                models.bill_suggestion_dismissals.c.merchant_key == merchant_key,
+            )
+        )
 
 
 def add_bill_suggestion_dismissal(engine: Engine, household_id: str, merchant_key: str) -> None:
@@ -3643,11 +4338,14 @@ def get_or_create_connection_account(
     name: str,
     currency: str,
     account_type: str = "checking",
+    institution: str | None = None,
 ) -> str:
     """The local account mapped to a provider account, auto-created on first sight.
 
     account_type only applies at creation; an existing mapping is returned as-is
-    so manual retyping from the Accounts page is never overwritten by a sync.
+    so manual retyping from the Accounts page is never overwritten by a sync. The
+    institution, in contrast, is the provider's own fact and is refreshed every
+    sync (including a backfill of accounts linked before it was captured).
     """
     with engine.connect() as conn:
         row = conn.execute(
@@ -3657,10 +4355,24 @@ def get_or_create_connection_account(
             )
         ).first()
     if row is not None:
-        return row[0]
+        account_id = row[0]
+        if institution:
+            with engine.begin() as conn:
+                conn.execute(
+                    update(models.accounts)
+                    .where(models.accounts.c.id == account_id)
+                    .values(institution=institution)
+                )
+        return account_id
 
     account = create_account(engine, household_id, name, account_type, currency)
     with engine.begin() as conn:
+        if institution:
+            conn.execute(
+                update(models.accounts)
+                .where(models.accounts.c.id == account.id)
+                .values(institution=institution)
+            )
         conn.execute(
             insert(models.connection_accounts).values(
                 id=new_id(),

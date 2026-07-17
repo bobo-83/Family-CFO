@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, security
+from family_cfo_api import audit, repository, security, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_role
 from family_cfo_api.schemas import (
     ErrorResponse,
@@ -74,6 +74,7 @@ async def create_member(
         "user",
         record.user_id,
         f"Added member {record.email} as {record.role}",
+        undo_token=undo_actions.created("member", record.user_id),
     )
     return _to_schema(record)
 
@@ -114,6 +115,7 @@ async def update_member_role(
         "user",
         user_id,
         f"Changed member role to {payload.role}",
+        undo_token=undo_actions.member_role_changed(user_id, member.role),
     )
     updated = repository.get_member(engine, session.household_id, user_id)
     assert updated is not None
@@ -153,6 +155,7 @@ async def delete_member(
         "member.removed",
         "user",
         user_id,
-        "Removed a household member",
+        f"Removed member {member.email}",
+        undo_token=undo_actions.member_removed(user_id, member.role),
     )
     return Response(status_code=204)

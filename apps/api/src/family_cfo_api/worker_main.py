@@ -28,7 +28,13 @@ from family_cfo_api.logging import configure_logging
 
 IMPORT_POLL_INTERVAL_SECONDS = 30
 REPORT_POLL_INTERVAL_SECONDS = 3600
-BACKUP_INTERVAL_SECONDS = 86400
+# M101: poll every 5 minutes; the per-household cadence gate decides when to
+# actually back up, so sub-daily schedules (down to every 15 min) are honoured.
+BACKUP_INTERVAL_SECONDS = 300
+# M107: check hourly whether a connection is due for a bank sync. The actual
+# provider call is gated by banksync.SCHEDULED_SYNC_INTERVAL (~once/day), so
+# SimpleFIN is hit ≈ once/day — never the ~288/day the old 5-minute poll caused.
+BANK_SYNC_POLL_INTERVAL_SECONDS = 3600
 
 
 def main() -> None:
@@ -51,14 +57,16 @@ def main() -> None:
 
     def sync_bank_connections() -> None:
         # M27: pull statements from every linked institution, deduped (ADR 0015).
-        from family_cfo_api import banksync, repository
+        # M107 (ADR 0019): syncs each connection at most once a day — SimpleFIN only
+        # refreshes daily and rate-limits. User pull-to-refresh is separate & always
+        # syncs.
+        from family_cfo_api import banksync, finance_service
 
-        for connection in repository.list_all_institution_connections(engine):
-            try:
-                banksync.sync_connection(engine, settings, connection)
-            except banksync.BankSyncError:
-                # Error already recorded on the connection; keep syncing others.
-                continue
+        households = banksync.sync_due_connections(engine, settings)
+        # M96: auto-file what was just imported (transfers, income, taxes, known
+        # merchants) so a nightly sync doesn't leave the Categorize queue full.
+        for household_id in households:
+            finance_service.autofile_all(engine, household_id)
 
     def capture_net_worth_snapshot() -> None:
         # M40: one snapshot per household per day for the Overview trend.
@@ -69,14 +77,10 @@ def main() -> None:
         vector_indexing.run_indexing_once(engine, settings, wipe=True)
 
     def run_daily_backup() -> None:
-        backup_processing.run_backup_once(
-            engine,
-            database_url=settings.database_url,
-            staging_dir=settings.import_staging_dir,
-            backup_dir=settings.backup_dir,
-            encryption_key=settings.backup_encryption_key,
-            retention_count=settings.backup_retention_count,
-        )
+        # M98/M101: fires every few minutes; each household backs up once its cadence
+        # has elapsed. The logic lives in backup_processing so it's importable and
+        # unit-tested (M108/ADR 0019) rather than a bare closure.
+        backup_processing.run_due_backups(engine, settings)
 
     scheduler = Scheduler()
     scheduler.add_job(
@@ -118,7 +122,7 @@ def main() -> None:
         Job(
             name="sync-bank-connections",
             func=sync_bank_connections,
-            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily, same cadence as backups
+            interval_seconds=BANK_SYNC_POLL_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(

@@ -74,6 +74,60 @@ def _linked_connection(engine: Engine, settings: Settings) -> repository.Institu
     )
 
 
+def _conn(last_synced_at, *, cid: str = "c") -> repository.InstitutionConnectionRecord:
+    from datetime import datetime, timezone
+
+    return repository.InstitutionConnectionRecord(
+        id=cid,
+        household_id=_HH,
+        provider="simplefin",
+        display_name="Test Bank",
+        access_url_encrypted="x",
+        status="active",
+        last_synced_at=last_synced_at,
+        last_sync_error=None,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def test_due_for_sync_is_a_daily_gate() -> None:
+    """M107/ADR 0019 regression guard for the AUTOMATIC poller: SimpleFIN refreshes
+    ~once/day and rate-limits, so the background sync runs at most once a day per
+    connection. (The old bug was a 5-minute poll with no gate ≈ 288 calls/day.)"""
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    assert banksync.due_for_sync(_conn(None)) is True
+    assert banksync.due_for_sync(_conn(now - timedelta(hours=25))) is True
+    # Synced 5 minutes ago — the broken cadence — and anytime within the day: skip.
+    assert banksync.due_for_sync(_conn(now - timedelta(minutes=5))) is False
+    assert banksync.due_for_sync(_conn(now - timedelta(hours=12))) is False
+    # The gate must be a full day (never regress toward a sub-daily poll).
+    assert banksync.SCHEDULED_SYNC_INTERVAL >= timedelta(hours=20)
+
+
+def test_sync_due_connections_syncs_at_most_once_a_day(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    """The scheduled poller must sync a connection at most once a day even though it
+    polls hourly — the exact guarantee the original 5-minute job lacked."""
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)  # last_synced_at is None
+
+    calls: list[str] = []
+
+    def spy(engine, settings, conn, connector=None):
+        calls.append(conn.id)
+        repository.record_connection_sync(engine, conn.id, error=None)  # stamps last_synced_at
+        return banksync.SyncResult(accounts_synced=0, imported=0, duplicates_skipped=0)
+
+    monkeypatch.setattr(banksync, "sync_connection", spy)
+
+    banksync.sync_due_connections(demo_engine, settings)  # due (never synced) → syncs
+    banksync.sync_due_connections(demo_engine, settings)  # just synced → skipped
+    assert calls == [connection.id]  # exactly one provider call within the day
+
+
 def test_sync_imports_and_is_idempotent(demo_engine: Engine) -> None:
     settings = _settings()
     connection = _linked_connection(demo_engine, settings)
