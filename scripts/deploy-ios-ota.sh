@@ -88,6 +88,10 @@ fi
 log "Archiving ${IOS_SCHEME} (Release) for a real device…"
 rm -rf "$ARCHIVE" "$EXPORT_DIR"
 mkdir -p "$BUILD_DIR"
+# M120 (ADR 0029): the monorepo ships ONE version — the app is stamped from the
+# repo VERSION file so it can be compared against the box's /health.
+APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 xcodebuild archive \
   -project "$IOS_PROJECT" \
   -scheme "$IOS_SCHEME" \
@@ -95,6 +99,8 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  MARKETING_VERSION="$APP_VERSION" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   -quiet \
   || die "Archive failed. Re-run without -quiet to see why."
 ok "Archived."
@@ -161,7 +167,7 @@ fi
 # --- The landing page the phone actually opens -------------------------------
 # Safari will not follow an itms-services:// URL typed into the address bar; it
 # has to be a link on a page. This is that page.
-VERSION="$(date -u +%Y-%m-%d\ %H:%M) UTC"
+VERSION="v${APP_VERSION} · built $(date -u +%Y-%m-%d\ %H:%M) UTC"
 cat > "$EXPORT_DIR/index.html" <<HTML
 <!doctype html>
 <meta charset="utf-8">
@@ -182,7 +188,8 @@ cat > "$EXPORT_DIR/index.html" <<HTML
   #installed b { display: block; margin-bottom: 0.35rem; }
 </style>
 <h1>Family CFO</h1>
-<p>Built ${VERSION}</p>
+<p>${VERSION}</p>
+<p id="versionCheck" style="margin:-0.75rem 0 1.25rem">Checking the box's version…</p>
 <a class="btn" id="installBtn" href="itms-services://?action=download-manifest&amp;url=${MANIFEST_URL}">Install on this iPhone</a>
 
 <div id="installed">
@@ -206,6 +213,25 @@ cat > "$EXPORT_DIR/index.html" <<HTML
 </small>
 
 <script>
+  // M120 (ADR 0029): verify this build matches the backend actually running on
+  // the box — same origin, so /api/v1/health is one fetch away. A mismatch
+  // means someone patched the box without republishing the app (or vice versa).
+  (function () {
+    var el = document.getElementById('versionCheck');
+    fetch('/api/v1/health').then(function (r) { return r.json(); }).then(function (h) {
+      if (h.version === '${APP_VERSION}') {
+        el.textContent = '✓ Matches the box (v' + h.version + ')';
+        el.style.color = '#248a3d';
+      } else {
+        el.innerHTML = '⚠ This build is v${APP_VERSION} but the box runs v' + h.version +
+          ' — versions differ. Re-run scripts/deploy-ios-ota.sh (or patch the box) so they match.';
+        el.style.color = '#c04a00';
+      }
+    }).catch(function () {
+      el.textContent = 'Could not reach the box to compare versions.';
+    });
+  })();
+
   // A web page cannot see whether an app installed (iOS forbids it), so the best
   // we can do is reveal the "what now" guidance the moment Install is tapped —
   // rather than leave the user on an unchanged page wondering if it worked.
@@ -228,6 +254,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" "rm -rf ${STAGE} && mkdir 
 scp -q -o BatchMode=yes "$IPA" "$SSH_HOST:${STAGE}/FamilyCFO.ipa"
 scp -q -o BatchMode=yes "$MANIFEST" "$SSH_HOST:${STAGE}/manifest.plist"
 scp -q -o BatchMode=yes "$EXPORT_DIR/index.html" "$SSH_HOST:${STAGE}/index.html"
+printf '%s\n' "$APP_VERSION" > "$EXPORT_DIR/VERSION"
+scp -q -o BatchMode=yes "$EXPORT_DIR/VERSION" "$SSH_HOST:${STAGE}/VERSION"
 for icon in icon-57.png icon-512.png; do
   [ -f "$EXPORT_DIR/$icon" ] && scp -q -o BatchMode=yes "$EXPORT_DIR/$icon" "$SSH_HOST:${STAGE}/$icon"
 done
