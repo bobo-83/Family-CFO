@@ -2,17 +2,37 @@
 
 The desktop web experience for Family CFO. Not the mobile application.
 
-Responsibilities:
+Responsibilities: the full household experience at parity with the iPhone app
+([ADR 0025](../../docs/adr/0025-cross-client-feature-parity.md)) — Overview,
+Bills, Debts & Loans, Budgets, Goals, Accounts, Transactions, Income & Tax,
+Categories, the AI advisor, plus administration (users, devices, backups, AI
+runtime, imports, reports, memory).
 
-- Reports
-- Transaction management
-- Statement review
-- Imports
-- Administration
-- Settings
-- AI model configuration
-- Backup management
-- User management
+## Current pages and status
+
+The app ships **19 routed pages** (`src/app/pages/`), grouped in the sidebar
+(`src/app/shell/shell.ts`):
+
+- **Money** — Overview, Ask the Advisor, Accounts, Transactions, **Bills**,
+  **Debts & Loans** (`/loans`), Income & Tax, **Budgets**, Categories, **Goals**
+- **Advisor** — Advisor Memory, AI Runtime
+- **Admin** — Imports, Reports, Backups, Users, Devices
+- plus **Login** and **Sign-up** (first-run "Create your household").
+
+Highlights not covered by the milestone log below (which is historical and stops
+at M20):
+
+- **Bills** is a **payment timeline** — overdue / due-soon / paid groups with
+  credit cards and loans as first-class payables ([ADR 0024](../../docs/adr/0024-bills-payment-timeline.md)).
+- **Overview** leads with a **Cash outlook** card ([ADR 0026](../../docs/adr/0026-overview-cash-outlook.md))
+  and a **"Left to spend this month"** spending plan ([ADR 0027](../../docs/adr/0027-month-spending-plan.md));
+  the old safe-to-spend figure is reframed as the **Stress test**.
+- **Debts & Loans**, **Budgets**, and **Goals** are full CRUD pages; the loan
+  editor scans a statement (file or paste) and takes "payments left" entry.
+- Statement/photo inputs accept **paste** (Ctrl/⌘+V) on the loans, income-tax,
+  imports, and chat pages ([ADR 0028](../../docs/adr/0028-statement-inputs-accept-paste.md)).
+- The sidebar footer shows the running server version (from `/health`,
+  [ADR 0029](../../docs/adr/0029-monorepo-version.md)).
 
 ## M5 Scope
 
