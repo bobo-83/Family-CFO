@@ -99,3 +99,29 @@ def test_scan_leaves_apr_none_when_absent_never_guesses() -> None:
     an interest rate, since it would corrupt payoff estimates."""
     result = parse_loan_scan('{"monthly_payment": 78.01, "payoff_balance": 3816.36}')
     assert result.apr_percent is None
+
+def test_text_statement_parse_reads_rate_payment_balance_due() -> None:
+    """A text (e-statement) PDF parses deterministically — including the interest
+    rate a rasterized-image vision pass misses (ADR 0033 follow-up)."""
+    from datetime import date
+
+    from family_cfo_api.api.accounts import parse_loan_statement_text
+
+    text = (
+        "Current Balance $3,816.36\n"
+        "Regular Monthly Payment Amount $78.01\n"
+        "Current Statement Due Date 8/7/2026\n"
+        "Interest Rate is  2.125%\n"
+    )
+    r = parse_loan_statement_text(text)
+    assert r is not None
+    assert r.monthly_payment_minor == 78_01
+    assert r.balance_minor == 3_816_36
+    assert r.next_payment_due_date == date(2026, 8, 7)
+    assert r.apr_percent == 2.125
+
+
+def test_text_statement_parse_returns_none_when_not_a_statement() -> None:
+    from family_cfo_api.api.accounts import parse_loan_statement_text
+
+    assert parse_loan_statement_text("Just a receipt, thanks!") is None
