@@ -334,6 +334,8 @@ class Account(BaseModel):
     minimum_payment: Money | None = None
     # M96: loan/lease end date, for showing maturity and months remaining.
     maturity_date: date | None = None
+    # ADR 0033: next payment due date, read off a statement or set by hand.
+    next_payment_due_date: date | None = None
     # M33: set when the account is fed by a linked institution (M27).
     institution: str | None = None
     last_synced_at: datetime | None = None
@@ -1142,6 +1144,7 @@ class AccountCreateRequest(BaseModel):
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
 
 
 class AccountUpdateRequest(BaseModel):
@@ -1150,6 +1153,7 @@ class AccountUpdateRequest(BaseModel):
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
     # M36: percent XOR amount; clear_emergency_fund removes the designation.
     emergency_fund_percent: float | None = Field(default=None, ge=0, le=100)
     emergency_fund_amount: Money | None = None

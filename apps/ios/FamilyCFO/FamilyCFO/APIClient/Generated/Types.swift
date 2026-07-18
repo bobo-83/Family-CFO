@@ -5005,6 +5005,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Account/maturity_date`.
             public var maturityDate: Swift.String?
+            /// ADR 0033: next payment due date, from a statement or set by hand.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/next_payment_due_date`.
+            public var nextPaymentDueDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Account/institution`.
             public var institution: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Account/last_synced_at`.
@@ -5031,6 +5035,7 @@ public enum Components {
             ///   - annualInterestRate:
             ///   - minimumPayment:
             ///   - maturityDate: M96: loan/lease end date, for maturity and months-remaining.
+            ///   - nextPaymentDueDate: ADR 0033: next payment due date, from a statement or set by hand.
             ///   - institution:
             ///   - lastSyncedAt:
             ///   - emergencyFundPercent: M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount).
@@ -5044,6 +5049,7 @@ public enum Components {
                 annualInterestRate: Swift.Double? = nil,
                 minimumPayment: Components.Schemas.Money? = nil,
                 maturityDate: Swift.String? = nil,
+                nextPaymentDueDate: Swift.String? = nil,
                 institution: Swift.String? = nil,
                 lastSyncedAt: Foundation.Date? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
@@ -5057,6 +5063,7 @@ public enum Components {
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
                 self.maturityDate = maturityDate
+                self.nextPaymentDueDate = nextPaymentDueDate
                 self.institution = institution
                 self.lastSyncedAt = lastSyncedAt
                 self.emergencyFundPercent = emergencyFundPercent
@@ -5071,6 +5078,7 @@ public enum Components {
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
                 case maturityDate = "maturity_date"
+                case nextPaymentDueDate = "next_payment_due_date"
                 case institution
                 case lastSyncedAt = "last_synced_at"
                 case emergencyFundPercent = "emergency_fund_percent"
@@ -6625,6 +6633,8 @@ public enum Components {
             public var minimumPayment: Components.Schemas.Money?
             /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/maturity_date`.
             public var maturityDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/next_payment_due_date`.
+            public var nextPaymentDueDate: Swift.String?
             /// Creates a new `AccountCreateRequest`.
             ///
             /// - Parameters:
@@ -6634,13 +6644,15 @@ public enum Components {
             ///   - annualInterestRate:
             ///   - minimumPayment:
             ///   - maturityDate:
+            ///   - nextPaymentDueDate:
             public init(
                 name: Swift.String,
                 _type: Components.Schemas.AccountType,
                 currency: Swift.String,
                 annualInterestRate: Swift.Double? = nil,
                 minimumPayment: Components.Schemas.Money? = nil,
-                maturityDate: Swift.String? = nil
+                maturityDate: Swift.String? = nil,
+                nextPaymentDueDate: Swift.String? = nil
             ) {
                 self.name = name
                 self._type = _type
@@ -6648,6 +6660,7 @@ public enum Components {
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
                 self.maturityDate = maturityDate
+                self.nextPaymentDueDate = nextPaymentDueDate
             }
             public enum CodingKeys: String, CodingKey {
                 case name
@@ -6656,6 +6669,7 @@ public enum Components {
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
                 case maturityDate = "maturity_date"
+                case nextPaymentDueDate = "next_payment_due_date"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest`.
@@ -6670,6 +6684,8 @@ public enum Components {
             public var minimumPayment: Components.Schemas.Money?
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/maturity_date`.
             public var maturityDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/next_payment_due_date`.
+            public var nextPaymentDueDate: Swift.String?
             /// M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
             ///
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/emergency_fund_percent`.
@@ -6690,6 +6706,7 @@ public enum Components {
             ///   - annualInterestRate:
             ///   - minimumPayment:
             ///   - maturityDate:
+            ///   - nextPaymentDueDate:
             ///   - emergencyFundPercent: M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
             ///   - emergencyFundAmount: M36: reserve this fixed amount for emergencies. Clears any percent designation. 400 if sent with emergency_fund_percent.
             ///   - clearEmergencyFund: M36: remove the emergency-fund designation from this account.
@@ -6699,6 +6716,7 @@ public enum Components {
                 annualInterestRate: Swift.Double? = nil,
                 minimumPayment: Components.Schemas.Money? = nil,
                 maturityDate: Swift.String? = nil,
+                nextPaymentDueDate: Swift.String? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
                 emergencyFundAmount: Components.Schemas.Money? = nil,
                 clearEmergencyFund: Swift.Bool? = nil
@@ -6708,6 +6726,7 @@ public enum Components {
                 self.annualInterestRate = annualInterestRate
                 self.minimumPayment = minimumPayment
                 self.maturityDate = maturityDate
+                self.nextPaymentDueDate = nextPaymentDueDate
                 self.emergencyFundPercent = emergencyFundPercent
                 self.emergencyFundAmount = emergencyFundAmount
                 self.clearEmergencyFund = clearEmergencyFund
@@ -6718,6 +6737,7 @@ public enum Components {
                 case annualInterestRate = "annual_interest_rate"
                 case minimumPayment = "minimum_payment"
                 case maturityDate = "maturity_date"
+                case nextPaymentDueDate = "next_payment_due_date"
                 case emergencyFundPercent = "emergency_fund_percent"
                 case emergencyFundAmount = "emergency_fund_amount"
                 case clearEmergencyFund = "clear_emergency_fund"

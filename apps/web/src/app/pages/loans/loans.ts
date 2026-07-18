@@ -34,6 +34,7 @@ interface LoanForm {
   endMode: 'none' | 'date' | 'payments';
   maturityDate: string; // "yyyy-MM-dd" for the date input
   paymentsLeft: number | null;
+  nextPaymentDueDate: string; // "yyyy-MM-dd"; the next payment due date (ADR 0033)
 }
 
 function emptyForm(): LoanForm {
@@ -46,6 +47,7 @@ function emptyForm(): LoanForm {
     endMode: 'none',
     maturityDate: '',
     paymentsLeft: null,
+    nextPaymentDueDate: '',
   };
 }
 
@@ -161,6 +163,7 @@ export class Loans {
       endMode: maturity ? 'date' : 'none',
       maturityDate: maturity,
       paymentsLeft: monthsLeft(maturity),
+      nextPaymentDueDate: loan.next_payment_due_date ?? '',
     };
     this.scanNote.set(null);
     this.actionError.set(null);
@@ -210,6 +213,9 @@ export class Loans {
       annual_interest_rate: this.form.apr ?? 0,
       minimum_payment: { amount_minor: minor(this.form.monthlyPayment), currency },
       ...(maturity ? { maturity_date: maturity } : {}),
+      ...(this.form.nextPaymentDueDate
+        ? { next_payment_due_date: this.form.nextPaymentDueDate }
+        : {}),
     };
     const saved = id
       ? await this.api.updateAccount(id, body)
