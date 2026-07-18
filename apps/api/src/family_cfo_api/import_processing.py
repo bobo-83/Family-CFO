@@ -5,7 +5,8 @@ import io
 import logging
 import os
 import re
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from family_cfo_ocr_worker import PdfTextExtractionAdapter
@@ -166,6 +167,116 @@ def _parse_statement_lines(text: str) -> list[tuple[date, str, int]]:
     return rows
 
 
+# --- ADR 0033: read the account's own summary fields off a loan/card statement.
+# Conservative label-anchored patterns — a wrong due date is worse than none, so
+# each field is only set when its label is found. `_D` accepts MM/DD/YYYY,
+# MM/DD/YY, YYYY-MM-DD, and "Aug 8, 2026" style; `_A` a dollars-and-cents amount.
+_D = r"(?P<d>[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})"
+_A = r"\$?(?P<a>[\d,]+\.\d{2})"
+_STMT_DATE_RE = re.compile(
+    r"(?:statement\s+closing\s+date|closing\s+date|statement\s+date)\s*[:\-]?\s*" + _D,
+    re.IGNORECASE,
+)
+_PAYMENT_DUE_RE = re.compile(
+    r"(?:payment\s+due\s+date|due\s+date|payment\s+due)\s*[:\-]?\s*" + _D, re.IGNORECASE
+)
+_MIN_PAYMENT_RE = re.compile(
+    r"(?:minimum\s+payment\s+due|minimum\s+payment|minimum\s+amount\s+due|min(?:imum)?\s+due)"
+    r"\s*[:\-]?\s*" + _A,
+    re.IGNORECASE,
+)
+_NEW_BALANCE_RE = re.compile(
+    r"(?:new\s+balance(?:\s+total)?|statement\s+balance|balance\s+owed)\s*[:\-]?\s*" + _A,
+    re.IGNORECASE,
+)
+_LABEL_DATE_FORMATS = (
+    "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y", "%Y-%m-%d", "%B %d %Y", "%b %d %Y",
+)
+
+
+@dataclass(frozen=True)
+class StatementFields:
+    statement_date: date | None = None
+    payment_due_date: date | None = None
+    minimum_payment_minor: int | None = None
+    statement_balance_minor: int | None = None
+
+
+def _parse_label_date(raw: str) -> date | None:
+    cleaned = " ".join(raw.strip().replace(",", "").replace(".", "").split())
+    for fmt in _LABEL_DATE_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_statement_fields(text: str) -> StatementFields:
+    """The account-level summary a loan/card statement prints (ADR 0033): its
+    closing date, the payment due date, the minimum payment, and the new balance.
+    Every field is independent and optional — a statement that shows none leaves
+    the account untouched."""
+    def _amt(match: re.Match[str] | None) -> int | None:
+        return _parse_amount_minor(match.group("a")) if match else None
+
+    def _dt(match: re.Match[str] | None) -> date | None:
+        return _parse_label_date(match.group("d")) if match else None
+
+    return StatementFields(
+        statement_date=_dt(_STMT_DATE_RE.search(text)),
+        payment_due_date=_dt(_PAYMENT_DUE_RE.search(text)),
+        minimum_payment_minor=_amt(_MIN_PAYMENT_RE.search(text)),
+        statement_balance_minor=_amt(_NEW_BALANCE_RE.search(text)),
+    )
+
+
+def apply_statement_fields_to_account(
+    engine: Engine, import_record: repository.ImportRecord, text: str
+) -> None:
+    """When an import is tied to a liability account, fold the statement's summary
+    into that account (ADR 0033): the due date and minimum payment update the
+    account row; the new balance is recorded as a (negative) balance dated by the
+    statement's closing date, so an out-of-order upload can't clobber a newer one.
+    Assets and account-less imports are left alone."""
+    account_id = import_record.account_id
+    if account_id is None:
+        return
+    account = repository.get_account(engine, import_record.household_id, account_id)
+    if account is None or account.account_type not in repository.LIABILITY_ACCOUNT_TYPES:
+        return
+    fields = parse_statement_fields(text)
+
+    updates: dict[str, object] = {}
+    if fields.payment_due_date is not None:
+        updates["next_payment_due_date"] = fields.payment_due_date
+    if fields.minimum_payment_minor is not None and fields.minimum_payment_minor > 0:
+        updates["minimum_payment_minor"] = fields.minimum_payment_minor
+    if updates:
+        repository.update_account(engine, import_record.household_id, account_id, **updates)
+
+    if fields.statement_balance_minor is not None and fields.statement_balance_minor > 0:
+        # A liability's balance is what is owed — stored negative (assets positive).
+        new_balance = -fields.statement_balance_minor
+        latest = next(
+            (
+                b
+                for b in repository.list_account_balances(engine, import_record.household_id)
+                if b.account_id == account_id
+            ),
+            None,
+        )
+        # Re-importing the same statement must not add a redundant balance row:
+        # only record when the latest balance actually differs (ADR 0015 spirit).
+        if latest is None or latest.balance_minor != new_balance:
+            as_of = (
+                datetime.combine(fields.statement_date, datetime.min.time(), tzinfo=UTC)
+                if fields.statement_date is not None
+                else None
+            )
+            repository.record_account_balance(engine, account_id, new_balance, as_of=as_of)
+
+
 def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
     result = _pdf_adapter.extract(file_bytes, "application/pdf")
 
@@ -185,6 +296,10 @@ def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_by
         confidence=result.confidence,
         warnings=result.warnings,
     )
+
+    # ADR 0033: fold a loan/card statement's summary (due date, minimum payment,
+    # new balance) into the account this import belongs to.
+    apply_statement_fields_to_account(engine, import_record, result.text)
 
     # M34: heuristic statement line-items -> pending transactions for review
     # (content-hash deduped). A PDF with no recognizable lines behaves as

@@ -221,6 +221,9 @@ accounts = Table(
     Column("minimum_payment_minor", BigInteger, nullable=True),
     # M96: loan/lease end date, so the app can show maturity and months remaining.
     Column("maturity_date", Date, nullable=True),
+    # ADR 0033: next payment due date, read off an uploaded statement or set by
+    # hand, so the Bills timeline shows a real due date instead of inferring one.
+    Column("next_payment_due_date", Date, nullable=True),
     # Emergency fund designation (M36): percent of balance OR a fixed amount,
     # never both. Reserved money is derived at read time from the latest balance.
     Column("emergency_fund_percent", Float, nullable=True),
