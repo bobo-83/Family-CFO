@@ -11,6 +11,11 @@ struct MainTabView: View {
     @State private var billsModel: BillsViewModel?
     // Same reason (M97): the Review tab's badge tracks its own count live.
     @State private var reviewModel: ReviewViewModel?
+    // Held here (not created inline in the Tab) so their loaded categories/goals
+    // survive MainTabView re-renders — an inline view model resets to empty and
+    // the category picker comes up blank.
+    @State private var budgetsModel: BudgetsViewModel?
+    @State private var goalsModel: GoalsViewModel?
     // M102: photos shared into the app via the Share Extension surface here.
     @State private var showSharedInbox = false
 
@@ -52,18 +57,14 @@ struct MainTabView: View {
                 }
                 // Budgets and goals are money screens, not settings — first-class
                 // tabs, matching the web dashboard's "Money" nav (ADR 0025 parity).
-                if let budgetsAPI = model.budgetsAPI {
+                if let budgetsModel {
                     Tab("Budgets", systemImage: "chart.pie") {
-                        NavigationStack {
-                            BudgetsView(viewModel: BudgetsViewModel(api: budgetsAPI))
-                        }
+                        NavigationStack { BudgetsView(viewModel: budgetsModel) }
                     }
                 }
-                if let goalsAPI = model.goalsAPI {
+                if let goalsModel {
                     Tab("Goals", systemImage: "target") {
-                        NavigationStack {
-                            GoalsView(viewModel: GoalsViewModel(api: goalsAPI))
-                        }
+                        NavigationStack { GoalsView(viewModel: goalsModel) }
                     }
                 }
             }
@@ -87,6 +88,12 @@ struct MainTabView: View {
             if reviewModel == nil, let api = model.review {
                 reviewModel = ReviewViewModel(api: api)
                 await reviewModel?.load()
+            }
+            if budgetsModel == nil, let api = model.budgetsAPI {
+                budgetsModel = BudgetsViewModel(api: api)
+            }
+            if goalsModel == nil, let api = model.goalsAPI {
+                goalsModel = GoalsViewModel(api: api)
             }
             // M98: notify once if the latest backup (or its Synology copy) failed.
             if model.rolePolicy.isOperator, let backups = model.backups {
