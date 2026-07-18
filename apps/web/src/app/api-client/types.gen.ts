@@ -476,6 +476,7 @@ export type LoanScanResult = {
     balance_minor?: number;
     payments_remaining?: number;
     maturity_date?: string;
+    next_payment_due_date?: string;
     apr_percent?: number;
     is_lease?: boolean;
     note: string;

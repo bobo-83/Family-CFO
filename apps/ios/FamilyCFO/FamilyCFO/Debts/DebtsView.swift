@@ -428,6 +428,10 @@ private struct LoanFormSheet: View {
                 hasMaturity = true
                 endEntryMode = .payments
             }
+            if let due = LoanDate.date(from: result.nextPaymentDueDate) {
+                nextPaymentDueDate = due
+                hasNextPaymentDue = true
+            }
             if result.isLease == true, type == .mortgage { type = .autoLoan }
             scanNote = result.note
         }

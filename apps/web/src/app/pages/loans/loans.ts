@@ -316,6 +316,7 @@ export class Loans {
       this.form.paymentsLeft = data.payments_remaining;
       this.form.endMode = 'payments';
     }
+    if (data.next_payment_due_date) this.form.nextPaymentDueDate = data.next_payment_due_date;
     if (data.is_lease && this.form.type === 'mortgage') this.form.type = 'auto_loan';
     this.scanNote.set(data.note);
   }

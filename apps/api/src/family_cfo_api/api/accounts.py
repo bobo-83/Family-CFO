@@ -29,6 +29,7 @@ _LOAN_PROMPT = (
     "if not shown (a lease usually has no payoff), "
     '"payments_remaining": number of payments left as an integer, or null if not stated, '
     '"statement_date": the statement date in YYYY-MM-DD, or null, '
+    '"payment_due_date": the NEXT payment due date in YYYY-MM-DD, or null, '
     '"maturity_date": the lease maturity/end date or loan final-payment date in '
     "YYYY-MM-DD, or null, "
     '"apr": annual interest or percentage rate as a number or null, '
@@ -88,6 +89,7 @@ def parse_loan_scan(text: str) -> LoanScanResult:
     remaining = positive_int("payments_remaining")
     is_lease = bool(data.get("is_lease"))
     statement_date = _parse_iso_or_us_date(data.get("statement_date"))
+    payment_due_date = _parse_iso_or_us_date(data.get("payment_due_date"))
     maturity_date = _parse_iso_or_us_date(data.get("maturity_date"))
 
     base_note = (
@@ -122,6 +124,7 @@ def parse_loan_scan(text: str) -> LoanScanResult:
         balance_minor=balance,
         payments_remaining=remaining,
         maturity_date=maturity_date,
+        next_payment_due_date=payment_due_date,
         apr_percent=float(apr) if isinstance(apr, (int, float)) and 0 <= apr < 100 else None,
         is_lease=is_lease,
         note=note,
