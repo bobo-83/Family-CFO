@@ -18,14 +18,25 @@
         @if (outlook.value(); as cash) {
           <div class="overview__card overview__card--wide outlook-card">
             <span class="overview__label">Cash outlook</span>
+            <!--
+              The verdict tracks the 30-day projection itself (its lowest point),
+              NOT a 14-day due-vs-cash check. The old headline used `due_soon`
+              (a 14-day window), so the card could say "covered ✓" while the math
+              below projected the balance going thousands negative over 30 days —
+              a payment 15-30 days out (e.g. a big credit-card statement) fell
+              outside the 14-day check. Driving the verdict off `lowest_balance`
+              keeps the verdict, the figure, and the math line consistent.
+            -->
             <span
               class="overview__detail"
-              [class.overview__value--positive]="cash.due_soon_covered"
-              [class.overview__value--negative]="!cash.due_soon_covered"
+              [class.overview__value--positive]="cash.lowest_balance.amount_minor >= 0"
+              [class.overview__value--negative]="cash.lowest_balance.amount_minor < 0"
             >
-              {{ cash.due_soon_covered ? '✓' : '⚠' }}
-              {{ formatMoney(cash.due_soon) }} due in {{ cash.due_soon_window_days }} days —
-              {{ cash.due_soon_covered ? 'covered' : 'exceeds your cash' }}
+              @if (cash.lowest_balance.amount_minor >= 0) {
+                ✓ Your cash stays positive over the next {{ cash.horizon_days }} days
+              } @else {
+                ⚠ Your cash runs short over the next {{ cash.horizon_days }} days
+              }
             </span>
             <span
               class="overview__value"
