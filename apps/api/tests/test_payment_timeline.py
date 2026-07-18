@@ -182,3 +182,56 @@ def test_payroll_deducted_loans_stay_off_the_timeline(demo_engine: Engine) -> No
     )
 
     assert "401k Loan" not in _items(demo_engine)
+
+
+def test_debt_also_set_up_as_a_bill_shows_once_with_a_due_date(
+    demo_engine: Engine,
+) -> None:
+    """A loan added as an account AND set up as a bill is one obligation, not two
+    (ADR 0032). The bill — which carries the due date and matches the real charge —
+    is shown; the derived account obligation is suppressed, so it never appears a
+    second time under 'No due date yet'."""
+    checking = _checking(demo_engine)
+    loan = repository.create_account(
+        demo_engine, HH, name="U.S. Department of Education",
+        account_type="student_loan", currency="USD", minimum_payment_minor=7_801,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)
+    paid_on = TODAY - timedelta(days=10)
+    next_due = add_months(paid_on, 1)
+    repository.create_bill(
+        demo_engine, HH, name="Department of Education", amount_minor=7_801,
+        currency="USD", frequency="monthly", next_due_date=next_due,
+    )
+    _charge(demo_engine, checking, paid_on, -7_801, "DEPARTMENT OF EDUCATION")
+
+    items = _items(demo_engine)
+    # The bill is shown, with a real due date (not "no_date").
+    assert "Department of Education" in items
+    assert items["Department of Education"].due_date is not None
+    assert items["Department of Education"].status != "no_date"
+    # The derived loan obligation is NOT listed a second time.
+    assert "U.S. Department of Education" not in items
+    # ...and the obligation list itself excludes the covered account everywhere.
+    obligations = finance_service.recurring_liability_obligations(demo_engine, HH, "USD")
+    assert all(o.account_id != loan.id for o in obligations)
+
+
+def test_loan_without_a_matching_bill_is_still_shown(demo_engine: Engine) -> None:
+    """The dedup is name+amount specific: an unrelated loan with a payment on its
+    own account still appears as a first-class obligation (ADR 0032 doesn't hide
+    genuine debts)."""
+    _checking(demo_engine)
+    loan = repository.create_account(
+        demo_engine, HH, name="U.S. Department of Education",
+        account_type="student_loan", currency="USD", minimum_payment_minor=7_801,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)
+    # A bill for a DIFFERENT creditor must not suppress this loan.
+    repository.create_bill(
+        demo_engine, HH, name="Goldfish Swim School", amount_minor=14_800,
+        currency="USD", frequency="monthly", next_due_date=TODAY + timedelta(days=6),
+    )
+
+    obligations = finance_service.recurring_liability_obligations(demo_engine, HH, "USD")
+    assert any(o.account_id == loan.id for o in obligations)
