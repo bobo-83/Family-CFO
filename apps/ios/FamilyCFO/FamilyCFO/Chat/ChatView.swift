@@ -187,11 +187,22 @@ struct ChatView: View {
                 sendButton
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 8)
             .padding(.top, 4)
+            Text(Self.disclaimer)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
         }
         .background(.bar)
     }
+
+    /// Always-visible advisor disclaimer (ADR 0031); kept in sync with the web
+    /// client and DISCLAIMER.md.
+    static let disclaimer =
+        "Educational guidance from a local AI — not financial, tax, or legal "
+        + "advice. It can be wrong; verify before acting."
 
     private var sendButton: some View {
         Button {

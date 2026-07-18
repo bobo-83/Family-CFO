@@ -13,6 +13,14 @@
   flex-wrap: wrap;
 }
 
+.chat__disclaimer {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-align: center;
+  margin: 0.4rem 0.5rem 0.6rem;
+  line-height: 1.35;
+}
+
 .chat__sub {
   color: #5b6472;
   font-size: 0.9rem;

@@ -273,6 +273,13 @@
         />
         <button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
       </form>
+
+      <!-- Always-visible advisor disclaimer (ADR 0031); kept in sync with the
+           iOS client and DISCLAIMER.md. -->
+      <p class="chat__disclaimer">
+        Educational guidance from a local AI — not financial, tax, or legal advice.
+        It can be wrong; verify before acting.
+      </p>
     </div>
   </div>
 </section>

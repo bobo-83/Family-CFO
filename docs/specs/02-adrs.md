@@ -26,6 +26,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0028: Every statement input accepts paste](../adr/0028-statement-inputs-accept-paste.md)
 - [0029: One monorepo version, verified at every seam](../adr/0029-monorepo-version.md)
 - [0030: No personal identifiers or environment specifics in the repo](../adr/0030-no-personal-identifiers.md)
+- [0031: Advisor is educational, not financial advice — disclaimer everywhere](../adr/0031-advisor-disclaimer.md)
 
 ## ADR Rules
 
