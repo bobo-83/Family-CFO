@@ -18,8 +18,7 @@ export class Imports {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly canReview = computed(() => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('imports.manage');
   });
 
   protected readonly accounts = resource({

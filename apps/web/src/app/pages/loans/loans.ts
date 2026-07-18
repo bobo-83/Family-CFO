@@ -92,8 +92,7 @@ export class Loans {
   protected readonly monthsLeft = monthsLeft;
   protected readonly dateAfterPayments = dateAfterPayments;
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('accounts.manage');
   };
 
   protected readonly loans = signal<Account[]>([]);

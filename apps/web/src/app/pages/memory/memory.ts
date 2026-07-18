@@ -18,8 +18,7 @@ export class Memory {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('advisor.manage');
   };
 
   protected readonly memories = signal<MemoryDto[]>([]);

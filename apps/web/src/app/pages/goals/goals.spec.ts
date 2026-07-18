@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Goals } from './goals';
 
 function response(data: unknown, error?: unknown) {
@@ -37,7 +38,7 @@ describe('Goals', () => {
       imports: [Goals],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Goals);
@@ -73,7 +74,7 @@ describe('Goals', () => {
       imports: [Goals],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'viewer' } },
+        { provide: AuthService, useValue: authMock('viewer') },
       ],
     });
     const fixture = TestBed.createComponent(Goals);

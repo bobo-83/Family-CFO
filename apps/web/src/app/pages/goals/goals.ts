@@ -43,8 +43,7 @@ export class Goals {
     return labels[type] ?? type;
   }
   protected readonly canCreateGoals = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('goals.manage');
   };
 
   protected readonly goals = resource({
