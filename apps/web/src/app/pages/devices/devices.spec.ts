@@ -33,6 +33,7 @@ function configure(apiMock: Record<string, unknown>, role: string) {
 describe('Devices', () => {
   it('lists devices and renders the pairing QR with the pinned fingerprint (M83a)', async () => {
     const apiMock = {
+      listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
       listPairedDevices: vi.fn().mockResolvedValue(
         response({
           devices: [
@@ -72,6 +73,7 @@ describe('Devices', () => {
 
   it('viewer sees the device list but no pairing card, and cannot revoke', async () => {
     const apiMock = {
+      listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
       listPairedDevices: vi.fn().mockResolvedValue(
         response({
           devices: [
@@ -103,6 +105,7 @@ describe('Devices', () => {
 
   it('owner revokes a device and the list reloads', async () => {
     const apiMock = {
+      listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
       listPairedDevices: vi
         .fn()
         .mockResolvedValueOnce(

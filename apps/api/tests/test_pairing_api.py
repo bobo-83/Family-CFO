@@ -234,3 +234,111 @@ async def test_qr_base_url_uses_forwarded_proto_and_host(demo_client, demo_token
     assert created.status_code == 201
     payload = json.loads(created.json()["qr_payload"])
     assert payload["api_base_url"] == "https://192.168.1.10:8443/api/v1"
+
+
+@pytest.mark.anyio
+async def test_owner_can_pair_a_device_for_another_member(demo_client, demo_token) -> None:
+    """An owner mints a pairing code FOR a member, so a regular member never signs
+    into the dashboard to pair their phone. The paired device acts as that member."""
+    owner = {"Authorization": f"Bearer {demo_token}"}
+    added = await demo_client.post(
+        "/api/v1/household/members",
+        headers=owner,
+        json={
+            "email": "wife@example.com",
+            "password": "correcthorsebattery",
+            "display_name": "Wife",
+            "role": "adult",
+        },
+    )
+    assert added.status_code == 201
+    member_id = added.json()["user_id"]
+
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions", headers=owner, json={"user_id": member_id}
+    )
+    assert created.status_code == 201
+    confirmed = await demo_client.post(
+        "/api/v1/pairing/confirm",
+        json={
+            "pairing_session_id": created.json()["id"],
+            "device_name": "Wife's iPhone",
+            "device_public_key": "public-key",
+        },
+    )
+    assert confirmed.status_code == 200
+    # Acts as the MEMBER (adult), NOT the owner who generated the code.
+    assert confirmed.json()["role"] == "adult"
+
+
+@pytest.mark.anyio
+async def test_pairing_for_a_non_member_is_rejected(demo_client, demo_token) -> None:
+    resp = await demo_client.post(
+        "/api/v1/pairing/sessions",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"user_id": "not-a-member"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_non_owner_cannot_pair_for_another_member(demo_client, demo_token) -> None:
+    """A regular member can pair their OWN phone, but minting a code for someone
+    else would be privilege escalation — forbidden."""
+    owner = {"Authorization": f"Bearer {demo_token}"}
+    members = await demo_client.get("/api/v1/household/members", headers=owner)
+    owner_id = next(m["user_id"] for m in members.json()["members"] if m["role"] == "owner")
+    await demo_client.post(
+        "/api/v1/household/members",
+        headers=owner,
+        json={
+            "email": "adult2@example.com",
+            "password": "correcthorsebattery",
+            "display_name": "Adult",
+            "role": "adult",
+        },
+    )
+    login = await demo_client.post(
+        "/api/v1/auth/sessions",
+        json={"email": "adult2@example.com", "password": "correcthorsebattery"},
+    )
+    adult_token = login.json()["access_token"]
+    resp = await demo_client.post(
+        "/api/v1/pairing/sessions",
+        headers={"Authorization": f"Bearer {adult_token}"},
+        json={"user_id": owner_id},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_generating_a_new_qr_invalidates_the_previous(demo_client, demo_token) -> None:
+    """One valid QR per user: minting a new code makes any earlier one unusable,
+    so a previously shown or leaked code can never pair."""
+    owner = {"Authorization": f"Bearer {demo_token}"}
+    first = await demo_client.post("/api/v1/pairing/sessions", headers=owner)
+    second = await demo_client.post("/api/v1/pairing/sessions", headers=owner)
+    assert first.status_code == 201 and second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+
+    # The FIRST (now superseded) code can no longer pair.
+    stale = await demo_client.post(
+        "/api/v1/pairing/confirm",
+        json={
+            "pairing_session_id": first.json()["id"],
+            "device_name": "Old",
+            "device_public_key": "k",
+        },
+    )
+    assert stale.status_code == 400
+
+    # The LATEST code still works.
+    ok = await demo_client.post(
+        "/api/v1/pairing/confirm",
+        json={
+            "pairing_session_id": second.json()["id"],
+            "device_name": "New",
+            "device_public_key": "k",
+        },
+    )
+    assert ok.status_code == 200

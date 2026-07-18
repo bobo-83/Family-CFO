@@ -50,6 +50,12 @@ paths:
       summary: Create a short-lived pairing session for a device
       security:
         - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingSessionCreateRequest"
       responses:
         "201":
           description: Pairing session created
@@ -60,6 +66,8 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "403":
+          $ref: "#/components/responses/Error"
+        "404":
           $ref: "#/components/responses/Error"
   /pairing/confirm:
     post:
@@ -2631,6 +2639,17 @@ components:
           minLength: 3
           maxLength: 3
           example: USD
+    PairingSessionCreateRequest:
+      type: object
+      description: >-
+        Owner-only: mint the pairing code for another household member so a
+        regular member never signs into the dashboard to pair their phone.
+        Omit to pair for yourself.
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
     PairingSession:
       type: object
       required:
