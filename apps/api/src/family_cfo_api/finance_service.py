@@ -333,6 +333,7 @@ class LiabilityObligation:
     kind: str  # "mortgage" | "loan" | "lease" | "retirement_loan"
     note: str
     reserved: bool
+    next_payment_due_date: date | None = None  # ADR 0033: from a statement or set by hand
 
 
 def recurring_liability_obligations(
@@ -396,6 +397,7 @@ def recurring_liability_obligations(
                 kind=kind,
                 note=note,
                 reserved=reserved,
+                next_payment_due_date=account.next_payment_due_date,
             )
         )
     return obligations
@@ -968,6 +970,7 @@ def payment_timeline(
             _liability_item(
                 account.id, "credit_card", account.name, owed, currency,
                 payments, today=today, horizon=horizon,
+                stored_due_date=account.next_payment_due_date,
             )
         )
 
@@ -982,6 +985,7 @@ def payment_timeline(
                 obligation.account_id, obligation.kind, obligation.name,
                 obligation.amount_minor, currency, payments,
                 today=today, horizon=horizon,
+                stored_due_date=obligation.next_payment_due_date,
             )
         )
 
@@ -1014,20 +1018,33 @@ def _liability_item(
     *,
     today: date,
     horizon: date,
+    stored_due_date: date | None = None,
 ) -> PaymentTimelineItem:
-    """A card/loan/lease timeline entry from its inferred payment history."""
-    if not payments:
+    """A card/loan/lease timeline entry.
+
+    A stored due date (read off a statement or set by hand, ADR 0033) is
+    authoritative — the day is known, not guessed. Otherwise the day is inferred
+    from the account's own payment history; with neither, the item is undated and
+    never flagged overdue (inference isn't strong enough to accuse a missed
+    payment). A recent payment still marks the item paid in every case."""
+    last = payments[0] if payments else None
+    if stored_due_date is not None:
+        next_due = stored_due_date
+        while next_due < today:  # roll a stale stored date forward to this cycle
+            next_due = add_months(next_due, 1)
+    elif last is not None:
+        next_due = add_months(last.occurred_at, 1)
+        while next_due < today:  # inferred dates roll forward, never flag overdue
+            next_due = add_months(next_due, 1)
+    else:
         return PaymentTimelineItem(
             id=account_id, kind=kind, name=name, amount_minor=amount_minor,
             currency=currency, due_date=None, status="no_date", paid=None,
         )
-    last = payments[0]
-    next_due = add_months(last.occurred_at, 1)
-    while next_due < today:  # inferred dates roll forward, never flag overdue
-        next_due = add_months(next_due, 1)
+    recently_paid = last is not None and (today - last.occurred_at).days <= 31
     if next_due <= horizon:
         status = "due_soon"
-    elif (today - last.occurred_at).days <= 31:
+    elif recently_paid:
         status = "paid"
     else:
         status = "upcoming"

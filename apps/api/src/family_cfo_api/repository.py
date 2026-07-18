@@ -406,6 +406,7 @@ class AccountBalanceRecord:
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
 
@@ -611,6 +612,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.accounts.c.annual_interest_rate,
             models.accounts.c.minimum_payment_minor,
             models.accounts.c.maturity_date,
+            models.accounts.c.next_payment_due_date,
             models.accounts.c.emergency_fund_percent,
             models.accounts.c.emergency_fund_minor,
         )
@@ -638,6 +640,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             annual_interest_rate=row.annual_interest_rate,
             minimum_payment_minor=row.minimum_payment_minor,
             maturity_date=row.maturity_date,
+            next_payment_due_date=row.next_payment_due_date,
             emergency_fund_percent=row.emergency_fund_percent,
             emergency_fund_minor=row.emergency_fund_minor,
         )
@@ -2731,6 +2734,7 @@ class AccountRecord:
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
 
@@ -2744,6 +2748,7 @@ def _account_record_from_row(row: Any) -> AccountRecord:
         annual_interest_rate=row["annual_interest_rate"],
         minimum_payment_minor=row["minimum_payment_minor"],
         maturity_date=row["maturity_date"],
+        next_payment_due_date=row["next_payment_due_date"],
         emergency_fund_percent=row["emergency_fund_percent"],
         emergency_fund_minor=row["emergency_fund_minor"],
     )
@@ -2860,6 +2865,7 @@ def create_account(
     annual_interest_rate: float | None = None,
     minimum_payment_minor: int | None = None,
     maturity_date: date | None = None,
+    next_payment_due_date: date | None = None,
 ) -> AccountRecord:
     account_id = new_id()
     now = utcnow()
@@ -2874,6 +2880,7 @@ def create_account(
                 annual_interest_rate=annual_interest_rate,
                 minimum_payment_minor=minimum_payment_minor,
                 maturity_date=maturity_date,
+                next_payment_due_date=next_payment_due_date,
                 created_at=now,
                 updated_at=now,
             )
@@ -2886,6 +2893,7 @@ def create_account(
         annual_interest_rate=annual_interest_rate,
         minimum_payment_minor=minimum_payment_minor,
         maturity_date=maturity_date,
+        next_payment_due_date=next_payment_due_date,
     )
 
 
@@ -2898,6 +2906,7 @@ def update_account(
     annual_interest_rate: float | None = None,
     minimum_payment_minor: int | None = None,
     maturity_date: date | None = None,
+    next_payment_due_date: date | None = None,
     emergency_fund_percent: float | None = None,
     emergency_fund_minor: int | None = None,
     clear_emergency_fund: bool = False,
@@ -2913,6 +2922,8 @@ def update_account(
         values["minimum_payment_minor"] = minimum_payment_minor
     if maturity_date is not None:
         values["maturity_date"] = maturity_date
+    if next_payment_due_date is not None:
+        values["next_payment_due_date"] = next_payment_due_date
     # M36: setting one designation clears the other (mutually exclusive by CHECK).
     if clear_emergency_fund:
         values["emergency_fund_percent"] = None
@@ -2990,7 +3001,9 @@ def delete_account_balance(engine: Engine, household_id: str, balance_id: str) -
     return result.rowcount > 0
 
 
-def record_account_balance(engine: Engine, account_id: str, balance_minor: int) -> str:
+def record_account_balance(
+    engine: Engine, account_id: str, balance_minor: int, as_of: datetime | None = None
+) -> str:
     balance_id = new_id()
     now = utcnow()
     with engine.begin() as conn:
@@ -2999,7 +3012,10 @@ def record_account_balance(engine: Engine, account_id: str, balance_minor: int) 
                 id=balance_id,
                 account_id=account_id,
                 balance_minor=balance_minor,
-                as_of=now,
+                # A statement dates its balance by its closing date, so an old
+                # statement can't clobber a newer balance (list_account_balances
+                # keeps the latest by as_of). Defaults to now for live updates.
+                as_of=as_of or now,
                 created_at=now,
             )
         )
