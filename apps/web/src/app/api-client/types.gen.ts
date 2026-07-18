@@ -27,6 +27,13 @@ export type Money = {
     currency: string;
 };
 
+/**
+ * Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
+ */
+export type PairingSessionCreateRequest = {
+    user_id?: string;
+};
+
 export type PairingSession = {
     id: string;
     qr_payload: string;
@@ -1494,7 +1501,7 @@ export type GetHealthResponses = {
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
 
 export type CreatePairingSessionData = {
-    body?: never;
+    body?: PairingSessionCreateRequest;
     path?: never;
     query?: never;
     url: '/pairing/sessions';
@@ -1509,6 +1516,10 @@ export type CreatePairingSessionErrors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
 };
 
 export type CreatePairingSessionError = CreatePairingSessionErrors[keyof CreatePairingSessionErrors];

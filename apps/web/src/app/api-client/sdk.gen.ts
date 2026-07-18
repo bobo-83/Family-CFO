@@ -29,7 +29,11 @@ export const getHealth = <ThrowOnError extends boolean = false>(options?: Option
 export const createPairingSession = <ThrowOnError extends boolean = false>(options?: Options<CreatePairingSessionData, ThrowOnError>): RequestResult<CreatePairingSessionResponses, CreatePairingSessionErrors, ThrowOnError> => (options?.client ?? client).post<CreatePairingSessionResponses, CreatePairingSessionErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/pairing/sessions',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
 });
 
 /**

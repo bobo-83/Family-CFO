@@ -13,6 +13,24 @@
 @if (canPair()) {
   <section class="pairing-card">
     <h2>Pair a device</h2>
+    @if (canPairForOthers() && members().length) {
+      <label class="pairing-card__for">
+        <span>Pair this code for</span>
+        <select
+          [value]="pairFor()"
+          (change)="pairFor.set($any($event.target).value); qrSvg.set(null)"
+        >
+          <option value="">Myself (this account)</option>
+          @for (m of members(); track m.user_id) {
+            <option [value]="m.user_id">{{ m.display_name }} ({{ m.role }})</option>
+          }
+        </select>
+      </label>
+      <p class="pairing-card__meta">
+        Generate a code for a member so they can pair on their phone — they never
+        need to sign into this dashboard.
+      </p>
+    }
     @if (qrSvg(); as svg) {
       <div class="pairing-card__qr" [innerHTML]="svg"></div>
       <p class="pairing-card__meta">
