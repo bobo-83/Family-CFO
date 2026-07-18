@@ -58,3 +58,6 @@ uv.lock
 # Persisted deploy destination (scripts/deploy.sh, scripts/patch.sh)
 .deploy.env
 .deploy.history
+
+# M121 (ADR 0030): local list of your own literal identifiers to block (never committed).
+.repo-hygiene-deny

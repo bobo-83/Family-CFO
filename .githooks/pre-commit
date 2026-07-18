@@ -1,0 +1,11 @@
+#!/bin/sh
+# M121 (ADR 0030): block a commit that would introduce a personal identifier or
+# an environment-specific value (Apple team id, real private IP, home path, or a
+# denylisted literal). The same guard runs in CI; catching it here is faster.
+set -eu
+
+scripts/check-repo-hygiene.sh || {
+  printf '%s\n' "Commit blocked by repo-hygiene. Fix the finding above, or —" >&2
+  printf '%s\n' "if it is a genuine placeholder — widen the allowlist in scripts/check-repo-hygiene.sh." >&2
+  exit 1
+}

@@ -25,6 +25,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0027: The month spending plan — "left to spend this month"](../adr/0027-month-spending-plan.md)
 - [0028: Every statement input accepts paste](../adr/0028-statement-inputs-accept-paste.md)
 - [0029: One monorepo version, verified at every seam](../adr/0029-monorepo-version.md)
+- [0030: No personal identifiers or environment specifics in the repo](../adr/0030-no-personal-identifiers.md)
 
 ## ADR Rules
 
