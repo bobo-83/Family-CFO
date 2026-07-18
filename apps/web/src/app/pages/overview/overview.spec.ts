@@ -331,8 +331,8 @@ describe('Overview', () => {
     const host = fixture.nativeElement as HTMLElement;
     const text = host.textContent ?? '';
     expect(text).toContain('Cash outlook');
-    expect(text).toContain('USD 8,254.00 due in 14 days');
-    expect(text).toContain('covered');
+    // Verdict tracks the 30-day projection: a positive lowest point => positive.
+    expect(text).toContain('stays positive over the next 30 days');
     expect(text).toContain('USD 9,149.76'); // the lowest point
     // Day-by-day rows carry the running balance beside each event.
     const rows = host.querySelectorAll('.outlook-card__table tr');
@@ -341,6 +341,62 @@ describe('Overview', () => {
     expect(rows[0].textContent).toContain('USD 9,149.76');
     // Safe-to-spend is reframed as the stress test, not a spending allowance.
     expect(text).not.toContain('Safe to spend');
+  });
+
+  it('shows a shortfall verdict — never "covered" — when the outlook goes negative', async () => {
+    // Regression: the card once read "covered ✓" (a 14-day due-vs-cash check)
+    // while the 30-day math projected the balance thousands negative, because a
+    // large credit-card payment landed 15-30 days out. The verdict must track
+    // the projection's own lowest point.
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+      }),
+    );
+    apiMock.getCashOutlook.mockResolvedValue(
+      response({
+        starting_cash: { amount_minor: 1_957_745, currency: 'USD' },
+        events: [
+          {
+            occurred_on: '2026-08-14',
+            name: 'Amex Platinum',
+            amount: { amount_minor: -1_218_241, currency: 'USD' },
+            kind: 'credit_card',
+          },
+          {
+            occurred_on: '2026-08-14',
+            name: 'Paycheck',
+            amount: { amount_minor: 283_079, currency: 'USD' },
+            kind: 'income',
+          },
+        ],
+        ending_cash: { amount_minor: -177_932, currency: 'USD' },
+        lowest_balance: { amount_minor: -418_183, currency: 'USD' },
+        lowest_date: '2026-08-14',
+        expected_income: { amount_minor: 647_110, currency: 'USD' },
+        obligations: { amount_minor: 2_782_787, currency: 'USD' },
+        horizon_days: 30,
+        // The 14-day check still reports "covered" — the card must NOT trust it.
+        due_soon: { amount_minor: 1_144_257, currency: 'USD' },
+        due_soon_covered: true,
+        due_soon_window_days: 14,
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('runs short over the next 30 days');
+    expect(text).not.toContain('covered');
+    expect(text).toContain('-USD 4,181.83'); // the lowest point, shown negative
   });
 
   it('renders the month spending plan (M113)', async () => {

@@ -286,23 +286,27 @@ struct OverviewView: View {
 
     // MARK: Cards
 
-    /// M112 (ADR 0026): the lived cash picture — the Bills tab's due-vs-cash
-    /// verdict, then 30 days of paychecks and payments with the lowest point
-    /// the balance reaches. This is the "can I spend?" answer that counts income.
+    /// M112 (ADR 0026): the lived cash picture — 30 days of paychecks and
+    /// payments with the lowest point the balance reaches. The verdict tracks
+    /// that 30-day projection's own lowest point, NOT the 14-day `dueSoon`
+    /// check: a payment 15–30 days out (e.g. a big credit-card statement) fell
+    /// outside the 14-day window, so the card could read "covered ✓" while the
+    /// math below projected the balance thousands negative.
     private func cashOutlookCard(_ outlook: Components.Schemas.CashOutlookResponse) -> some View {
-        NavigationLink {
+        let staysPositive = outlook.lowestBalance.amountMinor >= 0
+        return NavigationLink {
             CashOutlookDetailView(outlook: outlook)
         } label: {
             Card("Cash outlook", systemImage: "calendar.badge.clock") {
                 Label(
-                    outlook.dueSoonCovered
-                        ? "\(outlook.dueSoon.formatted) due in \(outlook.dueSoonWindowDays) days — covered"
-                        : "\(outlook.dueSoon.formatted) due in \(outlook.dueSoonWindowDays) days — exceeds your cash",
-                    systemImage: outlook.dueSoonCovered
+                    staysPositive
+                        ? "Your cash stays positive over the next \(outlook.horizonDays) days"
+                        : "Your cash runs short over the next \(outlook.horizonDays) days",
+                    systemImage: staysPositive
                         ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                 )
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(outlook.dueSoonCovered ? .green : .orange)
+                .foregroundStyle(staysPositive ? .green : .orange)
                 Text(outlook.lowestBalance.formatted)
                     .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     .foregroundStyle(outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
