@@ -128,15 +128,27 @@ async def test_adult_can_write_household_data_but_not_owner_only_actions(
     token = await _adult_token(demo_client, demo_token)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Allowed: household-data write.
+    # Allowed: money-editing writes (ADR 0034 User preset — bills, budgets...).
     created = await demo_client.post(
-        "/api/v1/accounts",
+        "/api/v1/bills",
         headers=headers,
-        json={"name": "Adult Acct", "type": "savings", "currency": "USD"},
+        json={
+            "name": "Adult Bill", "amount": {"amount_minor": 1000, "currency": "USD"},
+            "frequency": "monthly", "next_due_date": "2026-08-01",
+        },
     )
     assert created.status_code == 201
 
-    # Blocked: owner-only actions.
+    # Blocked (ADR 0034): a User does NOT manage the balance sheet.
+    assert (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "Adult Acct", "type": "savings", "currency": "USD"},
+        )
+    ).status_code == 403
+
+    # Blocked: admin-only actions.
     assert (await demo_client.post("/api/v1/backups", headers=headers)).status_code == 403
     assert (await demo_client.get("/api/v1/audit", headers=headers)).status_code == 403
     assert (

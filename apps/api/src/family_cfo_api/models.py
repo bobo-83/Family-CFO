@@ -149,13 +149,32 @@ users = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
+# ADR 0034: per-household roles bundling rights. Built-in presets (Admin/User/
+# Viewer/Child) are seeded per household; Admin is immutable. `rights_json` is a
+# JSON array of catalog right strings (family_cfo_api/rights.py).
+roles = Table(
+    "roles",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("name", String(60), nullable=False),
+    Column("rights_json", JSON, nullable=False),
+    Column("built_in", Boolean, nullable=False, server_default="0"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("household_id", "name", name="uq_roles_household_name"),
+)
+
 household_memberships = Table(
     "household_memberships",
     metadata,
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("user_id", String(36), ForeignKey("users.id"), nullable=False),
+    # Legacy tier, kept for wire compatibility; permissions come from role_id's
+    # rights (ADR 0034). Derived: the assigned role's preset equivalent.
     Column("role", String(20), nullable=False),
+    Column("role_id", String(36), ForeignKey("roles.id"), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"role in {_sql_in(HOUSEHOLD_ROLES)}", name="ck_household_memberships_role"),
     UniqueConstraint("household_id", "user_id", name="uq_household_memberships_household_user"),

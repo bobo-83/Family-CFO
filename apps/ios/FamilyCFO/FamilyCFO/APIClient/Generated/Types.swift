@@ -105,6 +105,26 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /household/members/{user_id}`.
     /// - Remark: Generated from `#/paths//household/members/{user_id}/delete(deleteMember)`.
     func deleteMember(_ input: Operations.DeleteMember.Input) async throws -> Operations.DeleteMember.Output
+    /// List the household's roles and the rights catalog
+    ///
+    /// - Remark: HTTP `GET /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/get(listRoles)`.
+    func listRoles(_ input: Operations.ListRoles.Input) async throws -> Operations.ListRoles.Output
+    /// Create a custom role
+    ///
+    /// - Remark: HTTP `POST /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/post(createRole)`.
+    func createRole(_ input: Operations.CreateRole.Input) async throws -> Operations.CreateRole.Output
+    /// Update a custom role
+    ///
+    /// - Remark: HTTP `PATCH /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)`.
+    func updateRole(_ input: Operations.UpdateRole.Input) async throws -> Operations.UpdateRole.Output
+    /// Delete an unused custom role
+    ///
+    /// - Remark: HTTP `DELETE /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)`.
+    func deleteRole(_ input: Operations.DeleteRole.Input) async throws -> Operations.DeleteRole.Output
     /// List the household's audit events
     ///
     /// - Remark: HTTP `GET /audit`.
@@ -745,6 +765,54 @@ extension APIProtocol {
         headers: Operations.DeleteMember.Input.Headers = .init()
     ) async throws -> Operations.DeleteMember.Output {
         try await deleteMember(Operations.DeleteMember.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// List the household's roles and the rights catalog
+    ///
+    /// - Remark: HTTP `GET /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/get(listRoles)`.
+    public func listRoles(headers: Operations.ListRoles.Input.Headers = .init()) async throws -> Operations.ListRoles.Output {
+        try await listRoles(Operations.ListRoles.Input(headers: headers))
+    }
+    /// Create a custom role
+    ///
+    /// - Remark: HTTP `POST /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/post(createRole)`.
+    public func createRole(
+        headers: Operations.CreateRole.Input.Headers = .init(),
+        body: Operations.CreateRole.Input.Body
+    ) async throws -> Operations.CreateRole.Output {
+        try await createRole(Operations.CreateRole.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Update a custom role
+    ///
+    /// - Remark: HTTP `PATCH /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)`.
+    public func updateRole(
+        path: Operations.UpdateRole.Input.Path,
+        headers: Operations.UpdateRole.Input.Headers = .init(),
+        body: Operations.UpdateRole.Input.Body
+    ) async throws -> Operations.UpdateRole.Output {
+        try await updateRole(Operations.UpdateRole.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Delete an unused custom role
+    ///
+    /// - Remark: HTTP `DELETE /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)`.
+    public func deleteRole(
+        path: Operations.DeleteRole.Input.Path,
+        headers: Operations.DeleteRole.Input.Headers = .init()
+    ) async throws -> Operations.DeleteRole.Output {
+        try await deleteRole(Operations.DeleteRole.Input(
             path: path,
             headers: headers
         ))
@@ -1981,6 +2049,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/role`.
             public var role: Components.Schemas.HouseholdRole?
+            /// ADR 0034: name of the assigned role (preset or custom).
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCredential/role_name`.
+            public var roleName: Swift.String?
+            /// ADR 0034: resolved rights — clients gate screens with these.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCredential/rights`.
+            public var rights: [Swift.String]?
             /// Creates a new `DeviceCredential`.
             ///
             /// - Parameters:
@@ -1988,22 +2064,30 @@ public enum Components {
             ///   - accessToken:
             ///   - expiresAt:
             ///   - role: M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
+            ///   - roleName: ADR 0034: name of the assigned role (preset or custom).
+            ///   - rights: ADR 0034: resolved rights — clients gate screens with these.
             public init(
                 deviceId: Swift.String,
                 accessToken: Swift.String,
                 expiresAt: Foundation.Date,
-                role: Components.Schemas.HouseholdRole? = nil
+                role: Components.Schemas.HouseholdRole? = nil,
+                roleName: Swift.String? = nil,
+                rights: [Swift.String]? = nil
             ) {
                 self.deviceId = deviceId
                 self.accessToken = accessToken
                 self.expiresAt = expiresAt
                 self.role = role
+                self.roleName = roleName
+                self.rights = rights
             }
             public enum CodingKeys: String, CodingKey {
                 case deviceId = "device_id"
                 case accessToken = "access_token"
                 case expiresAt = "expires_at"
                 case role
+                case roleName = "role_name"
+                case rights
             }
         }
         /// - Remark: Generated from `#/components/schemas/PairedDevice`.
@@ -2097,6 +2181,14 @@ public enum Components {
             public var userId: Swift.String
             /// - Remark: Generated from `#/components/schemas/AuthSession/role`.
             public var role: Components.Schemas.HouseholdRole
+            /// ADR 0034: name of the assigned role (preset or custom).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthSession/role_name`.
+            public var roleName: Swift.String?
+            /// ADR 0034: resolved rights — clients gate screens with these.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthSession/rights`.
+            public var rights: [Swift.String]?
             /// Creates a new `AuthSession`.
             ///
             /// - Parameters:
@@ -2105,18 +2197,24 @@ public enum Components {
             ///   - householdId:
             ///   - userId:
             ///   - role:
+            ///   - roleName: ADR 0034: name of the assigned role (preset or custom).
+            ///   - rights: ADR 0034: resolved rights — clients gate screens with these.
             public init(
                 accessToken: Swift.String,
                 expiresAt: Foundation.Date,
                 householdId: Swift.String,
                 userId: Swift.String,
-                role: Components.Schemas.HouseholdRole
+                role: Components.Schemas.HouseholdRole,
+                roleName: Swift.String? = nil,
+                rights: [Swift.String]? = nil
             ) {
                 self.accessToken = accessToken
                 self.expiresAt = expiresAt
                 self.householdId = householdId
                 self.userId = userId
                 self.role = role
+                self.roleName = roleName
+                self.rights = rights
             }
             public enum CodingKeys: String, CodingKey {
                 case accessToken = "access_token"
@@ -2124,6 +2222,8 @@ public enum Components {
                 case householdId = "household_id"
                 case userId = "user_id"
                 case role
+                case roleName = "role_name"
+                case rights
             }
         }
         /// - Remark: Generated from `#/components/schemas/HouseholdRole`.
@@ -6552,6 +6652,10 @@ public enum Components {
             public var displayName: Swift.String
             /// - Remark: Generated from `#/components/schemas/Member/role`.
             public var role: Components.Schemas.HouseholdRole
+            /// - Remark: Generated from `#/components/schemas/Member/role_id`.
+            public var roleId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Member/role_name`.
+            public var roleName: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Member/created_at`.
             public var createdAt: Foundation.Date
             /// Creates a new `Member`.
@@ -6561,18 +6665,24 @@ public enum Components {
             ///   - email:
             ///   - displayName:
             ///   - role:
+            ///   - roleId:
+            ///   - roleName:
             ///   - createdAt:
             public init(
                 userId: Swift.String,
                 email: Swift.String,
                 displayName: Swift.String,
                 role: Components.Schemas.HouseholdRole,
+                roleId: Swift.String? = nil,
+                roleName: Swift.String? = nil,
                 createdAt: Foundation.Date
             ) {
                 self.userId = userId
                 self.email = email
                 self.displayName = displayName
                 self.role = role
+                self.roleId = roleId
+                self.roleName = roleName
                 self.createdAt = createdAt
             }
             public enum CodingKeys: String, CodingKey {
@@ -6580,6 +6690,8 @@ public enum Components {
                 case email
                 case displayName = "display_name"
                 case role
+                case roleId = "role_id"
+                case roleName = "role_name"
                 case createdAt = "created_at"
             }
         }
@@ -6606,46 +6718,176 @@ public enum Components {
             public var password: Swift.String
             /// - Remark: Generated from `#/components/schemas/MemberCreateRequest/display_name`.
             public var displayName: Swift.String
+            /// Legacy tier; maps to its preset role. role_id wins if both sent.
+            ///
             /// - Remark: Generated from `#/components/schemas/MemberCreateRequest/role`.
-            public var role: Components.Schemas.HouseholdRole
+            public var role: Components.Schemas.HouseholdRole?
+            /// ADR 0034: assign any preset or custom role by id.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MemberCreateRequest/role_id`.
+            public var roleId: Swift.String?
             /// Creates a new `MemberCreateRequest`.
             ///
             /// - Parameters:
             ///   - email:
             ///   - password:
             ///   - displayName:
-            ///   - role:
+            ///   - role: Legacy tier; maps to its preset role. role_id wins if both sent.
+            ///   - roleId: ADR 0034: assign any preset or custom role by id.
             public init(
                 email: Swift.String,
                 password: Swift.String,
                 displayName: Swift.String,
-                role: Components.Schemas.HouseholdRole
+                role: Components.Schemas.HouseholdRole? = nil,
+                roleId: Swift.String? = nil
             ) {
                 self.email = email
                 self.password = password
                 self.displayName = displayName
                 self.role = role
+                self.roleId = roleId
             }
             public enum CodingKeys: String, CodingKey {
                 case email
                 case password
                 case displayName = "display_name"
                 case role
+                case roleId = "role_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest`.
         public struct MemberRoleUpdateRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest/role`.
-            public var role: Components.Schemas.HouseholdRole
+            public var role: Components.Schemas.HouseholdRole?
+            /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest/role_id`.
+            public var roleId: Swift.String?
             /// Creates a new `MemberRoleUpdateRequest`.
             ///
             /// - Parameters:
             ///   - role:
-            public init(role: Components.Schemas.HouseholdRole) {
+            ///   - roleId:
+            public init(
+                role: Components.Schemas.HouseholdRole? = nil,
+                roleId: Swift.String? = nil
+            ) {
                 self.role = role
+                self.roleId = roleId
             }
             public enum CodingKeys: String, CodingKey {
                 case role
+                case roleId = "role_id"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Role`.
+        public struct Role: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Role/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Role/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Role/rights`.
+            public var rights: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/Role/built_in`.
+            public var builtIn: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/Role/member_count`.
+            public var memberCount: Swift.Int?
+            /// Creates a new `Role`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - rights:
+            ///   - builtIn:
+            ///   - memberCount:
+            public init(
+                id: Swift.String,
+                name: Swift.String,
+                rights: [Swift.String],
+                builtIn: Swift.Bool,
+                memberCount: Swift.Int? = nil
+            ) {
+                self.id = id
+                self.name = name
+                self.rights = rights
+                self.builtIn = builtIn
+                self.memberCount = memberCount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case rights
+                case builtIn = "built_in"
+                case memberCount = "member_count"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RoleListResponse`.
+        public struct RoleListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RoleListResponse/roles`.
+            public var roles: [Components.Schemas.Role]
+            /// The full catalog, so a role editor can render every right.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RoleListResponse/all_rights`.
+            public var allRights: [Swift.String]
+            /// Creates a new `RoleListResponse`.
+            ///
+            /// - Parameters:
+            ///   - roles:
+            ///   - allRights: The full catalog, so a role editor can render every right.
+            public init(
+                roles: [Components.Schemas.Role],
+                allRights: [Swift.String]
+            ) {
+                self.roles = roles
+                self.allRights = allRights
+            }
+            public enum CodingKeys: String, CodingKey {
+                case roles
+                case allRights = "all_rights"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RoleCreateRequest`.
+        public struct RoleCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RoleCreateRequest/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RoleCreateRequest/rights`.
+            public var rights: [Swift.String]
+            /// Creates a new `RoleCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - rights:
+            public init(
+                name: Swift.String,
+                rights: [Swift.String]
+            ) {
+                self.name = name
+                self.rights = rights
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case rights
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RoleUpdateRequest`.
+        public struct RoleUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RoleUpdateRequest/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RoleUpdateRequest/rights`.
+            public var rights: [Swift.String]?
+            /// Creates a new `RoleUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - rights:
+            public init(
+                name: Swift.String? = nil,
+                rights: [Swift.String]? = nil
+            ) {
+                self.name = name
+                self.rights = rights
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case rights
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountCreateRequest`.
@@ -10654,6 +10896,785 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//household/members/{user_id}/delete(deleteMember)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the household's roles and the rights catalog
+    ///
+    /// - Remark: HTTP `GET /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/get(listRoles)`.
+    public enum ListRoles {
+        public static let id: Swift.String = "listRoles"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/roles/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRoles.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRoles.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListRoles.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListRoles.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/roles/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RoleListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RoleListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListRoles.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListRoles.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Roles
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/get(listRoles)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListRoles.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListRoles.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/get(listRoles)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/get(listRoles)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a custom role
+    ///
+    /// - Remark: HTTP `POST /household/roles`.
+    /// - Remark: Generated from `#/paths//household/roles/post(createRole)`.
+    public enum CreateRole {
+        public static let id: Swift.String = "createRole"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/roles/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateRole.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateRole.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateRole.Input.Headers
+            /// - Remark: Generated from `#/paths/household/roles/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RoleCreateRequest)
+            }
+            public var body: Operations.CreateRole.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateRole.Input.Headers = .init(),
+                body: Operations.CreateRole.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/roles/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.Role)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Role {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateRole.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateRole.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Role created
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/post(createRole)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateRole.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateRole.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/post(createRole)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/post(createRole)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/post(createRole)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update a custom role
+    ///
+    /// - Remark: HTTP `PATCH /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)`.
+    public enum UpdateRole {
+        public static let id: Swift.String = "updateRole"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/path/role_id`.
+                public var roleId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - roleId:
+                public init(roleId: Swift.String) {
+                    self.roleId = roleId
+                }
+            }
+            public var path: Operations.UpdateRole.Input.Path
+            /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateRole.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateRole.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateRole.Input.Headers
+            /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/requestBody/content/application\/json`.
+                case json(Components.Schemas.RoleUpdateRequest)
+            }
+            public var body: Operations.UpdateRole.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UpdateRole.Input.Path,
+                headers: Operations.UpdateRole.Input.Headers = .init(),
+                body: Operations.UpdateRole.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/roles/{role_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Role)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Role {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateRole.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateRole.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Role updated
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateRole.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateRole.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/patch(updateRole)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete an unused custom role
+    ///
+    /// - Remark: HTTP `DELETE /household/roles/{role_id}`.
+    /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)`.
+    public enum DeleteRole {
+        public static let id: Swift.String = "deleteRole"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/roles/{role_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/roles/{role_id}/DELETE/path/role_id`.
+                public var roleId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - roleId:
+                public init(roleId: Swift.String) {
+                    self.roleId = roleId
+                }
+            }
+            public var path: Operations.DeleteRole.Input.Path
+            /// - Remark: Generated from `#/paths/household/roles/{role_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRole.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRole.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteRole.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteRole.Input.Path,
+                headers: Operations.DeleteRole.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Role deleted
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteRole.Output.NoContent)
+            /// Role deleted
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteRole.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/roles/{role_id}/delete(deleteRole)/responses/409`.
             ///
             /// HTTP response code: `409 conflict`.
             case conflict(Components.Responses._Error)

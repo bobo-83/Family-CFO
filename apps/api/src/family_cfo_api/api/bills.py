@@ -3,8 +3,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, bill_detection, finance_service, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, bill_detection, finance_service, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     AccountObligation,
     Bill,
@@ -280,7 +280,7 @@ async def list_bill_suggestions(
 )
 async def dismiss_bill_suggestion(
     payload: BillSuggestionDismissRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     repository.add_bill_suggestion_dismissal(engine, session.household_id, payload.merchant_key)
@@ -310,7 +310,7 @@ async def dismiss_bill_suggestion(
 )
 async def create_bill(
     payload: BillCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Bill:
     if payload.account_id is not None:
@@ -364,7 +364,7 @@ async def create_bill(
 async def update_bill(
     bill_id: str,
     payload: BillUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Bill:
     before = repository.get_bill(engine, session.household_id, bill_id)
@@ -425,7 +425,7 @@ async def update_bill(
 )
 async def delete_bill(
     bill_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_bill(engine, session.household_id, bill_id)

@@ -3,8 +3,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     Account,
     AccountBalanceCreateRequest,
@@ -306,7 +306,7 @@ async def list_accounts(
 )
 async def create_account(
     payload: AccountCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Account:
     if payload.minimum_payment is not None and payload.minimum_payment.currency != payload.currency:
@@ -353,7 +353,7 @@ async def create_account(
 async def update_account(
     account_id: str,
     payload: AccountUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Account:
     existing = repository.get_account(engine, session.household_id, account_id)
@@ -430,7 +430,7 @@ async def update_account(
 )
 async def delete_account(
     account_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_account(engine, session.household_id, account_id)
@@ -470,7 +470,7 @@ async def delete_account(
 async def record_account_balance(
     account_id: str,
     payload: AccountBalanceCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Account:
     record = repository.get_account(engine, session.household_id, account_id)
@@ -508,7 +508,7 @@ async def record_account_balance(
 )
 async def scan_loan_statement(
     payload: LoanScanRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> LoanScanResult:
     import base64

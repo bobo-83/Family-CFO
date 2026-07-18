@@ -41,7 +41,11 @@ Family CFO is designed for local self-hosted use with sensitive household financ
 - HTTPS for app-to-server communication.
 - Secure pairing for mobile clients.
 - Local authentication.
-- Role-based users.
+- Rights-based access control (ADR 0034): atomic RIGHTS are bundled into ROLES
+  (built-in Admin/User/Viewer/Child presets plus per-household custom roles)
+  assigned to users. Every mutation endpoint and every client screen/section is
+  guarded by a right, never a role name; Admin holds every right and is
+  immutable; sign out is never gated.
 - Encrypted backups.
 - Secret redaction in logs.
 - No telemetry.

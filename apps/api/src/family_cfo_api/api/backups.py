@@ -6,9 +6,9 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, backup_processing, banksync, repository, smb_backup
+from family_cfo_api import audit, backup_processing, banksync, repository, rights, smb_backup
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_engine, require_role
+from family_cfo_api.deps import get_app_settings, get_engine, require_right
 from family_cfo_api.schemas import (
     BackupConfig,
     BackupConfigUpdateRequest,
@@ -80,7 +80,7 @@ def _to_schema(record: repository.BackupJobRecord) -> BackupJob:
     summary="List backup jobs",
 )
 async def list_backups(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> BackupJobListResponse:
     records = repository.list_backup_jobs(engine)
@@ -99,7 +99,7 @@ async def list_backups(
     summary="Create an on-demand encrypted backup",
 )
 async def create_backup(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupJob:
@@ -143,7 +143,7 @@ async def create_backup(
 )
 async def restore_backup(
     backup_id: str,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupJob:
@@ -189,7 +189,7 @@ async def restore_backup(
     summary="Backup destination + schedule, with the latest backup's status",
 )
 async def get_backup_config(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> BackupConfig:
     household = repository.get_household(engine, session.household_id)
@@ -220,7 +220,7 @@ async def get_backup_config(
 )
 async def update_backup_config(
     payload: BackupConfigUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupConfig:
@@ -269,7 +269,7 @@ async def update_backup_config(
 )
 async def check_backup_destination(
     payload: BackupDestinationCheckRequest,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
@@ -307,7 +307,7 @@ async def check_backup_destination(
     summary="List the .enc backups on the configured off-box share",
 )
 async def list_remote_backups(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> RemoteBackupListResponse:
@@ -340,7 +340,7 @@ async def list_remote_backups(
 )
 async def restore_remote_backup(
     payload: RemoteRestoreRequest,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
@@ -392,7 +392,7 @@ async def restore_remote_backup(
     summary="Reveal the backup encryption key (owner only) so it can be stored safely",
 )
 async def get_backup_encryption_key(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupEncryptionKey:
@@ -422,7 +422,7 @@ async def get_backup_encryption_key(
 )
 async def delete_backup(
     backup_id: str,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> Response:
@@ -454,7 +454,7 @@ async def delete_backup(
 )
 async def delete_remote_backup(
     payload: RemoteRestoreRequest,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:

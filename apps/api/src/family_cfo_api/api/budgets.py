@@ -12,8 +12,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     Budget,
     BudgetCreateRequest,
@@ -113,7 +113,7 @@ async def list_budgets(
 )
 async def create_budget(
     payload: BudgetCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BUDGETS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Budget:
     if payload.limit.amount_minor <= 0:
@@ -166,7 +166,7 @@ async def create_budget(
 async def update_budget(
     budget_id: str,
     payload: BudgetUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BUDGETS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Budget:
     if payload.limit.amount_minor <= 0:
@@ -210,7 +210,7 @@ async def update_budget(
 )
 async def delete_budget(
     budget_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.BUDGETS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_budget(engine, session.household_id, budget_id)
