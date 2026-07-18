@@ -16,6 +16,7 @@ from family_cfo_api.schemas import (
     PairedDeviceListResponse,
     PairingConfirmRequest,
     PairingSession,
+    PairingSessionCreateRequest,
 )
 
 router = APIRouter(tags=["Pairing"])
@@ -78,17 +79,40 @@ def _to_device_schema(record: repository.PairedDeviceRecord) -> PairedDevice:
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Target member not in this household", "model": ErrorResponse},
     },
     summary="Create a short-lived pairing session for a device",
 )
 async def create_pairing_session(
     request: Request,
+    payload: PairingSessionCreateRequest = PairingSessionCreateRequest(),
     session: repository.SessionContext = Depends(require_role("owner", "adult")),
     engine: Engine = Depends(get_engine),
 ) -> PairingSession:
     household = repository.get_household(engine, session.household_id)
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
+
+    # The device pairs AS this user. Normally that's the caller; an owner may mint
+    # the code for another member so a regular member never signs into the
+    # dashboard to pair their phone. An owner can only ever be targeted by
+    # themselves — you can't mint owner-level access for someone else this way.
+    pair_as_user_id = session.user_id
+    if payload.user_id is not None and payload.user_id != session.user_id:
+        if session.role != "owner":
+            raise HTTPException(
+                status_code=403, detail="Only an owner can pair a device for another member"
+            )
+        target_role = repository.get_membership_role(
+            engine, session.household_id, payload.user_id
+        )
+        if target_role is None:
+            raise HTTPException(status_code=404, detail="That member is not in this household")
+        if target_role == "owner":
+            raise HTTPException(
+                status_code=403, detail="Owners must pair their own device"
+            )
+        pair_as_user_id = payload.user_id
 
     # CSPRNG token, not a uuid4: this id is the QR-borne bearer secret for
     # unauthenticated /pairing/confirm (ADR 0010).
@@ -113,11 +137,15 @@ async def create_pairing_session(
         sort_keys=True,
     )
 
+    # One valid QR per user: minting a new code invalidates any pending one, so a
+    # previously shown (or leaked) code can no longer pair.
+    repository.revoke_pending_pairing_sessions(engine, session.household_id, pair_as_user_id)
+
     record = repository.create_pairing_session(
         engine,
         pairing_session_id=pairing_session_id,
         household_id=session.household_id,
-        created_by_user_id=session.user_id,
+        created_by_user_id=pair_as_user_id,
         qr_payload=qr_payload,
         expires_at=expires_at,
     )

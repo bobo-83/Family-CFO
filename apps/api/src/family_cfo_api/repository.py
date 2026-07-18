@@ -204,6 +204,23 @@ class DeviceCredentialRecord:
     user_id: str = ""
 
 
+def revoke_pending_pairing_sessions(engine: Engine, household_id: str, user_id: str) -> None:
+    """Invalidate any still-pending (unconfirmed, unrevoked, whether or not
+    expired) pairing session for this user — so minting a new QR leaves exactly
+    one valid code per user, and an old code that leaked can never pair."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.pairing_sessions)
+            .where(
+                models.pairing_sessions.c.household_id == household_id,
+                models.pairing_sessions.c.created_by_user_id == user_id,
+                models.pairing_sessions.c.confirmed_at.is_(None),
+                models.pairing_sessions.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=utcnow())
+        )
+
+
 def create_pairing_session(
     engine: Engine,
     pairing_session_id: str,
