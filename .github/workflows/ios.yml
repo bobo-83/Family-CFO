@@ -33,7 +33,7 @@ jobs:
           xcodebuild -version
 
       - name: Cache generator build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/ios/openapi-generator/.build
           key: openapi-generator-${{ runner.os }}-${{ hashFiles('apps/ios/openapi-generator/Package.swift') }}
