@@ -416,7 +416,7 @@
 				CODE_SIGN_ENTITLEMENTS = FamilyCFO/FamilyCFO.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YOUR_TEAM_ID;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
@@ -448,7 +448,7 @@
 				CODE_SIGN_ENTITLEMENTS = FamilyCFO/FamilyCFO.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YOUR_TEAM_ID;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
@@ -509,7 +509,7 @@
 				CODE_SIGN_ENTITLEMENTS = FamilyCFOShareExtension/FamilyCFOShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YOUR_TEAM_ID;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FamilyCFOShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
@@ -535,7 +535,7 @@
 				CODE_SIGN_ENTITLEMENTS = FamilyCFOShareExtension/FamilyCFOShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YOUR_TEAM_ID;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FamilyCFOShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
