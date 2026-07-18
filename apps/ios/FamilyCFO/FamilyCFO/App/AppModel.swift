@@ -19,6 +19,11 @@ struct StoredCredential: Codable, Equatable {
     var accessToken: String
     var expiresAt: Date
     var role: HouseholdRole?
+    // ADR 0034: the assigned role's name and resolved rights; screens gate with
+    // these. Optional so a credential stored before rights shipped still decodes
+    // (RolePolicy then falls back to the legacy role's preset).
+    var roleName: String?
+    var rights: [String]?
 }
 
 @MainActor
@@ -42,7 +47,9 @@ final class AppModel {
     /// whole month each time (M105).
     let monthTransactions = MonthTransactionsCache()
 
-    var rolePolicy: RolePolicy { RolePolicy(role: credential?.role) }
+    var rolePolicy: RolePolicy {
+        RolePolicy(role: credential?.role, rights: credential?.rights.map(Set.init))
+    }
 
     private static let serverDefaultsKey = "family-cfo.server"
     private static let credentialAccount = "device-credential"

@@ -21,8 +21,13 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            Tab("Advisor", systemImage: "bubble.left.and.text.bubble.right") {
-                ConversationListView()
+            // ADR 0034: every tab names the RIGHT that reveals it. Overview,
+            // Accounts, and Debts are money VIEWS (all members); their editing
+            // affordances gate separately inside each screen.
+            if model.rolePolicy.canChat {
+                Tab("Advisor", systemImage: "bubble.left.and.text.bubble.right") {
+                    ConversationListView()
+                }
             }
             Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
                 OverviewView()
@@ -32,42 +37,39 @@ struct MainTabView: View {
                     AccountsView(viewModel: AccountsViewModel(api: accounts))
                 }
             }
-            // Bills and categorize both change money data (M90/M91), so they're
-            // for the adults — the same gate the server enforces on the writes.
-            if model.rolePolicy.canEditFinances {
-                if let billsModel {
-                    Tab("Bills", systemImage: "calendar") {
-                        BillsView(viewModel: billsModel)
-                    }
-                    .badge(billsModel.pendingCount)
+            if model.rolePolicy.canManageBills, let billsModel {
+                Tab("Bills", systemImage: "calendar") {
+                    BillsView(viewModel: billsModel)
                 }
+                .badge(billsModel.pendingCount)
+            }
+            if model.rolePolicy.canCategorize {
                 Tab("Categorize", systemImage: "tag") {
                     CategorizeView()
                 }
-                if let debts = model.debts {
-                    Tab("Debts", systemImage: "banknote") {
-                        NavigationStack { DebtsView(api: debts) }
-                    }
-                }
-                if let reviewModel {
-                    Tab("Review", systemImage: "checklist") {
-                        ReviewView(viewModel: reviewModel)
-                    }
-                    .badge(reviewModel.reviewCount)
-                }
-                // Budgets and goals are money screens, not settings — first-class
-                // tabs, matching the web dashboard's "Money" nav (ADR 0025 parity).
-                if let budgetsModel {
-                    Tab("Budgets", systemImage: "chart.pie") {
-                        NavigationStack { BudgetsView(viewModel: budgetsModel) }
-                    }
-                }
-                if let goalsModel {
-                    Tab("Goals", systemImage: "target") {
-                        NavigationStack { GoalsView(viewModel: goalsModel) }
-                    }
+            }
+            if let debts = model.debts {
+                Tab("Debts", systemImage: "banknote") {
+                    NavigationStack { DebtsView(api: debts) }
                 }
             }
+            if model.rolePolicy.canCategorize, let reviewModel {
+                Tab("Review", systemImage: "checklist") {
+                    ReviewView(viewModel: reviewModel)
+                }
+                .badge(reviewModel.reviewCount)
+            }
+            if model.rolePolicy.canManageBudgets, let budgetsModel {
+                Tab("Budgets", systemImage: "chart.pie") {
+                    NavigationStack { BudgetsView(viewModel: budgetsModel) }
+                }
+            }
+            if model.rolePolicy.canManageGoals, let goalsModel {
+                Tab("Goals", systemImage: "target") {
+                    NavigationStack { GoalsView(viewModel: goalsModel) }
+                }
+            }
+            // Settings is never hidden — sign out lives here (ADR 0034).
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
             }
@@ -140,16 +142,16 @@ struct SettingsView: View {
                 } footer: {
                     Text("Away from home, connect through your household's own VPN or tailnet — the server is never exposed to the internet.")
                 }
-                if model.rolePolicy.isOperator {
+                if model.rolePolicy.canViewActivity || model.rolePolicy.canManageBackups {
                     Section {
-                        if let activity = model.activity {
+                        if model.rolePolicy.canViewActivity, let activity = model.activity {
                             NavigationLink {
                                 ActivityView(viewModel: ActivityViewModel(api: activity))
                             } label: {
                                 Label("Activity", systemImage: "clock.arrow.circlepath")
                             }
                         }
-                        if let backups = model.backups {
+                        if model.rolePolicy.canManageBackups, let backups = model.backups {
                             NavigationLink {
                                 BackupSettingsView(viewModel: BackupViewModel(api: backups))
                             } label: {
@@ -162,10 +164,10 @@ struct SettingsView: View {
                         Text("Review and undo past actions, and back up to your Synology. Encrypted daily backups run automatically.")
                     }
                 }
-                if model.rolePolicy.isOperator {
+                if model.rolePolicy.canManageMembers {
                     Section {
                         Label(
-                            "Manage paired devices, members and the AI runtime on the web dashboard.",
+                            "Manage members, roles, devices and the AI runtime on the web dashboard.",
                             systemImage: "wrench.and.screwdriver"
                         )
                         .font(.callout)
