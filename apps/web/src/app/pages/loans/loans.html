@@ -145,6 +145,12 @@
       />
     </label>
 
+    <label>
+      <span>Next payment due</span>
+      <input type="date" [(ngModel)]="form.nextPaymentDueDate" name="loanNextPaymentDue" />
+      <small class="loan-form__hint">Filled in automatically from an uploaded statement; set it here to override.</small>
+    </label>
+
     <fieldset class="loan-form__end">
       <legend>Loan / lease end</legend>
       <label class="loan-form__end-mode">

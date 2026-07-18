@@ -28,6 +28,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0030: No personal identifiers or environment specifics in the repo](../adr/0030-no-personal-identifiers.md)
 - [0031: Advisor is educational, not financial advice — disclaimer everywhere](../adr/0031-advisor-disclaimer.md)
 - [0032: A debt modeled as both an account and a bill is one obligation](../adr/0032-debt-and-bill-are-one-obligation.md)
+- [0033: Read a loan/card statement's summary onto the account](../adr/0033-statement-summary-to-account.md)
 
 ## ADR Rules
 
