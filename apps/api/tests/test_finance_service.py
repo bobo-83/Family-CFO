@@ -1,7 +1,9 @@
+from datetime import date, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service, fixtures, models
+from family_cfo_api import finance_service, fixtures, models, repository
 from family_cfo_financial_engine import Money
 
 
@@ -306,3 +308,33 @@ def test_flag_skips_non_spending_categories_and_clears_stale_flags(
 
     assert repository.flag_possible_duplicates(demo_engine, hh) == 0
     assert repository.count_review_transactions(demo_engine, hh) == 0
+
+
+def test_debt_that_is_also_a_bill_is_reserved_once_not_twice(demo_engine: Engine) -> None:
+    """ADR 0032: a loan modeled as both an account and an explicit bill must be
+    reserved once. Adding the bill for an already-reserved debt moves the payment
+    from the debt line to the bills line — it never reserves it a second time, so
+    safe-to-spend is unchanged."""
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date.today()
+    loan = repository.create_account(
+        demo_engine, hh, name="U.S. Department of Education",
+        account_type="student_loan", currency="USD", minimum_payment_minor=7_801,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)
+
+    before, _ = finance_service.compute_safe_to_spend(demo_engine, hh, "USD", today=today)
+
+    # Now ALSO model the same payment as an explicit bill, due within the horizon.
+    repository.create_bill(
+        demo_engine, hh, name="Department of Education", amount_minor=7_801,
+        currency="USD", frequency="monthly", next_due_date=today + timedelta(days=5),
+    )
+    after, _ = finance_service.compute_safe_to_spend(demo_engine, hh, "USD", today=today)
+
+    # Same money reserved, just relabeled from the debt line to the bill line.
+    assert after.outputs["safe_to_spend"] == before.outputs["safe_to_spend"]
+    assert after.outputs["minimum_debt_payments"] == (
+        before.outputs["minimum_debt_payments"] - Money(7_801, "USD")
+    )
+    assert after.outputs["bills_due"] == before.outputs["bills_due"] + Money(7_801, "USD")

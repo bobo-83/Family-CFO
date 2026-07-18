@@ -347,11 +347,19 @@ def recurring_liability_obligations(
     balances = {
         b.account_id: b for b in repository.list_account_balances(engine, household_id)
     }
+    liability_accounts = repository.list_liability_accounts(engine, household_id)
+    # A liability that is ALSO set up as an explicit bill is shown once — as the
+    # bill, which carries the due date and matches the real charge (ADR 0032).
+    covered = bill_covered_account_ids(
+        repository.list_bills(engine, household_id), liability_accounts
+    )
     obligations: list[LiabilityObligation] = []
-    for account in repository.list_liability_accounts(engine, household_id):
+    for account in liability_accounts:
         if account.currency != currency or account.minimum_payment_minor is None:
             continue
         if account.account_type == "credit_card":
+            continue
+        if account.id in covered:
             continue
         balance = balances.get(account.id)
         owes = balance is not None and balance.balance_minor < 0
@@ -773,6 +781,42 @@ def _keys_match(a: str, b: str) -> bool:
     return ta <= tb or tb <= ta
 
 
+def bill_covered_account_ids(
+    bills: "list[repository.RecurringRecord]",
+    liability_accounts: "list[repository.AccountRecord]",
+) -> set[str]:
+    """Liability accounts whose recurring payment is ALSO modeled as an explicit
+    bill — same merchant (fuzzy) and amount within tolerance (ADR 0032).
+
+    A student loan added as an account AND set up as a bill is one obligation, not
+    two. The bill is authoritative for the payment (it carries a stored due date
+    and matches the real charge), so the derived account obligation is suppressed
+    everywhere bills are shown or reserved, and the debt is counted once. The
+    account itself is untouched — it still lives in Accounts / Debts for payoff."""
+    from family_cfo_api import bill_detection
+
+    bill_keys = [(b, bill_detection.normalize_merchant(b.name)) for b in bills]
+    covered: set[str] = set()
+    for account in liability_accounts:
+        if account.minimum_payment_minor is None:
+            continue
+        account_key = bill_detection.normalize_merchant(account.name)
+        if not account_key:
+            continue
+        for bill, bill_key in bill_keys:
+            if bill.currency != account.currency:
+                continue
+            if not _keys_match(account_key, bill_key):
+                continue
+            if abs(bill.amount_minor - account.minimum_payment_minor) > (
+                account.minimum_payment_minor * _MATCH_AMOUNT_TOLERANCE
+            ):
+                continue
+            covered.add(account.id)
+            break
+    return covered
+
+
 def _previous_occurrence(due: date, frequency: str) -> date:
     if frequency in _DAY_STEP_BY_FREQUENCY:
         return due - timedelta(days=_DAY_STEP_BY_FREQUENCY[frequency])
@@ -1126,13 +1170,22 @@ def compute_safe_to_spend(
         ):
             total_debt += Money(-balance.balance_minor, balance.currency)
 
+    # A liability that is also set up as an explicit bill is already reserved via
+    # bills_due above; mark it modeled so it isn't warned as unrecorded, but don't
+    # subtract its minimum again — that would reserve the same payment twice (ADR 0032).
+    bill_covered_accounts = bill_covered_account_ids(
+        repository.list_bills(engine, household_id),
+        repository.list_liability_accounts(engine, household_id),
+    )
     minimum_debt_payments = Money.zero(currency)
-    modeled_ids: set[str] = set()
+    modeled_ids: set[str] = set(bill_covered_accounts)
     for debt in repository.list_debts_with_terms(engine, household_id):
         if debt.currency != currency or debt.minimum_payment_minor is None:
             continue
         # Modeled either way, so it never trips the "no minimum recorded" warning.
         modeled_ids.add(debt.account_id)
+        if debt.account_id in bill_covered_accounts:
+            continue
         # A 401(k) loan is repaid by payroll deduction — the money is withheld from
         # the paycheck before it ever reaches the bank, so it makes no claim on
         # liquid cash. Track it for payoff, but don't subtract it from safe-to-spend
