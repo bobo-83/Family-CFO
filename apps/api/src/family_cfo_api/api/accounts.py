@@ -67,6 +67,71 @@ def _scan_number(value: object) -> float | None:
     return None
 
 
+_TXT_AMT = r"\$?([\d,]+\.\d{2})"
+_TXT_DATE = r"(\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})"
+
+
+def _first_match(text: str, patterns: list[str]) -> str | None:
+    import re as _re
+
+    for pat in patterns:
+        m = _re.search(pat, text, _re.IGNORECASE)
+        if m:
+            return m.group(1)
+    return None
+
+
+def parse_loan_statement_text(text: str) -> LoanScanResult | None:
+    """Read a loan/card statement's fields straight from the PDF's own text.
+
+    Labeled fields — including the interest rate, which a rasterized-image vision
+    pass routinely misses in a detail table — parse far more reliably from text
+    than from a photo. Returns None when it can't find a payment or a balance, so
+    the caller can fall back to the vision model for a scanned (image) statement.
+    """
+    from family_cfo_api.import_processing import _parse_label_date
+
+    payment = _scan_number(
+        _first_match(
+            text,
+            [
+                r"regular\s+monthly\s+payment\s+amount\s*" + _TXT_AMT,
+                r"current\s+amount\s+due\s*" + _TXT_AMT,
+                r"minimum\s+payment(?:\s+due)?\s*" + _TXT_AMT,
+                r"\bamount\s+due\s*" + _TXT_AMT,
+            ],
+        )
+    )
+    balance = _scan_number(
+        _first_match(
+            text,
+            [
+                r"current\s+balance\s*" + _TXT_AMT,
+                r"outstanding\s+principal\s+balance[^\n$]*" + _TXT_AMT,
+                r"new\s+balance(?:\s+total)?\s*" + _TXT_AMT,
+                r"payoff[^\n$]*" + _TXT_AMT,
+            ],
+        )
+    )
+    if payment is None and balance is None:
+        return None
+    rate = _scan_number(_first_match(text, [r"interest\s+rate\s*(?:is|:)?\s*([\d.]+)\s*%"]))
+    due = _first_match(
+        text,
+        [
+            r"(?:current\s+statement\s+|payment\s+)?due\s+date\s*[:\-]?\s*" + _TXT_DATE,
+            r"payment\s+due\s*[:\-]?\s*" + _TXT_DATE,
+        ],
+    )
+    return LoanScanResult(
+        monthly_payment_minor=int(round(payment * 100)) if payment and payment > 0 else None,
+        balance_minor=int(round(balance * 100)) if balance and balance > 0 else None,
+        next_payment_due_date=_parse_label_date(due) if due else None,
+        apr_percent=rate if rate is not None and 0 <= rate < 100 else None,
+        note="Read from the statement text — confirm every value before saving.",
+    )
+
+
 def parse_loan_scan(text: str) -> LoanScanResult:
     """Defensive parse of the vision model's loan/lease extraction (candidates only).
 
@@ -459,6 +524,16 @@ async def scan_loan_statement(
             pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
+        # A text-based statement (most e-statements) parses far more reliably from
+        # its own text than from a rasterized image — and it catches the interest
+        # rate the vision model misses. Fall through to vision only for a scanned
+        # (image-only) PDF where there is no extractable text.
+        from family_cfo_ocr_worker import PdfTextExtractionAdapter
+
+        pdf_text = PdfTextExtractionAdapter().extract(pdf_bytes, "application/pdf").text
+        text_result = parse_loan_statement_text(pdf_text) if pdf_text else None
+        if text_result is not None:
+            return text_result
         data_urls = [
             "data:image/png;base64," + base64.b64encode(png).decode("ascii")
             for png in pdf_page_pngs(pdf_bytes)
