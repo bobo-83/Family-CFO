@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Chat } from './chat';
 
 function recommendation(answer: string, confidence = 0.85, answeredBy: string | null = 'Qwen/Qwen2.5-32B-Instruct') {
@@ -46,7 +47,7 @@ describe('Chat', () => {
       imports: [Chat],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     }).compileComponents();
   });

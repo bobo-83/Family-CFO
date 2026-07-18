@@ -20,8 +20,7 @@ export class Budgets {
 
   protected readonly formatMoney = formatMoney;
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('budgets.manage');
   };
 
   protected readonly budgets = signal<Budget[]>([]);

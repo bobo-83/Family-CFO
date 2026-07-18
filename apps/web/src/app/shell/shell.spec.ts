@@ -10,7 +10,7 @@ describe('Shell', () => {
       providers: [
         // A stub route so the nav-link click test's navigation can resolve.
         provideRouter([{ path: 'overview', children: [] }]),
-        { provide: AuthService, useValue: { role: () => 'owner', logout: () => undefined } },
+        { provide: AuthService, useValue: { role: () => 'owner', hasRight: () => true, logout: () => undefined } },
       ],
     }).compileComponents();
   });
@@ -51,7 +51,7 @@ describe('Shell', () => {
     // The link list is its own scroll container so long menus never trap
     // the footer off-screen.
     expect(host.querySelector('nav.shell__nav-scroll')).not.toBeNull();
-    expect(host.querySelectorAll('.shell__nav-link').length).toBe(18); // 17 pages + System Health
+    expect(host.querySelectorAll('.shell__nav-link').length).toBe(19); // 18 pages + System Health
   });
 
   it('renders the scrim only while the menu is open', () => {

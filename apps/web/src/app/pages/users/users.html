@@ -19,16 +19,16 @@
         <li class="member-list__item">
           <div>
             <div class="member-list__name">{{ member.display_name }}</div>
-            <div class="member-list__meta">{{ member.email }} · {{ member.role }}</div>
+            <div class="member-list__meta">{{ member.email }} · {{ member.role_name || member.role }}</div>
           </div>
           @if (canManageMembers()) {
             <div class="member-list__actions">
               <select
-                [value]="member.role"
+                [value]="member.role_id || ''"
                 (change)="changeRole(member.user_id, $any($event.target).value)"
               >
-                @for (role of memberRoles; track role) {
-                  <option [value]="role">{{ role }}</option>
+                @for (role of roles.value() ?? []; track role.id) {
+                  <option [value]="role.id">{{ role.name }}</option>
                 }
               </select>
               <button
@@ -65,9 +65,10 @@
     </label>
     <label>
       Role
-      <select formControlName="role">
-        @for (role of memberRoles; track role) {
-          <option [value]="role">{{ role }}</option>
+      <select formControlName="roleId">
+        <option value="" disabled>Choose a role…</option>
+        @for (role of roles.value() ?? []; track role.id) {
+          <option [value]="role.id">{{ role.name }}</option>
         }
       </select>
     </label>

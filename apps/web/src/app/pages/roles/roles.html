@@ -1,0 +1,89 @@
+<section class="page">
+  <header class="page__header">
+    <div>
+      <h1>Roles</h1>
+      <p class="page__sub">
+        Rights bundled into roles — assign one to each member on the Users page.
+        Built-in roles can't be edited; create a custom role for anything finer.
+      </p>
+    </div>
+    <button type="button" (click)="startCreate()">+ New role</button>
+  </header>
+
+  @if (data.error(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+  @if (actionError(); as message) {
+    <p class="page-error" role="alert">{{ message }}</p>
+  }
+
+  <ul class="role-list">
+    @for (role of data.value()?.roles ?? []; track role.id) {
+      <li class="role-list__item">
+        <div>
+          <div class="role-list__name">
+            {{ role.name }}
+            @if (role.built_in) {
+              <span class="role-list__badge">built-in</span>
+            }
+          </div>
+          <div class="role-list__meta">
+            {{ role.rights.length }} rights ·
+            {{ role.member_count ?? 0 }} member{{ (role.member_count ?? 0) === 1 ? '' : 's' }}
+          </div>
+        </div>
+        @if (!role.built_in) {
+          <div class="role-list__actions">
+            <button type="button" (click)="startEdit(role)">Edit</button>
+            <button
+              type="button"
+              class="role-list__delete"
+              [disabled]="(role.member_count ?? 0) > 0"
+              [title]="(role.member_count ?? 0) > 0 ? 'Reassign its members first' : ''"
+              (click)="remove(role)"
+            >
+              Delete
+            </button>
+          </div>
+        }
+      </li>
+    }
+  </ul>
+
+  @if (editing(); as draft) {
+    <form class="role-editor" (ngSubmit)="save()">
+      <h2>{{ draft.id ? 'Edit role' : 'New role' }}</h2>
+      <label>
+        Name
+        <input
+          type="text"
+          name="roleName"
+          [ngModel]="draft.name"
+          (ngModelChange)="draft.name = $event"
+          maxlength="60"
+          required
+        />
+      </label>
+      <fieldset class="role-editor__rights">
+        <legend>Rights</legend>
+        @for (right of data.value()?.all_rights ?? []; track right) {
+          <label class="role-editor__right">
+            <input
+              type="checkbox"
+              [checked]="draft.rights.has(right)"
+              (change)="toggleRight(right)"
+            />
+            <span>{{ label(right) }}</span>
+            <code>{{ right }}</code>
+          </label>
+        }
+      </fieldset>
+      <div class="role-editor__actions">
+        <button type="submit" [disabled]="saving() || !draft.name.trim()">
+          {{ saving() ? 'Saving…' : 'Save role' }}
+        </button>
+        <button type="button" (click)="editing.set(null)">Cancel</button>
+      </div>
+    </form>
+  }
+</section>

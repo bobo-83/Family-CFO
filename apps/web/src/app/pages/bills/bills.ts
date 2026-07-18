@@ -46,8 +46,7 @@ export class Bills {
   protected readonly frequencies = FREQUENCIES;
   protected readonly formatMoney = formatMoney;
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('bills.manage');
   };
 
   protected readonly bills = signal<BillDto[]>([]);

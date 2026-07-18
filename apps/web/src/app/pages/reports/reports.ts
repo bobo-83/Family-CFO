@@ -18,8 +18,7 @@ export class Reports {
 
   protected readonly formatMoney = formatMoney;
   protected readonly canGenerate = computed(() => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('reports.manage');
   });
 
   protected readonly reports = resource({

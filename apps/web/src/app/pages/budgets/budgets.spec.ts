@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Budgets } from './budgets';
 
 function response(data: unknown, error?: unknown) {
@@ -54,7 +55,7 @@ function configure(apiMock: Record<string, unknown>, role: string) {
     providers: [
       provideRouter([]),
       { provide: ApiService, useValue: apiMock },
-      { provide: AuthService, useValue: { role: () => role } },
+      { provide: AuthService, useValue: authMock(role) },
     ],
   });
 }
