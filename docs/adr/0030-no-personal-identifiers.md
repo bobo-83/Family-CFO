@@ -14,6 +14,14 @@ exploitable secret — the IP is non-routable RFC1918 — but each ties the publ
 repo to one person and one network, and once published they persist in git
 history forever. The user asked for a rule so this can't recur.
 
+A later pass found a category the first sweep missed: the maintainer's **real
+name** used as sample data in test fixtures, an env example, deploy-script
+comments, and web/iOS specs (a real first name in device labels,
+`owner_display_name`, and email fixtures). A name has no detectable pattern, so the pattern-based guard
+cannot catch it — this is precisely what the gitignored literal deny-list is
+for, and the lesson is that sample/test data must use a neutral placeholder
+persona, never a real person.
+
 ## Decision
 
 **The repository contains no personal identifiers and no environment-specific
@@ -30,7 +38,10 @@ placeholders. Concretely:
    `192.168.1.x` (LAN), `10.0.0.x`, `172.16.0.x`.
 3. **No personal home paths** (`/Users/<name>`, `/home/<name>`) — use `$HOME`,
    `~`, or a placeholder like `your-login`.
-4. **No secrets, ever** — enforced separately by gitleaks; production requires
+4. **No real personal names** — sample data, test fixtures, device labels, and
+   examples use a neutral placeholder persona (`Alex`, `alex@example.com`,
+   login `alex`), never the maintainer's real name.
+5. **No secrets, ever** — enforced separately by gitleaks; production requires
    them via env (compose fails without `POSTGRES_PASSWORD`), never a default.
 
 ## Enforcement
@@ -39,9 +50,11 @@ placeholders. Concretely:
   the values it guards, or it would republish them): flags a non-empty
   `DEVELOPMENT_TEAM`, any non-placeholder RFC1918 IP, and personal home paths.
   Runs in the **Security** CI workflow and as a **pre-commit** hook.
-- A maintainer may additionally list their own literal values, one per line, in a
+- A maintainer may additionally list their own literal values — real name, email,
+  and any other unpatternable personal identifiers — one per line, in a
   **gitignored** `.repo-hygiene-deny`; the local hook fails if any appears in a
   tracked file. It is never committed, so it can't leak the values it protects.
+  This is the only backstop for names, which the pattern checks cannot detect.
 - gitleaks (already in CI) covers keys/tokens.
 
 ## Invariant
