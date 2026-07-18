@@ -30,6 +30,15 @@ Later migrations add:
 - M10: `conversations` and `conversation_messages`
 - M14: nullable `accounts.annual_interest_rate`/`accounts.minimum_payment_minor`, and `debt_payoff`/`retirement_projection` added to the `financial_calculations` type check
 - M15: `annual` added to the `reports` type check
+- later: net-worth snapshots, `budgets`, safe-to-spend/emergency-fund settings,
+  401(k)-loan & maturity-date & institution columns, overview snapshots, the M97
+  `transactions.duplicate_state` review flag, the M98 off-box backup destination
+  + SMB credentials + size cap, `transactions.note`/attachment columns, the
+  `audit_events.undo_token`/`reverted_at` undo columns (`0056`/`0057`), and the
+  goal `monthly_contribution` (`0058`)
+
+The migration head is currently **`0058_goal_contribution`** — run
+`ls database/migrations/versions/` for the authoritative, complete list.
 
 ## Money Storage
 
@@ -57,10 +66,18 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 
 Set it via an environment file or Docker secret (matching the pattern `docs/specs/10-docker-spec.md` already specifies for other secrets) — never commit it. There is no key recovery mechanism: losing the key makes every backup encrypted with it permanently unrecoverable. Rotating the key only affects backups taken after the rotation; restoring an older backup requires the key that was active when it was taken.
 
+### Off-box destination (M98)
+
+Beyond the local `backups` volume, a household can push each encrypted archive to
+a **Synology/SMB share**. The destination (host, share, subfolder, schedule, size
+cap) lives on the household row; the SMB **password is encrypted at rest** with
+the backup key. Backups can also be listed and restored directly from the share.
+See `docs/guides/backup-and-restore.md`.
+
 ### Restore Procedure
 
 `POST /api/v1/backups/{id}/restore` (`owner` only) decrypts the named archive and replaces the *entire* current database and staging directory with its contents — this is destructive by definition, and also reverts `backup_jobs`' own bookkeeping to its state at dump time (the row for the backup being restored from reads `running`, not `completed`, since the dump necessarily precedes that status update — an inherent property of backing up the whole database, not a bug). There is no API-level confirmation step; a dashboard confirmation dialog is future work.
 
 ## Audit Events
 
-`audit_events` (M9) records a non-sensitive row for every sensitive mutation made through the write APIs (account/transaction/bill/income CRUD, membership changes, household bootstrap): `actor_user_id`, `action` (e.g. `account.created`), `entity_type`, `entity_id`, and a short `summary`. Audit rows are `Internal` per the security model and must never contain `Restricted`/`Sensitive` values — no amounts, balances, passwords, or tokens (enforced by `family_cfo_api/audit.py` and asserted by tests). M9 audits the mutations it introduces; extending coverage to the other existing mutation points (auth login, pairing, imports apply/discard, reports, backups) is a tracked backlog follow-up.
+`audit_events` (M9) records a non-sensitive row for every sensitive mutation made through the write APIs (account/transaction/bill/income CRUD, membership changes, household bootstrap): `actor_user_id`, `action` (e.g. `account.created`), `entity_type`, `entity_id`, and a short `summary`. Audit rows are `Internal` per the security model and must never contain `Restricted`/`Sensitive` values — no amounts, balances, passwords, or tokens (enforced by `family_cfo_api/audit.py` and asserted by tests). Coverage has since been extended to **every** mutation: `audit.write_audit` refuses an unclassified action, and each state-changing action records an `undo_token` (columns added in `0056`) so it can be reversed from the Activity log ([ADR 0023](../docs/adr/0023-every-mutation-is-undoable.md)); `reverted_at` marks one that has been undone.

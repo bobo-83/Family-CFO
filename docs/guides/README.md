@@ -14,6 +14,9 @@ design specs and decisions, see the [Spec Kit](../specs/README.md) and
   opt-in config, and how to confirm the model actually engaged).
 - [Backup and Restore](./backup-and-restore.md) — the encryption key, taking
   backups, restoring, and the version-match requirement.
+- [Tax Parameter Updates](./tax-parameter-updates.md) — refreshing the
+  brackets, standard deductions, and filing-status constants the tax estimator
+  uses when a new tax year lands.
 - [Security Hardening](./security.md) — TLS, sessions, roles, auditing, data at
   rest, secrets, and the operator responsibilities checklist.
 - [Troubleshooting](./troubleshooting.md) — common startup and operating
