@@ -51,6 +51,22 @@ def _parse_iso_or_us_date(value: object) -> date | None:
     return None
 
 
+def _scan_number(value: object) -> float | None:
+    """A number the model reported, whether as a JSON number or a string like
+    "5.5%" or "$3,816.36". Unparseable values become None — never a guess."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.strip().replace("$", "").replace(",", "").rstrip("%").strip()
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
+
+
 def parse_loan_scan(text: str) -> LoanScanResult:
     """Defensive parse of the vision model's loan/lease extraction (candidates only).
 
@@ -73,16 +89,12 @@ def parse_loan_scan(text: str) -> LoanScanResult:
         )
 
     def money_minor(key: str) -> int | None:
-        value = data.get(key)
-        if isinstance(value, (int, float)) and value > 0:
-            return int(round(float(value) * 100))
-        return None
+        value = _scan_number(data.get(key))
+        return int(round(value * 100)) if value is not None and value > 0 else None
 
     def positive_int(key: str) -> int | None:
-        value = data.get(key)
-        if isinstance(value, int) and value > 0:
-            return value
-        return None
+        value = _scan_number(data.get(key))
+        return int(value) if value is not None and value > 0 else None
 
     monthly = money_minor("monthly_payment")
     payoff = money_minor("payoff_balance")
@@ -117,7 +129,7 @@ def parse_loan_scan(text: str) -> LoanScanResult:
             f"payment. " + base_note
         )
 
-    apr = data.get("apr")
+    apr = _scan_number(data.get("apr"))
     return LoanScanResult(
         name=str(data["lender"])[:120] if data.get("lender") else None,
         monthly_payment_minor=monthly,
@@ -125,7 +137,7 @@ def parse_loan_scan(text: str) -> LoanScanResult:
         payments_remaining=remaining,
         maturity_date=maturity_date,
         next_payment_due_date=payment_due_date,
-        apr_percent=float(apr) if isinstance(apr, (int, float)) and 0 <= apr < 100 else None,
+        apr_percent=apr if apr is not None and 0 <= apr < 100 else None,
         is_lease=is_lease,
         note=note,
     )
