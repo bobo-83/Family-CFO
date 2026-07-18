@@ -81,3 +81,21 @@ def test_scan_reads_the_next_payment_due_date() -> None:
 
     none = parse_loan_scan('{"monthly_payment": 78.01}')
     assert none.next_payment_due_date is None
+
+def test_scan_accepts_numbers_reported_as_strings() -> None:
+    """The vision model sometimes returns a rate or amount as text ("5.5%",
+    "$3,816.36") — parse those too rather than dropping them."""
+    result = parse_loan_scan(
+        '{"lender": "Aidvantage", "monthly_payment": "78.01", '
+        '"payoff_balance": "$3,816.36", "apr": "5.5%", "is_lease": false}'
+    )
+    assert result.monthly_payment_minor == 78_01
+    assert result.balance_minor == 3_816_36
+    assert result.apr_percent == 5.5
+
+
+def test_scan_leaves_apr_none_when_absent_never_guesses() -> None:
+    """No rate on the statement -> apr stays None (0 in the UI); we never invent
+    an interest rate, since it would corrupt payoff estimates."""
+    result = parse_loan_scan('{"monthly_payment": 78.01, "payoff_balance": 3816.36}')
+    assert result.apr_percent is None
