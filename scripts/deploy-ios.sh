@@ -142,6 +142,10 @@ fi
 # increasing, so over-the-top installs never fight a stale build number).
 APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
+# M121: the Apple Developer team is NOT committed (the project ships with an
+# empty DEVELOPMENT_TEAM); a device build supplies your own from IOS_TEAM_ID
+# (set it in .deploy.env). Simulator test runs don't need it.
+: "${IOS_TEAM_ID:?set IOS_TEAM_ID to your Apple Developer team id (see .deploy.env.example)}"
 log "Building ${IOS_SCHEME} (${IOS_CONFIG}) v${APP_VERSION} (${BUILD_NUMBER}) for the device…"
 xcodebuild build \
   -project "$IOS_PROJECT" \
@@ -150,6 +154,7 @@ xcodebuild build \
   -destination "id=${DEVICE_UDID}" \
   -derivedDataPath "$DERIVED" \
   -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
   MARKETING_VERSION="$APP_VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   -quiet \
