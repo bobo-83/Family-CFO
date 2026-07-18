@@ -50,6 +50,22 @@ struct MainTabView: View {
                     }
                     .badge(reviewModel.reviewCount)
                 }
+                // Budgets and goals are money screens, not settings — first-class
+                // tabs, matching the web dashboard's "Money" nav (ADR 0025 parity).
+                if let budgetsAPI = model.budgetsAPI {
+                    Tab("Budgets", systemImage: "chart.pie") {
+                        NavigationStack {
+                            BudgetsView(viewModel: BudgetsViewModel(api: budgetsAPI))
+                        }
+                    }
+                }
+                if let goalsAPI = model.goalsAPI {
+                    Tab("Goals", systemImage: "target") {
+                        NavigationStack {
+                            GoalsView(viewModel: GoalsViewModel(api: goalsAPI))
+                        }
+                    }
+                }
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
@@ -116,26 +132,6 @@ struct SettingsView: View {
                     Text("Server")
                 } footer: {
                     Text("Away from home, connect through your household's own VPN or tailnet — the server is never exposed to the internet.")
-                }
-                if model.rolePolicy.canEditFinances, let budgetsAPI = model.budgetsAPI {
-                    Section {
-                        NavigationLink {
-                            BudgetsView(viewModel: BudgetsViewModel(api: budgetsAPI))
-                        } label: {
-                            Label("Budgets", systemImage: "chart.pie")
-                        }
-                        if let goalsAPI = model.goalsAPI {
-                            NavigationLink {
-                                GoalsView(viewModel: GoalsViewModel(api: goalsAPI))
-                            } label: {
-                                Label("Goals", systemImage: "target")
-                            }
-                        }
-                    } header: {
-                        Text("Money")
-                    } footer: {
-                        Text("Budget envelopes and savings goals — the Overview's cards drill into the same screens.")
-                    }
                 }
                 if model.rolePolicy.isOperator {
                     Section {
