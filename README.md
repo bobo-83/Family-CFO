@@ -17,27 +17,25 @@ Family CFO should behave like a trusted family Chief Financial Officer available
 
 Sensitive financial information remains under the user's control. No bank statements, bills, credentials, investment data, tax documents, spending history, or AI reasoning should require a third-party cloud service.
 
-## Repository Status
+## Project Status
 
-This repository is intentionally starting with specifications before implementation.
+Family CFO is a built, deployable product (current version in [`VERSION`](./VERSION)).
+It ships:
 
-The first development gate is the Spec Kit:
+- a **FastAPI backend** (~100 endpoints) with a deterministic financial engine,
+  bank sync + dedupe, an agentic local-LLM advisor, budgets, goals, bills, a
+  payment timeline, a 30-day cash outlook and month spending plan, income & tax
+  estimation, backups (local and off-box), and a full undo/audit framework —
+  every mutation is reversible ([ADR 0023](./docs/adr/0023-every-mutation-is-undoable.md));
+- an **Angular dashboard** and a **SwiftUI iPhone app** at feature parity
+  ([ADR 0025](./docs/adr/0025-cross-client-feature-parity.md)), both generated
+  from one OpenAPI contract;
+- **spec-driven development**: the [Spec Kit](./docs/specs/README.md) (PRD, ADRs,
+  domain model, OpenAPI, DB schema, security, AI orchestration, mobile/web/docker
+  specs, roadmap) is written and kept current alongside the code, and every
+  non-trivial decision is recorded as an [ADR](./docs/adr/).
 
-1. PRD
-2. ADRs
-3. Domain Model
-4. OpenAPI
-5. Database Schema
-6. Security Model
-7. AI Orchestration
-8. Mobile Spec
-9. Angular Dashboard Spec
-10. Docker Spec
-11. Milestone Roadmap
-
-Implementation should begin only after these documents are reviewed and accepted.
-
-Project tasks are tracked in [docs/specs/12-implementation-tasks.md](./docs/specs/12-implementation-tasks.md).
+Operator and developer guides live in [docs/guides](./docs/guides/README.md).
 
 ## Monorepo Layout
 
@@ -48,16 +46,20 @@ apps/
   api/                 FastAPI backend
 
 services/
-  ai-orchestrator/     LLM runtime abstraction and tool orchestration
+  ai-orchestrator/     LLM runtime abstraction, vision, and guardrails
   financial-engine/    Deterministic financial calculations
-  ocr-worker/          OCR and document processing workers
-  scheduler/           Scheduled jobs and reports
+  ocr-worker/          OCR / document text extraction (Tesseract)
+  scheduler/           Retry/interval job runner
+  backup/              Backup adapters + Fernet encryption
+  model-manager/       On-box model download/apply sidecar
 
 docker/                Docker Compose and container assets
 database/              Database schema and migrations
 shared/                Shared schemas, OpenAPI, generated client sources
 docs/                  Product, architecture, security, and workflow specs
 ```
+
+`apps/api` depends on all six service packages.
 
 ## Architectural Principles
 
@@ -67,8 +69,10 @@ docs/                  Product, architecture, security, and workflow specs
 - Explainable AI: every recommendation must include assumptions, tradeoffs, alternatives, and confidence.
 - Replaceable components: AI runtime, vector database, OCR, authentication, and financial modules use clean interfaces.
 - API as source of truth: SwiftUI and Angular clients generate from the same OpenAPI contract.
+- Reversible by default: every state-changing action is undoable from the Activity log ([ADR 0023](./docs/adr/0023-every-mutation-is-undoable.md)).
+- One version everywhere: the monorepo ships a single [`VERSION`](./VERSION), verified at `/health` and in each client ([ADR 0029](./docs/adr/0029-monorepo-version.md)); no personal identifiers live in the repo ([ADR 0030](./docs/adr/0030-no-personal-identifiers.md)).
 
-## Planned Runtime Stack
+## Runtime Stack
 
 - iPhone app: SwiftUI, Face ID, Vision Framework, Foundation Models where available.
 - Desktop dashboard: Angular.
