@@ -29,6 +29,7 @@ struct LoanDraft {
     var monthlyPaymentMinor: Int64
     var aprPercent: Double?
     var maturityDate: String?  // ISO "yyyy-MM-dd", the loan/lease end date
+    var nextPaymentDueDate: String?  // ISO "yyyy-MM-dd", next payment due (ADR 0033)
 }
 
 struct LiveDebtsAPI: DebtsAPI {
@@ -54,7 +55,8 @@ struct LiveDebtsAPI: DebtsAPI {
             // for its monthly payment to be counted as committed in safe-to-spend.
             annualInterestRate: draft.aprPercent ?? 0,
             minimumPayment: .init(amountMinor: draft.monthlyPaymentMinor, currency: draft.currency),
-            maturityDate: draft.maturityDate
+            maturityDate: draft.maturityDate,
+            nextPaymentDueDate: draft.nextPaymentDueDate
         )
         let created: Components.Schemas.Account
         switch try await client.createAccount(.init(body: .json(request))) {
@@ -94,7 +96,8 @@ struct LiveDebtsAPI: DebtsAPI {
             _type: draft.type,
             annualInterestRate: draft.aprPercent ?? 0,
             minimumPayment: .init(amountMinor: draft.monthlyPaymentMinor, currency: draft.currency),
-            maturityDate: draft.maturityDate
+            maturityDate: draft.maturityDate,
+            nextPaymentDueDate: draft.nextPaymentDueDate
         )
         switch try await client.updateAccount(.init(path: .init(accountId: id), body: .json(request))) {
         case .ok:
