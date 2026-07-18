@@ -73,8 +73,16 @@ a real certificate.
 
 ## 3. Create your household (first run)
 
-There is no public sign-up. Create the first household and its owner with one
-call (replace the values):
+Open the dashboard (`https://localhost:8443/`, or your box's address). On a fresh
+instance the login page offers a **“create a new household”** link → the
+**Create your household** screen. Enter the owner's name, email, and password
+plus the household name and base currency; it creates the household, signs you
+in, and lands on the Overview.
+
+There is no *public* sign-up: once the first household exists, that screen is
+closed unless `FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS=true` is set (multi-tenant is
+off by default). For a scripted / headless first run you can call the same
+endpoint the screen uses:
 
 ```bash
 curl -sk -X POST https://localhost:8443/api/v1/households \
@@ -88,10 +96,10 @@ curl -sk -X POST https://localhost:8443/api/v1/households \
   }'
 ```
 
-Then log in at the dashboard with that email and password. From **Users &
-Devices** you can add adult/viewer/child members; from **Accounts**,
-**Transactions**, **Bills**, and **Income** you can enter your financial data
-(or import a CSV from **Imports**).
+Once signed in: add adult/viewer/child members from the **Users** page (pair
+phones from **Devices**); enter your financial data from **Accounts**,
+**Transactions**, **Bills**, **Loans**, and **Income & Tax** (or import a CSV
+from **Imports**).
 
 ## 4. AI runtime and optional services
 
@@ -130,6 +138,11 @@ TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 `patch.sh` never rebuilds `vllm` or `db` and never removes a volume, so the
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
+
+Building the iPhone app (`patch.sh ios`, or `scripts/deploy-ios*.sh`) needs your
+Apple Developer team — the project ships with an empty `DEVELOPMENT_TEAM`, so set
+`IOS_TEAM_ID` (in `.deploy.env`) and the scripts inject it at build time (ADR
+0030; simulator test runs need none).
 
 ## SSH setup (once per machine)
 

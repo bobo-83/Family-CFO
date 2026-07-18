@@ -39,6 +39,32 @@ deletes anything.
   ```
 - **Automatically** — the worker runs a backup once a day.
 
+## Off-box backup to a Synology (SMB)
+
+A backup that only lives in the `backups` volume dies with the box. Family CFO
+can also push each encrypted archive straight to a **Synology (or any SMB share)**
+— no host mounting required; the box uploads over SMB itself. Owner only, on the
+dashboard **Backups** page (and the iOS app — same capability on both, M98/M99).
+
+On the Synology: enable SMB, create a shared folder, and give a user read/write.
+Then fill in the **Off-box backup — Synology (SMB)** card (settings save as you
+edit):
+
+- **Synology address** (e.g. `192.168.1.50`) and **Shared folder** (e.g.
+  `family-cfo-backups`); optional **Subfolder**.
+- **Username** / **Password** — the password is encrypted on the box and never
+  shown again (leave blank later to keep the saved one); optional **Domain**
+  (default `WORKGROUP`).
+- **Schedule** — Daily, Weekly, or Off (this governs the off-box copy).
+- **Max total size (GB)** — prune the share to this budget; `0` = no limit.
+- **Test connection** verifies the address, share, and credentials before you
+  rely on it (`POST /api/v1/backups/destination-check`).
+
+Each backup then shows its off-box result: **“copied to Synology”** on success,
+or the SMB error on failure — and a failed off-box copy raises a notification so
+it doesn't fail silently. The credentials and schedule live on
+`GET/PUT /api/v1/backups/config`.
+
 ## Restoring
 
 Restore is **destructive**: it replaces the entire current database and staging
@@ -49,6 +75,12 @@ tree with the backup's contents. Owner only.
   curl -sk -X POST https://localhost:8443/api/v1/backups/<backup-id>/restore \
     -H "authorization: Bearer <owner-token>"
   ```
+- **From the Synology**, when the local volume is gone (a fresh box, disk loss):
+  the **Restore from Synology** list shows the archives found on the share,
+  newest first — pick one to restore. Backed by `GET /api/v1/backups/remote` and
+  `POST /api/v1/backups/remote/restore` (and `POST /api/v1/backups/remote/delete`
+  to remove one from the share). You still need the same **encryption key** — the
+  archive on the Synology is encrypted with it.
 
 A restore also rolls back the `backup_jobs` bookkeeping to its state at the
 moment the backup was taken — so the restored-from row shows `running`, not

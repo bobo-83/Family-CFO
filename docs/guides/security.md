@@ -86,6 +86,10 @@ action, entity, summary — never amounts, passwords, or tokens). Read it via
 - All configuration/secrets come from `.env` (gitignored). Only `.env.example`
   (placeholders) is committed. Nothing secret is baked into an image.
 - CI runs gitleaks (secret scanning) and pip-audit (dependency vulnerabilities).
+- No personal identifiers or environment specifics in the repo (Apple team ids,
+  real private IPs, home paths) — enforced by `scripts/check-repo-hygiene.sh` in
+  CI and a pre-commit hook (ADR 0030). List your own literals to block locally in
+  a gitignored `.repo-hygiene-deny`.
 
 ## Logging and privacy
 
