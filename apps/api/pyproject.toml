@@ -31,7 +31,7 @@ dependencies = [
   # just the user's credentials — no host CIFS mount or container privileges.
   "smbprotocol>=1.12,<2",
   "SQLAlchemy>=2.0,<2.1",
-  "uvicorn[standard]>=0.30,<0.51",
+  "uvicorn[standard]>=0.30,<0.52",
 ]
 
 [project.optional-dependencies]
