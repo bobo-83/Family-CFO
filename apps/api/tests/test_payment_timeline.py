@@ -235,3 +235,21 @@ def test_loan_without_a_matching_bill_is_still_shown(demo_engine: Engine) -> Non
 
     obligations = finance_service.recurring_liability_obligations(demo_engine, HH, "USD")
     assert any(o.account_id == loan.id for o in obligations)
+
+
+def test_loan_with_a_stored_statement_due_date_uses_it(demo_engine: Engine) -> None:
+    """ADR 0033: a due date read off a statement (or set by hand) is authoritative —
+    the loan shows that exact day instead of 'Due date unknown', even with no
+    payment history on the account to infer from."""
+    _checking(demo_engine)
+    due = TODAY + timedelta(days=5)
+    loan = repository.create_account(
+        demo_engine, HH, name="U.S. Department of Education",
+        account_type="student_loan", currency="USD", minimum_payment_minor=7_801,
+        next_payment_due_date=due,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)
+
+    item = _items(demo_engine)["U.S. Department of Education"]
+    assert item.due_date == due
+    assert item.status == "due_soon"  # within the 14-day window, from the stored date
