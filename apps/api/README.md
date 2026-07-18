@@ -4,15 +4,38 @@ FastAPI backend for Family CFO.
 
 Responsibilities:
 
-- Source-of-truth backend API
-- Authentication and pairing
-- Financial context persistence
-- Chat and recommendation endpoints
-- Report orchestration
-- Import workflows
-- OpenAPI generation
+- Source-of-truth backend API (auth, pairing, member/role management)
+- Financial context persistence: accounts, transactions, bills & payment
+  timeline, budgets, categories, goals, income & tax, net worth
+- Bank connections + sync and dedupe; imports (CSV/OFX/QFX)
+- The agentic advisor (chat, tool-calling, vision) and AI-runtime management
+- Backups (local + off-box SMB), the audit log, and the undo framework
+- Reports and household memory
+- OpenAPI generation and the implemented-route contract check
 
-SwiftUI and Angular clients should generate from the same OpenAPI contract.
+SwiftUI and Angular clients generate from the same OpenAPI contract.
+
+## Current status and the full endpoint surface
+
+This backend is built through the current [`VERSION`](../../VERSION); `/health`
+reports it (sourced from the repo `VERSION` file, [ADR 0029](../../docs/adr/0029-monorepo-version.md)).
+
+The **authoritative, complete endpoint list is the OpenAPI contract**,
+[`shared/openapi/family-cfo.v1.yaml`](../../shared/openapi/family-cfo.v1.yaml)
+(~100 operations across `src/family_cfo_api/api/*.py`). The per-milestone
+sections below are the historical scope log and **do not cover every route** —
+notably these later additions:
+
+- **Bills** — `GET /bills/timeline` (payment timeline, [ADR 0024](../../docs/adr/0024-bills-payment-timeline.md)), suggestions + dismissals.
+- **Overview** — `GET /overview/cash-outlook` ([ADR 0026](../../docs/adr/0026-overview-cash-outlook.md)) and `GET /overview/spending-plan` ([ADR 0027](../../docs/adr/0027-month-spending-plan.md)).
+- **Goals** — `PATCH`/`DELETE /goals/{id}` with a planned `monthly_contribution`.
+- **Undo** — `POST /audit/{id}/undo` ([ADR 0023](../../docs/adr/0023-every-mutation-is-undoable.md)); every mutation records a reversal token.
+- **Scans** — loan statement + W-2 scan (`scan-statement`, `income/profile/scan-w2`), which also accept pasted images ([ADR 0028](../../docs/adr/0028-statement-inputs-accept-paste.md)).
+- **Whole modules** not in the log below: `budgets`, `categories`, `connections`, `memories`, `voice` (TTS), `income_analysis`, and the expanded `backups` (`/config`, `/remote`, `/encryption-key`, `/destination-check`).
+
+"Not included in this milestone" notes below describe the state **at that
+milestone**. Several are now shipped — e.g. the Angular Transactions, Imports,
+Reports, Backups, and chat pages all exist today (see `apps/web/README.md`).
 
 ## M1 Scope
 
@@ -122,7 +145,7 @@ Implemented:
 - CSV imports are parsed and written to `transactions` with `review_state = "pending"`; malformed rows are skipped and counted (`skipped_row_count`), not fatal. A row matching an existing transaction on `(account_id, occurred_at, amount_minor)` is still inserted, flagged `possible_duplicate = true` for a human to resolve — never silently dropped.
 - `POST /api/v1/imports/{id}/apply` (`owner`/`adult`) marks that import's pending transactions reviewed; `POST /api/v1/imports/{id}/discard` (`owner`/`adult`) deletes them. Both are scoped to the import via `transactions.import_id`, not "every pending transaction in the household."
 - PDF imports extract raw text via `family_cfo_ocr_worker.PdfTextExtractionAdapter` (real, `pypdf`-based) into a linked `document_extractions` row for human review; they do **not** automatically create transactions — only CSV does.
-- `POST /api/v1/documents` (multipart) is a synchronous single-document extraction endpoint (no worker hop) for receipts/PDFs uploaded outside the import flow. PDFs use the same real adapter; images use `family_cfo_ocr_worker.DeterministicOcrAdapter`, which has **no real OCR engine wired up** — every image upload returns a fixed `confidence = 0.0` "not available" result today. `GET /api/v1/documents` lists uploads with their extraction.
+- `POST /api/v1/documents` (multipart) is a synchronous single-document extraction endpoint (no worker hop) for receipts/PDFs uploaded outside the import flow. PDFs use the same real adapter; images use `family_cfo_ocr_worker`'s adapter — since M34 a real **Tesseract** engine (`TesseractOcrAdapter`) is selected automatically when the `tesseract` binary is present (it is, in the Docker image), with the deterministic adapter as the test fallback. `GET /api/v1/documents` lists uploads with their extraction.
 - `family-cfo-worker`: a separate long-running process (not started by the API server) that polls for pending imports every 30 seconds and processes them, with bounded retry (3 attempts, then `status = "failed"`) via `family_cfo_scheduler`.
 
 Not implemented in M7:
@@ -303,9 +326,12 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0"
+  "version": "0.119.0"
 }
 ```
+
+The `version` is read from the monorepo [`VERSION`](../../VERSION) file (an env
+override wins); it is not hand-maintained here ([ADR 0029](../../docs/adr/0029-monorepo-version.md)).
 
 Run the background worker (a separate process from the API server) — polls for pending imports every 30 seconds, weekly/monthly reports hourly, and runs a backup once a day:
 
@@ -364,7 +390,13 @@ Override the database URL without committing secrets:
 FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family_cfo make migrate
 ```
 
-M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`); M15 adds `annual` to the reports type check (`0030`). `make migrate` applies all of them.
+M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`); M15 adds `annual` to the reports type check (`0030`). Migrations continue through
+the current head — **`0058_goal_contribution`** (goal `monthly_contribution`) —
+covering later work such as net-worth snapshots, budgets, safe-to-spend, the M97
+duplicate-review flag, the M98 off-box backup destination / SMB credentials /
+size cap, transaction notes & attachments, and audit-undo (`0056`/`0057`). `ls
+database/migrations/versions/` is the authoritative list; `make migrate` applies
+all of them.
 
 Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
 

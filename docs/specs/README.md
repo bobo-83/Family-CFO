@@ -22,11 +22,18 @@ Implementation tasks are tracked in [Implementation Tasks](./12-implementation-t
 
 ## Acceptance State
 
-**Release 0.2.0** — M1–M32 implemented and verified: the full agentic advisor
-(local models, vision, live data, memory, attribution), model ops (picker,
-one-click apply, hardware planning), bank sync with dedupe, redesigned mobile
-dashboard, turnkey deployment, and layered security hardening. Deferrals are
-documented in `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
+Current version: see [`VERSION`](../../VERSION) (0.119.0 at time of writing). The
+product is built well beyond the original spec baseline — the full agentic
+advisor (local models, vision, live data, memory, attribution), bank sync +
+dedupe, the SwiftUI app and Angular dashboard at parity ([ADR 0025](../adr/0025-cross-client-feature-parity.md)),
+the Bills payment timeline, cash outlook and month spending plan, budgets, goals,
+loans, income & tax, backups (local + off-box), and a full undo/audit framework
+([ADR 0023](../adr/0023-every-mutation-is-undoable.md)). Decisions through
+**ADR 0030** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
+`docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
+
+The per-milestone log below is historical (it starts at M0 and does not run to
+the current milestone); the ADR index and `VERSION` are the current-state source.
 
 - M0 repository and specification baseline: accepted.
 - M1 backend skeleton: accepted for implementation.

@@ -42,13 +42,13 @@ Only `web` is reachable from outside the Docker network. The database, API, and 
 
 - **model-manager** — THE one privileged sidecar (ADR 0013): Docker socket + project mount, exposing a single validated operation (swap served models via `scripts/swap-model.sh`) so the dashboard's **Apply** button works. Internal network only, never published; the owner-gated API is its only caller. Remove with `--scale model-manager=0` to fall back to the CLI swap flow.
 
-- **searxng** (`--profile search`) — optional self-hosted metasearch powering the chat `web_search` tool (live prices/public facts, ADR 0014). Set `FAMILY_CFO_SEARXNG_URL=http://searxng:8080` when enabled; without it the tool simply isn't offered to the model.
+- **searxng** — self-hosted metasearch powering the chat `web_search` tool (live prices/public facts, ADR 0014). On by default; `FAMILY_CFO_SEARXNG_URL` defaults to `http://searxng:8080`. Remove with `--scale searxng=0` and the tool simply isn't offered to the model.
 
-- **qdrant** (`--profile vector`) — a vector store matching `docs/specs/10-docker-spec.md`'s planned `family-cfo-vector` container. **Nothing connects to it yet** — retrieval/embeddings are tracked backlog (`docs/specs/12-implementation-tasks.md`). It is honest scaffolding, off unless explicitly enabled.
+- **qdrant** — a vector store (ADR 0017) with `qdrant_data` + `embedding_cache` volumes. On by default; retrieval/embeddings wiring is still limited, so treat it as scaffolding. Remove with `--scale qdrant=0`.
 
-  ```bash
-  docker compose --profile vector up -d
-  ```
+- **tts** — on-box Kokoro text-to-speech for spoken advisor replies (M87a, ADR 0018); the iOS app falls back to a system voice if it's off. Remove with `--scale tts=0`.
+
+- **prometheus + node-exporter + grafana** — the monitoring stack. Grafana dashboards are served under `/grafana/` behind the same TLS as the dashboard; Prometheus scrapes the API and host metrics. Remove the trio with `--scale prometheus=0 --scale grafana=0 --scale node-exporter=0` if you don't want it.
 
 ## Local Development
 
@@ -65,8 +65,14 @@ Persistent named volumes (per `docs/specs/10-docker-spec.md`):
 - `postgres_data` — PostgreSQL data.
 - `import_staging` — uploaded import/document files, shared by `api` and `worker`.
 - `backups` — encrypted backup archives, shared by `api` and `worker`.
-- `model_cache` — vLLM model cache (used by the `vllm` service).
-- `qdrant_data` — Qdrant storage (only used with `--profile vector`).
+- `model_cache` — vLLM model cache; `embedding_cache` — fastembed model cache.
+- `qdrant_data` — Qdrant storage.
+- `web_certs` — the web tier's TLS cert/key.
+- `ios_ota` — published OTA iOS build (served at `/ota/`).
+- `prometheus_data`, `grafana_data` — monitoring state.
+
+The `api` and `worker` also bind-mount the host's `/mnt` (rslave) so off-box
+backups can write to a mounted Synology/SMB share (M98).
 
 ## Secrets
 
@@ -75,9 +81,15 @@ All configuration comes from the gitignored `.env` (see `.env.example`) — noth
 - `POSTGRES_PASSWORD` — required; the stack refuses to start without it.
 - `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` — required for backups (generate with `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`). Losing it makes existing backups unrecoverable.
 
-## Not Included (Future Containers)
+## Not Included
 
-Reverse proxy, TLS/HTTPS termination, monitoring, and a dedicated backup sidecar are `docs/specs/10-docker-spec.md`'s "Future Containers" and remain Release-Readiness work. The `web` container serves plain HTTP — front it with your own TLS reverse proxy until the HTTPS milestone lands.
+The `web` container already terminates **HTTPS** (self-signed by default; mount a
+real cert into `web_certs`, or front with your own proxy — see the TLS section
+above), and the **monitoring** stack (prometheus/node-exporter/grafana) ships.
+Automated public-CA issuance (ACME/Let's Encrypt) is intentionally left to an
+external reverse proxy, and there is no dedicated backup *sidecar* — backups run
+in the API/worker image and write to the `backups` volume (and, optionally,
+off-box over SMB).
 
 ## Images
 

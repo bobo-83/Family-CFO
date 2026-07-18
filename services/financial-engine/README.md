@@ -26,14 +26,18 @@ Implemented as the `family_cfo_financial_engine` package:
 - `calculate_emergency_fund_months`: divides liquid balance by monthly essential expenses; returns `None` with a warning when expenses are zero or negative.
 - `calculate_goal_progress`: computes remaining amount, percent complete, and (given a monthly contribution) months to completion for a single goal.
 
-Retirement projections are not implemented yet.
+`calculate_retirement_projection` (`RetirementInput`) is implemented and exported.
+Beyond the M1–M4 primitives below, the engine also provides
+`calculate_safe_to_spend` (`SafeToSpendInputs`, including the subscription-forecast
+term) and the tax estimator (`estimate_annual_tax`, `gross_up_from_net`,
+`FILING_STATUSES`, `TAX_YEAR`).
 
 ## M3 Scope
 
 - `calculate_purchase_impact`: models a one-time cash purchase against `PurchaseImpactInputs` (price, net worth, liquid balance, monthly essential expenses, discretionary cash flow, liability total, and an optional top-priority `GoalInput`). It composes `calculate_emergency_fund_months` and `calculate_goal_progress` rather than duplicating their logic, and returns before/after net worth, before/after emergency fund months, discretionary-cash-flow months consumed, and — only when a top goal is supplied — that goal's opportunity-cost percentage.
-- The purchase advisor API does not yet call `calculate_debt_payoff` (see below): when the household carries any liability balance, its result includes a warning that debt payoff impact cannot be computed, since M2's `accounts` schema has no interest rate or payment schedule columns to calculate it from. This is tracked in "Backlog: Debt Payoff and Retirement Projections" in `docs/specs/12-implementation-tasks.md`.
+- `accounts` now persists `annual_interest_rate` and `minimum_payment_minor` (migration `0029`), so debt terms are available; the debt-payoff outlook is computed from them (`finance_service.compute_debt_outlook`). A liability with no recorded terms is surfaced as "unmodeled" rather than guessed.
 - A purchase price greater than the supplied liquid balance produces a warning instead of a hard failure; the caller decides how to surface that.
-- `calculate_debt_payoff`: simulates monthly amortization for a single debt given `DebtInput` (balance, annual interest rate, minimum payment, optional extra payment), returning months to payoff and total interest paid. It has no database dependency — inputs are supplied directly by the caller, so it is fully unit tested today with mocked/synthetic `DebtInput` values even though no account persists interest rate or payment data yet. When the payment doesn't cover accruing interest, or payoff would take more than 100 years, it returns `None` for both outputs with a warning instead of an incorrect number.
+- `calculate_debt_payoff`: simulates monthly amortization for a single debt given `DebtInput` (balance, annual interest rate, minimum payment, optional extra payment), returning months to payoff and total interest paid. It has no database dependency — inputs are supplied directly by the caller, so it is fully unit tested with synthetic `DebtInput` values (accounts now persist rate and payment via migration `0029`). When the payment doesn't cover accruing interest, or payoff would take more than 100 years, it returns `None` for both outputs with a warning instead of an incorrect number.
 - `calculate_future_value`: grows a lump sum (`FutureValueInput`: present value, annual return rate, whole years) at a constant rate compounded annually, returning `future_value` and `growth`. Used for opportunity-cost questions — what an amount could become if invested rather than spent. Added for the M16 agentic advisor.
 
 ## Assumptions and Limitations
