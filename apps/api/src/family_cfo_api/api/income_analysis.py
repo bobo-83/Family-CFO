@@ -20,8 +20,8 @@ from family_cfo_financial_engine import (
     gross_up_from_net,
 )
 
-from family_cfo_api import audit, finance_service, income_detection, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, finance_service, income_detection, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.finance_service import add_months
 from family_cfo_api.schemas import (
     ErrorResponse,
@@ -409,7 +409,7 @@ async def get_income_analysis(
 )
 async def create_income_earner(
     payload: IncomeEarnerCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> IncomeEarner:
     household = repository.get_household(engine, session.household_id)
@@ -461,7 +461,7 @@ async def create_income_earner(
 )
 async def delete_income_earner(
     earner_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     before = next(
@@ -577,7 +577,7 @@ def pdf_page_pngs(pdf_bytes: bytes, max_pages: int = _W2_PDF_MAX_PAGES) -> list[
 )
 async def scan_w2(
     payload: W2ScanRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> W2ScanResult:
     import base64
@@ -646,7 +646,7 @@ async def scan_w2(
 )
 async def set_income_override(
     payload: IncomeOverrideRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     previous = repository.list_income_overrides(engine, session.household_id).get(
@@ -681,7 +681,7 @@ async def set_income_override(
 )
 async def update_income_tax_settings(
     payload: IncomeTaxSettingsRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     if payload.tax_filing_status not in FILING_STATUSES:

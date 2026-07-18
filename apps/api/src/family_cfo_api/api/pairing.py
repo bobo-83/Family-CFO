@@ -7,8 +7,8 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, security
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, security
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     DeviceCredential,
     ErrorResponse,
@@ -86,7 +86,7 @@ def _to_device_schema(record: repository.PairedDeviceRecord) -> PairedDevice:
 async def create_pairing_session(
     request: Request,
     payload: PairingSessionCreateRequest = PairingSessionCreateRequest(),
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
 ) -> PairingSession:
     household = repository.get_household(engine, session.household_id)
@@ -99,9 +99,9 @@ async def create_pairing_session(
     # themselves — you can't mint owner-level access for someone else this way.
     pair_as_user_id = session.user_id
     if payload.user_id is not None and payload.user_id != session.user_id:
-        if session.role != "owner":
+        if rights.DEVICES_MANAGE not in session.rights:
             raise HTTPException(
-                status_code=403, detail="Only an owner can pair a device for another member"
+                status_code=403, detail="Pairing a device for another member needs device management"
             )
         target_role = repository.get_membership_role(
             engine, session.household_id, payload.user_id
@@ -199,6 +199,9 @@ async def confirm_pairing(
         f"Paired device '{payload.device_name}'",
     )
 
+    member_rights, role_name = repository.resolve_member_rights(
+        engine, credential.household_id, credential.user_id
+    )
     return DeviceCredential(
         device_id=credential.device_id,
         access_token=credential.access_token,
@@ -206,6 +209,8 @@ async def confirm_pairing(
         # M83: the device acts as the pairing session's creator; surfacing
         # that user's role lets the mobile app build its role-aware shell.
         role=repository.get_membership_role(engine, credential.household_id, credential.user_id),
+        role_name=role_name or None,
+        rights=sorted(member_rights),
     )
 
 
@@ -237,7 +242,7 @@ async def list_paired_devices(
 )
 async def revoke_paired_device(
     device_id: str,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.DEVICES_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     revoked = repository.revoke_paired_device(engine, session.household_id, device_id)

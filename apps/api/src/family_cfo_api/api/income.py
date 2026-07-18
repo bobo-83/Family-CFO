@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
     IncomeCreateRequest,
@@ -52,7 +52,7 @@ async def list_income_sources(
 )
 async def create_income_source(
     payload: IncomeCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> IncomeSource:
     record = repository.create_income_source(
@@ -90,7 +90,7 @@ async def create_income_source(
 async def update_income_source(
     income_id: str,
     payload: IncomeUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> IncomeSource:
     before = repository.get_income_source(engine, session.household_id, income_id)
@@ -135,7 +135,7 @@ async def update_income_source(
 )
 async def delete_income_source(
     income_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.INCOME_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     before = repository.get_income_source(engine, session.household_id, income_id)

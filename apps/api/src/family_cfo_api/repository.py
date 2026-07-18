@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
 from family_cfo_api import models
 
@@ -40,6 +41,10 @@ class SessionContext:
     user_id: str
     household_id: str
     role: str
+    # ADR 0034: the resolved rights of the member's assigned role (falls back to
+    # the legacy role's preset for un-backfilled rows). Permissions check THIS.
+    rights: frozenset[str] = frozenset()
+    role_name: str = ""
 
 
 def get_user_by_email(engine: Engine, email: str) -> UserRecord | None:
@@ -154,19 +159,41 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
                 return None
 
         role_row = conn.execute(
-            select(models.household_memberships.c.role).where(
+            select(
+                models.household_memberships.c.role,
+                models.household_memberships.c.role_id,
+            ).where(
                 models.household_memberships.c.household_id == session_row["household_id"],
                 models.household_memberships.c.user_id == session_row["user_id"],
             )
-        ).first()
+        ).mappings().first()
+
+        assigned = None
+        if role_row is not None and role_row["role_id"] is not None:
+            assigned = conn.execute(
+                select(models.roles.c.name, models.roles.c.rights_json).where(
+                    models.roles.c.id == role_row["role_id"]
+                )
+            ).mappings().first()
 
     if role_row is None:
         return None
 
+    from family_cfo_api import rights as rights_catalog
+
+    if assigned is not None:
+        member_rights = frozenset(assigned["rights_json"] or [])
+        role_name = assigned["name"]
+    else:
+        member_rights = rights_catalog.rights_for_legacy_role(role_row["role"])
+        role_name = rights_catalog.LEGACY_ROLE_TO_PRESET.get(role_row["role"], "")
+
     return SessionContext(
         user_id=session_row["user_id"],
         household_id=session_row["household_id"],
-        role=role_row[0],
+        role=role_row["role"],
+        rights=member_rights,
+        role_name=role_name,
     )
 
 
@@ -2536,6 +2563,8 @@ class MemberRecord:
     display_name: str
     role: str
     created_at: datetime
+    role_id: str | None = None
+    role_name: str = ""
 
 
 def user_email_exists(engine: Engine, email: str) -> bool:
@@ -2575,16 +2604,222 @@ def create_household_with_owner(
                 updated_at=now,
             )
         )
+        preset_ids = _seed_preset_roles(conn, household_id, now)
         conn.execute(
             insert(models.household_memberships).values(
                 id=new_id(),
                 household_id=household_id,
                 user_id=user_id,
                 role="owner",
+                role_id=preset_ids["Admin"],
                 created_at=now,
             )
         )
     return BootstrapResult(household_id=household_id, user_id=user_id, role="owner")
+
+
+# --- Roles & rights (ADR 0034) ------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class RoleRecord:
+    id: str
+    name: str
+    rights: frozenset[str]
+    built_in: bool
+    member_count: int = 0
+
+
+def _role_record_from_row(row: Any, member_count: int = 0) -> RoleRecord:
+    return RoleRecord(
+        id=row["id"],
+        name=row["name"],
+        rights=frozenset(row["rights_json"] or []),
+        built_in=bool(row["built_in"]),
+        member_count=member_count,
+    )
+
+
+def _seed_preset_roles(conn, household_id: str, now: datetime) -> dict[str, str]:
+    """Insert the built-in preset roles for a household; returns name -> id."""
+    from family_cfo_api import rights as rights_catalog
+
+    ids: dict[str, str] = {}
+    for name, preset_rights in rights_catalog.PRESET_RIGHTS.items():
+        role_id = new_id()
+        ids[name] = role_id
+        conn.execute(
+            insert(models.roles).values(
+                id=role_id,
+                household_id=household_id,
+                name=name,
+                rights_json=sorted(preset_rights),
+                built_in=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return ids
+
+
+def seed_preset_roles(engine: Engine, household_id: str) -> dict[str, str]:
+    with engine.begin() as conn:
+        return _seed_preset_roles(conn, household_id, utcnow())
+
+
+def list_roles(engine: Engine, household_id: str) -> list[RoleRecord]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(models.roles)
+            .where(models.roles.c.household_id == household_id)
+            .order_by(models.roles.c.built_in.desc(), models.roles.c.name)
+        ).mappings().all()
+        counts = dict(
+            conn.execute(
+                select(
+                    models.household_memberships.c.role_id,
+                    func.count().label("n"),
+                )
+                .where(models.household_memberships.c.household_id == household_id)
+                .group_by(models.household_memberships.c.role_id)
+            ).all()
+        )
+    return [_role_record_from_row(row, counts.get(row["id"], 0)) for row in rows]
+
+
+def get_role(engine: Engine, household_id: str, role_id: str) -> RoleRecord | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.roles).where(
+                models.roles.c.household_id == household_id, models.roles.c.id == role_id
+            )
+        ).mappings().first()
+        if row is None:
+            return None
+        count = conn.execute(
+            select(func.count()).select_from(models.household_memberships).where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.role_id == role_id,
+            )
+        ).scalar_one()
+    return _role_record_from_row(row, count)
+
+
+def get_role_by_name(engine: Engine, household_id: str, name: str) -> RoleRecord | None:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.roles).where(
+                models.roles.c.household_id == household_id, models.roles.c.name == name
+            )
+        ).mappings().first()
+    return _role_record_from_row(row) if row is not None else None
+
+
+def create_role(
+    engine: Engine, household_id: str, name: str, role_rights: set[str],
+    role_id: str | None = None, built_in: bool = False,
+) -> RoleRecord | None:
+    """None when the name is already taken in this household."""
+    role_id = role_id or new_id()
+    now = utcnow()
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                insert(models.roles).values(
+                    id=role_id,
+                    household_id=household_id,
+                    name=name,
+                    rights_json=sorted(role_rights),
+                    built_in=built_in,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+    except IntegrityError:
+        return None
+    return RoleRecord(id=role_id, name=name, rights=frozenset(role_rights), built_in=built_in)
+
+
+def update_role(
+    engine: Engine, household_id: str, role_id: str,
+    name: str | None = None, role_rights: set[str] | None = None,
+) -> bool:
+    values: dict[str, Any] = {"updated_at": utcnow()}
+    if name is not None:
+        values["name"] = name
+    if role_rights is not None:
+        values["rights_json"] = sorted(role_rights)
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.roles)
+            .where(models.roles.c.household_id == household_id, models.roles.c.id == role_id)
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def delete_role(engine: Engine, household_id: str, role_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.roles).where(
+                models.roles.c.household_id == household_id, models.roles.c.id == role_id
+            )
+        )
+    return result.rowcount > 0
+
+
+def resolve_member_rights(
+    engine: Engine, household_id: str, user_id: str
+) -> tuple[frozenset[str], str]:
+    """(rights, role_name) for a member — the assigned role's rights, or the
+    legacy role's preset for an un-backfilled row (ADR 0034)."""
+    from family_cfo_api import rights as rights_catalog
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(
+                models.household_memberships.c.role,
+                models.roles.c.name,
+                models.roles.c.rights_json,
+            )
+            .select_from(models.household_memberships)
+            .outerjoin(models.roles, models.roles.c.id == models.household_memberships.c.role_id)
+            .where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.user_id == user_id,
+            )
+        ).mappings().first()
+    if row is None:
+        return frozenset(), ""
+    if row["name"] is not None:
+        return frozenset(row["rights_json"] or []), row["name"]
+    return (
+        rights_catalog.rights_for_legacy_role(row["role"]),
+        rights_catalog.LEGACY_ROLE_TO_PRESET.get(row["role"], ""),
+    )
+
+
+def legacy_role_for(role: RoleRecord) -> str:
+    """The wire-compat legacy tier for a role: presets map exactly; a custom role
+    travels as 'adult' (the constraint's closest non-admin tier)."""
+    from family_cfo_api import rights as rights_catalog
+
+    return rights_catalog.PRESET_TO_LEGACY_ROLE.get(role.name, "adult")
+
+
+def assign_member_role(
+    engine: Engine, household_id: str, user_id: str, role: RoleRecord
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.household_memberships)
+            .where(
+                models.household_memberships.c.household_id == household_id,
+                models.household_memberships.c.user_id == user_id,
+            )
+            .values(role=legacy_role_for(role), role_id=role.id)
+        )
+    return result.rowcount > 0
 
 
 def list_members(engine: Engine, household_id: str) -> list[MemberRecord]:
@@ -2594,10 +2829,13 @@ def list_members(engine: Engine, household_id: str) -> list[MemberRecord]:
             models.users.c.email,
             models.users.c.display_name,
             models.household_memberships.c.role,
+            models.household_memberships.c.role_id,
+            models.roles.c.name.label("role_name"),
             models.household_memberships.c.created_at,
         )
         .select_from(models.household_memberships)
         .join(models.users, models.users.c.id == models.household_memberships.c.user_id)
+        .outerjoin(models.roles, models.roles.c.id == models.household_memberships.c.role_id)
         .where(models.household_memberships.c.household_id == household_id)
         .order_by(models.household_memberships.c.created_at)
     )
@@ -2610,6 +2848,8 @@ def list_members(engine: Engine, household_id: str) -> list[MemberRecord]:
             display_name=row["display_name"],
             role=row["role"],
             created_at=row["created_at"],
+            role_id=row["role_id"],
+            role_name=row["role_name"] or "",
         )
         for row in rows
     ]
@@ -2643,6 +2883,7 @@ def create_member(
     password_hash: str,
     display_name: str,
     role: str,
+    role_id: str | None = None,
 ) -> MemberRecord:
     user_id = new_id()
     now = utcnow()
@@ -2663,11 +2904,13 @@ def create_member(
                 household_id=household_id,
                 user_id=user_id,
                 role=role,
+                role_id=role_id,
                 created_at=now,
             )
         )
     return MemberRecord(
-        user_id=user_id, email=email, display_name=display_name, role=role, created_at=now
+        user_id=user_id, email=email, display_name=display_name, role=role,
+        created_at=now, role_id=role_id,
     )
 
 
@@ -2696,12 +2939,22 @@ def restore_membership(engine: Engine, household_id: str, user_id: str, role: st
         ).first()
         if existing is not None:
             return
+        from family_cfo_api import rights as rights_catalog
+
+        preset = rights_catalog.LEGACY_ROLE_TO_PRESET.get(role, "User")
+        preset_row = conn.execute(
+            select(models.roles.c.id).where(
+                models.roles.c.household_id == household_id,
+                models.roles.c.name == preset,
+            )
+        ).first()
         conn.execute(
             insert(models.household_memberships).values(
                 id=new_id(),
                 household_id=household_id,
                 user_id=user_id,
                 role=role,
+                role_id=preset_row[0] if preset_row else None,
                 created_at=utcnow(),
             )
         )

@@ -27,12 +27,15 @@ def _issue_session(
     repository.create_auth_session(
         engine, user_id, household_id, security.hash_token(token), expires_at
     )
+    member_rights, role_name = repository.resolve_member_rights(engine, household_id, user_id)
     return AuthSession(
         access_token=token,
         expires_at=expires_at,
         household_id=household_id,
         user_id=user_id,
         role=role,
+        role_name=role_name or None,
+        rights=sorted(member_rights),
     )
 
 

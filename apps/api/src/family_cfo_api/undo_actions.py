@@ -83,6 +83,10 @@ UNDO_POLICY: dict[str, str] = {
     "member.created": UNDOABLE,
     "member.removed": UNDOABLE,
     "member.role_changed": UNDOABLE,
+    # roles (ADR 0034)
+    "role.created": UNDOABLE,
+    "role.updated": UNDOABLE,
+    "role.deleted": UNDOABLE,
     # household
     "household.created": IRREVERSIBLE,  # bootstrapping the household, not an activity action
     "household.updated": UNDOABLE,
@@ -176,6 +180,27 @@ def bill_updated(before: repository.RecurringRecord) -> str:
                 "next_due_date": _iso(before.next_due_date),
                 "category_id": before.category_id,
             },
+        }
+    )
+
+
+def role_updated(before: "repository.RoleRecord") -> str:
+    return json.dumps(
+        {
+            "op": "restore",
+            "entity": "role",
+            "id": before.id,
+            "data": {"name": before.name, "rights": sorted(before.rights)},
+        }
+    )
+
+
+def role_deleted(before: "repository.RoleRecord") -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "role",
+            "data": {"id": before.id, "name": before.name, "rights": sorted(before.rights)},
         }
     )
 
@@ -599,6 +624,13 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         repository.delete_institution_connection(engine, household_id, entity_id)
     elif entity == "goal":
         repository.delete_goal(engine, household_id, entity_id)
+    elif entity == "role":
+        role = repository.get_role(engine, household_id, entity_id)
+        if role is None:
+            raise UndoError("that role no longer exists")
+        if role.built_in or role.member_count > 0:
+            raise UndoError("this role is built-in or still assigned")
+        repository.delete_role(engine, household_id, entity_id)
     else:
         raise UndoError("this action can't be undone")
 
@@ -613,6 +645,12 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
         )
     elif entity == "category":
         repository.create_category(engine, household_id, data["name"])
+    elif entity == "role":
+        if repository.create_role(
+            engine, household_id, data["name"], set(data.get("rights") or []),
+            role_id=data.get("id"),
+        ) is None:
+            raise UndoError("a role with that name already exists")
     elif entity == "account":
         repository.create_account(
             engine, household_id,
@@ -680,6 +718,14 @@ def _restore(
 ) -> None:
     if not entity_id:
         raise UndoError("this action can't be undone")
+    if entity == "role":
+        if repository.get_role(engine, household_id, entity_id) is None:
+            raise UndoError("that role no longer exists")
+        repository.update_role(
+            engine, household_id, entity_id,
+            name=data.get("name"), role_rights=set(data.get("rights") or []),
+        )
+        return
     if entity == "bill":
         repository.update_bill(
             engine, household_id, entity_id,

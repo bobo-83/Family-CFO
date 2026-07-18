@@ -10,8 +10,8 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
     Memory,
@@ -61,7 +61,7 @@ async def list_memories(
 )
 async def create_memory(
     payload: MemoryCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ADVISOR_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Memory:
     value = payload.value.strip()
@@ -102,7 +102,7 @@ async def create_memory(
 )
 async def delete_memory(
     memory_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ADVISOR_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     # Capture the fact before deleting so undo can recreate it (M110). Fetch it

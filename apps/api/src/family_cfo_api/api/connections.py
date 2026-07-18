@@ -5,9 +5,9 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, banksync, finance_service, repository, undo_actions
+from family_cfo_api import audit, banksync, finance_service, repository, rights, undo_actions
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ConnectionCreateRequest,
     ConnectionListResponse,
@@ -63,7 +63,7 @@ async def list_connections(
 async def create_connection(
     payload: ConnectionCreateRequest,
     background: BackgroundTasks,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CONNECTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> InstitutionConnection:
@@ -134,7 +134,7 @@ def _initial_sync(
 )
 async def delete_connection(
     connection_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CONNECTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     if not repository.delete_institution_connection(engine, session.household_id, connection_id):
@@ -165,7 +165,7 @@ async def delete_connection(
 )
 async def sync_connection(
     connection_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CONNECTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> ConnectionSyncResult:
@@ -201,7 +201,7 @@ def _autofile_all(engine: Engine, household_id: str) -> tuple[int, int]:
     summary="Pull the latest statements from every linked institution at once",
 )
 async def sync_all_connections(
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CONNECTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> ConnectionSyncResult:

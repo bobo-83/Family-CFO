@@ -10,7 +10,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import insert
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import models, security
+from family_cfo_api import models, repository, security
 from family_cfo_api.db import metadata
 from family_cfo_api.repository import new_id
 
@@ -57,12 +57,14 @@ def seed_demo_household(engine: Engine) -> None:
                 updated_at=now,
             )
         )
+        preset_role_ids = repository._seed_preset_roles(conn, DEMO_HOUSEHOLD_ID, now)
         conn.execute(
             insert(models.household_memberships).values(
                 id=DEMO_MEMBERSHIP_ID,
                 household_id=DEMO_HOUSEHOLD_ID,
                 user_id=DEMO_USER_ID,
                 role="owner",
+                role_id=preset_role_ids["Admin"],
                 created_at=now,
             )
         )
@@ -82,6 +84,7 @@ def seed_demo_household(engine: Engine) -> None:
                 household_id=DEMO_HOUSEHOLD_ID,
                 user_id=DEMO_VIEWER_USER_ID,
                 role="viewer",
+                role_id=preset_role_ids["Viewer"],
                 created_at=now,
             )
         )

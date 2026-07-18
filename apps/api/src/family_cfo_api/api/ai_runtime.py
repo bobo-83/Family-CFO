@@ -7,11 +7,11 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
+from family_cfo_api import audit, repository, rights, undo_actions
 from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     AiApplyRequest,
     AiHardwareProfile,
@@ -268,7 +268,7 @@ async def get_ai_hardware_profile(
 )
 async def update_ai_runtime_config(
     payload: AiRuntimeConfig,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> AiRuntimeConfig:
@@ -455,7 +455,7 @@ async def search_ai_models(
 )
 async def apply_ai_model_selection(
     payload: AiApplyRequest,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> AiSwapStatus:
