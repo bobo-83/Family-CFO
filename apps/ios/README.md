@@ -1,13 +1,14 @@
 # iOS App
 
-SwiftUI iPhone app (iOS 18+). Implements M83 (foundation), M84 + M85 (advisor
-chat with image / PDF / CSV-spreadsheet attachments), M86 + M87 (on-device
-speech, and the on-box Kokoro voice with a system-voice fallback), M88
-(Overview dashboard), M89 (receipt + W-2 camera flows), M91
-(swipe-to-categorize), M90 (review queues), and M92 (Siri, notifications, and
-the widget's code + data layer). The iOS roadmap (M83–M93) is complete; the
-widget's Xcode target is a one-time UI step documented below. Tasks:
-`docs/specs/12-implementation-tasks.md`. Spec: `docs/specs/08-mobile-spec.md`.
+SwiftUI iPhone app (iOS 18+), at feature parity with the Angular dashboard
+([ADR 0025](../../docs/adr/0025-cross-client-feature-parity.md)). It covers the
+advisor chat (image / PDF / CSV attachments, and paste), on-device + on-box
+voice, the Overview (with the cash outlook and month spending plan), the Bills
+**payment timeline**, Budgets, Goals, Debts & Loans (statement scan + paste +
+"payments left"), Categorize, review queues, receipt/W-2 capture, backups, and
+the Activity/undo log. Spec: `docs/specs/08-mobile-spec.md`.
+
+The one remaining UI-only step is the widget's Xcode target (documented below).
 
 ## Layout
 
@@ -15,21 +16,32 @@ widget's Xcode target is a one-time UI step documented below. Tasks:
 apps/ios/
   FamilyCFO/                  Xcode project (app + unit tests)
     FamilyCFO/
-      App/                    entry point, app state machine, role-aware shell
+      App/                    entry point, app state machine, role-aware tab shell
       Pairing/                QR scan/paste → confirm → POST /pairing/confirm
       Networking/             generated-client factory, cert pinning, auth middleware
       Security/               Keychain store, Face ID gate
-      Chat/                   advisor chat (M84/M85): conversations, attachments
-      Voice/                  on-device STT + spoken replies (M86), on-box voice (M87)
-      Overview/               daily-glance dashboard over GET /household (M88)
-      Camera/                 on-device receipt OCR — the photo stays home (M89)
-      Income/                 W-2 scan → confirm → add earner (M89)
-      Transactions/           swipe-to-categorize with undo (M91)
-      Review/                 bill-suggestion + deposit review queues (M90)
+      Chat/                   advisor chat: conversations, attachments, paste
+      Voice/                  on-device STT + spoken replies, on-box Kokoro voice
+      Overview/               dashboard: cash outlook, spending plan, stress test, net worth
+      Bills/                  payment timeline (bills, cards, loans) + editing
+      Budgets/                monthly per-category envelopes
+      Goals/                  savings goals + planned monthly contribution
+      Debts/                  loans & leases: editor with statement scan/paste, payments-left
+      Transactions/           Categorize (swipe-to-categorize) + transaction detail
+      Review/                 bill-suggestion + deposit review queues
+      Income/                 W-2 scan → confirm → add earner
+      Camera/                 on-device receipt OCR — the photo stays home
+      Backups/                backup settings incl. off-box Synology
+      Activity/               action history + undo
+      System/                 shared UI (clipboard paste, sync footer, version)
       APIClient/Generated/    committed generated client — DO NOT EDIT
     FamilyCFOTests/           unit tests (Swift Testing)
   openapi-generator/          SPM tool package that runs swift-openapi-generator
 ```
+
+Top-level tabs are **Advisor, Overview, Accounts, Bills, Categorize, Debts,
+Review, and More** (Settings); Budgets and Goals open from the Overview cards and
+the More tab's Money section.
 
 The app icon's master art is `shared/brand/icon.svg` (also the web
 dashboard's favicon). To regenerate the rasters after editing it:
@@ -38,10 +50,15 @@ dashboard's favicon). To regenerate the rasters after editing it:
 
 ## Deploy to a real iPhone (over WiFi)
 
+The project ships with an **empty `DEVELOPMENT_TEAM`** (no committed Apple team
+id, [ADR 0030](../../docs/adr/0030-no-personal-identifiers.md)); a device or OTA
+build injects yours from **`IOS_TEAM_ID`** (set it in `.deploy.env`). Simulator
+test runs need none.
+
 ```sh
-scripts/patch.sh ios          # build, sign, install and launch on the paired phone
-scripts/deploy-ios.sh --list  # which devices are paired, and are they reachable?
-IOS_TEST=1 scripts/patch.sh ios   # run the unit tests before shipping to the phone
+IOS_TEAM_ID=ABCDE12345 scripts/patch.sh ios   # build, sign, install, launch on the paired phone
+scripts/deploy-ios.sh --list                  # which devices are paired, and reachable?
+IOS_TEST=1 scripts/patch.sh ios               # run the unit tests first (simulator; no team needed)
 ```
 
 Runs on the Mac (Xcode lives here, not on the box). The phone must have been
