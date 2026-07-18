@@ -44,6 +44,12 @@ log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# Load .deploy.env early so persisted values (IOS_TEAM_ID, SSH_HOST) are present
+# before anything requires them. A real environment variable still wins.
+# shellcheck source=lib/deploy-env.sh
+. "$REPO_ROOT/scripts/lib/deploy-env.sh"
+load_deploy_env "$REPO_ROOT"
+
 # --- Preflight ---------------------------------------------------------------
 [ "$(uname -s)" = "Darwin" ] \
   || die "iOS deploys must run on the Mac — this host is $(uname -s), and Xcode only exists on macOS.
