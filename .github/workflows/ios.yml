@@ -21,7 +21,7 @@ jobs:
     # Xcode even though the runtime is gated with `if #available(iOS 26.0, *)`.
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Select Xcode
         # Newest Xcode on the runner rather than a pinned version, so this can't
