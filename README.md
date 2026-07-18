@@ -1,5 +1,11 @@
 # Family CFO
 
+[![Backend API](https://github.com/bobo-83/Family-CFO/actions/workflows/backend-api.yml/badge.svg)](https://github.com/bobo-83/Family-CFO/actions/workflows/backend-api.yml)
+[![Web Dashboard](https://github.com/bobo-83/Family-CFO/actions/workflows/web.yml/badge.svg)](https://github.com/bobo-83/Family-CFO/actions/workflows/web.yml)
+[![iOS App](https://github.com/bobo-83/Family-CFO/actions/workflows/ios.yml/badge.svg)](https://github.com/bobo-83/Family-CFO/actions/workflows/ios.yml)
+[![Security](https://github.com/bobo-83/Family-CFO/actions/workflows/security.yml/badge.svg)](https://github.com/bobo-83/Family-CFO/actions/workflows/security.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](./LICENSE)
+
 Privacy-first open source AI financial advisor for families.
 
 Family CFO is a self-hosted home-server application that combines a deterministic financial engine with a local reasoning model. The financial engine calculates. The LLM explains.
