@@ -63,3 +63,21 @@ def test_unreadable_output_falls_back_to_manual_entry() -> None:
 def test_json_in_code_fence_is_parsed() -> None:
     result = parse_loan_scan('```json\n{"monthly_payment": 300, "is_lease": false}\n```')
     assert result.monthly_payment_minor == 30_000
+
+def test_scan_reads_the_next_payment_due_date() -> None:
+    """ADR 0033: the loan scan now extracts the next payment due date so the editor
+    can pre-fill it (accepts ISO and US date formats)."""
+    from datetime import date
+
+    result = parse_loan_scan(
+        '{"lender": "U.S. Department of Education", "monthly_payment": 78.01, '
+        '"payoff_balance": 9500.00, "payment_due_date": "2026-08-08", '
+        '"is_lease": false}'
+    )
+    assert result.next_payment_due_date == date(2026, 8, 8)
+
+    us = parse_loan_scan('{"monthly_payment": 78.01, "payment_due_date": "08/08/2026"}')
+    assert us.next_payment_due_date == date(2026, 8, 8)
+
+    none = parse_loan_scan('{"monthly_payment": 78.01}')
+    assert none.next_payment_due_date is None

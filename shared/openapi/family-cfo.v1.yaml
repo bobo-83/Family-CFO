@@ -3533,6 +3533,7 @@ components:
         balance_minor: { type: integer }
         payments_remaining: { type: integer }
         maturity_date: { type: string, format: date }
+        next_payment_due_date: { type: string, format: date }
         apr_percent: { type: number }
         is_lease: { type: boolean }
         note: { type: string }

@@ -3742,6 +3742,8 @@ public enum Components {
             public var paymentsRemaining: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/LoanScanResult/maturity_date`.
             public var maturityDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/LoanScanResult/next_payment_due_date`.
+            public var nextPaymentDueDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/LoanScanResult/apr_percent`.
             public var aprPercent: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/LoanScanResult/is_lease`.
@@ -3756,6 +3758,7 @@ public enum Components {
             ///   - balanceMinor:
             ///   - paymentsRemaining:
             ///   - maturityDate:
+            ///   - nextPaymentDueDate:
             ///   - aprPercent:
             ///   - isLease:
             ///   - note:
@@ -3765,6 +3768,7 @@ public enum Components {
                 balanceMinor: Swift.Int? = nil,
                 paymentsRemaining: Swift.Int? = nil,
                 maturityDate: Swift.String? = nil,
+                nextPaymentDueDate: Swift.String? = nil,
                 aprPercent: Swift.Double? = nil,
                 isLease: Swift.Bool? = nil,
                 note: Swift.String
@@ -3774,6 +3778,7 @@ public enum Components {
                 self.balanceMinor = balanceMinor
                 self.paymentsRemaining = paymentsRemaining
                 self.maturityDate = maturityDate
+                self.nextPaymentDueDate = nextPaymentDueDate
                 self.aprPercent = aprPercent
                 self.isLease = isLease
                 self.note = note
@@ -3784,6 +3789,7 @@ public enum Components {
                 case balanceMinor = "balance_minor"
                 case paymentsRemaining = "payments_remaining"
                 case maturityDate = "maturity_date"
+                case nextPaymentDueDate = "next_payment_due_date"
                 case aprPercent = "apr_percent"
                 case isLease = "is_lease"
                 case note
