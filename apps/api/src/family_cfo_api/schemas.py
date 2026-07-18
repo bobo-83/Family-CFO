@@ -740,6 +740,7 @@ class LoanScanResult(BaseModel):
     balance_minor: int | None = None
     payments_remaining: int | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
     apr_percent: float | None = None
     is_lease: bool = False
     note: str
