@@ -70,8 +70,8 @@ falls back whenever a model response fails guardrail validation — by design.
 ## Reports/backups pages say I can't do something
 
 Role gating: report generation and imports need `owner`/`adult`; backups, member
-management, and the audit log need `owner`. Check your member's role under
-**Users & Devices**.
+management, and the audit log need `owner`. Check your member's role on the
+**Users** page.
 
 ## Getting more detail
 
