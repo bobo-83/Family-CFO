@@ -217,6 +217,14 @@ Every feature starts with:
 
 See [AGENTS.md](./AGENTS.md) and [docs/development/ai-agent-workflow.md](./docs/development/ai-agent-workflow.md).
 
+## Disclaimer
+
+Family CFO is **informational and educational software — not financial,
+investment, tax, or legal advice.** The advisor is a local AI model that can be
+wrong; verify anything before you act on it, and consult a qualified
+professional for decisions that matter. The software is provided "as is",
+without warranty. See [DISCLAIMER.md](./DISCLAIMER.md) for the full text.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).

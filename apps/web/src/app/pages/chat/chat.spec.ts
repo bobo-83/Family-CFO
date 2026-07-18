@@ -57,6 +57,15 @@ describe('Chat', () => {
     expect(apiMock.createChatMessage).not.toHaveBeenCalled();
   });
 
+  it('always shows the advisor disclaimer (ADR 0031)', async () => {
+    const fixture = TestBed.createComponent(Chat);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const text = fixture.nativeElement.querySelector('.chat__disclaimer')?.textContent ?? '';
+    expect(text).toContain('not financial, tax, or legal advice');
+    expect(text).toContain('verify before acting');
+  });
+
   it('sends the message with the current conversation id and appends both turns', async () => {
     apiMock.createChatMessage.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
