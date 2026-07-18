@@ -90,6 +90,7 @@ rm -rf "$ARCHIVE" "$EXPORT_DIR"
 mkdir -p "$BUILD_DIR"
 # M120 (ADR 0029): the monorepo ships ONE version — the app is stamped from the
 # repo VERSION file so it can be compared against the box's /health.
+: "${IOS_TEAM_ID:?set IOS_TEAM_ID to your Apple Developer team id (see .deploy.env.example)}"
 APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 xcodebuild archive \
@@ -101,6 +102,7 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   MARKETING_VERSION="$APP_VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+  DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
   -quiet \
   || die "Archive failed. Re-run without -quiet to see why."
 ok "Archived."
@@ -121,7 +123,7 @@ cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 <dict>
   <key>method</key><string>debugging</string>
   <key>signingStyle</key><string>automatic</string>
-  <key>teamID</key><string>${IOS_TEAM_ID:-YOUR_TEAM_ID}</string>
+  <key>teamID</key><string>${IOS_TEAM_ID}</string>
   <key>destination</key><string>export</string>
   <key>compileBitcode</key><false/>
   <key>thinning</key><string>&lt;none&gt;</string>

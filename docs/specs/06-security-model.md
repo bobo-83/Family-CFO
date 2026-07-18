@@ -96,3 +96,11 @@ Logs must avoid sensitive raw financial data, credentials, document contents, an
 ## Threat Model
 
 See `docs/security/threat-model.md`.
+
+## Repository hygiene: no personal identifiers (ADR 0030)
+
+Tracked files carry no maintainer- or deployment-specific values — Apple team
+ids, real private IPs/hostnames, personal home paths — and no secrets. These are
+supplied at build/run time (env / gitignored `.deploy.env`) or shown as
+placeholders. Enforced by `scripts/check-repo-hygiene.sh` (pattern-based; runs in
+the Security workflow and as a pre-commit hook) alongside gitleaks for secrets.

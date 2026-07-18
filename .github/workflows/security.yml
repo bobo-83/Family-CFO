@@ -26,6 +26,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # M121 (ADR 0030): personal identifiers / environment specifics must never
+      # be committed — Apple team ids, real private IPs, personal home paths.
+      - name: Check repo hygiene (no personal identifiers)
+        run: scripts/check-repo-hygiene.sh
+
   dependency-audit:
     runs-on: ubuntu-latest
     defaults:
