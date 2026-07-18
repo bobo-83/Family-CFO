@@ -1,10 +1,11 @@
 name: Commit Message
 
+# Pull-request only. The convention is enforced on the commits BEFORE they land;
+# once merged, main's tip is GitHub's own merge- or squash-commit whose message
+# it generates (no required sections, non-conventional subject) — re-validating
+# that on push is both redundant and unfixable, and only ever fails.
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 jobs:
   validate:
@@ -19,20 +20,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            base_sha="${{ github.event.pull_request.base.sha }}"
-            head_sha="${{ github.event.pull_request.head.sha }}"
-            range="$base_sha..$head_sha"
-          elif [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
-            range="${{ github.sha }}"
-          else
-            range="${{ github.event.before }}..${{ github.sha }}"
-          fi
+          range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
 
-          # Skip merge commits: GitHub generates their message ("Merge pull
-          # request #N from …"), which cannot follow the convention, and the
-          # commits they bring in were already validated on the PR. Without this,
-          # every push to main via a merged PR fails this check.
+          # Skip merge commits an intermediate merge may have pulled into the PR;
+          # GitHub generates their message, not authored to the convention.
           git rev-list --reverse --no-merges "$range" | while read -r commit_sha; do
             echo "Validating $commit_sha"
             git log --format=%B -n 1 "$commit_sha" > /tmp/commit-message.txt
