@@ -139,6 +139,11 @@ TARGET=remote SSH_HOST=box scripts/patch.sh   # patch a remote host over SSH
 multi-GB model in `model_cache` is **not** re-downloaded. The full
 `docker compose up -d --build` still works if you want to rebuild everything.
 
+Building the iPhone app (`patch.sh ios`, or `scripts/deploy-ios*.sh`) needs your
+Apple Developer team — the project ships with an empty `DEVELOPMENT_TEAM`, so set
+`IOS_TEAM_ID` (in `.deploy.env`) and the scripts inject it at build time (ADR
+0030; simulator test runs need none).
+
 ## SSH setup (once per machine)
 
 Deploys to the box authenticate with an SSH **key**. No password is ever stored,
