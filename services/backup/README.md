@@ -31,7 +31,7 @@ and persist `backup_jobs` rows.
 - No backup-key recovery or rotation mechanism. Losing the key makes existing backups permanently
   unrecoverable; this is an open threat-model question the security model already flags, not
   resolved here.
-- No encrypted Qdrant backup -- no vector database exists anywhere in this codebase yet.
+- No encrypted Qdrant backup — the `qdrant` vector store holds only regenerable embeddings, not source-of-truth data, so it is intentionally out of scope for backups (re-embed from PostgreSQL after a restore).
 
 ## Tests
 

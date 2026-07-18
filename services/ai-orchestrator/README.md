@@ -24,6 +24,14 @@ Extends the runtime seam so the local model can orchestrate the deterministic en
 - The `execute_tool` callback must never raise for bad arguments or missing facts — it returns a structured `{"error": ...}` / `{"error": "missing_input", ...}` payload that is fed back so the model corrects itself or asks the user.
 - `extract_numbers`/`validate_recommendation` are reused by the app to verify every figure in the final answer traces to a tool-call trace value (grounding), failing closed to the deterministic snapshot otherwise.
 
+## Vision (ADR 0011)
+
+- `vision.py`: `describe_image(...)` (with `DESCRIBE_PROMPT_VERSION`) runs the
+  describe-then-ground flow for chat photo attachments — a small vision model
+  turns an image into text the deterministic pipeline can reason over. It runs
+  over the same OpenAI-compatible runtime (the `vllm-vision` service), so no
+  separate adapter is needed.
+
 ## Assumptions and Limitations
 
 - Only the vLLM adapter ships; Ollama and llama.cpp adapters are future work behind the same `RuntimeAdapter` interface.
