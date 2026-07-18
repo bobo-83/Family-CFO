@@ -4115,6 +4115,11 @@ components:
           type: string
           format: date
           nullable: true
+        next_payment_due_date:
+          description: "ADR 0033: next payment due date, from a statement or set by hand."
+          type: string
+          format: date
+          nullable: true
         institution:
           type: string
           nullable: true
@@ -4956,6 +4961,10 @@ components:
           type: string
           format: date
           nullable: true
+        next_payment_due_date:
+          type: string
+          format: date
+          nullable: true
     AccountUpdateRequest:
       type: object
       properties:
@@ -4969,6 +4978,10 @@ components:
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
+          type: string
+          format: date
+          nullable: true
+        next_payment_due_date:
           type: string
           format: date
           nullable: true

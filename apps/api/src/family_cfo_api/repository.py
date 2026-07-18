@@ -406,6 +406,7 @@ class AccountBalanceRecord:
     annual_interest_rate: float | None = None
     minimum_payment_minor: int | None = None
     maturity_date: date | None = None
+    next_payment_due_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
 
@@ -611,6 +612,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.accounts.c.annual_interest_rate,
             models.accounts.c.minimum_payment_minor,
             models.accounts.c.maturity_date,
+            models.accounts.c.next_payment_due_date,
             models.accounts.c.emergency_fund_percent,
             models.accounts.c.emergency_fund_minor,
         )
@@ -638,6 +640,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             annual_interest_rate=row.annual_interest_rate,
             minimum_payment_minor=row.minimum_payment_minor,
             maturity_date=row.maturity_date,
+            next_payment_due_date=row.next_payment_due_date,
             emergency_fund_percent=row.emergency_fund_percent,
             emergency_fund_minor=row.emergency_fund_minor,
         )

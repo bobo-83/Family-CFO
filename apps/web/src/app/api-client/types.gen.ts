@@ -855,6 +855,10 @@ export type Account = {
      * M96: loan/lease end date, for maturity and months-remaining.
      */
     maturity_date?: string;
+    /**
+     * ADR 0033: next payment due date, from a statement or set by hand.
+     */
+    next_payment_due_date?: string;
     institution?: string;
     last_synced_at?: string;
     /**
@@ -1226,6 +1230,7 @@ export type AccountCreateRequest = {
     annual_interest_rate?: number;
     minimum_payment?: Money;
     maturity_date?: string;
+    next_payment_due_date?: string;
 };
 
 export type AccountUpdateRequest = {
@@ -1234,6 +1239,7 @@ export type AccountUpdateRequest = {
     annual_interest_rate?: number;
     minimum_payment?: Money;
     maturity_date?: string;
+    next_payment_due_date?: string;
     /**
      * M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
      */

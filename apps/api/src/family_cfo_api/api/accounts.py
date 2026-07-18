@@ -157,6 +157,7 @@ def _account_schema(record: repository.AccountRecord, balance_minor: int) -> Acc
         annual_interest_rate=record.annual_interest_rate,
         minimum_payment=_min_payment(record.currency, record.minimum_payment_minor),
         maturity_date=record.maturity_date,
+        next_payment_due_date=record.next_payment_due_date,
         **_emergency_fund_fields(
             record.currency,
             record.emergency_fund_percent,
@@ -192,6 +193,7 @@ async def list_accounts(
                 annual_interest_rate=balance.annual_interest_rate,
                 minimum_payment=_min_payment(balance.currency, balance.minimum_payment_minor),
                 maturity_date=balance.maturity_date,
+                next_payment_due_date=balance.next_payment_due_date,
                 institution=(
                     institutions.get(balance.account_id)
                     or ((info := connections.get(balance.account_id)) and info.institution)
@@ -242,6 +244,7 @@ async def create_account(
             payload.minimum_payment.amount_minor if payload.minimum_payment is not None else None
         ),
         maturity_date=payload.maturity_date,
+        next_payment_due_date=payload.next_payment_due_date,
     )
     audit.write_audit(
         engine,
@@ -308,6 +311,7 @@ async def update_account(
             payload.minimum_payment.amount_minor if payload.minimum_payment is not None else None
         ),
         maturity_date=payload.maturity_date,
+        next_payment_due_date=payload.next_payment_due_date,
         emergency_fund_percent=payload.emergency_fund_percent,
         emergency_fund_minor=(
             payload.emergency_fund_amount.amount_minor

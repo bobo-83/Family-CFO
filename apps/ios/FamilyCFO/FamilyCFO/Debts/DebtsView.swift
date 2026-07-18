@@ -156,6 +156,8 @@ private struct LoanFormSheet: View {
     /// date — either entry mode stores the same maturity date.
     @State private var endEntryMode: EndEntryMode = .date
     @State private var paymentsLeft: Int?
+    @State private var hasNextPaymentDue: Bool
+    @State private var nextPaymentDueDate: Date
 
     enum EndEntryMode: String, CaseIterable {
         case date = "End date"
@@ -190,6 +192,9 @@ private struct LoanFormSheet: View {
         let maturity = LoanDate.date(from: existing?.maturityDate)
         _hasMaturity = State(initialValue: maturity != nil)
         _maturityDate = State(initialValue: maturity ?? Date())
+        let nextDue = LoanDate.date(from: existing?.nextPaymentDueDate)
+        _hasNextPaymentDue = State(initialValue: nextDue != nil)
+        _nextPaymentDueDate = State(initialValue: nextDue ?? Date())
     }
 
     private var canSave: Bool {
@@ -293,6 +298,20 @@ private struct LoanFormSheet: View {
                     Text("Loan / lease end")
                 } footer: {
                     Text("Enter the end date, or — when the statement only says how many payments remain — the number of monthly payments left. Either way drives the payoff view.")
+                }
+                Section {
+                    Toggle("Set a due date", isOn: $hasNextPaymentDue.animation())
+                    if hasNextPaymentDue {
+                        DatePicker(
+                            "Next payment due",
+                            selection: $nextPaymentDueDate,
+                            displayedComponents: .date
+                        )
+                    }
+                } header: {
+                    Text("Next payment due")
+                } footer: {
+                    Text("Filled in automatically from an uploaded statement; set it here to override.")
                 }
                 Section {
                     HStack {
@@ -444,7 +463,8 @@ private struct LoanFormSheet: View {
             balanceOwedMinor: Self.minor(balanceOwed),
             monthlyPaymentMinor: Self.minor(monthlyPayment),
             aprPercent: apr > 0 ? apr : nil,
-            maturityDate: hasMaturity ? LoanDate.iso(from: effectiveMaturityDate) : nil
+            maturityDate: hasMaturity ? LoanDate.iso(from: effectiveMaturityDate) : nil,
+            nextPaymentDueDate: hasNextPaymentDue ? LoanDate.iso(from: nextPaymentDueDate) : nil
         )
         Task {
             let ok = await onSave(draft)

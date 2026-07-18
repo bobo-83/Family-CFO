@@ -31,6 +31,46 @@ async def test_account_debt_terms_round_trip(demo_client, demo_token) -> None:
 
 
 @pytest.mark.anyio
+async def test_account_next_payment_due_date_round_trip(demo_client, demo_token) -> None:
+    """ADR 0033: a next payment due date can be set by hand and reads back on the
+    account (create, update, and list)."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    created = await demo_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={
+            "name": "U.S. Department of Education",
+            "type": "student_loan",
+            "currency": "USD",
+            "minimum_payment": {"amount_minor": 7801, "currency": "USD"},
+            "next_payment_due_date": "2026-08-08",
+        },
+    )
+    assert created.status_code == 201
+    account_id = created.json()["id"]
+    assert created.json()["next_payment_due_date"] == "2026-08-08"
+
+    updated = await demo_client.patch(
+        f"/api/v1/accounts/{account_id}",
+        headers=headers,
+        json={"next_payment_due_date": "2026-09-08"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["next_payment_due_date"] == "2026-09-08"
+
+    # A loan carries a balance, so it appears in the list — which reads through a
+    # different (JOIN) path; the due date must round-trip there too.
+    await demo_client.post(
+        f"/api/v1/accounts/{account_id}/balances",
+        headers=headers,
+        json={"balance": {"amount_minor": -1_000_000, "currency": "USD"}},
+    )
+    listed = await demo_client.get("/api/v1/accounts", headers=headers)
+    account = next(a for a in listed.json()["accounts"] if a["id"] == account_id)
+    assert account["next_payment_due_date"] == "2026-09-08"
+
+
+@pytest.mark.anyio
 async def test_purchase_advisor_models_debt_when_terms_exist(demo_client, demo_token) -> None:
     headers = {"Authorization": f"Bearer {demo_token}"}
     # A credit card carrying terms and a balance owed.
