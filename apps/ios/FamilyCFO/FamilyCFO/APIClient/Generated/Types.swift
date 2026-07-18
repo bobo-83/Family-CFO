@@ -562,8 +562,14 @@ extension APIProtocol {
     ///
     /// - Remark: HTTP `POST /pairing/sessions`.
     /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)`.
-    public func createPairingSession(headers: Operations.CreatePairingSession.Input.Headers = .init()) async throws -> Operations.CreatePairingSession.Output {
-        try await createPairingSession(Operations.CreatePairingSession.Input(headers: headers))
+    public func createPairingSession(
+        headers: Operations.CreatePairingSession.Input.Headers = .init(),
+        body: Operations.CreatePairingSession.Input.Body? = nil
+    ) async throws -> Operations.CreatePairingSession.Output {
+        try await createPairingSession(Operations.CreatePairingSession.Input(
+            headers: headers,
+            body: body
+        ))
     }
     /// Confirm mobile device pairing
     ///
@@ -1886,6 +1892,23 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case amountMinor = "amount_minor"
                 case currency
+            }
+        }
+        /// Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PairingSessionCreateRequest`.
+        public struct PairingSessionCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PairingSessionCreateRequest/user_id`.
+            public var userId: Swift.String?
+            /// Creates a new `PairingSessionCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - userId:
+            public init(userId: Swift.String? = nil) {
+                self.userId = userId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/PairingSession`.
@@ -7924,12 +7947,23 @@ public enum Operations {
                 }
             }
             public var headers: Operations.CreatePairingSession.Input.Headers
+            /// - Remark: Generated from `#/paths/pairing/sessions/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/sessions/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.PairingSessionCreateRequest)
+            }
+            public var body: Operations.CreatePairingSession.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - headers:
-            public init(headers: Operations.CreatePairingSession.Input.Headers = .init()) {
+            ///   - body:
+            public init(
+                headers: Operations.CreatePairingSession.Input.Headers = .init(),
+                body: Operations.CreatePairingSession.Input.Body? = nil
+            ) {
                 self.headers = headers
+                self.body = body
             }
         }
         @frozen public enum Output: Sendable, Hashable {
@@ -8025,6 +8059,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

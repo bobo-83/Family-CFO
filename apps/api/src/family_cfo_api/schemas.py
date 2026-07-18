@@ -70,6 +70,13 @@ class AuthSession(BaseModel):
     role: HouseholdRole
 
 
+class PairingSessionCreateRequest(BaseModel):
+    # Owner-only: mint the pairing code for another household member, so a regular
+    # member never has to sign into the dashboard to pair their phone. Omitted =
+    # pair for yourself (the caller). See pairing.create_pairing_session.
+    user_id: str | None = None
+
+
 class PairingSession(BaseModel):
     id: str
     qr_payload: str

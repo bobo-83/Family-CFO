@@ -504,8 +504,8 @@ export class ApiService {
   }
 
   // --- Pairing / devices ---
-  createPairingSession() {
-    return createPairingSession();
+  createPairingSession(userId?: string) {
+    return createPairingSession(userId ? { body: { user_id: userId } } : {});
   }
 
   listPairedDevices() {

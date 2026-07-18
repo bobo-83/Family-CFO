@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import * as QRCode from 'qrcode';
-import type { PairedDevice } from '../../api-client';
+import type { Member, PairedDevice } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -33,11 +33,17 @@ export class Devices {
   protected readonly qrPayload = signal<string | null>(null);
   protected readonly copied = signal(false);
 
+  // Owner only: pair a device FOR a member, so a regular member never signs into
+  // the dashboard. '' = pair for myself; otherwise a member's user_id.
+  protected readonly members = signal<Member[]>([]);
+  protected readonly pairFor = signal('');
+
   protected readonly canPair = () => {
     const role = this.auth.role();
     return role === 'owner' || role === 'adult';
   };
   protected readonly canRevoke = () => this.auth.role() === 'owner';
+  protected readonly canPairForOthers = () => this.auth.role() === 'owner';
 
   constructor() {
     void this.load();
@@ -52,6 +58,13 @@ export class Devices {
       return;
     }
     this.devices.set(data.devices);
+    if (this.canPairForOthers()) {
+      const { data: memberData } = await this.api.listMembers();
+      // Owners pair their own device separately; offer the other members here.
+      if (memberData) {
+        this.members.set(memberData.members.filter((m) => m.role !== 'owner'));
+      }
+    }
   }
 
   protected async showPairingCode(): Promise<void> {
@@ -60,7 +73,7 @@ export class Devices {
     }
     this.busy.set('qr');
     this.actionError.set(null);
-    const { data, error } = await this.api.createPairingSession();
+    const { data, error } = await this.api.createPairingSession(this.pairFor() || undefined);
     this.busy.set(null);
     if (error || !data) {
       this.actionError.set(apiErrorMessage(error, 'Failed to create a pairing code.'));
