@@ -24,7 +24,7 @@ dependencies = [
   "openpyxl>=3.1,<4",
   # Runtime HTTP client (vector store M69, bank sync, AI runtime probes, M87a
   # TTS proxy). Previously pulled in transitively; pinned explicitly now.
-  "httpx>=0.27,<0.28",
+  "httpx>=0.27,<0.29",
   "python-multipart>=0.0.9,<0.1",
   "PyYAML>=6.0,<7",
   # M98: userspace SMB client so backups upload straight to a Synology share with
@@ -37,7 +37,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "fpdf2>=2.8,<3",
-  "httpx>=0.27,<0.28",
+  "httpx>=0.27,<0.29",
   # pytest >=9.0.3 clears PYSEC-2026-1845.
   "pytest>=9.0.3,<10",
   "ruff>=0.6,<1",
