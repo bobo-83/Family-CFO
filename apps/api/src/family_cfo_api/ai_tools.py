@@ -192,6 +192,26 @@ _CATEGORY_BY_TYPE = finance_service.ASSET_CATEGORY_BY_TYPE
 
 
 def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    today, err = _month_to_today(args)
+    if err:
+        return err
+    if today is not None:
+        from family_cfo_financial_engine import Money as _Money
+
+        from family_cfo_api import repository
+        from family_cfo_api.api.budgets import _month_window
+
+        _, end = _month_window(today)
+        minor = repository.net_worth_as_of(engine, household_id, end, currency)
+        return {
+            "as_of_month": args.get("month"),
+            "net_worth": _money_out(_Money(minor, currency)),
+            "note": (
+                "Net worth from the snapshot at/near that month's end. The asset breakdown "
+                "and spendability detail are only available for the current month."
+            ),
+        }
+
     result, calc_id = finance_service.compute_net_worth_with_ref(engine, household_id, currency)
     payload = _result_payload(result, calc_id)
 
@@ -503,6 +523,26 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
     household = repository.get_household(engine, household_id)
     if household is None:
         return {"error": "missing_input", "detail": "household not found"}
+
+    today, err = _month_to_today(args)
+    if err:
+        return err
+    if today is not None:
+        from family_cfo_financial_engine import Money as _Money
+
+        from family_cfo_api.api.budgets import _month_window
+
+        start, end = _month_window(today)
+        minor = repository.sum_income(engine, household_id, start, end, currency)
+        return {
+            "month": args.get("month"),
+            "income_received": _money_out(_Money(minor, currency)),
+            "note": (
+                "Actual money categorized as Income that month. The compensation profile and "
+                "tax estimate are the current setup only, not historical."
+            ),
+        }
+
     analysis = build_income_analysis(engine, household)
     tax = analysis.tax
     warnings: list[str] = []
@@ -746,8 +786,12 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
     tools = [
         ToolSpec(
             name="get_net_worth",
-            description="Current household net worth, total assets, and total liabilities.",
-            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+            description=(
+                "Household net worth, total assets, and total liabilities. Defaults to now "
+                "(with an asset breakdown); pass `month` (YYYY-MM) for the net worth at that "
+                "past month's end."
+            ),
+            parameters=_MONTH_PARAM,
         ),
         ToolSpec(
             name="get_emergency_fund",
@@ -863,9 +907,10 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "Box 2 federal withholding), detected recurring deposits, and the "
                 "deterministic annual tax estimate (federal + FICA + modeled state, with "
                 "assumptions). Use for ANY question about income, salary, RSU vests, "
-                "bonuses, W2s, withholding, upcoming pay, or taxes."
+                "bonuses, W2s, withholding, upcoming pay, or taxes. Pass `month` (YYYY-MM) "
+                "to get the actual income received in a past month."
             ),
-            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+            parameters=_MONTH_PARAM,
         ),
         ToolSpec(
             name="get_bills",
