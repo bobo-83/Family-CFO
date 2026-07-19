@@ -185,3 +185,41 @@ async def test_chat_does_not_log_message_content(demo_client, demo_token, caplog
             json={"message": marker},
         )
     assert marker not in caplog.text
+
+
+@pytest.mark.anyio
+async def test_a_member_cannot_see_anothers_conversation_over_the_api(
+    demo_client, demo_token, demo_viewer_token
+) -> None:
+    """ADR 0038: end-to-end, one member never sees another member's advisor thread."""
+    owner = {"Authorization": f"Bearer {demo_token}"}
+    viewer = {"Authorization": f"Bearer {demo_viewer_token}"}
+
+    started = await demo_client.post(
+        "/api/v1/chat/messages", headers=owner, json={"message": "How are we doing?"}
+    )
+    assert started.status_code == 200
+    conv_id = started.json()["conversation_id"]
+
+    owner_ids = [
+        c["id"]
+        for c in (await demo_client.get("/api/v1/conversations", headers=owner)).json()[
+            "conversations"
+        ]
+    ]
+    assert conv_id in owner_ids
+
+    viewer_ids = [
+        c["id"]
+        for c in (await demo_client.get("/api/v1/conversations", headers=viewer)).json()[
+            "conversations"
+        ]
+    ]
+    assert conv_id not in viewer_ids
+
+    assert (
+        await demo_client.get(f"/api/v1/conversations/{conv_id}", headers=viewer)
+    ).status_code == 404
+    assert (
+        await demo_client.delete(f"/api/v1/conversations/{conv_id}", headers=viewer)
+    ).status_code in (403, 404)
