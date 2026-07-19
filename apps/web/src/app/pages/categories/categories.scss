@@ -24,6 +24,10 @@
 
 .category-list__name {
   font-weight: 500;
+  // Grow to fill the row so Rename/Delete always sit together at the right edge
+  // and line up across rows instead of floating by the name's width.
+  flex: 1;
+  min-width: 0;
 }
 
 .category-form {
