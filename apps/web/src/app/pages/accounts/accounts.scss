@@ -1,24 +1,30 @@
+.page-card {
+  max-width: 28rem;
+  margin-bottom: 1.5rem;
+}
+
+.accounts-table-card {
+  max-width: 48rem;
+  padding: 0;
+  overflow: hidden;
+}
+
 .accounts-table {
   width: 100%;
-  max-width: 48rem;
   border-collapse: collapse;
-  background: white;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 
   th,
   td {
     text-align: left;
     padding: 0.65rem 1rem;
-    border-bottom: 1px solid #eceff2;
+    border-bottom: 1px solid var(--mat-sys-outline-variant, #eceff2);
   }
 
   th {
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: #5b6472;
+    color: var(--mat-sys-on-surface-variant, #5b6472);
   }
 
   tr:last-child td {
@@ -27,26 +33,22 @@
 }
 
 .account-form {
-  display: grid;
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   max-width: 28rem;
-  margin-bottom: 2rem;
 
-  label {
-    display: grid;
-    gap: 0.25rem;
+  h2 {
+    margin: 0 0 0.5rem;
   }
 
   &__error {
-    color: #b00020;
+    color: var(--mat-sys-error, #b00020);
   }
 }
 
 .accounts-table__delete {
-  color: #b00020;
-  background: none;
-  border: none;
-  cursor: pointer;
+  --mdc-text-button-label-text-color: var(--mat-sys-error, #b00020);
 }
 
 
@@ -61,7 +63,7 @@
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text-muted);
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -73,32 +75,34 @@
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
-  color: var(--color-text, inherit);
+  color: var(--mat-sys-on-surface, var(--color-text, inherit));
 }
 
 .accounts-table__manual {
-  color: var(--color-text-muted);
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
   font-size: 0.8rem;
 }
 
 /* M36: emergency fund designation */
 .accounts-ef-total {
   margin: 0 0 1rem;
-  color: var(--color-text-muted);
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
 }
 
 .accounts-table__ef {
   white-space: nowrap;
 }
 
+/* Dense inline editors stay native <select>/<input> (spec drives them). */
 .accounts-table__ef-mode,
 .accounts-table__ef-value {
   font: inherit;
   font-size: 0.85rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid var(--color-border, #d0d0d0);
-  border-radius: 6px;
+  border: 1px solid var(--mat-sys-outline, var(--color-border, #d0d0d0));
+  border-radius: var(--radius-sm, 6px);
   background: transparent;
+  color: inherit;
 }
 
 .accounts-table__ef-value {
@@ -114,7 +118,7 @@
   display: block;
   margin-top: 0.2rem;
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
 }
 
 /* M35: inline account-type editing */
@@ -122,8 +126,9 @@
   font: inherit;
   font-size: 0.85rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid var(--color-border, #d0d0d0);
-  border-radius: 6px;
+  border: 1px solid var(--mat-sys-outline, var(--color-border, #d0d0d0));
+  border-radius: var(--radius-sm, 6px);
   background: transparent;
+  color: inherit;
   max-width: 9rem;
 }
