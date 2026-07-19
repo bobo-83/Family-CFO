@@ -12,9 +12,9 @@
 } @else if (budgets().length === 0) {
   <p class="page-empty">No budgets yet.</p>
 } @else {
-  <ul class="budget-list">
+  <div class="budget-list">
     @for (budget of budgets(); track budget.id) {
-      <li class="budget" [attr.data-status]="budget.status">
+      <mat-card appearance="outlined" class="budget" [attr.data-status]="budget.status">
         <div class="budget__head">
           <span class="budget__name">{{ budget.category_name }}</span>
           <span class="budget__status budget__status--{{ budget.status }}">
@@ -54,24 +54,25 @@
         </div>
         @if (canWrite()) {
           <div class="budget__actions">
-            <label class="budget__limit-edit">
-              Limit
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="budget__limit-edit">
+              <mat-label>Limit</mat-label>
               <input
+                matInput
                 type="number"
                 min="0.01"
                 step="0.01"
                 [value]="budget.limit.amount_minor / 100"
                 (change)="changeLimit(budget, $event)"
               />
-            </label>
-            <button type="button" class="budget__delete" (click)="remove(budget.id)">
+            </mat-form-field>
+            <button mat-button type="button" class="budget__delete" (click)="remove(budget.id)">
               Delete
             </button>
           </div>
         }
-      </li>
+      </mat-card>
     }
-  </ul>
+  </div>
 }
 
 @if (canWrite()) {
@@ -84,27 +85,28 @@
   } @else if (availableCategories().length === 0) {
     <p class="page-empty">Every category already has an envelope.</p>
   } @else {
-    <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="budget-form">
-      <label>
-        <span>Category</span>
-        <select formControlName="categoryId">
-          <option value="" disabled>Select a category</option>
-          @for (category of availableCategories(); track category.id) {
-            <option [value]="category.id">{{ category.name }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        <span>Monthly limit (USD)</span>
-        <input type="number" step="0.01" min="0.01" formControlName="limit" />
-      </label>
-      @if (submitError(); as message) {
-        <p class="page-error" role="alert">{{ message }}</p>
-      }
-      <button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Saving…' : 'Add budget' }}
-      </button>
-    </form>
+    <mat-card appearance="outlined" class="page-card">
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="budget-form">
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="categoryId">
+            @for (category of availableCategories(); track category.id) {
+              <mat-option [value]="category.id">{{ category.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Monthly limit (USD)</mat-label>
+          <input matInput type="number" step="0.01" min="0.01" formControlName="limit" />
+        </mat-form-field>
+        @if (submitError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+        <button mat-flat-button type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Saving…' : 'Add budget' }}
+        </button>
+      </form>
+    </mat-card>
   }
 } @else {
   <p class="page-empty">Only the household owner or an adult member can manage budgets.</p>

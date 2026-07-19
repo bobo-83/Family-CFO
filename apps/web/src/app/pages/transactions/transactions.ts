@@ -1,5 +1,10 @@
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -7,7 +12,14 @@ import { formatMoney } from '../../shared/format-money';
 
 @Component({
   selector: 'app-transactions',
-  imports: [ReactiveFormsModule],
+  imports: [
+    ReactiveFormsModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatButtonModule,
+  ],
   templateUrl: './transactions.html',
   styleUrl: './transactions.scss',
 })
@@ -104,8 +116,7 @@ export class Transactions {
   }
 
   /** M45: assign or clear a transaction's category inline. */
-  protected async setCategory(id: string, event: Event): Promise<void> {
-    const value = (event.target as HTMLSelectElement).value;
+  protected async setCategory(id: string, value: string): Promise<void> {
     const { error } = await this.api.updateTransaction(
       id,
       value ? { category_id: value } : { clear_category: true },

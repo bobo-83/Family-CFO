@@ -1,29 +1,14 @@
 .pairing-card {
-  background: white;
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   max-width: 28rem;
   margin-bottom: 1.5rem;
 
   h2 {
     margin-top: 0;
   }
+}
 
-  button {
-    padding: 0.55rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
+.pairing-card__for {
+  width: 100%;
 }
 
 .pairing-card__qr {
@@ -39,12 +24,12 @@
 
 .pairing-card__meta {
   font-size: 0.9rem;
-  color: #5b6472;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
 }
 
 .pairing-card__fingerprint {
   font-size: 0.8rem;
-  color: #5b6472;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
 
   code {
     overflow-wrap: anywhere;
@@ -58,10 +43,10 @@
 }
 
 .device-list__item {
-  background: white;
-  border-radius: 8px;
+  background: var(--mat-sys-surface-container-low, white);
+  border-radius: var(--radius-md, 8px);
   padding: 0.65rem 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--mat-sys-level1, 0 1px 4px rgba(0, 0, 0, 0.08));
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -78,46 +63,26 @@
 
 .device-list__revoked {
   font-size: 0.75rem;
-  color: #b00020;
+  color: var(--mat-sys-error, #b00020);
   margin-left: 0.4rem;
 }
 
 .device-list__meta {
   font-size: 0.85rem;
-  color: #5b6472;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
 }
 
 .device-list__revoke {
-  color: #b00020;
-  background: none;
-  border: 1px solid #e5c1c7;
-  border-radius: 6px;
-  padding: 0.3rem 0.6rem;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  --mdc-text-button-label-text-color: var(--mat-sys-error, #b00020);
 }
 
 .install-card__button {
-  display: inline-block;
-  padding: 0.55rem 1rem;
-  border-radius: 6px;
-  background: var(--color-accent);
-  color: white;
-  font-weight: 600;
-  text-decoration: none;
   margin: 0.25rem 0 0.75rem;
-
-  &:hover {
-    filter: brightness(0.95);
-  }
 }
 
 .pairing-card__paste {
   margin: 0.75rem 0;
+  width: 100%;
 }
 
 .pairing-card__copy {
@@ -129,10 +94,10 @@
   box-sizing: border-box;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
-  color: #5b6472;
-  border: 1px solid #d7dbe0;
-  border-radius: 6px;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
+  border: 1px solid var(--mat-sys-outline-variant, #d7dbe0);
+  border-radius: var(--radius-sm, 6px);
   padding: 0.5rem;
   resize: vertical;
-  background: #f7f8fa;
+  background: var(--mat-sys-surface-container-low, #f7f8fa);
 }

@@ -1,101 +1,52 @@
-.goal-list {
-  list-style: none;
-  padding: 0;
-  max-width: 32rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
+// Material cards/fields/buttons handle the chrome; page-level layout only.
+.page-card {
+  max-width: 44rem;
+  margin-top: 1.5rem;
 }
 
-.goal-list__item {
-  background: white;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+.goal-list {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 44rem;
 }
 
 .goal-list__name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   font-weight: 600;
 }
 
 .goal-list__type {
-  font-size: 0.8rem;
-  color: #5b6472;
-  text-transform: capitalize;
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+  margin-top: 0.15rem;
 }
 
 .goal-list__amounts {
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.goal-list__contribution {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
   font-size: 0.9rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
 }
 
 .goal-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 20rem;
+  align-items: stretch;
+  gap: 0.25rem;
+  max-width: 24rem;
 
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.9rem;
+  button[type='submit'] {
+    align-self: flex-start;
+    margin-top: 0.5rem;
   }
-
-  input,
-  select {
-    padding: 0.45rem 0.6rem;
-    border: 1px solid #ccd2da;
-    border-radius: 6px;
-    font-size: 1rem;
-  }
-
-  button {
-    padding: 0.55rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-}
-
-// M118: inline monthly-contribution editor.
-.goal-list__contribution {
-  font-size: 0.85rem;
-  color: #5b6472;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-
-  input {
-    width: 8rem;
-    padding: 0.3rem 0.5rem;
-    border: 1px solid #ccd2da;
-    border-radius: 6px;
-  }
-}
-
-.goal-list__save {
-  border: none;
-  border-radius: 6px;
-  background: var(--color-accent);
-  color: white;
-  font-weight: 600;
-  padding: 0.25rem 0.6rem;
-  cursor: pointer;
-}
-
-.goal-list__cancel {
-  background: none;
-  border: none;
-  color: #b00020;
-  cursor: pointer;
 }

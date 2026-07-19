@@ -12,39 +12,44 @@
 } @else if (categories().length === 0) {
   <p class="page-empty">No categories yet.</p>
 } @else {
-  <ul class="category-list">
-    @for (category of categories(); track category.id) {
-      <li class="category-list__item">
-        <span class="category-list__name">{{ category.name }}</span>
-        @if (canWrite()) {
-          <button
-            type="button"
-            class="category-list__delete"
-            (click)="remove(category.id)"
-            aria-label="Delete category"
-          >
-            Delete
-          </button>
-        }
-      </li>
-    }
-  </ul>
+  <mat-card appearance="outlined" class="page-card">
+    <ul class="category-list">
+      @for (category of categories(); track category.id) {
+        <li class="category-list__item">
+          <span class="category-list__name">{{ category.name }}</span>
+          @if (canWrite()) {
+            <button
+              mat-button
+              type="button"
+              class="category-list__delete"
+              (click)="remove(category.id)"
+              aria-label="Delete category"
+            >
+              Delete
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  </mat-card>
 }
 
 @if (canWrite()) {
-  <h2>Add a category</h2>
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="category-form">
-    <label>
-      <span>Name</span>
-      <input type="text" formControlName="name" maxlength="80" />
-    </label>
-    @if (submitError(); as message) {
-      <p class="page-error" role="alert">{{ message }}</p>
-    }
-    <button type="submit" [disabled]="submitting()">
-      {{ submitting() ? 'Saving…' : 'Add category' }}
-    </button>
-  </form>
+  <mat-card appearance="outlined" class="page-card">
+    <h2>Add a category</h2>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="category-form">
+      <mat-form-field appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput type="text" formControlName="name" maxlength="80" />
+      </mat-form-field>
+      @if (submitError(); as message) {
+        <p class="page-error" role="alert">{{ message }}</p>
+      }
+      <button mat-flat-button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Saving…' : 'Add category' }}
+      </button>
+    </form>
+  </mat-card>
 } @else {
   <p class="page-empty">Only the household owner or an adult member can manage categories.</p>
 }
