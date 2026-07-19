@@ -380,7 +380,7 @@ async def create_chat_message(
     conversation = None
     history: list[tuple[str, str]] = []
     if payload.conversation_id is not None:
-        conversation = repository.get_conversation(engine, household.id, payload.conversation_id)
+        conversation = repository.get_conversation(engine, household.id, payload.conversation_id, session.user_id)
         if conversation is not None:
             history = [
                 (m.role, m.content)

@@ -105,7 +105,7 @@ async def test_memories_survive_conversation_deletion(
         source_conversation_id=conversation.id,
     )
 
-    assert repository.delete_conversation(demo_engine, demo_household_id, conversation.id)
+    assert repository.delete_conversation(demo_engine, demo_household_id, conversation.id, demo_user_id)
 
     memories = repository.list_household_memories(demo_engine, demo_household_id)
     assert [m.value for m in memories] == ["Lives in San Jose."]
@@ -146,7 +146,7 @@ async def test_summary_written_past_history_window(
 
     assert ai_memory.refresh_conversation_summary(runtime, demo_engine, conversation.id)
 
-    stored = repository.get_conversation(demo_engine, demo_household_id, conversation.id)
+    stored = repository.get_conversation(demo_engine, demo_household_id, conversation.id, demo_user_id)
     assert stored is not None
     assert stored.summary == "Discussed a laptop purchase for USD 1,500.00."
     # Only the messages OLDER than the window were summarized.
