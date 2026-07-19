@@ -15,13 +15,18 @@
 
 .role-list__item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1rem;
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #e3e6eb);
   border-radius: 10px;
+
+  > div:first-child {
+    min-width: 0;
+    flex: 1;
+  }
 }
 
 .role-list__name {
@@ -40,6 +45,44 @@
 .role-list__meta {
   font-size: 0.8rem;
   color: var(--color-text-muted, #5b6472);
+}
+
+// Read-only drill-down of a role's rights — the only way to inspect the
+// built-in (read-only) roles, which have no editor.
+.role-list__rights {
+  margin-top: 0.15rem;
+
+  > summary {
+    cursor: pointer;
+    width: fit-content;
+    list-style-position: inside;
+  }
+}
+
+.role-rights {
+  list-style: none;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.role-rights__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+
+  code {
+    font-size: 0.7rem;
+    color: var(--color-text-muted, #5b6472);
+  }
+}
+
+.role-rights__item--empty {
+  color: var(--color-text-muted, #5b6472);
+  font-style: italic;
 }
 
 .role-list__actions {
