@@ -1,44 +1,16 @@
 .ai-runtime-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.25rem;
   max-width: 24rem;
   margin-top: 1.5rem;
 
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.9rem;
-  }
-
-  input,
-  select {
-    padding: 0.45rem 0.6rem;
-    border: 1px solid #ccd2da;
-    border-radius: 6px;
-    font-size: 1rem;
-  }
-
   &__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.5rem !important;
+    margin-bottom: 0.5rem;
   }
 
-  button {
-    padding: 0.55rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+  button[type='submit'] {
+    align-self: flex-start;
   }
 }
 
@@ -113,43 +85,18 @@
 .hf-search {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-start;
   margin-bottom: 0.75rem;
 
-  input {
+  &__field {
     flex: 1;
     min-width: 0;
-    padding: 0.65rem 0.9rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 16px; /* <16px triggers iOS focus-zoom — keep explicit here */
-  }
-
-  button {
-    padding: 0 1rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-    }
   }
 }
 
 .picker__apply {
-  padding: 0.55rem 1.2rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--color-success);
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  --mdc-filled-button-container-color: var(--mat-sys-tertiary, var(--color-success));
+  --mdc-filled-button-label-text-color: var(--mat-sys-on-tertiary, white);
 }
 
 .apply-live {
@@ -297,17 +244,12 @@
 }
 
 .browse__qf {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--color-border);
   border-radius: 999px;
-  background: var(--color-surface);
-  font-size: 0.82rem;
-  cursor: pointer;
 
   &--on {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: white;
+    background: var(--mat-sys-primary, var(--color-accent));
+    --mdc-outlined-button-label-text-color: var(--mat-sys-on-primary, white);
+    --mdc-outlined-button-outline-color: var(--mat-sys-primary, var(--color-accent));
   }
 }
 
@@ -317,26 +259,6 @@
   flex-wrap: wrap;
   align-items: center;
   margin-bottom: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  select {
-    padding: 0.3rem 0.4rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 16px; /* iOS focus-zoom threshold */
-  }
-}
-
-.browse__fits input {
-  width: 1rem;
-  height: 1rem;
 }
 
 .browse__list {
@@ -401,25 +323,16 @@
 .advanced__vision-form {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-start;
 
-  input {
+  &__field,
+  .advanced__vision-field {
     flex: 1;
     min-width: 0;
-    padding: 0.45rem 0.6rem;
-    border: 1px solid #ccd2da;
-    border-radius: 6px;
-    font-size: 16px; /* iOS focus-zoom threshold */
   }
 
   button {
-    padding: 0.45rem 0.9rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
+    // hidden legacy rule kept minimal; Material owns the control chrome
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;

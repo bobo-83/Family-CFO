@@ -57,7 +57,7 @@
 
   <div class="chat__body">
     <aside class="chat__history">
-      <button type="button" class="chat__new" (click)="startNewConversation()">+ New conversation</button>
+      <button mat-stroked-button type="button" class="chat__new" (click)="startNewConversation()">+ New conversation</button>
       @if (conversations.value(); as list) {
         @for (conv of list; track conv.id) {
           <div class="chat__conv-item">
@@ -94,7 +94,7 @@
           <div class="chat__welcome">
             <p>Try one of these:</p>
             @for (prompt of examplePrompts; track prompt) {
-              <button type="button" class="chat__example" (click)="usePrompt(prompt)">{{ prompt }}</button>
+              <button mat-stroked-button type="button" class="chat__example" (click)="usePrompt(prompt)">{{ prompt }}</button>
             }
           </div>
         }
@@ -109,6 +109,7 @@
 
               @if (turn.role === 'assistant') {
                 <button
+                  mat-button
                   type="button"
                   class="chat__speak"
                   [disabled]="speaking() === $index"
@@ -248,6 +249,7 @@
           (change)="onDataFileSelected($event)"
         />
         <button
+          mat-icon-button
           type="button"
           class="chat__attach"
           (click)="fileInput.click()"
@@ -257,6 +259,7 @@
           📷
         </button>
         <button
+          mat-icon-button
           type="button"
           class="chat__attach"
           (click)="dataInput.click()"
@@ -265,13 +268,16 @@
         >
           📎
         </button>
-        <input
-          type="text"
-          formControlName="message"
-          placeholder="Ask about a purchase, your goals, retirement…"
-          autocomplete="off"
-        />
-        <button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
+        <mat-form-field appearance="outline" class="chat__input-field" subscriptSizing="dynamic">
+          <input
+            matInput
+            type="text"
+            formControlName="message"
+            placeholder="Ask about a purchase, your goals, retirement…"
+            autocomplete="off"
+          />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
       </form>
 
       <!-- Always-visible advisor disclaimer (ADR 0031); kept in sync with the
