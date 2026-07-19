@@ -1,7 +1,7 @@
 <h1>Users &amp; Devices</h1>
 <p class="page-empty">
-  Manage household members and paired devices. Scanning the pairing code below requires the iPhone
-  app (M6, macOS only).
+  Manage household members and the devices paired to them. Open a member to pair a
+  phone — each member gets their own QR code to scan with the Family CFO iPhone app.
 </p>
 
 <h2>Household members</h2>
@@ -17,30 +17,111 @@
     <ul class="member-list">
       @for (member of members.value() ?? []; track member.user_id) {
         <li class="member-list__item">
-          <div>
-            <div class="member-list__name">{{ member.display_name }}</div>
-            <div class="member-list__meta">{{ member.email }} · {{ member.role_name || member.role }}</div>
-          </div>
-          @if (canManageMembers()) {
+          <div class="member-list__row">
+            <div>
+              <div class="member-list__name">{{ member.display_name }}</div>
+              <div class="member-list__meta">
+                {{ member.email }} · {{ member.role_name || member.role }}
+              </div>
+            </div>
             <div class="member-list__actions">
-              <mat-form-field appearance="outline" class="member-list__role">
-                <mat-select
-                  [value]="member.role_id || ''"
-                  (selectionChange)="changeRole(member.user_id, $event.value)"
-                >
-                  @for (role of roles.value() ?? []; track role.id) {
-                    <mat-option [value]="role.id">{{ role.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
+              @if (canManageMembers()) {
+                <mat-form-field appearance="outline" class="member-list__role">
+                  <mat-select
+                    [value]="member.role_id || ''"
+                    (selectionChange)="changeRole(member.user_id, $event.value)"
+                  >
+                    @for (role of roles.value() ?? []; track role.id) {
+                      <mat-option [value]="role.id">{{ role.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
               <button
                 mat-button
                 type="button"
-                class="member-list__remove"
-                (click)="removeMember(member.user_id)"
+                class="member-list__expand"
+                [attr.aria-expanded]="isExpanded(member.user_id)"
+                (click)="toggleExpanded(member.user_id)"
               >
-                Remove
+                {{ isExpanded(member.user_id) ? 'Hide devices' : 'Devices' }}
               </button>
+              @if (canManageMembers()) {
+                <button
+                  mat-button
+                  type="button"
+                  class="member-list__remove"
+                  (click)="removeMember(member.user_id)"
+                >
+                  Remove
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (isExpanded(member.user_id)) {
+            <div class="member-devices">
+              @if (devicesForUser(member.user_id); as memberDevices) {
+                @if (memberDevices.length === 0) {
+                  <p class="page-empty">No devices paired yet.</p>
+                } @else {
+                  <ul class="device-list">
+                    @for (device of memberDevices; track device.id) {
+                      <li class="device-list__item">
+                        <div>
+                          <div class="device-list__name">{{ device.name }}</div>
+                          <div class="device-list__meta">
+                            Paired {{ device.created_at | date: 'medium' }}
+                            @if (device.last_seen_at) {
+                              · Last seen {{ device.last_seen_at | date: 'medium' }}
+                            }
+                          </div>
+                        </div>
+                        @if (device.revoked_at) {
+                          <span class="device-list__revoked">Revoked</span>
+                        } @else if (canRevokeDevices()) {
+                          <button
+                            mat-button
+                            type="button"
+                            class="device-list__revoke"
+                            [disabled]="revokingId() === device.id"
+                            (click)="revokeDevice(device.id)"
+                          >
+                            {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
+                          </button>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+
+              @if (pairingSession()?.userId === member.user_id) {
+                @if (pairingSession(); as session) {
+                  <mat-card appearance="outlined" class="pairing-card">
+                    <img
+                      [src]="session.qrImageDataUrl"
+                      alt="Pairing QR code"
+                      width="240"
+                      height="240"
+                    />
+                    <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
+                    <button mat-stroked-button type="button" (click)="dismissPairing()">Done</button>
+                  </mat-card>
+                }
+              } @else if (canPairForMember(member)) {
+                <button
+                  mat-flat-button
+                  type="button"
+                  class="member-devices__pair"
+                  [disabled]="pairingUserId() === member.user_id"
+                  (click)="pairDeviceFor(member)"
+                >
+                  {{ pairingUserId() === member.user_id ? 'Creating session…' : 'Pair a device' }}
+                </button>
+              } @else {
+                <p class="page-empty">Only an admin can pair a device for another member.</p>
+              }
             </div>
           }
         </li>
@@ -49,6 +130,13 @@
       }
     </ul>
   }
+}
+
+@if (pairingError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
+}
+@if (revokeError(); as message) {
+  <p class="page-error" role="alert">{{ message }}</p>
 }
 
 @if (canManageMembers()) {
@@ -85,75 +173,36 @@
   <p class="page-empty">Only the household owner can manage members.</p>
 }
 
-<h2>Paired devices</h2>
-
-@switch (devices.status()) {
-  @case ('loading') {
-    <p>Loading…</p>
-  }
-  @case ('error') {
-    <p class="page-error" role="alert">{{ devices.error() }}</p>
-  }
-  @default {
-    @if (devices.value(); as deviceList) {
-      @if (deviceList.length === 0) {
-        <p class="page-empty">No paired devices yet.</p>
-      } @else {
-        <ul class="device-list">
-          @for (device of deviceList; track device.id) {
-            <li class="device-list__item">
-              <div>
-                <div class="device-list__name">{{ device.name }}</div>
-                <div class="device-list__meta">
-                  Paired {{ device.created_at | date: 'medium' }}
-                  @if (device.last_seen_at) {
-                    · Last seen {{ device.last_seen_at | date: 'medium' }}
-                  }
-                </div>
-              </div>
-              @if (device.revoked_at) {
-                <span class="device-list__revoked">Revoked</span>
-              } @else if (canRevokeDevices()) {
-                <button
-                  mat-button
-                  type="button"
-                  class="device-list__revoke"
-                  [disabled]="revokingId() === device.id"
-                  (click)="revokeDevice(device.id)"
-                >
-                  {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
-                </button>
+@if (unassignedDevices(); as others) {
+  @if (others.length > 0) {
+    <h2>Other devices</h2>
+    <ul class="device-list">
+      @for (device of others; track device.id) {
+        <li class="device-list__item">
+          <div>
+            <div class="device-list__name">{{ device.name }}</div>
+            <div class="device-list__meta">
+              Paired {{ device.created_at | date: 'medium' }}
+              @if (device.last_seen_at) {
+                · Last seen {{ device.last_seen_at | date: 'medium' }}
               }
-            </li>
+            </div>
+          </div>
+          @if (device.revoked_at) {
+            <span class="device-list__revoked">Revoked</span>
+          } @else if (canRevokeDevices()) {
+            <button
+              mat-button
+              type="button"
+              class="device-list__revoke"
+              [disabled]="revokingId() === device.id"
+              (click)="revokeDevice(device.id)"
+            >
+              {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
+            </button>
           }
-        </ul>
+        </li>
       }
-    }
+    </ul>
   }
-}
-
-@if (revokeError(); as message) {
-  <p class="page-error" role="alert">{{ message }}</p>
-}
-
-<h2>Pair a new device</h2>
-
-@if (canPairDevices()) {
-  @if (pairingSession(); as session) {
-    <mat-card appearance="outlined" class="pairing-card">
-      <img [src]="session.qrImageDataUrl" alt="Pairing QR code" width="240" height="240" />
-      <p class="pairing-card__payload">{{ session.qrPayload }}</p>
-      <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
-      <button mat-stroked-button type="button" (click)="dismissPairing()">Done</button>
-    </mat-card>
-  } @else {
-    <button mat-flat-button type="button" [disabled]="pairing()" (click)="pairDevice()">
-      {{ pairing() ? 'Creating session…' : 'Pair a device' }}
-    </button>
-    @if (pairingError(); as message) {
-      <p class="page-error" role="alert">{{ message }}</p>
-    }
-  }
-} @else {
-  <p class="page-empty">Only the household owner or an adult member can pair a new device.</p>
 }

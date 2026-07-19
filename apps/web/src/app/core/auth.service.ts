@@ -14,6 +14,7 @@ export class AuthService {
   private readonly api = inject(ApiService);
 
   readonly isAuthenticated = computed(() => authState() !== null);
+  readonly userId = computed(() => authState()?.userId ?? null);
   readonly role = computed(() => authState()?.role ?? null);
   readonly householdId = computed(() => authState()?.householdId ?? null);
   readonly roleName = computed(() => authState()?.roleName ?? null);

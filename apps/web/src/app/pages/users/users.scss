@@ -81,11 +81,15 @@ h2 {
   margin: 0 0 1.5rem;
 
   &__item {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--mat-sys-outline-variant, #eceff2);
+  }
+
+  &__row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.6rem 0;
-    border-bottom: 1px solid var(--mat-sys-outline-variant, #eceff2);
+    gap: 1rem;
   }
 
   &__meta {
@@ -105,6 +109,20 @@ h2 {
 
   &__remove {
     --mdc-text-button-label-text-color: var(--mat-sys-error, #b00020);
+  }
+}
+
+.member-devices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 0 0.5rem 1rem;
+  border-left: 2px solid var(--mat-sys-outline-variant, #eceff2);
+  margin: 0.5rem 0 0.25rem 0.25rem;
+  max-width: 32rem;
+
+  &__pair {
+    align-self: flex-start;
   }
 }
 

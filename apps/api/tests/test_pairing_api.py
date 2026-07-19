@@ -58,7 +58,11 @@ async def test_owner_can_create_and_confirm_pairing_session(demo_client, demo_to
         headers={"Authorization": f"Bearer {demo_token}"},
     )
     assert devices.status_code == 200
-    assert devices.json()["devices"][0]["name"] == "Alex's iPhone"
+    device = devices.json()["devices"][0]
+    assert device["name"] == "Alex's iPhone"
+    # The device is paired AS the owner (M83), so the list attributes it to a
+    # member — the web dashboard groups each member's devices under their row.
+    assert device["user_id"] is not None
 
 
 @pytest.mark.anyio
