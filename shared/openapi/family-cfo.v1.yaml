@@ -2828,6 +2828,12 @@ components:
         id:
           type: string
           format: uuid
+        user_id:
+          description: The household member this device is paired to.
+          type:
+            - string
+            - "null"
+          format: uuid
         name:
           type: string
         created_at:

@@ -64,6 +64,7 @@ def certificate_fingerprint(cert_path: str) -> str | None:
 def _to_device_schema(record: repository.PairedDeviceRecord) -> PairedDevice:
     return PairedDevice(
         id=record.id,
+        user_id=record.user_id,
         name=record.name,
         created_at=record.created_at,
         last_seen_at=record.last_seen_at,
