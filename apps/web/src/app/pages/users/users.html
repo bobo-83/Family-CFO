@@ -23,15 +23,18 @@
           </div>
           @if (canManageMembers()) {
             <div class="member-list__actions">
-              <select
-                [value]="member.role_id || ''"
-                (change)="changeRole(member.user_id, $any($event.target).value)"
-              >
-                @for (role of roles.value() ?? []; track role.id) {
-                  <option [value]="role.id">{{ role.name }}</option>
-                }
-              </select>
+              <mat-form-field appearance="outline" class="member-list__role">
+                <mat-select
+                  [value]="member.role_id || ''"
+                  (selectionChange)="changeRole(member.user_id, $event.value)"
+                >
+                  @for (role of roles.value() ?? []; track role.id) {
+                    <mat-option [value]="role.id">{{ role.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
               <button
+                mat-button
                 type="button"
                 class="member-list__remove"
                 (click)="removeMember(member.user_id)"
@@ -49,34 +52,35 @@
 }
 
 @if (canManageMembers()) {
-  <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
-    <h3>Add a member</h3>
-    <label>
-      Email
-      <input type="email" formControlName="email" />
-    </label>
-    <label>
-      Display name
-      <input type="text" formControlName="displayName" />
-    </label>
-    <label>
-      Password
-      <input type="password" formControlName="password" />
-    </label>
-    <label>
-      Role
-      <select formControlName="roleId">
-        <option value="" disabled>Choose a role…</option>
-        @for (role of roles.value() ?? []; track role.id) {
-          <option [value]="role.id">{{ role.name }}</option>
-        }
-      </select>
-    </label>
-    <button type="submit" [disabled]="memberSubmitting()">Add member</button>
-    @if (memberError(); as message) {
-      <p class="page-error" role="alert">{{ message }}</p>
-    }
-  </form>
+  <mat-card appearance="outlined" class="page-card">
+    <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
+      <h3>Add a member</h3>
+      <mat-form-field appearance="outline">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Display name</mat-label>
+        <input matInput type="text" formControlName="displayName" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" formControlName="password" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Role</mat-label>
+        <mat-select formControlName="roleId">
+          @for (role of roles.value() ?? []; track role.id) {
+            <mat-option [value]="role.id">{{ role.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button mat-flat-button type="submit" [disabled]="memberSubmitting()">Add member</button>
+      @if (memberError(); as message) {
+        <p class="page-error" role="alert">{{ message }}</p>
+      }
+    </form>
+  </mat-card>
 } @else {
   <p class="page-empty">Only the household owner can manage members.</p>
 }
@@ -111,6 +115,7 @@
                 <span class="device-list__revoked">Revoked</span>
               } @else if (canRevokeDevices()) {
                 <button
+                  mat-button
                   type="button"
                   class="device-list__revoke"
                   [disabled]="revokingId() === device.id"
@@ -135,14 +140,14 @@
 
 @if (canPairDevices()) {
   @if (pairingSession(); as session) {
-    <div class="pairing-card">
+    <mat-card appearance="outlined" class="pairing-card">
       <img [src]="session.qrImageDataUrl" alt="Pairing QR code" width="240" height="240" />
       <p class="pairing-card__payload">{{ session.qrPayload }}</p>
       <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
-      <button type="button" (click)="dismissPairing()">Done</button>
-    </div>
+      <button mat-stroked-button type="button" (click)="dismissPairing()">Done</button>
+    </mat-card>
   } @else {
-    <button type="button" [disabled]="pairing()" (click)="pairDevice()">
+    <button mat-flat-button type="button" [disabled]="pairing()" (click)="pairDevice()">
       {{ pairing() ? 'Creating session…' : 'Pair a device' }}
     </button>
     @if (pairingError(); as message) {

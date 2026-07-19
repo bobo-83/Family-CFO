@@ -11,21 +11,21 @@
 }
 
 @if (canPair()) {
-  <section class="pairing-card">
+  <mat-card appearance="outlined" class="pairing-card">
     <h2>Pair a device</h2>
     @if (canPairForOthers() && members().length) {
-      <label class="pairing-card__for">
-        <span>Pair this code for</span>
-        <select
+      <mat-form-field appearance="outline" class="pairing-card__for">
+        <mat-label>Pair this code for</mat-label>
+        <mat-select
           [value]="pairFor()"
-          (change)="pairFor.set($any($event.target).value); qrSvg.set(null)"
+          (selectionChange)="pairFor.set($event.value); qrSvg.set(null)"
         >
-          <option value="">Myself (this account)</option>
+          <mat-option value="">Myself (this account)</mat-option>
           @for (m of members(); track m.user_id) {
-            <option [value]="m.user_id">{{ m.display_name }} ({{ m.role }})</option>
+            <mat-option [value]="m.user_id">{{ m.display_name }} ({{ m.role }})</mat-option>
           }
-        </select>
-      </label>
+        </mat-select>
+      </mat-form-field>
       <p class="pairing-card__meta">
         Generate a code for a member so they can pair on their phone — they never
         need to sign into this dashboard.
@@ -55,7 +55,7 @@
             your own screen — copy it instead, open the Family CFO app's pairing
             screen, and paste it into “…or paste the pairing payload”.
           </p>
-          <button type="button" class="pairing-card__copy" (click)="copyPayload()">
+          <button mat-stroked-button type="button" class="pairing-card__copy" (click)="copyPayload()">
             {{ copied() ? '✓ Copied — now paste it in the app' : 'Copy pairing code' }}
           </button>
           <textarea
@@ -66,7 +66,7 @@
           >{{ payload }}</textarea>
         </div>
       }
-      <button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
+      <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
         Generate a new code
       </button>
     } @else {
@@ -74,21 +74,21 @@
         The code carries the server address, its certificate fingerprint, and
         a one-time secret — valid for 10 minutes.
       </p>
-      <button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
+      <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
         {{ busy() === 'qr' ? 'Generating…' : 'Show pairing code' }}
       </button>
     }
-  </section>
+  </mat-card>
 }
 
-<section class="pairing-card install-card">
+<mat-card appearance="outlined" class="pairing-card install-card">
   <h2>Install the iPhone app</h2>
   <p class="pairing-card__meta">
     Open this page <strong>in Safari on the iPhone</strong> — on your home
     Wi-Fi or over the household VPN — to install or update the app. It downloads
     straight from this box; nothing leaves your network.
   </p>
-  <a class="install-card__button" href="/ota/" target="_blank" rel="noopener">
+  <a mat-stroked-button class="install-card__button" href="/ota/" target="_blank" rel="noopener">
     Open the install page
   </a>
   <p class="pairing-card__meta">
@@ -96,7 +96,7 @@
     install page walks you through it. If the button shows “not found”, no build
     has been published yet (<code>scripts/deploy-ios-ota.sh</code>).
   </p>
-</section>
+</mat-card>
 
 <h2>Paired devices</h2>
 @if (loading()) {
@@ -125,6 +125,7 @@
         </div>
         @if (canRevoke() && !device.revoked_at) {
           <button
+            mat-button
             type="button"
             class="device-list__revoke"
             [disabled]="busy() !== null"

@@ -2,10 +2,10 @@
 
 @if (canGenerate()) {
   <div class="reports-actions">
-    <button type="button" [disabled]="generating()" (click)="generate('weekly')">
+    <button mat-flat-button type="button" [disabled]="generating()" (click)="generate('weekly')">
       Generate weekly report
     </button>
-    <button type="button" [disabled]="generating()" (click)="generate('monthly')">
+    <button mat-stroked-button type="button" [disabled]="generating()" (click)="generate('monthly')">
       Generate monthly report
     </button>
   </div>
@@ -22,7 +22,7 @@
   <p class="reports-error">{{ reports.error() }}</p>
 } @else {
   @for (report of reports.value() ?? []; track report.id) {
-    <article class="report-card">
+    <mat-card appearance="outlined" class="report-card">
       <header>
         <h2>{{ report.report_type | titlecase }} report</h2>
         <span>{{ report.period_start }} – {{ report.period_end }}</span>
@@ -61,7 +61,7 @@
           }
         </ul>
       }
-    </article>
+    </mat-card>
   } @empty {
     <p>No reports generated yet.</p>
   }

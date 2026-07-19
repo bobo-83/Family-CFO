@@ -1,5 +1,7 @@
 import { TitleCasePipe } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import type { ReportType } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -8,7 +10,7 @@ import { formatMoney } from '../../shared/format-money';
 
 @Component({
   selector: 'app-reports',
-  imports: [TitleCasePipe],
+  imports: [TitleCasePipe, MatCardModule, MatButtonModule],
   templateUrl: './reports.html',
   styleUrl: './reports.scss',
 })

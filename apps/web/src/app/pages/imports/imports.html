@@ -1,39 +1,40 @@
 <h1>Imports</h1>
 
 @if (canReview()) {
-  <form class="import-form" [formGroup]="form" (ngSubmit)="submit()">
-    <h2>Import a statement</h2>
-    <label>
-      Format
-      <select formControlName="sourceType">
-        <option value="csv">CSV</option>
-        <option value="pdf">PDF</option>
-        <option value="ofx">OFX</option>
-        <option value="qfx">QFX</option>
-      </select>
-    </label>
-    <label>
-      Account
-      <select formControlName="accountId">
-        <option value="" disabled>Select an account</option>
-        @for (account of accounts.value() ?? []; track account.id) {
-          <option [value]="account.id">{{ account.name }}</option>
-        }
-      </select>
-    </label>
-    <label>
-      File
-      <input type="file" (change)="onFileSelected($event)" />
-    </label>
-    <button type="submit" [disabled]="submitting()">Upload for processing</button>
-    <p class="import-form__hint">
-      Uploaded files are processed by the background worker; status updates from
-      <em>pending</em> to <em>needs_review</em> once parsed.
-    </p>
-    @if (submitError()) {
-      <p class="import-form__error">{{ submitError() }}</p>
-    }
-  </form>
+  <mat-card appearance="outlined" class="page-card">
+    <form class="import-form" [formGroup]="form" (ngSubmit)="submit()">
+      <h2>Import a statement</h2>
+      <mat-form-field appearance="outline">
+        <mat-label>Format</mat-label>
+        <mat-select formControlName="sourceType">
+          <mat-option value="csv">CSV</mat-option>
+          <mat-option value="pdf">PDF</mat-option>
+          <mat-option value="ofx">OFX</mat-option>
+          <mat-option value="qfx">QFX</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Account</mat-label>
+        <mat-select formControlName="accountId">
+          @for (account of accounts.value() ?? []; track account.id) {
+            <mat-option [value]="account.id">{{ account.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <label class="import-form__file">
+        <span>File</span>
+        <input type="file" (change)="onFileSelected($event)" />
+      </label>
+      <button mat-flat-button type="submit" [disabled]="submitting()">Upload for processing</button>
+      <p class="import-form__hint">
+        Uploaded files are processed by the background worker; status updates from
+        <em>pending</em> to <em>needs_review</em> once parsed.
+      </p>
+      @if (submitError()) {
+        <p class="import-form__error">{{ submitError() }}</p>
+      }
+    </form>
+  </mat-card>
 } @else {
   <p class="import-note">Only the household owner or an adult member can manage imports.</p>
 }
@@ -43,43 +44,45 @@
 } @else if (imports.error()) {
   <p class="import-error">{{ imports.error() }}</p>
 } @else {
-  <table class="import-table">
-    <thead>
-      <tr>
-        <th>File</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Skipped</th>
-        @if (canReview()) {
-          <th></th>
-        }
-      </tr>
-    </thead>
-    <tbody>
-      @for (record of imports.value() ?? []; track record.id) {
+  <mat-card appearance="outlined" class="page-card">
+    <table class="import-table">
+      <thead>
         <tr>
-          <td>{{ record.filename }}</td>
-          <td>{{ record.source_type }}</td>
-          <td>{{ record.status }}</td>
-          <td>{{ record.skipped_row_count }}</td>
+          <th>File</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Skipped</th>
           @if (canReview()) {
-            <td>
-              @if (record.status === 'needs_review') {
-                <button type="button" (click)="apply(record.id)">Apply</button>
-                <button type="button" class="import-table__discard" (click)="discard(record.id)">
-                  Discard
-                </button>
-              }
-            </td>
+            <th></th>
           }
         </tr>
-      } @empty {
-        <tr>
-          <td colspan="5">No imports yet.</td>
-        </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (record of imports.value() ?? []; track record.id) {
+          <tr>
+            <td>{{ record.filename }}</td>
+            <td>{{ record.source_type }}</td>
+            <td>{{ record.status }}</td>
+            <td>{{ record.skipped_row_count }}</td>
+            @if (canReview()) {
+              <td>
+                @if (record.status === 'needs_review') {
+                  <button mat-button type="button" (click)="apply(record.id)">Apply</button>
+                  <button mat-button type="button" class="import-table__discard" (click)="discard(record.id)">
+                    Discard
+                  </button>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5">No imports yet.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </mat-card>
 }
 
 <!-- ===================== Linked institutions (M27) ===================== -->
@@ -96,11 +99,19 @@
   </p>
 
   @if (canReview()) {
-    <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
-      <input type="text" formControlName="displayName" placeholder="Connection name (e.g. SimpleFIN — all banks)" />
-      <input type="text" formControlName="setupToken" placeholder="SimpleFIN setup token" />
-      <button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
-    </form>
+    <mat-card appearance="outlined" class="page-card">
+      <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
+        <mat-form-field appearance="outline">
+          <mat-label>Connection name</mat-label>
+          <input matInput type="text" formControlName="displayName" placeholder="e.g. SimpleFIN — all banks" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>SimpleFIN setup token</mat-label>
+          <input matInput type="text" formControlName="setupToken" />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
+      </form>
+    </mat-card>
     @if (linkError(); as message) {
       <p class="page-error" role="alert">{{ message }}</p>
     }
@@ -112,7 +123,7 @@
 
   @if (connections.value(); as list) {
     @for (conn of list; track conn.id) {
-      <div class="connections__item">
+      <mat-card appearance="outlined" class="connections__item">
         <div class="connections__info">
           <span class="connections__name">{{ conn.display_name }}</span>
           <span class="connections__meta">
@@ -129,13 +140,13 @@
         </div>
         @if (canReview()) {
           <div class="connections__actions">
-            <button type="button" (click)="syncNow(conn.id)" [disabled]="syncingId() === conn.id">
+            <button mat-button type="button" (click)="syncNow(conn.id)" [disabled]="syncingId() === conn.id">
               {{ syncingId() === conn.id ? 'Syncing…' : 'Sync now' }}
             </button>
-            <button type="button" class="connections__unlink" (click)="unlink(conn.id)">Unlink</button>
+            <button mat-button type="button" class="connections__unlink" (click)="unlink(conn.id)">Unlink</button>
           </div>
         }
-      </div>
+      </mat-card>
     } @empty {
       <p class="page-empty">No institutions linked yet.</p>
     }
