@@ -998,6 +998,41 @@ paths:
         "409":
           $ref: "#/components/responses/Error"
   /categories/{category_id}:
+    patch:
+      tags:
+        - Categories
+      operationId: updateCategory
+      summary: Rename a spending category
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdateRequest"
+      responses:
+        "200":
+          description: Category renamed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
     delete:
       tags:
         - Categories
@@ -3016,6 +3051,15 @@ components:
           items:
             $ref: "#/components/schemas/Category"
     CategoryCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+    CategoryUpdateRequest:
       type: object
       required:
         - name

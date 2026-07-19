@@ -30,6 +30,51 @@ async def test_category_crud_round_trip(demo_client, demo_token) -> None:
 
 
 @pytest.mark.anyio
+async def test_category_rename(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    category_id = (
+        await demo_client.post("/api/v1/categories", headers=headers, json={"name": "ZZ Alpha"})
+    ).json()["id"]
+
+    renamed = await demo_client.patch(
+        f"/api/v1/categories/{category_id}", headers=headers, json={"name": "ZZ Alpha Renamed"}
+    )
+    assert renamed.status_code == 200
+    assert renamed.json() == {"id": category_id, "name": "ZZ Alpha Renamed"}
+
+    listed = (await demo_client.get("/api/v1/categories", headers=headers)).json()["categories"]
+    assert any(c["id"] == category_id and c["name"] == "ZZ Alpha Renamed" for c in listed)
+
+
+@pytest.mark.anyio
+async def test_rename_to_existing_name_is_409(demo_client, demo_token) -> None:
+    headers = _headers(demo_token)
+    await demo_client.post("/api/v1/categories", headers=headers, json={"name": "ZZ Beta"})
+    other = (
+        await demo_client.post("/api/v1/categories", headers=headers, json={"name": "ZZ Gamma"})
+    ).json()["id"]
+    clash = await demo_client.patch(
+        f"/api/v1/categories/{other}", headers=headers, json={"name": "ZZ Beta"}
+    )
+    assert clash.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_viewer_cannot_rename_category(demo_client, demo_token, demo_viewer_token) -> None:
+    category_id = (
+        await demo_client.post(
+            "/api/v1/categories", headers=_headers(demo_token), json={"name": "ZZ Delta"}
+        )
+    ).json()["id"]
+    blocked = await demo_client.patch(
+        f"/api/v1/categories/{category_id}",
+        headers=_headers(demo_viewer_token),
+        json={"name": "Gas"},
+    )
+    assert blocked.status_code == 403
+
+
+@pytest.mark.anyio
 async def test_duplicate_name_is_409(demo_client, demo_token) -> None:
     headers = _headers(demo_token)
     await demo_client.post("/api/v1/categories", headers=headers, json={"name": "Transport"})

@@ -19,6 +19,7 @@ import {
   createBill,
   createBudget,
   createCategory,
+  updateCategory,
   createChatMessage,
   createConnection,
   createGoal,
@@ -107,6 +108,7 @@ import {
   type BudgetCreateRequest,
   type BudgetUpdateRequest,
   type CategoryCreateRequest,
+  type CategoryUpdateRequest,
   type ChatRequest,
   type ConnectionCreateRequest,
   type GoalCreateRequest,
@@ -285,6 +287,10 @@ export class ApiService {
 
   createCategory(body: CategoryCreateRequest) {
     return createCategory({ body });
+  }
+
+  updateCategory(categoryId: string, body: CategoryUpdateRequest) {
+    return updateCategory({ path: { category_id: categoryId }, body });
   }
 
   deleteCategory(categoryId: string) {
