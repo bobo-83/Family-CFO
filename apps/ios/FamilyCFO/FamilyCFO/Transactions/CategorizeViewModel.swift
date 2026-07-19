@@ -144,6 +144,22 @@ final class CategorizeViewModel {
         }
     }
 
+    /// Rename a category. Updates the local list in place on success.
+    func renameCategory(id: String, to name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            let updated = try await api.renameCategory(id: id, name: trimmed)
+            if let index = categories.firstIndex(where: { $0.id == id }) {
+                categories[index] = updated
+            }
+            categories.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            errorMessage = nil
+        } catch {
+            errorMessage = Self.describe(error)
+        }
+    }
+
     /// Delete a category (M96). The server un-categorizes its transactions, so we
     /// reload to pull them back into the uncategorized list.
     func deleteCategory(id: String) async {
