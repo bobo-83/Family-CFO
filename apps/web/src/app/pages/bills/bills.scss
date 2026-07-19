@@ -1,172 +1,125 @@
-.bill-list {
-  list-style: none;
-  padding: 0;
-  max-width: 32rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
+// Material cards/fields/buttons handle the chrome; layout + timeline cues only.
+.page-card {
+  max-width: 44rem;
+  margin-bottom: 1.25rem;
 }
-
-.bill-list__item {
-  background: white;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-
-  // M71: suggestion rows carry two buttons (Confirm/Dismiss, Update/Dismiss);
-  // wrap on phone widths instead of overflowing the 393px viewport.
-  @media (max-width: 480px) {
-    flex-wrap: wrap;
-    row-gap: 0.4rem;
-
-    .bill-list__main {
-      min-width: 11rem;
-    }
-  }
-}
-
-.bill-list__main {
-  flex: 1;
-}
-
-.bill-list__name {
-  font-weight: 600;
-}
-
-.bill-list__frequency {
-  font-size: 0.8rem;
-  color: #5b6472;
-  text-transform: capitalize;
-}
-
-.bill-list__amount {
-  font-weight: 600;
-}
-
-.bill-list__delete {
-  color: #b00020;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.bill-list--suggestions .bill-list__item {
-  border: 1px dashed #ccd2da;
-  box-shadow: none;
-}
-
-.bill-list__confirm {
-  border: none;
-  border-radius: 6px;
-  background: var(--color-accent);
-  color: white;
-  font-weight: 600;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-// --- Payment timeline (M111, ADR 0024) ---
 
 .timeline-headline {
-  max-width: 32rem;
-  background: white;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  max-width: 44rem;
   margin-bottom: 1.5rem;
-  border-left: 4px solid #2e7d32;
-
-  &--short {
-    border-left-color: #e65100;
-  }
 }
 
 .timeline-headline__figures {
   display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem;
+}
+
+.timeline-headline__amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.timeline-headline__amount--secondary {
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+}
+
+.timeline-headline__label {
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
 }
 
 .timeline-headline__cash {
   text-align: right;
 }
 
-.timeline-headline__amount {
-  font-size: 1.6rem;
-  font-weight: 700;
-
-  &--secondary {
-    font-size: 1.2rem;
-    color: #5b6472;
-  }
-}
-
-.timeline-headline__label {
-  font-size: 0.8rem;
-  color: #5b6472;
-}
-
 .timeline-headline__verdict {
-  margin-top: 0.6rem;
-  font-size: 0.85rem;
+  margin-top: 0.75rem;
   font-weight: 600;
-  color: #2e7d32;
+}
 
-  .timeline-headline--short & {
-    color: #e65100;
+.timeline-headline--short .timeline-headline__verdict {
+  color: var(--mat-sys-error, var(--color-danger));
+}
+
+.bill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bill-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+
+  & + & {
+    border-top: 1px solid var(--mat-sys-outline-variant, var(--color-border));
   }
 }
-
-.timeline-list__kind {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #5b6472;
-  background: #eef1f5;
-  border-radius: 4px;
-  padding: 0.15rem 0.4rem;
-  flex-shrink: 0;
-}
-
-.timeline-list[data-status='overdue'] .bill-list__item {
-  border-left: 3px solid #b00020;
-}
-
-.timeline-list__status--overdue {
-  color: #b00020;
-}
-
-.timeline-list__check {
-  color: #2e7d32;
-  margin-left: 0.25rem;
-}
-
-.timeline-list[data-status='paid'] .bill-list__amount {
-  color: #5b6472;
-  font-weight: 500;
-}
-
-// --- Manage list: stacked rows so the inline edit form has room (M110) ---
 
 .bill-list__item--stacked {
-  display: block;
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .bill-list__row {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.bill-list__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.bill-list__name {
+  font-weight: 500;
+}
+
+.bill-list__frequency {
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+}
+
+.bill-list__amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.timeline-list__kind {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+  min-width: 5.5rem;
+}
+
+.timeline-list__status--overdue {
+  color: var(--mat-sys-error, var(--color-danger));
+  font-weight: 500;
+}
+
+.timeline-list__check {
+  color: var(--mat-sys-primary, var(--color-success));
+  margin-left: 0.35rem;
+}
+
+.bill-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  max-width: 26rem;
+
+  button[type='submit'] {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+  }
 }
 
 .bill-form--inline {
@@ -174,43 +127,7 @@
 
   .bill-form__actions {
     display: flex;
-    gap: 0.75rem;
-  }
-}
-
-.bill-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-width: 20rem;
-
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.9rem;
-  }
-
-  input,
-  select {
-    padding: 0.45rem 0.6rem;
-    border: 1px solid #ccd2da;
-    border-radius: 6px;
-    font-size: 1rem;
-  }
-
-  button {
-    padding: 0.55rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+    gap: 0.5rem;
+    margin-top: 0.5rem;
   }
 }
