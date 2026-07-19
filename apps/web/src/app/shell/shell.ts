@@ -46,7 +46,7 @@ export class Shell {
       label: null,
       items: [
         { path: '/overview', label: 'Overview' },
-        { path: '/chat', label: 'Ask the Advisor', right: 'advisor.use' },
+        { path: '/chat', label: 'Advisor', right: 'advisor.use' },
       ],
     },
     {
@@ -55,18 +55,18 @@ export class Shell {
         { path: '/accounts', label: 'Accounts' },
         { path: '/transactions', label: 'Transactions' },
         { path: '/bills', label: 'Bills' },
-        { path: '/loans', label: 'Debts & Loans' },
-        { path: '/income-tax', label: 'Income & Tax' },
+        { path: '/loans', label: 'Debts & loans' },
+        { path: '/income-tax', label: 'Income & tax' },
         { path: '/budgets', label: 'Budgets' },
         { path: '/categories', label: 'Categories' },
         { path: '/goals', label: 'Goals' },
       ],
     },
     {
-      label: 'Advisor',
+      label: 'AI',
       items: [
-        { path: '/memory', label: 'Advisor Memory', right: 'advisor.manage' },
-        { path: '/ai-runtime', label: 'AI Runtime', right: 'ai_runtime.manage' },
+        { path: '/memory', label: 'Advisor memory', right: 'advisor.manage' },
+        { path: '/ai-runtime', label: 'AI runtime', right: 'ai_runtime.manage' },
       ],
     },
     {
