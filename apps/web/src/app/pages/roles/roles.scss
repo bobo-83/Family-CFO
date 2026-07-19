@@ -1,8 +1,16 @@
 .page__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+
+  // Keep the action button intact — never let it shrink or wrap its label into
+  // a clipped two-line pill on a narrow phone; it drops below the title instead.
+  button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
 
 .role-list {
