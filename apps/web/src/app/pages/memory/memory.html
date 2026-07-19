@@ -16,51 +16,57 @@
     live in San Jose") will show up here automatically.
   </p>
 } @else {
-  <ul class="memory-list">
-    @for (memory of memories(); track memory.id) {
-      <li class="memory-list__item">
-        <div class="memory-list__main">
-          <div class="memory-list__value">{{ memory.value }}</div>
-          <div class="memory-list__meta">
-            {{ memory.source === 'manual' ? 'Taught directly' : 'Learned from chat' }}
-            · {{ memory.updated_at | date: 'MMM d, y' }}
+  <mat-card appearance="outlined" class="page-card">
+    <ul class="memory-list">
+      @for (memory of memories(); track memory.id) {
+        <li class="memory-list__item">
+          <div class="memory-list__main">
+            <div class="memory-list__value">{{ memory.value }}</div>
+            <div class="memory-list__meta">
+              {{ memory.source === 'manual' ? 'Taught directly' : 'Learned from chat' }}
+              · {{ memory.updated_at | date: 'MMM d, y' }}
+            </div>
           </div>
-        </div>
-        @if (canWrite()) {
-          <button
-            type="button"
-            class="memory-list__delete"
-            (click)="forget(memory.id)"
-            aria-label="Forget this fact"
-          >
-            Forget
-          </button>
-        }
-      </li>
-    }
-  </ul>
+          @if (canWrite()) {
+            <button
+              mat-button
+              type="button"
+              class="memory-list__delete"
+              (click)="forget(memory.id)"
+              aria-label="Forget this fact"
+            >
+              Forget
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  </mat-card>
 }
 
 @if (canWrite()) {
-  <h2>Teach the advisor a fact</h2>
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="memory-form">
-    <label>
-      <span>Fact</span>
-      <input
-        type="text"
-        formControlName="value"
-        placeholder="e.g. We eat out about three times a week"
-      />
-    </label>
+  <mat-card appearance="outlined" class="page-card">
+    <h2>Teach the advisor a fact</h2>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="memory-form">
+      <mat-form-field appearance="outline">
+        <mat-label>Fact</mat-label>
+        <input
+          matInput
+          type="text"
+          formControlName="value"
+          placeholder="e.g. We eat out about three times a week"
+        />
+      </mat-form-field>
 
-    @if (submitError(); as message) {
-      <p class="page-error" role="alert">{{ message }}</p>
-    }
+      @if (submitError(); as message) {
+        <p class="page-error" role="alert">{{ message }}</p>
+      }
 
-    <button type="submit" [disabled]="submitting()">
-      {{ submitting() ? 'Saving…' : 'Remember this' }}
-    </button>
-  </form>
+      <button mat-flat-button type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Saving…' : 'Remember this' }}
+      </button>
+    </form>
+  </mat-card>
 } @else {
   <p class="page-empty">Only the household owner or an adult member can manage memories.</p>
 }

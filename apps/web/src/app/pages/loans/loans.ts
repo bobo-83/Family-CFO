@@ -1,6 +1,12 @@
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, HostListener, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatRadioModule } from '@angular/material/radio';
+import { MatSelectModule } from '@angular/material/select';
 import type { Account, AccountType } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -79,7 +85,17 @@ export function monthsLeft(iso: string | null | undefined): number | null {
 
 @Component({
   selector: 'app-loans',
-  imports: [DatePipe, FormsModule, NgTemplateOutlet],
+  imports: [
+    DatePipe,
+    FormsModule,
+    NgTemplateOutlet,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatRadioModule,
+    MatButtonModule,
+  ],
   templateUrl: './loans.html',
   styleUrl: './loans.scss',
 })

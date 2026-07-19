@@ -1,5 +1,9 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import * as QRCode from 'qrcode';
 import type { Member, PairedDevice } from '../../api-client';
@@ -9,7 +13,7 @@ import { apiErrorMessage } from '../../shared/api-error';
 
 @Component({
   selector: 'app-devices',
-  imports: [DatePipe],
+  imports: [DatePipe, MatCardModule, MatButtonModule, MatFormFieldModule, MatSelectModule],
   templateUrl: './devices.html',
   styleUrl: './devices.scss',
 })

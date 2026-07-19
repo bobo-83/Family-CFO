@@ -8,7 +8,7 @@
     <p class="backups-note">{{ statusMessage() }}</p>
   }
 
-  <section class="backups-card">
+  <mat-card appearance="outlined" class="backups-card">
     <h2>Off-box backup — Synology (SMB)</h2>
     <p class="backups-note">
       Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the
@@ -16,39 +16,47 @@
       Settings save as you change them. The password is encrypted on the box and never shown again.
     </p>
     <div class="backups-form">
-      <label>Synology address
-        <input type="text" [ngModel]="host()" (ngModelChange)="host.set($event)" (blur)="saveConfig()" placeholder="192.168.1.50" />
-      </label>
-      <label>Shared folder
-        <input type="text" [ngModel]="share()" (ngModelChange)="share.set($event)" (blur)="saveConfig()" placeholder="family-cfo-backups" />
-      </label>
-      <label>Subfolder (optional)
-        <input type="text" [ngModel]="folder()" (ngModelChange)="folder.set($event)" (blur)="saveConfig()" placeholder="" />
-      </label>
-      <label>Username
-        <input type="text" [ngModel]="username()" (ngModelChange)="username.set($event)" (blur)="saveConfig()" placeholder="backup-user" />
-      </label>
-      <label>Password
-        <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event); onPasswordInput()" (blur)="saveConfig()"
+      <mat-form-field appearance="outline">
+        <mat-label>Synology address</mat-label>
+        <input matInput type="text" [ngModel]="host()" (ngModelChange)="host.set($event)" (blur)="saveConfig()" placeholder="192.168.1.50" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Shared folder</mat-label>
+        <input matInput type="text" [ngModel]="share()" (ngModelChange)="share.set($event)" (blur)="saveConfig()" placeholder="family-cfo-backups" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Subfolder (optional)</mat-label>
+        <input matInput type="text" [ngModel]="folder()" (ngModelChange)="folder.set($event)" (blur)="saveConfig()" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput type="text" [ngModel]="username()" (ngModelChange)="username.set($event)" (blur)="saveConfig()" placeholder="backup-user" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" [ngModel]="password()" (ngModelChange)="password.set($event); onPasswordInput()" (blur)="saveConfig()"
                [placeholder]="hasStoredPassword() ? 'saved — leave blank to keep' : ''" />
-      </label>
-      <label>Domain (optional)
-        <input type="text" [ngModel]="domain()" (ngModelChange)="domain.set($event)" (blur)="saveConfig()" placeholder="WORKGROUP" />
-      </label>
-      <label>Schedule
-        <select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="off">Off</option>
-        </select>
-      </label>
-      <label>Max total size (GB, 0 = no limit)
-        <input type="number" min="0" step="0.5" [ngModel]="maxGB()" (ngModelChange)="maxGB.set($event)" (blur)="saveConfig()" />
-      </label>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Domain (optional)</mat-label>
+        <input matInput type="text" [ngModel]="domain()" (ngModelChange)="domain.set($event)" (blur)="saveConfig()" placeholder="WORKGROUP" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Schedule</mat-label>
+        <mat-select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
+          <mat-option value="daily">Daily</mat-option>
+          <mat-option value="weekly">Weekly</mat-option>
+          <mat-option value="off">Off</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Max total size (GB, 0 = no limit)</mat-label>
+        <input matInput type="number" min="0" step="0.5" [ngModel]="maxGB()" (ngModelChange)="maxGB.set($event)" (blur)="saveConfig()" />
+      </mat-form-field>
     </div>
     <p class="backups-note">When all backups combined exceed the limit, the oldest are deleted first.</p>
     <div class="backups-actions">
-      <button type="button" [disabled]="!canTest() || checking()" (click)="testConnection()">
+      <button mat-stroked-button type="button" [disabled]="!canTest() || checking()" (click)="testConnection()">
         {{ checking() ? 'Testing…' : 'Test connection' }}
       </button>
       @if (checkResult(); as result) {
@@ -57,9 +65,9 @@
         </span>
       }
     </div>
-  </section>
+  </mat-card>
 
-  <section class="backups-card">
+  <mat-card appearance="outlined" class="backups-card">
     <h2>Status</h2>
     @if (latest(); as job) {
       <p>
@@ -73,11 +81,11 @@
       <p class="backups-note">No backups yet.</p>
     }
     <div class="backups-actions">
-      <button type="button" [disabled]="busy()" (click)="createBackup()">Back up now</button>
+      <button mat-flat-button type="button" [disabled]="busy()" (click)="createBackup()">Back up now</button>
     </div>
-  </section>
+  </mat-card>
 
-  <section class="backups-card">
+  <mat-card appearance="outlined" class="backups-card">
     <h2>Encryption key</h2>
     <p class="backups-note">
       This key decrypts every backup — store it somewhere safe (a password manager). Without it,
@@ -86,17 +94,17 @@
     @if (revealedKey(); as key) {
       <code class="backups-key">{{ key }}</code>
       <div class="backups-actions">
-        <button type="button" (click)="copyKey()">Copy key</button>
+        <button mat-stroked-button type="button" (click)="copyKey()">Copy key</button>
       </div>
     } @else {
       <div class="backups-actions">
-        <button type="button" (click)="revealKey()">Reveal encryption key</button>
+        <button mat-stroked-button type="button" (click)="revealKey()">Reveal encryption key</button>
       </div>
     }
-  </section>
+  </mat-card>
 
   @if (remoteBackups().length) {
-    <section class="backups-card">
+    <mat-card appearance="outlined" class="backups-card">
       <h2>Restore from Synology</h2>
       <p class="backups-note">Backups found on the share, newest first. Restoring replaces all current data.</p>
       <table class="backups-table">
@@ -107,17 +115,17 @@
               <td>{{ formatDate(backup.modified_at) }}</td>
               <td>{{ backup.size_bytes }}</td>
               <td>
-                <button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
-                <button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)">Delete</button>
+                <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
+                <button mat-button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)">Delete</button>
               </td>
             </tr>
           }
         </tbody>
       </table>
-    </section>
+    </mat-card>
   }
 
-  <section class="backups-card">
+  <mat-card appearance="outlined" class="backups-card">
     <h2>On-box backups</h2>
     @if (backups.isLoading()) {
       <p>Loading backups…</p>
@@ -136,9 +144,9 @@
               <td>{{ backup.size_bytes ?? '—' }}</td>
               <td>
                 @if (backup.status === 'completed' && !backup.pruned_at) {
-                  <button type="button" [disabled]="busy()" (click)="restore(backup.id)">Restore</button>
+                  <button mat-button type="button" [disabled]="busy()" (click)="restore(backup.id)">Restore</button>
                 }
-                <button type="button" [disabled]="busy()" (click)="deleteLocal(backup.id)">Delete</button>
+                <button mat-button type="button" [disabled]="busy()" (click)="deleteLocal(backup.id)">Delete</button>
               </td>
             </tr>
           } @empty {
@@ -147,7 +155,7 @@
         </tbody>
       </table>
     }
-  </section>
+  </mat-card>
 } @else {
   <p class="backups-note">Only the household owner can manage backups.</p>
 }

@@ -13,18 +13,18 @@
 } @else {
   @if (loans().length > 0) {
     <div class="loan-summary">
-      <div class="loan-summary__item">
+      <mat-card appearance="outlined" class="loan-summary__item">
         <span class="loan-summary__label">Total owed</span>
         <span class="loan-summary__value">
           {{ formatMoney({ amount_minor: totalOwed(), currency: 'USD' }) }}
         </span>
-      </div>
-      <div class="loan-summary__item">
+      </mat-card>
+      <mat-card appearance="outlined" class="loan-summary__item">
         <span class="loan-summary__label">Monthly payments</span>
         <span class="loan-summary__value">
           {{ formatMoney({ amount_minor: totalMonthly(), currency: 'USD' }) }}
         </span>
-      </div>
+      </mat-card>
     </div>
   }
 
@@ -64,10 +64,10 @@
               {{ formatMoney({ amount_minor: owed(loan), currency: loan.balance.currency }) }}
             </div>
             @if (canWrite()) {
-              <button type="button" class="bill-list__confirm" (click)="startEdit(loan)">
+              <button mat-flat-button type="button" class="bill-list__confirm" (click)="startEdit(loan)">
                 Edit
               </button>
-              <button type="button" class="bill-list__delete" (click)="remove(loan)">
+              <button mat-button type="button" class="bill-list__delete" (click)="remove(loan)">
                 Delete
               </button>
             }
@@ -87,7 +87,7 @@
     @if (editingId() === '') {
       <ng-container *ngTemplateOutlet="loanForm"></ng-container>
     } @else if (editingId() === null) {
-      <button type="button" class="bill-list__confirm" (click)="startAdd()">
+      <button mat-flat-button type="button" class="bill-list__confirm" (click)="startAdd()">
         Add a loan
       </button>
     }
@@ -97,124 +97,101 @@
 }
 
 <ng-template #loanForm>
-  <form class="bill-form bill-form--inline loan-form" (ngSubmit)="save()">
-    <div class="loan-form__scan-row">
-      <label class="earner-form__scan">
-        {{ scanning() ? 'Reading…' : '📄 Scan a statement' }}
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          (change)="onStatementSelected($event)"
-          hidden
-        />
-      </label>
-      <span class="loan-form__scan-hint">
-        Photograph, upload, or paste (Ctrl/⌘+V) your loan or lease statement and
-        the on-box vision model fills in what it can read. Confirm every value
-        before saving.
-      </span>
-    </div>
-    @if (scanNote(); as note) {
-      <p class="loan-form__scan-note">{{ note }}</p>
-    }
-
-    <label>
-      <span>Name</span>
-      <input type="text" [(ngModel)]="form.name" name="loanName" required />
-    </label>
-    <label>
-      <span>Type</span>
-      <select [(ngModel)]="form.type" name="loanType">
-        @for (t of loanTypes; track t.value) {
-          <option [value]="t.value">{{ t.label }}</option>
-        }
-      </select>
-    </label>
-    <label>
-      <span>Balance you still owe (USD)</span>
-      <input type="number" step="0.01" min="0" [(ngModel)]="form.balanceOwed" name="loanBalance" />
-    </label>
-    <label>
-      <span>Monthly payment (USD)</span>
-      <input
-        type="number"
-        step="0.01"
-        min="0"
-        [(ngModel)]="form.monthlyPayment"
-        name="loanPayment"
-      />
-    </label>
-
-    <label>
-      <span>Next payment due</span>
-      <input type="date" [(ngModel)]="form.nextPaymentDueDate" name="loanNextPaymentDue" />
-      <small class="loan-form__hint">Filled in automatically from an uploaded statement; set it here to override.</small>
-    </label>
-
-    <fieldset class="loan-form__end">
-      <legend>Loan / lease end</legend>
-      <label class="loan-form__end-mode">
-        <input
-          type="radio"
-          name="endMode"
-          value="none"
-          [(ngModel)]="form.endMode"
-        />
-        No end date
-      </label>
-      <label class="loan-form__end-mode">
-        <input
-          type="radio"
-          name="endMode"
-          value="date"
-          [(ngModel)]="form.endMode"
-          (ngModelChange)="onEndModeChange('date')"
-        />
-        End date
-      </label>
-      <label class="loan-form__end-mode">
-        <input
-          type="radio"
-          name="endMode"
-          value="payments"
-          [(ngModel)]="form.endMode"
-          (ngModelChange)="onEndModeChange('payments')"
-        />
-        Payments left
-      </label>
-      @if (form.endMode === 'date') {
-        <input type="date" [(ngModel)]="form.maturityDate" name="loanMaturity" />
-        @if (monthsLeft(form.maturityDate); as left) {
-          <span class="loan-form__derived">
-            {{ left }} payment{{ left === 1 ? '' : 's' }} left
-          </span>
-        }
-      } @else if (form.endMode === 'payments') {
-        <input
-          type="number"
-          min="1"
-          placeholder="Number of payments remaining"
-          [(ngModel)]="form.paymentsLeft"
-          name="loanPaymentsLeft"
-        />
-        @if (form.paymentsLeft && form.paymentsLeft > 0) {
-          <span class="loan-form__derived">
-            ends around {{ dateAfterPayments(form.paymentsLeft) | date: 'MMM y' }}
-          </span>
-        }
+  <mat-card appearance="outlined" class="loan-form-card">
+    <form class="bill-form bill-form--inline loan-form" (ngSubmit)="save()">
+      <div class="loan-form__scan-row">
+        <label class="earner-form__scan">
+          {{ scanning() ? 'Reading…' : '📄 Scan a statement' }}
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            (change)="onStatementSelected($event)"
+            hidden
+          />
+        </label>
+        <span class="loan-form__scan-hint">
+          Photograph, upload, or paste (Ctrl/⌘+V) your loan or lease statement and
+          the on-box vision model fills in what it can read. Confirm every value
+          before saving.
+        </span>
+      </div>
+      @if (scanNote(); as note) {
+        <p class="loan-form__scan-note">{{ note }}</p>
       }
-    </fieldset>
 
-    <label>
-      <span>Interest rate (% APR, optional)</span>
-      <input type="number" step="0.01" min="0" [(ngModel)]="form.apr" name="loanApr" />
-    </label>
+      <mat-form-field appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput type="text" [(ngModel)]="form.name" name="loanName" required />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Type</mat-label>
+        <mat-select [(ngModel)]="form.type" name="loanType">
+          @for (t of loanTypes; track t.value) {
+            <mat-option [value]="t.value">{{ t.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Balance you still owe (USD)</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="form.balanceOwed" name="loanBalance" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Monthly payment (USD)</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="form.monthlyPayment" name="loanPayment" />
+      </mat-form-field>
 
-    <div class="bill-form__actions">
-      <button type="submit" [disabled]="saving() || !form.name.trim()">
-        {{ saving() ? 'Saving…' : 'Save' }}
-      </button>
-      <button type="button" class="bill-list__delete" (click)="cancelEdit()">Cancel</button>
-    </div>
-  </form>
+      <mat-form-field appearance="outline">
+        <mat-label>Next payment due</mat-label>
+        <input matInput type="date" [(ngModel)]="form.nextPaymentDueDate" name="loanNextPaymentDue" />
+        <mat-hint>Filled in automatically from an uploaded statement; set it here to override.</mat-hint>
+      </mat-form-field>
+
+      <fieldset class="loan-form__end">
+        <legend>Loan / lease end</legend>
+        <mat-radio-group
+          class="loan-form__end-modes"
+          [(ngModel)]="form.endMode"
+          name="endMode"
+          (change)="onEndModeChange($event.value)"
+        >
+          <mat-radio-button value="none">No end date</mat-radio-button>
+          <mat-radio-button value="date">End date</mat-radio-button>
+          <mat-radio-button value="payments">Payments left</mat-radio-button>
+        </mat-radio-group>
+        @if (form.endMode === 'date') {
+          <mat-form-field appearance="outline">
+            <mat-label>End date</mat-label>
+            <input matInput type="date" [(ngModel)]="form.maturityDate" name="loanMaturity" />
+          </mat-form-field>
+          @if (monthsLeft(form.maturityDate); as left) {
+            <span class="loan-form__derived">
+              {{ left }} payment{{ left === 1 ? '' : 's' }} left
+            </span>
+          }
+        } @else if (form.endMode === 'payments') {
+          <mat-form-field appearance="outline">
+            <mat-label>Payments remaining</mat-label>
+            <input matInput type="number" min="1" [(ngModel)]="form.paymentsLeft" name="loanPaymentsLeft" />
+          </mat-form-field>
+          @if (form.paymentsLeft && form.paymentsLeft > 0) {
+            <span class="loan-form__derived">
+              ends around {{ dateAfterPayments(form.paymentsLeft) | date: 'MMM y' }}
+            </span>
+          }
+        }
+      </fieldset>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Interest rate (% APR, optional)</mat-label>
+        <input matInput type="number" step="0.01" min="0" [(ngModel)]="form.apr" name="loanApr" />
+      </mat-form-field>
+
+      <div class="bill-form__actions">
+        <button mat-flat-button type="submit" [disabled]="saving() || !form.name.trim()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+        <button mat-button type="button" class="bill-list__delete" (click)="cancelEdit()">Cancel</button>
+      </div>
+    </form>
+  </mat-card>
 </ng-template>
