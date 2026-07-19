@@ -150,7 +150,7 @@ describe('Users', () => {
     expect(apiMock.listPairedDevices).toHaveBeenCalledTimes(2);
   });
 
-  it('creates a pairing session and renders a QR code for owner/adult', async () => {
+  it('mints a per-member pairing session and renders that member’s QR', async () => {
     apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
     apiMock.createPairingSession.mockResolvedValue(
       response({
@@ -171,11 +171,14 @@ describe('Users', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    await fixture.componentInstance['pairDevice']();
+    const member = { user_id: 'u1', email: 'u1@x.com', display_name: 'U1', role: 'adult' };
+    await fixture.componentInstance['pairDeviceFor'](member as never);
     fixture.detectChanges();
 
-    expect(apiMock.createPairingSession).toHaveBeenCalled();
+    // On-behalf pairing targets that member's id.
+    expect(apiMock.createPairingSession).toHaveBeenCalledWith('u1');
     const session = fixture.componentInstance['pairingSession']();
+    expect(session?.userId).toBe('u1');
     expect(session?.qrPayload).toBe('{"type":"family-cfo-pairing"}');
     expect(session?.qrImageDataUrl.startsWith('data:image/')).toBe(true);
   });
@@ -241,14 +244,29 @@ describe('Users', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.member-form')).toBeFalsy();
   });
 
-  it('lets a viewer pair their own device (ADR 0034)', async () => {
+  it('lets a viewer pair their own device from their own row (ADR 0034)', async () => {
     apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
+    apiMock.listMembers.mockResolvedValue(
+      response({
+        members: [
+          {
+            user_id: 'v1',
+            email: 'viewer@x.com',
+            display_name: 'Viewer',
+            role: 'viewer',
+            role_id: 'r-viewer',
+            created_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }),
+    );
 
     TestBed.configureTestingModule({
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: authMock('viewer') },
+        // The viewer IS member v1; their own row auto-expands so they can self-pair.
+        { provide: AuthService, useValue: authMock('viewer', 'v1') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -258,7 +276,7 @@ describe('Users', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     // ADR 0034: pairing your OWN device needs only membership.
-    expect(text).not.toContain('Only the household owner or an adult member can pair a new device.');
-    expect(text).toContain('Pair');
+    expect(text).not.toContain('Only an admin can pair a device for another member.');
+    expect(text).toContain('Pair a device');
   });
 });

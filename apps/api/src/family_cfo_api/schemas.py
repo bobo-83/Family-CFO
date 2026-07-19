@@ -108,6 +108,7 @@ class DeviceCredential(BaseModel):
 
 class PairedDevice(BaseModel):
     id: str
+    user_id: str | None = None
     name: str
     created_at: datetime
     last_seen_at: datetime | None = None
