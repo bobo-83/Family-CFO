@@ -218,4 +218,4 @@ private struct GoalFormSheet: View {
 }
 
 /// `Goal` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
-extension Components.Schemas.Goal: @retroactive Identifiable {}
+extension Components.Schemas.Goal: Identifiable {}

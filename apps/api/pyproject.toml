@@ -56,6 +56,9 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
+# ADR 0037: builds are warning-free. A Python warning during tests (a
+# deprecation, an unawaited coroutine, …) fails the run instead of scrolling by.
+filterwarnings = ["error"]
 
 [tool.ruff]
 line-length = 100

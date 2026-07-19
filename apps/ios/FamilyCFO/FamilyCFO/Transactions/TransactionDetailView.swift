@@ -151,10 +151,12 @@ struct TransactionDetailView: View {
                 }
             }
             // Each source is its own row so their tap targets never overlap.
+            // Resolve the label on the main actor before the picker's closure so a
+            // plain String (Sendable) is captured, not the actor-isolated property.
+            let libraryLabel = viewModel.hasAttachment
+                ? "Replace from library" : "Choose from library"
             PhotosPicker(selection: $photoItem, matching: .images) {
-                Label(
-                    viewModel.hasAttachment ? "Replace from library" : "Choose from library",
-                    systemImage: "photo.on.rectangle")
+                Label(libraryLabel, systemImage: "photo.on.rectangle")
             }
             .disabled(viewModel.isUploading)
             Button {
