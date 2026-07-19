@@ -318,5 +318,11 @@ def test_month_arg_parses_to_a_day_in_that_month() -> None:
 
 def test_time_scoped_tools_advertise_the_month_param() -> None:
     by_name = {t.name: t for t in ai_tools.build_tools()}
-    for name in ("get_spending_by_category", "get_budgets", "get_spending_insights"):
+    for name in (
+        "get_spending_by_category",
+        "get_budgets",
+        "get_spending_insights",
+        "get_net_worth",
+        "get_income_and_tax",
+    ):
         assert "month" in by_name[name].parameters["properties"], name
