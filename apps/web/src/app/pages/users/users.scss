@@ -85,26 +85,38 @@ h2 {
     border-bottom: 1px solid var(--mat-sys-outline-variant, #eceff2);
   }
 
+  // Wrap on narrow screens (393pt discipline): the actions drop below the name
+  // instead of overflowing the viewport.
   &__row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem 1rem;
+  }
+
+  // The name/email block grows but may shrink below its content so a long email
+  // wraps rather than forcing horizontal scroll.
+  &__row > :first-child {
+    flex: 1 1 12rem;
+    min-width: 0;
   }
 
   &__meta {
     color: var(--mat-sys-on-surface-variant, #5b6472);
     font-size: 0.85rem;
+    overflow-wrap: anywhere;
   }
 
   &__actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     align-items: center;
   }
 
   &__role {
-    width: 10rem;
+    width: 9rem;
   }
 
   &__remove {
