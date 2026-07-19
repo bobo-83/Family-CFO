@@ -38,7 +38,7 @@ async def list_conversations(
     session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
 ) -> ConversationListResponse:
-    records = repository.list_conversations(engine, session.household_id)
+    records = repository.list_conversations(engine, session.household_id, session.user_id)
     return ConversationListResponse(conversations=[_to_summary(record) for record in records])
 
 
@@ -57,7 +57,7 @@ async def get_conversation(
     session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
 ) -> ConversationDetail:
-    record = repository.get_conversation(engine, session.household_id, conversation_id)
+    record = repository.get_conversation(engine, session.household_id, conversation_id, session.user_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     messages = repository.list_conversation_messages(engine, conversation_id)
@@ -96,7 +96,7 @@ async def delete_conversation(
     session: repository.SessionContext = Depends(require_right(rights.ADVISOR_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
-    if not repository.delete_conversation(engine, session.household_id, conversation_id):
+    if not repository.delete_conversation(engine, session.household_id, conversation_id, session.user_id):
         raise HTTPException(status_code=404, detail="Conversation not found")
     logger.info(
         "conversation deleted household_id=%s conversation_id=%s",

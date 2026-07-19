@@ -3868,11 +3868,14 @@ def create_conversation(
 
 
 def get_conversation(
-    engine: Engine, household_id: str, conversation_id: str
+    engine: Engine, household_id: str, conversation_id: str, user_id: str
 ) -> ConversationRecord | None:
+    # ADR 0038: a conversation is private to the member who created it — scope by
+    # created_by_user_id so one member can't read another's thread by id.
     query = select(models.conversations).where(
         models.conversations.c.household_id == household_id,
         models.conversations.c.id == conversation_id,
+        models.conversations.c.created_by_user_id == user_id,
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
@@ -3895,7 +3898,20 @@ def get_conversation(
     )
 
 
-def list_conversations(engine: Engine, household_id: str) -> list[ConversationRecord]:
+def list_all_conversation_ids(engine: Engine, household_id: str) -> list[str]:
+    """Every conversation id in the household, regardless of who created it — for
+    the internal memory backfill only. Extracted memories are shared household
+    financial context; the user-facing listing stays per-user (ADR 0038)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(models.conversations.c.id).where(
+                models.conversations.c.household_id == household_id
+            )
+        ).all()
+    return [row[0] for row in rows]
+
+
+def list_conversations(engine: Engine, household_id: str, user_id: str) -> list[ConversationRecord]:
     message_counts = (
         select(
             models.conversation_messages.c.conversation_id,
@@ -3920,7 +3936,10 @@ def list_conversations(engine: Engine, household_id: str) -> list[ConversationRe
             message_counts.c.conversation_id == models.conversations.c.id,
             isouter=True,
         )
-        .where(models.conversations.c.household_id == household_id)
+        .where(
+            models.conversations.c.household_id == household_id,
+            models.conversations.c.created_by_user_id == user_id,  # ADR 0038: private per user
+        )
         .order_by(models.conversations.c.updated_at.desc())
     )
     with engine.connect() as conn:
@@ -4007,12 +4026,15 @@ def append_conversation_turn(
         )
 
 
-def delete_conversation(engine: Engine, household_id: str, conversation_id: str) -> bool:
+def delete_conversation(
+    engine: Engine, household_id: str, conversation_id: str, user_id: str
+) -> bool:
     with engine.begin() as conn:
         owned = conn.execute(
             select(models.conversations.c.id).where(
                 models.conversations.c.household_id == household_id,
                 models.conversations.c.id == conversation_id,
+                models.conversations.c.created_by_user_id == user_id,  # ADR 0038
             )
         ).first()
         if owned is None:
