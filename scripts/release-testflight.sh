@@ -19,6 +19,13 @@
 #
 # The App Store Connect app record for bundle id com.familycfo.ios must already
 # exist (create it once at appstoreconnect.apple.com — see the guide).
+#
+# FIRST upload for a team must be done ONCE through Xcode's GUI (Organizer ->
+# Distribute App -> App Store Connect, automatic signing) to create the Apple
+# Distribution certificate: the API key can authenticate the upload but cannot
+# create signing certificates ("Cloud signing permission error"). After that one
+# GUI upload the cert lives in the keychain and this script runs headless. See
+# docs/adr/0035-testflight-release.md.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
