@@ -52,11 +52,12 @@ jobs:
             | awk -F '[()]' '/iPhone/ { udid = $2 } END { print udid }')"
           echo "Using simulator $sim"
           test -n "$sim" || { echo "No iPhone simulator available"; exit 1; }
-          # ADR 0037: builds must be warning-free. Any Swift compiler warning
-          # fails the build so it can't quietly pile up in the logs.
+          # ADR 0037: the app target is built warnings-as-errors (set on the
+          # target in project.pbxproj, NOT here — a command-line override would
+          # also treat third-party SwiftPM dependencies' warnings as errors and
+          # break their builds).
           xcodebuild test \
             -project FamilyCFO.xcodeproj \
             -scheme FamilyCFO \
             -destination "id=$sim" \
-            CODE_SIGNING_ALLOWED=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+            CODE_SIGNING_ALLOWED=NO
