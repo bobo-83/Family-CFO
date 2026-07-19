@@ -2094,6 +2094,10 @@ public enum Components {
         public struct PairedDevice: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PairedDevice/id`.
             public var id: Swift.String
+            /// The household member this device is paired to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PairedDevice/user_id`.
+            public var userId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PairedDevice/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/PairedDevice/created_at`.
@@ -2106,18 +2110,21 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - id:
+            ///   - userId: The household member this device is paired to.
             ///   - name:
             ///   - createdAt:
             ///   - lastSeenAt:
             ///   - revokedAt:
             public init(
                 id: Swift.String,
+                userId: Swift.String? = nil,
                 name: Swift.String,
                 createdAt: Foundation.Date,
                 lastSeenAt: Foundation.Date? = nil,
                 revokedAt: Foundation.Date? = nil
             ) {
                 self.id = id
+                self.userId = userId
                 self.name = name
                 self.createdAt = createdAt
                 self.lastSeenAt = lastSeenAt
@@ -2125,6 +2132,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case id
+                case userId = "user_id"
                 case name
                 case createdAt = "created_at"
                 case lastSeenAt = "last_seen_at"
