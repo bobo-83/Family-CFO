@@ -210,6 +210,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /categories`.
     /// - Remark: Generated from `#/paths//categories/post(createCategory)`.
     func createCategory(_ input: Operations.CreateCategory.Input) async throws -> Operations.CreateCategory.Output
+    /// Rename a spending category
+    ///
+    /// - Remark: HTTP `PATCH /categories/{category_id}`.
+    /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)`.
+    func updateCategory(_ input: Operations.UpdateCategory.Input) async throws -> Operations.UpdateCategory.Output
     /// Delete a spending category
     ///
     /// - Remark: HTTP `DELETE /categories/{category_id}`.
@@ -1024,6 +1029,21 @@ extension APIProtocol {
         body: Operations.CreateCategory.Input.Body
     ) async throws -> Operations.CreateCategory.Output {
         try await createCategory(Operations.CreateCategory.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Rename a spending category
+    ///
+    /// - Remark: HTTP `PATCH /categories/{category_id}`.
+    /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)`.
+    public func updateCategory(
+        path: Operations.UpdateCategory.Input.Path,
+        headers: Operations.UpdateCategory.Input.Headers = .init(),
+        body: Operations.UpdateCategory.Input.Body
+    ) async throws -> Operations.UpdateCategory.Output {
+        try await updateCategory(Operations.UpdateCategory.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -2416,6 +2436,21 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CategoryCreateRequest/name`.
             public var name: Swift.String
             /// Creates a new `CategoryCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            public init(name: Swift.String) {
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CategoryUpdateRequest`.
+        public struct CategoryUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CategoryUpdateRequest/name`.
+            public var name: Swift.String
+            /// Creates a new `CategoryUpdateRequest`.
             ///
             /// - Parameters:
             ///   - name:
@@ -14915,6 +14950,235 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//categories/post(createCategory)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Rename a spending category
+    ///
+    /// - Remark: HTTP `PATCH /categories/{category_id}`.
+    /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)`.
+    public enum UpdateCategory {
+        public static let id: Swift.String = "updateCategory"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/path/category_id`.
+                public var categoryId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - categoryId:
+                public init(categoryId: Swift.String) {
+                    self.categoryId = categoryId
+                }
+            }
+            public var path: Operations.UpdateCategory.Input.Path
+            /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateCategory.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateCategory.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateCategory.Input.Headers
+            /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/requestBody/content/application\/json`.
+                case json(Components.Schemas.CategoryUpdateRequest)
+            }
+            public var body: Operations.UpdateCategory.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UpdateCategory.Input.Path,
+                headers: Operations.UpdateCategory.Input.Headers = .init(),
+                body: Operations.UpdateCategory.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/categories/{category_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Category)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Category {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateCategory.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateCategory.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Category renamed
+            ///
+            /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateCategory.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateCategory.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//categories/{category_id}/patch(updateCategory)/responses/409`.
             ///
             /// HTTP response code: `409 conflict`.
             case conflict(Components.Responses._Error)

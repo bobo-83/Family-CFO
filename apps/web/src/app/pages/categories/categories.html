@@ -21,6 +21,15 @@
             <button
               mat-button
               type="button"
+              class="category-list__rename"
+              (click)="rename(category)"
+              aria-label="Rename category"
+            >
+              Rename
+            </button>
+            <button
+              mat-button
+              type="button"
               class="category-list__delete"
               (click)="remove(category.id)"
               aria-label="Delete category"

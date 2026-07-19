@@ -838,6 +838,20 @@ def category_name_exists(engine: Engine, household_id: str, name: str) -> bool:
         return conn.execute(query).first() is not None
 
 
+def update_category(engine: Engine, household_id: str, category_id: str, name: str) -> bool:
+    """Rename a category. Returns False when it doesn't belong to the household."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            models.transaction_categories.update()
+            .where(
+                models.transaction_categories.c.household_id == household_id,
+                models.transaction_categories.c.id == category_id,
+            )
+            .values(name=name)
+        )
+    return result.rowcount > 0
+
+
 def create_category(engine: Engine, household_id: str, name: str) -> CategoryRecord:
     category_id = new_id()
     with engine.begin() as conn:
