@@ -3304,7 +3304,6 @@ components:
           enum: [overdue, due_soon, upcoming, paid, no_date]
         paid_with:
           $ref: "#/components/schemas/TimelinePaidWith"
-          nullable: true
     PaymentTimelineResponse:
       type: object
       required:
@@ -4006,12 +4005,10 @@ components:
           $ref: "#/components/schemas/Money"
         credit_card_payments:
           description: "M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise."
-          nullable: true
           allOf:
             - $ref: "#/components/schemas/Money"
         subscription_forecast:
           description: "M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming."
-          nullable: true
           allOf:
             - $ref: "#/components/schemas/Money"
         committed_total:
@@ -4241,14 +4238,12 @@ components:
           description: >-
             M96: monthly gross from the W2 / compensation profile, when one exists.
             A baseline shown next to actual income (net money-in); NOT added to it.
-          nullable: true
           allOf:
             - $ref: "#/components/schemas/Money"
         taxes:
           description: >-
             M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own,
             outside the discretionary spending breakdown. Absent when none is filed.
-          nullable: true
           allOf:
             - $ref: "#/components/schemas/Money"
     AssetCategoryTotal:
@@ -4366,7 +4361,6 @@ components:
         monthly_contribution:
           description: "M118: planned monthly contribution, reserved by the spending plan."
           $ref: "#/components/schemas/Money"
-          nullable: true
     GoalUpdateRequest:
       type: object
       description: >-
@@ -4388,7 +4382,6 @@ components:
           maximum: 5
         monthly_contribution:
           $ref: "#/components/schemas/Money"
-          nullable: true
     GoalCreateRequest:
       type: object
       required:
@@ -4411,7 +4404,6 @@ components:
           maximum: 5
         monthly_contribution:
           $ref: "#/components/schemas/Money"
-          nullable: true
           default: 3
     GoalType:
       type: string

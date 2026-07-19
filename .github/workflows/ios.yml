@@ -52,8 +52,11 @@ jobs:
             | awk -F '[()]' '/iPhone/ { udid = $2 } END { print udid }')"
           echo "Using simulator $sim"
           test -n "$sim" || { echo "No iPhone simulator available"; exit 1; }
+          # ADR 0037: builds must be warning-free. Any Swift compiler warning
+          # fails the build so it can't quietly pile up in the logs.
           xcodebuild test \
             -project FamilyCFO.xcodeproj \
             -scheme FamilyCFO \
             -destination "id=$sim" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
