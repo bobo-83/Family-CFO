@@ -43,7 +43,10 @@ struct SpendingCard: View {
 
     private var categoryRows: some View {
         let maxAmount = categories.map(\.amount.amountMinor).max() ?? 1
-        return ForEach(categories.prefix(8), id: \.categoryId) { entry in
+        // Show every category (the API already returns them sorted, biggest
+        // first). Capping at the top N silently dropped smaller ones, so the
+        // rows didn't add up to the total spent.
+        return ForEach(categories, id: \.categoryId) { entry in
             NavigationLink {
                 CategorySpendingDetailView(
                     categoryID: entry.categoryId,
