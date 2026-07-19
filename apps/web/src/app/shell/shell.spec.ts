@@ -47,7 +47,7 @@ describe('Shell', () => {
     const labels = Array.from(host.querySelectorAll('.shell__nav-section')).map(
       (el) => el.textContent?.trim(),
     );
-    expect(labels).toEqual(['Money', 'Advisor', 'Admin']);
+    expect(labels).toEqual(['Money', 'AI', 'Admin']);
     // The link list is its own scroll container so long menus never trap
     // the footer off-screen.
     expect(host.querySelector('nav.shell__nav-scroll')).not.toBeNull();

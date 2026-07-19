@@ -44,7 +44,7 @@ struct MainTabView: View {
                 .badge(billsModel.pendingCount)
             }
             if model.rolePolicy.canCategorize {
-                Tab("Categorize", systemImage: "tag") {
+                Tab("Categories", systemImage: "tag") {
                     CategorizeView()
                 }
             }
