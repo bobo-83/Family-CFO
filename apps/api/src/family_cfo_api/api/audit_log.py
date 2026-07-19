@@ -3,8 +3,8 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository, undo_actions
-from family_cfo_api.deps import get_engine, require_role
+from family_cfo_api import repository, rights, undo_actions
+from family_cfo_api.deps import get_engine, require_right
 from family_cfo_api.schemas import AuditEvent, AuditEventListResponse, ErrorResponse
 
 router = APIRouter(tags=["Audit"])
@@ -35,7 +35,7 @@ def _to_schema(record: repository.AuditEventRecord) -> AuditEvent:
     summary="List the household's audit events",
 )
 async def list_audit_events(
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.AUDIT_VIEW)),
     engine: Engine = Depends(get_engine),
 ) -> AuditEventListResponse:
     records = repository.list_audit_events(engine, session.household_id)
@@ -57,7 +57,7 @@ async def list_audit_events(
 )
 async def undo_audit_event(
     audit_id: str,
-    session: repository.SessionContext = Depends(require_role("owner")),
+    session: repository.SessionContext = Depends(require_right(rights.AUDIT_VIEW)),
     engine: Engine = Depends(get_engine),
 ) -> AuditEvent:
     record = repository.get_audit_event(engine, session.household_id, audit_id)

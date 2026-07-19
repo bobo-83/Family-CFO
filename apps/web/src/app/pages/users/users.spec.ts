@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Users } from './users';
 
 function response(data: unknown, error?: unknown) {
@@ -19,6 +20,7 @@ describe('Users', () => {
     createPairingSession: ReturnType<typeof vi.fn>;
     revokePairedDevice: ReturnType<typeof vi.fn>;
     listMembers: ReturnType<typeof vi.fn>;
+    listRoles: ReturnType<typeof vi.fn>;
     createMember: ReturnType<typeof vi.fn>;
     updateMemberRole: ReturnType<typeof vi.fn>;
     deleteMember: ReturnType<typeof vi.fn>;
@@ -30,6 +32,15 @@ describe('Users', () => {
       createPairingSession: vi.fn(),
       revokePairedDevice: vi.fn(),
       listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
+      listRoles: vi.fn().mockResolvedValue(
+        response({
+          roles: [
+            { id: 'r-admin', name: 'Admin', rights: [], built_in: true, member_count: 1 },
+            { id: 'r-user', name: 'User', rights: [], built_in: true, member_count: 0 },
+          ],
+          all_rights: [],
+        }),
+      ),
       createMember: vi.fn(),
       updateMemberRole: vi.fn(),
       deleteMember: vi.fn(),
@@ -55,7 +66,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -90,7 +101,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'adult' } },
+        { provide: AuthService, useValue: authMock('adult') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -124,7 +135,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -153,7 +164,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -186,7 +197,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -199,7 +210,7 @@ describe('Users', () => {
       email: 'a@b.com',
       password: 'password-123',
       displayName: 'A',
-      role: 'adult',
+      roleId: 'r-user',
     });
     await component['addMember']();
 
@@ -207,7 +218,7 @@ describe('Users', () => {
       email: 'a@b.com',
       password: 'password-123',
       display_name: 'A',
-      role: 'adult',
+      role_id: 'r-user',
     });
   });
 
@@ -219,7 +230,7 @@ describe('Users', () => {
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'adult' } },
+        { provide: AuthService, useValue: authMock('adult') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -230,14 +241,14 @@ describe('Users', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.member-form')).toBeFalsy();
   });
 
-  it('hides pairing for a viewer', async () => {
+  it('lets a viewer pair their own device (ADR 0034)', async () => {
     apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
 
     TestBed.configureTestingModule({
       imports: [Users],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'viewer' } },
+        { provide: AuthService, useValue: authMock('viewer') },
       ],
     });
     const fixture = TestBed.createComponent(Users);
@@ -246,6 +257,8 @@ describe('Users', () => {
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Only the household owner or an adult member can pair a new device.');
+    // ADR 0034: pairing your OWN device needs only membership.
+    expect(text).not.toContain('Only the household owner or an adult member can pair a new device.');
+    expect(text).toContain('Pair');
   });
 });

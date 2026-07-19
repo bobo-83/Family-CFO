@@ -3,9 +3,9 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, repository, undo_actions
+from family_cfo_api import audit, finance_service, repository, rights, undo_actions
 from family_cfo_api.api.budgets import _month_window, budgets_with_progress
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     CashOutlookResponse,
     OutlookEvent,
@@ -714,7 +714,7 @@ async def get_spending_by_category(
 )
 async def update_household(
     payload: HouseholdUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.HOUSEHOLD_SETTINGS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> HouseholdContext:
     before = repository.get_household(engine, session.household_id)

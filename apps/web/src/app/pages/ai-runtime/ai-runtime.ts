@@ -55,7 +55,7 @@ export class AiRuntime {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly providers = PROVIDERS;
-  protected readonly isOwner = () => this.auth.role() === 'owner';
+  protected readonly isOwner = () => this.auth.hasRight('ai_runtime.manage');
 
   protected readonly config = resource({
     loader: async () => {

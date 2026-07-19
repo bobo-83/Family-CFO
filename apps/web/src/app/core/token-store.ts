@@ -7,6 +7,10 @@ export interface StoredAuthState {
   householdId: string;
   userId: string;
   role: string;
+  // ADR 0034: the assigned role's name and resolved rights; screens gate with
+  // these. Older stored sessions may lack them (fallback maps from `role`).
+  roleName?: string;
+  rights?: string[];
 }
 
 function loadInitialState(): StoredAuthState | null {

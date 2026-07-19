@@ -23,8 +23,7 @@ export class IncomeTax {
 
   protected readonly formatMoney = formatMoney;
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('income.manage');
   };
 
   protected readonly analysis = signal<IncomeAnalysisResponse | null>(null);

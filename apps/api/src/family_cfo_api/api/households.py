@@ -65,10 +65,15 @@ async def create_household(
         engine, result.user_id, result.household_id, security.hash_token(token), expires_at
     )
 
+    member_rights, role_name = repository.resolve_member_rights(
+        engine, result.household_id, result.user_id
+    )
     return AuthSession(
         access_token=token,
         expires_at=expires_at,
         household_id=result.household_id,
         user_id=result.user_id,
         role=result.role,
+        role_name=role_name or None,
+        rights=sorted(member_rights),
     )

@@ -54,6 +54,14 @@ export type DeviceCredential = {
      * M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
      */
     role?: HouseholdRole;
+    /**
+     * ADR 0034: name of the assigned role (preset or custom).
+     */
+    role_name?: string;
+    /**
+     * ADR 0034: resolved rights — clients gate screens with these.
+     */
+    rights?: Array<string>;
 };
 
 export type PairedDevice = {
@@ -79,6 +87,14 @@ export type AuthSession = {
     household_id: string;
     user_id: string;
     role: HouseholdRole;
+    /**
+     * ADR 0034: name of the assigned role (preset or custom).
+     */
+    role_name?: string;
+    /**
+     * ADR 0034: resolved rights — clients gate screens with these.
+     */
+    rights?: Array<string>;
 };
 
 export type HouseholdRole = 'owner' | 'adult' | 'viewer' | 'child';
@@ -1213,6 +1229,8 @@ export type Member = {
     email: string;
     display_name: string;
     role: HouseholdRole;
+    role_id?: string;
+    role_name?: string;
     created_at: string;
 };
 
@@ -1224,11 +1242,45 @@ export type MemberCreateRequest = {
     email: string;
     password: string;
     display_name: string;
-    role: HouseholdRole;
+    /**
+     * Legacy tier; maps to its preset role. role_id wins if both sent.
+     */
+    role?: HouseholdRole;
+    /**
+     * ADR 0034: assign any preset or custom role by id.
+     */
+    role_id?: string;
 };
 
 export type MemberRoleUpdateRequest = {
-    role: HouseholdRole;
+    role?: HouseholdRole;
+    role_id?: string;
+};
+
+export type Role = {
+    id: string;
+    name: string;
+    rights: Array<string>;
+    built_in: boolean;
+    member_count?: number;
+};
+
+export type RoleListResponse = {
+    roles: Array<Role>;
+    /**
+     * The full catalog, so a role editor can render every right.
+     */
+    all_rights: Array<string>;
+};
+
+export type RoleCreateRequest = {
+    name: string;
+    rights: Array<string>;
+};
+
+export type RoleUpdateRequest = {
+    name?: string;
+    rights?: Array<string>;
 };
 
 export type AccountCreateRequest = {
@@ -2008,6 +2060,146 @@ export type UpdateMemberRoleResponses = {
 };
 
 export type UpdateMemberRoleResponse = UpdateMemberRoleResponses[keyof UpdateMemberRoleResponses];
+
+export type ListRolesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/roles';
+};
+
+export type ListRolesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListRolesError = ListRolesErrors[keyof ListRolesErrors];
+
+export type ListRolesResponses = {
+    /**
+     * Roles
+     */
+    200: RoleListResponse;
+};
+
+export type ListRolesResponse = ListRolesResponses[keyof ListRolesResponses];
+
+export type CreateRoleData = {
+    body: RoleCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/household/roles';
+};
+
+export type CreateRoleErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateRoleError = CreateRoleErrors[keyof CreateRoleErrors];
+
+export type CreateRoleResponses = {
+    /**
+     * Role created
+     */
+    201: Role;
+};
+
+export type CreateRoleResponse = CreateRoleResponses[keyof CreateRoleResponses];
+
+export type DeleteRoleData = {
+    body?: never;
+    path: {
+        role_id: string;
+    };
+    query?: never;
+    url: '/household/roles/{role_id}';
+};
+
+export type DeleteRoleErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type DeleteRoleError = DeleteRoleErrors[keyof DeleteRoleErrors];
+
+export type DeleteRoleResponses = {
+    /**
+     * Role deleted
+     */
+    204: void;
+};
+
+export type DeleteRoleResponse = DeleteRoleResponses[keyof DeleteRoleResponses];
+
+export type UpdateRoleData = {
+    body: RoleUpdateRequest;
+    path: {
+        role_id: string;
+    };
+    query?: never;
+    url: '/household/roles/{role_id}';
+};
+
+export type UpdateRoleErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type UpdateRoleError = UpdateRoleErrors[keyof UpdateRoleErrors];
+
+export type UpdateRoleResponses = {
+    /**
+     * Role updated
+     */
+    200: Role;
+};
+
+export type UpdateRoleResponse = UpdateRoleResponses[keyof UpdateRoleResponses];
 
 export type ListAuditEventsData = {
     body?: never;

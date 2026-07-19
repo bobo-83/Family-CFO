@@ -5,9 +5,9 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, report_generation
+from family_cfo_api import audit, report_generation, repository, rights
 from family_cfo_api.ai_runtime_selection import select_explanation_adapter
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
     GoalProgressSummary,
@@ -94,7 +94,7 @@ async def get_report(
 )
 async def generate_report(
     payload: ReportGenerateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.REPORTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Report:
     explanation_adapter, runtime_client = select_explanation_adapter(engine, session.household_id)

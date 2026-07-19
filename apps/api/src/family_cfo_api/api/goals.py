@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, finance_service, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
     Goal,
@@ -62,7 +62,7 @@ async def list_goals(
 )
 async def create_goal(
     payload: GoalCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.GOALS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Goal:
     record = repository.create_goal(
@@ -107,7 +107,7 @@ async def create_goal(
 async def update_goal(
     goal_id: str,
     payload: GoalUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.GOALS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Goal:
     before = repository.get_goal(engine, session.household_id, goal_id)
@@ -160,7 +160,7 @@ async def update_goal(
 )
 async def delete_goal(
     goal_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.GOALS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_goal(engine, session.household_id, goal_id)

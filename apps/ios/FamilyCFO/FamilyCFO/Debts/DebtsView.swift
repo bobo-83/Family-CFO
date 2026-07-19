@@ -5,9 +5,14 @@ import UniformTypeIdentifiers
 /// The monthly payment flows into safe-to-spend; the balance into net worth and
 /// total debt (a 401(k) loan is netted against retirement).
 struct DebtsView: View {
+    @Environment(AppModel.self) private var model
     @State private var viewModel: DebtsViewModel
     @State private var addingLoan = false
     @State private var editing: LoanEdit?
+
+    /// ADR 0034: adding/editing/removing loans needs accounts.manage; without
+    /// it the screen is read-only (a User still SEES the household's debts).
+    private var canManage: Bool { model.rolePolicy.canManageAccounts }
 
     init(api: DebtsAPI) {
         _viewModel = State(initialValue: DebtsViewModel(api: api))
@@ -31,18 +36,24 @@ struct DebtsView: View {
             }
 
             Section {
-                ForEach(viewModel.loans, id: \.id) { loan in
-                    Button { editing = LoanEdit(loan: loan) } label: { row(loan) }
-                        .buttonStyle(.plain)
-                }
-                .onDelete { indexSet in
-                    let targets = indexSet.map { viewModel.loans[$0] }
-                    Task { for loan in targets { await viewModel.deleteLoan(loan) } }
-                }
-                Button {
-                    addingLoan = true
-                } label: {
-                    Label("Add a loan", systemImage: "plus.circle.fill")
+                if canManage {
+                    ForEach(viewModel.loans, id: \.id) { loan in
+                        Button { editing = LoanEdit(loan: loan) } label: { row(loan) }
+                            .buttonStyle(.plain)
+                    }
+                    .onDelete { indexSet in
+                        let targets = indexSet.map { viewModel.loans[$0] }
+                        Task { for loan in targets { await viewModel.deleteLoan(loan) } }
+                    }
+                    Button {
+                        addingLoan = true
+                    } label: {
+                        Label("Add a loan", systemImage: "plus.circle.fill")
+                    }
+                } else {
+                    ForEach(viewModel.loans, id: \.id) { loan in
+                        row(loan)
+                    }
                 }
             } header: {
                 Text("Loans")
@@ -59,8 +70,10 @@ struct DebtsView: View {
                 } description: {
                     Text("Add a mortgage, auto, student, 401(k), or other loan to track its payment and balance.")
                 } actions: {
-                    Button("Add a loan") { addingLoan = true }
-                        .buttonStyle(.borderedProminent)
+                    if canManage {
+                        Button("Add a loan") { addingLoan = true }
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }

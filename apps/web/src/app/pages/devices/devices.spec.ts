@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Devices } from './devices';
 
 function response(data: unknown, error?: unknown) {
@@ -25,7 +26,7 @@ function configure(apiMock: Record<string, unknown>, role: string) {
     imports: [Devices],
     providers: [
       { provide: ApiService, useValue: apiMock },
-      { provide: AuthService, useValue: { role: () => role } },
+      { provide: AuthService, useValue: authMock(role) },
     ],
   });
 }
@@ -71,7 +72,7 @@ describe('Devices', () => {
     expect(apiMock.createPairingSession).toHaveBeenCalledOnce();
   });
 
-  it('viewer sees the device list but no pairing card, and cannot revoke', async () => {
+  it('viewer can pair their own device but cannot revoke (ADR 0034)', async () => {
     const apiMock = {
       listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
       listPairedDevices: vi.fn().mockResolvedValue(
@@ -96,9 +97,9 @@ describe('Devices', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    // The OTA install card shares the pairing-card class and shows for every
-    // role; only the QR *pairing* card must be hidden from a viewer.
-    expect(host.querySelector('.pairing-card:not(.install-card)')).toBeNull();
+    // ADR 0034: pairing your OWN device needs only membership, so the QR card
+    // now shows for every member; revoking still needs devices.manage.
+    expect(host.querySelector('.pairing-card:not(.install-card)')).not.toBeNull();
     expect(host.textContent).toContain('revoked');
     expect(host.querySelector('.device-list__revoke')).toBeNull();
   });

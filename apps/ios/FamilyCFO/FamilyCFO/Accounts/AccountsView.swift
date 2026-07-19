@@ -47,9 +47,12 @@ struct AccountsView: View {
             }
             .navigationTitle("Accounts")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { addingAccount = true } label: {
-                        Label("Add account", systemImage: "plus")
+                // ADR 0034: adding accounts needs accounts.manage.
+                if model.rolePolicy.canManageAccounts {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { addingAccount = true } label: {
+                            Label("Add account", systemImage: "plus")
+                        }
                     }
                 }
             }

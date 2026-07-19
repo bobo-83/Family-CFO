@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, repository, undo_actions
+from family_cfo_api import audit, finance_service, repository, rights, undo_actions
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import ErrorResponse
 from family_cfo_api.schemas import Money as MoneySchema
 from family_cfo_api.schemas import (
@@ -195,7 +195,7 @@ async def list_transactions_for_review(
 )
 async def create_transaction(
     payload: TransactionCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Transaction:
     account = _require_account(engine, session.household_id, payload.account_id)
@@ -247,7 +247,7 @@ async def create_transaction(
 async def update_transaction(
     transaction_id: str,
     payload: TransactionUpdateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Transaction:
     existing = repository.get_transaction(engine, session.household_id, transaction_id)
@@ -342,7 +342,7 @@ def _describe_update(
 )
 async def delete_transaction(
     transaction_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_transaction(engine, session.household_id, transaction_id)
@@ -432,7 +432,7 @@ def _parse_image_description(
 async def upload_transaction_attachment(
     transaction_id: str,
     file: UploadFile,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> Transaction:
@@ -525,7 +525,7 @@ async def get_transaction_attachment(
 )
 async def delete_transaction_attachment(
     transaction_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> Response:

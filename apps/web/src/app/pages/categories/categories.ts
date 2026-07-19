@@ -17,8 +17,7 @@ export class Categories {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('categories.manage');
   };
 
   protected readonly categories = signal<Category[]>([]);

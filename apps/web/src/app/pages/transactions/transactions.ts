@@ -18,8 +18,7 @@ export class Transactions {
 
   protected readonly formatMoney = formatMoney;
   protected readonly canWrite = computed(() => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('transactions.manage');
   });
 
   protected readonly accounts = resource({

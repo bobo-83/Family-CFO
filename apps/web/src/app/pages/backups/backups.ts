@@ -16,7 +16,7 @@ export class Backups implements OnInit {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
 
-  protected readonly isOwner = computed(() => this.auth.role() === 'owner');
+  protected readonly isOwner = computed(() => this.auth.hasRight('backups.manage'));
 
   // Synology SMB settings (auto-saved as they change).
   protected readonly host = signal('');

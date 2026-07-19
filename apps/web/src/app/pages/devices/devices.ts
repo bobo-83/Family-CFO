@@ -38,12 +38,10 @@ export class Devices {
   protected readonly members = signal<Member[]>([]);
   protected readonly pairFor = signal('');
 
-  protected readonly canPair = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
-  };
-  protected readonly canRevoke = () => this.auth.role() === 'owner';
-  protected readonly canPairForOthers = () => this.auth.role() === 'owner';
+  // ADR 0034: pairing your OWN device needs only membership.
+  protected readonly canPair = () => true;
+  protected readonly canRevoke = () => this.auth.hasRight('devices.manage');
+  protected readonly canPairForOthers = () => this.auth.hasRight('devices.manage');
 
   constructor() {
     void this.load();
