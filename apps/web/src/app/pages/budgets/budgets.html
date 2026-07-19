@@ -15,6 +15,7 @@
   <div class="budget-list">
     @for (budget of budgets(); track budget.id) {
       <mat-card appearance="outlined" class="budget" [attr.data-status]="budget.status">
+        <mat-card-content>
         <div class="budget__head">
           <span class="budget__name">{{ budget.category_name }}</span>
           <span class="budget__status budget__status--{{ budget.status }}">
@@ -70,6 +71,7 @@
             </button>
           </div>
         }
+        </mat-card-content>
       </mat-card>
     }
   </div>
@@ -86,6 +88,7 @@
     <p class="page-empty">Every category already has an envelope.</p>
   } @else {
     <mat-card appearance="outlined" class="page-card">
+      <mat-card-content>
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="budget-form">
         <mat-form-field appearance="outline">
           <mat-label>Category</mat-label>
@@ -106,6 +109,7 @@
           {{ submitting() ? 'Saving…' : 'Add budget' }}
         </button>
       </form>
+      </mat-card-content>
     </mat-card>
   }
 } @else {

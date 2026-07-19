@@ -2,6 +2,7 @@
 
 @if (canWrite()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <form class="txn-form" [formGroup]="form" (ngSubmit)="submit()">
       <h2>Add a transaction</h2>
       <mat-form-field appearance="outline">
@@ -42,6 +43,7 @@
         <p class="txn-form__error">{{ submitError() }}</p>
       }
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="txn-note">Only the household owner or an adult member can add transactions.</p>
@@ -53,6 +55,7 @@
   <p class="txn-error">{{ transactions.error() }}</p>
 } @else {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <table class="txn-table">
       <thead>
         <tr>
@@ -104,5 +107,6 @@
         }
       </tbody>
     </table>
+    </mat-card-content>
   </mat-card>
 }

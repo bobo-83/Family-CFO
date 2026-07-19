@@ -23,6 +23,7 @@
 } @else {
   @for (report of reports.value() ?? []; track report.id) {
     <mat-card appearance="outlined" class="report-card">
+      <mat-card-content>
       <header>
         <h2>{{ report.report_type | titlecase }} report</h2>
         <span>{{ report.period_start }} – {{ report.period_end }}</span>
@@ -61,6 +62,7 @@
           }
         </ul>
       }
+      </mat-card-content>
     </mat-card>
   } @empty {
     <p>No reports generated yet.</p>
