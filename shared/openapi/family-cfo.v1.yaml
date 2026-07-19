@@ -2753,9 +2753,10 @@ components:
         Omit to pair for yourself.
       properties:
         user_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
     PairingSession:
       type: object
       required:
@@ -2811,13 +2812,15 @@ components:
           $ref: "#/components/schemas/HouseholdRole"
         role_name:
           description: "ADR 0034: name of the assigned role (preset or custom)."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         rights:
           description: "ADR 0034: resolved rights — clients gate screens with these."
-          type: array
+          type:
+            - array
+            - "null"
           items: { type: string }
-          nullable: true
     PairedDevice:
       type: object
       required:
@@ -2895,13 +2898,15 @@ components:
           $ref: "#/components/schemas/HouseholdRole"
         role_name:
           description: "ADR 0034: name of the assigned role (preset or custom)."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         rights:
           description: "ADR 0034: resolved rights — clients gate screens with these."
-          type: array
+          type:
+            - array
+            - "null"
           items: { type: string }
-          nullable: true
     HouseholdRole:
       type: string
       enum:
@@ -2942,44 +2947,51 @@ components:
         category:
           type: string
         category_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
         description:
           type: string
         account_name:
           description: "M96: display name of the account this transaction lives in."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         counterparty:
           description: >-
             M96: for a transfer whose other leg is a linked account, that account's
             name — so a generic 'Online Transfer' can be shown as source → destination.
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         duplicate_state:
           description: >-
             M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed'
             (a legitimate repeat the user kept), or 'disputed' (contesting).
-          type: string
+          type:
+            - string
+            - "null"
           enum: [flagged, dismissed, disputed]
-          nullable: true
         external_id:
           description: >-
             M97: the bank/aggregator's reference for this record — distinguishes
             two otherwise-identical duplicate legs in the Review queue.
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         institution:
           description: >-
             M97: the institution (bank) this account was synced from, so the user
             knows where to look the transaction up. Null for manual accounts.
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         note:
           description: "M100: a user's free-text note."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         has_attachment:
           description: "M100: whether an image is attached to this transaction."
           type: boolean
@@ -3037,15 +3049,18 @@ components:
           format: uuid
         category_id:
           description: "M96: the spending category this bill is filed under."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         category_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         transactions_categorized:
           description: "M96: matching transactions auto-filed under this category by the create/update that set it; null when listing."
-          type: integer
-          nullable: true
+          type:
+            - integer
+            - "null"
     IncomeSource:
       type: object
       required:
@@ -3173,9 +3188,10 @@ components:
         lowest_balance:
           $ref: "#/components/schemas/Money"
         lowest_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         expected_income:
           $ref: "#/components/schemas/Money"
         obligations:
@@ -3275,12 +3291,14 @@ components:
         amount:
           $ref: "#/components/schemas/Money"
         due_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         days_until:
-          type: integer
-          nullable: true
+          type:
+            - integer
+            - "null"
         status:
           type: string
           enum: [overdue, due_soon, upcoming, paid, no_date]
@@ -3829,13 +3847,15 @@ components:
           $ref: "#/components/schemas/SpendingByCategory"
         last_synced_at:
           description: "M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced."
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
-          nullable: true
         earliest_month:
           description: "M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         review_count:
           description: "M97: transactions awaiting duplicate review, for the Review tab badge."
           type: integer
@@ -4066,8 +4086,9 @@ components:
       properties:
         percent:
           description: (income - avg spending) / income, %; null when income is 0; may be negative.
-          type: integer
-          nullable: true
+          type:
+            - integer
+            - "null"
         monthly_income:
           $ref: "#/components/schemas/Money"
         average_monthly_spending:
@@ -4084,8 +4105,9 @@ components:
           $ref: "#/components/schemas/Money"
         change_percent:
           description: Percent change vs last month; null when last month was zero.
-          type: integer
-          nullable: true
+          type:
+            - integer
+            - "null"
         top_merchants:
           type: array
           items:
@@ -4125,9 +4147,10 @@ components:
           description: current / target, 0-100 (capped), 0 when target is 0.
           type: integer
         target_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
     NetWorthPoint:
       type: object
       required:
@@ -4173,9 +4196,10 @@ components:
       properties:
         months:
           description: Months of expenses the fund covers; null when there are no bills.
-          type: number
+          type:
+            - number
+            - "null"
           format: double
-          nullable: true
         reserved:
           description: The fund balance used — designated total when set, else all liquid money.
           $ref: "#/components/schemas/Money"
@@ -4262,27 +4286,32 @@ components:
           $ref: "#/components/schemas/Money"
         maturity_date:
           description: "M96: loan/lease end date, for maturity and months-remaining."
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         next_payment_due_date:
           description: "ADR 0033: next payment due date, from a statement or set by hand."
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         institution:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         last_synced_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
-          nullable: true
         emergency_fund_percent:
           description: "M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount)."
-          type: number
+          type:
+            - number
+            - "null"
           minimum: 0
           maximum: 100
-          nullable: true
         emergency_fund_amount:
           description: "M36: fixed amount of this account reserved for emergencies (exclusive with emergency_fund_percent)."
           $ref: "#/components/schemas/Money"
@@ -4349,9 +4378,10 @@ components:
         target:
           $ref: "#/components/schemas/Money"
         target_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         priority:
           type: integer
           minimum: 1
@@ -4493,12 +4523,14 @@ components:
           items:
             type: string
         answered_by:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Model id that produced the answer; null for deterministic answers
         photo_described_by:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
           description: Vision model that read an attached photo; null when none
     Impact:
       type: object
@@ -4844,12 +4876,14 @@ components:
           format: date-time
         remote_status:
           description: "M98: whether this backup reached the off-box share (synced/failed/skipped)."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         remote_error:
           description: "M98: the reason a copy to the share failed."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     BackupJobListResponse:
       type: object
       required:
@@ -4867,28 +4901,34 @@ components:
           enum: [every_15min, hourly, every_6h, daily, weekly, off]
         smb_host:
           description: "M98: Synology address (IP or hostname) backups upload to over SMB."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_share:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_folder:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_username:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_domain:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         has_password:
           description: "M98: whether a Synology password is stored (the password itself is never returned)."
           type: boolean
         max_bytes:
           description: "M98: cap on combined size of all backups (bytes); null = no cap."
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int64
-          nullable: true
         latest:
           $ref: "#/components/schemas/BackupJob"
     BackupConfigUpdateRequest:
@@ -4898,28 +4938,35 @@ components:
           type: string
           enum: [every_15min, hourly, every_6h, daily, weekly, off]
         smb_host:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_share:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_folder:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_username:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_password:
           description: "M98: write-only; omit/null to keep the stored password."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_domain:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         max_bytes:
-          type: integer
+          type:
+            - integer
+            - "null"
           format: int64
-          nullable: true
     BackupDestinationCheckRequest:
       type: object
       required:
@@ -4932,16 +4979,19 @@ components:
         smb_share:
           type: string
         smb_folder:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_username:
           type: string
         smb_password:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         smb_domain:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     BackupDestinationCheckResponse:
       type: object
       required:
@@ -4950,8 +5000,9 @@ components:
         writable:
           type: boolean
         reason:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     RemoteBackup:
       type: object
       required:
@@ -4993,8 +5044,9 @@ components:
           type: boolean
         key:
           description: "M98: the key that decrypts every backup — store it safely."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     HouseholdCreateRequest:
       type: object
       required:
@@ -5031,8 +5083,9 @@ components:
           type: boolean
         credit_cards_paid_in_full:
           description: "M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged."
-          type: boolean
-          nullable: true
+          type:
+            - boolean
+            - "null"
     Member:
       type: object
       required:
@@ -5052,12 +5105,14 @@ components:
         role:
           $ref: "#/components/schemas/HouseholdRole"
         role_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
         role_name:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         created_at:
           type: string
           format: date-time
@@ -5089,18 +5144,20 @@ components:
           $ref: "#/components/schemas/HouseholdRole"
         role_id:
           description: "ADR 0034: assign any preset or custom role by id."
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
     MemberRoleUpdateRequest:
       type: object
       properties:
         role:
           $ref: "#/components/schemas/HouseholdRole"
         role_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          nullable: true
     Role:
       type: object
       required: [id, name, rights, built_in]
@@ -5160,13 +5217,15 @@ components:
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         next_payment_due_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
     AccountUpdateRequest:
       type: object
       properties:
@@ -5180,13 +5239,15 @@ components:
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         next_payment_due_date:
-          type: string
+          type:
+            - string
+            - "null"
           format: date
-          nullable: true
         emergency_fund_percent:
           description: "M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount."
           type: number
@@ -5258,8 +5319,9 @@ components:
           enum: [dismissed, disputed]
         note:
           description: "M100: set/clear the free-text note (present = set, absent = leave)."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     BillCreateRequest:
       type: object
       required:
@@ -5281,8 +5343,9 @@ components:
           format: date
         category_id:
           description: "M96: file the bill under a spending category."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     BillUpdateRequest:
       type: object
       properties:
@@ -5297,8 +5360,9 @@ components:
           format: date
         category_id:
           description: "M96: set (value) or clear (null) the bill's category."
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     IncomeCreateRequest:
       type: object
       required:
@@ -5483,26 +5547,30 @@ components:
         ready:
           type: boolean
         served_model:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         detail:
           type: string
         vision_ready:
           type: boolean
         vision_model:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         vision_enabled:
           type: boolean
         loading_phase:
           description: "M50: what 'loading' actually means, classified from the vLLM log tail."
-          type: string
+          type:
+            - string
+            - "null"
           enum: [downloading, loading, warming_up, error, starting]
-          nullable: true
         loading_detail:
           description: Human detail (download %, shard %, or the crash line).
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     AiModelInfo:
       type: object
       required:
@@ -5529,8 +5597,9 @@ components:
         est_disk_gb:
           type: number
         tool_parser:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         supports_vision:
           type: boolean
         created_at:
@@ -5583,12 +5652,14 @@ components:
         status:
           type: string
         last_synced_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
-          nullable: true
         last_sync_error:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         created_at:
           type: string
           format: date-time
@@ -5635,8 +5706,9 @@ components:
         main_model:
           type: string
         vision_model:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
     AiSwapStatus:
       type: object
       required:
@@ -5646,11 +5718,13 @@ components:
           type: string
           enum: [idle, running, succeeded, failed, unavailable]
         main_model:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         vision_model:
-          type: string
-          nullable: true
+          type:
+            - string
+            - "null"
         log_tail:
           type: string
     AiHardwareProfile:
@@ -5660,11 +5734,13 @@ components:
         - source
       properties:
         gpu_memory_gb:
-          type: number
-          nullable: true
+          type:
+            - number
+            - "null"
         system_memory_gb:
-          type: number
-          nullable: true
+          type:
+            - number
+            - "null"
         disk_free_gb:
           type: number
         source:

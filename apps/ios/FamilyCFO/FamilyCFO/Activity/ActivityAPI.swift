@@ -1,7 +1,7 @@
 import Foundation
 
 /// `AuditEvent` carries a stable `id`; conforming drives `ForEach` directly.
-extension Components.Schemas.AuditEvent: @retroactive Identifiable {}
+extension Components.Schemas.AuditEvent: Identifiable {}
 
 /// The Activity/History surface (M101): every recorded action, newest first, with
 /// a durable undo for the reversible ones (unlike the transient undo bar, which

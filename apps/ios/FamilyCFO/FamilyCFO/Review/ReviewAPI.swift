@@ -1,7 +1,7 @@
 import Foundation
 
 /// `Transaction` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
-extension Components.Schemas.Transaction: @retroactive Identifiable {}
+extension Components.Schemas.Transaction: Identifiable {}
 
 /// The duplicate-review queue (M97): exact-duplicate charges the bank reported
 /// twice (same account, date, amount, merchant) with different provider ids. The
