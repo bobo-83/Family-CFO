@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -616,11 +617,43 @@ def _get_bills(engine: Engine, household_id: str, currency: str, args: dict[str,
     }
 
 
+def _month_to_today(args: dict[str, Any]) -> tuple[date | None, dict[str, Any] | None]:
+    """Turn an optional `month` (YYYY-MM) arg into a `today` inside that month —
+    any day picks the month's window. Returns (today, error) where error is a
+    ready-to-return note dict when the month can't be parsed; today is None for
+    the current month (no arg)."""
+    month = args.get("month")
+    if not month:
+        return None, None
+    try:
+        year, mon = (int(p) for p in str(month).split("-")[:2])
+        return date(year, mon, 15), None
+    except (ValueError, TypeError):
+        return None, {"note": f"Couldn't read month '{month}'. Use YYYY-MM, e.g. 2026-05."}
+
+
+# Reusable schema for the optional month argument on time-scoped tools.
+_MONTH_PARAM = {
+    "type": "object",
+    "properties": {
+        "month": {
+            "type": "string",
+            "description": "Target month as YYYY-MM (e.g. 2026-05). Omit for the current month.",
+        }
+    },
+    "additionalProperties": False,
+}
+
+
 def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    """M64: current-month envelope progress per category."""
+    """M64: per-category envelope progress. Defaults to the current month; a
+    `month` (YYYY-MM) arg pulls a past month's budget vs actual."""
     from family_cfo_api.api.budgets import budgets_with_progress
 
-    budgets = budgets_with_progress(engine, household_id, currency)
+    today, err = _month_to_today(args)
+    if err:
+        return {"month_budgets": [], **err}
+    budgets = budgets_with_progress(engine, household_id, currency, today=today)
     return {
         "month_budgets": [
             {
@@ -637,14 +670,20 @@ def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[st
 
 
 def _get_spending_by_category(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    """M94: this month's outflow grouped by category — answers 'how much did I
-    spend on groceries/dining/…'. Reuses the Overview builder so the chat answer
-    and the Overview card can never disagree."""
+    """M94: outflow grouped by category — answers 'how much did I spend on
+    groceries/dining/…'. Defaults to the current month; a `month` (YYYY-MM)
+    arg pulls any past month so the advisor can compare across months. Reuses
+    the Overview builder so the chat answer and the Overview card never disagree."""
     from family_cfo_api.api.household import _spending_by_category
 
-    result = _spending_by_category(engine, household_id, currency)
+    today, err = _month_to_today(args)
+    if err:
+        return {"month": None, "categories": [], **err}
+
+    result = _spending_by_category(engine, household_id, currency, today=today)
     if result is None:
-        return {"month": None, "categories": [], "note": "No spending recorded this month."}
+        label = args.get("month") or "this month"
+        return {"month": args.get("month"), "categories": [], "note": f"No spending recorded for {label}."}
     return {
         "month": result.month_label,
         "categories": [
@@ -657,10 +696,15 @@ def _get_spending_by_category(engine: Engine, household_id: str, currency: str, 
 
 
 def _get_spending_insights(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    """M64: month-to-date spending vs the same window last month + top merchants."""
+    """M64: spending vs the same window the prior month + top merchants. Defaults
+    to the current month; a `month` (YYYY-MM) arg compares that month to the one
+    before it."""
     from family_cfo_api.api.household import _spending_insights
 
-    insights = _spending_insights(engine, household_id, currency)
+    today, err = _month_to_today(args)
+    if err:
+        return {"top_merchants": [], **err}
+    insights = _spending_insights(engine, household_id, currency, today=today)
     return {
         "month_to_date_spending": _schema_money_out(insights.this_month),
         "same_window_last_month": _schema_money_out(insights.last_month),
@@ -834,27 +878,30 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="get_budgets",
             description=(
-                "This month's budget envelopes per spending category: limit, spent so far, "
-                "remaining, and status. Use for budget questions."
+                "Budget envelopes per spending category: limit, spent, remaining, and status. "
+                "Use for budget questions. Defaults to the current month; pass `month` (YYYY-MM) "
+                "for a past month."
             ),
-            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+            parameters=_MONTH_PARAM,
         ),
         ToolSpec(
             name="get_spending_insights",
             description=(
-                "Month-to-date spending vs the same window last month, plus the top merchants. "
-                "Use for questions about recent spending habits."
+                "Spending vs the same window the prior month, plus the top merchants. Use for "
+                "questions about spending habits. Defaults to the current month; pass `month` "
+                "(YYYY-MM) to compare any month to the one before it."
             ),
-            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+            parameters=_MONTH_PARAM,
         ),
         ToolSpec(
             name="get_spending_by_category",
             description=(
-                "This month's spending grouped by category (Groceries, Dining, …), plus what's "
-                "still uncategorized. THE tool for 'how much did I spend on <category>' or 'where "
-                "did my money go this month'."
+                "Spending grouped by category (Groceries, Dining, …), plus what's still "
+                "uncategorized. THE tool for 'how much did I spend on <category>' or 'where did "
+                "my money go'. Defaults to the current month; pass `month` (YYYY-MM) for any past "
+                "month — to compare several months, call it once per month."
             ),
-            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+            parameters=_MONTH_PARAM,
         ),
     ]
     if settings.live_data_enabled:

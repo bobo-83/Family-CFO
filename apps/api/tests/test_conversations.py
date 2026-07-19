@@ -33,12 +33,12 @@ def test_conversation_repository_lifecycle(demo_engine) -> None:
     assert [m.role for m in messages] == ["user", "assistant", "user", "assistant"]
     assert messages[1].recommendation_id == recommendation_id
 
-    fetched = repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id)
+    fetched = repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID)
     assert fetched.message_count == 4
 
-    assert repository.delete_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id)
+    assert repository.delete_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID)
     assert (
-        repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id)
+        repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID)
         is None
     )
     assert repository.list_conversation_messages(demo_engine, conversation.id) == []
@@ -57,12 +57,55 @@ def test_conversation_household_scoping(demo_engine) -> None:
         demo_engine, other.household_id, other.user_id, "Theirs"
     )
     assert (
-        repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id)
+        repository.get_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID)
         is None
     )
     assert (
-        repository.delete_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id)
+        repository.delete_conversation(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID)
         is False
+    )
+
+
+def test_conversation_private_to_creating_user(demo_engine) -> None:
+    """ADR 0038: a conversation is invisible to other members of the same household."""
+    from family_cfo_api import security
+
+    other = repository.create_member(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        email="spouse@example.com",
+        password_hash=security.hash_password("password-123"),
+        display_name="Spouse",
+        role="adult",
+    )
+    conversation = repository.create_conversation(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, fixtures.DEMO_USER_ID, "Mine"
+    )
+
+    # Same household, different member — can't read, list, or delete it.
+    assert (
+        repository.get_conversation(
+            demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, other.user_id
+        )
+        is None
+    )
+    assert (
+        repository.delete_conversation(
+            demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, other.user_id
+        )
+        is False
+    )
+    other_list = repository.list_conversations(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, other.user_id
+    )
+    assert all(c.id != conversation.id for c in other_list)
+
+    # The creator still sees their own.
+    assert (
+        repository.get_conversation(
+            demo_engine, fixtures.DEMO_HOUSEHOLD_ID, conversation.id, fixtures.DEMO_USER_ID
+        )
+        is not None
     )
 
 
