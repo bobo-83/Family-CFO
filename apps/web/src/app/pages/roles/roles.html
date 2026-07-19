@@ -27,10 +27,24 @@
               <span class="role-list__badge">built-in</span>
             }
           </div>
-          <div class="role-list__meta">
-            {{ role.rights.length }} rights ·
-            {{ role.member_count ?? 0 }} member{{ (role.member_count ?? 0) === 1 ? '' : 's' }}
-          </div>
+          <details class="role-list__rights">
+            <summary class="role-list__meta">
+              {{ role.rights.length }} right{{ role.rights.length === 1 ? '' : 's' }} ·
+              {{ role.member_count ?? 0 }} member{{ (role.member_count ?? 0) === 1 ? '' : 's' }}
+            </summary>
+            <ul class="role-rights">
+              @for (right of sortedRights(role); track right) {
+                <li class="role-rights__item">
+                  <span>{{ label(right) }}</span>
+                  <code>{{ right }}</code>
+                </li>
+              } @empty {
+                <li class="role-rights__item role-rights__item--empty">
+                  No rights — this role can view nothing and do nothing.
+                </li>
+              }
+            </ul>
+          </details>
         </div>
         @if (!role.built_in) {
           <div class="role-list__actions">

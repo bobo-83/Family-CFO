@@ -95,6 +95,11 @@ export class Roles {
     this.data.reload();
   }
 
+  /** Rights of a role, sorted so the drill-down groups by area (accounts.*, …). */
+  protected sortedRights(role: Role): string[] {
+    return [...role.rights].sort();
+  }
+
   /** "accounts.manage" -> "Accounts — manage" for scannable checkboxes. */
   protected label(right: string): string {
     const [area = right, verb = ''] = right.split('.');
