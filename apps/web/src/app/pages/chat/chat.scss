@@ -89,13 +89,7 @@
 }
 
 .chat__new {
-  padding: 0.5rem;
-  border: 1px dashed #b9c0cc;
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--color-accent);
+  width: 100%;
 }
 
 .chat__conv-item {
@@ -195,12 +189,7 @@
 }
 
 .chat__example {
-  border: 1px solid var(--color-border);
   border-radius: 999px;
-  padding: 0.35rem 0.8rem;
-  background: #f5f6f8;
-  cursor: pointer;
-  font-size: 0.85rem;
 }
 
 .chat__turn {
@@ -297,34 +286,12 @@
 .chat__input {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
   margin-top: 0.75rem;
 
-  input {
+  &-field {
     flex: 1;
     min-width: 0;
-    padding: 0.6rem 0.7rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: 16px; /* <16px triggers iOS focus-zoom — keep explicit here */
-  }
-
-  button {
-    padding: 0 1.2rem;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: var(--color-accent);
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--color-accent-hover);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
   }
 }
 
@@ -374,17 +341,6 @@
 
 .chat__attach {
   flex-shrink: 0;
-  width: 2.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: stretch;
-  padding: 0;
-  line-height: 1;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
-  cursor: pointer;
   font-size: 1.1rem;
 }
 
@@ -428,17 +384,6 @@
 .chat__speak {
   margin-top: 0.4rem;
   font-size: 0.75rem;
-  border: 1px solid #d4d8e0;
-  border-radius: 999px;
-  background: white;
-  color: #5b6472;
-  padding: 0.2rem 0.6rem;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
 }
 
 
