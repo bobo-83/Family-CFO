@@ -2,7 +2,7 @@ import Foundation
 
 /// The generated `Account` already carries a stable `id`; conforming lets it drive
 /// `.sheet(item:)` directly.
-extension Components.Schemas.Account: @retroactive Identifiable {}
+extension Components.Schemas.Account: Identifiable {}
 
 /// All accounts and their emergency-fund designation (M99). The Accounts tab
 /// shows where the money is and lets the owner mark which accounts (or how much

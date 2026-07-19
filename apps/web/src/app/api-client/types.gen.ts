@@ -31,7 +31,7 @@ export type Money = {
  * Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
  */
 export type PairingSessionCreateRequest = {
-    user_id?: string;
+    user_id?: string | null;
 };
 
 export type PairingSession = {
@@ -57,11 +57,11 @@ export type DeviceCredential = {
     /**
      * ADR 0034: name of the assigned role (preset or custom).
      */
-    role_name?: string;
+    role_name?: string | null;
     /**
      * ADR 0034: resolved rights — clients gate screens with these.
      */
-    rights?: Array<string>;
+    rights?: Array<string> | null;
 };
 
 export type PairedDevice = {
@@ -94,11 +94,11 @@ export type AuthSession = {
     /**
      * ADR 0034: name of the assigned role (preset or custom).
      */
-    role_name?: string;
+    role_name?: string | null;
     /**
      * ADR 0034: resolved rights — clients gate screens with these.
      */
-    rights?: Array<string>;
+    rights?: Array<string> | null;
 };
 
 export type HouseholdRole = 'owner' | 'adult' | 'viewer' | 'child';
@@ -112,16 +112,16 @@ export type Transaction = {
     amount: Money;
     merchant?: string;
     category?: string;
-    category_id?: string;
+    category_id?: string | null;
     description?: string;
     /**
      * M96: display name of the account this transaction lives in.
      */
-    account_name?: string;
+    account_name?: string | null;
     /**
      * M96: for a transfer whose other leg is a linked account, that account's name — so a generic 'Online Transfer' can be shown as source → destination.
      */
-    counterparty?: string;
+    counterparty?: string | null;
     /**
      * M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a legitimate repeat the user kept), or 'disputed' (contesting).
      */
@@ -129,15 +129,15 @@ export type Transaction = {
     /**
      * M97: the bank/aggregator's reference for this record — distinguishes two otherwise-identical duplicate legs in the Review queue.
      */
-    external_id?: string;
+    external_id?: string | null;
     /**
      * M97: the institution (bank) this account was synced from, so the user knows where to look the transaction up. Null for manual accounts.
      */
-    institution?: string;
+    institution?: string | null;
     /**
      * M100: a user's free-text note.
      */
-    note?: string;
+    note?: string | null;
     /**
      * M100: whether an image is attached to this transaction.
      */
@@ -167,12 +167,12 @@ export type Bill = {
     /**
      * M96: the spending category this bill is filed under.
      */
-    category_id?: string;
-    category_name?: string;
+    category_id?: string | null;
+    category_name?: string | null;
     /**
      * M96: matching transactions auto-filed under this category by the create/update that set it; null when listing.
      */
-    transactions_categorized?: number;
+    transactions_categorized?: number | null;
 };
 
 export type IncomeSource = {
@@ -226,7 +226,7 @@ export type CashOutlookResponse = {
     events: Array<OutlookEvent>;
     ending_cash: Money;
     lowest_balance: Money;
-    lowest_date?: string;
+    lowest_date?: string | null;
     expected_income: Money;
     obligations: Money;
     horizon_days: number;
@@ -270,8 +270,8 @@ export type PaymentTimelineItem = {
     kind: 'bill' | 'credit_card' | 'mortgage' | 'loan' | 'lease';
     name: string;
     amount: Money;
-    due_date?: string;
-    days_until?: number;
+    due_date?: string | null;
+    days_until?: number | null;
     status: 'overdue' | 'due_soon' | 'upcoming' | 'paid' | 'no_date';
     paid_with?: TimelinePaidWith;
 };
@@ -602,11 +602,11 @@ export type HouseholdContext = {
     /**
      * M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
      */
-    last_synced_at?: string;
+    last_synced_at?: string | null;
     /**
      * M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
      */
-    earliest_month?: string;
+    earliest_month?: string | null;
     /**
      * M97: transactions awaiting duplicate review, for the Review tab badge.
      */
@@ -773,7 +773,7 @@ export type SavingsRate = {
     /**
      * (income - avg spending) / income, %; null when income is 0; may be negative.
      */
-    percent?: number;
+    percent?: number | null;
     monthly_income: Money;
     average_monthly_spending: Money;
 };
@@ -784,7 +784,7 @@ export type SpendingInsights = {
     /**
      * Percent change vs last month; null when last month was zero.
      */
-    change_percent?: number;
+    change_percent?: number | null;
     top_merchants?: Array<MerchantSpend>;
 };
 
@@ -803,7 +803,7 @@ export type GoalProgress = {
      * current / target, 0-100 (capped), 0 when target is 0.
      */
     percent_complete: number;
-    target_date?: string;
+    target_date?: string | null;
 };
 
 export type NetWorthPoint = {
@@ -826,7 +826,7 @@ export type EmergencyFundSummary = {
     /**
      * Months of expenses the fund covers; null when there are no bills.
      */
-    months?: number;
+    months?: number | null;
     /**
      * The fund balance used — designated total when set, else all liquid money.
      */
@@ -882,17 +882,17 @@ export type Account = {
     /**
      * M96: loan/lease end date, for maturity and months-remaining.
      */
-    maturity_date?: string;
+    maturity_date?: string | null;
     /**
      * ADR 0033: next payment due date, from a statement or set by hand.
      */
-    next_payment_due_date?: string;
-    institution?: string;
-    last_synced_at?: string;
+    next_payment_due_date?: string | null;
+    institution?: string | null;
+    last_synced_at?: string | null;
     /**
      * M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount).
      */
-    emergency_fund_percent?: number;
+    emergency_fund_percent?: number | null;
     /**
      * M36: fixed amount of this account reserved for emergencies (exclusive with emergency_fund_percent).
      */
@@ -925,7 +925,7 @@ export type Goal = {
 export type GoalUpdateRequest = {
     name?: string;
     target?: Money;
-    target_date?: string;
+    target_date?: string | null;
     priority?: number;
     monthly_contribution?: Money;
 };
@@ -973,11 +973,11 @@ export type Recommendation = {
     /**
      * Model id that produced the answer; null for deterministic answers
      */
-    answered_by?: string;
+    answered_by?: string | null;
     /**
      * Vision model that read an attached photo; null when none
      */
-    photo_described_by?: string;
+    photo_described_by?: string | null;
 };
 
 export type Impact = {
@@ -1117,11 +1117,11 @@ export type BackupJob = {
     /**
      * M98: whether this backup reached the off-box share (synced/failed/skipped).
      */
-    remote_status?: string;
+    remote_status?: string | null;
     /**
      * M98: the reason a copy to the share failed.
      */
-    remote_error?: string;
+    remote_error?: string | null;
 };
 
 export type BackupJobListResponse = {
@@ -1133,11 +1133,11 @@ export type BackupConfig = {
     /**
      * M98: Synology address (IP or hostname) backups upload to over SMB.
      */
-    smb_host?: string;
-    smb_share?: string;
-    smb_folder?: string;
-    smb_username?: string;
-    smb_domain?: string;
+    smb_host?: string | null;
+    smb_share?: string | null;
+    smb_folder?: string | null;
+    smb_username?: string | null;
+    smb_domain?: string | null;
     /**
      * M98: whether a Synology password is stored (the password itself is never returned).
      */
@@ -1145,36 +1145,36 @@ export type BackupConfig = {
     /**
      * M98: cap on combined size of all backups (bytes); null = no cap.
      */
-    max_bytes?: number;
+    max_bytes?: number | null;
     latest?: BackupJob;
 };
 
 export type BackupConfigUpdateRequest = {
     frequency?: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
-    smb_host?: string;
-    smb_share?: string;
-    smb_folder?: string;
-    smb_username?: string;
+    smb_host?: string | null;
+    smb_share?: string | null;
+    smb_folder?: string | null;
+    smb_username?: string | null;
     /**
      * M98: write-only; omit/null to keep the stored password.
      */
-    smb_password?: string;
-    smb_domain?: string;
-    max_bytes?: number;
+    smb_password?: string | null;
+    smb_domain?: string | null;
+    max_bytes?: number | null;
 };
 
 export type BackupDestinationCheckRequest = {
     smb_host: string;
     smb_share: string;
-    smb_folder?: string;
+    smb_folder?: string | null;
     smb_username: string;
-    smb_password?: string;
-    smb_domain?: string;
+    smb_password?: string | null;
+    smb_domain?: string | null;
 };
 
 export type BackupDestinationCheckResponse = {
     writable: boolean;
-    reason?: string;
+    reason?: string | null;
 };
 
 export type RemoteBackup = {
@@ -1199,7 +1199,7 @@ export type BackupEncryptionKey = {
     /**
      * M98: the key that decrypts every backup — store it safely.
      */
-    key?: string;
+    key?: string | null;
 };
 
 export type HouseholdCreateRequest = {
@@ -1225,7 +1225,7 @@ export type HouseholdUpdateRequest = {
     /**
      * M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
      */
-    credit_cards_paid_in_full?: boolean;
+    credit_cards_paid_in_full?: boolean | null;
 };
 
 export type Member = {
@@ -1233,8 +1233,8 @@ export type Member = {
     email: string;
     display_name: string;
     role: HouseholdRole;
-    role_id?: string;
-    role_name?: string;
+    role_id?: string | null;
+    role_name?: string | null;
     created_at: string;
 };
 
@@ -1253,12 +1253,12 @@ export type MemberCreateRequest = {
     /**
      * ADR 0034: assign any preset or custom role by id.
      */
-    role_id?: string;
+    role_id?: string | null;
 };
 
 export type MemberRoleUpdateRequest = {
     role?: HouseholdRole;
-    role_id?: string;
+    role_id?: string | null;
 };
 
 export type Role = {
@@ -1293,8 +1293,8 @@ export type AccountCreateRequest = {
     currency: string;
     annual_interest_rate?: number;
     minimum_payment?: Money;
-    maturity_date?: string;
-    next_payment_due_date?: string;
+    maturity_date?: string | null;
+    next_payment_due_date?: string | null;
 };
 
 export type AccountUpdateRequest = {
@@ -1302,8 +1302,8 @@ export type AccountUpdateRequest = {
     type?: AccountType;
     annual_interest_rate?: number;
     minimum_payment?: Money;
-    maturity_date?: string;
-    next_payment_due_date?: string;
+    maturity_date?: string | null;
+    next_payment_due_date?: string | null;
     /**
      * M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
      */
@@ -1355,7 +1355,7 @@ export type TransactionUpdateRequest = {
     /**
      * M100: set/clear the free-text note (present = set, absent = leave).
      */
-    note?: string;
+    note?: string | null;
 };
 
 export type BillCreateRequest = {
@@ -1367,7 +1367,7 @@ export type BillCreateRequest = {
     /**
      * M96: file the bill under a spending category.
      */
-    category_id?: string;
+    category_id?: string | null;
 };
 
 export type BillUpdateRequest = {
@@ -1378,7 +1378,7 @@ export type BillUpdateRequest = {
     /**
      * M96: set (value) or clear (null) the bill's category.
      */
-    category_id?: string;
+    category_id?: string | null;
 };
 
 export type IncomeCreateRequest = {
@@ -1450,10 +1450,10 @@ export type AiRuntimeStatus = {
     provider: string;
     model: string;
     ready: boolean;
-    served_model?: string;
+    served_model?: string | null;
     detail: string;
     vision_ready?: boolean;
-    vision_model?: string;
+    vision_model?: string | null;
     vision_enabled?: boolean;
     /**
      * M50: what 'loading' actually means, classified from the vLLM log tail.
@@ -1462,7 +1462,7 @@ export type AiRuntimeStatus = {
     /**
      * Human detail (download %, shard %, or the crash line).
      */
-    loading_detail?: string;
+    loading_detail?: string | null;
 };
 
 export type AiModelInfo = {
@@ -1472,7 +1472,7 @@ export type AiModelInfo = {
     parameters_b: number;
     est_memory_gb: number;
     est_disk_gb: number;
-    tool_parser?: string;
+    tool_parser?: string | null;
     supports_vision: boolean;
     /**
      * Hugging Face release timestamp (M71); absent for curated entries, which the picker treats as modern (hand-vetted).
@@ -1498,8 +1498,8 @@ export type InstitutionConnection = {
     provider: string;
     display_name: string;
     status: string;
-    last_synced_at?: string;
-    last_sync_error?: string;
+    last_synced_at?: string | null;
+    last_sync_error?: string | null;
     created_at: string;
 };
 
@@ -1523,19 +1523,19 @@ export type ConnectionSyncResult = {
 
 export type AiApplyRequest = {
     main_model: string;
-    vision_model?: string;
+    vision_model?: string | null;
 };
 
 export type AiSwapStatus = {
     state: 'idle' | 'running' | 'succeeded' | 'failed' | 'unavailable';
-    main_model?: string;
-    vision_model?: string;
+    main_model?: string | null;
+    vision_model?: string | null;
     log_tail?: string;
 };
 
 export type AiHardwareProfile = {
-    gpu_memory_gb?: number;
-    system_memory_gb?: number;
+    gpu_memory_gb?: number | null;
+    system_memory_gb?: number | null;
     disk_free_gb: number;
     source: string;
 };

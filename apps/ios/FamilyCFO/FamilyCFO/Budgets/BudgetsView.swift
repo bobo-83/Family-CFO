@@ -152,4 +152,4 @@ private struct BudgetFormSheet: View {
 }
 
 /// `Budget` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
-extension Components.Schemas.Budget: @retroactive Identifiable {}
+extension Components.Schemas.Budget: Identifiable {}

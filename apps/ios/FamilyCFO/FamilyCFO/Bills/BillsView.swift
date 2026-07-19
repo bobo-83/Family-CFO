@@ -561,4 +561,4 @@ struct BillFormView: View {
 }
 
 /// `Bill` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
-extension Components.Schemas.Bill: @retroactive Identifiable {}
+extension Components.Schemas.Bill: Identifiable {}
