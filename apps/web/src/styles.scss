@@ -4,6 +4,41 @@
    custom properties; the element baselines below modernize every existing
    page (buttons, inputs, tables) without per-page rewrites.
    ========================================================================== */
+@use '@angular/material' as mat;
+@use './theme-colors' as brand;
+
+// Angular Material 3 theme (UI migration, ADR 0035). The palette is generated
+// from the brand accent (#4f46e5) so Material components inherit the existing
+// indigo identity rather than looking like stock Material. The design tokens
+// below still drive pages not yet migrated to Material.
+html {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: brand.$primary-palette,
+        tertiary: brand.$tertiary-palette,
+      ),
+      typography: (
+        plain-family: (
+          ui-sans-serif,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif,
+        ),
+        brand-family: (
+          ui-sans-serif,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif,
+        ),
+      ),
+      density: 0,
+    )
+  );
+}
 
 :root {
   /* Palette — professional fintech: deep slate nav, indigo accent. */
