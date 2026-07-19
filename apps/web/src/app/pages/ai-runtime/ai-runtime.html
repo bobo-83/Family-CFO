@@ -93,7 +93,7 @@
           @if (status.value()?.ready && !status.value()?.vision_model) {
             <p class="now-serving__nudge">
               📷 No photo model is serving — chat photos won't be analyzed.
-              <button type="button" (click)="pickPhotoModelNext()">Pick a photo model</button>
+              <button mat-button type="button" (click)="pickPhotoModelNext()">Pick a photo model</button>
             </p>
           }
         </div>
@@ -102,14 +102,18 @@
         <div class="browse">
           <h2>Find a model</h2>
           <div class="hf-search">
-            <input
-              type="search"
-              placeholder="Search Hugging Face… (qwen, llama, mistral)"
-              [value]="searchQuery()"
-              (input)="searchQuery.set($any($event.target).value)"
-              (keydown.enter)="runSearch()"
-            />
-            <button type="button" (click)="runSearch()" [disabled]="searching()">
+            <mat-form-field appearance="outline" class="hf-search__field" subscriptSizing="dynamic">
+              <mat-label>Search Hugging Face</mat-label>
+              <input
+                matInput
+                type="search"
+                placeholder="qwen, llama, mistral"
+                [value]="searchQuery()"
+                (input)="searchQuery.set($any($event.target).value)"
+                (keydown.enter)="runSearch()"
+              />
+            </mat-form-field>
+            <button mat-flat-button type="button" (click)="runSearch()" [disabled]="searching()">
               {{ searching() ? '…' : 'Search' }}
             </button>
           </div>
@@ -119,6 +123,7 @@
 
           <div class="browse__quick" role="group" aria-label="Quick filters">
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'recommended'"
@@ -127,6 +132,7 @@
               ✨ Recommended chat models
             </button>
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'all-in-one'"
@@ -135,6 +141,7 @@
               🪄 One model for both
             </button>
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'finance'"
@@ -143,6 +150,7 @@
               🏦 Best for finances
             </button>
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'vision-big'"
@@ -151,6 +159,7 @@
               📷 Biggest vision that fits
             </button>
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'vision-small'"
@@ -159,6 +168,7 @@
               📷 Smallest vision
             </button>
             <button
+              mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'all'"
@@ -172,31 +182,30 @@
           }
 
           <div class="browse__facets">
-            <label>
-              Role
-              <select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
-                <option value="all">All</option>
-                <option value="main">Main</option>
-                <option value="vision">Vision</option>
-              </select>
-            </label>
-            <label>
-              Sort
-              <select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
-                <option value="default">Recommended</option>
-                <option value="size-desc">Largest first</option>
-                <option value="size-asc">Smallest first</option>
-                <option value="memory-asc">Least memory first</option>
-              </select>
-            </label>
-            <label class="browse__fits">
-              <input
-                type="checkbox"
-                [ngModel]="onlyFits()"
-                (ngModelChange)="onlyFits.set($event)"
-              />
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Role</mat-label>
+              <mat-select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
+                <mat-option value="all">All</mat-option>
+                <mat-option value="main">Main</mat-option>
+                <mat-option value="vision">Vision</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Sort</mat-label>
+              <mat-select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
+                <mat-option value="default">Recommended</mat-option>
+                <mat-option value="size-desc">Largest first</mat-option>
+                <mat-option value="size-asc">Smallest first</mat-option>
+                <mat-option value="memory-asc">Least memory first</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-checkbox
+              class="browse__fits"
+              [ngModel]="onlyFits()"
+              (ngModelChange)="onlyFits.set($event)"
+            >
               Only models that fit
-            </label>
+            </mat-checkbox>
           </div>
 
           @if (visibleModels().length === 0 && !searching()) {
@@ -348,6 +357,7 @@
                     }
                     <div class="model-detail__actions">
                       <button
+                        mat-flat-button
                         type="button"
                         class="picker__apply"
                         (click)="applyModel(model)"
@@ -361,6 +371,7 @@
                       </button>
                       @if (model.supports_vision && model.role !== 'vision') {
                         <button
+                          mat-stroked-button
                           type="button"
                           class="model-detail__as-photo"
                           (click)="applyAsVision(model)"
@@ -374,6 +385,7 @@
                         </button>
                       } @else if (model.role !== 'vision') {
                         <button
+                          mat-stroked-button
                           type="button"
                           class="model-detail__as-photo"
                           (click)="pickPhotoModelNext()"
@@ -388,7 +400,7 @@
             }
           </ul>
           @if (hiddenCount() > 0) {
-            <button type="button" class="browse__more" (click)="showMore()">
+            <button mat-button type="button" class="browse__more" (click)="showMore()">
               Show {{ hiddenCount() }} more
             </button>
           }
@@ -403,29 +415,28 @@
           (main) + <strong>{{ status.value()?.vision_model || 'off' }}</strong> (vision)
         </p>
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="ai-runtime-form">
-          <label>
-            <span>Provider</span>
-            <select formControlName="provider">
+          <mat-form-field appearance="outline">
+            <mat-label>Provider</mat-label>
+            <mat-select formControlName="provider">
               @for (provider of providers; track provider) {
-                <option [value]="provider">{{ provider }}</option>
+                <mat-option [value]="provider">{{ provider }}</mat-option>
               }
-            </select>
-          </label>
+            </mat-select>
+          </mat-form-field>
 
-          <label>
-            <span>Base URL</span>
-            <input type="text" formControlName="base_url" placeholder="http://vllm:8000" />
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Base URL</mat-label>
+            <input matInput type="text" formControlName="base_url" placeholder="http://vllm:8000" />
+          </mat-form-field>
 
-          <label>
-            <span>Main model</span>
-            <input type="text" formControlName="model" placeholder="Qwen/Qwen2.5-32B-Instruct" />
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Main model</mat-label>
+            <input matInput type="text" formControlName="model" placeholder="Qwen/Qwen2.5-32B-Instruct" />
+          </mat-form-field>
 
-          <label class="ai-runtime-form__checkbox">
-            <input type="checkbox" formControlName="enabled" />
-            <span>Enabled</span>
-          </label>
+          <mat-checkbox class="ai-runtime-form__checkbox" formControlName="enabled">
+            Enabled
+          </mat-checkbox>
 
           @if (submitError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
@@ -434,7 +445,7 @@
             <p class="ai-runtime-form__success">Saved.</p>
           }
 
-          <button type="submit" [disabled]="submitting()">
+          <button mat-flat-button type="submit" [disabled]="submitting()">
             {{ submitting() ? 'Saving…' : 'Save' }}
           </button>
         </form>
@@ -449,13 +460,19 @@
               handles both — never two copies.
             </p>
             <div class="advanced__vision-form">
-              <input
-                type="text"
-                placeholder="Qwen/Qwen2.5-VL-7B-Instruct"
-                [ngModel]="visionModelInput()"
-                (ngModelChange)="visionModelInput.set($event)"
-              />
+              <mat-form-field appearance="outline" class="advanced__vision-field" subscriptSizing="dynamic">
+                <mat-label>Vision model</mat-label>
+                <input
+                  matInput
+                  type="text"
+                  placeholder="Qwen/Qwen2.5-VL-7B-Instruct"
+                  [ngModel]="visionModelInput()"
+                  [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="visionModelInput.set($event)"
+                />
+              </mat-form-field>
               <button
+                mat-flat-button
                 type="button"
                 (click)="applyVisionModel()"
                 [disabled]="applyingVision()"
