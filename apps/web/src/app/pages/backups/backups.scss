@@ -66,3 +66,16 @@
     font-weight: 500;
   }
 }
+
+// Phone: the table is wider than the screen — scroll it horizontally
+// within its container instead of clipping columns off the edge (393pt).
+@media (max-width: 820px) {
+  .backups-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .backups-table {
+    min-width: max-content;
+  }
+}

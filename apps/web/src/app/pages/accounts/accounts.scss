@@ -9,6 +9,19 @@
   overflow: hidden;
 }
 
+// On a phone the 6-column table is wider than the screen: let the card scroll it
+// horizontally (swipe) instead of clipping the last columns off the edge.
+@media (max-width: 820px) {
+  .accounts-table-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .accounts-table {
+    min-width: 44rem;
+  }
+}
+
 .accounts-table {
   width: 100%;
   border-collapse: collapse;
