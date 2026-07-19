@@ -68,6 +68,10 @@ class AuthSession(BaseModel):
     household_id: str
     user_id: str
     role: HouseholdRole
+    # ADR 0034: the assigned role's name and resolved rights — clients gate
+    # screens/sections with these, never with the legacy role tier.
+    role_name: str | None = None
+    rights: list[str] | None = None
 
 
 class PairingSessionCreateRequest(BaseModel):
@@ -97,6 +101,9 @@ class DeviceCredential(BaseModel):
     # creator), so the mobile app can build its role-aware shell without
     # spending the device token on a session refresh.
     role: HouseholdRole | None = None
+    # ADR 0034: the resolved rights of that user's assigned role.
+    role_name: str | None = None
+    rights: list[str] | None = None
 
 
 class PairedDevice(BaseModel):
@@ -1127,6 +1134,8 @@ class Member(BaseModel):
     email: str
     display_name: str
     role: HouseholdRole
+    role_id: str | None = None
+    role_name: str | None = None
     created_at: datetime
 
 
@@ -1138,11 +1147,39 @@ class MemberCreateRequest(BaseModel):
     email: str = Field(min_length=3)
     password: str = Field(min_length=8)
     display_name: str = Field(min_length=1, max_length=120)
-    role: HouseholdRole
+    # Either an explicit role_id (ADR 0034 — any preset or custom role) or the
+    # legacy tier, which maps to its preset. role_id wins when both are sent.
+    role: HouseholdRole | None = None
+    role_id: str | None = None
+
+
+class Role(BaseModel):
+    id: str
+    name: str
+    rights: list[str]
+    built_in: bool
+    member_count: int = 0
+
+
+class RoleListResponse(BaseModel):
+    roles: list[Role]
+    # The full catalog, so a role editor can render every togglable right.
+    all_rights: list[str]
+
+
+class RoleCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    rights: list[str]
+
+
+class RoleUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    rights: list[str] | None = None
 
 
 class MemberRoleUpdateRequest(BaseModel):
-    role: HouseholdRole
+    role: HouseholdRole | None = None
+    role_id: str | None = None
 
 
 class AccountCreateRequest(BaseModel):

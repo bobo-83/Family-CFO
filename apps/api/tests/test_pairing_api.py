@@ -11,13 +11,15 @@ async def test_create_pairing_session_requires_authentication(demo_client) -> No
 
 
 @pytest.mark.anyio
-async def test_viewer_cannot_create_pairing_session(demo_client, demo_viewer_token) -> None:
+async def test_any_member_can_pair_their_own_device(demo_client, demo_viewer_token) -> None:
+    """ADR 0034: pairing YOUR OWN phone needs only membership — a viewer's device
+    still acts as the viewer. Pairing for someone else needs devices.manage."""
     response = await demo_client.post(
         "/api/v1/pairing/sessions",
         headers={"Authorization": f"Bearer {demo_viewer_token}"},
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 201
 
 
 @pytest.mark.anyio

@@ -28,6 +28,7 @@ import {
   createImport,
   createIncomeSource,
   createMember,
+  createRole,
   createMemory,
   createPairingSession,
   createTransaction,
@@ -39,6 +40,7 @@ import {
   deleteCategory,
   deleteIncomeSource,
   deleteMember,
+  deleteRole,
   deleteMemory,
   deleteTransaction,
   discardImport,
@@ -75,6 +77,7 @@ import {
   listImports,
   listIncomeSources,
   listMembers,
+  listRoles,
   listMemories,
   listPairedDevices,
   listReports,
@@ -91,6 +94,7 @@ import {
   updateBudget,
   updateIncomeSource,
   updateMemberRole,
+  updateRole,
   updateTransaction,
   uploadImportFile,
   type AccountCreateRequest,
@@ -496,6 +500,22 @@ export class ApiService {
 
   deleteMember(userId: string) {
     return deleteMember({ path: { user_id: userId } });
+  }
+
+  listRoles() {
+    return listRoles();
+  }
+
+  createRole(body: { name: string; rights: string[] }) {
+    return createRole({ body });
+  }
+
+  updateRole(roleId: string, body: { name?: string; rights?: string[] }) {
+    return updateRole({ path: { role_id: roleId }, body });
+  }
+
+  deleteRole(roleId: string) {
+    return deleteRole({ path: { role_id: roleId } });
   }
 
   // --- Audit ---

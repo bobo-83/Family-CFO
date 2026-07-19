@@ -3,8 +3,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import repository, rights
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     Conversation,
     ConversationDetail,
@@ -93,7 +93,7 @@ async def get_conversation(
 )
 async def delete_conversation(
     conversation_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.ADVISOR_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     if not repository.delete_conversation(engine, session.household_id, conversation_id):

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
-from family_cfo_api.deps import get_current_session, get_engine, require_role
+from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     Category,
     CategoryCreateRequest,
@@ -46,7 +46,7 @@ async def list_categories(
 )
 async def create_category(
     payload: CategoryCreateRequest,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CATEGORIES_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Category:
     name = payload.name.strip()
@@ -82,7 +82,7 @@ async def create_category(
 )
 async def delete_category(
     category_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.CATEGORIES_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_category(engine, session.household_id, category_id)

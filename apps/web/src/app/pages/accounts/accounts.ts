@@ -37,8 +37,7 @@ export class Accounts {
   protected readonly accountTypes = ACCOUNT_TYPES;
   protected readonly formatMoney = formatMoney;
   protected readonly canWrite = computed(() => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('accounts.manage');
   });
 
   /** Spendability-oriented grouping (M33) — mirrors the advisor's categories. */

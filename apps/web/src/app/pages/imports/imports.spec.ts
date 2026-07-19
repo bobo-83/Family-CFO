@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { authMock } from '../../shared/testing-auth';
 import { Imports } from './imports';
 
 function response(data: unknown, error?: unknown) {
@@ -18,7 +19,7 @@ function configure(apiMock: Record<string, unknown>, role: string) {
     imports: [Imports],
     providers: [
       { provide: ApiService, useValue: apiMock },
-      { provide: AuthService, useValue: { role: () => role } },
+      { provide: AuthService, useValue: authMock(role) },
     ],
   });
 }
@@ -158,7 +159,7 @@ describe('Imports', () => {
       imports: [Imports],
       providers: [
         { provide: ApiService, useValue: apiMock },
-        { provide: AuthService, useValue: { role: () => 'owner' } },
+        { provide: AuthService, useValue: authMock('owner') },
       ],
     });
     const fixture = TestBed.createComponent(Imports);

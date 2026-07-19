@@ -2,7 +2,6 @@ import { DatePipe } from '@angular/common';
 import { Component, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import QRCode from 'qrcode';
-import type { HouseholdRole } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -12,8 +11,6 @@ interface PairingSessionView {
   qrImageDataUrl: string;
   expiresAt: string;
 }
-
-const MEMBER_ROLES: HouseholdRole[] = ['owner', 'adult', 'viewer', 'child'];
 
 @Component({
   selector: 'app-users',
@@ -26,13 +23,24 @@ export class Users {
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
 
-  protected readonly memberRoles = MEMBER_ROLES;
-  protected readonly canPairDevices = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
-  };
-  protected readonly canRevokeDevices = () => this.auth.role() === 'owner';
-  protected readonly canManageMembers = () => this.auth.role() === 'owner';
+  // ADR 0034: sections gate by RIGHT. Pairing your own device is always allowed.
+  protected readonly canPairDevices = () => true;
+  protected readonly canRevokeDevices = () => this.auth.hasRight('devices.manage');
+  protected readonly canManageMembers = () => this.auth.hasRight('members.manage');
+
+  /** The household's roles (presets + custom) for the assignment pickers. */
+  protected readonly roles = resource({
+    loader: async () => {
+      if (!this.canManageMembers()) {
+        return [];
+      }
+      const { data, error } = await this.api.listRoles();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load roles.'));
+      }
+      return data.roles;
+    },
+  });
 
   protected readonly members = resource({
     loader: async () => {
@@ -48,7 +56,7 @@ export class Users {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
     displayName: ['', Validators.required],
-    role: ['adult' as HouseholdRole, Validators.required],
+    roleId: ['', Validators.required],
   });
 
   protected readonly memberSubmitting = signal(false);
@@ -61,24 +69,24 @@ export class Users {
     }
     this.memberSubmitting.set(true);
     this.memberError.set(null);
-    const { email, password, displayName, role } = this.memberForm.getRawValue();
+    const { email, password, displayName, roleId } = this.memberForm.getRawValue();
     const { error } = await this.api.createMember({
       email,
       password,
       display_name: displayName,
-      role,
+      role_id: roleId,
     });
     this.memberSubmitting.set(false);
     if (error) {
       this.memberError.set(apiErrorMessage(error, 'Failed to add member.'));
       return;
     }
-    this.memberForm.reset({ email: '', password: '', displayName: '', role: 'adult' });
+    this.memberForm.reset({ email: '', password: '', displayName: '', roleId: '' });
     this.members.reload();
   }
 
-  protected async changeRole(userId: string, role: HouseholdRole): Promise<void> {
-    const { error } = await this.api.updateMemberRole(userId, { role });
+  protected async changeRole(userId: string, roleId: string): Promise<void> {
+    const { error } = await this.api.updateMemberRole(userId, { role_id: roleId });
     if (error) {
       this.memberError.set(apiErrorMessage(error, 'Failed to change role.'));
       return;

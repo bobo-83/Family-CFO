@@ -78,7 +78,9 @@ final class PairingViewModel {
                         deviceID: credential.deviceId,
                         accessToken: credential.accessToken,
                         expiresAt: credential.expiresAt,
-                        role: credential.role
+                        role: credential.role,
+                        roleName: credential.roleName,
+                        rights: credential.rights
                     )
                 )
             case .badRequest:

@@ -430,6 +430,112 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+  /household/roles:
+    get:
+      tags:
+        - Household
+      operationId: listRoles
+      summary: List the household's roles and the rights catalog
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Household
+      operationId: createRole
+      summary: Create a custom role
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleCreateRequest"
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /household/roles/{role_id}:
+    patch:
+      tags:
+        - Household
+      operationId: updateRole
+      summary: Update a custom role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdateRequest"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Household
+      operationId: deleteRole
+      summary: Delete an unused custom role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Role deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /audit:
     get:
       tags:
@@ -2703,6 +2809,15 @@ components:
             session's creator), so the mobile app can build its role-aware
             shell without spending the device token on a session refresh.
           $ref: "#/components/schemas/HouseholdRole"
+        role_name:
+          description: "ADR 0034: name of the assigned role (preset or custom)."
+          type: string
+          nullable: true
+        rights:
+          description: "ADR 0034: resolved rights — clients gate screens with these."
+          type: array
+          items: { type: string }
+          nullable: true
     PairedDevice:
       type: object
       required:
@@ -2772,6 +2887,15 @@ components:
           format: uuid
         role:
           $ref: "#/components/schemas/HouseholdRole"
+        role_name:
+          description: "ADR 0034: name of the assigned role (preset or custom)."
+          type: string
+          nullable: true
+        rights:
+          description: "ADR 0034: resolved rights — clients gate screens with these."
+          type: array
+          items: { type: string }
+          nullable: true
     HouseholdRole:
       type: string
       enum:
@@ -4921,6 +5045,13 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/HouseholdRole"
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+        role_name:
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -4939,7 +5070,6 @@ components:
         - email
         - password
         - display_name
-        - role
       properties:
         email:
           type: string
@@ -4949,14 +5079,60 @@ components:
         display_name:
           type: string
         role:
+          description: Legacy tier; maps to its preset role. role_id wins if both sent.
           $ref: "#/components/schemas/HouseholdRole"
+        role_id:
+          description: "ADR 0034: assign any preset or custom role by id."
+          type: string
+          format: uuid
+          nullable: true
     MemberRoleUpdateRequest:
       type: object
-      required:
-        - role
       properties:
         role:
           $ref: "#/components/schemas/HouseholdRole"
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+    Role:
+      type: object
+      required: [id, name, rights, built_in]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        rights:
+          type: array
+          items: { type: string }
+        built_in: { type: boolean }
+        member_count: { type: integer }
+    RoleListResponse:
+      type: object
+      required: [roles, all_rights]
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        all_rights:
+          description: The full catalog, so a role editor can render every right.
+          type: array
+          items: { type: string }
+    RoleCreateRequest:
+      type: object
+      required: [name, rights]
+      properties:
+        name: { type: string, maxLength: 60 }
+        rights:
+          type: array
+          items: { type: string }
+    RoleUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, maxLength: 60 }
+        rights:
+          type: array
+          items: { type: string }
     AccountCreateRequest:
       type: object
       required:

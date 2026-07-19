@@ -36,13 +36,17 @@ export class Shell {
   protected readonly menuOpen = signal(false);
 
   // M70: grouped so the drawer stays scannable as pages accumulate; the
-  // template renders each group under a small label.
-  protected readonly navSections: { label: string | null; items: { path: string; label: string }[] }[] = [
+  // template renders each group under a small label. Each item names the RIGHT
+  // that reveals it (ADR 0034); no right = visible to every member.
+  private readonly allNavSections: {
+    label: string | null;
+    items: { path: string; label: string; right?: string }[];
+  }[] = [
     {
       label: null,
       items: [
         { path: '/overview', label: 'Overview' },
-        { path: '/chat', label: 'Ask the Advisor' },
+        { path: '/chat', label: 'Ask the Advisor', right: 'advisor.use' },
       ],
     },
     {
@@ -61,21 +65,31 @@ export class Shell {
     {
       label: 'Advisor',
       items: [
-        { path: '/memory', label: 'Advisor Memory' },
-        { path: '/ai-runtime', label: 'AI Runtime' },
+        { path: '/memory', label: 'Advisor Memory', right: 'advisor.manage' },
+        { path: '/ai-runtime', label: 'AI Runtime', right: 'ai_runtime.manage' },
       ],
     },
     {
       label: 'Admin',
       items: [
-        { path: '/imports', label: 'Imports' },
-        { path: '/reports', label: 'Reports' },
-        { path: '/backups', label: 'Backups' },
-        { path: '/users', label: 'Users' },
+        { path: '/imports', label: 'Imports', right: 'imports.manage' },
+        { path: '/reports', label: 'Reports', right: 'reports.manage' },
+        { path: '/backups', label: 'Backups', right: 'backups.manage' },
+        { path: '/users', label: 'Users', right: 'members.manage' },
+        { path: '/roles', label: 'Roles', right: 'roles.manage' },
         { path: '/devices', label: 'Devices' },
       ],
     },
   ];
+
+  protected get navSections(): { label: string | null; items: { path: string; label: string }[] }[] {
+    return this.allNavSections
+      .map((section) => ({
+        label: section.label,
+        items: section.items.filter((item) => !item.right || this.auth.hasRight(item.right)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }
 
   protected toggleMenu(): void {
     this.menuOpen.update((open) => !open);

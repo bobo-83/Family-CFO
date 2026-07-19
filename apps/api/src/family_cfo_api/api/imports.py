@@ -6,9 +6,9 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, undo_actions
+from family_cfo_api import audit, repository, rights, undo_actions
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_role
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
     ImportCreateRequest,
@@ -143,7 +143,7 @@ async def upload_import_file(
 )
 async def apply_import(
     import_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.IMPORTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> ImportRecord:
     record = repository.get_import(engine, session.household_id, import_id)
@@ -182,7 +182,7 @@ async def apply_import(
 )
 async def discard_import(
     import_id: str,
-    session: repository.SessionContext = Depends(require_role("owner", "adult")),
+    session: repository.SessionContext = Depends(require_right(rights.IMPORTS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> ImportRecord:
     record = repository.get_import(engine, session.household_id, import_id)

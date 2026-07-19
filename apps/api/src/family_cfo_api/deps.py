@@ -63,3 +63,34 @@ def require_role(
         return session
 
     return dependency
+
+
+def require_right(
+    right: str,
+) -> Callable[[repository.SessionContext], repository.SessionContext]:
+    """ADR 0034: permission checks name a RIGHT, never a role. The session's
+    rights come from the member's assigned role (or the legacy role's preset)."""
+
+    async def dependency(
+        session: repository.SessionContext = Depends(get_current_session),
+    ) -> repository.SessionContext:
+        if right not in session.rights:
+            raise HTTPException(status_code=403, detail="Role does not permit this action")
+
+        return session
+
+    return dependency
+
+
+def require_any_right(
+    *rights: str,
+) -> Callable[[repository.SessionContext], repository.SessionContext]:
+    async def dependency(
+        session: repository.SessionContext = Depends(get_current_session),
+    ) -> repository.SessionContext:
+        if not set(rights) & session.rights:
+            raise HTTPException(status_code=403, detail="Role does not permit this action")
+
+        return session
+
+    return dependency

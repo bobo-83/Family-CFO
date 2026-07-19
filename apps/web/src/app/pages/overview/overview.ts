@@ -52,8 +52,7 @@ export class Overview {
   private readonly auth = inject(AuthService);
 
   protected readonly canWrite = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('transactions.manage');
   };
 
   protected readonly editingTarget = signal(false);

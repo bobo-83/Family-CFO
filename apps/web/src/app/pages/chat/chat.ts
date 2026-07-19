@@ -75,8 +75,7 @@ export class Chat {
 
   /** Conversation deletion mirrors the API's role gate (owner/adult). */
   protected readonly canDeleteConversations = () => {
-    const role = this.auth.role();
-    return role === 'owner' || role === 'adult';
+    return this.auth.hasRight('advisor.manage');
   };
 
   protected readonly examplePrompts = EXAMPLE_PROMPTS;
