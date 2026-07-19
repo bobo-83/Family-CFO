@@ -81,6 +81,10 @@ struct AccountsView: View {
 
     @ViewBuilder private func row(_ account: Components.Schemas.Account) -> some View {
         let designation = AccountsViewModel.designation(account)
+        // ADR 0034: editing an account (rename / emergency-fund designation) needs
+        // accounts.manage. Without it the row is read-only — no edit sheet, no chevron
+        // — matching what the server enforces, so a viewer never sees controls that 403.
+        let canManage = model.rolePolicy.canManageAccounts
         Button {
             designating = account
         } label: {
@@ -99,10 +103,13 @@ struct AccountsView: View {
                 Spacer()
                 Text(account.balance.formatted)
                     .font(.body.weight(.medium))
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                if canManage {
+                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                }
             }
         }
         .buttonStyle(.plain)
+        .disabled(!canManage)
     }
 }
 
