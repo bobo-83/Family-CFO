@@ -1,61 +1,70 @@
 <div class="signup">
-  <div class="signup__card">
-    <h1>Create your household</h1>
-    <p class="signup__subtitle">
-      Set up the first owner account for this self-hosted instance. You can add family members
-      afterwards from the Users page.
-    </p>
+  <mat-card class="signup__card" appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Create your household</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="signup__subtitle">
+        Set up the first owner account for this self-hosted instance. You can add family members
+        afterwards from the Users page.
+      </p>
 
-    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <label class="signup__field">
-        <span>Household name</span>
-        <input type="text" formControlName="displayName" autocomplete="organization" />
-        @if (form.controls.displayName.invalid && form.controls.displayName.touched) {
-          <span class="signup__error">Enter a household name.</span>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="signup__form">
+        <mat-form-field appearance="outline">
+          <mat-label>Household name</mat-label>
+          <input matInput type="text" formControlName="displayName" autocomplete="organization" />
+          @if (form.controls.displayName.invalid) {
+            <mat-error>Enter a household name.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Base currency</mat-label>
+          <input matInput type="text" formControlName="baseCurrency" maxlength="3" autocomplete="off" />
+          @if (form.controls.baseCurrency.invalid) {
+            <mat-error>Use a 3-letter currency code (e.g. USD).</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Your name</mat-label>
+          <input matInput type="text" formControlName="ownerDisplayName" autocomplete="name" />
+          @if (form.controls.ownerDisplayName.invalid) {
+            <mat-error>Enter your name.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="ownerEmail" autocomplete="username" />
+          @if (form.controls.ownerEmail.invalid) {
+            <mat-error>Enter a valid email address.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            type="password"
+            formControlName="ownerPassword"
+            autocomplete="new-password"
+          />
+          @if (form.controls.ownerPassword.invalid) {
+            <mat-error>Password must be at least 8 characters.</mat-error>
+          }
+        </mat-form-field>
+
+        @if (errorMessage(); as message) {
+          <p class="signup__error-banner" role="alert">{{ message }}</p>
         }
-      </label>
 
-      <label class="signup__field">
-        <span>Base currency</span>
-        <input type="text" formControlName="baseCurrency" maxlength="3" autocomplete="off" />
-        @if (form.controls.baseCurrency.invalid && form.controls.baseCurrency.touched) {
-          <span class="signup__error">Use a 3-letter currency code (e.g. USD).</span>
-        }
-      </label>
+        <button mat-flat-button type="submit" class="signup__submit" [disabled]="submitting()">
+          {{ submitting() ? 'Creating…' : 'Create household' }}
+        </button>
+      </form>
 
-      <label class="signup__field">
-        <span>Your name</span>
-        <input type="text" formControlName="ownerDisplayName" autocomplete="name" />
-        @if (form.controls.ownerDisplayName.invalid && form.controls.ownerDisplayName.touched) {
-          <span class="signup__error">Enter your name.</span>
-        }
-      </label>
-
-      <label class="signup__field">
-        <span>Email</span>
-        <input type="email" formControlName="ownerEmail" autocomplete="username" />
-        @if (form.controls.ownerEmail.invalid && form.controls.ownerEmail.touched) {
-          <span class="signup__error">Enter a valid email address.</span>
-        }
-      </label>
-
-      <label class="signup__field">
-        <span>Password</span>
-        <input type="password" formControlName="ownerPassword" autocomplete="new-password" />
-        @if (form.controls.ownerPassword.invalid && form.controls.ownerPassword.touched) {
-          <span class="signup__error">Password must be at least 8 characters.</span>
-        }
-      </label>
-
-      @if (errorMessage(); as message) {
-        <p class="signup__error signup__error--banner" role="alert">{{ message }}</p>
-      }
-
-      <button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Creating…' : 'Create household' }}
-      </button>
-    </form>
-
-    <p class="signup__foot">Already have an account? <a routerLink="/login">Sign in</a></p>
-  </div>
+      <p class="signup__foot">Already have an account? <a routerLink="/login">Sign in</a></p>
+    </mat-card-content>
+  </mat-card>
 </div>
