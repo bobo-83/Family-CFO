@@ -85,8 +85,10 @@ xcodebuild archive \
   -quiet \
   || die "Archive failed. Re-run without -quiet for the full log."
 
-# Export + upload in one step (destination: upload). manageAppVersionAndBuild
-# number stays false so our stamped values win.
+# Export a signed .ipa (destination: export, NOT upload). Cloud signing — the
+# API key creating the distribution cert/profile — works only when the key has
+# ADMIN access; a lower role fails with "Cloud signing permission error".
+# manageAppVersionAndBuildNumber stays false so our stamped values win.
 EXPORT_PLIST="$BUILD_DIR/exportOptions.plist"
 cat > "$EXPORT_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -94,7 +96,7 @@ cat > "$EXPORT_PLIST" <<PLIST
 <plist version="1.0">
 <dict>
   <key>method</key><string>app-store-connect</string>
-  <key>destination</key><string>upload</string>
+  <key>destination</key><string>export</string>
   <key>teamID</key><string>${IOS_TEAM_ID}</string>
   <key>signingStyle</key><string>automatic</string>
   <key>manageAppVersionAndBuildNumber</key><false/>
@@ -102,14 +104,30 @@ cat > "$EXPORT_PLIST" <<PLIST
 </plist>
 PLIST
 
-log "Uploading to App Store Connect / TestFlight…"
+log "Exporting a signed .ipa…"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportPath "$EXPORT_DIR" \
   -exportOptionsPlist "$EXPORT_PLIST" \
   "${AUTH[@]}" \
-  || die "Upload failed. Check the log above (a reused build number or a
-       missing App Store Connect app record for com.familycfo.ios are common)."
+  || die "Export/signing failed. If it says 'Cloud signing permission error',
+       the App Store Connect API key needs ADMIN access (ADR 0035). A 401 /
+       'No Accounts' means ASC_KEY_ID and the .p8 file don't match."
+
+IPA="$(ls "$EXPORT_DIR"/*.ipa 2>/dev/null | head -1)"
+[ -f "$IPA" ] || die "Export produced no .ipa in $EXPORT_DIR."
+
+# altool finds the key by id in a private_keys search dir — place the .p8 there
+# (it stays on disk, never committed) rather than passing it inline.
+KEY_DIR="$HOME/.appstoreconnect/private_keys"
+mkdir -p "$KEY_DIR"
+cp "$ASC_KEY_PATH" "$KEY_DIR/AuthKey_${ASC_KEY_ID}.p8"
+
+log "Uploading $(basename "$IPA") to App Store Connect / TestFlight…"
+xcrun altool --upload-app --type ios --file "$IPA" \
+  --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
+  || die "Upload failed (a reused build number or a missing App Store Connect
+       app record for com.familycfo.ios are common)."
 
 log "Uploaded v${APP_VERSION} (${BUILD_NUMBER}) to TestFlight."
 echo "  It appears under TestFlight in App Store Connect after processing"
