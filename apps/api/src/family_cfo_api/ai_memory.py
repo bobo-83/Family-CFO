@@ -183,10 +183,10 @@ def run_memory_backfill_once(engine: Engine, settings: Settings | None = None) -
         if runtime is None:
             continue
         try:
-            for conversation in repository.list_conversations(engine, household_id):
+            for conversation_id in repository.list_all_conversation_ids(engine, household_id):
                 user_text = "\n".join(
                     m.content[:SUMMARY_SOURCE_MESSAGE_MAX_CHARS]
-                    for m in repository.list_conversation_messages(engine, conversation.id)
+                    for m in repository.list_conversation_messages(engine, conversation_id)
                     if m.role == "user"
                 )
                 if not user_text:
@@ -196,7 +196,7 @@ def run_memory_backfill_once(engine: Engine, settings: Settings | None = None) -
                     engine,
                     household_id,
                     user_text,
-                    source_conversation_id=conversation.id,
+                    source_conversation_id=conversation_id,
                 )
             repository.mark_memory_backfill_done(engine, household_id)
             done += 1

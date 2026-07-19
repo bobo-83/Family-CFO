@@ -302,3 +302,21 @@ def test_safe_to_spend_is_advertised_to_the_model() -> None:
     names = [tool.name for tool in ai_tools.build_tools()]
 
     assert "get_safe_to_spend" in names
+
+
+def test_month_arg_parses_to_a_day_in_that_month() -> None:
+    """The time-scoped tools accept an optional YYYY-MM to reach past months."""
+    from datetime import date
+
+    assert ai_tools._month_to_today({})[0] is None  # no arg -> current month
+    today, err = ai_tools._month_to_today({"month": "2026-05"})
+    assert err is None
+    assert today == date(2026, 5, 15)
+    _, bad = ai_tools._month_to_today({"month": "not-a-month"})
+    assert bad is not None and "note" in bad
+
+
+def test_time_scoped_tools_advertise_the_month_param() -> None:
+    by_name = {t.name: t for t in ai_tools.build_tools()}
+    for name in ("get_spending_by_category", "get_budgets", "get_spending_insights"):
+        assert "month" in by_name[name].parameters["properties"], name
