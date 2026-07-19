@@ -66,6 +66,10 @@ export type DeviceCredential = {
 
 export type PairedDevice = {
     id: string;
+    /**
+     * The household member this device is paired to.
+     */
+    user_id?: string | null;
     name: string;
     created_at: string;
     last_seen_at?: string | null;
