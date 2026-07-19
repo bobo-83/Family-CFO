@@ -99,6 +99,7 @@
               @if (pairingSession()?.userId === member.user_id) {
                 @if (pairingSession(); as session) {
                   <mat-card appearance="outlined" class="pairing-card">
+                    <mat-card-content>
                     <img
                       [src]="session.qrImageDataUrl"
                       alt="Pairing QR code"
@@ -107,6 +108,7 @@
                     />
                     <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
                     <button mat-stroked-button type="button" (click)="dismissPairing()">Done</button>
+                    </mat-card-content>
                   </mat-card>
                 }
               } @else if (canPairForMember(member)) {
@@ -141,6 +143,7 @@
 
 @if (canManageMembers()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
       <h3>Add a member</h3>
       <mat-form-field appearance="outline">
@@ -168,6 +171,7 @@
         <p class="page-error" role="alert">{{ message }}</p>
       }
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="page-empty">Only the household owner can manage members.</p>

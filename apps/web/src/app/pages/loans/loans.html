@@ -14,16 +14,20 @@
   @if (loans().length > 0) {
     <div class="loan-summary">
       <mat-card appearance="outlined" class="loan-summary__item">
+        <mat-card-content>
         <span class="loan-summary__label">Total owed</span>
         <span class="loan-summary__value">
           {{ formatMoney({ amount_minor: totalOwed(), currency: 'USD' }) }}
         </span>
+        </mat-card-content>
       </mat-card>
       <mat-card appearance="outlined" class="loan-summary__item">
+        <mat-card-content>
         <span class="loan-summary__label">Monthly payments</span>
         <span class="loan-summary__value">
           {{ formatMoney({ amount_minor: totalMonthly(), currency: 'USD' }) }}
         </span>
+        </mat-card-content>
       </mat-card>
     </div>
   }
@@ -98,6 +102,7 @@
 
 <ng-template #loanForm>
   <mat-card appearance="outlined" class="loan-form-card">
+    <mat-card-content>
     <form class="bill-form bill-form--inline loan-form" (ngSubmit)="save()">
       <div class="loan-form__scan-row">
         <label class="earner-form__scan">
@@ -193,5 +198,6 @@
         <button mat-button type="button" class="bill-list__delete" (click)="cancelEdit()">Cancel</button>
       </div>
     </form>
+    </mat-card-content>
   </mat-card>
 </ng-template>

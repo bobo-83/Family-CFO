@@ -214,3 +214,13 @@ table {
   max-width: 40rem;
   margin-bottom: 1rem;
 }
+
+/* A table inside a Material card is card content, not its own card: drop the
+   standalone table chrome (from the element baseline above) so it doesn't draw
+   a second border/shadow inside the card. */
+.mat-mdc-card-content table {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+}

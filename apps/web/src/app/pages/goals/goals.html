@@ -15,6 +15,7 @@
         <div class="goal-list">
           @for (goal of goalList; track goal.id) {
             <mat-card appearance="outlined" class="goal-list__item">
+              <mat-card-content>
               <div class="goal-list__name">
                 {{ goal.name }}
                 @if (canCreateGoals()) {
@@ -81,6 +82,7 @@
                   }
                 }
               </div>
+              </mat-card-content>
             </mat-card>
           }
         </div>
@@ -91,6 +93,7 @@
 
 @if (canCreateGoals()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <h2>Add a goal</h2>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="goal-form">
       <mat-form-field appearance="outline">
@@ -130,6 +133,7 @@
         {{ submitting() ? 'Saving…' : 'Add goal' }}
       </button>
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="page-empty">Only the household owner or an adult member can add goals.</p>

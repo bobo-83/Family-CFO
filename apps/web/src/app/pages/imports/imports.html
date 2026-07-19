@@ -2,6 +2,7 @@
 
 @if (canReview()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <form class="import-form" [formGroup]="form" (ngSubmit)="submit()">
       <h2>Import a statement</h2>
       <mat-form-field appearance="outline">
@@ -34,6 +35,7 @@
         <p class="import-form__error">{{ submitError() }}</p>
       }
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="import-note">Only the household owner or an adult member can manage imports.</p>
@@ -45,6 +47,7 @@
   <p class="import-error">{{ imports.error() }}</p>
 } @else {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <table class="import-table">
       <thead>
         <tr>
@@ -82,6 +85,7 @@
         }
       </tbody>
     </table>
+    </mat-card-content>
   </mat-card>
 }
 
@@ -100,6 +104,7 @@
 
   @if (canReview()) {
     <mat-card appearance="outlined" class="page-card">
+      <mat-card-content>
       <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
         <mat-form-field appearance="outline">
           <mat-label>Connection name</mat-label>
@@ -111,6 +116,7 @@
         </mat-form-field>
         <button mat-flat-button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
       </form>
+      </mat-card-content>
     </mat-card>
     @if (linkError(); as message) {
       <p class="page-error" role="alert">{{ message }}</p>
@@ -124,6 +130,7 @@
   @if (connections.value(); as list) {
     @for (conn of list; track conn.id) {
       <mat-card appearance="outlined" class="connections__item">
+        <mat-card-content>
         <div class="connections__info">
           <span class="connections__name">{{ conn.display_name }}</span>
           <span class="connections__meta">
@@ -146,6 +153,7 @@
             <button mat-button type="button" class="connections__unlink" (click)="unlink(conn.id)">Unlink</button>
           </div>
         }
+        </mat-card-content>
       </mat-card>
     } @empty {
       <p class="page-empty">No institutions linked yet.</p>
