@@ -183,6 +183,10 @@ $breakpoint: 820px;
   padding: var(--content-pad);
   background: var(--color-bg);
   overflow-y: auto;
+  /* 393pt discipline (docs/specs/08-mobile-spec.md): the page itself never
+     scrolls sideways. Genuinely-wide content (data tables, code) must carry its
+     OWN horizontal scroll container so it stays reachable rather than clipped. */
+  overflow-x: hidden;
 }
 
 /* --- Phone / small-tablet layout ------------------------------------------- */
