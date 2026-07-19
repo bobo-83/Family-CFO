@@ -57,6 +57,7 @@
           </div>
           @if (canWrite()) {
             <button
+              mat-button
               type="button"
               class="earner-list__delete"
               [disabled]="busy() !== null"
@@ -93,88 +94,90 @@
   @if (canWrite()) {
     <details class="earner-form-wrap" [open]="!analysis()?.profile">
       <summary>Add an earner (or scan a W2)</summary>
-      <form class="earner-form" (ngSubmit)="addEarner()">
-        <div class="earner-form__scan-row">
-          <label class="earner-form__scan">
-            {{ scanning() ? 'Reading…' : '📷 Scan last year&#8217;s W2' }}
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              (change)="onW2Selected($event)"
-              hidden
-            />
-          </label>
-          <span class="earner-form__scan-hint">
-            Fastest start: a photo or PDF of the W2 prefills this form — or copy
-            one and paste it here (Ctrl/⌘+V). Employer, year, Box 1 and Box 2
-            are read for you. Nothing is saved until you press
-            &ldquo;Add earner&rdquo;.
-          </span>
-        </div>
-        @if (scanNote(); as note) {
-          <p class="earner-form__scan-note">
-            {{ note }} Review the fields below, then press &ldquo;Add
-            earner&rdquo;.
-          </p>
-        }
-
-        <div class="earner-form__w2">
-          <span class="earner-form__w2-title">Last year's W2 (optional — calibrates the estimate)</span>
-          <div class="earner-form__w2-fields">
-            <label>
-              <span>Year</span>
-              <input type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
+      <mat-card appearance="outlined" class="earner-form-card">
+        <form class="earner-form" (ngSubmit)="addEarner()">
+          <div class="earner-form__scan-row">
+            <label class="earner-form__scan">
+              {{ scanning() ? 'Reading…' : '📷 Scan last year&#8217;s W2' }}
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                (change)="onW2Selected($event)"
+                hidden
+              />
             </label>
-            <label>
-              <span>Box 1 wages (USD)</span>
-              <input type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
-            </label>
-            <label>
-              <span>Box 2 federal withheld (USD)</span>
-              <input type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
-            </label>
+            <span class="earner-form__scan-hint">
+              Fastest start: a photo or PDF of the W2 prefills this form — or copy
+              one and paste it here (Ctrl/⌘+V). Employer, year, Box 1 and Box 2
+              are read for you. Nothing is saved until you press
+              &ldquo;Add earner&rdquo;.
+            </span>
           </div>
-        </div>
+          @if (scanNote(); as note) {
+            <p class="earner-form__scan-note">
+              {{ note }} Review the fields below, then press &ldquo;Add
+              earner&rdquo;.
+            </p>
+          }
 
-        <label>
-          <span>Name / label</span>
-          <input type="text" [(ngModel)]="earnerForm.label" name="earnerLabel" />
-        </label>
-        <label>
-          <span>Base salary (USD/yr)</span>
-          <input type="number" min="0" [(ngModel)]="earnerForm.baseSalary" name="earnerBase" />
-        </label>
-        <label>
-          <span>RSU value (USD/yr, pre-tax)</span>
-          <input type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
-        </label>
-        <label>
-          <span>RSU vesting</span>
-          <select [(ngModel)]="earnerForm.rsuFrequency" name="earnerRsuFreq">
-            <option value="">None</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="semiannual">Twice a year</option>
-            <option value="annual">Annually</option>
-          </select>
-        </label>
-        <label>
-          <span>Next vest date</span>
-          <input type="date" [(ngModel)]="earnerForm.rsuNextVest" name="earnerVestDate" />
-        </label>
-        <label>
-          <span>Bonus (% of base)</span>
-          <input type="number" min="0" max="100" [(ngModel)]="earnerForm.bonusPercent" name="earnerBonusPct" />
-        </label>
-        <label>
-          <span>Bonus month (1–12)</span>
-          <input type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
-        </label>
+          <div class="earner-form__w2">
+            <span class="earner-form__w2-title">Last year's W2 (optional — calibrates the estimate)</span>
+            <div class="earner-form__w2-fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Year</mat-label>
+                <input matInput type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Box 1 wages (USD)</mat-label>
+                <input matInput type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Box 2 federal withheld (USD)</mat-label>
+                <input matInput type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
+              </mat-form-field>
+            </div>
+          </div>
 
-        <button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">
-          {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
-        </button>
-      </form>
+          <mat-form-field appearance="outline">
+            <mat-label>Name / label</mat-label>
+            <input matInput type="text" [(ngModel)]="earnerForm.label" name="earnerLabel" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Base salary (USD/yr)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="earnerForm.baseSalary" name="earnerBase" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>RSU value (USD/yr, pre-tax)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>RSU vesting</mat-label>
+            <mat-select [(ngModel)]="earnerForm.rsuFrequency" name="earnerRsuFreq">
+              <mat-option value="">None</mat-option>
+              <mat-option value="monthly">Monthly</mat-option>
+              <mat-option value="quarterly">Quarterly</mat-option>
+              <mat-option value="semiannual">Twice a year</mat-option>
+              <mat-option value="annual">Annually</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Next vest date</mat-label>
+            <input matInput type="date" [(ngModel)]="earnerForm.rsuNextVest" name="earnerVestDate" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Bonus (% of base)</mat-label>
+            <input matInput type="number" min="0" max="100" [(ngModel)]="earnerForm.bonusPercent" name="earnerBonusPct" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Bonus month (1–12)</mat-label>
+            <input matInput type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
+          </mat-form-field>
+
+          <button mat-flat-button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">
+            {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
+          </button>
+        </form>
+      </mat-card>
     </details>
   }
 
@@ -206,6 +209,7 @@
                 <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
                 @if (canWrite()) {
                   <button
+                    mat-button
                     type="button"
                     class="income-txns__remove"
                     [disabled]="busy() !== null"
@@ -248,6 +252,7 @@
               <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
               @if (canWrite()) {
                 <button
+                  mat-button
                   type="button"
                   class="income-txns__add"
                   [disabled]="busy() !== null"
@@ -256,6 +261,7 @@
                   Add as income
                 </button>
                 <button
+                  mat-button
                   type="button"
                   class="income-txns__reject"
                   [disabled]="busy() !== null"
@@ -291,6 +297,7 @@
                 <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
                 @if (canWrite()) {
                   <button
+                    mat-button
                     type="button"
                     class="income-txns__add"
                     [disabled]="busy() !== null"
@@ -318,7 +325,7 @@
   @if (data.coverage_warning; as warning) {
     <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
   }
-  <section class="tax-card">
+  <mat-card appearance="outlined" class="tax-card">
     @if (canWrite()) {
       <div class="tax-card__settings">
         <label>
@@ -342,7 +349,7 @@
           <input type="checkbox" [(ngModel)]="treatedAsNet" name="treatedAsNet" />
           <span>Deposits are take-home pay (gross is estimated from them)</span>
         </label>
-        <button type="button" [disabled]="busy() !== null" (click)="saveSettings()">
+        <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="saveSettings()">
           {{ busy() === 'settings' ? 'Saving…' : 'Recalculate' }}
         </button>
       </div>
@@ -377,5 +384,5 @@
         }
       </ul>
     </details>
-  </section>
+  </mat-card>
 }

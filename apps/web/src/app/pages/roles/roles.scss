@@ -19,9 +19,9 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  background: var(--color-surface, #fff);
-  border: 1px solid var(--color-border, #e3e6eb);
-  border-radius: 10px;
+  background: var(--mat-sys-surface-container-low, var(--color-surface, #fff));
+  border: 1px solid var(--mat-sys-outline-variant, var(--color-border, #e3e6eb));
+  border-radius: var(--radius-md, 10px);
 
   > div:first-child {
     min-width: 0;
@@ -94,11 +94,11 @@
   opacity: 0.5;
 }
 
-.role-editor {
+.role-editor-card {
   margin-top: 1.5rem;
-  padding: 1rem;
-  border: 1px solid var(--color-border, #e3e6eb);
-  border-radius: 10px;
+}
+
+.role-editor {
   display: grid;
   gap: 0.75rem;
 }
@@ -112,14 +112,12 @@
 }
 
 .role-editor__right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   font-size: 0.9rem;
 
   code {
+    margin-left: 0.4rem;
     font-size: 0.7rem;
-    color: var(--color-text-muted, #5b6472);
+    color: var(--mat-sys-on-surface-variant, var(--color-text-muted, #5b6472));
   }
 }
 

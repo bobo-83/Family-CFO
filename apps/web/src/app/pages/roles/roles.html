@@ -7,7 +7,7 @@
         Built-in roles can't be edited; create a custom role for anything finer.
       </p>
     </div>
-    <button type="button" (click)="startCreate()">+ New role</button>
+    <button mat-flat-button type="button" (click)="startCreate()">+ New role</button>
   </header>
 
   @if (data.error(); as message) {
@@ -48,8 +48,9 @@
         </div>
         @if (!role.built_in) {
           <div class="role-list__actions">
-            <button type="button" (click)="startEdit(role)">Edit</button>
+            <button mat-button type="button" (click)="startEdit(role)">Edit</button>
             <button
+              mat-button
               type="button"
               class="role-list__delete"
               [disabled]="(role.member_count ?? 0) > 0"
@@ -65,39 +66,41 @@
   </ul>
 
   @if (editing(); as draft) {
-    <form class="role-editor" (ngSubmit)="save()">
-      <h2>{{ draft.id ? 'Edit role' : 'New role' }}</h2>
-      <label>
-        Name
-        <input
-          type="text"
-          name="roleName"
-          [ngModel]="draft.name"
-          (ngModelChange)="draft.name = $event"
-          maxlength="60"
-          required
-        />
-      </label>
-      <fieldset class="role-editor__rights">
-        <legend>Rights</legend>
-        @for (right of data.value()?.all_rights ?? []; track right) {
-          <label class="role-editor__right">
-            <input
-              type="checkbox"
+    <mat-card appearance="outlined" class="role-editor-card">
+      <form class="role-editor" (ngSubmit)="save()">
+        <h2>{{ draft.id ? 'Edit role' : 'New role' }}</h2>
+        <mat-form-field appearance="outline">
+          <mat-label>Name</mat-label>
+          <input
+            matInput
+            type="text"
+            name="roleName"
+            [ngModel]="draft.name"
+            (ngModelChange)="draft.name = $event"
+            maxlength="60"
+            required
+          />
+        </mat-form-field>
+        <fieldset class="role-editor__rights">
+          <legend>Rights</legend>
+          @for (right of data.value()?.all_rights ?? []; track right) {
+            <mat-checkbox
+              class="role-editor__right"
               [checked]="draft.rights.has(right)"
               (change)="toggleRight(right)"
-            />
-            <span>{{ label(right) }}</span>
-            <code>{{ right }}</code>
-          </label>
-        }
-      </fieldset>
-      <div class="role-editor__actions">
-        <button type="submit" [disabled]="saving() || !draft.name.trim()">
-          {{ saving() ? 'Saving…' : 'Save role' }}
-        </button>
-        <button type="button" (click)="editing.set(null)">Cancel</button>
-      </div>
-    </form>
+            >
+              <span>{{ label(right) }}</span>
+              <code>{{ right }}</code>
+            </mat-checkbox>
+          }
+        </fieldset>
+        <div class="role-editor__actions">
+          <button mat-flat-button type="submit" [disabled]="saving() || !draft.name.trim()">
+            {{ saving() ? 'Saving…' : 'Save role' }}
+          </button>
+          <button mat-button type="button" (click)="editing.set(null)">Cancel</button>
+        </div>
+      </form>
+    </mat-card>
   }
 </section>

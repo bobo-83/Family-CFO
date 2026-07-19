@@ -261,24 +261,26 @@
             @if (canWrite()) {
               <div class="overview__target-editor">
                 @if (editingTarget()) {
-                  <label class="overview__target-label">
-                    Target months
+                  <mat-form-field appearance="outline" class="overview__target-label" subscriptSizing="dynamic">
+                    <mat-label>Target months</mat-label>
                     <input
+                      matInput
                       type="number"
                       min="1"
                       max="60"
                       [ngModel]="targetInput()"
                       (ngModelChange)="targetInput.set($event)"
                     />
-                  </label>
-                  <button type="button" (click)="saveTarget()" [disabled]="savingTarget()">
+                  </mat-form-field>
+                  <button mat-flat-button type="button" (click)="saveTarget()" [disabled]="savingTarget()">
                     {{ savingTarget() ? 'Saving…' : 'Save' }}
                   </button>
-                  <button type="button" class="overview__target-cancel" (click)="editingTarget.set(false)">
+                  <button mat-button type="button" class="overview__target-cancel" (click)="editingTarget.set(false)">
                     Cancel
                   </button>
                 } @else {
                   <button
+                    mat-button
                     type="button"
                     class="overview__target-edit"
                     (click)="startEditTarget(fund.target_months_recommended)"

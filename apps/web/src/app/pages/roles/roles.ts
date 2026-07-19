@@ -1,5 +1,10 @@
 import { Component, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import type { Role } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -11,7 +16,14 @@ import { apiErrorMessage } from '../../shared/api-error';
  */
 @Component({
   selector: 'app-roles',
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatCheckboxModule,
+    MatButtonModule,
+  ],
   templateUrl: './roles.html',
   styleUrl: './roles.scss',
 })
