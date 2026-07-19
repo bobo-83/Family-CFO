@@ -67,6 +67,7 @@
 
   @if (editing(); as draft) {
     <mat-card appearance="outlined" class="role-editor-card">
+      <mat-card-content>
       <form class="role-editor" (ngSubmit)="save()">
         <h2>{{ draft.id ? 'Edit role' : 'New role' }}</h2>
         <mat-form-field appearance="outline">
@@ -101,6 +102,7 @@
           <button mat-button type="button" (click)="editing.set(null)">Cancel</button>
         </div>
       </form>
+      </mat-card-content>
     </mat-card>
   }
 </section>

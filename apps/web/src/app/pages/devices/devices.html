@@ -12,6 +12,7 @@
 
 @if (canPair()) {
   <mat-card appearance="outlined" class="pairing-card">
+    <mat-card-content>
     <h2>Pair a device</h2>
     @if (canPairForOthers() && members().length) {
       <mat-form-field appearance="outline" class="pairing-card__for">
@@ -78,10 +79,12 @@
         {{ busy() === 'qr' ? 'Generating…' : 'Show pairing code' }}
       </button>
     }
+    </mat-card-content>
   </mat-card>
 }
 
 <mat-card appearance="outlined" class="pairing-card install-card">
+  <mat-card-content>
   <h2>Install the iPhone app</h2>
   <p class="pairing-card__meta">
     Open this page <strong>in Safari on the iPhone</strong> — on your home
@@ -96,6 +99,7 @@
     install page walks you through it. If the button shows “not found”, no build
     has been published yet (<code>scripts/deploy-ios-ota.sh</code>).
   </p>
+  </mat-card-content>
 </mat-card>
 
 <h2>Paired devices</h2>
