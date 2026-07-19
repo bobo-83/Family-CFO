@@ -17,6 +17,7 @@
     class="timeline-headline"
     [class.timeline-headline--short]="!headline.covered"
   >
+  <mat-card-content>
     <div class="timeline-headline__figures">
       <div>
         <div class="timeline-headline__amount">{{ formatMoney(headline.due_total) }}</div>
@@ -36,6 +37,7 @@
           : '⚠ Short — what’s due exceeds your cash on hand.'
       }}
     </div>
+    </mat-card-content>
   </mat-card>
 
   @for (section of timelineSections(); track section.status) {
@@ -48,6 +50,7 @@
       </p>
     }
     <mat-card appearance="outlined" class="page-card">
+      <mat-card-content>
       <ul class="bill-list timeline-list" [attr.data-status]="section.status">
         @for (item of section.items; track item.id) {
           <li class="bill-list__item">
@@ -70,6 +73,7 @@
           </li>
         }
       </ul>
+      </mat-card-content>
     </mat-card>
   }
 }
@@ -86,6 +90,7 @@
     <p class="page-error" role="alert">{{ message }}</p>
   }
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <ul class="bill-list">
       @for (bill of bills(); track bill.id) {
         <li class="bill-list__item bill-list__item--stacked">
@@ -160,6 +165,7 @@
         </li>
       }
     </ul>
+    </mat-card-content>
   </mat-card>
 }
 
@@ -170,6 +176,7 @@
     changes without your confirmation.
   </p>
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <ul class="bill-list bill-list--suggestions">
       @for (update of updates(); track update.dismiss_key) {
         <li class="bill-list__item">
@@ -204,6 +211,7 @@
         </li>
       }
     </ul>
+    </mat-card-content>
   </mat-card>
 }
 
@@ -217,6 +225,7 @@
     <p class="page-error" role="alert">{{ message }}</p>
   }
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <ul class="bill-list bill-list--suggestions">
       @for (suggestion of suggestions(); track suggestion.merchant_key) {
         <li class="bill-list__item">
@@ -252,12 +261,14 @@
         </li>
       }
     </ul>
+    </mat-card-content>
   </mat-card>
 }
 
 @if (canWrite()) {
   <h2>Add a bill</h2>
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="bill-form">
       <mat-form-field appearance="outline">
         <mat-label>Name</mat-label>
@@ -291,6 +302,7 @@
         {{ submitting() ? 'Saving…' : 'Add bill' }}
       </button>
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="page-empty">Only the household owner or an adult member can add bills.</p>

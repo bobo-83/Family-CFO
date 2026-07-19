@@ -95,6 +95,7 @@
     <details class="earner-form-wrap" [open]="!analysis()?.profile">
       <summary>Add an earner (or scan a W2)</summary>
       <mat-card appearance="outlined" class="earner-form-card">
+        <mat-card-content>
         <form class="earner-form" (ngSubmit)="addEarner()">
           <div class="earner-form__scan-row">
             <label class="earner-form__scan">
@@ -177,6 +178,7 @@
             {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
           </button>
         </form>
+        </mat-card-content>
       </mat-card>
     </details>
   }
@@ -326,6 +328,7 @@
     <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
   }
   <mat-card appearance="outlined" class="tax-card">
+    <mat-card-content>
     @if (canWrite()) {
       <div class="tax-card__settings">
         <label>
@@ -384,5 +387,6 @@
         }
       </ul>
     </details>
+    </mat-card-content>
   </mat-card>
 }

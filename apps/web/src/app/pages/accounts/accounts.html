@@ -8,6 +8,7 @@
 
 @if (canWrite()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <form class="account-form" [formGroup]="form" (ngSubmit)="submit()">
       <h2>Add an account</h2>
       <mat-form-field appearance="outline">
@@ -35,6 +36,7 @@
         <p class="account-form__error">{{ submitError() }}</p>
       }
     </form>
+    </mat-card-content>
   </mat-card>
 }
 
@@ -57,6 +59,7 @@
               <span class="accounts-group__total">{{ group.total }}</span>
             </h2>
             <mat-card appearance="outlined" class="accounts-table-card">
+              <mat-card-content>
             <table class="accounts-table">
               <thead>
                 <tr>
@@ -161,6 +164,7 @@
                 }
               </tbody>
             </table>
+              </mat-card-content>
             </mat-card>
           </section>
         }

@@ -13,6 +13,7 @@
   <p class="page-empty">No categories yet.</p>
 } @else {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <ul class="category-list">
       @for (category of categories(); track category.id) {
         <li class="category-list__item">
@@ -40,11 +41,13 @@
         </li>
       }
     </ul>
+    </mat-card-content>
   </mat-card>
 }
 
 @if (canWrite()) {
   <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
     <h2>Add a category</h2>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="category-form">
       <mat-form-field appearance="outline">
@@ -58,6 +61,7 @@
         {{ submitting() ? 'Saving…' : 'Add category' }}
       </button>
     </form>
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="page-empty">Only the household owner or an adult member can manage categories.</p>

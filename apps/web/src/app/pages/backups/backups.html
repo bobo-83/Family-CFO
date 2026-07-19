@@ -9,6 +9,7 @@
   }
 
   <mat-card appearance="outlined" class="backups-card">
+    <mat-card-content>
     <h2>Off-box backup — Synology (SMB)</h2>
     <p class="backups-note">
       Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the
@@ -65,9 +66,11 @@
         </span>
       }
     </div>
+    </mat-card-content>
   </mat-card>
 
   <mat-card appearance="outlined" class="backups-card">
+    <mat-card-content>
     <h2>Status</h2>
     @if (latest(); as job) {
       <p>
@@ -83,9 +86,11 @@
     <div class="backups-actions">
       <button mat-flat-button type="button" [disabled]="busy()" (click)="createBackup()">Back up now</button>
     </div>
+    </mat-card-content>
   </mat-card>
 
   <mat-card appearance="outlined" class="backups-card">
+    <mat-card-content>
     <h2>Encryption key</h2>
     <p class="backups-note">
       This key decrypts every backup — store it somewhere safe (a password manager). Without it,
@@ -101,10 +106,12 @@
         <button mat-stroked-button type="button" (click)="revealKey()">Reveal encryption key</button>
       </div>
     }
+    </mat-card-content>
   </mat-card>
 
   @if (remoteBackups().length) {
     <mat-card appearance="outlined" class="backups-card">
+      <mat-card-content>
       <h2>Restore from Synology</h2>
       <p class="backups-note">Backups found on the share, newest first. Restoring replaces all current data.</p>
       <table class="backups-table">
@@ -122,10 +129,12 @@
           }
         </tbody>
       </table>
+      </mat-card-content>
     </mat-card>
   }
 
   <mat-card appearance="outlined" class="backups-card">
+    <mat-card-content>
     <h2>On-box backups</h2>
     @if (backups.isLoading()) {
       <p>Loading backups…</p>
@@ -155,6 +164,7 @@
         </tbody>
       </table>
     }
+    </mat-card-content>
   </mat-card>
 } @else {
   <p class="backups-note">Only the household owner can manage backups.</p>
