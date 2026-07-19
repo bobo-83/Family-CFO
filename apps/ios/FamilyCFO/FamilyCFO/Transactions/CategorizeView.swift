@@ -36,7 +36,7 @@ struct CategorizeView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Categorize")
+            .navigationTitle("Categories")
             .safeAreaInset(edge: .bottom) {
                 SyncStatusFooter(status: model.syncStatus)
                     .padding(.vertical, 6)
