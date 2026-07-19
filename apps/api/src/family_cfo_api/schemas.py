@@ -401,6 +401,10 @@ class CategoryCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+class CategoryUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class Bill(BaseModel):
     id: str
     name: str

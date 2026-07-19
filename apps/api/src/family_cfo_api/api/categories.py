@@ -7,6 +7,7 @@ from family_cfo_api.schemas import (
     Category,
     CategoryCreateRequest,
     CategoryListResponse,
+    CategoryUpdateRequest,
     ErrorResponse,
 )
 
@@ -67,6 +68,49 @@ async def create_category(
         undo_token=undo_actions.created("category", record.id),
     )
     return _to_schema(record)
+
+
+@router.patch(
+    "/categories/{category_id}",
+    operation_id="updateCategory",
+    response_model=Category,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Category not found", "model": ErrorResponse},
+        409: {"description": "Category name already exists", "model": ErrorResponse},
+    },
+    summary="Rename a spending category",
+)
+async def update_category(
+    category_id: str,
+    payload: CategoryUpdateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.CATEGORIES_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> Category:
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name is required")
+    existing = repository.get_category(engine, session.household_id, category_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if name.lower() != existing.name.lower() and repository.category_name_exists(
+        engine, session.household_id, name
+    ):
+        raise HTTPException(status_code=409, detail="A category with that name already exists")
+
+    repository.update_category(engine, session.household_id, category_id, name)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "category.updated",
+        "category",
+        category_id,
+        f"Renamed category to '{name}'",
+        undo_token=undo_actions.category_updated(existing),
+    )
+    return Category(id=category_id, name=name)
 
 
 @router.delete(

@@ -47,6 +47,20 @@ final class MockCategorizeAPI: CategorizeAPI, @unchecked Sendable {
             cats.removeAll { $0.id == id }
         }
     }
+
+    var renameError: Error?
+    private(set) var renamed: [(id: String, name: String)] = []
+
+    nonisolated func renameCategory(id: String, name: String) async throws -> Components.Schemas.Category {
+        try await MainActor.run {
+            renamed.append((id, name))
+            if let renameError { throw renameError }
+            if let index = cats.firstIndex(where: { $0.id == id }) {
+                cats[index] = .init(id: id, name: name)
+            }
+            return .init(id: id, name: name)
+        }
+    }
 }
 
 @MainActor
@@ -163,6 +177,19 @@ struct CategorizeCategoryCreationTests {
         #expect(vm.categories.map(\.name) == ["Groceries", "Rent"])  // sorted
     }
 
+    @Test func renamingACategoryUpdatesItInPlaceAndSorts() async {
+        let api = MockCategorizeAPI()
+        api.cats = [.init(id: "c1", name: "Rent"), .init(id: "c2", name: "Auto")]
+        let vm = CategorizeViewModel(api: api)
+        await vm.load()
+
+        await vm.renameCategory(id: "c2", to: "  Water ")
+
+        #expect(api.renamed.map(\.id) == ["c2"])
+        #expect(api.renamed.first?.name == "Water")  // trimmed
+        #expect(vm.categories.map(\.name) == ["Rent", "Water"])  // updated + re-sorted
+    }
+
     @Test func deletingACategoryRemovesItAndReloads() async {
         let api = MockCategorizeAPI()
         api.cats = [.init(id: "c1", name: "Rent"), .init(id: "c2", name: "Tennis")]
@@ -252,6 +279,9 @@ struct CategoryStarterSetTests {
                 return .init(id: name, name: name)
             }
             func deleteCategory(id: String) async throws {}
+            func renameCategory(id: String, name: String) async throws -> Components.Schemas.Category {
+                .init(id: id, name: name)
+            }
         }
         let api = FlakyAPI()
         let vm = CategorizeViewModel(api: api)

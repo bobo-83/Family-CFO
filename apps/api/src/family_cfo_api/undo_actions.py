@@ -57,6 +57,7 @@ UNDO_POLICY: dict[str, str] = {
     "bill_suggestion.dismissed": UNDOABLE,
     # categories
     "category.created": UNDOABLE,
+    "category.updated": UNDOABLE,
     "category.deleted": UNDOABLE,
     # accounts
     "account.created": UNDOABLE,
@@ -208,6 +209,12 @@ def role_deleted(before: "repository.RoleRecord") -> str:
 def category_deleted(category: repository.CategoryRecord) -> str:
     return json.dumps(
         {"op": "recreate", "entity": "category", "data": {"name": category.name}}
+    )
+
+
+def category_updated(before: repository.CategoryRecord) -> str:
+    return json.dumps(
+        {"op": "restore", "entity": "category", "id": before.id, "data": {"name": before.name}}
     )
 
 
@@ -745,6 +752,8 @@ def _restore(
         )
     elif entity == "budget":
         repository.update_budget_limit(engine, household_id, entity_id, data["limit_minor"])
+    elif entity == "category":
+        repository.update_category(engine, household_id, entity_id, name=data["name"])
     elif entity == "income":
         repository.update_income_source(
             engine, household_id, entity_id,

@@ -75,6 +75,19 @@ export class Categories {
     await this.load();
   }
 
+  protected async rename(category: Category): Promise<void> {
+    const name = prompt('Rename category', category.name)?.trim();
+    if (!name || name === category.name) {
+      return;
+    }
+    const { error } = await this.api.updateCategory(category.id, { name });
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, 'Failed to rename category.'));
+      return;
+    }
+    await this.load();
+  }
+
   protected async remove(id: string): Promise<void> {
     if (!confirm('Delete this category? Transactions using it will become uncategorized.')) {
       return;

@@ -8,6 +8,8 @@ struct CategorizeView: View {
     @State private var viewModel: CategorizeViewModel?
     @State private var picking: PickTarget?
     @State private var newCategoryName = ""
+    @State private var renamingCategory: Components.Schemas.Category?
+    @State private var renameText = ""
 
     /// Identifiable wrapper so a tapped transaction can drive `.sheet(item:)`.
     private struct PickTarget: Identifiable {
@@ -70,7 +72,15 @@ struct CategorizeView: View {
                 Button("Create") { confirmCreateCategory() }
                 Button("Cancel", role: .cancel) { creatingCategoryFor = nil }
             } message: {
-                Text("Create a category to sort transactions into. Manage them fully on the dashboard.")
+                Text("Create a category to sort transactions into.")
+            }
+            .alert("Rename category", isPresented: .init(
+                get: { renamingCategory != nil },
+                set: { if !$0 { renamingCategory = nil } }
+            )) {
+                TextField("Name", text: $renameText).textInputAutocapitalization(.words)
+                Button("Save") { confirmRenameCategory() }
+                Button("Cancel", role: .cancel) { renamingCategory = nil }
             }
         }
         .task {
@@ -96,7 +106,8 @@ struct CategorizeView: View {
 
     @ViewBuilder
     private func content(_ viewModel: CategorizeViewModel) -> some View {
-        if let errorMessage = viewModel.errorMessage, viewModel.transactions.isEmpty {
+        if let errorMessage = viewModel.errorMessage,
+            viewModel.transactions.isEmpty, viewModel.categories.isEmpty {
             ContentUnavailableView {
                 Label("Can't reach your CFO", systemImage: "wifi.exclamationmark")
             } description: {
@@ -104,12 +115,6 @@ struct CategorizeView: View {
             } actions: {
                 Button("Retry") { Task { await viewModel.load() } }
                     .buttonStyle(.borderedProminent)
-            }
-        } else if viewModel.transactions.isEmpty && !viewModel.isLoading {
-            ContentUnavailableView {
-                Label("All caught up", systemImage: "checkmark.circle")
-            } description: {
-                Text("Every transaction has a category.")
             }
         } else {
             VStack(spacing: 0) {
@@ -119,41 +124,56 @@ struct CategorizeView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
-                    // No categories yet? Offer the one-tap starter set right here,
-                    // so the screen isn't a dead end (M91a). Custom stays available
-                    // via the + menu and the per-transaction picker.
-                    if viewModel.categories.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label(
-                                "No categories yet. Add a starter set, or make your own — full management is on the dashboard.",
-                                systemImage: "info.circle"
-                            )
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            Button {
-                                Task { await viewModel.addStarterCategories() }
-                            } label: {
-                                if viewModel.isAddingStarters {
-                                    ProgressView()
-                                } else {
-                                    Label("Add starter categories", systemImage: "square.stack.3d.up")
-                                }
+
+                    Section("To categorize") {
+                        if viewModel.transactions.isEmpty {
+                            Label("All caught up — every transaction has a category.",
+                                systemImage: "checkmark.circle")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(viewModel.transactions, id: \.id) { transaction in
+                                transactionLink(transaction, viewModel)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button {
+                                            picking = PickTarget(txn: transaction)
+                                        } label: {
+                                            Label("Categorize", systemImage: "tag")
+                                        }
+                                        .tint(.accentColor)
+                                    }
                             }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(viewModel.isAddingStarters)
                         }
-                        .padding(.vertical, 4)
                     }
-                    ForEach(viewModel.transactions, id: \.id) { transaction in
-                        transactionLink(transaction, viewModel)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+
+                    // The full category list lives here too, so this screen manages
+                    // categories (rename / delete) — not just assigns them.
+                    Section("Categories") {
+                        if viewModel.categories.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label(
+                                    "No categories yet. Add a starter set, or make your own.",
+                                    systemImage: "info.circle"
+                                )
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
                                 Button {
-                                    picking = PickTarget(txn: transaction)
+                                    Task { await viewModel.addStarterCategories() }
                                 } label: {
-                                    Label("Categorize", systemImage: "tag")
+                                    if viewModel.isAddingStarters {
+                                        ProgressView()
+                                    } else {
+                                        Label("Add starter categories", systemImage: "square.stack.3d.up")
+                                    }
                                 }
-                                .tint(.accentColor)
+                                .buttonStyle(.borderedProminent)
+                                .disabled(viewModel.isAddingStarters)
                             }
+                            .padding(.vertical, 4)
+                        } else {
+                            ForEach(viewModel.categories, id: \.id) { category in
+                                categoryRow(category, viewModel)
+                            }
+                        }
                     }
                 }
                 .refreshable {
@@ -187,6 +207,44 @@ struct CategorizeView: View {
                 )
             }
         }
+    }
+
+    /// A managed category row: swipe or long-press to rename or delete it.
+    @ViewBuilder private func categoryRow(
+        _ category: Components.Schemas.Category, _ viewModel: CategorizeViewModel
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: CategoryVisuals.icon(for: category.name))
+                .foregroundStyle(.secondary).frame(width: 24)
+            Text(category.name)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                Task { await viewModel.deleteCategory(id: category.id) }
+            } label: { Label("Delete", systemImage: "trash") }
+            Button { startRename(category) } label: { Label("Rename", systemImage: "pencil") }
+                .tint(.blue)
+        }
+        .contextMenu {
+            Button { startRename(category) } label: { Label("Rename", systemImage: "pencil") }
+            Button(role: .destructive) {
+                Task { await viewModel.deleteCategory(id: category.id) }
+            } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
+    private func startRename(_ category: Components.Schemas.Category) {
+        renameText = category.name
+        renamingCategory = category
+    }
+
+    private func confirmRenameCategory() {
+        guard let category = renamingCategory, let viewModel else { return }
+        let name = renameText
+        renamingCategory = nil
+        Task { await viewModel.renameCategory(id: category.id, to: name) }
     }
 
     /// Tap the row to open the shared detail screen (category, note, check photo);

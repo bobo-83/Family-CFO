@@ -13,6 +13,8 @@ protocol CategorizeAPI: Sendable {
     /// category management still lives on the dashboard; this is just the
     /// on-ramp so the phone isn't a dead end with no categories defined.
     func createCategory(name: String) async throws -> Components.Schemas.Category
+    /// Rename a category. Returns the updated category.
+    func renameCategory(id: String, name: String) async throws -> Components.Schemas.Category
     /// Delete a category. The server un-categorizes every transaction that
     /// referenced it (and drops any budget envelope) — nothing is lost, those
     /// transactions just return to Uncategorized.
@@ -104,6 +106,26 @@ struct LiveCategorizeAPI: CategorizeAPI {
             // A category by that name already exists — surface it plainly so the
             // user knows to pick it rather than think the tap failed.
             throw CategorizeError.categoryExists(name)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func renameCategory(id: String, name: String) async throws -> Components.Schemas.Category {
+        let request = Components.Schemas.CategoryUpdateRequest(name: name)
+        switch try await client.updateCategory(
+            .init(path: .init(categoryId: id), body: .json(request))
+        ) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .conflict:
+            throw CategorizeError.categoryExists(name)
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

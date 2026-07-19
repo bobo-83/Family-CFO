@@ -157,6 +157,10 @@ export type CategoryCreateRequest = {
     name: string;
 };
 
+export type CategoryUpdateRequest = {
+    name: string;
+};
+
 export type Bill = {
     id: string;
     name: string;
@@ -2814,6 +2818,45 @@ export type DeleteCategoryResponses = {
 };
 
 export type DeleteCategoryResponse = DeleteCategoryResponses[keyof DeleteCategoryResponses];
+
+export type UpdateCategoryData = {
+    body: CategoryUpdateRequest;
+    path: {
+        category_id: string;
+    };
+    query?: never;
+    url: '/categories/{category_id}';
+};
+
+export type UpdateCategoryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type UpdateCategoryError = UpdateCategoryErrors[keyof UpdateCategoryErrors];
+
+export type UpdateCategoryResponses = {
+    /**
+     * Category renamed
+     */
+    200: Category;
+};
+
+export type UpdateCategoryResponse = UpdateCategoryResponses[keyof UpdateCategoryResponses];
 
 export type ListBudgetsData = {
     body?: never;
