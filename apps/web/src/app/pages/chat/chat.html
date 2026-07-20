@@ -139,10 +139,23 @@
                       aria-label="This answer missed something"
                       title="Missed something"
                     >👎</button>
-                    @if (turn.rating) {
+                    @if (turn.rating && !turn.showNote) {
                       <span class="chat__rate-thanks">Thanks — the advisor will learn from this.</span>
                     }
                   </span>
+                  @if (turn.showNote) {
+                    <div class="chat__note">
+                      <textarea
+                        class="chat__note-input"
+                        rows="2"
+                        maxlength="500"
+                        placeholder="What did it miss? (optional)"
+                        [(ngModel)]="turn.noteDraft"
+                        [ngModelOptions]="{ standalone: true }"
+                      ></textarea>
+                      <button mat-button type="button" (click)="sendNote(turn)">Send note</button>
+                    </div>
+                  }
                 }
               }
 

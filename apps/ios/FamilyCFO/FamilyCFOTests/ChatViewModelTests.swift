@@ -31,14 +31,16 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
     }
 
     var feedbackError: Error?
-    private(set) var feedback: [(String, Components.Schemas.AdvisorFeedbackRequest.RatingPayload)] = []
+    private(set) var feedback:
+        [(String, Components.Schemas.AdvisorFeedbackRequest.RatingPayload, String?)] = []
 
     func submitFeedback(
         recommendationId: String,
-        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+        note: String?
     ) async throws {
         if let feedbackError { throw feedbackError }
-        feedback.append((recommendationId, rating))
+        feedback.append((recommendationId, rating, note))
     }
 
     func sendMessage(
@@ -205,7 +207,25 @@ struct VoiceConversationAdoptionTests {
 
         #expect(api.feedback.map(\.0) == ["rec-1"])
         #expect(api.feedback.first?.1 == .up)
+        #expect(api.feedback.first?.2 == nil)  // no note on a plain rating
         #expect(viewModel.messages.last?.rating == .up)
+    }
+
+    @Test func aDownvoteNoteIsSentAndBlankNotesAreDropped() async {
+        let api = MockAdvisorAPI()
+        api.response = .init(
+            conversationId: "conv-1",
+            recommendation: .init(
+                id: "rec-1", answer: "You can afford it.", assumptions: [], impacts: [],
+                tradeoffs: [], alternatives: [], confidence: 0.9, calculationRefs: [], warnings: []))
+        let viewModel = ChatViewModel(api: api)
+        await viewModel.send("Can I afford it?")
+        let answer = viewModel.messages.last!
+
+        await viewModel.rate(answer, .down, note: "  you ignored my RSUs  ")
+        await viewModel.rate(answer, .down, note: "   ")  // whitespace-only → nil
+
+        #expect(api.feedback.map(\.2) == ["you ignored my RSUs", nil])
     }
 
     @Test func aFailedRatingRevertsAndSurfacesTheError() async {
