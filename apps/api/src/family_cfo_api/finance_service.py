@@ -292,6 +292,70 @@ def reconstruct_net_worth(
     return int(result.outputs["net_worth"].amount_minor)
 
 
+def reconstruct_debt_total(engine: Engine, household_id: str, as_of: date, currency: str) -> int:
+    """Total owed across all liability accounts at the end of a past date,
+    reconstructed from today's balances minus the liability transactions posted
+    since (mirrors reconstruct_net_worth). Approximate — a mortgage whose balance
+    is synced rather than transacted won't rewind perfectly — but it is the only
+    debt history that exists before the daily balance record began. Returns a
+    positive amount owed in minor units."""
+    balances = repository.list_account_balances(engine, household_id)
+    liability_ids = {
+        b.account_id for b in balances if b.account_type in repository.LIABILITY_ACCOUNT_TYPES
+    }
+    later = repository.list_transactions(
+        engine, household_id, limit=1_000_000, start=as_of + timedelta(days=1)
+    )
+    posted_since: dict[str, int] = {}
+    for txn in later:
+        if txn.account_id in liability_ids:
+            posted_since[txn.account_id] = posted_since.get(txn.account_id, 0) + txn.amount_minor
+
+    total_owed = 0
+    for b in balances:
+        if b.account_type in repository.LIABILITY_ACCOUNT_TYPES and b.currency == currency:
+            reconstructed = b.balance_minor - posted_since.get(b.account_id, 0)
+            total_owed += max(0, -reconstructed)  # a liability is a negative balance
+    return total_owed
+
+
+@dataclass(frozen=True, slots=True)
+class DebtHistoryPoint:
+    month: str  # YYYY-MM
+    total_owed: Money
+
+
+@dataclass(frozen=True, slots=True)
+class DebtHistory:
+    points: list[DebtHistoryPoint]
+    average: Money
+    months_covered: int
+
+
+def debt_history(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> DebtHistory:
+    """Total debt at each month-end across the household's transaction history,
+    plus the average over that window (ADR 0043). Reconstructed month by month;
+    'lifetime' is bounded by how much history exists."""
+    today = today or date.today()
+    earliest = repository.earliest_transaction_month(engine, household_id)
+    points: list[DebtHistoryPoint] = []
+    if earliest is not None:
+        cursor = date(int(earliest[:4]), int(earliest[5:7]), 1)
+        current_month_start = today.replace(day=1)
+        while cursor <= current_month_start:
+            # Month-end, except the current (partial) month uses today.
+            as_of = today if cursor == current_month_start else add_months(cursor, 1) - timedelta(days=1)
+            owed = reconstruct_debt_total(engine, household_id, as_of, currency)
+            points.append(DebtHistoryPoint(f"{cursor.year}-{cursor.month:02d}", Money(owed, currency)))
+            cursor = add_months(cursor, 1)
+    average_minor = (
+        round(sum(p.total_owed.amount_minor for p in points) / len(points)) if points else 0
+    )
+    return DebtHistory(points, Money(average_minor, currency), len(points))
+
+
 def compute_net_worth_with_ref(
     engine: Engine, household_id: str, currency: str
 ) -> tuple[CalculationResult, str]:

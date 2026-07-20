@@ -335,6 +335,22 @@ def _get_debt_outlook(engine: Engine, household_id: str, currency: str, args: di
     }
 
 
+def _get_debt_history(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    history = finance_service.debt_history(engine, household_id, currency)
+    return {
+        "months": [
+            {"month": p.month, "total_owed": _money_out(p.total_owed)} for p in history.points
+        ],
+        "average_debt": _money_out(history.average),
+        "months_covered": history.months_covered,
+        "note": (
+            "Total debt at each month-end, reconstructed from transaction history — "
+            "approximate before daily balances began, exact after. 'Lifetime' spans only "
+            "the months of data that exist; say so rather than implying a longer record."
+        ),
+    }
+
+
 def _project_purchase_impact(
     engine: Engine, household_id: str, currency: str, args: dict[str, Any]
 ):
@@ -820,6 +836,7 @@ _HANDLERS = {
     "get_emergency_fund": _get_emergency_fund,
     "get_safe_to_spend": _get_safe_to_spend,
     "get_debt_outlook": _get_debt_outlook,
+    "get_debt_history": _get_debt_history,
     "project_purchase_impact": _project_purchase_impact,
     "future_value": _future_value,
     "project_retirement": _project_retirement,
@@ -881,6 +898,17 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "horizon. These balances/rates/minimums are already stored — ALWAYS call this "
                 "before asking the user for any debt figure, and feed its numbers straight "
                 "into debt_payoff. Never ask the user for a balance or minimum this returns."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        ),
+        ToolSpec(
+            name="get_debt_history",
+            description=(
+                "Total debt at each month-end over the household's history, plus the AVERAGE "
+                "debt across that window and how many months it covers. THE tool for 'average "
+                "debt over time', 'how has my debt changed', or any multi-month/lifetime debt "
+                "question — get_debt_outlook is only the current snapshot. 'Lifetime' spans "
+                "only the months of data that exist (see months_covered); never imply more."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
