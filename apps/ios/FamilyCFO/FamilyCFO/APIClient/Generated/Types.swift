@@ -372,6 +372,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /chat/messages`.
     /// - Remark: Generated from `#/paths//chat/messages/post(createChatMessage)`.
     func createChatMessage(_ input: Operations.CreateChatMessage.Input) async throws -> Operations.CreateChatMessage.Output
+    /// Rate an advisor answer (👍/👎); the study job learns from it
+    ///
+    /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/feedback`.
+    /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)`.
+    func submitAdvisorFeedback(_ input: Operations.SubmitAdvisorFeedback.Input) async throws -> Operations.SubmitAdvisorFeedback.Output
     /// Synthesize an advisor answer to speech (Kokoro; falls back client-side)
     ///
     /// - Remark: HTTP `POST /voice/tts`.
@@ -1428,6 +1436,22 @@ extension APIProtocol {
         body: Operations.CreateChatMessage.Input.Body
     ) async throws -> Operations.CreateChatMessage.Output {
         try await createChatMessage(Operations.CreateChatMessage.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Rate an advisor answer (👍/👎); the study job learns from it
+    ///
+    /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/feedback`.
+    /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)`.
+    public func submitAdvisorFeedback(
+        headers: Operations.SubmitAdvisorFeedback.Input.Headers = .init(),
+        body: Operations.SubmitAdvisorFeedback.Input.Body
+    ) async throws -> Operations.SubmitAdvisorFeedback.Output {
+        try await submitAdvisorFeedback(Operations.SubmitAdvisorFeedback.Input(
             headers: headers,
             body: body
         ))
@@ -5841,6 +5865,42 @@ public enum Components {
                 case imageMediaType = "image_media_type"
                 case dataFileBase64 = "data_file_base64"
                 case dataFileName = "data_file_name"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AdvisorFeedbackRequest`.
+        public struct AdvisorFeedbackRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AdvisorFeedbackRequest/recommendation_id`.
+            public var recommendationId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AdvisorFeedbackRequest/rating`.
+            @frozen public enum RatingPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case up = "up"
+                case down = "down"
+            }
+            /// - Remark: Generated from `#/components/schemas/AdvisorFeedbackRequest/rating`.
+            public var rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+            /// Optional note explaining the rating; the study job learns from it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AdvisorFeedbackRequest/note`.
+            public var note: Swift.String?
+            /// Creates a new `AdvisorFeedbackRequest`.
+            ///
+            /// - Parameters:
+            ///   - recommendationId:
+            ///   - rating:
+            ///   - note: Optional note explaining the rating; the study job learns from it.
+            public init(
+                recommendationId: Swift.String,
+                rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+                note: Swift.String? = nil
+            ) {
+                self.recommendationId = recommendationId
+                self.rating = rating
+                self.note = note
+            }
+            public enum CodingKeys: String, CodingKey {
+                case recommendationId = "recommendation_id"
+                case rating
+                case note
             }
         }
         /// - Remark: Generated from `#/components/schemas/VoiceRequest`.
@@ -20766,6 +20826,160 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Rate an advisor answer (👍/👎); the study job learns from it
+    ///
+    /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/feedback`.
+    /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)`.
+    public enum SubmitAdvisorFeedback {
+        public static let id: Swift.String = "submitAdvisorFeedback"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/chat/feedback/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SubmitAdvisorFeedback.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SubmitAdvisorFeedback.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.SubmitAdvisorFeedback.Input.Headers
+            /// - Remark: Generated from `#/paths/chat/feedback/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/chat/feedback/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.AdvisorFeedbackRequest)
+            }
+            public var body: Operations.SubmitAdvisorFeedback.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.SubmitAdvisorFeedback.Input.Headers = .init(),
+                body: Operations.SubmitAdvisorFeedback.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Feedback recorded
+            ///
+            /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.SubmitAdvisorFeedback.Output.NoContent)
+            /// Feedback recorded
+            ///
+            /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.SubmitAdvisorFeedback.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

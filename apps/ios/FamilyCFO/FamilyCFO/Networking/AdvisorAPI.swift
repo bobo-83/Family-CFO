@@ -55,6 +55,11 @@ protocol AdvisorAPI: Sendable {
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse
     func deleteConversation(id: String) async throws
+    /// ADR 0044: rate an advisor answer 👍/👎; the study job learns from it.
+    func submitFeedback(
+        recommendationId: String,
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+    ) async throws
 }
 
 /// Production implementation backed by the generated OpenAPI client.
@@ -129,6 +134,25 @@ struct LiveAdvisorAPI: AdvisorAPI {
             return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func submitFeedback(
+        recommendationId: String,
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+    ) async throws {
+        let body = Components.Schemas.AdvisorFeedbackRequest(
+            recommendationId: recommendationId, rating: rating
+        )
+        switch try await client.submitAdvisorFeedback(.init(body: .json(body))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

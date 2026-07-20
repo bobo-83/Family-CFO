@@ -5,7 +5,7 @@ import binascii
 import logging
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
 from family_cfo_ai_orchestrator import (
@@ -27,7 +27,14 @@ from family_cfo_api.ai_runtime_selection import (
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine
 from family_cfo_api.explanation import format_money
-from family_cfo_api.schemas import ChatRequest, ChatResponse, ErrorResponse, Impact, Recommendation
+from family_cfo_api.schemas import (
+    AdvisorFeedbackRequest,
+    ChatRequest,
+    ChatResponse,
+    ErrorResponse,
+    Impact,
+    Recommendation,
+)
 from family_cfo_api.schemas import Money as MoneySchema
 
 router = APIRouter(tags=["Chat"])
@@ -513,3 +520,35 @@ async def create_chat_message(
             photo_described_by=photo_described_by,
         ),
     )
+
+
+@router.post(
+    "/chat/feedback",
+    operation_id="submitAdvisorFeedback",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Recommendation not found", "model": ErrorResponse},
+    },
+    summary="Rate an advisor answer (👍/👎); the study job learns from it",
+)
+async def submit_advisor_feedback(
+    payload: AdvisorFeedbackRequest,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    # Scope the recommendation to the caller's household — a member can't rate
+    # (or probe) another household's answers.
+    if not repository.recommendation_belongs_to_household(
+        engine, session.household_id, payload.recommendation_id
+    ):
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    repository.upsert_advisor_feedback(
+        engine,
+        session.household_id,
+        payload.recommendation_id,
+        session.user_id,
+        payload.rating,
+        payload.note,
+    )
+    return Response(status_code=204)

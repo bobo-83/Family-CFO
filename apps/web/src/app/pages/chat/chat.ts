@@ -13,6 +13,8 @@ interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
   recommendation?: Recommendation;
+  recommendationId?: string; // set on history turns, where the full object isn't loaded
+  rating?: 'up' | 'down'; // ADR 0044: this member's rating, once given
   hadImage?: boolean;
 }
 
@@ -276,7 +278,29 @@ export class Chat {
       return;
     }
     this.conversationId.set(data.id);
-    this.turns.set(data.messages.map((m) => ({ role: m.role, content: m.content })));
+    this.turns.set(
+      data.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        recommendationId: m.recommendation_id ?? undefined,
+      })),
+    );
+  }
+
+  // ADR 0044: rate an advisor answer; the idle study job learns from it. The
+  // rating shows immediately (optimistic) and is safe to change.
+  protected async rate(turn: ChatTurn, rating: 'up' | 'down'): Promise<void> {
+    const recommendationId = turn.recommendation?.id ?? turn.recommendationId;
+    if (!recommendationId) return;
+    const previous = turn.rating;
+    turn.rating = rating;
+    this.turns.update((turns) => [...turns]);
+    const { error } = await this.api.submitAdvisorFeedback(recommendationId, rating);
+    if (error) {
+      turn.rating = previous;
+      this.turns.update((turns) => [...turns]);
+      this.errorMessage.set(apiErrorMessage(error, 'Could not save your feedback.'));
+    }
   }
 
   protected async send(): Promise<void> {
