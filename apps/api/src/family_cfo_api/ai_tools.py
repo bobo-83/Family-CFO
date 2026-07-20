@@ -135,7 +135,15 @@ GROUNDING_RULES = (
     "declared compensation profile including upcoming vest dates (quote its "
     "assumptions when giving a tax figure); for "
     "bills or upcoming payments use get_bills; for budgets use get_budgets; for "
-    "recent spending habits use get_spending_insights."
+    "recent spending habits use get_spending_insights. "
+    "For debts, read get_debt_outlook: each debt's `payoff_now` is the ONE-TIME "
+    "amount that clears it today (its balance plus about a month's interest). "
+    "NEVER tell the user to send more than a debt's balance — you cannot pay off "
+    "a $3,000 loan by sending $10,000. To model paying it down faster, use "
+    "debt_payoff, whose extra_monthly_payment is a RECURRING monthly amount, not a "
+    "one-time lump sum; the one-time amount to clear a debt is always its "
+    "payoff_now. Do not invent an 'extra payment' the user didn't ask for, and "
+    "quote debt_payoff's own months_to_payoff and interest — never your own."
 )
 
 # Backwards-compatible alias (professional baseline without persona).
@@ -317,6 +325,11 @@ def _get_debt_outlook(engine: Engine, household_id: str, currency: str, args: di
                 "annual_interest_rate": debt.annual_interest_rate,
                 "minimum_payment": _money_out(
                     Money(debt.minimum_payment_minor, debt.currency)
+                ),
+                # The one-time amount that clears this debt today: balance plus
+                # ~a month's interest. The advisor must never advise sending more.
+                "payoff_now": _money_out(
+                    Money(debt.balance_owed_minor + monthly_interest, debt.currency)
                 ),
                 "interest_only": debt.minimum_payment_minor <= monthly_interest,
             }
