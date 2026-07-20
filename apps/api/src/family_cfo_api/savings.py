@@ -36,7 +36,8 @@ _STREAMING_KEYWORDS = (
 # A discretionary category is "creeping" only when it has a REAL prior baseline
 # and climbed materially above it — otherwise a one-off spike in a near-zero
 # category (a vacation, a home project) reads as a fake "6000% increase".
-_CREEP_RATIO = 1.3
+_CREEP_RATIO = 1.3  # a moderate rise (>=30%) is creep…
+_CREEP_MAX_RATIO = 2.0  # …but >2x is a one-off spike (a trip, a project), not a habit
 _CREEP_BASELINE_MIN = 10_000  # prior 3-mo avg must be >= $100/mo to have a baseline
 _CREEP_MIN_JUMP = 10_000  # and the absolute increase must be >= $100/mo
 _CREEP_MAX_FLAGS = 3  # surface only the few biggest, not a wall of noise
@@ -154,12 +155,19 @@ def _detect_subscriptions(
         for b in repository.list_bills(engine, household_id)
     }
     obligations.discard("")
+
+    def is_obligation(name: str) -> bool:
+        # Substring both ways: "department of education" matches the account
+        # "U.S. Department of Education" even though the strings aren't identical.
+        norm = bill_detection.normalize_merchant(name)
+        return bool(norm) and any(norm in o or o in norm for o in obligations)
+
     subs = [
         Subscription(c.name, Money(c.amount_minor, c.currency), c.frequency)
         for c in candidates
         if c.currency == currency
         and c.amount_minor <= 10_000  # <= $100: subscription-sized
-        and bill_detection.normalize_merchant(c.name) not in obligations
+        and not is_obligation(c.name)
     ]
     subs.sort(key=lambda s: s.amount.amount_minor, reverse=True)
     return subs
@@ -207,7 +215,7 @@ def _possible_waste(
         if (
             prior_avg >= _CREEP_BASELINE_MIN
             and jump >= _CREEP_MIN_JUMP
-            and last_minor > prior_avg * _CREEP_RATIO
+            and _CREEP_RATIO < last_minor / prior_avg <= _CREEP_MAX_RATIO
         ):
             pct = round((last_minor / prior_avg - 1) * 100)
             creeps.append((round(jump), f"{name} last month was {pct}% above its recent average."))
