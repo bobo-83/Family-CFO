@@ -376,12 +376,39 @@ def test_debt_outlook_exposes_each_debt_so_the_advisor_need_not_ask(
     assert card_out["interest_only"] is False
     # payoff_now clears it today: balance + ~one month's interest, never more.
     assert card_out["payoff_now"]["amount_minor"] == 500_000 + round(500_000 * 0.24 / 12)
+    # A 24% card is high-rate: no low-priority steer.
+    assert card_out["strategy_note"] is None
 
 
 def test_grounding_rules_forbid_advising_overpayment_of_a_debt() -> None:
     prompt = ai_tools.build_system_prompt()
     assert "never tell the user to send more than a debt's balance" in prompt.lower()
     assert "payoff_now" in prompt
+    # Debt-strategy guidance: rate-first, low-rate deprioritized, 401(k) nuance.
+    assert "prioritize by interest rate" in prompt.lower()
+    assert "401(k) loan" in prompt
+
+
+def test_debt_outlook_flags_401k_loans_and_low_rate_debt(demo_engine: Engine) -> None:
+    from family_cfo_api import repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    k401 = repository.create_account(
+        demo_engine, hh, "401k Loan", "401k_loan", "USD",
+        annual_interest_rate=0.095, minimum_payment_minor=52_400,
+    )
+    repository.record_account_balance(demo_engine, k401.id, -1_600_000)
+    student = repository.create_account(
+        demo_engine, hh, "Student Loan", "student_loan", "USD",
+        annual_interest_rate=0.02125, minimum_payment_minor=7_800,
+    )
+    repository.record_account_balance(demo_engine, student.id, -380_000)
+
+    debts = {d["name"]: d for d in _execute(demo_engine, "get_debt_outlook", {})["debts"]}
+    # The 9.5% 401(k) loan is flagged as pay-to-yourself, not a true cost.
+    assert "retirement account" in debts["401k Loan"]["strategy_note"]
+    # The 2.125% student loan is flagged low priority, despite its small balance.
+    assert "LOW priority" in debts["Student Loan"]["strategy_note"]
 
 
 def test_debt_history_returns_monthly_totals_and_average(demo_engine: Engine) -> None:
