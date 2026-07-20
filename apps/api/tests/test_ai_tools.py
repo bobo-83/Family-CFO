@@ -173,11 +173,17 @@ def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -
 
     assert result["income_sources"][0]["name"] == "ACME CORP PAYROLL"
     assert result["income_sources"][0]["frequency"] == "biweekly"
-    assert result["annual_income"]["amount_minor"] == 4 * 461_538
+    assert result["annual_income_detected"]["amount_minor"] == 4 * 461_538
     tax = result["tax_estimate"]
     assert tax["tax_year"] == 2026
     assert tax["estimated_total_tax"]["amount_minor"] > 0
     assert tax["estimated_gross_income"]["amount_minor"] > 4 * 461_538
+    # Take-home is gross minus tax — the figure the advisor must quote for pay,
+    # not the (undercounting) detected-deposit average.
+    take_home = result["take_home"]["annual"]["amount_minor"]
+    assert take_home == tax["estimated_gross_income"]["amount_minor"] - tax["estimated_total_tax"]["amount_minor"]
+    assert result["take_home"]["monthly"]["amount_minor"] == round(take_home / 12)
+    assert "undercount" in result["income_basis_note"].lower()
     assert any("state income tax is NOT included" in a for a in result["assumptions"])
     # Partial history is disclosed to the model too.
     assert any("not a full year" in w for w in result["warnings"])
