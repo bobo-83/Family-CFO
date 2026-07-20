@@ -451,6 +451,12 @@ struct BillFormView: View {
     @State private var categoryID: String  // "" = none
     private let currency: String
 
+    // Bill scan: photo/PDF → candidate values prefill the fields below.
+    @State private var showingCamera = false
+    @State private var showingFileImporter = false
+    @State private var scanning = false
+    @State private var scanNote: String?
+
     init(viewModel: BillsViewModel, mode: Mode) {
         self.viewModel = viewModel
         self.mode = mode
@@ -480,6 +486,41 @@ struct BillFormView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !isEditing {
+                    Section {
+                        Menu {
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                Button {
+                                    showingCamera = true
+                                } label: {
+                                    Label("Take a photo", systemImage: "camera")
+                                }
+                            }
+                            Button {
+                                showingFileImporter = true
+                            } label: {
+                                Label("Choose a PDF or image", systemImage: "doc")
+                            }
+                            Button {
+                                pasteBill()
+                            } label: {
+                                Label("Paste from clipboard", systemImage: "doc.on.clipboard")
+                            }
+                        } label: {
+                            if scanning {
+                                HStack(spacing: 6) { ProgressView(); Text("Reading bill…") }
+                            } else {
+                                Label("Scan a bill", systemImage: "doc.viewfinder")
+                            }
+                        }
+                        .disabled(scanning)
+                        if let scanNote {
+                            Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } footer: {
+                        Text("Photograph, upload, or paste a bill and the on-box vision model fills in what it can read. Confirm every value before saving.")
+                    }
+                }
                 Section {
                     TextField("Name (e.g. Rent)", text: $name)
                     TextField("Amount", value: $amount, format: .currency(code: currency))
@@ -512,6 +553,59 @@ struct BillFormView: View {
                                 || (amount ?? 0) <= 0)
                 }
             }
+            .fullScreenCover(isPresented: $showingCamera) {
+                CameraPicker { image in handleScan { await viewModel.scanBill(image) } }
+                    .ignoresSafeArea()
+            }
+            .fileImporter(
+                isPresented: $showingFileImporter,
+                allowedContentTypes: [.pdf, .image]
+            ) { result in
+                guard case .success(let url) = result else { return }
+                let isPDF = url.pathExtension.lowercased() == "pdf"
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url) else { return }
+                handleScan { await viewModel.scanBill(fileData: data, isPDF: isPDF) }
+            }
+        }
+    }
+
+    /// Scan a bill straight off the clipboard — a copied screenshot or PDF works
+    /// exactly like a photographed/uploaded one (ADR 0028 pattern).
+    private func pasteBill() {
+        ClipboardImage.read { contents in
+            switch contents {
+            case .image(let image):
+                handleScan { await viewModel.scanBill(image) }
+            case .pdf(let data):
+                handleScan { await viewModel.scanBill(fileData: data, isPDF: true) }
+            case .none:
+                scanNote = "There's no image or PDF on your clipboard to paste."
+            }
+        }
+    }
+
+    /// Prefill only — a scan never overwrites what the user already typed.
+    private func handleScan(_ scan: @escaping () async -> Components.Schemas.BillScanResult?) {
+        scanning = true
+        Task {
+            let result = await scan()
+            scanning = false
+            guard let result else { return }
+            if let scanned = result.name, name.trimmingCharacters(in: .whitespaces).isEmpty {
+                name = scanned
+            }
+            if let minor = result.amountMinor, amount == nil {
+                amount = Decimal(minor) / 100
+            }
+            if let scanned = result.frequency,
+                let mapped = Components.Schemas.RecurringFrequency(rawValue: scanned.rawValue)
+            {
+                frequency = mapped
+            }
+            if let due = Self.parseDate(result.nextDueDate) { nextDue = due }
+            scanNote = result.note
         }
     }
 

@@ -51,6 +51,8 @@ struct RolePolicy: Equatable {
     var canManageBills: Bool { has("bills.manage") }
     var canManageBudgets: Bool { has("budgets.manage") }
     var canManageGoals: Bool { has("goals.manage") }
+    /// The Income tab: earners, W-2 scan, and the analyzed income picture.
+    var canManageIncome: Bool { has("income.manage") }
     /// Add/edit/remove accounts AND loans — a "User" deliberately lacks this.
     var canManageAccounts: Bool { has("accounts.manage") }
     var canViewActivity: Bool { has("audit.view") }

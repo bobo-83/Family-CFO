@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// The review queues (M90): recurring-bill suggestions to confirm/dismiss, and
 /// unclassified deposits to mark income / not-income. Every action is optimistic
@@ -22,6 +23,7 @@ final class BillsViewModel {
     private(set) var deposits: [Components.Schemas.IncomeAnalysisTransaction] = []
     private(set) var isLoading = false
     private(set) var isSyncing = false
+    private(set) var isScanning = false
     var errorMessage: String?
     /// A brief note after a sync, e.g. "Imported 12 transactions".
     var syncResult: String?
@@ -213,6 +215,41 @@ final class BillsViewModel {
             await load()  // pull the created bill back with its server id
         } catch {
             errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// Read a photographed bill into candidate values for the add form. Returns
+    /// nil (and sets errorMessage) on failure so the user can still type by hand.
+    func scanBill(_ image: UIImage) async -> Components.Schemas.BillScanResult? {
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            errorMessage = "That photo couldn't be processed."
+            return nil
+        }
+        return await scan { try AttachmentTranscoder.image(from: data, displayName: "Bill") }
+    }
+
+    /// Read a chosen file (a PDF or image bill) into candidate values.
+    func scanBill(fileData: Data, isPDF: Bool) async -> Components.Schemas.BillScanResult? {
+        await scan {
+            isPDF
+                ? try AttachmentTranscoder.pdf(from: fileData, displayName: "Bill")
+                : try AttachmentTranscoder.image(from: fileData, displayName: "Bill")
+        }
+    }
+
+    private func scan(
+        _ makeAttachment: () throws -> ChatAttachment
+    ) async -> Components.Schemas.BillScanResult? {
+        guard !isScanning else { return nil }
+        isScanning = true
+        defer { isScanning = false }
+        do {
+            let result = try await api.scanBill(makeAttachment())
+            errorMessage = nil
+            return result
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+            return nil
         }
     }
 
