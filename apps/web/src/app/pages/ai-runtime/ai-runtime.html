@@ -489,5 +489,54 @@
     } @else {
       <p class="page-empty">Only the household owner can change the AI runtime configuration.</p>
     }
+
+    <!-- ================= Knowledge of your data (ADR 0040) ================= -->
+    @if (study.value(); as knowledge) {
+      <div class="study">
+        <h2>Knowledge of your data</h2>
+        <p class="study__note">
+          While nobody is chatting, the advisor studies your history one month at a time and
+          remembers the patterns — spending habits, income rhythm, seasonal costs. Knowledge is
+          stored as reviewable notes, never trained into the model, so it stays current and
+          deletable.
+        </p>
+        @if (knowledge.total_months === 0) {
+          <p class="study__empty">Nothing to study yet — add or import transactions first.</p>
+        } @else {
+          <div class="study__coverage">
+            <div
+              class="study__bar"
+              role="progressbar"
+              [attr.aria-valuenow]="knowledge.coverage_percent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div class="study__bar-fill" [style.width.%]="knowledge.coverage_percent"></div>
+            </div>
+            <span class="study__percent">{{ knowledge.coverage_percent }}%</span>
+          </div>
+          <p class="study__months">
+            Studied {{ knowledge.studied_months }} of {{ knowledge.total_months }} complete months
+            of your history.
+            @if (!knowledge.runtime_usable) {
+              <span class="study__paused">Paused — pick and enable an AI model to resume.</span>
+            }
+          </p>
+          @if (knowledge.insights.length > 0) {
+            <h3>What it has learned</h3>
+            <ul class="study__insights">
+              @for (insight of knowledge.insights.slice(0, studyInsightsShown()); track insight.key) {
+                <li>{{ insight.value }}</li>
+              }
+            </ul>
+            @if (knowledge.insights.length > studyInsightsShown()) {
+              <button mat-button type="button" (click)="studyInsightsShown.set(knowledge.insights.length)">
+                Show all {{ knowledge.insights.length }}
+              </button>
+            }
+          }
+        }
+      </div>
+    }
   }
 }

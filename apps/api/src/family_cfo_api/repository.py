@@ -4507,6 +4507,111 @@ def upsert_household_memory(
     return _memory_from_row(row)
 
 
+# --- ADR 0040: idle-time study of the transaction history ---------------------
+
+
+@dataclass(frozen=True, slots=True)
+class StudyMonthRecord:
+    household_id: str
+    month: str  # YYYY-MM
+    digest_hash: str
+    insight_count: int
+    model: str | None
+    studied_at: datetime
+
+
+def list_study_months(engine: Engine, household_id: str) -> list[StudyMonthRecord]:
+    query = (
+        select(models.study_months)
+        .where(models.study_months.c.household_id == household_id)
+        .order_by(models.study_months.c.month)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        StudyMonthRecord(
+            household_id=row["household_id"],
+            month=row["month"],
+            digest_hash=row["digest_hash"],
+            insight_count=row["insight_count"],
+            model=row["model"],
+            studied_at=row["studied_at"],
+        )
+        for row in rows
+    ]
+
+
+def upsert_study_month(
+    engine: Engine,
+    household_id: str,
+    month: str,
+    *,
+    digest_hash: str,
+    insight_count: int,
+    model: str | None,
+) -> None:
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.study_months.c.id).where(
+                models.study_months.c.household_id == household_id,
+                models.study_months.c.month == month,
+            )
+        ).first()
+        if existing is not None:
+            conn.execute(
+                update(models.study_months)
+                .where(models.study_months.c.id == existing.id)
+                .values(
+                    digest_hash=digest_hash,
+                    insight_count=insight_count,
+                    model=model,
+                    studied_at=now,
+                )
+            )
+        else:
+            conn.execute(
+                insert(models.study_months).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    month=month,
+                    digest_hash=digest_hash,
+                    insight_count=insight_count,
+                    model=model,
+                    studied_at=now,
+                )
+            )
+
+
+def last_chat_message_at(engine: Engine, household_id: str) -> datetime | None:
+    """When anyone in the household last talked to the advisor — the study job's
+    idleness signal (a recent chat means the runtime is busy serving a human)."""
+    query = select(func.max(models.conversation_messages.c.created_at)).where(
+        models.conversation_messages.c.conversation_id.in_(
+            select(models.conversations.c.id).where(
+                models.conversations.c.household_id == household_id
+            )
+        )
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).scalar_one_or_none()
+
+
+def list_study_insights(engine: Engine, household_id: str) -> list[HouseholdMemoryRecord]:
+    """What the study job has learned, freshest first."""
+    query = (
+        select(models.household_memories)
+        .where(
+            models.household_memories.c.household_id == household_id,
+            models.household_memories.c.source == "study",
+        )
+        .order_by(models.household_memories.c.updated_at.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_memory_from_row(row) for row in rows]
+
+
 def delete_household_memory(engine: Engine, household_id: str, memory_id: str) -> bool:
     with engine.begin() as conn:
         result = conn.execute(

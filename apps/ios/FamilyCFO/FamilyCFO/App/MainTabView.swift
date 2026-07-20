@@ -142,6 +142,19 @@ struct SettingsView: View {
                 } footer: {
                     Text("Away from home, connect through your household's own VPN or tailnet — the server is never exposed to the internet.")
                 }
+                if let aiStudy = model.aiStudy {
+                    Section {
+                        NavigationLink {
+                            AdvisorKnowledgeView(viewModel: AiStudyViewModel(api: aiStudy))
+                        } label: {
+                            Label("Advisor knowledge", systemImage: "brain")
+                        }
+                    } header: {
+                        Text("Advisor")
+                    } footer: {
+                        Text("How much of your history the AI has studied, and what it learned.")
+                    }
+                }
                 if model.rolePolicy.canViewActivity || model.rolePolicy.canManageBackups {
                     Section {
                         if model.rolePolicy.canViewActivity, let activity = model.activity {

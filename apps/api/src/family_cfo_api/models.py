@@ -712,6 +712,22 @@ household_memories = Table(
     Index("uq_household_memories_household_key", "household_id", "key", unique=True),
 )
 
+# ADR 0040: idle-time study of the transaction history. One row per household ×
+# complete calendar month the advisor has studied. digest_hash fingerprints the
+# month's data so edits (recategorizing, imports) mark it stale for re-study.
+study_months = Table(
+    "study_months",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("month", String(7), nullable=False),
+    Column("digest_hash", String(64), nullable=False),
+    Column("insight_count", Integer, nullable=False),
+    Column("model", String(200), nullable=True),
+    Column("studied_at", DateTime(timezone=True), nullable=False),
+    Index("uq_study_months_household_month", "household_id", "month", unique=True),
+)
+
 conversation_messages = Table(
     "conversation_messages",
     metadata,

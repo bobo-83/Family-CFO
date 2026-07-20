@@ -522,6 +522,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /ai/runtime/status`.
     /// - Remark: Generated from `#/paths//ai/runtime/status/get(getAiRuntimeStatus)`.
     func getAiRuntimeStatus(_ input: Operations.GetAiRuntimeStatus.Input) async throws -> Operations.GetAiRuntimeStatus.Output
+    /// Report how much of the transaction history the advisor has studied
+    ///
+    /// ADR 0040: while the box is idle the worker studies one complete calendar month at a time, distilling Postgres history into durable advisor memories. Coverage is studied complete months over complete months with data; the current partial month never counts.
+    ///
+    ///
+    /// - Remark: HTTP `GET /ai/study`.
+    /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)`.
+    func getAiStudyStatus(_ input: Operations.GetAiStudyStatus.Input) async throws -> Operations.GetAiStudyStatus.Output
     /// List the curated model catalog for the runtime picker
     ///
     /// - Remark: HTTP `GET /ai/models`.
@@ -1738,6 +1746,16 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//ai/runtime/status/get(getAiRuntimeStatus)`.
     public func getAiRuntimeStatus(headers: Operations.GetAiRuntimeStatus.Input.Headers = .init()) async throws -> Operations.GetAiRuntimeStatus.Output {
         try await getAiRuntimeStatus(Operations.GetAiRuntimeStatus.Input(headers: headers))
+    }
+    /// Report how much of the transaction history the advisor has studied
+    ///
+    /// ADR 0040: while the box is idle the worker studies one complete calendar month at a time, distilling Postgres history into durable advisor memories. Coverage is studied complete months over complete months with data; the current partial month never counts.
+    ///
+    ///
+    /// - Remark: HTTP `GET /ai/study`.
+    /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)`.
+    public func getAiStudyStatus(headers: Operations.GetAiStudyStatus.Input.Headers = .init()) async throws -> Operations.GetAiStudyStatus.Output {
+        try await getAiStudyStatus(Operations.GetAiStudyStatus.Input(headers: headers))
     }
     /// List the curated model catalog for the runtime picker
     ///
@@ -7812,6 +7830,91 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case models
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AiStudyInsight`.
+        public struct AiStudyInsight: Codable, Hashable, Sendable {
+            /// Stable identifier; re-studying a month updates it in place.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiStudyInsight/key`.
+            public var key: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiStudyInsight/value`.
+            public var value: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiStudyInsight/updated_at`.
+            public var updatedAt: Foundation.Date
+            /// Creates a new `AiStudyInsight`.
+            ///
+            /// - Parameters:
+            ///   - key: Stable identifier; re-studying a month updates it in place.
+            ///   - value:
+            ///   - updatedAt:
+            public init(
+                key: Swift.String,
+                value: Swift.String,
+                updatedAt: Foundation.Date
+            ) {
+                self.key = key
+                self.value = value
+                self.updatedAt = updatedAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case key
+                case value
+                case updatedAt = "updated_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AiStudyStatus`.
+        public struct AiStudyStatus: Codable, Hashable, Sendable {
+            /// Complete calendar months of transaction history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/total_months`.
+            public var totalMonths: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/studied_months`.
+            public var studiedMonths: Swift.Int
+            /// studied_months / total_months, rounded; 100 when there is nothing to study.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/coverage_percent`.
+            public var coveragePercent: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/last_studied_at`.
+            public var lastStudiedAt: Foundation.Date?
+            /// False when no AI runtime is selected/enabled — studying is paused until the family picks a model.
+            ///
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/runtime_usable`.
+            public var runtimeUsable: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AiStudyStatus/insights`.
+            public var insights: [Components.Schemas.AiStudyInsight]
+            /// Creates a new `AiStudyStatus`.
+            ///
+            /// - Parameters:
+            ///   - totalMonths: Complete calendar months of transaction history.
+            ///   - studiedMonths:
+            ///   - coveragePercent: studied_months / total_months, rounded; 100 when there is nothing to study.
+            ///   - lastStudiedAt:
+            ///   - runtimeUsable: False when no AI runtime is selected/enabled — studying is paused until the family picks a model.
+            ///   - insights:
+            public init(
+                totalMonths: Swift.Int,
+                studiedMonths: Swift.Int,
+                coveragePercent: Swift.Int,
+                lastStudiedAt: Foundation.Date? = nil,
+                runtimeUsable: Swift.Bool,
+                insights: [Components.Schemas.AiStudyInsight]
+            ) {
+                self.totalMonths = totalMonths
+                self.studiedMonths = studiedMonths
+                self.coveragePercent = coveragePercent
+                self.lastStudiedAt = lastStudiedAt
+                self.runtimeUsable = runtimeUsable
+                self.insights = insights
+            }
+            public enum CodingKeys: String, CodingKey {
+                case totalMonths = "total_months"
+                case studiedMonths = "studied_months"
+                case coveragePercent = "coverage_percent"
+                case lastStudiedAt = "last_studied_at"
+                case runtimeUsable = "runtime_usable"
+                case insights
             }
         }
         /// - Remark: Generated from `#/components/schemas/ConnectionCreateRequest`.
@@ -25528,6 +25631,142 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//ai/runtime/status/get(getAiRuntimeStatus)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Report how much of the transaction history the advisor has studied
+    ///
+    /// ADR 0040: while the box is idle the worker studies one complete calendar month at a time, distilling Postgres history into durable advisor memories. Coverage is studied complete months over complete months with data; the current partial month never counts.
+    ///
+    ///
+    /// - Remark: HTTP `GET /ai/study`.
+    /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)`.
+    public enum GetAiStudyStatus {
+        public static let id: Swift.String = "getAiStudyStatus"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/ai/study/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiStudyStatus.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiStudyStatus.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetAiStudyStatus.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetAiStudyStatus.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/study/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/study/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AiStudyStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AiStudyStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetAiStudyStatus.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetAiStudyStatus.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Study coverage and the freshest distilled insights
+            ///
+            /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetAiStudyStatus.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetAiStudyStatus.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Components.Responses._Error)

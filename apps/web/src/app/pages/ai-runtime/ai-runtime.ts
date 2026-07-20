@@ -106,6 +106,16 @@ export class AiRuntime {
     },
   });
 
+  // ADR 0040: how much of the transaction history the advisor has studied.
+  protected readonly study = resource({
+    loader: async () => {
+      const { data } = await this.api.getAiStudyStatus();
+      return data ?? null;
+    },
+  });
+
+  protected readonly studyInsightsShown = signal(5);
+
   // --- Known models: curated + live results + stubs for active ids (M47/M48) --
 
   /** Estimate a model's shape from its id alone (same heuristics as the API). */

@@ -11488,6 +11488,91 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Report how much of the transaction history the advisor has studied
+    ///
+    /// ADR 0040: while the box is idle the worker studies one complete calendar month at a time, distilling Postgres history into durable advisor memories. Coverage is studied complete months over complete months with data; the current partial month never counts.
+    ///
+    ///
+    /// - Remark: HTTP `GET /ai/study`.
+    /// - Remark: Generated from `#/paths//ai/study/get(getAiStudyStatus)`.
+    public func getAiStudyStatus(_ input: Operations.GetAiStudyStatus.Input) async throws -> Operations.GetAiStudyStatus.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetAiStudyStatus.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/ai/study",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetAiStudyStatus.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.AiStudyStatus.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// List the curated model catalog for the runtime picker
     ///
     /// - Remark: HTTP `GET /ai/models`.

@@ -1491,6 +1491,34 @@ export type AiModelCatalog = {
     models: Array<AiModelInfo>;
 };
 
+export type AiStudyInsight = {
+    /**
+     * Stable identifier; re-studying a month updates it in place.
+     */
+    key: string;
+    value: string;
+    updated_at: string;
+};
+
+export type AiStudyStatus = {
+    /**
+     * Complete calendar months of transaction history.
+     */
+    total_months: number;
+    studied_months: number;
+    /**
+     * studied_months / total_months, rounded; 100 when there is nothing to study.
+     */
+    coverage_percent: number;
+    last_studied_at?: string | null;
+    /**
+     * False when no AI runtime is selected/enabled — studying is paused until the family picks a model.
+     *
+     */
+    runtime_usable: boolean;
+    insights: Array<AiStudyInsight>;
+};
+
 export type ConnectionCreateRequest = {
     provider?: 'simplefin';
     display_name: string;
@@ -4693,6 +4721,31 @@ export type GetAiRuntimeStatusResponses = {
 };
 
 export type GetAiRuntimeStatusResponse = GetAiRuntimeStatusResponses[keyof GetAiRuntimeStatusResponses];
+
+export type GetAiStudyStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/study';
+};
+
+export type GetAiStudyStatusErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetAiStudyStatusError = GetAiStudyStatusErrors[keyof GetAiStudyStatusErrors];
+
+export type GetAiStudyStatusResponses = {
+    /**
+     * Study coverage and the freshest distilled insights
+     */
+    200: AiStudyStatus;
+};
+
+export type GetAiStudyStatusResponse = GetAiStudyStatusResponses[keyof GetAiStudyStatusResponses];
 
 export type ListAiModelsData = {
     body?: never;
