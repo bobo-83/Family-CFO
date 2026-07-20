@@ -1,5 +1,5 @@
 import { Component, HostListener, inject, resource, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -15,6 +15,8 @@ interface ChatTurn {
   recommendation?: Recommendation;
   recommendationId?: string; // set on history turns, where the full object isn't loaded
   rating?: 'up' | 'down'; // ADR 0044: this member's rating, once given
+  showNote?: boolean; // a 👎 opened the optional note box
+  noteDraft?: string;
   hadImage?: boolean;
 }
 
@@ -69,7 +71,7 @@ const EXAMPLE_PROMPTS = [
 
 @Component({
   selector: 'app-chat',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatButtonModule],
+  imports: [ReactiveFormsModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
@@ -289,18 +291,32 @@ export class Chat {
 
   // ADR 0044: rate an advisor answer; the idle study job learns from it. The
   // rating shows immediately (optimistic) and is safe to change.
-  protected async rate(turn: ChatTurn, rating: 'up' | 'down'): Promise<void> {
+  protected async rate(turn: ChatTurn, rating: 'up' | 'down', note?: string): Promise<void> {
     const recommendationId = turn.recommendation?.id ?? turn.recommendationId;
     if (!recommendationId) return;
     const previous = turn.rating;
     turn.rating = rating;
+    // A 👎 opens the note box; a 👍 closes it.
+    turn.showNote = rating === 'down';
     this.turns.update((turns) => [...turns]);
-    const { error } = await this.api.submitAdvisorFeedback(recommendationId, rating);
+    const trimmed = note?.trim();
+    const { error } = await this.api.submitAdvisorFeedback(
+      recommendationId,
+      rating,
+      trimmed ? trimmed : undefined,
+    );
     if (error) {
       turn.rating = previous;
       this.turns.update((turns) => [...turns]);
       this.errorMessage.set(apiErrorMessage(error, 'Could not save your feedback.'));
     }
+  }
+
+  // Send the typed note; it updates the same feedback row (upsert).
+  protected async sendNote(turn: ChatTurn): Promise<void> {
+    await this.rate(turn, 'down', turn.noteDraft);
+    turn.showNote = false;
+    this.turns.update((turns) => [...turns]);
   }
 
   protected async send(): Promise<void> {
