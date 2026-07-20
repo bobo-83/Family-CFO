@@ -832,7 +832,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ),
         ToolSpec(
             name="get_emergency_fund",
-            description="Months of essential expenses the household's liquid savings would cover.",
+            description=(
+                "Months of essential expenses the household's liquid savings would cover. "
+                "Monthly essential expenses = recurring bills + debt minimum payments + "
+                "everyday spending above those bills (not bills alone)."
+            ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
         ToolSpec(

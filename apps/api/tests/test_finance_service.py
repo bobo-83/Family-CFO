@@ -37,10 +37,59 @@ def test_compute_emergency_fund_uses_liquid_balances_and_monthly_bills(demo_engi
     result = finance_service.compute_emergency_fund(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD")
 
     # liquid = checking 500_000 + savings 1_500_000 = 2_000_000
-    # monthly bills = mortgage 200_000 + internet 8_000 = 208_000
+    # The minimal demo has no debts with minimum payments and its only transactions
+    # fall in the current partial month (excluded from the trailing window), so the
+    # essential-expenses denominator collapses to the recurring bills:
+    # mortgage 200_000 + internet 8_000 = 208_000.
     assert result.outputs["liquid_balance"] == Money(2_000_000, "USD")
     assert result.outputs["monthly_essential_expenses"] == Money(208_000, "USD")
     assert result.outputs["emergency_fund_months"] == 2_000_000 / 208_000
+
+
+def test_monthly_debt_minimums_sums_liabilities_excluding_retirement_loans(
+    demo_engine: Engine,
+) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    # Minimal demo has no liability accounts with minimum payments.
+    assert finance_service._monthly_debt_minimums(demo_engine, hh, "USD") == Money.zero("USD")
+
+    repository.create_account(
+        demo_engine, hh, "Student Loan", "student_loan", "USD", minimum_payment_minor=50_000
+    )
+    # A 401(k) loan is repaid by payroll deduction and must NOT claim liquid cash.
+    repository.create_account(
+        demo_engine, hh, "401k Loan", "401k_loan", "USD", minimum_payment_minor=30_000
+    )
+
+    assert finance_service._monthly_debt_minimums(demo_engine, hh, "USD") == Money(50_000, "USD")
+
+
+def test_monthly_essential_expenses_adds_debt_minimums_and_spending_above_bills(
+    demo_engine: Engine,
+) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 6, 15)  # window = the 3 complete months Mar–May 2026
+
+    # A loan whose minimum payment is a recurring claim on cash.
+    repository.create_account(
+        demo_engine, hh, "Auto Loan", "auto_loan", "USD", minimum_payment_minor=40_000
+    )
+    # Everyday spending inside the trailing window: 300_000/mo average, above the
+    # 208_000 of bills. Uncategorized outflows count as spending.
+    checking = repository.create_account(demo_engine, hh, "Spending Checking", "checking", "USD")
+    for occurred in (date(2026, 3, 10), date(2026, 4, 10), date(2026, 5, 10)):
+        repository.create_transaction(
+            demo_engine, household_id=hh, account_id=checking.id, occurred_at=occurred,
+            amount_minor=-300_000, currency="USD", merchant="Market", description=None,
+            import_source=None, import_id=None, review_state="reviewed",
+        )
+
+    result = finance_service.monthly_essential_expenses(demo_engine, hh, "USD", today=today)
+
+    # bills 208_000 + debt minimum 40_000 + (avg spending 300_000 − bills 208_000)
+    assert result == Money(208_000 + 40_000 + (300_000 - 208_000), "USD")
+    # The whole point: strictly more than bills alone (the old, over-optimistic base).
+    assert result.amount_minor > finance_service._monthly_bill_total(demo_engine, hh, "USD").amount_minor
 
 
 def test_safe_to_spend_subtracts_bills_and_debt_not_just_the_emergency_fund(
