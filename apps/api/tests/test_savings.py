@@ -66,19 +66,20 @@ def test_subscriptions_exclude_debt_and_bill_payments(demo_engine: Engine) -> No
     hh = fixtures.DEMO_HOUSEHOLD_ID
     today = date(2026, 7, 15)
     checking = repository.create_account(demo_engine, hh, "Chk", "checking", "USD")
-    # A student-loan payment recorded as a recurring liability account.
+    # A student-loan payment whose charge merchant differs from the account name.
     repository.create_account(
-        demo_engine, hh, "Sallie Mae", "student_loan", "USD",
-        annual_interest_rate=0.05, minimum_payment_minor=7_800,
+        demo_engine, hh, "U.S. Department of Education", "student_loan", "USD",
+        annual_interest_rate=0.02, minimum_payment_minor=7_800,
     )
     for m in (4, 5, 6):
-        _txn(demo_engine, checking.id, date(2026, m, 15), -7_800, "Sallie Mae")  # loan payment
+        _txn(demo_engine, checking.id, date(2026, m, 15), -7_800, "Department of Education")
         _txn(demo_engine, checking.id, date(2026, m, 16), -1_599, "Netflix")  # real subscription
 
     report = savings.find_savings(demo_engine, hh, "USD", today=today)
     merchants = {s.merchant for s in report.subscriptions}
     assert "Netflix" in merchants
-    assert "Sallie Mae" not in merchants  # a loan payment is not a subscription
+    # Matched to the "U.S. Department of Education" account despite the shorter name.
+    assert "Department of Education" not in merchants
 
 
 def test_creep_ignores_one_off_spikes_without_a_baseline(demo_engine: Engine) -> None:
@@ -91,6 +92,21 @@ def test_creep_ignores_one_off_spikes_without_a_baseline(demo_engine: Engine) ->
 
     report = savings.find_savings(demo_engine, hh, "USD", today=today)
     assert not any("Travel" in w for w in report.possible_waste)
+
+
+def test_creep_ignores_huge_one_off_spikes_even_with_a_baseline(demo_engine: Engine) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 7, 15)
+    checking = repository.create_account(demo_engine, hh, "Chk3", "checking", "USD")
+    reno = repository.create_category(demo_engine, hh, "Home Improvements")
+    # A steady ~$300/mo baseline, then a $20k renovation in June — a spike (66x),
+    # not a creeping habit.
+    for m in (3, 4, 5):
+        _txn(demo_engine, checking.id, date(2026, m, 5), -30_000, "Hardware", reno.id)
+    _txn(demo_engine, checking.id, date(2026, 6, 5), -2_000_000, "Contractor", reno.id)
+
+    report = savings.find_savings(demo_engine, hh, "USD", today=today)
+    assert not any("Home Improvements" in w for w in report.possible_waste)
 
 
 def test_find_savings_tool_is_advertised_and_shaped(demo_engine: Engine) -> None:
