@@ -70,6 +70,7 @@ final class ChatViewModel {
         isSending = true
         defer { isSending = false }
 
+        let priorAssistantCount = messages.filter { $0.author == .assistant }.count
         do {
             let response = try await api.sendMessage(
                 trimmed,
@@ -80,10 +81,49 @@ final class ChatViewModel {
             messages.append(.from(response.recommendation))
             errorMessage = nil
         } catch {
-            // Keep the user's message visible; surface the failure and let
-            // them retry by sending again.
-            errorMessage = Self.describe(error)
+            // A long grounded answer can outlast the HTTP request — the socket
+            // times out or drops, but the box finishes and SAVES the answer.
+            // Before crying "disconnected", keep waiting and pull the saved
+            // answer from the conversation (matches "leave and come back and
+            // it's there", but automatic). Only for a known conversation and a
+            // could-still-be-working error; a truly offline phone errors at once.
+            if conversationID != nil, Self.mightStillBeGenerating(error),
+                let recovered = await pollForSavedAnswer(pastAssistantCount: priorAssistantCount)
+            {
+                messages.append(recovered)
+                errorMessage = nil
+            } else {
+                errorMessage = Self.describe(error)
+            }
         }
+    }
+
+    /// True for failures where the box may still be generating and will save the
+    /// answer (a slow response the socket gave up on), vs a phone that genuinely
+    /// can't reach the server (nothing will be saved).
+    static func mightStillBeGenerating(_ error: Error) -> Bool {
+        let underlying = (error as? ClientError)?.underlyingError ?? error
+        let nsError = underlying as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        return nsError.code == NSURLErrorTimedOut
+            || nsError.code == NSURLErrorNetworkConnectionLost
+    }
+
+    /// Poll the conversation until the box's saved answer appears (or we give
+    /// up). `isSending` stays true meanwhile, so the "thinking" indicator holds.
+    private func pollForSavedAnswer(pastAssistantCount: Int) async -> ChatMessage? {
+        guard let conversationID else { return nil }
+        for attempt in 0..<20 {  // ~2 min beyond the request that already timed out
+            if attempt > 0 { try? await Task.sleep(for: .seconds(6)) }  // first check is immediate
+            guard let detail = try? await api.conversation(id: conversationID) else { continue }
+            let answers = detail.messages
+                .sorted { $0.sequence < $1.sequence }
+                .filter { $0.role == .assistant }
+            if answers.count > pastAssistantCount, let latest = answers.last {
+                return ChatMessage.from(latest)
+            }
+        }
+        return nil
     }
 
     /// ADR 0044: rate an advisor answer. The rating shows immediately and
