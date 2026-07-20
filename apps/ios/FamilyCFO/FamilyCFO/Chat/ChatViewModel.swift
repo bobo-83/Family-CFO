@@ -90,15 +90,21 @@ final class ChatViewModel {
     /// reverts if the server rejects it; a failure never disrupts the chat.
     func rate(
         _ message: ChatMessage,
-        _ rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+        _ rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+        note: String? = nil
     ) async {
         guard let recommendationId = message.recommendationId,
             let index = messages.firstIndex(where: { $0.id == message.id })
         else { return }
         let previous = messages[index].rating
         messages[index].rating = rating
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await api.submitFeedback(recommendationId: recommendationId, rating: rating)
+            try await api.submitFeedback(
+                recommendationId: recommendationId,
+                rating: rating,
+                note: (trimmed?.isEmpty ?? true) ? nil : trimmed
+            )
         } catch {
             messages[index].rating = previous
             errorMessage = Self.describe(error)

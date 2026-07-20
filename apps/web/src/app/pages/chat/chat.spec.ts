@@ -273,8 +273,30 @@ describe('Chat', () => {
     const turn = component['turns']().find((t: { role: string }) => t.role === 'assistant')!;
     await component['rate'](turn, 'down');
 
-    expect(apiMock.submitAdvisorFeedback).toHaveBeenCalledWith('rec-1', 'down');
+    expect(apiMock.submitAdvisorFeedback).toHaveBeenCalledWith('rec-1', 'down', undefined);
     expect(turn.rating).toBe('down');
+    expect(turn.showNote).toBe(true); // 👎 opens the note box
+  });
+
+  it('sends a downvote note, updating the same feedback (ADR 0044)', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
+    });
+    const component = TestBed.createComponent(Chat).componentInstance;
+    component['form'].setValue({ message: 'Can I?' });
+    await component['send']();
+
+    const turn = component['turns']().find((t: { role: string }) => t.role === 'assistant')!;
+    await component['rate'](turn, 'down');
+    turn.noteDraft = '  you ignored my RSUs  ';
+    await component['sendNote'](turn);
+
+    expect(apiMock.submitAdvisorFeedback).toHaveBeenLastCalledWith(
+      'rec-1',
+      'down',
+      'you ignored my RSUs',
+    );
+    expect(turn.showNote).toBe(false);
   });
 
   it('reverts a failed rating and surfaces the error', async () => {

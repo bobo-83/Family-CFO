@@ -55,10 +55,12 @@ protocol AdvisorAPI: Sendable {
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse
     func deleteConversation(id: String) async throws
-    /// ADR 0044: rate an advisor answer 👍/👎; the study job learns from it.
+    /// ADR 0044: rate an advisor answer 👍/👎, with an optional note the study
+    /// job learns from.
     func submitFeedback(
         recommendationId: String,
-        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+        note: String?
     ) async throws
 }
 
@@ -141,10 +143,11 @@ struct LiveAdvisorAPI: AdvisorAPI {
 
     func submitFeedback(
         recommendationId: String,
-        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+        note: String?
     ) async throws {
         let body = Components.Schemas.AdvisorFeedbackRequest(
-            recommendationId: recommendationId, rating: rating
+            recommendationId: recommendationId, rating: rating, note: note
         )
         switch try await client.submitAdvisorFeedback(.init(body: .json(body))) {
         case .noContent:

@@ -27,6 +27,9 @@ struct ChatView: View {
     @State private var showingCamera = false
     @State private var showingReceiptCamera = false
     @State private var attachmentError: String?
+    /// ADR 0044: the answer a 👎 just flagged, awaiting an optional note.
+    @State private var noteTarget: ChatMessage?
+    @State private var noteDraft = ""
     @State private var dictationEngine: SpeechEngine?
     @State private var isDictating = false
     @State private var voiceSession: VoiceSessionViewModel?
@@ -102,6 +105,21 @@ struct ChatView: View {
         } message: {
             Text(attachmentError ?? "")
         }
+        .alert(
+            "What did it miss?",
+            isPresented: .init(get: { noteTarget != nil }, set: { if !$0 { noteTarget = nil } })
+        ) {
+            TextField("Optional note", text: $noteDraft)
+            Button("Send note") {
+                if let target = noteTarget {
+                    Task { await viewModel.rate(target, .down, note: noteDraft) }
+                }
+                noteTarget = nil
+            }
+            Button("Skip", role: .cancel) { noteTarget = nil }
+        } message: {
+            Text("Your 👎 is saved. Add a note and the advisor will learn what to do differently.")
+        }
     }
 
     private var transcript: some View {
@@ -113,7 +131,12 @@ struct ChatView: View {
                     }
                     ForEach(viewModel.messages) { message in
                         MessageBubble(message: message) { rating in
+                            // Record the vote right away; a 👎 then invites a note.
                             Task { await viewModel.rate(message, rating) }
+                            if rating == .down {
+                                noteDraft = ""
+                                noteTarget = message
+                            }
                         }
                         .id(message.id)
                     }
