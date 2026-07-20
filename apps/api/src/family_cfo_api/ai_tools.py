@@ -53,11 +53,22 @@ PERSONAS = {
 }
 
 
-def build_system_prompt(settings: Settings | None = None) -> str:
-    """The chat system prompt: persona (by tone setting) + invariant grounding rules."""
+def build_system_prompt(settings: Settings | None = None, *, today: date | None = None) -> str:
+    """The chat system prompt: persona (by tone setting) + today's date + the
+    invariant grounding rules. The date matters because the model's training
+    predates the app's real 'now', so without it the model calls the current
+    year 'the future' and refuses to look up months that have already happened."""
     settings = settings or get_settings()
     persona = PERSONAS.get(settings.ai_tone, PERSONAS["playful"])
-    return f"{persona}\n\n{GROUNDING_RULES}"
+    today = today or date.today()
+    date_line = (
+        f"Today's date is {today.isoformat()} — the current month is {today:%B %Y}. "
+        "Any month on or before this has ALREADY happened: its data exists, so look it up "
+        "with the month tools (they take a YYYY-MM). Only dates strictly AFTER today are the "
+        "future. Never tell the user that the current month or a past month 'hasn't happened "
+        "yet' or 'is in the future'."
+    )
+    return f"{persona}\n\n{date_line}\n\n{GROUNDING_RULES}"
 
 
 # The model must ground every number in a tool result and must never invent a
