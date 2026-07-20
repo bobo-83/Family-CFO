@@ -9,6 +9,9 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
     var detail: Components.Schemas.ConversationDetail?
     var response: Components.Schemas.ChatResponse?
     var error: Error?
+    /// A failure specific to sendMessage — lets a test drop the send while the
+    /// conversation reload still succeeds (the timeout-recovery path).
+    var sendError: Error?
     private(set) var sentMessages: [(message: String, conversationID: String?, attachment: ChatAttachment?)] = []
 
     func listConversations() async throws -> [Components.Schemas.Conversation] {
@@ -51,6 +54,7 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
         // Behave like URLSession: a cancelled task aborts the request.
         try Task.checkCancellation()
         sentMessages.append((message, conversationID, attachment))
+        if let sendError { throw sendError }
         if let error { throw error }
         return response!
     }
@@ -127,6 +131,39 @@ struct ChatViewModelTests {
         await viewModel.send("hello")
 
         #expect(viewModel.errorMessage?.contains("Re-pair") == true)
+    }
+
+    @Test func aDroppedConnectionRecoversTheSavedAnswerInsteadOfErroring() async {
+        // The socket drops mid-generation, but the box saved the answer; the
+        // conversation reload picks it up (no false "disconnected").
+        let api = MockAdvisorAPI()
+        api.sendError = NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        api.detail = .init(
+            id: "conv-1", title: "Plan", createdAt: .now, updatedAt: .now,
+            messages: [
+                .init(id: "u1", role: .user, content: "give me a plan", sequence: 1, createdAt: .now),
+                .init(
+                    id: "a1", role: .assistant, content: "Here's your plan…",
+                    recommendationId: "rec-9", sequence: 2, createdAt: .now),
+            ]
+        )
+        let viewModel = ChatViewModel(api: api, conversationID: "conv-1")
+
+        await viewModel.send("give me a plan")
+
+        #expect(viewModel.errorMessage == nil)  // recovered, not errored
+        #expect(viewModel.messages.last?.text == "Here's your plan…")
+        #expect(viewModel.messages.last?.recommendationId == "rec-9")  // rating still works
+    }
+
+    @Test func aTrulyOfflinePhoneStillErrors() async {
+        let api = MockAdvisorAPI()
+        api.error = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        let viewModel = ChatViewModel(api: api, conversationID: "conv-1")
+
+        await viewModel.send("hello")
+
+        #expect(viewModel.errorMessage != nil)  // no server to have saved anything
     }
 
     @Test func loadHistoryOrdersBySequence() async {
