@@ -51,6 +51,7 @@ import {
   getAiRuntimeConfig,
   getAiHardwareProfile,
   getAiRuntimeStatus,
+  getAiStudyStatus,
   getConversation,
   createIncomeEarner,
   deleteIncomeEarner,
@@ -548,6 +549,10 @@ export class ApiService {
 
   getAiRuntimeStatus() {
     return getAiRuntimeStatus();
+  }
+
+  getAiStudyStatus() {
+    return getAiStudyStatus();
   }
 
   listAiModels() {

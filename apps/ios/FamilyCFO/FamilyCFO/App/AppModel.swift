@@ -136,6 +136,11 @@ final class AppModel {
         client.map { LiveActivityAPI(client: $0) }
     }
 
+    /// Advisor study coverage — what the AI has learned from the history (ADR 0040).
+    var aiStudy: AiStudyAPI? {
+        client.map { LiveAiStudyAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),

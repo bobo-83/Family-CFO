@@ -63,6 +63,7 @@ describe('AiRuntime', () => {
     searchAiModels: ReturnType<typeof vi.fn>;
     applyAiModelSelection: ReturnType<typeof vi.fn>;
     getAiApplyStatus: ReturnType<typeof vi.fn>;
+    getAiStudyStatus: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -96,6 +97,22 @@ describe('AiRuntime', () => {
       searchAiModels: vi.fn().mockResolvedValue(response({ models: [] })),
       applyAiModelSelection: vi.fn(),
       getAiApplyStatus: vi.fn().mockResolvedValue(response({ state: 'idle', log_tail: '' })),
+      getAiStudyStatus: vi.fn().mockResolvedValue(
+        response({
+          total_months: 17,
+          studied_months: 14,
+          coverage_percent: 82,
+          last_studied_at: '2026-07-19T02:10:00Z',
+          runtime_usable: true,
+          insights: [
+            {
+              key: 'grocery_spending_pattern',
+              value: 'Groceries run about $1,240 a month.',
+              updated_at: '2026-07-19T02:10:00Z',
+            },
+          ],
+        }),
+      ),
     };
   });
 
@@ -576,5 +593,34 @@ describe('AiRuntime', () => {
     const picker = (fixture.nativeElement as HTMLElement).querySelector('.picker');
     expect(form).toBeFalsy();
     expect(picker).toBeFalsy();
+  });
+
+  // --- Knowledge of your data (ADR 0040) -------------------------------------
+
+  it('shows study coverage and insights to every member', async () => {
+    const fixture = await create('adult'); // non-owner still sees it
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.study')).toBeTruthy();
+    expect(host.querySelector('.study__percent')?.textContent).toContain('82%');
+    expect(host.querySelector('.study__months')?.textContent).toContain('Studied 14 of 17');
+    expect(host.querySelector('.study__insights')?.textContent).toContain('Groceries run about');
+  });
+
+  it('flags studying as paused when no runtime is usable', async () => {
+    apiMock.getAiStudyStatus.mockResolvedValue(
+      response({
+        total_months: 5,
+        studied_months: 0,
+        coverage_percent: 0,
+        last_studied_at: null,
+        runtime_usable: false,
+        insights: [],
+      }),
+    );
+    const fixture = await create();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.study__paused')?.textContent).toContain('Paused');
   });
 });

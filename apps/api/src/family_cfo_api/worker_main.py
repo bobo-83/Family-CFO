@@ -16,6 +16,7 @@ from family_cfo_scheduler import Job, Scheduler
 
 from family_cfo_api import (
     ai_memory,
+    ai_study,
     backup_processing,
     import_processing,
     net_worth_history,
@@ -35,6 +36,10 @@ BACKUP_INTERVAL_SECONDS = 300
 # provider call is gated by banksync.SCHEDULED_SYNC_INTERVAL (~once/day), so
 # SimpleFIN is hit ≈ once/day — never the ~288/day the old 5-minute poll caused.
 BANK_SYNC_POLL_INTERVAL_SECONDS = 3600
+# ADR 0040: study one complete month per tick while the advisor is idle. The
+# tick itself yields when a chat happened in the last STUDY_QUIET_MINUTES, so a
+# short interval costs nothing when the family is using the advisor.
+STUDY_INTERVAL_SECONDS = 300
 
 
 def main() -> None:
@@ -75,6 +80,10 @@ def main() -> None:
     def rebuild_vector_index() -> None:
         # M69: daily wipe-and-rebuild prunes vectors of deleted rows.
         vector_indexing.run_indexing_once(engine, settings, wipe=True)
+
+    def run_study_tick() -> None:
+        # ADR 0040: distill one month of history into advisor memories while idle.
+        ai_study.run_study_tick(engine, settings)
 
     def run_daily_backup() -> None:
         # M98/M101: fires every few minutes; each household backs up once its cadence
@@ -137,6 +146,13 @@ def main() -> None:
             name="rebuild-vector-index",
             func=rebuild_vector_index,
             interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+        )
+    )
+    scheduler.add_job(
+        Job(
+            name="study-transaction-history",
+            func=run_study_tick,
+            interval_seconds=STUDY_INTERVAL_SECONDS,
         )
     )
 

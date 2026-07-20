@@ -928,6 +928,25 @@ class AiModelCatalog(BaseModel):
     models: list[AiModelInfo]
 
 
+class AiStudyInsight(BaseModel):
+    """One durable fact the study job distilled from the transaction history."""
+
+    key: str
+    value: str
+    updated_at: datetime
+
+
+class AiStudyStatus(BaseModel):
+    """ADR 0040: how much of the history the advisor has studied while idle."""
+
+    total_months: int
+    studied_months: int
+    coverage_percent: int
+    last_studied_at: datetime | None = None
+    runtime_usable: bool
+    insights: list[AiStudyInsight]
+
+
 class AiApplyRequest(BaseModel):
     """One-click model apply (ADR 0013). vision_model None disables photo analysis."""
 

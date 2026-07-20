@@ -2475,6 +2475,28 @@ paths:
                 $ref: "#/components/schemas/AiRuntimeStatus"
         "401":
           $ref: "#/components/responses/Error"
+  /ai/study:
+    get:
+      tags:
+        - AI Runtime
+      operationId: getAiStudyStatus
+      summary: Report how much of the transaction history the advisor has studied
+      description: >
+        ADR 0040: while the box is idle the worker studies one complete calendar
+        month at a time, distilling Postgres history into durable advisor
+        memories. Coverage is studied complete months over complete months with
+        data; the current partial month never counts.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Study coverage and the freshest distilled insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiStudyStatus"
+        "401":
+          $ref: "#/components/responses/Error"
   /ai/models:
     get:
       tags:
@@ -5656,6 +5678,52 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiModelInfo"
+    AiStudyInsight:
+      type: object
+      required:
+        - key
+        - value
+        - updated_at
+      properties:
+        key:
+          type: string
+          description: Stable identifier; re-studying a month updates it in place.
+        value:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    AiStudyStatus:
+      type: object
+      required:
+        - total_months
+        - studied_months
+        - coverage_percent
+        - runtime_usable
+        - insights
+      properties:
+        total_months:
+          type: integer
+          description: Complete calendar months of transaction history.
+        studied_months:
+          type: integer
+        coverage_percent:
+          type: integer
+          description: studied_months / total_months, rounded; 100 when there is nothing to study.
+        last_studied_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        runtime_usable:
+          type: boolean
+          description: >
+            False when no AI runtime is selected/enabled — studying is paused
+            until the family picks a model.
+        insights:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiStudyInsight"
     ConnectionCreateRequest:
       type: object
       required:
