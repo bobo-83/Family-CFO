@@ -369,3 +369,22 @@
     font-size: 0.85rem;
   }
 }
+
+// ADR 0049: suspected-income review — a green "confirm this is income" tag.
+.suspected-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1b7f4b;
+  background: rgba(27, 127, 75, 0.12);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  vertical-align: middle;
+}
+
+.income-txns__account {
+  margin: 0.1rem 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant, #666);
+}

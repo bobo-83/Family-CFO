@@ -235,6 +235,52 @@
     </details>
   }
 
+  @if (suspectedIncome().length > 0) {
+    <h2>Suspected income</h2>
+    <p class="page-hint">
+      These landed in one of your accounts as a large &ldquo;Transfer&rdquo; with no
+      matching move out of another account &mdash; usually a paycheck or deposit filed
+      in the wrong place. Confirm the amount to count it as income, or keep it as a
+      transfer.
+    </p>
+    <ul class="income-txns income-txns--suspected">
+      @for (txn of suspectedIncome(); track txn.id) {
+        <li>
+          <div class="income-txns__row">
+            <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
+            <span class="income-txns__name">
+              {{ txn.merchant || txn.description || 'Deposit' }}
+              <span class="suspected-badge">Suspected income</span>
+            </span>
+            <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
+            @if (canWrite()) {
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                [disabled]="busy() !== null"
+                (click)="confirmAsIncome(txn)"
+              >
+                Confirm as income
+              </button>
+              <button
+                mat-button
+                type="button"
+                [disabled]="busy() !== null"
+                (click)="keepAsTransfer(txn)"
+              >
+                Keep as transfer
+              </button>
+            }
+          </div>
+          @if (txn.account_name) {
+            <p class="income-txns__account">Deposited into {{ txn.account_name }}</p>
+          }
+        </li>
+      }
+    </ul>
+  }
+
   <h2>Other deposits</h2>
   <p class="page-hint">
     Deposits not counted as income (transfers between your own accounts are

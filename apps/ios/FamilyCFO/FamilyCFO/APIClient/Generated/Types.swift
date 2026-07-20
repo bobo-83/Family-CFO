@@ -170,7 +170,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /transactions`.
     /// - Remark: Generated from `#/paths//transactions/post(createTransaction)`.
     func createTransaction(_ input: Operations.CreateTransaction.Input) async throws -> Operations.CreateTransaction.Output
-    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    /// Transactions to review — duplicates, transfers, credits, or suspected income
     ///
     /// - Remark: HTTP `GET /transactions/review`.
     /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
@@ -952,7 +952,7 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    /// Transactions to review — duplicates, transfers, credits, or suspected income
     ///
     /// - Remark: HTTP `GET /transactions/review`.
     /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
@@ -2384,6 +2384,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Transaction/has_attachment`.
             public var hasAttachment: Swift.Bool?
+            /// ADR 0049: a sizeable inflow filed as a Transfer with no matching internal leg — likely a misfiled paycheck. The UI badges it and offers 'confirm as income' until the user rules on it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Transaction/suspected_income`.
+            public var suspectedIncome: Swift.Bool?
             /// Creates a new `Transaction`.
             ///
             /// - Parameters:
@@ -2402,6 +2406,7 @@ public enum Components {
             ///   - institution: M97: the institution (bank) this account was synced from, so the user knows where to look the transaction up. Null for manual accounts.
             ///   - note: M100: a user's free-text note.
             ///   - hasAttachment: M100: whether an image is attached to this transaction.
+            ///   - suspectedIncome: ADR 0049: a sizeable inflow filed as a Transfer with no matching internal leg — likely a misfiled paycheck. The UI badges it and offers 'confirm as income' until the user rules on it.
             public init(
                 id: Swift.String,
                 accountId: Swift.String,
@@ -2417,7 +2422,8 @@ public enum Components {
                 externalId: Swift.String? = nil,
                 institution: Swift.String? = nil,
                 note: Swift.String? = nil,
-                hasAttachment: Swift.Bool? = nil
+                hasAttachment: Swift.Bool? = nil,
+                suspectedIncome: Swift.Bool? = nil
             ) {
                 self.id = id
                 self.accountId = accountId
@@ -2434,6 +2440,7 @@ public enum Components {
                 self.institution = institution
                 self.note = note
                 self.hasAttachment = hasAttachment
+                self.suspectedIncome = suspectedIncome
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -2451,6 +2458,7 @@ public enum Components {
                 case institution
                 case note
                 case hasAttachment = "has_attachment"
+                case suspectedIncome = "suspected_income"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Category`.
@@ -13719,7 +13727,7 @@ public enum Operations {
             }
         }
     }
-    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    /// Transactions to review — duplicates, transfers, credits, or suspected income
     ///
     /// - Remark: HTTP `GET /transactions/review`.
     /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.
@@ -13733,15 +13741,16 @@ public enum Operations {
                     case duplicates = "duplicates"
                     case transfers = "transfers"
                     case credits = "credits"
+                    case suspectedIncome = "suspected_income"
                 }
-                /// duplicates (default) | transfers | credits
+                /// duplicates (default) | transfers | credits | suspected_income
                 ///
                 /// - Remark: Generated from `#/paths/transactions/review/GET/query/kind`.
                 public var kind: Operations.ListTransactionsForReview.Input.Query.KindPayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - kind: duplicates (default) | transfers | credits
+                ///   - kind: duplicates (default) | transfers | credits | suspected_income
                 public init(kind: Operations.ListTransactionsForReview.Input.Query.KindPayload? = nil) {
                     self.kind = kind
                 }

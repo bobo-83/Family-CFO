@@ -293,6 +293,16 @@ struct CategorizeView: View {
                 Text(Self.dateText(transaction.occurredAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if transaction.suspectedIncome == true {
+                    // ADR 0049: a Transfer that's probably a misfiled paycheck —
+                    // tag it here too so it's identifiable outside the Review tab.
+                    Text("Suspected income")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.green.opacity(0.15))
+                        .foregroundStyle(Color.green)
+                        .clipShape(Capsule())
+                }
             }
             Spacer()
             Text(transaction.amount.formattedExact)

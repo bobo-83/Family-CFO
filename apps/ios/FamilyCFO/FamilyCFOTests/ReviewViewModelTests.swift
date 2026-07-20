@@ -6,21 +6,50 @@ import Testing
 @MainActor
 final class MockReviewAPI: ReviewAPI, @unchecked Sendable {
     var items: [Components.Schemas.Transaction] = []
+    var suspected: [Components.Schemas.Transaction] = []
+    var existingCategories: [Components.Schemas.Category] = []
     private(set) var stateCalls: [(id: String, state: String)] = []
     private(set) var deleted: [String] = []
+    private(set) var keptAsTransfer: [String] = []
+    private(set) var createdCategories: [String] = []
 
     private(set) var categoryCalls: [(id: String, categoryID: String)] = []
 
     nonisolated func queue(kind: ReviewKind) async throws -> [Components.Schemas.Transaction] {
-        await MainActor.run { kind == .duplicates ? items : [] }
+        await MainActor.run {
+            switch kind {
+            case .duplicates: return items
+            case .suspectedIncome: return suspected
+            default: return []
+            }
+        }
     }
 
     nonisolated func setCategory(transactionID: String, categoryID: String?) async throws {
-        await MainActor.run { categoryCalls.append((transactionID, categoryID ?? "")) }
+        await MainActor.run {
+            categoryCalls.append((transactionID, categoryID ?? ""))
+            suspected.removeAll { $0.id == transactionID }
+        }
+    }
+
+    nonisolated func keepAsTransfer(transactionID: String) async throws {
+        await MainActor.run {
+            keptAsTransfer.append(transactionID)
+            suspected.removeAll { $0.id == transactionID }
+        }
+    }
+
+    nonisolated func createCategory(name: String) async throws -> Components.Schemas.Category {
+        await MainActor.run {
+            createdCategories.append(name)
+            let created = Components.Schemas.Category(id: "cat-\(name.lowercased())", name: name)
+            existingCategories.append(created)
+            return created
+        }
     }
 
     nonisolated func categories() async throws -> [Components.Schemas.Category] {
-        await MainActor.run { [] }
+        await MainActor.run { existingCategories }
     }
 
     nonisolated func setState(
@@ -112,5 +141,60 @@ struct ReviewViewModelTests {
 
         #expect(api.deleted == ["a"])
         #expect(vm.reviewCount == 1)
+    }
+
+    private func inflow(_ id: String, amount: Int64 = 300_000) -> Components.Schemas.Transaction {
+        .init(
+            id: id, accountId: "acct-1", occurredAt: "2026-05-26",
+            amount: .init(amountMinor: amount, currency: "USD"),
+            merchant: "Online Transfer", suspectedIncome: true)
+    }
+
+    @Test func loadsSuspectedIncomeSortedByAmount() async {
+        let api = MockReviewAPI()
+        api.suspected = [inflow("a", amount: 50_000), inflow("b", amount: 300_000)]
+        let vm = ReviewViewModel(api: api)
+        await vm.load()
+
+        #expect(vm.suspectedIncome.map(\.id) == ["b", "a"])
+        #expect(!vm.nothingToReview)
+    }
+
+    @Test func confirmingAsIncomeCreatesIncomeCategoryAndRefiles() async {
+        let api = MockReviewAPI()
+        api.suspected = [inflow("a")]  // household has no Income category yet
+        let vm = ReviewViewModel(api: api)
+        await vm.load()
+
+        await vm.confirmAsIncome(vm.suspectedIncome[0])
+
+        #expect(api.createdCategories == ["Income"])
+        #expect(api.categoryCalls.map(\.categoryID) == ["cat-income"])
+        #expect(vm.suspectedIncome.isEmpty)  // reloaded, no longer suspected
+    }
+
+    @Test func confirmingReusesAnExistingIncomeCategory() async {
+        let api = MockReviewAPI()
+        api.existingCategories = [.init(id: "inc-1", name: "Income")]
+        api.suspected = [inflow("a")]
+        let vm = ReviewViewModel(api: api)
+        await vm.load()
+
+        await vm.confirmAsIncome(vm.suspectedIncome[0])
+
+        #expect(api.createdCategories.isEmpty)
+        #expect(api.categoryCalls.map(\.categoryID) == ["inc-1"])
+    }
+
+    @Test func keepingAsTransferExcludesItFromFlagging() async {
+        let api = MockReviewAPI()
+        api.suspected = [inflow("a")]
+        let vm = ReviewViewModel(api: api)
+        await vm.load()
+
+        await vm.keepAsTransfer(vm.suspectedIncome[0])
+
+        #expect(api.keptAsTransfer == ["a"])
+        #expect(vm.suspectedIncome.isEmpty)
     }
 }

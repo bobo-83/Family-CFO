@@ -7,9 +7,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import type {
+  Category,
   IncomeAnalysisResponse,
   IncomeAnalysisTransaction,
   IncomeEarnerCreateRequest,
+  Transaction,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -41,6 +43,10 @@ export class IncomeTax {
   };
 
   protected readonly analysis = signal<IncomeAnalysisResponse | null>(null);
+  // ADR 0049: transfers that look like misfiled income, awaiting the user's
+  // confirm-as-income / keep-as-transfer decision.
+  protected readonly suspectedIncome = signal<Transaction[]>([]);
+  private readonly categories = signal<Category[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly busy = signal<string | null>(null);
@@ -75,6 +81,59 @@ export class IncomeTax {
     this.filingStatus = data.tax.filing_status;
     this.treatedAsNet = data.tax.income_treated_as_net;
     this.state = data.tax.state ?? '';
+    // ADR 0049: the suspected-income review queue + categories load alongside.
+    const [review, cats] = await Promise.all([
+      this.api.listTransactionsForReview('suspected_income'),
+      this.api.listCategories(),
+    ]);
+    const items = review.data?.transactions ?? [];
+    this.suspectedIncome.set(
+      [...items].sort((a, b) => Math.abs(b.amount.amount_minor) - Math.abs(a.amount.amount_minor)),
+    );
+    this.categories.set(cats.data?.categories ?? []);
+  }
+
+  // ADR 0049: confirm a suspected transfer really is income — refile it under the
+  // Income category (creating one if the household has none), which also clears
+  // the flag. "Keep as transfer" records an exclude override so it's not re-flagged.
+  protected async confirmAsIncome(transaction: Transaction): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(transaction.id);
+    this.actionError.set(null);
+    let incomeId = this.categories().find((c) => c.name.toLowerCase() === 'income')?.id;
+    if (!incomeId) {
+      const { data, error } = await this.api.createCategory({ name: 'Income' });
+      if (error || !data) {
+        this.busy.set(null);
+        this.actionError.set(apiErrorMessage(error, 'Failed to create the Income category.'));
+        return;
+      }
+      incomeId = data.id;
+    }
+    const { error } = await this.api.updateTransaction(transaction.id, { category_id: incomeId });
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to confirm as income.'));
+      return;
+    }
+    await this.load();
+  }
+
+  protected async keepAsTransfer(transaction: Transaction): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(transaction.id);
+    this.actionError.set(null);
+    const { error } = await this.api.setIncomeOverride(transaction.id, 'exclude');
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to save the change.'));
+      return;
+    }
+    await this.load();
   }
 
   private async override(
