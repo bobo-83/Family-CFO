@@ -1,3 +1,4 @@
+import MarkdownUI
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -474,7 +475,7 @@ struct MessageBubble: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text(markdown: message.text)
+            messageContent
                 .textSelection(.enabled)
                 .padding(12)
                 .background(
@@ -527,6 +528,49 @@ struct MessageBubble: View {
         )
         .padding(.horizontal)
     }
+
+    /// The advisor answers in GitHub-flavored markdown — headings, tables, and
+    /// lists — so assistant rows render through MarkdownUI (block-level, with
+    /// bordered tables). User messages are plain text with inline formatting.
+    @ViewBuilder private var messageContent: some View {
+        if message.author == .assistant {
+            Markdown(message.text)
+                .markdownTheme(.chatBubble)
+        } else {
+            Text(markdown: message.text)
+        }
+    }
+}
+
+extension MarkdownUI.Theme {
+    /// A compact theme sized for chat bubbles: system body text, modestly-scaled
+    /// headings (the advisor mostly emits `###`/`####`), and readable tables.
+    /// Transparent throughout so it sits on the bubble's own fill and adapts to
+    /// light / dark automatically.
+    static let chatBubble = MarkdownUI.Theme()
+        .text {
+            ForegroundColor(.primary)
+        }
+        .heading1 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.6), bottom: .em(0.3))
+                .markdownTextStyle { FontWeight(.bold); FontSize(.em(1.4)) }
+        }
+        .heading2 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.6), bottom: .em(0.3))
+                .markdownTextStyle { FontWeight(.bold); FontSize(.em(1.25)) }
+        }
+        .heading3 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.5), bottom: .em(0.2))
+                .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.1)) }
+        }
+        .heading4 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.5), bottom: .em(0.2))
+                .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.0)) }
+        }
 }
 
 extension Text {

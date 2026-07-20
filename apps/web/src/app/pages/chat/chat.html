@@ -105,7 +105,11 @@
               @if (turn.hadImage) {
                 <span class="chat__photo-marker">📷 Photo attached</span>
               }
-              <p class="chat__answer">{{ turn.content }}</p>
+              @if (turn.role === 'assistant') {
+                <div class="chat__answer chat__answer--md" [innerHTML]="turn.content | markdown"></div>
+              } @else {
+                <p class="chat__answer">{{ turn.content }}</p>
+              }
 
               @if (turn.role === 'assistant') {
                 <button

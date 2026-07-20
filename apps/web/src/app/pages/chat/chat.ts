@@ -8,6 +8,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
+import { MarkdownPipe } from '../../shared/markdown.pipe';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -71,7 +72,14 @@ const EXAMPLE_PROMPTS = [
 
 @Component({
   selector: 'app-chat',
-  imports: [ReactiveFormsModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule],
+  imports: [
+    ReactiveFormsModule,
+    FormsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MarkdownPipe,
+  ],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })

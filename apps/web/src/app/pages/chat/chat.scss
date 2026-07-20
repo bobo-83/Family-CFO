@@ -223,6 +223,98 @@
   white-space: pre-wrap;
 }
 
+// Rendered advisor markdown (headings, tables, lists) — block layout, so the
+// pre-wrap used for plain user text is turned off here.
+.chat__answer--md {
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  :first-child {
+    margin-top: 0;
+  }
+  :last-child {
+    margin-bottom: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0.7em 0 0.35em;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 1.35em;
+  }
+  h2 {
+    font-size: 1.2em;
+  }
+  h3 {
+    font-size: 1.08em;
+  }
+  h4 {
+    font-size: 1em;
+  }
+
+  p {
+    margin: 0.5em 0;
+  }
+
+  ul,
+  ol {
+    margin: 0.4em 0;
+    padding-left: 1.4em;
+  }
+  li {
+    margin: 0.15em 0;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em;
+    background: rgba(127, 127, 127, 0.15);
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+  }
+  pre {
+    overflow-x: auto;
+    padding: 0.6em 0.8em;
+    background: rgba(127, 127, 127, 0.12);
+    border-radius: 8px;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+
+  // GitHub-flavored tables — scroll horizontally inside the bubble rather than
+  // forcing the page to widen.
+  .chat__table-scroll,
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    font-size: 0.95em;
+  }
+  th,
+  td {
+    border: 1px solid rgba(127, 127, 127, 0.4);
+    padding: 0.35em 0.6em;
+    text-align: left;
+    white-space: nowrap;
+  }
+  th {
+    background: rgba(127, 127, 127, 0.1);
+    font-weight: 600;
+  }
+}
+
 .chat__confidence {
   display: inline-block;
   margin-top: 0.5rem;

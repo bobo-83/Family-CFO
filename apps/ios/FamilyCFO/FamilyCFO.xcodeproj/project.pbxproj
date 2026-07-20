@@ -139,6 +139,7 @@
 				FC0000000000000000000090 /* OpenAPIRuntime */,
 				FC0000000000000000000091 /* OpenAPIURLSession */,
 				FC0000000000000000000092 /* HTTPTypes */,
+				FC0000000000000000000093 /* MarkdownUI */,
 			);
 			productName = FamilyCFO;
 			productReference = FC0000000000000000000020 /* FamilyCFO.app */;
@@ -225,6 +226,7 @@
 				FC0000000000000000000080 /* XCRemoteSwiftPackageReference "swift-openapi-runtime" */,
 				FC0000000000000000000081 /* XCRemoteSwiftPackageReference "swift-openapi-urlsession" */,
 				FC0000000000000000000082 /* XCRemoteSwiftPackageReference "swift-http-types" */,
+				FC0000000000000000000083 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
 			productRefGroup = FC0000000000000000000003 /* Products */;
 			projectDirPath = "";
@@ -622,6 +624,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		FC0000000000000000000083 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -639,6 +649,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FC0000000000000000000082 /* XCRemoteSwiftPackageReference "swift-http-types" */;
 			productName = HTTPTypes;
+		};
+		FC0000000000000000000093 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FC0000000000000000000083 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
