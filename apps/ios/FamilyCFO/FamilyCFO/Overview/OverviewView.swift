@@ -8,16 +8,6 @@ import SwiftUI
 struct OverviewView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: OverviewViewModel?
-    @State private var showingReceiptCamera = false
-    @State private var showingW2Scan = false
-    @State private var receiptChat: ReceiptChat?
-    @State private var captureError: String?
-
-    /// The captured receipt, carried into a chat that asks about it on arrival.
-    private struct ReceiptChat: Identifiable {
-        let id = UUID()
-        let viewModel: ChatViewModel
-    }
 
     var body: some View {
         NavigationStack {
@@ -33,38 +23,6 @@ struct OverviewView: View {
                 }
             }
             .navigationTitle("Overview")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) { captureMenu }
-            }
-            .navigationDestination(isPresented: $showingW2Scan) {
-                if let income = model.income {
-                    W2ScanView(viewModel: W2ScanViewModel(api: income))
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showingReceiptCamera) {
-            CameraPicker { image in
-                Task { await captureReceipt(image) }
-            }
-            .ignoresSafeArea()
-        }
-        .fullScreenCover(item: $receiptChat) { receipt in
-            NavigationStack {
-                ChatView(viewModel: receipt.viewModel)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { receiptChat = nil }
-                        }
-                    }
-            }
-        }
-        .alert("Capture", isPresented: .init(
-            get: { captureError != nil },
-            set: { if !$0 { captureError = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(captureError ?? "")
         }
         .task {
             if viewModel == nil, let api = model.household {
@@ -86,56 +44,6 @@ struct OverviewView: View {
             month: month,
             transactions: { try await household.transactions(month: month) },
             categories: { try await categorize.categories() })
-    }
-
-    /// M89's first-class camera flows. W-2 scanning writes an income earner, so
-    /// it is adults-only; a receipt only asks the advisor a question.
-    @ViewBuilder
-    private var captureMenu: some View {
-        Menu {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button {
-                    showingReceiptCamera = true
-                } label: {
-                    Label("Scan a receipt", systemImage: "receipt")
-                }
-            }
-            if model.rolePolicy.canEditFinances {
-                Button {
-                    showingW2Scan = true
-                } label: {
-                    Label("Scan a W-2", systemImage: "doc.text.viewfinder")
-                }
-            }
-        } label: {
-            Label("Capture", systemImage: "camera")
-        }
-    }
-
-    /// Reads the receipt on the phone and opens chat with the question already
-    /// asked. When the on-device OCR works, only text leaves the device — the
-    /// photo never does (ADR 0011).
-    private func captureReceipt(_ image: UIImage) async {
-        guard let api = model.api else { return }
-        let lines = await ReceiptTextRecognizer.recognizedLines(in: image)
-
-        var fallback: ChatAttachment?
-        if lines.count < ReceiptCapture.minimumUsableLines {
-            guard let data = image.jpegData(compressionQuality: 0.9),
-                let attachment = try? AttachmentTranscoder.image(
-                    from: data, displayName: "Receipt")
-            else {
-                captureError = "That photo couldn't be processed."
-                return
-            }
-            fallback = attachment
-        }
-
-        let message = ReceiptCapture.message(recognizedLines: lines, fallbackImage: fallback)
-        let chat = ChatViewModel(api: api)
-        chat.pendingAttachment = message.attachment
-        chat.queuedMessage = message.text
-        receiptChat = ReceiptChat(viewModel: chat)
     }
 
     /// The Overview-wide month selector (M96): step the whole page back through

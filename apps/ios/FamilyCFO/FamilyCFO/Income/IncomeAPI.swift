@@ -7,6 +7,9 @@ import Foundation
 protocol IncomeAPI: Sendable {
     func scanW2(_ attachment: ChatAttachment) async throws -> Components.Schemas.W2ScanResult
     func createEarner(_ request: Components.Schemas.IncomeEarnerCreateRequest) async throws
+    /// The full income picture (M73): detected sources, rollup, earners, tax.
+    func analysis() async throws -> Components.Schemas.IncomeAnalysisResponse
+    func deleteEarner(id: String) async throws
 }
 
 enum IncomeAPIError: Error, LocalizedError, Equatable {
@@ -72,6 +75,32 @@ struct LiveIncomeAPI: IncomeAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw IncomeAPIError.forbidden
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func analysis() async throws -> Components.Schemas.IncomeAnalysisResponse {
+        switch try await client.getIncomeAnalysis(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteEarner(id: String) async throws {
+        switch try await client.deleteIncomeEarner(.init(path: .init(earnerId: id))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw IncomeAPIError.forbidden
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

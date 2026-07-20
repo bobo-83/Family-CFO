@@ -37,15 +37,24 @@ struct MainTabView: View {
                     AccountsView(viewModel: AccountsViewModel(api: accounts))
                 }
             }
-            if model.rolePolicy.canManageBills, let billsModel {
-                Tab("Bills", systemImage: "calendar") {
-                    BillsView(viewModel: billsModel)
+            // Grouped: SwiftUI's tab builder caps at 10 direct children, and the
+            // Income tab (ADR 0041) made 11. Group is invisible to the tab bar.
+            Group {
+                if model.rolePolicy.canManageBills, let billsModel {
+                    Tab("Bills", systemImage: "calendar") {
+                        BillsView(viewModel: billsModel)
+                    }
+                    .badge(billsModel.pendingCount)
                 }
-                .badge(billsModel.pendingCount)
-            }
-            if model.rolePolicy.canCategorize {
-                Tab("Categories", systemImage: "tag") {
-                    CategorizeView()
+                if model.rolePolicy.canManageIncome, let income = model.income {
+                    Tab("Income", systemImage: "dollarsign.circle") {
+                        IncomeView(viewModel: IncomeViewModel(api: income))
+                    }
+                }
+                if model.rolePolicy.canCategorize {
+                    Tab("Categories", systemImage: "tag") {
+                        CategorizeView()
+                    }
                 }
             }
             if let debts = model.debts {

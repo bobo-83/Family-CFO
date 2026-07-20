@@ -25,6 +25,7 @@ struct ChatView: View {
     @State private var showingPDFImporter = false
     @State private var showingDataFileImporter = false
     @State private var showingCamera = false
+    @State private var showingReceiptCamera = false
     @State private var attachmentError: String?
     @State private var dictationEngine: SpeechEngine?
     @State private var isDictating = false
@@ -84,6 +85,12 @@ struct ChatView: View {
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
                 attachCameraImage(image)
+            }
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showingReceiptCamera) {
+            CameraPicker { image in
+                Task { await captureReceipt(image) }
             }
             .ignoresSafeArea()
         }
@@ -233,6 +240,11 @@ struct ChatView: View {
                     showingCamera = true
                 } label: {
                     Label("Camera", systemImage: "camera")
+                }
+                Button {
+                    showingReceiptCamera = true
+                } label: {
+                    Label("Scan a receipt", systemImage: "receipt")
                 }
             }
             Button {
@@ -395,6 +407,31 @@ struct ChatView: View {
         } catch {
             attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
         }
+    }
+
+    /// M89 receipt flow, relocated here from the Overview Capture menu: the
+    /// receipt is read on the phone and the question asked in THIS chat. When
+    /// the on-device OCR works, only text leaves the device — the photo never
+    /// does (ADR 0011).
+    private func captureReceipt(_ image: UIImage) async {
+        let lines = await ReceiptTextRecognizer.recognizedLines(in: image)
+
+        var fallback: ChatAttachment?
+        if lines.count < ReceiptCapture.minimumUsableLines {
+            guard let data = image.jpegData(compressionQuality: 0.9),
+                let attachment = try? AttachmentTranscoder.image(
+                    from: data, displayName: "Receipt")
+            else {
+                attachmentError = "That photo couldn't be processed."
+                return
+            }
+            fallback = attachment
+        }
+
+        let message = ReceiptCapture.message(recognizedLines: lines, fallbackImage: fallback)
+        viewModel.pendingAttachment = message.attachment
+        viewModel.queuedMessage = message.text
+        await viewModel.sendQueuedMessageIfNeeded()
     }
 }
 

@@ -765,6 +765,22 @@ class LoanScanResult(BaseModel):
     note: str
 
 
+class BillScanRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_media_type: W2ScanMediaType
+
+
+class BillScanResult(BaseModel):
+    """Candidate bill values read from a photo or PDF — the user confirms and
+    edits before anything is saved."""
+
+    name: str | None = None
+    amount_minor: int | None = None
+    frequency: RecurringFrequency | None = None
+    next_due_date: date | None = None
+    note: str
+
+
 class IncomeAnalysisResponse(BaseModel):
     sources: list[IncomeSourceAnalysis]
     other_inflows: list[IncomeAnalysisTransaction]

@@ -1557,6 +1557,35 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+  /bills/scan:
+    post:
+      tags:
+        - Bills
+      operationId: scanBill
+      summary: Read a bill photo or PDF into candidate values (user confirms before saving)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillScanRequest"
+      responses:
+        "200":
+          description: Candidate bill values extracted by the on-box vision model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillScanResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /income/profile/scan-w2:
     post:
       tags:
@@ -3768,6 +3797,28 @@ components:
         next_payment_due_date: { type: string, format: date }
         apr_percent: { type: number }
         is_lease: { type: boolean }
+        note: { type: string }
+    BillScanRequest:
+      type: object
+      required: [image_base64, image_media_type]
+      properties:
+        image_base64: { type: string }
+        image_media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+    BillScanResult:
+      type: object
+      description: >-
+        Candidate bill values read from a photo or PDF — the user confirms and
+        edits before anything is saved.
+      required: [note]
+      properties:
+        name: { type: string }
+        amount_minor: { type: integer }
+        frequency:
+          type: string
+          enum: [weekly, biweekly, semimonthly, monthly, quarterly, annual]
+        next_due_date: { type: string, format: date }
         note: { type: string }
     IncomeAnalysisResponse:
       type: object

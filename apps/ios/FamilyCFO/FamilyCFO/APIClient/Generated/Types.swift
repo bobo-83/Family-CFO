@@ -327,6 +327,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /accounts/scan-statement`.
     /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
     func scanLoanStatement(_ input: Operations.ScanLoanStatement.Input) async throws -> Operations.ScanLoanStatement.Output
+    /// Read a bill photo or PDF into candidate values (user confirms before saving)
+    ///
+    /// - Remark: HTTP `POST /bills/scan`.
+    /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)`.
+    func scanBill(_ input: Operations.ScanBill.Input) async throws -> Operations.ScanBill.Output
     /// Read a W-2 photo or PDF into candidate values (user confirms before saving)
     ///
     /// - Remark: HTTP `POST /income/profile/scan-w2`.
@@ -1310,6 +1315,19 @@ extension APIProtocol {
         body: Operations.ScanLoanStatement.Input.Body
     ) async throws -> Operations.ScanLoanStatement.Output {
         try await scanLoanStatement(Operations.ScanLoanStatement.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Read a bill photo or PDF into candidate values (user confirms before saving)
+    ///
+    /// - Remark: HTTP `POST /bills/scan`.
+    /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)`.
+    public func scanBill(
+        headers: Operations.ScanBill.Input.Headers = .init(),
+        body: Operations.ScanBill.Input.Body
+    ) async throws -> Operations.ScanBill.Output {
+        try await scanBill(Operations.ScanBill.Input(
             headers: headers,
             body: body
         ))
@@ -3976,6 +3994,88 @@ public enum Components {
                 case nextPaymentDueDate = "next_payment_due_date"
                 case aprPercent = "apr_percent"
                 case isLease = "is_lease"
+                case note
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BillScanRequest`.
+        public struct BillScanRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillScanRequest/image_base64`.
+            public var imageBase64: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillScanRequest/image_media_type`.
+            @frozen public enum ImageMediaTypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case imageJpeg = "image/jpeg"
+                case imagePng = "image/png"
+                case imageWebp = "image/webp"
+                case applicationPdf = "application/pdf"
+            }
+            /// - Remark: Generated from `#/components/schemas/BillScanRequest/image_media_type`.
+            public var imageMediaType: Components.Schemas.BillScanRequest.ImageMediaTypePayload
+            /// Creates a new `BillScanRequest`.
+            ///
+            /// - Parameters:
+            ///   - imageBase64:
+            ///   - imageMediaType:
+            public init(
+                imageBase64: Swift.String,
+                imageMediaType: Components.Schemas.BillScanRequest.ImageMediaTypePayload
+            ) {
+                self.imageBase64 = imageBase64
+                self.imageMediaType = imageMediaType
+            }
+            public enum CodingKeys: String, CodingKey {
+                case imageBase64 = "image_base64"
+                case imageMediaType = "image_media_type"
+            }
+        }
+        /// Candidate bill values read from a photo or PDF — the user confirms and edits before anything is saved.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BillScanResult`.
+        public struct BillScanResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/amount_minor`.
+            public var amountMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/frequency`.
+            @frozen public enum FrequencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case weekly = "weekly"
+                case biweekly = "biweekly"
+                case semimonthly = "semimonthly"
+                case monthly = "monthly"
+                case quarterly = "quarterly"
+                case annual = "annual"
+            }
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/frequency`.
+            public var frequency: Components.Schemas.BillScanResult.FrequencyPayload?
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/next_due_date`.
+            public var nextDueDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/note`.
+            public var note: Swift.String
+            /// Creates a new `BillScanResult`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - amountMinor:
+            ///   - frequency:
+            ///   - nextDueDate:
+            ///   - note:
+            public init(
+                name: Swift.String? = nil,
+                amountMinor: Swift.Int? = nil,
+                frequency: Components.Schemas.BillScanResult.FrequencyPayload? = nil,
+                nextDueDate: Swift.String? = nil,
+                note: Swift.String
+            ) {
+                self.name = name
+                self.amountMinor = amountMinor
+                self.frequency = frequency
+                self.nextDueDate = nextDueDate
+                self.note = note
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case amountMinor = "amount_minor"
+                case frequency
+                case nextDueDate = "next_due_date"
                 case note
             }
         }
@@ -19054,6 +19154,219 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Read a bill photo or PDF into candidate values (user confirms before saving)
+    ///
+    /// - Remark: HTTP `POST /bills/scan`.
+    /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)`.
+    public enum ScanBill {
+        public static let id: Swift.String = "scanBill"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/scan/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanBill.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanBill.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ScanBill.Input.Headers
+            /// - Remark: Generated from `#/paths/bills/scan/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/scan/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BillScanRequest)
+            }
+            public var body: Operations.ScanBill.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ScanBill.Input.Headers = .init(),
+                body: Operations.ScanBill.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/scan/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/scan/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BillScanResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BillScanResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanBill.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanBill.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Candidate bill values extracted by the on-box vision model
+            ///
+            /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ScanBill.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ScanBill.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/scan/post(scanBill)/responses/503`.
             ///
             /// HTTP response code: `503 serviceUnavailable`.
             case serviceUnavailable(Components.Responses._Error)
