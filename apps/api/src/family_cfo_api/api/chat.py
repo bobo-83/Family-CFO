@@ -45,6 +45,10 @@ _TITLE_MAX_LENGTH = 80
 # Conversational memory (M30): how much of the stored thread the model sees.
 _HISTORY_MAX_MESSAGES = 8
 _HISTORY_MESSAGE_MAX_CHARS = 1500
+# The loop's 500-token default truncated multi-step plans mid-sentence (user
+# report 2026-07-20). A final answer needs room; the model still stops at its
+# natural end, so this only lifts the ceiling, it doesn't pad short answers.
+_ANSWER_MAX_TOKENS = 1200
 
 _NO_VISION_WARNING = (
     "An attached photo could not be analyzed because no vision-capable AI model "
@@ -292,7 +296,9 @@ def _try_agentic_answer(
 
     tool_call_records: list[ToolCallRecord] = []
     try:
-        result = run_tool_calling_loop(runtime, messages, tools, executor)
+        result = run_tool_calling_loop(
+            runtime, messages, tools, executor, max_tokens=_ANSWER_MAX_TOKENS
+        )
         if not result.completed or result.answer is None:
             logger.warning(
                 "agentic chat loop did not converge; falling back to deterministic snapshot"
@@ -321,7 +327,9 @@ def _try_agentic_answer(
                     ),
                 ),
             ]
-            retry = run_tool_calling_loop(runtime, retry_messages, tools, executor)
+            retry = run_tool_calling_loop(
+                runtime, retry_messages, tools, executor, max_tokens=_ANSWER_MAX_TOKENS
+            )
             if not retry.completed or retry.answer is None:
                 logger.warning(
                     "agentic chat retry did not converge; falling back to deterministic snapshot"
