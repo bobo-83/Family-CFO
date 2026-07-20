@@ -33,10 +33,13 @@ _STREAMING_KEYWORDS = (
     "pandora", "tidal",
 )
 
-# A discretionary category whose latest complete month runs this much above its
-# trailing average is "creeping" — worth a gentle heads-up.
+# A discretionary category is "creeping" only when it has a REAL prior baseline
+# and climbed materially above it — otherwise a one-off spike in a near-zero
+# category (a vacation, a home project) reads as a fake "6000% increase".
 _CREEP_RATIO = 1.3
-_CREEP_MIN_MINOR = 5_000  # ignore tiny categories where a % swing is noise
+_CREEP_BASELINE_MIN = 10_000  # prior 3-mo avg must be >= $100/mo to have a baseline
+_CREEP_MIN_JUMP = 10_000  # and the absolute increase must be >= $100/mo
+_CREEP_MAX_FLAGS = 3  # surface only the few biggest, not a wall of noise
 
 
 def classify_category(name: str) -> str:
@@ -141,10 +144,22 @@ def _detect_subscriptions(
             for occurred_at, amount_minor, row_currency, merchant, description in rows
         ]
     )
+    # Exclude debt/lease payments and modeled bills — a student-loan or mortgage
+    # payment is a recurring charge but NOT a subscription you can cancel.
+    obligations = {
+        bill_detection.normalize_merchant(a.name)
+        for a in repository.list_liability_accounts(engine, household_id)
+    } | {
+        bill_detection.normalize_merchant(b.name)
+        for b in repository.list_bills(engine, household_id)
+    }
+    obligations.discard("")
     subs = [
         Subscription(c.name, Money(c.amount_minor, c.currency), c.frequency)
         for c in candidates
-        if c.currency == currency and c.amount_minor <= 10_000  # <= $100: subscription-sized
+        if c.currency == currency
+        and c.amount_minor <= 10_000  # <= $100: subscription-sized
+        and bill_detection.normalize_merchant(c.name) not in obligations
     ]
     subs.sort(key=lambda s: s.amount.amount_minor, reverse=True)
     return subs
@@ -180,12 +195,22 @@ def _possible_waste(
     prior_end = last_start - timedelta(days=1)
     last_month = repository.sum_spending_by_category(engine, household_id, last_start, last_end, currency)
     prior = repository.sum_spending_by_category(engine, household_id, prior_start, prior_end, currency)
+    creeps: list[tuple[int, str]] = []  # (absolute jump, message)
     for category_id, last_minor in last_month.items():
         name = names.get(category_id, "Other")
-        if classify_category(name) != "discretionary" or last_minor < _CREEP_MIN_MINOR:
+        if classify_category(name) != "discretionary":
             continue
         prior_avg = prior.get(category_id, 0) / 3
-        if prior_avg > 0 and last_minor > prior_avg * _CREEP_RATIO:
+        jump = last_minor - prior_avg
+        # A real baseline AND a material, proportional increase — not a one-off
+        # spike in a category that was near zero before.
+        if (
+            prior_avg >= _CREEP_BASELINE_MIN
+            and jump >= _CREEP_MIN_JUMP
+            and last_minor > prior_avg * _CREEP_RATIO
+        ):
             pct = round((last_minor / prior_avg - 1) * 100)
-            flags.append(f"{name} last month was {pct}% above its recent average.")
+            creeps.append((round(jump), f"{name} last month was {pct}% above its recent average."))
+    creeps.sort(reverse=True)
+    flags.extend(msg for _, msg in creeps[:_CREEP_MAX_FLAGS])
     return flags

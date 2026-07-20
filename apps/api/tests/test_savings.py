@@ -62,6 +62,37 @@ def test_find_savings_splits_ranks_and_flags_waste(demo_engine: Engine) -> None:
     assert ("Emergency Fund", 800_000) in [(n, g.amount_minor) for n, g in report.goals]
 
 
+def test_subscriptions_exclude_debt_and_bill_payments(demo_engine: Engine) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 7, 15)
+    checking = repository.create_account(demo_engine, hh, "Chk", "checking", "USD")
+    # A student-loan payment recorded as a recurring liability account.
+    repository.create_account(
+        demo_engine, hh, "Sallie Mae", "student_loan", "USD",
+        annual_interest_rate=0.05, minimum_payment_minor=7_800,
+    )
+    for m in (4, 5, 6):
+        _txn(demo_engine, checking.id, date(2026, m, 15), -7_800, "Sallie Mae")  # loan payment
+        _txn(demo_engine, checking.id, date(2026, m, 16), -1_599, "Netflix")  # real subscription
+
+    report = savings.find_savings(demo_engine, hh, "USD", today=today)
+    merchants = {s.merchant for s in report.subscriptions}
+    assert "Netflix" in merchants
+    assert "Sallie Mae" not in merchants  # a loan payment is not a subscription
+
+
+def test_creep_ignores_one_off_spikes_without_a_baseline(demo_engine: Engine) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 7, 15)  # last complete month = June
+    checking = repository.create_account(demo_engine, hh, "Chk2", "checking", "USD")
+    travel = repository.create_category(demo_engine, hh, "Travel")
+    # A single big June trip, nothing before it — a spike, not a creeping habit.
+    _txn(demo_engine, checking.id, date(2026, 6, 8), -500_000, "Airline", travel.id)
+
+    report = savings.find_savings(demo_engine, hh, "USD", today=today)
+    assert not any("Travel" in w for w in report.possible_waste)
+
+
 def test_find_savings_tool_is_advertised_and_shaped(demo_engine: Engine) -> None:
     from family_cfo_api import ai_tools
 
