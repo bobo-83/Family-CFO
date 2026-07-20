@@ -130,10 +130,15 @@ GROUNDING_RULES = (
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
-    "in a search query. For income, salary, RSU vest, bonus, or tax "
+    "in a search query. For income, salary, RSU vest, bonus, take-home, or tax "
     "questions ALWAYS call get_income_and_tax first — it carries the household's "
     "declared compensation profile including upcoming vest dates (quote its "
-    "assumptions when giving a tax figure); for "
+    "assumptions when giving a tax figure). For what the household EARNS or TAKES "
+    "HOME, use compensation_profile.expected_annual_gross and the `take_home` "
+    "figure — NEVER quote annual_income_detected / monthly_average_detected as "
+    "their pay: those are only recognized recurring deposits and undercount "
+    "irregular/RSU pay, a short history, and paychecks miscategorized as "
+    "transfers (see income_basis_note). For "
     "bills or upcoming payments use get_bills; for budgets use get_budgets; for "
     "recent spending habits use get_spending_insights. For 'where can I cut', "
     "'how do I save money', or reducing spending, call find_savings and follow "
@@ -740,9 +745,38 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
             }
             for source in analysis.sources
         ],
-        "annual_income": _schema_money_out(analysis.rollup.annual_income),
-        "monthly_average_income": _schema_money_out(analysis.rollup.monthly_average),
+        # DETECTED recurring deposits only — see income_basis_note; can undercount.
+        "annual_income_detected": _schema_money_out(analysis.rollup.annual_income),
+        "monthly_average_detected": _schema_money_out(analysis.rollup.monthly_average),
         "window_days": analysis.rollup.window_days,
+        # Grounded take-home = gross minus estimated tax (profile-based when a
+        # compensation profile is declared). THE figure for "what I take home".
+        "take_home": {
+            "annual": _money_out(
+                Money(
+                    tax.gross_income.amount_minor - tax.total_tax.amount_minor, currency
+                )
+            ),
+            "monthly": _money_out(
+                Money(
+                    round((tax.gross_income.amount_minor - tax.total_tax.amount_minor) / 12),
+                    currency,
+                )
+            ),
+            "basis": (
+                "declared gross minus estimated tax"
+                if analysis.profile is not None
+                else "deposit-estimated gross minus tax"
+            ),
+        },
+        "income_basis_note": (
+            "annual_income_detected / monthly_average_detected are only the DETECTED "
+            "recurring deposits and can badly UNDERCOUNT: irregular/RSU/bonus pay and a "
+            "short synced history are missed, and any paycheck miscategorized as a transfer "
+            "is excluded. When compensation_profile is present it is the AUTHORITY — use its "
+            "gross and `take_home` for what the household earns and takes home; do NOT quote "
+            "the detected deposit average as their income or pay."
+        ),
         "tax_estimate": {
             "tax_year": tax.tax_year,
             "filing_status": tax.filing_status,
