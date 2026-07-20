@@ -374,3 +374,40 @@ def test_debt_outlook_exposes_each_debt_so_the_advisor_need_not_ask(
     assert card_out["annual_interest_rate"] == 0.24
     # $150 min vs ~$100 monthly interest on $5k @ 24% → it does amortize.
     assert card_out["interest_only"] is False
+
+
+def test_debt_history_returns_monthly_totals_and_average(demo_engine: Engine) -> None:
+    from datetime import date
+
+    from family_cfo_api import finance_service, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    loan = repository.create_account(demo_engine, hh, "Auto Loan", "auto_loan", "USD")
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)  # owes $10,000 now
+    # A loan payment three months back, so the series spans more than one month.
+    repository.create_transaction(
+        demo_engine, household_id=hh, account_id=loan.id, occurred_at=date(2026, 5, 10),
+        amount_minor=50_000, currency="USD", merchant="Auto Loan Pmt", description=None,
+        import_source=None, import_id=None, review_state="reviewed",
+    )
+
+    hist = finance_service.debt_history(demo_engine, hh, "USD", today=date(2026, 7, 15))
+
+    assert hist.months_covered >= 2  # May, June, July
+    assert [p.month for p in hist.points] == sorted(p.month for p in hist.points)  # chronological
+    # Current owed = the demo mortgage (300,000,000) + this loan (1,000,000).
+    assert hist.points[-1].total_owed.amount_minor == 301_000_000
+    assert hist.average.amount_minor >= 1_000_000
+
+
+def test_get_debt_history_tool_shape(demo_engine: Engine) -> None:
+    from family_cfo_api import repository
+
+    loan = repository.create_account(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "L", "student_loan", "USD")
+    repository.record_account_balance(demo_engine, loan.id, -500_000)
+
+    result = _execute(demo_engine, "get_debt_history", {})
+
+    assert "average_debt" in result and result["average_debt"]["currency"] == "USD"
+    assert isinstance(result["months"], list)
+    assert result["months_covered"] == len(result["months"])
