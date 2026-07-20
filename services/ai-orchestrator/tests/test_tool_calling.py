@@ -14,9 +14,11 @@ class ScriptedRuntime:
         self._turns = turns
         self.calls = 0
         self.seen_messages: list[list[RuntimeMessage]] = []
+        self.seen_max_tokens: list[int] = []
 
     def complete_with_tools(self, messages, tools, *, temperature=0.2, max_tokens=500):
         self.seen_messages.append(list(messages))
+        self.seen_max_tokens.append(max_tokens)
         turn = self._turns[self.calls]
         self.calls += 1
         return turn
@@ -117,3 +119,21 @@ def test_missing_input_result_is_fed_back_for_the_model_to_ask() -> None:
     assert result.completed is True
     assert "annual spending" in result.answer
     assert any("missing_input" in m.content for m in runtime.seen_messages[-1])
+
+
+def test_max_tokens_is_passed_through_to_the_runtime() -> None:
+    # A long multi-step answer was truncated at the 500-token default; the caller
+    # can lift the ceiling and it must reach the runtime.
+    runtime = ScriptedRuntime(
+        [RuntimeToolCompletion(tool_calls=[], text="Here is a long plan…", model="m", raw={})]
+    )
+
+    run_tool_calling_loop(
+        runtime,
+        [RuntimeMessage(role="user", content="what's the plan?")],
+        _TOOLS,
+        lambda name, args: {},
+        max_tokens=1200,
+    )
+
+    assert runtime.seen_max_tokens == [1200]

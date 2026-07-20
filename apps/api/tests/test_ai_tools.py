@@ -374,6 +374,14 @@ def test_debt_outlook_exposes_each_debt_so_the_advisor_need_not_ask(
     assert card_out["annual_interest_rate"] == 0.24
     # $150 min vs ~$100 monthly interest on $5k @ 24% → it does amortize.
     assert card_out["interest_only"] is False
+    # payoff_now clears it today: balance + ~one month's interest, never more.
+    assert card_out["payoff_now"]["amount_minor"] == 500_000 + round(500_000 * 0.24 / 12)
+
+
+def test_grounding_rules_forbid_advising_overpayment_of_a_debt() -> None:
+    prompt = ai_tools.build_system_prompt()
+    assert "never tell the user to send more than a debt's balance" in prompt.lower()
+    assert "payoff_now" in prompt
 
 
 def test_debt_history_returns_monthly_totals_and_average(demo_engine: Engine) -> None:
