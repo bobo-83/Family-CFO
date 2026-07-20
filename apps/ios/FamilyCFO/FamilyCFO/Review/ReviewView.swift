@@ -27,7 +27,7 @@ struct ReviewView: View {
                     ContentUnavailableView(
                         "All clear",
                         systemImage: "checkmark.seal",
-                        description: Text("Nothing to review — no possible duplicates, transfers, or credits."))
+                        description: Text("Nothing to review — no possible duplicates, suspected income, transfers, or credits."))
                 } else {
                     List {
                         if !viewModel.groups.isEmpty {
@@ -41,6 +41,7 @@ struct ReviewView: View {
                                 groupSection(group)
                             }
                         }
+                        suspectedIncomeSection()
                         reviewList(
                             "Transfers", systemImage: "arrow.left.arrow.right",
                             count: viewModel.transfers.count, groups: viewModel.transferGroups,
@@ -127,6 +128,69 @@ struct ReviewView: View {
                 Text("Removes this line from your data. Do this only for a charge that shouldn't exist — not to hide a real repeat.")
             }
         }
+    }
+
+    /// ADR 0049: sizeable inflows filed as a Transfer with no matching internal
+    /// leg — likely paychecks/RSU the user should confirm as income. Each shows
+    /// the value to confirm and two clear actions.
+    @ViewBuilder private func suspectedIncomeSection() -> some View {
+        if !viewModel.suspectedIncome.isEmpty {
+            Section {
+                ForEach(viewModel.suspectedIncome) { txn in
+                    suspectedIncomeRow(txn)
+                }
+            } header: {
+                Label("Suspected income (\(viewModel.suspectedIncome.count))", systemImage: "dollarsign.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .textCase(nil)
+            } footer: {
+                Text("These landed in one of your accounts as a large \"Transfer\" with no matching move out of another account — usually a paycheck or deposit filed in the wrong place. Confirm the amount to count it as income, or keep it as a transfer.")
+                    .font(.caption)
+            }
+        }
+    }
+
+    @ViewBuilder private func suspectedIncomeRow(
+        _ txn: Components.Schemas.Transaction
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(txn.merchant ?? txn.description ?? "Deposit").lineLimit(1)
+                        .font(.subheadline.weight(.medium))
+                    if let source = sourceLine(txn) {
+                        Text(source).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Text(String(txn.occurredAt.prefix(10)))
+                        .font(.caption2).foregroundStyle(.secondary)
+                    badge("Suspected income", .green)
+                }
+                Spacer()
+                Text(txn.amount.formattedExact)
+                    .font(.headline)
+                    .foregroundStyle(Color.green)
+            }
+            HStack(spacing: 10) {
+                Button {
+                    Task { await viewModel.confirmAsIncome(txn) }
+                } label: {
+                    Label("Confirm as income", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                Button {
+                    Task { await viewModel.keepAsTransfer(txn) }
+                } label: {
+                    Text("Keep as transfer")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder private func groupSection(_ group: ReviewViewModel.ReviewGroup) -> some View {

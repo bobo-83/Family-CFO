@@ -347,7 +347,7 @@ export const createTransaction = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * Transactions to review — duplicates (default), transfers, or credits/refunds
+ * Transactions to review — duplicates, transfers, credits, or suspected income
  */
 export const listTransactionsForReview = <ThrowOnError extends boolean = false>(options?: Options<ListTransactionsForReviewData, ThrowOnError>): RequestResult<ListTransactionsForReviewResponses, ListTransactionsForReviewErrors, ThrowOnError> => (options?.client ?? client).get<ListTransactionsForReviewResponses, ListTransactionsForReviewErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

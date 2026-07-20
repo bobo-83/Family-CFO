@@ -778,17 +778,17 @@ paths:
       tags:
         - Transactions
       operationId: listTransactionsForReview
-      summary: Transactions to review — duplicates (default), transfers, or credits/refunds
+      summary: Transactions to review — duplicates, transfers, credits, or suspected income
       security:
         - bearerAuth: []
       parameters:
         - name: kind
           in: query
           required: false
-          description: "duplicates (default) | transfers | credits"
+          description: "duplicates (default) | transfers | credits | suspected_income"
           schema:
             type: string
-            enum: [duplicates, transfers, credits]
+            enum: [duplicates, transfers, credits, suspected_income]
       responses:
         "200":
           description: Transactions to review
@@ -3105,6 +3105,11 @@ components:
             - "null"
         has_attachment:
           description: "M100: whether an image is attached to this transaction."
+          type: boolean
+        suspected_income:
+          description: "ADR 0049: a sizeable inflow filed as a Transfer with no\
+            \ matching internal leg — likely a misfiled paycheck. The UI badges it\
+            \ and offers 'confirm as income' until the user rules on it."
           type: boolean
     Category:
       type: object

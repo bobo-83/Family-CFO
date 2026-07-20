@@ -85,6 +85,7 @@ import {
   listPairedDevices,
   listReports,
   listTransactions,
+  listTransactionsForReview,
   recordAccountBalance,
   restoreBackup,
   scanBill,
@@ -269,6 +270,11 @@ export class ApiService {
   // --- Transactions ---
   listTransactions() {
     return listTransactions();
+  }
+
+  // ADR 0049: the review queue — duplicates, transfers, credits, or suspected income.
+  listTransactionsForReview(kind: 'duplicates' | 'transfers' | 'credits' | 'suspected_income') {
+    return listTransactionsForReview({ query: { kind } });
   }
 
   createTransaction(body: TransactionCreateRequest) {

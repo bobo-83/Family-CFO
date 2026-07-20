@@ -12,6 +12,9 @@ final class ReviewViewModel {
     private(set) var groups: [ReviewGroup] = []
     private(set) var transfers: [Components.Schemas.Transaction] = []
     private(set) var credits: [Components.Schemas.Transaction] = []
+    /// ADR 0049: transfers that look like misfiled income, awaiting the user's
+    /// confirm-as-income / keep-as-transfer decision.
+    private(set) var suspectedIncome: [Components.Schemas.Transaction] = []
     private(set) var categories: [Components.Schemas.Category] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -32,7 +35,9 @@ final class ReviewViewModel {
     /// don't inflate the badge.)
     var reviewCount: Int { groups.reduce(0) { $0 + $1.count } }
     var isEmpty: Bool { groups.isEmpty }
-    var nothingToReview: Bool { groups.isEmpty && transfers.isEmpty && credits.isEmpty }
+    var nothingToReview: Bool {
+        groups.isEmpty && transfers.isEmpty && credits.isEmpty && suspectedIncome.isEmpty
+    }
 
     /// Transfers/credits grouped by amount — the two legs of one transfer (an
     /// out and a matching in, same size) collapse together, as do repeats.
@@ -71,6 +76,7 @@ final class ReviewViewModel {
             async let dupes = api.queue(kind: .duplicates)
             async let xfers = api.queue(kind: .transfers)
             async let creds = api.queue(kind: .credits)
+            async let suspected = api.queue(kind: .suspectedIncome)
             async let cats = api.categories()
             let queue = try await dupes
             errorMessage = nil
@@ -87,6 +93,9 @@ final class ReviewViewModel {
                 }
             transfers = (try await xfers).sorted { $0.occurredAt > $1.occurredAt }
             credits = (try await creds).sorted { $0.occurredAt > $1.occurredAt }
+            suspectedIncome = (try await suspected).sorted {
+                abs($0.amount.amountMinor) > abs($1.amount.amountMinor)
+            }
             categories = try await cats
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -125,6 +134,31 @@ final class ReviewViewModel {
             }
         }
         if errorMessage == nil { lastUndo = undo }
+    }
+
+    /// ADR 0049: confirm a suspected transfer really is income — refile it under
+    /// the Income category (creating one if the household has none). Undoable via
+    /// the same snackbar as any recategorization.
+    func confirmAsIncome(_ txn: Components.Schemas.Transaction) async {
+        let incomeID: String
+        if let existing = categories.first(where: { $0.name.lowercased() == "income" }) {
+            incomeID = existing.id
+        } else {
+            do {
+                incomeID = try await api.createCategory(name: "Income").id
+            } catch {
+                errorMessage = ChatViewModel.describe(error)
+                return
+            }
+        }
+        await recategorizeMany(
+            [txn], to: incomeID, label: txn.merchant ?? txn.description ?? "income")
+    }
+
+    /// ADR 0049: keep it as a transfer — record an exclude override so it's never
+    /// flagged as suspected income again.
+    func keepAsTransfer(_ txn: Components.Schemas.Transaction) async {
+        await mutate { try await self.api.keepAsTransfer(transactionID: txn.id) }
     }
 
     func undoRecategorize() async {

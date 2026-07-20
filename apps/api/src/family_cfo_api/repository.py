@@ -624,6 +624,15 @@ def account_name_map(engine: Engine, household_id: str) -> dict[str, str]:
         return {row.id: row.name for row in conn.execute(query)}
 
 
+def account_type_map(engine: Engine, household_id: str) -> dict[str, str]:
+    """Every account's id → its type (checking, savings, auto_loan, …)."""
+    query = select(models.accounts.c.id, models.accounts.c.type).where(
+        models.accounts.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        return {row.id: row.type for row in conn.execute(query)}
+
+
 def account_institution_map(engine: Engine, household_id: str) -> dict[str, str]:
     """Account id → the institution (bank) behind it, when known — so the UI can
     say where to look a transaction up. Absent for manual accounts and for synced
