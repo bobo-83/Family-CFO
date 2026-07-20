@@ -336,3 +336,17 @@ def test_system_prompt_grounds_todays_date() -> None:
     assert "2026-07-15" in prompt
     assert "July 2026" in prompt
     assert "already happened" in prompt.lower()
+
+
+def test_household_context_carries_the_key_facts() -> None:
+    ctx = ai_tools.build_household_context(
+        currency="USD",
+        first_name="Bo",
+        member_count=2,
+        earliest_month="2026-01",
+        latest_month="2026-07",
+    )
+    assert "Bo" in ctx
+    assert "2 members" in ctx
+    assert "USD" in ctx
+    assert "2026-01" in ctx and "2026-07" in ctx
