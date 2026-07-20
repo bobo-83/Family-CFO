@@ -50,8 +50,8 @@ def test_find_savings_splits_ranks_and_flags_waste(demo_engine: Engine) -> None:
 
     # Needs vs wants: rent is essential; dining + shopping are discretionary.
     assert report.essential_monthly.amount_minor == round(200_000 / 3)
-    # Ranked largest-first: shopping ($600/3mo) above dining ($300/3mo).
-    ranked = [(c.name, c.monthly_avg.amount_minor) for c in report.discretionary_ranked]
+    # Steady monthly spend → recurring habits, ranked largest-first.
+    ranked = [(c.name, c.monthly_avg.amount_minor) for c in report.recurring_ranked]
     assert ranked[0] == ("Shopping", 60_000)
     assert ("Dining", 30_000) in ranked
     # Subscriptions found, and the duplicate-streaming waste flag raised.
@@ -109,6 +109,42 @@ def test_creep_ignores_huge_one_off_spikes_even_with_a_baseline(demo_engine: Eng
     assert not any("Home Improvements" in w for w in report.possible_waste)
 
 
+def test_recurring_and_one_off_are_separated(demo_engine: Engine) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 7, 15)
+    checking = repository.create_account(demo_engine, hh, "Chk4", "checking", "USD")
+    dining = repository.create_category(demo_engine, hh, "Dining")
+    reno = repository.create_category(demo_engine, hh, "Home Improvements")
+    # Dining every month → recurring habit. A single June renovation → one-off.
+    for m in (4, 5, 6):
+        _txn(demo_engine, checking.id, date(2026, m, 10), -30_000, "Bistro", dining.id)
+    _txn(demo_engine, checking.id, date(2026, 6, 20), -2_000_000, "Contractor", reno.id)
+
+    report = savings.find_savings(demo_engine, hh, "USD", today=today)
+    recurring = {c.name for c in report.recurring_ranked}
+    one_off = {o.name for o in report.one_off}
+    assert "Dining" in recurring and "Home Improvements" not in recurring
+    assert "Home Improvements" in one_off  # already spent, not a monthly habit
+
+
+def test_valued_activity_is_never_flagged_as_waste(demo_engine: Engine) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    today = date(2026, 7, 15)
+    checking = repository.create_account(demo_engine, hh, "Chk5", "checking", "USD")
+    tennis = repository.create_category(demo_engine, hh, "Tennis")
+    # A real baseline that crept up in June — but tennis is a valued activity.
+    for m in (3, 4, 5):
+        _txn(demo_engine, checking.id, date(2026, m, 5), -30_000, "Club", tennis.id)
+    _txn(demo_engine, checking.id, date(2026, 6, 5), -50_000, "Club", tennis.id)
+    repository.upsert_household_memory(
+        demo_engine, hh, "recreational_spending", "Tennis at the club is a weekly ritual.",
+        source="study",
+    )
+
+    report = savings.find_savings(demo_engine, hh, "USD", today=today)
+    assert not any("Tennis" in w for w in report.possible_waste)
+
+
 def test_find_savings_tool_is_advertised_and_shaped(demo_engine: Engine) -> None:
     from family_cfo_api import ai_tools
 
@@ -117,8 +153,8 @@ def test_find_savings_tool_is_advertised_and_shaped(demo_engine: Engine) -> None
         "find_savings", {}
     )
     for key in (
-        "essential_monthly", "discretionary_monthly", "discretionary_by_category",
-        "subscriptions", "possible_waste", "valued_activities", "goals",
+        "essential_monthly", "discretionary_monthly", "recurring_discretionary",
+        "one_off_purchases", "subscriptions", "possible_waste", "valued_activities", "goals",
     ):
         assert key in result
 

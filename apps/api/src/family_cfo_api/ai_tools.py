@@ -138,10 +138,11 @@ GROUNDING_RULES = (
     "recent spending habits use get_spending_insights. For 'where can I cut', "
     "'how do I save money', or reducing spending, call find_savings and follow "
     "its note: suggest cutting WASTE first (duplicate/forgotten subscriptions, "
-    "fees, categories that crept up), then the LARGEST discretionary spending — "
-    "but NEVER suggest cutting an activity in valued_activities (the family "
-    "clearly enjoys it), and tie every trim to one of their goals (e.g. 'this "
-    "frees $X/mo toward your emergency fund'). Offer options; never moralize. "
+    "fees, categories that crept up), then the largest RECURRING discretionary "
+    "habits — never a one_off_purchase (already spent) and never an activity in "
+    "valued_activities (the family enjoys it) — and tie every trim to one of "
+    "their goals (e.g. 'this frees $X/mo toward your emergency fund'). Offer "
+    "options; never moralize. "
     "For debts, read get_debt_outlook: each debt's `payoff_now` is the ONE-TIME "
     "amount that clears it today (its balance plus about a month's interest). "
     "NEVER tell the user to send more than a debt's balance — you cannot pay off "
@@ -898,9 +899,12 @@ def _find_savings(engine: Engine, household_id: str, currency: str, args: dict[s
     return {
         "essential_monthly": _money_out(report.essential_monthly),
         "discretionary_monthly": _money_out(report.discretionary_monthly),
-        "discretionary_by_category": [
+        "recurring_discretionary": [
             {"category": c.name, "monthly_avg": _money_out(c.monthly_avg)}
-            for c in report.discretionary_ranked
+            for c in report.recurring_ranked
+        ],
+        "one_off_purchases": [
+            {"category": o.name, "total_spent": _money_out(o.total)} for o in report.one_off
         ],
         "subscriptions": [
             {"merchant": s.merchant, "amount": _money_out(s.amount), "cadence": s.cadence}
@@ -910,8 +914,10 @@ def _find_savings(engine: Engine, household_id: str, currency: str, args: dict[s
         "valued_activities": report.valued_activities,
         "goals": [{"name": name, "gap_to_target": _money_out(gap)} for name, gap in report.goals],
         "note": (
-            "Suggest cutting WASTE first (possible_waste, then subscriptions the family may not "
-            "use). PROTECT valued_activities. Tie each suggested trim to a goal. Averages are "
+            "Suggest trims from RECURRING_DISCRETIONARY (real monthly habits) and cut WASTE "
+            "first (possible_waste, unused subscriptions). one_off_purchases are already spent "
+            "(a renovation, a trip) — do NOT ask the user to 'cut' those; mention them only as "
+            "context. PROTECT valued_activities. Tie each trim to a goal. Amounts are averaged "
             "over the last 3 complete months."
         ),
     }
@@ -1127,11 +1133,12 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             name="find_savings",
             description=(
                 "THE tool for 'where can I cut', 'how can I save money', 'what should I trim', "
-                "or any reduce-spending question. Returns the needs/wants split, discretionary "
-                "spend ranked by size, subscriptions and likely waste (duplicates, creep), the "
-                "activities the household VALUES (protect these — never suggest cutting them), "
-                "and their goals. Suggest cutting waste first, then the largest discretionary, "
-                "tie every trim to a goal, and present options — never moralize."
+                "or any reduce-spending question. Returns the needs/wants split, RECURRING "
+                "discretionary habits ranked (where trims actually stick), one-off purchases "
+                "shown separately (already spent — don't tell the user to cut those), "
+                "subscriptions and likely waste, the activities the household VALUES (never "
+                "suggest cutting them), and their goals. Trim recurring habits and waste first, "
+                "tie every trim to a goal, present options — never moralize."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
