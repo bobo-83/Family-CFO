@@ -30,6 +30,17 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
         conversations.removeAll { $0.id == id }
     }
 
+    var feedbackError: Error?
+    private(set) var feedback: [(String, Components.Schemas.AdvisorFeedbackRequest.RatingPayload)] = []
+
+    func submitFeedback(
+        recommendationId: String,
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+    ) async throws {
+        if let feedbackError { throw feedbackError }
+        feedback.append((recommendationId, rating))
+    }
+
     func sendMessage(
         _ message: String,
         conversationID: String?,
@@ -177,5 +188,40 @@ struct VoiceConversationAdoptionTests {
         await viewModel.adopt(conversationID: "conv-1")
 
         #expect(viewModel.conversationID == "conv-1")
+    }
+
+    @Test func ratingAnAnswerSubmitsFeedbackAndMarksItLocally() async {
+        let api = MockAdvisorAPI()
+        api.response = .init(
+            conversationId: "conv-1",
+            recommendation: .init(
+                id: "rec-1", answer: "You can afford it.", assumptions: [], impacts: [],
+                tradeoffs: [], alternatives: [], confidence: 0.9, calculationRefs: [], warnings: []))
+        let viewModel = ChatViewModel(api: api)
+        await viewModel.send("Can I afford it?")
+        let answer = viewModel.messages.last!
+
+        await viewModel.rate(answer, .up)
+
+        #expect(api.feedback.map(\.0) == ["rec-1"])
+        #expect(api.feedback.first?.1 == .up)
+        #expect(viewModel.messages.last?.rating == .up)
+    }
+
+    @Test func aFailedRatingRevertsAndSurfacesTheError() async {
+        let api = MockAdvisorAPI()
+        api.response = .init(
+            conversationId: "conv-1",
+            recommendation: .init(
+                id: "rec-1", answer: "You can afford it.", assumptions: [], impacts: [],
+                tradeoffs: [], alternatives: [], confidence: 0.9, calculationRefs: [], warnings: []))
+        let viewModel = ChatViewModel(api: api)
+        await viewModel.send("Can I afford it?")
+        api.feedbackError = APIError.server(500)
+
+        await viewModel.rate(viewModel.messages.last!, .down)
+
+        #expect(viewModel.messages.last?.rating == nil)  // reverted
+        #expect(viewModel.errorMessage != nil)
     }
 }

@@ -38,6 +38,24 @@ STUDY_QUIET_MINUTES = 10
 
 MAX_INSIGHTS_PER_MONTH = 5
 
+# How many rated answers to distill per tick — bounded so a burst of feedback
+# doesn't monopolize the runtime.
+MAX_FEEDBACK_PER_TICK = 5
+
+_FEEDBACK_REVIEW_SYSTEM_PROMPT = (
+    "A family member rated one of the advisor's answers. Learn a durable lesson "
+    "that makes future answers better for THIS household. You receive the answer, "
+    "the rating (up = good, down = bad), and the member's note if any. Return "
+    'ONLY a JSON array (no prose, no code fences) of {"key": snake_case '
+    'identifier, "value": one short instruction to the advisor}. Keys must be '
+    "STABLE so a repeated lesson overwrites instead of duplicating (e.g. "
+    "advisor_include_rsu_income, advisor_show_the_math, advisor_avoid_jargon). "
+    "For a 👍 capture what to KEEP doing; for a 👎, what to do DIFFERENTLY. Write "
+    "each as a direct instruction ('Always include RSU vests when estimating "
+    "income.'). Extract only durable, generalizable lessons — never the specific "
+    "numbers from this one answer. Return [] if there is nothing worth keeping."
+)
+
 _STUDY_SYSTEM_PROMPT = (
     "You are studying one month of a family's finances to build durable "
     "knowledge their financial advisor will rely on in every future "
@@ -152,6 +170,36 @@ def study_month(
     return len(pairs)
 
 
+def review_feedback(runtime, engine: Engine, household_id: str) -> int:
+    """Distill lessons from pending 👍/👎 feedback into household knowledge
+    (ADR 0044), marking each reviewed. Returns how many items were reviewed.
+
+    Lessons are stored as source="study" memories, so they steer every future
+    answer AND surface on the Advisor-knowledge screen beside the studied
+    insights — feedback becomes part of what the advisor knows."""
+    pending = repository.list_unreviewed_feedback(
+        engine, household_id, limit=MAX_FEEDBACK_PER_TICK
+    )
+    for feedback in pending:
+        verdict = "👍 (good answer)" if feedback.rating == "up" else "👎 (bad answer)"
+        note = f"\nMember's note: {feedback.note}" if feedback.note else ""
+        completion = runtime.complete(
+            [
+                RuntimeMessage(role="system", content=_FEEDBACK_REVIEW_SYSTEM_PROMPT),
+                RuntimeMessage(
+                    role="user",
+                    content=f"Rating: {verdict}\n\nThe advisor's answer:\n{feedback.answer}{note}",
+                ),
+            ],
+            temperature=0.0,
+            max_tokens=300,
+        )
+        for key, value in parse_extracted_memories(completion.text)[:MAX_INSIGHTS_PER_MONTH]:
+            repository.upsert_household_memory(engine, household_id, key, value, source="study")
+        repository.mark_feedback_reviewed(engine, feedback.id)
+    return len(pending)
+
+
 def _next_month_to_study(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> str | None:
@@ -172,8 +220,8 @@ def _next_month_to_study(
 
 
 def run_study_tick(engine: Engine, settings: Settings | None = None) -> None:
-    """One scheduler tick: study at most ONE month per household, and only
-    while the advisor is idle. Never raises."""
+    """One scheduler tick: while the advisor is idle, distill any pending 👍/👎
+    feedback and study at most ONE month, per household. Never raises."""
     for household_id in repository.list_households(engine):
         try:
             config = resolve_ai_config(engine, household_id, settings)
@@ -186,21 +234,28 @@ def run_study_tick(engine: Engine, settings: Settings | None = None) -> None:
                     continue
             currency = repository.get_household(engine, household_id).base_currency
             month = _next_month_to_study(engine, household_id, currency)
-            if month is None:
+            has_feedback = bool(repository.list_unreviewed_feedback(engine, household_id, limit=1))
+            if month is None and not has_feedback:
                 continue
             runtime = select_tool_runtime(engine, household_id, settings)
             if runtime is None:
                 continue
             try:
-                count = study_month(
-                    runtime, engine, household_id, currency, month, model=config.model
-                )
-                logger.info(
-                    "studied month household_id=%s month=%s insights=%d",
-                    household_id,
-                    month,
-                    count,
-                )
+                reviewed = review_feedback(runtime, engine, household_id)
+                if reviewed:
+                    logger.info(
+                        "reviewed feedback household_id=%s count=%d", household_id, reviewed
+                    )
+                if month is not None:
+                    count = study_month(
+                        runtime, engine, household_id, currency, month, model=config.model
+                    )
+                    logger.info(
+                        "studied month household_id=%s month=%s insights=%d",
+                        household_id,
+                        month,
+                        count,
+                    )
             finally:
                 runtime.close()
         except RuntimeUnavailableError:

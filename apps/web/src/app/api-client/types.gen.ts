@@ -1027,6 +1027,15 @@ export type ChatRequest = {
     data_file_name?: string;
 };
 
+export type AdvisorFeedbackRequest = {
+    recommendation_id: string;
+    rating: 'up' | 'down';
+    /**
+     * Optional note explaining the rating; the study job learns from it.
+     */
+    note?: string;
+};
+
 export type VoiceRequest = {
     text: string;
     /**
@@ -3846,6 +3855,35 @@ export type CreateChatMessageResponses = {
 };
 
 export type CreateChatMessageResponse = CreateChatMessageResponses[keyof CreateChatMessageResponses];
+
+export type SubmitAdvisorFeedbackData = {
+    body: AdvisorFeedbackRequest;
+    path?: never;
+    query?: never;
+    url: '/chat/feedback';
+};
+
+export type SubmitAdvisorFeedbackErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type SubmitAdvisorFeedbackError = SubmitAdvisorFeedbackErrors[keyof SubmitAdvisorFeedbackErrors];
+
+export type SubmitAdvisorFeedbackResponses = {
+    /**
+     * Feedback recorded
+     */
+    204: void;
+};
+
+export type SubmitAdvisorFeedbackResponse = SubmitAdvisorFeedbackResponses[keyof SubmitAdvisorFeedbackResponses];
 
 export type SynthesizeSpeechData = {
     body: VoiceRequest;

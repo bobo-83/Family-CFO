@@ -119,6 +119,31 @@
                 >
                   {{ speaking() === $index ? '🔊 …' : '🔊 Read aloud' }}
                 </button>
+                @if (turn.recommendation?.id || turn.recommendationId) {
+                  <span class="chat__rate">
+                    <button
+                      mat-button
+                      type="button"
+                      class="chat__rate-btn"
+                      [class.chat__rate-btn--on]="turn.rating === 'up'"
+                      (click)="rate(turn, 'up')"
+                      aria-label="This answer was helpful"
+                      title="Helpful"
+                    >👍</button>
+                    <button
+                      mat-button
+                      type="button"
+                      class="chat__rate-btn"
+                      [class.chat__rate-btn--on]="turn.rating === 'down'"
+                      (click)="rate(turn, 'down')"
+                      aria-label="This answer missed something"
+                      title="Missed something"
+                    >👎</button>
+                    @if (turn.rating) {
+                      <span class="chat__rate-thanks">Thanks — the advisor will learn from this.</span>
+                    }
+                  </span>
+                }
               }
 
               @if (turn.recommendation; as rec) {

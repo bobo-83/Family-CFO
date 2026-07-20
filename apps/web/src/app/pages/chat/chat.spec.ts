@@ -29,6 +29,7 @@ describe('Chat', () => {
     createChatMessage: ReturnType<typeof vi.fn>;
     deleteConversation: ReturnType<typeof vi.fn>;
     synthesizeSpeech: ReturnType<typeof vi.fn>;
+    submitAdvisorFeedback: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -41,6 +42,7 @@ describe('Chat', () => {
       createChatMessage: vi.fn(),
       deleteConversation: vi.fn(),
       synthesizeSpeech: vi.fn(),
+      submitAdvisorFeedback: vi.fn().mockResolvedValue({ error: undefined }),
     };
 
     await TestBed.configureTestingModule({
@@ -258,5 +260,36 @@ describe('Chat', () => {
     expect(component['confidenceLabel'](0.7)).toBe('Medium');
     expect(component['confidenceLabel'](0.4)).toBe('Low');
     expect(component['confidencePercent'](0.82)).toBe(82);
+  });
+
+  it('rates an answer, submitting feedback and marking the turn (ADR 0044)', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
+    });
+    const component = TestBed.createComponent(Chat).componentInstance;
+    component['form'].setValue({ message: 'Can I?' });
+    await component['send']();
+
+    const turn = component['turns']().find((t: { role: string }) => t.role === 'assistant')!;
+    await component['rate'](turn, 'down');
+
+    expect(apiMock.submitAdvisorFeedback).toHaveBeenCalledWith('rec-1', 'down');
+    expect(turn.rating).toBe('down');
+  });
+
+  it('reverts a failed rating and surfaces the error', async () => {
+    apiMock.createChatMessage.mockResolvedValue({
+      data: { conversation_id: 'conv-9', recommendation: recommendation('Yes.') },
+    });
+    apiMock.submitAdvisorFeedback.mockResolvedValue({ error: { detail: 'nope' } });
+    const component = TestBed.createComponent(Chat).componentInstance;
+    component['form'].setValue({ message: 'Can I?' });
+    await component['send']();
+
+    const turn = component['turns']().find((t: { role: string }) => t.role === 'assistant')!;
+    await component['rate'](turn, 'up');
+
+    expect(turn.rating).toBeUndefined(); // reverted
+    expect(component['errorMessage']()).toBeTruthy();
   });
 });

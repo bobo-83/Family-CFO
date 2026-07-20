@@ -4612,6 +4612,114 @@ def list_study_insights(engine: Engine, household_id: str) -> list[HouseholdMemo
     return [_memory_from_row(row) for row in rows]
 
 
+# --- ADR 0044: advisor answer feedback --------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AdvisorFeedbackRecord:
+    id: str
+    household_id: str
+    recommendation_id: str
+    rating: str  # "up" | "down"
+    note: str | None
+    answer: str  # the rated advisor answer, joined in for the review pass
+
+
+def recommendation_belongs_to_household(
+    engine: Engine, household_id: str, recommendation_id: str
+) -> bool:
+    query = select(models.recommendations.c.id).where(
+        models.recommendations.c.id == recommendation_id,
+        models.recommendations.c.household_id == household_id,
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).first() is not None
+
+
+def upsert_advisor_feedback(
+    engine: Engine,
+    household_id: str,
+    recommendation_id: str,
+    user_id: str,
+    rating: str,
+    note: str | None,
+) -> None:
+    """Record a member's rating of an advisor answer, or update their existing
+    one. Re-rating resets `reviewed` so the study job takes another look."""
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.advisor_feedback.c.id).where(
+                models.advisor_feedback.c.recommendation_id == recommendation_id,
+                models.advisor_feedback.c.created_by_user_id == user_id,
+            )
+        ).first()
+        if existing is not None:
+            conn.execute(
+                update(models.advisor_feedback)
+                .where(models.advisor_feedback.c.id == existing.id)
+                .values(rating=rating, note=note, reviewed=False, updated_at=now)
+            )
+        else:
+            conn.execute(
+                insert(models.advisor_feedback).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    recommendation_id=recommendation_id,
+                    created_by_user_id=user_id,
+                    rating=rating,
+                    note=note,
+                    reviewed=False,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+
+def list_unreviewed_feedback(
+    engine: Engine, household_id: str, limit: int = 20
+) -> list[AdvisorFeedbackRecord]:
+    """Feedback the study job hasn't distilled a lesson from yet, with the rated
+    answer joined in. Oldest first, so the queue drains in order."""
+    fb = models.advisor_feedback
+    query = (
+        select(
+            fb.c.id,
+            fb.c.household_id,
+            fb.c.recommendation_id,
+            fb.c.rating,
+            fb.c.note,
+            models.recommendations.c.answer,
+        )
+        .join(models.recommendations, models.recommendations.c.id == fb.c.recommendation_id)
+        .where(fb.c.household_id == household_id, fb.c.reviewed.is_(False))
+        .order_by(fb.c.created_at)
+        .limit(limit)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        AdvisorFeedbackRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            recommendation_id=row["recommendation_id"],
+            rating=row["rating"],
+            note=row["note"],
+            answer=row["answer"],
+        )
+        for row in rows
+    ]
+
+
+def mark_feedback_reviewed(engine: Engine, feedback_id: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.advisor_feedback)
+            .where(models.advisor_feedback.c.id == feedback_id)
+            .values(reviewed=True, updated_at=utcnow())
+        )
+
+
 def delete_household_memory(engine: Engine, household_id: str, memory_id: str) -> bool:
     with engine.begin() as conn:
         result = conn.execute(

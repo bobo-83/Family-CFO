@@ -112,8 +112,10 @@ struct ChatView: View {
                         ProgressView().padding(.top, 24)
                     }
                     ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message)
-                            .id(message.id)
+                        MessageBubble(message: message) { rating in
+                            Task { await viewModel.rate(message, rating) }
+                        }
+                        .id(message.id)
                     }
                     if viewModel.isSending {
                         HStack {
@@ -439,6 +441,8 @@ struct ChatView: View {
 /// grounded metadata (confidence, warnings, impacts) rides below the text.
 struct MessageBubble: View {
     let message: ChatMessage
+    /// ADR 0044: invoked with the chosen rating; nil for user rows / previews.
+    var onRate: ((Components.Schemas.AdvisorFeedbackRequest.RatingPayload) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: message.author == .user ? .trailing : .leading, spacing: 6) {
@@ -474,6 +478,24 @@ struct MessageBubble: View {
                 Text("Confidence \(Int((confidence * 100).rounded()))%")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+            if message.author == .assistant, message.recommendationId != nil, let onRate {
+                HStack(spacing: 14) {
+                    Button { onRate(.up) } label: {
+                        Image(systemName: message.rating == .up ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    }
+                    Button { onRate(.down) } label: {
+                        Image(systemName: message.rating == .down ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    }
+                    if message.rating != nil {
+                        Text("Thanks — the advisor will learn from this.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
             }
         }
         .frame(

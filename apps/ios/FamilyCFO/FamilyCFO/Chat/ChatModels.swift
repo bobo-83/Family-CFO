@@ -17,12 +17,18 @@ struct ChatMessage: Identifiable, Equatable {
     var warnings: [String] = []
     var impacts: [Components.Schemas.Impact] = []
     var attachmentName: String?
+    /// The rated answer's recommendation id, so 👍/👎 works on live AND history
+    /// assistant messages (ADR 0044). nil for user rows.
+    var recommendationId: String?
+    /// This member's rating of the answer, once given.
+    var rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload?
 
     static func from(_ message: Components.Schemas.ConversationMessage) -> ChatMessage {
         ChatMessage(
             id: message.id,
             author: message.role == .user ? .user : .assistant,
-            text: message.content
+            text: message.content,
+            recommendationId: message.recommendationId
         )
     }
 
@@ -33,7 +39,8 @@ struct ChatMessage: Identifiable, Equatable {
             text: recommendation.answer,
             confidence: recommendation.confidence,
             warnings: recommendation.warnings ?? [],
-            impacts: recommendation.impacts
+            impacts: recommendation.impacts,
+            recommendationId: recommendation.id
         )
     }
 }
