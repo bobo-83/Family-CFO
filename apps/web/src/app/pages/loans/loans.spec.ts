@@ -126,6 +126,35 @@ describe('Loans', () => {
     expect(apiMock.recordAccountBalance).toHaveBeenCalledWith('new1', -1_000_000, 'USD');
   });
 
+  it('stores the entered APR percent as a decimal fraction (ADR 0042)', async () => {
+    const apiMock = {
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      createAccount: vi.fn().mockResolvedValue(response({ id: 'new1' })),
+      recordAccountBalance: vi.fn().mockResolvedValue(response({ id: 'b1' })),
+    };
+    configure(apiMock);
+    const fixture = TestBed.createComponent(Loans);
+    await stabilize(fixture);
+
+    const cmp = fixture.componentInstance as unknown as {
+      startAdd(): void;
+      form: { name: string; balanceOwed: number | null; monthlyPayment: number | null; apr: number | null };
+      save(): Promise<void>;
+    };
+    cmp.startAdd();
+    cmp.form.name = 'Card';
+    cmp.form.balanceOwed = 5_000;
+    cmp.form.monthlyPayment = 150;
+    cmp.form.apr = 9.5; // the user types a percent…
+
+    await cmp.save();
+
+    expect(apiMock.createAccount).toHaveBeenCalledWith(
+      // …and it is stored as a fraction the engine can use.
+      expect.objectContaining({ annual_interest_rate: 0.095 }),
+    );
+  });
+
   it('pastes a statement into the scan while the form is open (ADR 0028)', async () => {
     const apiMock = {
       listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),

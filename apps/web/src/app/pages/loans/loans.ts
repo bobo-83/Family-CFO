@@ -174,7 +174,8 @@ export class Loans {
       type: loan.type,
       balanceOwed: this.owed(loan) / 100,
       monthlyPayment: (loan.minimum_payment?.amount_minor ?? 0) / 100,
-      apr: loan.annual_interest_rate ?? null,
+      // The form works in percent; the contract stores a fraction (ADR 0042).
+      apr: loan.annual_interest_rate != null ? loan.annual_interest_rate * 100 : null,
       endMode: maturity ? 'date' : 'none',
       maturityDate: maturity,
       paymentsLeft: monthsLeft(maturity),
@@ -225,7 +226,8 @@ export class Loans {
       type: this.form.type,
       // Always send a rate (0 when unknown): both terms present keeps the
       // payment counted as committed in safe-to-spend — same rule as iOS.
-      annual_interest_rate: this.form.apr ?? 0,
+      // The form is a percent; the contract stores a fraction (ADR 0042).
+      annual_interest_rate: (this.form.apr ?? 0) / 100,
       minimum_payment: { amount_minor: minor(this.form.monthlyPayment), currency },
       ...(maturity ? { maturity_date: maturity } : {}),
       ...(this.form.nextPaymentDueDate
