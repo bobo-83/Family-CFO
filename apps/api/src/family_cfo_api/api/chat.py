@@ -49,6 +49,11 @@ _HISTORY_MESSAGE_MAX_CHARS = 1500
 # report 2026-07-20). A final answer needs room; the model still stops at its
 # natural end, so this only lifts the ceiling, it doesn't pad short answers.
 _ANSWER_MAX_TOKENS = 1200
+# The library default (6) was too few once the toolset grew to ~16 and the
+# grounding asks the advisor to consult several tools for a plan (debt outlook,
+# bills, spending, find_savings…): a thorough answer exhausted the rounds and
+# fell back to the deterministic snapshot. Give it room to gather AND conclude.
+_ANSWER_MAX_ITERATIONS = 12
 
 _NO_VISION_WARNING = (
     "An attached photo could not be analyzed because no vision-capable AI model "
@@ -297,7 +302,12 @@ def _try_agentic_answer(
     tool_call_records: list[ToolCallRecord] = []
     try:
         result = run_tool_calling_loop(
-            runtime, messages, tools, executor, max_tokens=_ANSWER_MAX_TOKENS
+            runtime,
+            messages,
+            tools,
+            executor,
+            max_tokens=_ANSWER_MAX_TOKENS,
+            max_iterations=_ANSWER_MAX_ITERATIONS,
         )
         if not result.completed or result.answer is None:
             logger.warning(
@@ -328,7 +338,12 @@ def _try_agentic_answer(
                 ),
             ]
             retry = run_tool_calling_loop(
-                runtime, retry_messages, tools, executor, max_tokens=_ANSWER_MAX_TOKENS
+                runtime,
+                retry_messages,
+                tools,
+                executor,
+                max_tokens=_ANSWER_MAX_TOKENS,
+                max_iterations=_ANSWER_MAX_ITERATIONS,
             )
             if not retry.completed or retry.answer is None:
                 logger.warning(

@@ -137,3 +137,34 @@ def test_max_tokens_is_passed_through_to_the_runtime() -> None:
     )
 
     assert runtime.seen_max_tokens == [1200]
+
+
+def test_a_raised_iteration_cap_lets_a_many_tool_plan_converge() -> None:
+    # A plan that calls tools across 8 rounds then answers needs more than the
+    # default 6 iterations — otherwise it "does not converge" and the caller
+    # falls back to a generic snapshot.
+    def script():
+        turns = [
+            RuntimeToolCompletion(
+                tool_calls=[ToolCall(id=f"c{i}", name="future_value", arguments={})],
+                text="", model="m", raw={},
+            )
+            for i in range(8)
+        ]
+        turns.append(RuntimeToolCompletion(tool_calls=[], text="Here is your plan.", model="m", raw={}))
+        return turns
+
+    msgs = [RuntimeMessage(role="user", content="make me a detailed plan")]
+
+    def execute(name, args):
+        return {}
+
+    # The default cap (6) gives up before the answer turn.
+    short = run_tool_calling_loop(ScriptedRuntime(script()), msgs, _TOOLS, execute)
+    assert short.completed is False and short.answer is None
+
+    # A raised cap reaches the final answer.
+    long = run_tool_calling_loop(
+        ScriptedRuntime(script()), msgs, _TOOLS, execute, max_iterations=12
+    )
+    assert long.completed is True and long.answer == "Here is your plan."
