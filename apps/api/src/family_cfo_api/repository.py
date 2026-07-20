@@ -2282,6 +2282,20 @@ def earliest_transaction_month(engine: Engine, household_id: str) -> str | None:
     return f"{earliest.year}-{earliest.month:02d}"
 
 
+def transaction_month_range(engine: Engine, household_id: str) -> tuple[str | None, str | None]:
+    """The 'YYYY-MM' of the household's oldest and newest transactions, so the
+    advisor knows which months hold data. (None, None) when there's no history."""
+    query = select(
+        func.min(models.transactions.c.occurred_at),
+        func.max(models.transactions.c.occurred_at),
+    ).where(models.transactions.c.household_id == household_id)
+    with engine.connect() as conn:
+        earliest, latest = conn.execute(query).one()
+    if earliest is None or latest is None:
+        return None, None
+    return f"{earliest.year}-{earliest.month:02d}", f"{latest.year}-{latest.month:02d}"
+
+
 def net_worth_as_of(engine: Engine, household_id: str, on_or_before: date, currency: str) -> int:
     """Net worth from the latest snapshot on or before a date (0 if none). Used for
     a past month's historical Overview when no full snapshot was captured."""

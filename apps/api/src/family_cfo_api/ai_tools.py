@@ -71,6 +71,32 @@ def build_system_prompt(settings: Settings | None = None, *, today: date | None 
     return f"{persona}\n\n{date_line}\n\n{GROUNDING_RULES}"
 
 
+def build_household_context(
+    *,
+    currency: str,
+    first_name: str | None = None,
+    member_count: int = 1,
+    earliest_month: str | None = None,
+    latest_month: str | None = None,
+) -> str:
+    """A system message of stable household facts the model can't derive on its
+    own: who it's speaking with, the currency, the family size, and which months
+    hold data — so it never asks for these or claims a real month has no data."""
+    lines = ["Household context (rely on these without a tool call):"]
+    if first_name:
+        lines.append(f"- You are speaking with {first_name}.")
+    plural = "s" if member_count != 1 else ""
+    lines.append(f"- This is one family with {member_count} member{plural} in the app.")
+    lines.append(f"- All amounts are in {currency} unless a tool result says otherwise.")
+    if earliest_month and latest_month:
+        lines.append(
+            f"- Transaction data exists from {earliest_month} through {latest_month}. Look up "
+            "any month in that range with the month tools; there is simply no data outside it "
+            "(never claim an in-range month is missing or hasn't happened)."
+        )
+    return "\n".join(lines)
+
+
 # The model must ground every number in a tool result and must never invent a
 # figure. When a required input is missing it asks the user rather than guess.
 GROUNDING_RULES = (
