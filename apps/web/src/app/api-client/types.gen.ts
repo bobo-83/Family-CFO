@@ -142,6 +142,10 @@ export type Transaction = {
      * M100: whether an image is attached to this transaction.
      */
     has_attachment?: boolean;
+    /**
+     * ADR 0049: a sizeable inflow filed as a Transfer with no matching internal leg — likely a misfiled paycheck. The UI badges it and offers 'confirm as income' until the user rules on it.
+     */
+    suspected_income?: boolean;
 };
 
 export type Category = {
@@ -2578,9 +2582,9 @@ export type ListTransactionsForReviewData = {
     path?: never;
     query?: {
         /**
-         * duplicates (default) | transfers | credits
+         * duplicates (default) | transfers | credits | suspected_income
          */
-        kind?: 'duplicates' | 'transfers' | 'credits';
+        kind?: 'duplicates' | 'transfers' | 'credits' | 'suspected_income';
     };
     url: '/transactions/review';
 };

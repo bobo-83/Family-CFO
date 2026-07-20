@@ -386,6 +386,10 @@ class Transaction(BaseModel):
     # M100: a user's free-text note, and whether an image is attached.
     note: str | None = None
     has_attachment: bool = False
+    # ADR 0049: a sizeable inflow filed as a Transfer with no matching internal
+    # leg — likely a paycheck/RSU deposit misfiled. The UI badges it and offers
+    # "confirm as income" until the user rules on it.
+    suspected_income: bool = False
 
 
 class Category(BaseModel):

@@ -24,6 +24,7 @@ def _to_schema(
     account_names: dict[str, str] | None = None,
     counterparty: str | None = None,
     institutions: dict[str, str] | None = None,
+    suspected_income: bool = False,
 ) -> Transaction:
     names = account_names or {}
     return Transaction(
@@ -42,12 +43,45 @@ def _to_schema(
         institution=(institutions or {}).get(record.account_id),
         note=record.note,
         has_attachment=record.attachment_path is not None,
+        suspected_income=suspected_income,
     )
 
 
 # Two transactions are the two legs of one transfer when they sit in different
 # accounts, move the opposite direction for the same amount, within a few days.
 _TRANSFER_MATCH_DAYS = 3
+
+# Below this a stray transfer isn't worth flagging as possibly-misfiled income.
+_SUSPECTED_INCOME_MIN = 20_000  # $200
+
+
+def _suspected_income_ids(engine: Engine, household_id: str) -> set[str]:
+    """IDs of inflows filed under Transfer that have NO matching internal leg and
+    haven't been ruled 'not income' — likely misfiled paychecks/RSU (ADR 0049).
+
+    An internal move has an equal-and-opposite leg in a sibling account; a
+    "transfer" with no such leg is almost always external money coming in.
+    Dismissing one records an income-override 'exclude', which stops it here.
+
+    Only asset accounts can receive income — a positive posting on a liability
+    account (a loan/lease "Payment" credit) is a debt payment, not a paycheck."""
+    records = repository.list_transactions(engine, household_id, limit=100_000)
+    matched = _counterparties(records, repository.account_name_map(engine, household_id))
+    account_types = repository.account_type_map(engine, household_id)
+    dismissed = {
+        tid
+        for tid, verdict in repository.list_income_overrides(engine, household_id).items()
+        if verdict == "exclude"
+    }
+    return {
+        r.id
+        for r in records
+        if r.amount_minor >= _SUSPECTED_INCOME_MIN
+        and (r.category or "").lower() in repository.TRANSFER_CATEGORY_NAMES
+        and account_types.get(r.account_id) not in repository.LIABILITY_ACCOUNT_TYPES
+        and r.id not in matched
+        and r.id not in dismissed
+    }
 
 
 def _counterparties(
@@ -123,9 +157,16 @@ async def list_transactions(
     account_names = repository.account_name_map(engine, session.household_id)
     institutions = repository.account_institution_map(engine, session.household_id)
     counterparties = _counterparties(records, account_names)
+    suspected = _suspected_income_ids(engine, session.household_id)
     return TransactionListResponse(
         transactions=[
-            _to_schema(record, account_names, counterparties.get(record.id), institutions)
+            _to_schema(
+                record,
+                account_names,
+                counterparties.get(record.id),
+                institutions,
+                record.id in suspected,
+            )
             for record in records
         ]
     )
@@ -169,13 +210,29 @@ async def list_transactions_for_review(
                 r for r in everything
                 if r.amount_minor > 0 and (r.category or "").lower() not in skip
             ]
+    elif kind == "suspected_income":
+        # Sizeable inflows filed as Transfer with no matching internal leg —
+        # likely misfiled paychecks the user should confirm as income (ADR 0049).
+        suspected = _suspected_income_ids(engine, session.household_id)
+        everything = repository.list_transactions(engine, session.household_id, limit=100_000)
+        records = [r for r in everything if r.id in suspected]
     else:
-        raise HTTPException(status_code=422, detail="kind must be duplicates, transfers or credits")
+        raise HTTPException(
+            status_code=422,
+            detail="kind must be duplicates, transfers, credits or suspected_income",
+        )
 
     counterparties = _counterparties(records, account_names)
+    suspected_ids = _suspected_income_ids(engine, session.household_id)
     return TransactionListResponse(
         transactions=[
-            _to_schema(record, account_names, counterparties.get(record.id), institutions)
+            _to_schema(
+                record,
+                account_names,
+                counterparties.get(record.id),
+                institutions,
+                record.id in suspected_ids,
+            )
             for record in records
         ]
     )

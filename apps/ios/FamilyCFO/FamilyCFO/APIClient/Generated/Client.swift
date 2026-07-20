@@ -3545,7 +3545,7 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Transactions to review — duplicates (default), transfers, or credits/refunds
+    /// Transactions to review — duplicates, transfers, credits, or suspected income
     ///
     /// - Remark: HTTP `GET /transactions/review`.
     /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)`.

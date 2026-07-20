@@ -66,10 +66,17 @@ function analysis(overrides: Record<string, unknown> = {}) {
 }
 
 function configure(apiMock: Record<string, unknown>, role: string) {
+  // ADR 0049: load() also pulls the suspected-income review queue + categories;
+  // default them to empty so existing tests needn't declare them.
+  const withDefaults = {
+    listTransactionsForReview: vi.fn().mockResolvedValue(response({ transactions: [] })),
+    listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
+    ...apiMock,
+  };
   TestBed.configureTestingModule({
     imports: [IncomeTax],
     providers: [
-      { provide: ApiService, useValue: apiMock },
+      { provide: ApiService, useValue: withDefaults },
       { provide: AuthService, useValue: authMock(role) },
     ],
   });
@@ -382,5 +389,86 @@ describe('IncomeTax', () => {
       income_treated_as_net: true,
     });
     expect(apiMock.getIncomeAnalysis).toHaveBeenCalledTimes(2);
+  });
+
+  it('confirms a suspected transfer as income by refiling it under Income (ADR 0049)', async () => {
+    const suspected = {
+      id: 's1',
+      account_id: 'acct-1',
+      occurred_at: '2026-05-26',
+      amount: { amount_minor: 2_312_400, currency: 'USD' },
+      merchant: 'Online Transfer',
+      account_name: 'Rewards Checking (0603)',
+      suspected_income: true,
+    };
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      listTransactionsForReview: vi
+        .fn()
+        .mockResolvedValueOnce(response({ transactions: [suspected] }))
+        .mockResolvedValue(response({ transactions: [] })),
+      listCategories: vi
+        .fn()
+        .mockResolvedValue(response({ categories: [{ id: 'inc-1', name: 'Income' }] })),
+      updateTransaction: vi.fn().mockResolvedValue(response(suspected)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // Analysis settles first, then the suspected-income queue on a later tick.
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Suspected income');
+    expect(host.textContent).toContain('USD 23,124.00');
+
+    const confirm = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Confirm as income',
+    ) as HTMLButtonElement;
+    confirm.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Refiled under the existing Income category — no new category created.
+    expect(apiMock.updateTransaction).toHaveBeenCalledWith('s1', { category_id: 'inc-1' });
+  });
+
+  it('keeps a suspected transfer as a transfer via an exclude override (ADR 0049)', async () => {
+    const suspected = {
+      id: 's2',
+      account_id: 'acct-1',
+      occurred_at: '2026-05-26',
+      amount: { amount_minor: 500_000, currency: 'USD' },
+      merchant: 'Online Transfer',
+      suspected_income: true,
+    };
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      listTransactionsForReview: vi
+        .fn()
+        .mockResolvedValueOnce(response({ transactions: [suspected] }))
+        .mockResolvedValue(response({ transactions: [] })),
+      setIncomeOverride: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const keep = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Keep as transfer',
+    ) as HTMLButtonElement;
+    keep.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.setIncomeOverride).toHaveBeenCalledWith('s2', 'exclude');
   });
 });
