@@ -513,6 +513,22 @@ export type LoanScanResult = {
     note: string;
 };
 
+export type BillScanRequest = {
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * Candidate bill values read from a photo or PDF — the user confirms and edits before anything is saved.
+ */
+export type BillScanResult = {
+    name?: string;
+    amount_minor?: number;
+    frequency?: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'annual';
+    next_due_date?: string;
+    note: string;
+};
+
 export type IncomeAnalysisResponse = {
     sources: Array<IncomeSourceAnalysis>;
     other_inflows: Array<IncomeAnalysisTransaction>;
@@ -3540,6 +3556,43 @@ export type ScanLoanStatementResponses = {
 };
 
 export type ScanLoanStatementResponse = ScanLoanStatementResponses[keyof ScanLoanStatementResponses];
+
+export type ScanBillData = {
+    body: BillScanRequest;
+    path?: never;
+    query?: never;
+    url: '/bills/scan';
+};
+
+export type ScanBillErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type ScanBillError = ScanBillErrors[keyof ScanBillErrors];
+
+export type ScanBillResponses = {
+    /**
+     * Candidate bill values extracted by the on-box vision model
+     */
+    200: BillScanResult;
+};
+
+export type ScanBillResponse = ScanBillResponses[keyof ScanBillResponses];
 
 export type ScanW2Data = {
     body: W2ScanRequest;

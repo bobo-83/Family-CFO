@@ -23,6 +23,9 @@ protocol BillsAPI: Sendable {
     func categories() async throws -> [Components.Schemas.Category]
     /// Add a bill by hand (not from a suggestion).
     func createBill(_ request: Components.Schemas.BillCreateRequest) async throws
+    /// Read a photographed/uploaded bill into candidate values that prefill the
+    /// add-bill form — the user confirms before anything is saved.
+    func scanBill(_ attachment: ChatAttachment) async throws -> Components.Schemas.BillScanResult
     /// Edit an existing bill's core fields (name, amount, frequency, next-due date,
     /// and — set-only — its category). Backed by the same `updateBill` endpoint as
     /// `setBillCategory`; the server records it as an undoable action.
@@ -61,6 +64,9 @@ extension BillsAPI {
     func obligations() async throws -> [Components.Schemas.AccountObligation] { [] }
     func deleteCategory(id: String) async throws {}
     func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse? { nil }
+    func scanBill(_ attachment: ChatAttachment) async throws -> Components.Schemas.BillScanResult {
+        Components.Schemas.BillScanResult(note: "Scanning is not available.")
+    }
     func updateBill(
         id: String,
         name: String,
@@ -177,6 +183,33 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func scanBill(_ attachment: ChatAttachment) async throws -> Components.Schemas.BillScanResult {
+        guard case .visual(let mediaType) = attachment.kind,
+            let scanMediaType = Components.Schemas.BillScanRequest.ImageMediaTypePayload(
+                rawValue: mediaType.rawValue)
+        else {
+            throw APIError.server(415)
+        }
+        let request = Components.Schemas.BillScanRequest(
+            imageBase64: attachment.data.base64EncodedString(),
+            imageMediaType: scanMediaType
+        )
+        switch try await client.scanBill(.init(body: .json(request))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .unprocessableContent:
+            throw APIError.server(422)
+        case .serviceUnavailable:
+            throw APIError.server(503)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

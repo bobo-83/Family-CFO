@@ -252,6 +252,52 @@ export class Bills {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
 
+  // --- Bill scan: photo/PDF → candidate values prefill the add form ---
+
+  protected readonly scanning = signal(false);
+  protected readonly scanNote = signal<string | null>(null);
+
+  protected async onBillFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    await this.scanBillFile(file);
+  }
+
+  protected async scanBillFile(file: File | undefined | null): Promise<void> {
+    if (!file || this.scanning()) {
+      return;
+    }
+    this.scanning.set(true);
+    this.scanNote.set(null);
+    this.submitError.set(null);
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    const [meta, base64] = dataUrl.split(',', 2);
+    const mediaType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/jpeg';
+    const { data, error } = await this.api.scanBill(base64, mediaType);
+    this.scanning.set(false);
+    if (error || !data) {
+      this.submitError.set(apiErrorMessage(error, 'Bill scan failed.'));
+      return;
+    }
+    // Prefill only — never overwrite what the user already typed.
+    const current = this.form.getRawValue();
+    if (data.name && !current.name.trim()) this.form.patchValue({ name: data.name });
+    if (data.amount_minor && !current.amount) {
+      this.form.patchValue({ amount: data.amount_minor / 100 });
+    }
+    if (data.frequency) this.form.patchValue({ frequency: data.frequency });
+    if (data.next_due_date && !current.nextDueDate) {
+      this.form.patchValue({ nextDueDate: data.next_due_date });
+    }
+    this.scanNote.set(data.note);
+  }
+
   protected async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) {
       this.form.markAllAsTouched();

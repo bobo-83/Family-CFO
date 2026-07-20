@@ -270,6 +270,24 @@
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="bill-form">
+      <div class="bill-form__scan-row">
+        <label class="earner-form__scan">
+          {{ scanning() ? 'Reading…' : '📄 Scan a bill' }}
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            (change)="onBillFileSelected($event)"
+            hidden
+          />
+        </label>
+        <span class="bill-form__scan-hint">
+          Photograph or upload a bill and the on-box vision model fills in what it
+          can read. Confirm every value before saving.
+        </span>
+      </div>
+      @if (scanNote(); as note) {
+        <p class="bill-form__scan-note">{{ note }}</p>
+      }
       <mat-form-field appearance="outline">
         <mat-label>Name</mat-label>
         <input matInput type="text" formControlName="name" />

@@ -64,6 +64,12 @@ final class MockIncomeAPI: IncomeAPI, @unchecked Sendable {
             created.append(request)
         }
     }
+
+    nonisolated func analysis() async throws -> Components.Schemas.IncomeAnalysisResponse {
+        throw APIError.server(501)  // unused by the W-2 scan flows under test
+    }
+
+    nonisolated func deleteEarner(id: String) async throws {}
 }
 
 @MainActor

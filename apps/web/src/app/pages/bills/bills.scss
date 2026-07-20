@@ -131,3 +131,35 @@
     margin-top: 0.5rem;
   }
 }
+
+/* Bill scan (mirrors the loans statement-scan affordance) */
+
+.bill-form__scan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.earner-form__scan {
+  flex-shrink: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--mat-sys-primary, var(--color-accent));
+  border-radius: var(--radius-sm, 6px);
+  color: var(--mat-sys-primary, var(--color-accent));
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bill-form__scan-hint {
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
+}
+
+.bill-form__scan-note {
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
+  background: var(--mat-sys-surface-container, #eef1f5);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.5rem 0.7rem;
+}

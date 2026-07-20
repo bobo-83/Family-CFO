@@ -10,6 +10,8 @@ from family_cfo_api.schemas import (
     Bill,
     BillCreateRequest,
     BillListResponse,
+    BillScanRequest,
+    BillScanResult,
     BillSuggestion,
     BillSuggestionDismissRequest,
     BillSuggestionListResponse,
@@ -295,6 +297,109 @@ async def dismiss_bill_suggestion(
         undo_token=undo_actions.suggestion_dismissed(payload.merchant_key),
     )
     return Response(status_code=204)
+
+
+_BILL_PROMPT = (
+    "This image is a household bill (utility, insurance, phone, subscription, "
+    "medical, tax…). Extract ONLY a JSON object, no prose: {"
+    '"biller": the company or biller name string or null, '
+    '"amount_due": the total amount due as a number or null, '
+    '"due_date": the payment due date in YYYY-MM-DD or null, '
+    '"frequency": one of "weekly", "biweekly", "semimonthly", "monthly", '
+    '"quarterly", "annual" if the bill states its cycle, else null}. '
+    "Use null for anything not shown. Do not guess."
+)
+
+_BILL_FREQUENCIES = {"weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"}
+
+
+def parse_bill_scan(text: str) -> BillScanResult:
+    """Defensive parse of the vision model's bill extraction (candidates only)."""
+    import json as _json
+    import re as _re
+
+    from family_cfo_api.api.accounts import _parse_iso_or_us_date, _scan_number
+
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-z]*\s*|\s*```$", "", cleaned, flags=_re.IGNORECASE)
+    try:
+        data = _json.loads(cleaned)
+        assert isinstance(data, dict)
+    except (ValueError, AssertionError):
+        return BillScanResult(
+            note="The photo could not be read as a bill — enter values manually."
+        )
+
+    amount = _scan_number(data.get("amount_due"))
+    frequency = data.get("frequency")
+    name = data.get("biller")
+    return BillScanResult(
+        name=name.strip() if isinstance(name, str) and name.strip() else None,
+        amount_minor=int(round(amount * 100)) if amount is not None and amount > 0 else None,
+        frequency=frequency if frequency in _BILL_FREQUENCIES else None,
+        next_due_date=_parse_iso_or_us_date(data.get("due_date")),
+        note=(
+            "Read by the on-box photo model — CONFIRM every value before saving. "
+            "Nothing is stored until you save."
+        ),
+    )
+
+
+@router.post(
+    "/bills/scan",
+    operation_id="scanBill",
+    response_model=BillScanResult,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        422: {"description": "Unreadable PDF", "model": ErrorResponse},
+        503: {"description": "No vision model available", "model": ErrorResponse},
+    },
+    summary="Read a bill photo or PDF into candidate values (user confirms before saving)",
+)
+async def scan_bill(
+    payload: BillScanRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> BillScanResult:
+    import base64
+    import binascii
+
+    from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+
+    from family_cfo_api.ai_runtime_selection import select_vision_describer
+    from family_cfo_api.api.income_analysis import pdf_page_pngs
+
+    if payload.image_media_type == "application/pdf":
+        try:
+            pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
+        data_urls = [
+            "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+            for png in pdf_page_pngs(pdf_bytes)
+        ]
+    else:
+        data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
+
+    describer, _source = select_vision_describer(engine, session.household_id)
+    if describer is None:
+        raise HTTPException(status_code=503, detail="No vision model is configured")
+    try:
+        result = None
+        for data_url in data_urls:
+            completion = describer.complete(
+                [RuntimeMessage(role="user", content=_BILL_PROMPT, image_data_url=data_url)],
+                temperature=0.0,
+                max_tokens=200,
+            )
+            result = parse_bill_scan(completion.text)
+            if result.amount_minor is not None or result.name is not None:
+                return result
+        return result or BillScanResult(note="Nothing readable was found — enter values manually.")
+    except RuntimeUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
 
 
 @router.post(
