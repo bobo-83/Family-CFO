@@ -350,3 +350,27 @@ def test_household_context_carries_the_key_facts() -> None:
     assert "2 members" in ctx
     assert "USD" in ctx
     assert "2026-01" in ctx and "2026-07" in ctx
+
+
+def test_debt_outlook_exposes_each_debt_so_the_advisor_need_not_ask(
+    demo_engine: Engine,
+) -> None:
+    from family_cfo_api import repository
+
+    # A real modeled debt: balance, rate, and minimum all already stored.
+    card = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Sapphire Card", "credit_card", "USD",
+        annual_interest_rate=0.24, minimum_payment_minor=15_000,
+    )
+    repository.record_account_balance(demo_engine, card.id, -500_000)
+
+    result = _execute(demo_engine, "get_debt_outlook", {})
+
+    debts = {d["name"]: d for d in result["debts"]}
+    assert "Sapphire Card" in debts
+    card_out = debts["Sapphire Card"]
+    assert card_out["balance"]["amount_minor"] == 500_000
+    assert card_out["minimum_payment"]["amount_minor"] == 15_000
+    assert card_out["annual_interest_rate"] == 0.24
+    # $150 min vs ~$100 monthly interest on $5k @ 24% → it does amortize.
+    assert card_out["interest_only"] is False

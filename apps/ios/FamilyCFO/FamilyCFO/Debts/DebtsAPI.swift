@@ -53,7 +53,8 @@ struct LiveDebtsAPI: DebtsAPI {
             currency: draft.currency,
             // Always send a rate (0 when unknown): a loan needs both terms present
             // for its monthly payment to be counted as committed in safe-to-spend.
-            annualInterestRate: draft.aprPercent ?? 0,
+            // The draft holds a percent; the contract stores a fraction (ADR 0042).
+            annualInterestRate: (draft.aprPercent ?? 0) / 100,
             minimumPayment: .init(amountMinor: draft.monthlyPaymentMinor, currency: draft.currency),
             maturityDate: draft.maturityDate,
             nextPaymentDueDate: draft.nextPaymentDueDate
@@ -94,7 +95,8 @@ struct LiveDebtsAPI: DebtsAPI {
         let request = Components.Schemas.AccountUpdateRequest(
             name: draft.name,
             _type: draft.type,
-            annualInterestRate: draft.aprPercent ?? 0,
+            // The draft holds a percent; the contract stores a fraction (ADR 0042).
+            annualInterestRate: (draft.aprPercent ?? 0) / 100,
             minimumPayment: .init(amountMinor: draft.monthlyPaymentMinor, currency: draft.currency),
             maturityDate: draft.maturityDate,
             nextPaymentDueDate: draft.nextPaymentDueDate

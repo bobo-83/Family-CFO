@@ -300,9 +300,31 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
 
 def _get_debt_outlook(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     outlook = finance_service.compute_debt_outlook(engine, household_id, currency)
+    # Per-debt detail so the advisor NEVER asks the user for a balance, rate, or
+    # minimum payment the app already stores (the minimize-duplicate-input rule).
+    # A debt is "interest-only" when its minimum barely covers the monthly
+    # interest, so it never amortizes — worth flagging, but the numbers are known.
+    debts = []
+    for debt in repository.list_debts_with_terms(engine, household_id):
+        if debt.currency != currency:
+            continue
+        monthly_interest = round(debt.balance_owed_minor * debt.annual_interest_rate / 12)
+        debts.append(
+            {
+                "name": debt.name,
+                "type": debt.account_type,
+                "balance": _money_out(Money(debt.balance_owed_minor, debt.currency)),
+                "annual_interest_rate": debt.annual_interest_rate,
+                "minimum_payment": _money_out(
+                    Money(debt.minimum_payment_minor, debt.currency)
+                ),
+                "interest_only": debt.minimum_payment_minor <= monthly_interest,
+            }
+        )
     return {
         "modeled_debts": outlook.modeled_count,
         "unmodeled_debts": outlook.unmodeled_count,
+        "debts": debts,
         "total_interest_remaining": (
             _money_out(outlook.total_interest_remaining)
             if outlook.total_interest_remaining is not None
@@ -853,8 +875,12 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="get_debt_outlook",
             description=(
-                "Payoff outlook across the household's liability accounts that carry terms: "
-                "remaining interest and the longest payoff horizon."
+                "The household's debts with terms: a `debts` array giving EACH debt's name, "
+                "type, current balance, interest rate, minimum payment, and whether it is "
+                "interest-only, plus aggregate remaining interest and the longest payoff "
+                "horizon. These balances/rates/minimums are already stored — ALWAYS call this "
+                "before asking the user for any debt figure, and feed its numbers straight "
+                "into debt_payoff. Never ask the user for a balance or minimum this returns."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
@@ -920,8 +946,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="debt_payoff",
             description=(
-                "Months to pay off a debt and total interest paid, for a hypothetical balance, "
-                "interest rate, and monthly payment the user describes."
+                "Months to pay off a debt and total interest paid. For one of the "
+                "household's REAL debts, first call get_debt_outlook and pass that debt's "
+                "balance, rate, and minimum straight in — do not ask the user for numbers it "
+                "already returned. Only ask the user when modeling a purely hypothetical debt "
+                "they describe that isn't in their accounts."
             ),
             parameters={
                 "type": "object",

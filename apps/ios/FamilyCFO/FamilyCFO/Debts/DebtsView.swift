@@ -118,7 +118,8 @@ struct DebtsView: View {
                         Text("· \(payment.formatted)/mo")
                     }
                     if let apr = loan.annualInterestRate, apr > 0 {
-                        Text("· \(apr.formatted(.number.precision(.fractionLength(0...2))))% APR")
+                        // Stored as a fraction (ADR 0042); show it as a percent.
+                        Text("· \((apr * 100).formatted(.number.precision(.fractionLength(0...2))))% APR")
                     }
                 }
                 .font(.caption)
@@ -201,7 +202,8 @@ private struct LoanFormSheet: View {
         _type = State(initialValue: existing?._type ?? .mortgage)
         _balanceOwed = State(initialValue: existing.map { Double(max(0, -$0.balance.amountMinor)) / 100 } ?? 0)
         _monthlyPayment = State(initialValue: existing?.minimumPayment.map { Double($0.amountMinor) / 100 } ?? 0)
-        _apr = State(initialValue: existing?.annualInterestRate ?? 0)
+        // The form works in percent; the stored value is a fraction (ADR 0042).
+        _apr = State(initialValue: (existing?.annualInterestRate ?? 0) * 100)
         let maturity = LoanDate.date(from: existing?.maturityDate)
         _hasMaturity = State(initialValue: maturity != nil)
         _maturityDate = State(initialValue: maturity ?? Date())

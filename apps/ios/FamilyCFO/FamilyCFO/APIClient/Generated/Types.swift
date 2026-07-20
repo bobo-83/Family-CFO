@@ -5287,6 +5287,8 @@ public enum Components {
             public var _type: Components.Schemas.AccountType
             /// - Remark: Generated from `#/components/schemas/Account/balance`.
             public var balance: Components.Schemas.Money
+            /// Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+            ///
             /// - Remark: Generated from `#/components/schemas/Account/annual_interest_rate`.
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/Account/minimum_payment`.
@@ -5322,7 +5324,7 @@ public enum Components {
             ///   - name:
             ///   - _type:
             ///   - balance:
-            ///   - annualInterestRate:
+            ///   - annualInterestRate: Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
             ///   - minimumPayment:
             ///   - maturityDate: M96: loan/lease end date, for maturity and months-remaining.
             ///   - nextPaymentDueDate: ADR 0033: next payment due date, from a statement or set by hand.
@@ -7059,6 +7061,8 @@ public enum Components {
             public var _type: Components.Schemas.AccountType
             /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/currency`.
             public var currency: Swift.String
+            /// Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+            ///
             /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/annual_interest_rate`.
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/AccountCreateRequest/minimum_payment`.
@@ -7073,7 +7077,7 @@ public enum Components {
             ///   - name:
             ///   - _type:
             ///   - currency:
-            ///   - annualInterestRate:
+            ///   - annualInterestRate: Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
             ///   - minimumPayment:
             ///   - maturityDate:
             ///   - nextPaymentDueDate:
@@ -7110,6 +7114,8 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/type`.
             public var _type: Components.Schemas.AccountType?
+            /// Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+            ///
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/annual_interest_rate`.
             public var annualInterestRate: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/minimum_payment`.
@@ -7135,7 +7141,7 @@ public enum Components {
             /// - Parameters:
             ///   - name:
             ///   - _type:
-            ///   - annualInterestRate:
+            ///   - annualInterestRate: Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
             ///   - minimumPayment:
             ///   - maturityDate:
             ///   - nextPaymentDueDate:

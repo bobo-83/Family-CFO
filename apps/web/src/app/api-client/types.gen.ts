@@ -897,6 +897,9 @@ export type Account = {
     name: string;
     type: AccountType;
     balance: Money;
+    /**
+     * Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+     */
     annual_interest_rate?: number;
     minimum_payment?: Money;
     /**
@@ -1311,6 +1314,9 @@ export type AccountCreateRequest = {
     name: string;
     type: AccountType;
     currency: string;
+    /**
+     * Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+     */
     annual_interest_rate?: number;
     minimum_payment?: Money;
     maturity_date?: string | null;
@@ -1320,6 +1326,9 @@ export type AccountCreateRequest = {
 export type AccountUpdateRequest = {
     name?: string;
     type?: AccountType;
+    /**
+     * Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042). Clients divide the user-entered percent by 100 before sending.
+     */
     annual_interest_rate?: number;
     minimum_payment?: Money;
     maturity_date?: string | null;

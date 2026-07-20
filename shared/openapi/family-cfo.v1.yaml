@@ -4394,6 +4394,9 @@ components:
         annual_interest_rate:
           type: number
           minimum: 0
+          description: >-
+            Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042).
+            Clients divide the user-entered percent by 100 before sending.
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
@@ -5323,6 +5326,9 @@ components:
         annual_interest_rate:
           type: number
           minimum: 0
+          description: >-
+            Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042).
+            Clients divide the user-entered percent by 100 before sending.
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
@@ -5345,6 +5351,9 @@ components:
         annual_interest_rate:
           type: number
           minimum: 0
+          description: >-
+            Decimal FRACTION, not a percentage: 0.06 means 6% APR (ADR 0042).
+            Clients divide the user-entered percent by 100 before sending.
         minimum_payment:
           $ref: "#/components/schemas/Money"
         maturity_date:
