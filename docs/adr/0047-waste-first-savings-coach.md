@@ -42,6 +42,22 @@ require: cut waste first, then the largest discretionary — but never suggest
 cutting a `valued_activities` item, tie each trim to a goal, offer options, never
 moralize.
 
+## Refinement (post-launch, same feature)
+
+Probing real data showed two problems the launch version had: recurring charges
+that were actually loan/bill payments got called "subscriptions", and lumpy
+one-off purchases (a renovation, a trip) inflated both the discretionary ranking
+and the "creep" flags. So:
+
+- Subscriptions exclude any recurring charge whose merchant matches a liability
+  account or a bill (substring both ways — "Department of Education" ↔ "U.S.
+  Department of Education").
+- Creep flags only a **moderate** rise (1.3×–2×) over a real baseline, and never
+  an activity in `valued_activities`.
+- Spending is split into **recurring habits** (spread across months — where trims
+  stick) and **one-off purchases** (concentrated in a single month — already
+  spent). The advisor trims recurring, and never asks the user to "cut" a one-off.
+
 ## Invariant
 
 > A savings suggestion cuts waste (duplicate/forgotten subscriptions, fees,

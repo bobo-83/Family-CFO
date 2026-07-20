@@ -62,47 +62,82 @@ class Subscription:
 
 
 @dataclass(frozen=True, slots=True)
+class OneOffSpend:
+    name: str
+    total: Money  # spent once over the window, not a monthly habit
+
+
+@dataclass(frozen=True, slots=True)
 class SavingsReport:
     currency: str
     months: int
     essential_monthly: Money
     discretionary_monthly: Money
-    discretionary_ranked: list[CategorySpend]
+    recurring_ranked: list[CategorySpend]  # monthly habits — where trims stick
+    one_off: list[OneOffSpend]  # already-spent one-time purchases
     subscriptions: list[Subscription]
     possible_waste: list[str]
     valued_activities: list[str]
     goals: list[tuple[str, Money]]  # (name, gap to target)
 
 
-def _trailing_window(today: date) -> tuple[date, date]:
-    this_month_start = today.replace(day=1)
-    return finance_service.add_months(this_month_start, -3), this_month_start - timedelta(days=1)
+# A discretionary category is a ONE-OFF (already-spent, not trimmable) when its
+# spend lands mostly in a single month; a recurring habit is spread across months.
+_ONEOFF_CONCENTRATION = 0.7  # one month holds > 70% of the window's total → one-off
+_MONTH_ACTIVE_MIN = 1_000  # a month "counts" above $10
+
+
+def _complete_months(today: date) -> list[tuple[date, date]]:
+    """The 3 complete calendar months before the current partial one."""
+    this_start = today.replace(day=1)
+    months = []
+    for k in (3, 2, 1):
+        start = finance_service.add_months(this_start, -k)
+        end = finance_service.add_months(this_start, -k + 1) - timedelta(days=1)
+        months.append((start, end))
+    return months
 
 
 def find_savings(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> SavingsReport:
     today = today or date.today()
-    start, end = _trailing_window(today)
 
     names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
-    by_category = repository.sum_spending_by_category(engine, household_id, start, end, currency)
+    per_month = [
+        repository.sum_spending_by_category(engine, household_id, start, end, currency)
+        for start, end in _complete_months(today)
+    ]
+    category_ids = {cid for month in per_month for cid in month}
 
     essential_total = 0
-    discretionary: list[CategorySpend] = []
-    for category_id, total_minor in by_category.items():
+    discretionary_total = 0
+    recurring: list[CategorySpend] = []
+    one_off: list[OneOffSpend] = []
+    for category_id in category_ids:
+        amounts = [month.get(category_id, 0) for month in per_month]
+        total = sum(amounts)
+        if total <= 0:
+            continue
         name = names.get(category_id, "Other")
         if classify_category(name) == "essential":
-            essential_total += total_minor
+            essential_total += total
+            continue
+        discretionary_total += total
+        active = sum(1 for a in amounts if a >= _MONTH_ACTIVE_MIN)
+        concentrated = max(amounts) > total * _ONEOFF_CONCENTRATION
+        if active >= 2 and not concentrated:
+            recurring.append(CategorySpend(name, Money(round(total / 3), currency)))
         else:
-            discretionary.append(CategorySpend(name, Money(round(total_minor / 3), currency)))
-    discretionary.sort(key=lambda c: c.monthly_avg.amount_minor, reverse=True)
-    discretionary_total = sum(c.monthly_avg.amount_minor for c in discretionary)
-
-    subscriptions = _detect_subscriptions(engine, household_id, currency, today)
-    possible_waste = _possible_waste(engine, household_id, currency, subscriptions, names, today)
+            one_off.append(OneOffSpend(name, Money(total, currency)))
+    recurring.sort(key=lambda c: c.monthly_avg.amount_minor, reverse=True)
+    one_off.sort(key=lambda o: o.total.amount_minor, reverse=True)
 
     valued = [m.value for m in repository.list_study_insights(engine, household_id)]
+    subscriptions = _detect_subscriptions(engine, household_id, currency, today)
+    possible_waste = _possible_waste(
+        engine, household_id, currency, subscriptions, names, valued, today
+    )
 
     goals: list[tuple[str, Money]] = []
     for goal in repository.list_goals(engine, household_id):
@@ -116,8 +151,9 @@ def find_savings(
         currency=currency,
         months=3,
         essential_monthly=Money(round(essential_total / 3), currency),
-        discretionary_monthly=Money(round(discretionary_total), currency),
-        discretionary_ranked=discretionary,
+        discretionary_monthly=Money(round(discretionary_total / 3), currency),
+        recurring_ranked=recurring,
+        one_off=one_off,
         subscriptions=subscriptions,
         possible_waste=possible_waste,
         valued_activities=valued,
@@ -173,12 +209,20 @@ def _detect_subscriptions(
     return subs
 
 
+def _is_valued(name: str, valued: list[str]) -> bool:
+    """True when a category matches something the household clearly enjoys
+    (from the study insights) — those are protected, not flagged as waste."""
+    lowered = name.lower()
+    return any(lowered in v.lower() for v in valued)
+
+
 def _possible_waste(
     engine: Engine,
     household_id: str,
     currency: str,
     subscriptions: list[Subscription],
     names: dict[str, str],
+    valued: list[str],
     today: date,
 ) -> list[str]:
     flags: list[str] = []
@@ -206,7 +250,8 @@ def _possible_waste(
     creeps: list[tuple[int, str]] = []  # (absolute jump, message)
     for category_id, last_minor in last_month.items():
         name = names.get(category_id, "Other")
-        if classify_category(name) != "discretionary":
+        # Skip needs, and never flag an activity the family values as "waste".
+        if classify_category(name) != "discretionary" or _is_valued(name, valued):
             continue
         prior_avg = prior.get(category_id, 0) / 3
         jump = last_minor - prior_avg
