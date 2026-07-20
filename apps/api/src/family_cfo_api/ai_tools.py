@@ -135,7 +135,13 @@ GROUNDING_RULES = (
     "declared compensation profile including upcoming vest dates (quote its "
     "assumptions when giving a tax figure); for "
     "bills or upcoming payments use get_bills; for budgets use get_budgets; for "
-    "recent spending habits use get_spending_insights. "
+    "recent spending habits use get_spending_insights. For 'where can I cut', "
+    "'how do I save money', or reducing spending, call find_savings and follow "
+    "its note: suggest cutting WASTE first (duplicate/forgotten subscriptions, "
+    "fees, categories that crept up), then the LARGEST discretionary spending — "
+    "but NEVER suggest cutting an activity in valued_activities (the family "
+    "clearly enjoys it), and tie every trim to one of their goals (e.g. 'this "
+    "frees $X/mo toward your emergency fund'). Offer options; never moralize. "
     "For debts, read get_debt_outlook: each debt's `payoff_now` is the ONE-TIME "
     "amount that clears it today (its balance plus about a month's interest). "
     "NEVER tell the user to send more than a debt's balance — you cannot pay off "
@@ -882,6 +888,35 @@ def _get_spending_insights(engine: Engine, household_id: str, currency: str, arg
     }
 
 
+def _find_savings(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """Waste-first savings opportunities (ADR 0047): the needs/wants split,
+    discretionary spend ranked, subscriptions and likely waste, the activities
+    the household values (protect these), and their goals (tie trims to these)."""
+    from family_cfo_api import savings
+
+    report = savings.find_savings(engine, household_id, currency)
+    return {
+        "essential_monthly": _money_out(report.essential_monthly),
+        "discretionary_monthly": _money_out(report.discretionary_monthly),
+        "discretionary_by_category": [
+            {"category": c.name, "monthly_avg": _money_out(c.monthly_avg)}
+            for c in report.discretionary_ranked
+        ],
+        "subscriptions": [
+            {"merchant": s.merchant, "amount": _money_out(s.amount), "cadence": s.cadence}
+            for s in report.subscriptions
+        ],
+        "possible_waste": report.possible_waste,
+        "valued_activities": report.valued_activities,
+        "goals": [{"name": name, "gap_to_target": _money_out(gap)} for name, gap in report.goals],
+        "note": (
+            "Suggest cutting WASTE first (possible_waste, then subscriptions the family may not "
+            "use). PROTECT valued_activities. Tie each suggested trim to a goal. Averages are "
+            "over the last 3 complete months."
+        ),
+    }
+
+
 _HANDLERS = {
     "get_net_worth": _get_net_worth,
     "get_emergency_fund": _get_emergency_fund,
@@ -897,6 +932,7 @@ _HANDLERS = {
     "get_budgets": _get_budgets,
     "get_spending_insights": _get_spending_insights,
     "get_spending_by_category": _get_spending_by_category,
+    "find_savings": _find_savings,
 }
 
 _MONEY_FIELD = {"type": "integer", "description": "amount in minor currency units (e.g. cents)"}
@@ -1086,6 +1122,18 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "(YYYY-MM) to compare any month to the one before it."
             ),
             parameters=_MONTH_PARAM,
+        ),
+        ToolSpec(
+            name="find_savings",
+            description=(
+                "THE tool for 'where can I cut', 'how can I save money', 'what should I trim', "
+                "or any reduce-spending question. Returns the needs/wants split, discretionary "
+                "spend ranked by size, subscriptions and likely waste (duplicates, creep), the "
+                "activities the household VALUES (protect these — never suggest cutting them), "
+                "and their goals. Suggest cutting waste first, then the largest discretionary, "
+                "tie every trim to a goal, and present options — never moralize."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
         ToolSpec(
             name="get_spending_by_category",
