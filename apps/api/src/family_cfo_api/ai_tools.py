@@ -143,7 +143,20 @@ GROUNDING_RULES = (
     "debt_payoff, whose extra_monthly_payment is a RECURRING monthly amount, not a "
     "one-time lump sum; the one-time amount to clear a debt is always its "
     "payoff_now. Do not invent an 'extra payment' the user didn't ask for, and "
-    "quote debt_payoff's own months_to_payoff and interest — never your own."
+    "quote debt_payoff's own months_to_payoff and interest — never your own. "
+    "When recommending WHICH debt to pay down first, prioritize by INTEREST RATE, "
+    "not by balance: the highest-rate debt (usually a credit card) costs the most "
+    "and comes first. A debt at or below roughly 4-5% APR — at or below inflation, "
+    "as many student loans are — is LOW priority: do NOT tell the user to rush to "
+    "pay it off ahead of higher-rate debt or ahead of saving and investing, and say "
+    "why. Each debt in get_debt_outlook carries a `strategy_note` when it needs "
+    "special handling — read and honor it. A 401(k) loan is the clearest case: its "
+    "interest is paid to the borrower's OWN retirement account and it is repaid by "
+    "payroll deduction, so its rate is not a true cost — never recommend paying one "
+    "off early just because its rate looks high. Before giving any debt plan, look "
+    "at the WHOLE picture: every debt get_debt_outlook returns (credit cards and "
+    "leases included, not just the small loans), plus get_bills and "
+    "get_spending_insights for where the money actually goes."
 )
 
 # Backwards-compatible alias (professional baseline without persona).
@@ -306,6 +319,29 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
     return _result_payload(result, calc_id)
 
 
+# Roughly the long-run return of a diversified portfolio / prevailing inflation:
+# below this, aggressively paying down a debt loses to investing or saving.
+_LOW_RATE_THRESHOLD = 0.05
+
+
+def _debt_strategy_note(debt) -> str | None:
+    """Per-debt guidance the advisor must honor when prioritizing paydown — the
+    rate-and-401(k) nuances a naive 'smallest balance first' plan gets wrong."""
+    if debt.account_type in repository.RETIREMENT_LOAN_TYPES:
+        return (
+            "401(k) loan: the interest is paid to your OWN retirement account and "
+            "it is repaid by payroll deduction, so its rate is not a true cost — "
+            "do not prioritize paying it off early just because the rate looks high."
+        )
+    if debt.annual_interest_rate <= _LOW_RATE_THRESHOLD:
+        return (
+            f"Low rate ({debt.annual_interest_rate * 100:.2f}% APR), at or below "
+            "inflation and typical investment returns — LOW priority; do not rush to "
+            "pay it off ahead of higher-rate debt or saving/investing."
+        )
+    return None
+
+
 def _get_debt_outlook(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     outlook = finance_service.compute_debt_outlook(engine, household_id, currency)
     # Per-debt detail so the advisor NEVER asks the user for a balance, rate, or
@@ -332,6 +368,8 @@ def _get_debt_outlook(engine: Engine, household_id: str, currency: str, args: di
                     Money(debt.balance_owed_minor + monthly_interest, debt.currency)
                 ),
                 "interest_only": debt.minimum_payment_minor <= monthly_interest,
+                # Editorial guidance the advisor must honor when prioritizing.
+                "strategy_note": _debt_strategy_note(debt),
             }
         )
     return {
