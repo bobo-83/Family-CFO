@@ -408,3 +408,28 @@
     display: none;
   }
 }
+
+/* Answer rating (ADR 0044) */
+.chat__rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.chat__rate-btn {
+  min-width: 0;
+  padding: 0 0.4rem;
+  filter: grayscale(1);
+  opacity: 0.6;
+
+  &--on {
+    filter: none;
+    opacity: 1;
+  }
+}
+
+.chat__rate-thanks {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-left: 0.25rem;
+}

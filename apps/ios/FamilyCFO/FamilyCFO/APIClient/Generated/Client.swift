@@ -8222,6 +8222,102 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Rate an advisor answer (👍/👎); the study job learns from it
+    ///
+    /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/feedback`.
+    /// - Remark: Generated from `#/paths//chat/feedback/post(submitAdvisorFeedback)`.
+    public func submitAdvisorFeedback(_ input: Operations.SubmitAdvisorFeedback.Input) async throws -> Operations.SubmitAdvisorFeedback.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.SubmitAdvisorFeedback.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/chat/feedback",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 204:
+                    return .noContent(.init())
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Synthesize an advisor answer to speech (Kokoro; falls back client-side)
     ///
     /// - Remark: HTTP `POST /voice/tts`.

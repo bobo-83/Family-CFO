@@ -1784,6 +1784,31 @@ paths:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /chat/feedback:
+    post:
+      tags:
+        - Chat
+      operationId: submitAdvisorFeedback
+      summary: Rate an advisor answer (👍/👎); the study job learns from it
+      description: >
+        ADR 0044: a member rates an advisor answer up or down (with an optional
+        note). The idle-time study job later reviews flagged answers and distills
+        a lesson into household knowledge. Re-rating updates in place.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisorFeedbackRequest"
+      responses:
+        "204":
+          description: Feedback recorded
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /voice/tts:
     post:
       tags:
@@ -4696,6 +4721,22 @@ components:
           type: string
           maxLength: 255
           description: Filename of the attached data file (drives format detection)
+    AdvisorFeedbackRequest:
+      type: object
+      required:
+        - recommendation_id
+        - rating
+      properties:
+        recommendation_id:
+          type: string
+          format: uuid
+        rating:
+          type: string
+          enum: [up, down]
+        note:
+          type: string
+          maxLength: 500
+          description: Optional note explaining the rating; the study job learns from it.
     VoiceRequest:
       type: object
       required: [text]

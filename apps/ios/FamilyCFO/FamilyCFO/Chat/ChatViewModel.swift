@@ -86,6 +86,25 @@ final class ChatViewModel {
         }
     }
 
+    /// ADR 0044: rate an advisor answer. The rating shows immediately and
+    /// reverts if the server rejects it; a failure never disrupts the chat.
+    func rate(
+        _ message: ChatMessage,
+        _ rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload
+    ) async {
+        guard let recommendationId = message.recommendationId,
+            let index = messages.firstIndex(where: { $0.id == message.id })
+        else { return }
+        let previous = messages[index].rating
+        messages[index].rating = rating
+        do {
+            try await api.submitFeedback(recommendationId: recommendationId, rating: rating)
+        } catch {
+            messages[index].rating = previous
+            errorMessage = Self.describe(error)
+        }
+    }
+
     static func describe(_ error: Error) -> String {
         if let apiError = error as? APIError {
             return apiError.errorDescription ?? "\(apiError)"

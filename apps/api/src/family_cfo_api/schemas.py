@@ -889,6 +889,14 @@ class VoiceRequest(BaseModel):
     voice: str | None = None
 
 
+class AdvisorFeedbackRequest(BaseModel):
+    # ADR 0044: 👍/👎 on an advisor answer, plus an optional note. The idle study
+    # job reviews the flagged answers and distills a lesson into household memory.
+    recommendation_id: str
+    rating: Literal["up", "down"]
+    note: str | None = Field(default=None, max_length=500)
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     recommendation: Recommendation

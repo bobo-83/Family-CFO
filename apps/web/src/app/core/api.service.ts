@@ -21,6 +21,7 @@ import {
   createCategory,
   updateCategory,
   createChatMessage,
+  submitAdvisorFeedback,
   createConnection,
   createGoal,
   deleteGoal,
@@ -160,6 +161,13 @@ export class ApiService {
   // --- Advisor chat ---
   createChatMessage(body: ChatRequest) {
     return createChatMessage({ body });
+  }
+
+  // ADR 0044: rate an advisor answer; the study job learns from it.
+  submitAdvisorFeedback(recommendationId: string, rating: 'up' | 'down', note?: string) {
+    return submitAdvisorFeedback({
+      body: { recommendation_id: recommendationId, rating, note },
+    });
   }
 
   /**

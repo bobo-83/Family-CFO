@@ -728,6 +728,29 @@ study_months = Table(
     Index("uq_study_months_household_month", "household_id", "month", unique=True),
 )
 
+# ADR 0044: a member's 👍/👎 on an advisor answer. `reviewed` flips once the
+# idle study job has distilled a lesson from it into household knowledge. One
+# row per (recommendation, member) — re-rating updates in place.
+advisor_feedback = Table(
+    "advisor_feedback",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("recommendation_id", String(36), ForeignKey("recommendations.id"), nullable=False),
+    Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
+    Column("rating", String(10), nullable=False),  # "up" | "down"
+    Column("note", String(500), nullable=True),
+    Column("reviewed", Boolean, nullable=False, server_default="0"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Index(
+        "uq_advisor_feedback_recommendation_user",
+        "recommendation_id",
+        "created_by_user_id",
+        unique=True,
+    ),
+)
+
 conversation_messages = Table(
     "conversation_messages",
     metadata,
