@@ -26,7 +26,8 @@ def calculate_emergency_fund_months(
         inputs={"currency": liquid_balance.currency},
         assumptions=[
             "Liquid balance includes only checking and savings account balances.",
-            "Monthly essential expenses equal recurring monthly bills.",
+            "Monthly essential expenses combine recurring bills, debt minimum "
+            "payments, and everyday spending above those bills.",
         ],
         outputs={
             "liquid_balance": liquid_balance,

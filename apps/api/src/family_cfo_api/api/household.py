@@ -30,6 +30,7 @@ from family_cfo_api.schemas import (
     UpcomingBill,
 )
 from family_cfo_api.schemas import Money as MoneySchema
+from family_cfo_financial_engine.money import Money
 
 router = APIRouter(tags=["Household"])
 
@@ -42,27 +43,29 @@ _EF_STATUS_RANK = {"no_fund": 0, "getting_started": 1, "on_track": 2, "fully_fun
 def _emergency_fund_summary(
     months: float | None,
     inputs: finance_service.EmergencyFundInputs,
+    monthly_expenses: Money,
     currency: str,
     target_months: float | None = None,
     goal_target_minor: int | None = None,
 ) -> EmergencyFundSummary:
-    """M38/M43/M75: coverage vs the target months AND the emergency-fund goal.
+    """M38/M43/M75/ADR 0039: coverage vs the target months AND the emergency-fund goal.
 
-    Months-of-bills alone is absurdly optimistic when few bills are entered
-    (a $1k fund "covers" months of a $15 Netflix bill); a declared
-    emergency-fund GOAL is the family's own target, so the final status is
-    the more conservative of the two views and the gap is the larger one.
+    ``monthly_expenses`` is the realistic monthly need (bills + debt minimums +
+    everyday spending above bills), not bills alone — dividing by bills alone was
+    absurdly optimistic. A declared emergency-fund GOAL is the family's own target,
+    so the final status is the more conservative of the two views and the gap is the
+    larger one.
     """
     recommended = target_months or finance_service.EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS
     # M43: a sub-3-month target still needs a sensible "getting started" floor.
     min_threshold = min(finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS, recommended)
     fund_minor = inputs.fund.amount_minor
-    bills_minor = inputs.monthly_bills.amount_minor
+    expenses_minor = monthly_expenses.amount_minor
 
     months_status: str | None = None
     months_gap_minor = 0
     if months is not None:
-        months_gap_minor = max(0, round(recommended * bills_minor) - fund_minor)
+        months_gap_minor = max(0, round(recommended * expenses_minor) - fund_minor)
         if fund_minor <= 0:
             months_status = "no_fund"
         elif months < min_threshold:
@@ -100,7 +103,7 @@ def _emergency_fund_summary(
         months=months,
         reserved=MoneySchema(amount_minor=fund_minor, currency=currency),
         using_designations=inputs.using_designations,
-        monthly_expenses=MoneySchema(amount_minor=bills_minor, currency=currency),
+        monthly_expenses=MoneySchema(amount_minor=expenses_minor, currency=currency),
         target_months_min=min_threshold,
         target_months_recommended=recommended,
         gap_to_recommended=gap,
@@ -612,6 +615,7 @@ def _build_household_context(
         emergency_fund=_emergency_fund_summary(
             months,
             ef_inputs,
+            finance_service.monthly_essential_expenses(engine, household.id, currency),
             currency,
             household.emergency_fund_target_months,
             # M75: the family's own emergency-fund goal is the target of

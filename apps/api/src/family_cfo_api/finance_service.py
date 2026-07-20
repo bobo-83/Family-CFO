@@ -140,11 +140,15 @@ def upcoming_bills(
 
 @dataclass(frozen=True, slots=True)
 class EmergencyFundInputs:
-    """The fund balance the coverage calculation measures, and its provenance."""
+    """The fund balance the coverage calculation measures, and its provenance.
+
+    The monthly-need denominator is computed separately by
+    ``monthly_essential_expenses`` — it runs a trailing-spending query and a debt
+    sweep, so the callers that only want the fund balance (safe-to-spend, goal
+    current) don't pay for it."""
 
     fund: Money
     using_designations: bool
-    monthly_bills: Money
 
 
 def emergency_fund_inputs(engine: Engine, household_id: str, currency: str) -> EmergencyFundInputs:
@@ -163,7 +167,7 @@ def emergency_fund_inputs(engine: Engine, household_id: str, currency: str) -> E
     # M36: once the family designates emergency-fund money, coverage measures
     # that fund — not the legacy "all liquid money" approximation.
     fund = Money(designated_minor, currency) if using_designations else liquid_balance
-    return EmergencyFundInputs(fund, using_designations, _monthly_bill_total(engine, household_id, currency))
+    return EmergencyFundInputs(fund, using_designations)
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,16 +306,21 @@ def compute_net_worth_with_ref(
     return result, calculation_id
 
 
-def compute_emergency_fund(engine: Engine, household_id: str, currency: str) -> CalculationResult:
-    result, _calculation_id = compute_emergency_fund_with_ref(engine, household_id, currency)
+def compute_emergency_fund(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> CalculationResult:
+    result, _calculation_id = compute_emergency_fund_with_ref(
+        engine, household_id, currency, today=today
+    )
     return result
 
 
 def compute_emergency_fund_with_ref(
-    engine: Engine, household_id: str, currency: str
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> tuple[CalculationResult, str]:
     inputs = emergency_fund_inputs(engine, household_id, currency)
-    result = calculate_emergency_fund_months(inputs.fund, inputs.monthly_bills)
+    expenses = monthly_essential_expenses(engine, household_id, currency, today=today)
+    result = calculate_emergency_fund_months(inputs.fund, expenses)
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 
@@ -1682,6 +1691,77 @@ def _monthly_bill_total(engine: Engine, household_id: str, currency: str) -> Mon
         total += recurring.monthly_amount()
 
     return total
+
+
+def _monthly_debt_minimums(engine: Engine, household_id: str, currency: str) -> Money:
+    """Monthly minimum payments on loans, cards, and other liabilities that make a
+    recurring claim on liquid cash — for the emergency-fund denominator (ADR 0039).
+
+    Deduped against bills: a debt also modeled as an explicit bill is already in
+    ``_monthly_bill_total``, so it is skipped here (``bill_covered_account_ids``).
+    401(k) loans are excluded — they are repaid by payroll deduction and never touch
+    the bank, so income already reflects the smaller paycheck (mirrors the
+    safe-to-spend treatment). Cards contribute their MINIMUM, not the full balance:
+    in an emergency you pay the minimum to stay current, not the statement balance."""
+    liability_accounts = repository.list_liability_accounts(engine, household_id)
+    bill_covered = bill_covered_account_ids(
+        repository.list_bills(engine, household_id), liability_accounts
+    )
+    total = Money.zero(currency)
+    modeled_ids: set[str] = set(bill_covered)
+    for debt in repository.list_debts_with_terms(engine, household_id):
+        if debt.currency != currency or debt.minimum_payment_minor is None:
+            continue
+        modeled_ids.add(debt.account_id)
+        if debt.account_id in bill_covered or debt.account_type in repository.RETIREMENT_LOAN_TYPES:
+            continue
+        total += Money(debt.minimum_payment_minor, debt.currency)
+    # Liabilities without a payoff balance (a lease, a card carried at its minimum)
+    # never appear in list_debts_with_terms but still claim cash every month.
+    for account in liability_accounts:
+        if (
+            account.currency != currency
+            or account.minimum_payment_minor is None
+            or account.id in modeled_ids
+            or account.account_type in repository.RETIREMENT_LOAN_TYPES
+        ):
+            continue
+        modeled_ids.add(account.id)
+        total += Money(account.minimum_payment_minor, account.currency)
+    return total
+
+
+def monthly_essential_expenses(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> Money:
+    """The realistic monthly cash a household must cover if income stopped — the
+    emergency-fund coverage denominator (ADR 0039).
+
+    ``= recurring bills + debt minimum payments + everyday spending above bills``
+
+    Bill payments are categorized transactions, so they are ALREADY inside average
+    spending; debt minimum payments are transfers, so they are NOT. To count every
+    dollar once we take trailing-3-month average spending, strip the bill portion
+    back out (``max(0, avg - bills)``), then add the explicit bills and the debt
+    minimums that no bill already covers. Bills-only — the previous denominator —
+    was absurdly optimistic: it ignored groceries, gas, and every loan/card payment,
+    so a fund covered "months" of a household that in reality spends far more."""
+    today = today or date.today()
+    this_month_start = today.replace(day=1)
+    # Last 3 complete calendar months, matching the savings-rate window (M44).
+    window_start = add_months(this_month_start, -3)
+    window_end = this_month_start - timedelta(days=1)
+
+    bills = _monthly_bill_total(engine, household_id, currency)
+    debt_minimums = _monthly_debt_minimums(engine, household_id, currency)
+
+    spending_3mo = repository.sum_spending(engine, household_id, window_start, window_end, currency)
+    avg_spending_minor = max(0, round(spending_3mo / 3))
+    # Average spending already contains the bill-categorized payments; keep only the
+    # part above the recurring bills so housing/utilities aren't counted twice.
+    spending_above_bills = Money(max(0, avg_spending_minor - bills.amount_minor), currency)
+
+    return bills + debt_minimums + spending_above_bills
 
 
 def _serialize_outputs(outputs: dict[str, Any]) -> dict[str, Any]:

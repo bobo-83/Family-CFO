@@ -71,8 +71,9 @@ async def test_image_described_and_numbers_grounded(demo_client, demo_token, mon
     assert resp.status_code == 200
     rec = resp.json()["recommendation"]
     assert "999.99" in rec["answer"]  # guardrail accepted the image-grounded number
-    # The description was fed into the loop's user message.
-    first_turn_user = runtime.seen_messages[0][1]
+    # The description was fed into the loop's user message (always the last message,
+    # after the system prompt and any household-context / memory system messages).
+    first_turn_user = runtime.seen_messages[0][-1]
     assert "Attached photo" in first_turn_user.content
     assert "$999.99" in first_turn_user.content
 
