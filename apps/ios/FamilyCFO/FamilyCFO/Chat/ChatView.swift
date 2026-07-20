@@ -448,6 +448,7 @@ struct MessageBubble: View {
                     .foregroundStyle(.secondary)
             }
             Text(markdown: message.text)
+                .textSelection(.enabled)
                 .padding(12)
                 .background(
                     message.author == .user
@@ -455,6 +456,13 @@ struct MessageBubble: View {
                         : AnyShapeStyle(.fill.tertiary),
                     in: RoundedRectangle(cornerRadius: 14)
                 )
+                .contextMenu {
+                    Button {
+                        UIPasteboard.general.string = message.text
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                }
             if !message.warnings.isEmpty {
                 ForEach(message.warnings, id: \.self) { warning in
                     Label(warning, systemImage: "exclamationmark.triangle")
