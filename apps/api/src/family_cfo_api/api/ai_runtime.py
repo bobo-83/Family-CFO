@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api import ai_study, audit, repository, rights, undo_actions
 from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
@@ -19,6 +19,8 @@ from family_cfo_api.schemas import (
     AiModelInfo,
     AiRuntimeConfig,
     AiRuntimeStatus,
+    AiStudyInsight,
+    AiStudyStatus,
     AiSwapStatus,
     ErrorResponse,
 )
@@ -227,6 +229,37 @@ async def get_ai_runtime_status(
         vision_enabled=vision_enabled,
         loading_phase=loading_phase,
         loading_detail=loading_detail,
+    )
+
+
+@router.get(
+    "/ai/study",
+    operation_id="getAiStudyStatus",
+    response_model=AiStudyStatus,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Report how much of the transaction history the advisor has studied",
+)
+async def get_ai_study_status(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> AiStudyStatus:
+    status = ai_study.study_status(engine, session.household_id, settings)
+    coverage = (
+        100
+        if status.total_months == 0
+        else round(status.studied_months / status.total_months * 100)
+    )
+    return AiStudyStatus(
+        total_months=status.total_months,
+        studied_months=status.studied_months,
+        coverage_percent=coverage,
+        last_studied_at=status.last_studied_at,
+        runtime_usable=status.runtime_usable,
+        insights=[
+            AiStudyInsight(key=m.key, value=m.value, updated_at=m.updated_at)
+            for m in status.insights
+        ],
     )
 
 

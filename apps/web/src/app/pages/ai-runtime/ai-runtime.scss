@@ -458,3 +458,78 @@
   color: var(--color-text-muted);
   margin: 0 0 0.5rem;
 }
+
+/* ================= Knowledge of your data (ADR 0040) ================= */
+
+.study {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 1rem;
+
+  h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.05rem;
+  }
+
+  h3 {
+    margin: 0.9rem 0 0.4rem;
+    font-size: 0.9rem;
+  }
+}
+
+.study__note,
+.study__empty {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.study__coverage {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.study__bar {
+  flex: 1;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.study__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 300ms ease;
+}
+
+.study__percent {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 2.6rem;
+  text-align: right;
+}
+
+.study__months {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0.4rem 0 0;
+}
+
+.study__paused {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.study__insights {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
