@@ -326,3 +326,13 @@ def test_time_scoped_tools_advertise_the_month_param() -> None:
         "get_income_and_tax",
     ):
         assert "month" in by_name[name].parameters["properties"], name
+
+
+def test_system_prompt_grounds_todays_date() -> None:
+    """The model must be told 'now' or it calls the current year the future."""
+    from datetime import date
+
+    prompt = ai_tools.build_system_prompt(today=date(2026, 7, 15))
+    assert "2026-07-15" in prompt
+    assert "July 2026" in prompt
+    assert "already happened" in prompt.lower()
