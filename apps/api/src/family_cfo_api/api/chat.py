@@ -206,6 +206,7 @@ def _try_agentic_answer(
     history: list[tuple[str, str]] | None = None,
     memories: list[str] | None = None,
     conversation_summary: str | None = None,
+    household_context: str | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -256,6 +257,11 @@ def _try_agentic_answer(
         )
     messages = [
         RuntimeMessage(role="system", content=ai_tools.build_system_prompt(settings)),
+        *(
+            [RuntimeMessage(role="system", content=household_context)]
+            if household_context
+            else []
+        ),
         *context_messages,
         *history_messages,
         RuntimeMessage(role="user", content=user_content),
@@ -401,6 +407,17 @@ async def create_chat_message(
     # M57: facts remembered across all conversations + this thread's summary.
     memories = [m.value for m in repository.list_household_memories(engine, household.id)]
 
+    me = repository.get_member(engine, household.id, session.user_id)
+    first_name = me.display_name.split()[0] if me and me.display_name else None
+    earliest_month, latest_month = repository.transaction_month_range(engine, household.id)
+    household_context = ai_tools.build_household_context(
+        currency=household.base_currency,
+        first_name=first_name,
+        member_count=len(repository.list_members(engine, household.id)),
+        earliest_month=earliest_month,
+        latest_month=latest_month,
+    )
+
     answer = _try_agentic_answer(
         engine,
         household,
@@ -411,6 +428,7 @@ async def create_chat_message(
         history=history,
         memories=memories,
         conversation_summary=conversation.summary if conversation else None,
+        household_context=household_context,
     ) or _deterministic_answer(engine, household)
 
     if analysis and analysis.warning:
