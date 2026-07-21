@@ -785,6 +785,23 @@ class LoanScanResult(BaseModel):
     note: str
 
 
+class AccountScanRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_media_type: W2ScanMediaType
+
+
+class AccountScanResult(BaseModel):
+    """ADR 0057: candidate values read from an ASSET-account statement (HSA,
+    savings, brokerage, …) to prefill the add-account form — the user confirms
+    and edits before anything is saved."""
+
+    name: str | None = None
+    account_type: AccountType | None = None
+    balance_minor: int | None = None
+    statement_date: date | None = None
+    note: str
+
+
 class BillScanRequest(BaseModel):
     image_base64: str = Field(min_length=1)
     image_media_type: W2ScanMediaType

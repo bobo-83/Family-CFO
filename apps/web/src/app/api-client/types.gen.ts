@@ -536,6 +536,22 @@ export type LoanScanResult = {
     note: string;
 };
 
+export type AccountScanRequest = {
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved.
+ */
+export type AccountScanResult = {
+    name?: string;
+    account_type?: AccountType;
+    balance_minor?: number;
+    statement_date?: string;
+    note: string;
+};
+
 export type BillScanRequest = {
     image_base64: string;
     image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
@@ -3894,6 +3910,43 @@ export type ScanLoanStatementResponses = {
 };
 
 export type ScanLoanStatementResponse = ScanLoanStatementResponses[keyof ScanLoanStatementResponses];
+
+export type ScanAccountStatementData = {
+    body: AccountScanRequest;
+    path?: never;
+    query?: never;
+    url: '/accounts/scan';
+};
+
+export type ScanAccountStatementErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type ScanAccountStatementError = ScanAccountStatementErrors[keyof ScanAccountStatementErrors];
+
+export type ScanAccountStatementResponses = {
+    /**
+     * Candidate account values extracted by the on-box vision model
+     */
+    200: AccountScanResult;
+};
+
+export type ScanAccountStatementResponse = ScanAccountStatementResponses[keyof ScanAccountStatementResponses];
 
 export type ScanBillData = {
     body: BillScanRequest;
