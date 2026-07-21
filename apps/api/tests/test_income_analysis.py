@@ -350,6 +350,39 @@ async def test_brokerage_income_deposit_counts_with_its_bank(demo_client, demo_t
 
 
 @pytest.mark.anyio
+async def test_liability_account_payment_is_never_income(demo_client, demo_token) -> None:
+    """ADR 0055: a positive posting on a loan/lease account is a debt PAYMENT
+    credit, not income — even if it was (mis)categorized as Income."""
+    headers = _headers(demo_token)
+    loan = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "Subaru Lease", "type": "auto_loan", "currency": "USD"},
+        )
+    ).json()["id"]
+    income_cat = (
+        await demo_client.post("/api/v1/categories", headers=headers, json={"name": "Income"})
+    ).json()["id"]
+    payment = await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": loan,
+            "occurred_at": (date.today() - timedelta(days=5)).isoformat(),
+            "amount": {"amount_minor": 64_973, "currency": "USD"},
+            "merchant": "Payment",
+            "category_id": income_cat,
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    counted_ids = {t["transaction_id"] for s in body["sources"] for t in s["transactions"]}
+    assert payment.json()["id"] not in counted_ids
+
+
+@pytest.mark.anyio
 async def test_matched_pair_transfer_is_hidden_entirely(demo_client, demo_token) -> None:
     """A deposit whose amount left a sibling account is money movement, not income."""
     headers = _headers(demo_token)

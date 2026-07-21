@@ -229,6 +229,20 @@
                 <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
                 <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
               </dl>
+              @if (canWrite()) {
+                <label class="income-txn__recat">
+                  Not income? Recategorize:
+                  <select
+                    [disabled]="busy() !== null"
+                    (change)="recategorizeDeposit(txn, $any($event.target).value); $any($event.target).value = ''"
+                  >
+                    <option value="" selected>Choose a category…</option>
+                    @for (cat of categories(); track cat.id) {
+                      <option [value]="cat.id">{{ cat.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
             </details>
           </li>
         }

@@ -10,6 +10,7 @@ final class IncomeViewModel {
     let api: IncomeAPI
 
     private(set) var analysis: Components.Schemas.IncomeAnalysisResponse?
+    private(set) var categories: [Components.Schemas.Category] = []
     private(set) var isLoading = false
     private(set) var deletingID: String?
     var errorMessage: String?
@@ -24,8 +25,26 @@ final class IncomeViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            analysis = try await api.analysis()
+            async let analysisResult = api.analysis()
+            async let categoriesResult = api.categories()
+            analysis = try await analysisResult
+            categories = (try? await categoriesResult) ?? categories
             errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// ADR 0055: reclassify a deposit from the income page — e.g. a transfer of
+    /// already-counted RSU proceeds that was double-counted as income. Moving it
+    /// off the Income category drops it from the rollup.
+    func recategorize(
+        _ txn: Components.Schemas.IncomeAnalysisTransaction, to categoryID: String
+    ) async {
+        do {
+            try await api.setCategory(transactionID: txn.transactionId, categoryID: categoryID)
+            errorMessage = nil
+            await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
