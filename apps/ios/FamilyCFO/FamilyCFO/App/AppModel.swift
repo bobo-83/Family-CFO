@@ -184,4 +184,19 @@ final class AppModel {
         credential = nil
         phase = .unpaired
     }
+
+    /// ADR 0056: sign out WITHOUT unpairing — drops the credential (revoking
+    /// its session server-side, best-effort) but keeps the server address and
+    /// pinned certificate, so signing back in is just email + password on the
+    /// login screen (or scanning a fresh QR). Enables switching members on a
+    /// shared device.
+    func signOut() async {
+        if let client {
+            _ = try? await client.deleteAuthSession(.init())
+        }
+        KeychainStore.delete(account: Self.credentialAccount)
+        KeychainStore.delete(account: "device-private-key")
+        credential = nil
+        phase = .unpaired
+    }
 }
