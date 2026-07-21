@@ -4,8 +4,14 @@ import SwiftUI
 /// estimate), the household's income earners, and the W-2 scan on-ramp — its
 /// own first-class page, like Bills and Debts, instead of a camera shortcut
 /// buried on Overview.
+/// `IncomeAnalysisTransaction` carries a stable id, so it can drive `.sheet(item:)`.
+extension Components.Schemas.IncomeAnalysisTransaction: Identifiable {
+    public var id: String { transactionId }
+}
+
 struct IncomeView: View {
     @State var viewModel: IncomeViewModel
+    @State private var recategorizing: Components.Schemas.IncomeAnalysisTransaction?
 
     var body: some View {
         NavigationStack {
@@ -28,6 +34,16 @@ struct IncomeView: View {
             .navigationTitle("Income")
             .task { await viewModel.load() }
             .refreshable { await viewModel.load() }
+            .sheet(item: $recategorizing) { txn in
+                CategoryPickerSheet(
+                    title: txn.merchant ?? txn.name,
+                    categories: viewModel.categories,
+                    currentCategoryID: nil,
+                    onSelect: { newID in
+                        guard let id = newID else { return }
+                        Task { await viewModel.recategorize(txn, to: id) }
+                    })
+            }
         }
     }
 
@@ -119,6 +135,14 @@ struct IncomeView: View {
                 }
                 if let memo = txn.description, !memo.isEmpty { detailLine("Bank memo", memo) }
                 detailLine("Amount", txn.amount.formatted)
+                Button {
+                    recategorizing = txn
+                } label: {
+                    Label("Recategorize — not income?", systemImage: "tag")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .padding(.top, 2)
             }
             .padding(.vertical, 2)
         } label: {
