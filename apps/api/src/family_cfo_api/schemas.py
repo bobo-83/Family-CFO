@@ -793,11 +793,18 @@ class AccountScanRequest(BaseModel):
 class AccountScanResult(BaseModel):
     """ADR 0057: candidate values read from an ASSET-account statement (HSA,
     savings, brokerage, …) to prefill the add-account form — the user confirms
-    and edits before anything is saved."""
+    and edits before anything is saved.
+
+    An HSA/brokerage statement often splits the money: a CASH balance on one
+    page and an INVESTMENT portfolio value on another. Both are read;
+    ``balance_minor`` is their total, and the components ride along so the UI
+    can show the breakdown."""
 
     name: str | None = None
     account_type: AccountType | None = None
     balance_minor: int | None = None
+    cash_balance_minor: int | None = None
+    investment_value_minor: int | None = None
     statement_date: date | None = None
     note: str
 

@@ -43,16 +43,21 @@ _LOAN_PROMPT = (
 # ADR 0057: read an ASSET-account statement (HSA, savings, brokerage …) into
 # candidates for the add-account form. Same pattern as the loan scan.
 _ACCOUNT_PROMPT = (
-    "This image is a financial account statement (e.g. an HSA, savings, checking, "
-    "brokerage, retirement, or 529 statement). Extract ONLY a JSON object, no "
-    "prose: {"
+    "This image is one page of a financial account statement (e.g. an HSA, "
+    "savings, checking, brokerage, retirement, or 529 statement). Extract ONLY "
+    "a JSON object, no prose: {"
     '"account_name": the institution and/or account name as printed, or null, '
     '"account_type": one of "checking", "savings", "hsa", "brokerage", '
     '"retirement", "529", "real_estate", "other_asset", or null if unclear, '
-    '"balance": the CURRENT total account balance/value as a number, or null, '
+    '"cash_balance": the ending/closing CASH balance as a number, or null if '
+    "this page shows none, "
+    '"investment_value": the investment-portfolio closing/total value as a '
+    "number (e.g. an HSA's invested funds, often labeled Closing Account "
+    "Value), or null if this page shows none, "
     '"statement_date": the statement (or as-of) date in YYYY-MM-DD, or null}. '
-    "For an investment/HSA statement, balance is the total account value at the "
-    "end of the period. Use null for anything not shown. Do not guess."
+    "An HSA or brokerage statement often shows CASH on one page and "
+    "INVESTMENTS on another — report only what THIS page shows; never add "
+    "them together yourself. Use null for anything not shown. Do not guess."
 )
 
 # Model vocabulary → the app's asset AccountType; synonyms it tends to emit.
@@ -80,9 +85,34 @@ _ACCOUNT_TYPE_ALIASES = {
 }
 
 
+_ACCOUNT_SCAN_NOTE = (
+    "Read by the on-box photo model — CONFIRM every value before saving. "
+    "Nothing is stored until you save."
+)
+
+
+def _account_scan_total(cash: int | None, investment: int | None) -> int | None:
+    if cash is None and investment is None:
+        return None
+    return (cash or 0) + (investment or 0)
+
+
+def _account_scan_note(cash: int | None, investment: int | None) -> str:
+    # An HSA/brokerage statement splits cash and investments; when both were
+    # read, spell the total out so the user can sanity-check the sum.
+    if cash is not None and investment is not None:
+        return (
+            f"Balance = ${cash / 100:,.2f} cash + ${investment / 100:,.2f} invested. "
+            + _ACCOUNT_SCAN_NOTE
+        )
+    if investment is not None and cash is None:
+        return "Balance is the invested value (no cash balance found). " + _ACCOUNT_SCAN_NOTE
+    return _ACCOUNT_SCAN_NOTE
+
+
 def parse_account_scan(text: str) -> AccountScanResult:
-    """Defensive parse of the vision model's account-statement extraction —
-    candidates only; nothing is saved until the user confirms."""
+    """Defensive parse of ONE page's extraction — candidates only; nothing is
+    saved until the user confirms. Multi-page results are merged by the caller."""
     import json as _json
     import re as _re
 
@@ -97,7 +127,15 @@ def parse_account_scan(text: str) -> AccountScanResult:
             note="The photo could not be read as a statement — enter values manually."
         )
 
-    balance = _scan_number(data.get("balance"))
+    def money_minor(key: str) -> int | None:
+        value = _scan_number(data.get(key))
+        return int(round(value * 100)) if value is not None and value > 0 else None
+
+    cash = money_minor("cash_balance")
+    investment = money_minor("investment_value")
+    # Back-compat: a model that still answers a single "balance" is treated as cash.
+    if cash is None and investment is None:
+        cash = money_minor("balance")
     raw_type = data.get("account_type")
     account_type = (
         _ACCOUNT_TYPE_ALIASES.get(str(raw_type).strip().lower())
@@ -108,12 +146,34 @@ def parse_account_scan(text: str) -> AccountScanResult:
     return AccountScanResult(
         name=str(name).strip()[:120] if isinstance(name, str) and name.strip() else None,
         account_type=account_type,
-        balance_minor=int(round(balance * 100)) if balance is not None and balance > 0 else None,
+        balance_minor=_account_scan_total(cash, investment),
+        cash_balance_minor=cash,
+        investment_value_minor=investment,
         statement_date=_parse_iso_or_us_date(data.get("statement_date")),
-        note=(
-            "Read by the on-box photo model — CONFIRM every value before saving. "
-            "Nothing is stored until you save."
-        ),
+        note=_account_scan_note(cash, investment),
+    )
+
+
+def merge_account_scans(pages: list[AccountScanResult]) -> AccountScanResult:
+    """Combine per-page reads: first non-null wins per field, and the balance is
+    cash + investments — an HSA statement shows them on DIFFERENT pages, so no
+    single page holds the true total (the $1,000-cash-next-to-$102k-invested
+    lesson)."""
+    name = next((p.name for p in pages if p.name), None)
+    account_type = next((p.account_type for p in pages if p.account_type), None)
+    statement_date = next((p.statement_date for p in pages if p.statement_date), None)
+    cash = next((p.cash_balance_minor for p in pages if p.cash_balance_minor is not None), None)
+    investment = next(
+        (p.investment_value_minor for p in pages if p.investment_value_minor is not None), None
+    )
+    return AccountScanResult(
+        name=name,
+        account_type=account_type,
+        balance_minor=_account_scan_total(cash, investment),
+        cash_balance_minor=cash,
+        investment_value_minor=investment,
+        statement_date=statement_date,
+        note=_account_scan_note(cash, investment),
     )
 
 
@@ -676,7 +736,9 @@ async def scan_account_statement(
             raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
         data_urls = [
             "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-            for png in pdf_page_pngs(pdf_bytes)
+            # 6 pages, not the W2 default 4 — an HSA statement buries its
+            # Investment Portfolio section behind fee tables and disclosures.
+            for png in pdf_page_pngs(pdf_bytes, max_pages=6)
         ]
     else:
         data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
@@ -685,17 +747,30 @@ async def scan_account_statement(
     if describer is None:
         raise HTTPException(status_code=503, detail="No vision model is configured")
     try:
-        result = None
+        # Read EVERY page and merge: an HSA statement shows the cash balance and
+        # the invested value on different pages — stopping at the first readable
+        # page would report $1,000 cash and miss $102k invested. Stop early only
+        # once both components have been found.
+        pages: list[AccountScanResult] = []
         for data_url in data_urls:
             completion = describer.complete(
                 [RuntimeMessage(role="user", content=_ACCOUNT_PROMPT, image_data_url=data_url)],
                 temperature=0.0,
                 max_tokens=200,
             )
-            result = parse_account_scan(completion.text)
-            if result.balance_minor is not None or result.name is not None:
-                return result
-        return result or AccountScanResult(
+            pages.append(parse_account_scan(completion.text))
+            merged = merge_account_scans(pages)
+            if (
+                merged.cash_balance_minor is not None
+                and merged.investment_value_minor is not None
+                and merged.name is not None
+            ):
+                return merged
+        if pages:
+            merged = merge_account_scans(pages)
+            if merged.balance_minor is not None or merged.name is not None:
+                return merged
+        return AccountScanResult(
             note="Nothing readable was found — enter values manually."
         )
     except RuntimeUnavailableError as exc:

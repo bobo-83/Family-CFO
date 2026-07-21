@@ -4268,7 +4268,7 @@ public enum Components {
                 case imageMediaType = "image_media_type"
             }
         }
-        /// ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved.
+        /// ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved. An HSA/brokerage statement often splits CASH and INVESTMENTS across pages; balance_minor is their total and the components ride along for the breakdown.
         ///
         /// - Remark: Generated from `#/components/schemas/AccountScanResult`.
         public struct AccountScanResult: Codable, Hashable, Sendable {
@@ -4278,6 +4278,10 @@ public enum Components {
             public var accountType: Components.Schemas.AccountType?
             /// - Remark: Generated from `#/components/schemas/AccountScanResult/balance_minor`.
             public var balanceMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/cash_balance_minor`.
+            public var cashBalanceMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/investment_value_minor`.
+            public var investmentValueMinor: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/AccountScanResult/statement_date`.
             public var statementDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AccountScanResult/note`.
@@ -4288,18 +4292,24 @@ public enum Components {
             ///   - name:
             ///   - accountType:
             ///   - balanceMinor:
+            ///   - cashBalanceMinor:
+            ///   - investmentValueMinor:
             ///   - statementDate:
             ///   - note:
             public init(
                 name: Swift.String? = nil,
                 accountType: Components.Schemas.AccountType? = nil,
                 balanceMinor: Swift.Int? = nil,
+                cashBalanceMinor: Swift.Int? = nil,
+                investmentValueMinor: Swift.Int? = nil,
                 statementDate: Swift.String? = nil,
                 note: Swift.String
             ) {
                 self.name = name
                 self.accountType = accountType
                 self.balanceMinor = balanceMinor
+                self.cashBalanceMinor = cashBalanceMinor
+                self.investmentValueMinor = investmentValueMinor
                 self.statementDate = statementDate
                 self.note = note
             }
@@ -4307,6 +4317,8 @@ public enum Components {
                 case name
                 case accountType = "account_type"
                 case balanceMinor = "balance_minor"
+                case cashBalanceMinor = "cash_balance_minor"
+                case investmentValueMinor = "investment_value_minor"
                 case statementDate = "statement_date"
                 case note
             }

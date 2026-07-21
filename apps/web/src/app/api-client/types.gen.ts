@@ -542,12 +542,14 @@ export type AccountScanRequest = {
 };
 
 /**
- * ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved.
+ * ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved. An HSA/brokerage statement often splits CASH and INVESTMENTS across pages; balance_minor is their total and the components ride along for the breakdown.
  */
 export type AccountScanResult = {
     name?: string;
     account_type?: AccountType;
     balance_minor?: number;
+    cash_balance_minor?: number;
+    investment_value_minor?: number;
     statement_date?: string;
     note: string;
 };
