@@ -208,12 +208,18 @@ export class Chat {
   // M87a: read an assistant answer aloud via the on-box voice service, falling
   // back to the browser's built-in speech synthesizer when it isn't available.
   protected readonly speaking = signal<number | null>(null);
-  // The fetched TTS audio is played through Web Audio, not a plain <audio>
-  // element: an AudioContext resumed inside the tap stays playable across the
-  // synthesis fetch, which is the reliable way to play audio on mobile Safari
-  // (a bare audio.play() after an await is blocked there).
+  // ADR 0052 addendum: playback goes through an HTML <audio> ELEMENT, not Web
+  // Audio — on iOS the ring/silent switch MUTES Web Audio (and speechSynthesis)
+  // but media elements play regardless, matching the native app. The element is
+  // "unlocked" by playing a silent clip inside the tap gesture so the src can
+  // be swapped to the fetched speech after the await. Web Audio remains a
+  // fallback for browsers where element playback fails.
+  private ttsAudio: HTMLAudioElement | null = null;
   private audioContext: AudioContext | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
+  // 1 sample of 16-bit mono silence — a valid, instantly-ending WAV.
+  private static readonly SILENCE =
+    'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YQIAAAAAAA==';
 
   protected async speak(text: string, index: number): Promise<void> {
     // Tapping the one that's playing (or any, mid-playback) stops it.
@@ -227,9 +233,64 @@ export class Chat {
     this.speaking.set(index);
     const spoken = speakableText(text);
 
+    // Unlock the media element within the user gesture.
+    const audio = this.ttsAudio ?? new Audio();
+    this.ttsAudio = audio;
+    let elementUnlocked = false;
+    try {
+      audio.src = Chat.SILENCE;
+      await audio.play();
+      elementUnlocked = true;
+    } catch {
+      // Blocked (rare once unlocked before) — the Web Audio fallback below.
+    }
+
+    let buffer: ArrayBuffer | null = null;
+    try {
+      buffer = await this.api.synthesizeSpeechBuffer(spoken);
+    } catch {
+      buffer = null;
+    }
+    if (this.speaking() !== index) {
+      return; // stopped while synthesizing
+    }
+
+    if (buffer && buffer.byteLength > 0 && elementUnlocked) {
+      const url = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (this.speaking() === index) {
+          this.speaking.set(null);
+        }
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        void this.playViaWebAudio(buffer, spoken, index);
+      };
+      audio.src = url;
+      try {
+        await audio.play();
+        return;
+      } catch {
+        URL.revokeObjectURL(url);
+        // fall through to Web Audio
+      }
+    }
+    if (buffer && buffer.byteLength > 0) {
+      await this.playViaWebAudio(buffer, spoken, index);
+      return;
+    }
+    // No on-box voice — the platform synthesizer is all that's left.
+    this.fallbackSpeak(spoken, index);
+  }
+
+  private async playViaWebAudio(
+    buffer: ArrayBuffer,
+    spoken: string,
+    index: number,
+  ): Promise<void> {
     const context = this.ensureAudioContext();
     if (context) {
-      // Resume within the user gesture so playback is allowed later.
       if (context.state === 'suspended') {
         try {
           await context.resume();
@@ -238,9 +299,8 @@ export class Chat {
         }
       }
       try {
-        const buffer = await this.api.synthesizeSpeechBuffer(spoken);
-        if (buffer && buffer.byteLength > 0 && this.speaking() === index) {
-          const decoded = await context.decodeAudioData(buffer);
+        if (this.speaking() === index) {
+          const decoded = await context.decodeAudioData(buffer.slice(0));
           if (this.speaking() !== index) {
             return; // stopped while decoding
           }
@@ -257,10 +317,10 @@ export class Chat {
           return;
         }
       } catch {
-        // No on-box voice (503) or decode/playback failed — fall through.
+        // Decode/playback failed — fall through.
       }
     }
-    // No Web Audio or no on-box voice — use the platform speech synthesizer.
+    // No Web Audio either — use the platform speech synthesizer.
     this.fallbackSpeak(spoken, index);
   }
 
@@ -302,6 +362,11 @@ export class Chat {
   }
 
   protected stopSpeaking(): void {
+    if (this.ttsAudio) {
+      this.ttsAudio.pause();
+      this.ttsAudio.onended = null;
+      this.ttsAudio.onerror = null;
+    }
     if (this.currentSource) {
       try {
         this.currentSource.stop();
