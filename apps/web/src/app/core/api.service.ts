@@ -96,6 +96,7 @@ import {
   listTransactionsForReview,
   recordAccountBalance,
   restoreBackup,
+  scanAccountStatement,
   scanBill,
   scanLoanStatement,
   searchAiModels,
@@ -251,6 +252,16 @@ export class ApiService {
   // M116 (ADR 0025 parity): read a loan/lease statement into candidate values.
   scanLoanStatement(imageBase64: string, mediaType: string) {
     return scanLoanStatement({
+      body: {
+        image_base64: imageBase64,
+        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+      },
+    });
+  }
+
+  // ADR 0057: read an asset-account statement into add-account candidates.
+  scanAccountStatement(imageBase64: string, mediaType: string) {
+    return scanAccountStatement({
       body: {
         image_base64: imageBase64,
         image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',

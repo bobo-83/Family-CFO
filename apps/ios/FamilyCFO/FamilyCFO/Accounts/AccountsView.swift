@@ -72,7 +72,12 @@ struct AccountsView: View {
                 }
             }
             .sheet(isPresented: $addingAccount) {
-                AddAccountSheet { name, type, balanceMinor in
+                AddAccountSheet(
+                    onScan: { image in await viewModel.scanStatement(image) },
+                    onScanFile: { data, isPDF in
+                        await viewModel.scanStatement(fileData: data, isPDF: isPDF)
+                    }
+                ) { name, type, balanceMinor in
                     Task { await viewModel.addAccount(name: name, type: type, balanceMinor: balanceMinor) }
                 }
             }
@@ -222,16 +227,56 @@ private struct AccountDetailSheet: View {
 
 /// Add an account by hand — for holdings no bank feed reaches (e.g. an HSA).
 private struct AddAccountSheet: View {
+    // ADR 0057: statement scan callbacks — the sheet prefills from the result.
+    let onScan: (UIImage) async -> Components.Schemas.AccountScanResult?
+    let onScanFile: (Data, Bool) async -> Components.Schemas.AccountScanResult?
     let onSave: (String, Components.Schemas.AccountType, Int64) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var type: Components.Schemas.AccountType = .hsa
     @State private var amount: Double = 0
+    @State private var scanning = false
+    @State private var scanNote: String?
+    @State private var showingCamera = false
+    @State private var showingFileImporter = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Menu {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button {
+                                showingCamera = true
+                            } label: {
+                                Label("Take a photo", systemImage: "camera")
+                            }
+                        }
+                        Button {
+                            showingFileImporter = true
+                        } label: {
+                            Label("Choose a PDF or image", systemImage: "doc")
+                        }
+                        Button {
+                            pasteStatement()
+                        } label: {
+                            Label("Paste from clipboard", systemImage: "doc.on.clipboard")
+                        }
+                    } label: {
+                        if scanning {
+                            HStack(spacing: 6) { ProgressView(); Text("Reading statement…") }
+                        } else {
+                            Label("Scan a statement", systemImage: "doc.viewfinder")
+                        }
+                    }
+                    .disabled(scanning)
+                    if let scanNote {
+                        Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Photograph, upload, or paste an HSA/savings/brokerage statement and the on-box vision model fills in what it can read. Confirm every value before saving.")
+                }
                 Section("Name") {
                     TextField("e.g. HealthEquity HSA", text: $name)
                 }
@@ -272,8 +317,59 @@ private struct AddAccountSheet: View {
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            .fullScreenCover(isPresented: $showingCamera) {
+                CameraPicker { image in handleScan { await onScan(image) } }
+                    .ignoresSafeArea()
+            }
+            .fileImporter(
+                isPresented: $showingFileImporter,
+                allowedContentTypes: [.pdf, .image]
+            ) { result in
+                guard case .success(let url) = result else { return }
+                let isPDF = url.pathExtension.lowercased() == "pdf"
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url) else { return }
+                handleScan { await onScanFile(data, isPDF) }
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func pasteStatement() {
+        ClipboardImage.read { contents in
+            switch contents {
+            case .image(let image):
+                handleScan { await onScan(image) }
+            case .pdf(let data):
+                handleScan { await onScanFile(data, true) }
+            case .none:
+                scanNote = "There's no image or PDF on your clipboard to paste."
+            }
+        }
+    }
+
+    /// Run a scan and prefill — never overwriting what the user already typed
+    /// (their correction outranks the model's reading).
+    private func handleScan(
+        _ scan: @escaping () async -> Components.Schemas.AccountScanResult?
+    ) {
+        scanning = true
+        Task {
+            let result = await scan()
+            scanning = false
+            guard let result else { return }
+            if let scanned = result.name, name.trimmingCharacters(in: .whitespaces).isEmpty {
+                name = scanned
+            }
+            if let scannedType = result.accountType, manualAssetTypes.contains(scannedType) {
+                type = scannedType
+            }
+            if let balance = result.balanceMinor, amount == 0 {
+                amount = Double(balance) / 100
+            }
+            scanNote = result.note
+        }
     }
 
     static func label(_ type: Components.Schemas.AccountType) -> String {

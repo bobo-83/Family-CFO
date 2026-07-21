@@ -1740,6 +1740,39 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+  /accounts/scan:
+    post:
+      tags:
+        - Accounts
+      operationId: scanAccountStatement
+      summary: Read an asset-account statement photo or PDF into add-account candidates
+      description: >-
+        ADR 0057: paste/photograph an HSA/savings/brokerage statement and the
+        add-account form is prefilled — name, type, current balance. Candidates
+        only; the user confirms before anything is saved.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountScanRequest"
+      responses:
+        "200":
+          description: Candidate account values extracted by the on-box vision model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountScanResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /bills/scan:
     post:
       tags:
@@ -4051,6 +4084,28 @@ components:
         next_payment_due_date: { type: string, format: date }
         apr_percent: { type: number }
         is_lease: { type: boolean }
+        note: { type: string }
+    AccountScanRequest:
+      type: object
+      required: [image_base64, image_media_type]
+      properties:
+        image_base64: { type: string }
+        image_media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+    AccountScanResult:
+      type: object
+      description: >-
+        ADR 0057: candidate values read from an ASSET-account statement (HSA,
+        savings, brokerage, …) to prefill the add-account form — the user
+        confirms and edits before anything is saved.
+      required: [note]
+      properties:
+        name: { type: string }
+        account_type:
+          $ref: "#/components/schemas/AccountType"
+        balance_minor: { type: integer }
+        statement_date: { type: string, format: date }
         note: { type: string }
     BillScanRequest:
       type: object

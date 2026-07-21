@@ -1,4 +1,4 @@
-import { Component, computed, inject, resource, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -128,6 +128,66 @@ export class Accounts {
 
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+
+  // ADR 0057: paste (Ctrl/⌘+V) or pick a statement photo/PDF — the on-box
+  // vision model prefills the add-account form; the user confirms and saves.
+  protected readonly scanning = signal(false);
+  protected readonly scanNote = signal<string | null>(null);
+
+  protected async onStatementSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    await this.scanStatementFile(file);
+  }
+
+  /** ADR 0028: every statement input accepts paste. */
+  @HostListener('window:paste', ['$event'])
+  async onPaste(event: ClipboardEvent): Promise<void> {
+    if (!this.canWrite()) {
+      return;
+    }
+    const items = event.clipboardData?.items ?? [];
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file && /^(image\/|application\/pdf)/.test(file.type)) {
+        event.preventDefault();
+        await this.scanStatementFile(file);
+        return;
+      }
+    }
+  }
+
+  protected async scanStatementFile(file: File | undefined | null): Promise<void> {
+    if (!file || this.scanning()) {
+      return;
+    }
+    this.scanning.set(true);
+    this.scanNote.set(null);
+    this.submitError.set(null);
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    const [meta, base64] = dataUrl.split(',', 2);
+    const mediaType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/jpeg';
+    const { data, error } = await this.api.scanAccountStatement(base64, mediaType);
+    this.scanning.set(false);
+    if (error || !data) {
+      this.submitError.set(apiErrorMessage(error, 'Statement scan failed.'));
+      return;
+    }
+    // Prefill only — the user confirms every value before saving.
+    if (data.name) this.form.controls.name.setValue(data.name);
+    if (data.account_type) this.form.controls.type.setValue(data.account_type);
+    if (data.balance_minor) this.form.controls.openingBalance.setValue(data.balance_minor / 100);
+    this.scanNote.set(data.note);
+  }
 
   protected async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) {
