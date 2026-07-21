@@ -1,4 +1,4 @@
-import { Component, HostListener, inject, resource, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
-import { speakableText } from '../../shared/speakable-text';
+import { speakableSentences } from '../../shared/speakable-text';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -84,7 +84,7 @@ const EXAMPLE_PROMPTS = [
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
-export class Chat {
+export class Chat implements OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
@@ -221,6 +221,16 @@ export class Chat {
   private static readonly SILENCE =
     'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YQIAAAAAAA==';
 
+  // Stale-async guard: every start/stop bumps the run id, so a destroyed or
+  // superseded pipeline can never start audio (the duplicate-readings bug).
+  private speakRun = 0;
+
+  ngOnDestroy(): void {
+    // Leaving the conversation must stop the voice — the component dies but a
+    // playing <audio> element would not.
+    this.stopSpeaking();
+  }
+
   protected async speak(text: string, index: number): Promise<void> {
     // Tapping the one that's playing (or any, mid-playback) stops it.
     if (this.speaking() !== null) {
@@ -231,7 +241,15 @@ export class Chat {
       }
     }
     this.speaking.set(index);
-    const spoken = speakableText(text);
+    const run = ++this.speakRun;
+
+    // Sentence pipeline (like the iOS voice): synthesize sentence i+1 while
+    // sentence i plays, so first sound arrives after ONE sentence.
+    const sentences = speakableSentences(text);
+    if (sentences.length === 0) {
+      this.speaking.set(null);
+      return;
+    }
 
     // Unlock the media element within the user gesture.
     const audio = this.ttsAudio ?? new Audio();
@@ -245,83 +263,100 @@ export class Chat {
       // Blocked (rare once unlocked before) — the Web Audio fallback below.
     }
 
-    let buffer: ArrayBuffer | null = null;
-    try {
-      buffer = await this.api.synthesizeSpeechBuffer(spoken);
-    } catch {
-      buffer = null;
-    }
-    if (this.speaking() !== index) {
-      return; // stopped while synthesizing
-    }
-
-    if (buffer && buffer.byteLength > 0 && elementUnlocked) {
-      const url = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        if (this.speaking() === index) {
-          this.speaking.set(null);
-        }
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        void this.playViaWebAudio(buffer, spoken, index);
-      };
-      audio.src = url;
+    const synthesize = async (sentence: string): Promise<ArrayBuffer | null> => {
       try {
-        await audio.play();
-        return;
+        return await this.api.synthesizeSpeechBuffer(sentence);
       } catch {
-        URL.revokeObjectURL(url);
-        // fall through to Web Audio
+        return null;
+      }
+    };
+
+    let next = synthesize(sentences[0]);
+    for (let i = 0; i < sentences.length; i += 1) {
+      const buffer = await next;
+      if (run !== this.speakRun) {
+        return; // stopped or superseded while synthesizing
+      }
+      if (i + 1 < sentences.length) {
+        next = synthesize(sentences[i + 1]);
+      }
+      if (!buffer || buffer.byteLength === 0) {
+        // No on-box voice (503) or a failed chunk: speak the REST with the
+        // platform synthesizer rather than skipping content silently.
+        this.fallbackSpeak(sentences.slice(i).join(' '), index);
+        return;
+      }
+      const played =
+        (elementUnlocked && (await this.playChunkOnElement(audio, buffer, run))) ||
+        (await this.playChunkViaWebAudio(buffer, run));
+      if (run !== this.speakRun) {
+        return;
+      }
+      if (!played) {
+        this.fallbackSpeak(sentences.slice(i).join(' '), index);
+        return;
       }
     }
-    if (buffer && buffer.byteLength > 0) {
-      await this.playViaWebAudio(buffer, spoken, index);
-      return;
+    if (run === this.speakRun && this.speaking() === index) {
+      this.speaking.set(null);
     }
-    // No on-box voice — the platform synthesizer is all that's left.
-    this.fallbackSpeak(spoken, index);
   }
 
-  private async playViaWebAudio(
+  /** Play one WAV chunk on the unlocked element; resolves when it ends. */
+  private playChunkOnElement(
+    audio: HTMLAudioElement,
     buffer: ArrayBuffer,
-    spoken: string,
-    index: number,
-  ): Promise<void> {
+    run: number,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+      const done = (ok: boolean) => {
+        URL.revokeObjectURL(url);
+        audio.onended = null;
+        audio.onerror = null;
+        resolve(ok && run === this.speakRun);
+      };
+      audio.onended = () => done(true);
+      audio.onerror = () => done(false);
+      audio.src = url;
+      audio.play().catch(() => done(false));
+    });
+  }
+
+  /** Fallback for browsers where element playback fails; resolves on end. */
+  private async playChunkViaWebAudio(buffer: ArrayBuffer, run: number): Promise<boolean> {
     const context = this.ensureAudioContext();
-    if (context) {
-      if (context.state === 'suspended') {
-        try {
-          await context.resume();
-        } catch {
-          // Best-effort; fall through to the platform synthesizer if it fails.
-        }
-      }
+    if (!context) {
+      return false;
+    }
+    if (context.state === 'suspended') {
       try {
-        if (this.speaking() === index) {
-          const decoded = await context.decodeAudioData(buffer.slice(0));
-          if (this.speaking() !== index) {
-            return; // stopped while decoding
-          }
-          const source = context.createBufferSource();
-          source.buffer = decoded;
-          source.connect(context.destination);
-          source.onended = () => {
-            if (this.currentSource === source && this.speaking() === index) {
-              this.speaking.set(null);
-            }
-          };
-          this.currentSource = source;
-          source.start();
-          return;
-        }
+        await context.resume();
       } catch {
-        // Decode/playback failed — fall through.
+        return false;
       }
     }
-    // No Web Audio either — use the platform speech synthesizer.
-    this.fallbackSpeak(spoken, index);
+    try {
+      const decoded = await context.decodeAudioData(buffer.slice(0));
+      if (run !== this.speakRun) {
+        return true; // stopped; report handled so no fallback voice kicks in
+      }
+      return await new Promise((resolve) => {
+        const source = context.createBufferSource();
+        source.buffer = decoded;
+        source.connect(context.destination);
+        source.onended = () => {
+          if (this.currentSource === source) {
+            this.currentSource = null;
+          }
+          resolve(true);
+        };
+        this.currentSource = source;
+        source.start();
+      });
+    } catch {
+      return false;
+    }
   }
 
   private ensureAudioContext(): AudioContext | null {
@@ -362,6 +397,7 @@ export class Chat {
   }
 
   protected stopSpeaking(): void {
+    this.speakRun += 1; // invalidate any in-flight pipeline
     if (this.ttsAudio) {
       this.ttsAudio.pause();
       this.ttsAudio.onended = null;

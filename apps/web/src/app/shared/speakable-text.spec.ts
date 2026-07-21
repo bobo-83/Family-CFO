@@ -22,3 +22,25 @@ describe('speakableText', () => {
     expect(speakableText('See [the budget](https://x.example/y).')).toBe('See the budget.');
   });
 });
+
+import { speakableSentences } from './speakable-text';
+
+describe('speakableSentences (pipelined TTS)', () => {
+  it('splits an answer into sentence chunks', () => {
+    const parts = speakableSentences('You can afford it. Save the rest! Any questions?');
+    expect(parts.length).toBe(3);
+    expect(parts[0]).toContain('afford');
+    expect(parts[2]).toContain('questions');
+  });
+
+  it('drops chunks with nothing to pronounce', () => {
+    const parts = speakableSentences('First part.\n\n---\n\nSecond part.');
+    expect(parts.every((p) => /[a-z0-9]/i.test(p))).toBe(true);
+    expect(parts.join(' ')).toContain('First part');
+    expect(parts.join(' ')).toContain('Second part');
+  });
+
+  it('returns empty for empty input', () => {
+    expect(speakableSentences('')).toEqual([]);
+  });
+});

@@ -48,3 +48,27 @@ export function speakableText(markdown: string): string {
     .replace(/\n{2,}/g, '\n')
     .trim();
 }
+
+/**
+ * Sentence-sized chunks for pipelined TTS (mirrors iOS `SpokenReply.sentences`):
+ * the voice service synthesizes one sentence while the previous plays, so the
+ * user waits for ONE sentence, not the whole answer. Chunks with nothing to
+ * pronounce (bare dashes/arrows) are dropped — they synthesize to empty audio.
+ */
+export function speakableSentences(markdown: string): string[] {
+  const text = speakableText(markdown);
+  if (!text) {
+    return [];
+  }
+  const parts: string[] = [];
+  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' });
+    for (const segment of segmenter.segment(text)) {
+      parts.push(segment.segment);
+    }
+  } else {
+    // Fallback: split on sentence enders and newlines.
+    parts.push(...text.split(/(?<=[.!?…])\s+|\n+/));
+  }
+  return parts.map((p) => p.trim()).filter((p) => /[\p{L}\p{N}]/u.test(p));
+}
