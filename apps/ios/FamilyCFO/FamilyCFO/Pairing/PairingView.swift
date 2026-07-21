@@ -8,11 +8,16 @@ struct PairingView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel = PairingViewModel()
     @State private var pastedPayload = ""
+    /// ADR 0056: the QR-less path — sign in with email + password.
+    @State private var showingLogin = false
 
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Pair with your CFO")
+        }
+        .sheet(isPresented: $showingLogin) {
+            LoginView()
         }
     }
 
@@ -60,6 +65,13 @@ struct PairingView: View {
                 .disabled(pastedPayload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal)
+
+            // ADR 0056: members with their own credentials (e.g. joined via an
+            // invite link) can sign in without a QR from the admin.
+            Button("Sign in with email instead") {
+                showingLogin = true
+            }
+            .font(.callout)
 
             Spacer()
         }
