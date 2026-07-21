@@ -225,6 +225,7 @@
                 <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
                 <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
                 <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt>Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
                 <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
                 <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
               </dl>
@@ -359,6 +360,7 @@
                 <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
                 <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
                 <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt>Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
                 <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
                 <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
               </dl>

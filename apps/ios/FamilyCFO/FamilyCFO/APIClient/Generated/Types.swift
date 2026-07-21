@@ -3374,10 +3374,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisTransaction/description`.
             public var description: Swift.String?
-            /// The checking account the deposit landed in.
+            /// The account the deposit landed in.
             ///
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisTransaction/account_name`.
             public var accountName: Swift.String?
+            /// ADR 0054: the bank behind the account (e.g. "Charles Schwab") — matters for RSU/ESPP deposits that land in a brokerage, not a checking account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/IncomeAnalysisTransaction/institution`.
+            public var institution: Swift.String?
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisTransaction/excluded`.
             public var excluded: Swift.Bool
             /// Creates a new `IncomeAnalysisTransaction`.
@@ -3389,7 +3393,8 @@ public enum Components {
             ///   - name:
             ///   - merchant: The payer/sender as the bank reported it.
             ///   - description: Full untruncated bank memo (often names the source account).
-            ///   - accountName: The checking account the deposit landed in.
+            ///   - accountName: The account the deposit landed in.
+            ///   - institution: ADR 0054: the bank behind the account (e.g. "Charles Schwab") — matters for RSU/ESPP deposits that land in a brokerage, not a checking account.
             ///   - excluded:
             public init(
                 transactionId: Swift.String,
@@ -3399,6 +3404,7 @@ public enum Components {
                 merchant: Swift.String? = nil,
                 description: Swift.String? = nil,
                 accountName: Swift.String? = nil,
+                institution: Swift.String? = nil,
                 excluded: Swift.Bool
             ) {
                 self.transactionId = transactionId
@@ -3408,6 +3414,7 @@ public enum Components {
                 self.merchant = merchant
                 self.description = description
                 self.accountName = accountName
+                self.institution = institution
                 self.excluded = excluded
             }
             public enum CodingKeys: String, CodingKey {
@@ -3418,6 +3425,7 @@ public enum Components {
                 case merchant
                 case description
                 case accountName = "account_name"
+                case institution
                 case excluded
             }
         }

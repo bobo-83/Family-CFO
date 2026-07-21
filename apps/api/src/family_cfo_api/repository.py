@@ -1107,25 +1107,6 @@ def sum_income(
         return int(conn.execute(query).scalar_one())
 
 
-def income_categorized_ids(engine: Engine, household_id: str, *, since: date) -> set[str]:
-    """Ids of positive inflows the household filed under the Income category since
-    `since`. Filing a deposit under Income is an explicit "this is income" signal
-    the analysis honors even when detection would miss it or exclude it as an
-    internal transfer (ADR 0053)."""
-    income_ids = select(models.transaction_categories.c.id).where(
-        (models.transaction_categories.c.household_id == household_id)
-        & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
-    )
-    query = select(models.transactions.c.id).where(
-        (models.transactions.c.household_id == household_id)
-        & (models.transactions.c.amount_minor > 0)
-        & (models.transactions.c.occurred_at >= since)
-        & (models.transactions.c.category_id.in_(income_ids))
-    )
-    with engine.connect() as conn:
-        return {row[0] for row in conn.execute(query)}
-
-
 def _spending_window(household_id: str, start: date, end: date, currency: str):
     """A predicate selecting spending in [start, end], base currency, summed as
     -amount so outflows add and refunds subtract.
@@ -4279,11 +4260,11 @@ def delete_income_profile(engine: Engine, household_id: str, profile_id: str) ->
 
 def list_income_detection_transactions(
     engine: Engine, household_id: str, *, since: date
-) -> list[tuple[str, date, int, str, str | None, str | None, str]]:
+) -> list[tuple[str, date, int, str, str | None, str | None, str, str | None]]:
     """Inflow rows from checking accounts for recurring-income detection.
 
     Returns (id, occurred_at, amount_minor, currency, merchant, description,
-    account_name).
+    account_name, institution).
     """
     query = (
         select(
@@ -4294,6 +4275,7 @@ def list_income_detection_transactions(
             models.transactions.c.merchant,
             models.transactions.c.description,
             models.accounts.c.name,
+            models.accounts.c.institution,
         )
         .select_from(
             models.transactions.join(
@@ -4311,6 +4293,44 @@ def list_income_detection_transactions(
     with engine.connect() as conn:
         rows = conn.execute(query).all()
     return [tuple(row) for row in rows]
+
+
+def list_income_categorized_transactions(
+    engine: Engine, household_id: str, *, since: date
+) -> list[tuple[str, date, int, str, str | None, str | None, str, str | None]]:
+    """Inflow rows the household filed under the Income category — from ANY
+    account type, so RSU/ESPP deposits that land in a brokerage are seen too
+    (ADR 0054). Same tuple shape as list_income_detection_transactions."""
+    income_ids = select(models.transaction_categories.c.id).where(
+        (models.transaction_categories.c.household_id == household_id)
+        & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
+    )
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transactions.c.description,
+            models.accounts.c.name,
+            models.accounts.c.institution,
+        )
+        .select_from(
+            models.transactions.join(
+                models.accounts, models.transactions.c.account_id == models.accounts.c.id
+            )
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.amount_minor > 0,
+            models.transactions.c.occurred_at >= since,
+            models.transactions.c.category_id.in_(income_ids),
+        )
+        .order_by(models.transactions.c.occurred_at)
+    )
+    with engine.connect() as conn:
+        return [tuple(row) for row in conn.execute(query).all()]
 
 
 def list_household_outflows(

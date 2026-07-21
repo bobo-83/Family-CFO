@@ -640,6 +640,9 @@ class IncomeAnalysisTransaction(BaseModel):
     merchant: str | None = None
     description: str | None = None
     account_name: str = ""
+    # ADR 0054: the bank behind the account (e.g. "Charles Schwab") — matters for
+    # RSU/ESPP deposits that land in a brokerage, not a checking account.
+    institution: str | None = None
     excluded: bool
 
 

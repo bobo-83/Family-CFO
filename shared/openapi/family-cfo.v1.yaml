@@ -3622,7 +3622,12 @@ components:
           description: Full untruncated bank memo (often names the source account).
         account_name:
           type: string
-          description: The checking account the deposit landed in.
+          description: The account the deposit landed in.
+        institution:
+          type: string
+          description: >-
+            ADR 0054: the bank behind the account (e.g. "Charles Schwab") — matters
+            for RSU/ESPP deposits that land in a brokerage, not a checking account.
         excluded:
           type: boolean
     IncomeSourceAnalysis:
