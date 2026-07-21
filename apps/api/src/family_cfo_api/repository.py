@@ -4298,9 +4298,11 @@ def list_income_detection_transactions(
 def list_income_categorized_transactions(
     engine: Engine, household_id: str, *, since: date
 ) -> list[tuple[str, date, int, str, str | None, str | None, str, str | None]]:
-    """Inflow rows the household filed under the Income category — from ANY
+    """Inflow rows the household filed under the Income category — from ANY asset
     account type, so RSU/ESPP deposits that land in a brokerage are seen too
-    (ADR 0054). Same tuple shape as list_income_detection_transactions."""
+    (ADR 0054). Liability accounts are excluded: a positive posting on a loan or
+    lease is a debt PAYMENT credit, never income (ADR 0055). Same tuple shape as
+    list_income_detection_transactions."""
     income_ids = select(models.transaction_categories.c.id).where(
         (models.transaction_categories.c.household_id == household_id)
         & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
@@ -4326,6 +4328,7 @@ def list_income_categorized_transactions(
             models.transactions.c.amount_minor > 0,
             models.transactions.c.occurred_at >= since,
             models.transactions.c.category_id.in_(income_ids),
+            models.accounts.c.type.notin_(tuple(LIABILITY_ACCOUNT_TYPES)),
         )
         .order_by(models.transactions.c.occurred_at)
     )

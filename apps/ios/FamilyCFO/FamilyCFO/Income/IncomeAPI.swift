@@ -10,6 +10,10 @@ protocol IncomeAPI: Sendable {
     /// The full income picture (M73): detected sources, rollup, earners, tax.
     func analysis() async throws -> Components.Schemas.IncomeAnalysisResponse
     func deleteEarner(id: String) async throws
+    /// ADR 0055: the household's categories + recategorizing a deposit from the
+    /// income page — so a transfer double-counted as income can be reclassified.
+    func categories() async throws -> [Components.Schemas.Category]
+    func setCategory(transactionID: String, categoryID: String?) async throws
 }
 
 enum IncomeAPIError: Error, LocalizedError, Equatable {
@@ -101,6 +105,34 @@ struct LiveIncomeAPI: IncomeAPI {
             throw IncomeAPIError.forbidden
         case .notFound:
             throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func categories() async throws -> [Components.Schemas.Category] {
+        switch try await client.listCategories(.init()) {
+        case .ok(let response):
+            return try response.body.json.categories
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func setCategory(transactionID: String, categoryID: String?) async throws {
+        let request = Components.Schemas.TransactionUpdateRequest(
+            categoryId: categoryID, clearCategory: categoryID == nil ? true : nil)
+        switch try await client.updateTransaction(
+            .init(path: .init(transactionId: transactionID), body: .json(request))
+        ) {
+        case .ok, .notFound:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

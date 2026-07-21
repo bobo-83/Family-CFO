@@ -70,6 +70,8 @@ final class MockIncomeAPI: IncomeAPI, @unchecked Sendable {
     }
 
     nonisolated func deleteEarner(id: String) async throws {}
+    nonisolated func categories() async throws -> [Components.Schemas.Category] { [] }
+    nonisolated func setCategory(transactionID: String, categoryID: String?) async throws {}
 }
 
 @MainActor

@@ -46,7 +46,7 @@ export class IncomeTax {
   // ADR 0049: transfers that look like misfiled income, awaiting the user's
   // confirm-as-income / keep-as-transfer decision.
   protected readonly suspectedIncome = signal<Transaction[]>([]);
-  private readonly categories = signal<Category[]>([]);
+  protected readonly categories = signal<Category[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly busy = signal<string | null>(null);
@@ -149,6 +149,29 @@ export class IncomeTax {
     this.busy.set(null);
     if (error) {
       this.actionError.set(apiErrorMessage(error, 'Failed to save the change.'));
+      return;
+    }
+    await this.load();
+  }
+
+  // ADR 0055: reclassify a counted deposit from the income page — e.g. a
+  // transfer of already-counted RSU proceeds double-counted as income. Moving it
+  // off the Income category drops it from the rollup.
+  protected async recategorizeDeposit(
+    transaction: IncomeAnalysisTransaction,
+    categoryId: string,
+  ): Promise<void> {
+    if (this.busy() || !categoryId) {
+      return;
+    }
+    this.busy.set(transaction.transaction_id);
+    this.actionError.set(null);
+    const { error } = await this.api.updateTransaction(transaction.transaction_id, {
+      category_id: categoryId,
+    });
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to recategorize.'));
       return;
     }
     await this.load();
