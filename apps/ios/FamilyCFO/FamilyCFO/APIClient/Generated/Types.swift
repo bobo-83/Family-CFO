@@ -26,6 +26,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /pairing/confirm`.
     /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)`.
     func confirmPairing(_ input: Operations.ConfirmPairing.Input) async throws -> Operations.ConfirmPairing.Output
+    /// Sign a device in with email + password (credentialed pairing)
+    ///
+    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    ///
+    /// - Remark: HTTP `POST /pairing/login`.
+    /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
+    func createDeviceSessionWithPassword(_ input: Operations.CreateDeviceSessionWithPassword.Input) async throws -> Operations.CreateDeviceSessionWithPassword.Output
     /// List paired devices
     ///
     /// - Remark: HTTP `GET /pairing/devices`.
@@ -105,6 +112,38 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /household/members/{user_id}`.
     /// - Remark: Generated from `#/paths//household/members/{user_id}/delete(deleteMember)`.
     func deleteMember(_ input: Operations.DeleteMember.Input) async throws -> Operations.DeleteMember.Output
+    /// List invitations with their status (pending/accepted/expired/revoked)
+    ///
+    /// - Remark: HTTP `GET /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/get(listInvites)`.
+    func listInvites(_ input: Operations.ListInvites.Input) async throws -> Operations.ListInvites.Output
+    /// Invite a new member — returns the one-time join link token
+    ///
+    /// - Remark: HTTP `POST /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/post(createInvite)`.
+    func createInvite(_ input: Operations.CreateInvite.Input) async throws -> Operations.CreateInvite.Output
+    /// Mint a fresh link for an unaccepted invite (the old link stops working)
+    ///
+    /// - Remark: HTTP `POST /household/invites/{invite_id}/token`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)`.
+    func regenerateInviteToken(_ input: Operations.RegenerateInviteToken.Input) async throws -> Operations.RegenerateInviteToken.Output
+    /// Revoke a pending invite (an accepted invite is history — remove the member instead)
+    ///
+    /// - Remark: HTTP `DELETE /household/invites/{invite_id}`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)`.
+    func revokeInvite(_ input: Operations.RevokeInvite.Input) async throws -> Operations.RevokeInvite.Output
+    /// Public: what an invite link joins (household, email, role)
+    ///
+    /// The token is POSTed in the body (never a query param) so the secret stays out of access logs; the join page keeps it in the URL fragment.
+    ///
+    /// - Remark: HTTP `POST /invites/preview`.
+    /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)`.
+    func previewInvite(_ input: Operations.PreviewInvite.Input) async throws -> Operations.PreviewInvite.Output
+    /// Public: accept an invite — set your own password and join the household
+    ///
+    /// - Remark: HTTP `POST /invites/accept`.
+    /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)`.
+    func acceptInvite(_ input: Operations.AcceptInvite.Input) async throws -> Operations.AcceptInvite.Output
     /// List the household's roles and the rights catalog
     ///
     /// - Remark: HTTP `GET /household/roles`.
@@ -630,6 +669,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Sign a device in with email + password (credentialed pairing)
+    ///
+    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    ///
+    /// - Remark: HTTP `POST /pairing/login`.
+    /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
+    public func createDeviceSessionWithPassword(
+        headers: Operations.CreateDeviceSessionWithPassword.Input.Headers = .init(),
+        body: Operations.CreateDeviceSessionWithPassword.Input.Body
+    ) async throws -> Operations.CreateDeviceSessionWithPassword.Output {
+        try await createDeviceSessionWithPassword(Operations.CreateDeviceSessionWithPassword.Input(
+            headers: headers,
+            body: body
+        ))
+    }
     /// List paired devices
     ///
     /// - Remark: HTTP `GET /pairing/devices`.
@@ -793,6 +847,80 @@ extension APIProtocol {
         try await deleteMember(Operations.DeleteMember.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// List invitations with their status (pending/accepted/expired/revoked)
+    ///
+    /// - Remark: HTTP `GET /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/get(listInvites)`.
+    public func listInvites(headers: Operations.ListInvites.Input.Headers = .init()) async throws -> Operations.ListInvites.Output {
+        try await listInvites(Operations.ListInvites.Input(headers: headers))
+    }
+    /// Invite a new member — returns the one-time join link token
+    ///
+    /// - Remark: HTTP `POST /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/post(createInvite)`.
+    public func createInvite(
+        headers: Operations.CreateInvite.Input.Headers = .init(),
+        body: Operations.CreateInvite.Input.Body
+    ) async throws -> Operations.CreateInvite.Output {
+        try await createInvite(Operations.CreateInvite.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Mint a fresh link for an unaccepted invite (the old link stops working)
+    ///
+    /// - Remark: HTTP `POST /household/invites/{invite_id}/token`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)`.
+    public func regenerateInviteToken(
+        path: Operations.RegenerateInviteToken.Input.Path,
+        headers: Operations.RegenerateInviteToken.Input.Headers = .init()
+    ) async throws -> Operations.RegenerateInviteToken.Output {
+        try await regenerateInviteToken(Operations.RegenerateInviteToken.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Revoke a pending invite (an accepted invite is history — remove the member instead)
+    ///
+    /// - Remark: HTTP `DELETE /household/invites/{invite_id}`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)`.
+    public func revokeInvite(
+        path: Operations.RevokeInvite.Input.Path,
+        headers: Operations.RevokeInvite.Input.Headers = .init()
+    ) async throws -> Operations.RevokeInvite.Output {
+        try await revokeInvite(Operations.RevokeInvite.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Public: what an invite link joins (household, email, role)
+    ///
+    /// The token is POSTed in the body (never a query param) so the secret stays out of access logs; the join page keeps it in the URL fragment.
+    ///
+    /// - Remark: HTTP `POST /invites/preview`.
+    /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)`.
+    public func previewInvite(
+        headers: Operations.PreviewInvite.Input.Headers = .init(),
+        body: Operations.PreviewInvite.Input.Body
+    ) async throws -> Operations.PreviewInvite.Output {
+        try await previewInvite(Operations.PreviewInvite.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Public: accept an invite — set your own password and join the household
+    ///
+    /// - Remark: HTTP `POST /invites/accept`.
+    /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)`.
+    public func acceptInvite(
+        headers: Operations.AcceptInvite.Input.Headers = .init(),
+        body: Operations.AcceptInvite.Input.Body
+    ) async throws -> Operations.AcceptInvite.Output {
+        try await acceptInvite(Operations.AcceptInvite.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// List the household's roles and the rights catalog
@@ -2137,6 +2265,12 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/rights`.
             public var rights: [Swift.String]?
+            /// ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCredential/household_id`.
+            public var householdId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/DeviceCredential/household_name`.
+            public var householdName: Swift.String?
             /// Creates a new `DeviceCredential`.
             ///
             /// - Parameters:
@@ -2146,13 +2280,17 @@ public enum Components {
             ///   - role: M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
             ///   - roleName: ADR 0034: name of the assigned role (preset or custom).
             ///   - rights: ADR 0034: resolved rights — clients gate screens with these.
+            ///   - householdId: ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+            ///   - householdName:
             public init(
                 deviceId: Swift.String,
                 accessToken: Swift.String,
                 expiresAt: Foundation.Date,
                 role: Components.Schemas.HouseholdRole? = nil,
                 roleName: Swift.String? = nil,
-                rights: [Swift.String]? = nil
+                rights: [Swift.String]? = nil,
+                householdId: Swift.String? = nil,
+                householdName: Swift.String? = nil
             ) {
                 self.deviceId = deviceId
                 self.accessToken = accessToken
@@ -2160,6 +2298,8 @@ public enum Components {
                 self.role = role
                 self.roleName = roleName
                 self.rights = rights
+                self.householdId = householdId
+                self.householdName = householdName
             }
             public enum CodingKeys: String, CodingKey {
                 case deviceId = "device_id"
@@ -2168,6 +2308,45 @@ public enum Components {
                 case role
                 case roleName = "role_name"
                 case rights
+                case householdId = "household_id"
+                case householdName = "household_name"
+            }
+        }
+        /// ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a QR confirm: a paired device with a device-bound session.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PairingLoginRequest`.
+        public struct PairingLoginRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PairingLoginRequest/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PairingLoginRequest/password`.
+            public var password: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PairingLoginRequest/device_name`.
+            public var deviceName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PairingLoginRequest/device_public_key`.
+            public var devicePublicKey: Swift.String
+            /// Creates a new `PairingLoginRequest`.
+            ///
+            /// - Parameters:
+            ///   - email:
+            ///   - password:
+            ///   - deviceName:
+            ///   - devicePublicKey:
+            public init(
+                email: Swift.String,
+                password: Swift.String,
+                deviceName: Swift.String,
+                devicePublicKey: Swift.String
+            ) {
+                self.email = email
+                self.password = password
+                self.deviceName = deviceName
+                self.devicePublicKey = devicePublicKey
+            }
+            public enum CodingKeys: String, CodingKey {
+                case email
+                case password
+                case deviceName = "device_name"
+                case devicePublicKey = "device_public_key"
             }
         }
         /// - Remark: Generated from `#/components/schemas/PairedDevice`.
@@ -7009,6 +7188,236 @@ public enum Components {
                 case roleId = "role_id"
             }
         }
+        /// ADR 0056: a copy-link invitation. Status is computed from the timestamps; the raw token is NEVER in this model.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Invite`.
+        public struct Invite: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Invite/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Invite/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Invite/role`.
+            public var role: Components.Schemas.HouseholdRole
+            /// - Remark: Generated from `#/components/schemas/Invite/role_id`.
+            public var roleId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Invite/role_name`.
+            public var roleName: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Invite/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pending = "pending"
+                case accepted = "accepted"
+                case expired = "expired"
+                case revoked = "revoked"
+            }
+            /// - Remark: Generated from `#/components/schemas/Invite/status`.
+            public var status: Components.Schemas.Invite.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/Invite/created_at`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Invite/expires_at`.
+            public var expiresAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/Invite/accepted_at`.
+            public var acceptedAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/Invite/invited_by_display_name`.
+            public var invitedByDisplayName: Swift.String?
+            /// Creates a new `Invite`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - email:
+            ///   - role:
+            ///   - roleId:
+            ///   - roleName:
+            ///   - status:
+            ///   - createdAt:
+            ///   - expiresAt:
+            ///   - acceptedAt:
+            ///   - invitedByDisplayName:
+            public init(
+                id: Swift.String,
+                email: Swift.String,
+                role: Components.Schemas.HouseholdRole,
+                roleId: Swift.String? = nil,
+                roleName: Swift.String? = nil,
+                status: Components.Schemas.Invite.StatusPayload,
+                createdAt: Foundation.Date,
+                expiresAt: Foundation.Date,
+                acceptedAt: Foundation.Date? = nil,
+                invitedByDisplayName: Swift.String? = nil
+            ) {
+                self.id = id
+                self.email = email
+                self.role = role
+                self.roleId = roleId
+                self.roleName = roleName
+                self.status = status
+                self.createdAt = createdAt
+                self.expiresAt = expiresAt
+                self.acceptedAt = acceptedAt
+                self.invitedByDisplayName = invitedByDisplayName
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case email
+                case role
+                case roleId = "role_id"
+                case roleName = "role_name"
+                case status
+                case createdAt = "created_at"
+                case expiresAt = "expires_at"
+                case acceptedAt = "accepted_at"
+                case invitedByDisplayName = "invited_by_display_name"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InviteListResponse`.
+        public struct InviteListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InviteListResponse/invites`.
+            public var invites: [Components.Schemas.Invite]
+            /// Creates a new `InviteListResponse`.
+            ///
+            /// - Parameters:
+            ///   - invites:
+            public init(invites: [Components.Schemas.Invite]) {
+                self.invites = invites
+            }
+            public enum CodingKeys: String, CodingKey {
+                case invites
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InviteCreateRequest`.
+        public struct InviteCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InviteCreateRequest/email`.
+            public var email: Swift.String
+            /// Legacy tier; maps to its preset role. role_id wins if both sent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/InviteCreateRequest/role`.
+            public var role: Components.Schemas.HouseholdRole?
+            /// - Remark: Generated from `#/components/schemas/InviteCreateRequest/role_id`.
+            public var roleId: Swift.String?
+            /// Creates a new `InviteCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - email:
+            ///   - role: Legacy tier; maps to its preset role. role_id wins if both sent.
+            ///   - roleId:
+            public init(
+                email: Swift.String,
+                role: Components.Schemas.HouseholdRole? = nil,
+                roleId: Swift.String? = nil
+            ) {
+                self.email = email
+                self.role = role
+                self.roleId = roleId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case email
+                case role
+                case roleId = "role_id"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InviteCreateResponse`.
+        public struct InviteCreateResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InviteCreateResponse/invite`.
+            public var invite: Components.Schemas.Invite
+            /// The one-time secret for the join link — returned ONLY at creation and regeneration; stored hashed, so it can never be shown again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/InviteCreateResponse/invite_token`.
+            public var inviteToken: Swift.String
+            /// Creates a new `InviteCreateResponse`.
+            ///
+            /// - Parameters:
+            ///   - invite:
+            ///   - inviteToken: The one-time secret for the join link — returned ONLY at creation and regeneration; stored hashed, so it can never be shown again.
+            public init(
+                invite: Components.Schemas.Invite,
+                inviteToken: Swift.String
+            ) {
+                self.invite = invite
+                self.inviteToken = inviteToken
+            }
+            public enum CodingKeys: String, CodingKey {
+                case invite
+                case inviteToken = "invite_token"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvitePreviewRequest`.
+        public struct InvitePreviewRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvitePreviewRequest/token`.
+            public var token: Swift.String
+            /// Creates a new `InvitePreviewRequest`.
+            ///
+            /// - Parameters:
+            ///   - token:
+            public init(token: Swift.String) {
+                self.token = token
+            }
+            public enum CodingKeys: String, CodingKey {
+                case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InvitePreview`.
+        public struct InvitePreview: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InvitePreview/household_name`.
+            public var householdName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/InvitePreview/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/InvitePreview/role_name`.
+            public var roleName: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/InvitePreview/expires_at`.
+            public var expiresAt: Foundation.Date
+            /// Creates a new `InvitePreview`.
+            ///
+            /// - Parameters:
+            ///   - householdName:
+            ///   - email:
+            ///   - roleName:
+            ///   - expiresAt:
+            public init(
+                householdName: Swift.String,
+                email: Swift.String,
+                roleName: Swift.String? = nil,
+                expiresAt: Foundation.Date
+            ) {
+                self.householdName = householdName
+                self.email = email
+                self.roleName = roleName
+                self.expiresAt = expiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case householdName = "household_name"
+                case email
+                case roleName = "role_name"
+                case expiresAt = "expires_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest`.
+        public struct InviteAcceptRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest/token`.
+            public var token: Swift.String
+            /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest/password`.
+            public var password: Swift.String
+            /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest/display_name`.
+            public var displayName: Swift.String
+            /// Creates a new `InviteAcceptRequest`.
+            ///
+            /// - Parameters:
+            ///   - token:
+            ///   - password:
+            ///   - displayName:
+            public init(
+                token: Swift.String,
+                password: Swift.String,
+                displayName: Swift.String
+            ) {
+                self.token = token
+                self.password = password
+                self.displayName = displayName
+            }
+            public enum CodingKeys: String, CodingKey {
+                case token
+                case password
+                case displayName = "display_name"
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest`.
         public struct MemberRoleUpdateRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest/role`.
@@ -8811,6 +9220,175 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Sign a device in with email + password (credentialed pairing)
+    ///
+    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    ///
+    /// - Remark: HTTP `POST /pairing/login`.
+    /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
+    public enum CreateDeviceSessionWithPassword {
+        public static let id: Swift.String = "createDeviceSessionWithPassword"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/pairing/login/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateDeviceSessionWithPassword.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateDeviceSessionWithPassword.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateDeviceSessionWithPassword.Input.Headers
+            /// - Remark: Generated from `#/paths/pairing/login/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/login/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.PairingLoginRequest)
+            }
+            public var body: Operations.CreateDeviceSessionWithPassword.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateDeviceSessionWithPassword.Input.Headers = .init(),
+                body: Operations.CreateDeviceSessionWithPassword.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/login/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/pairing/login/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.DeviceCredential)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DeviceCredential {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateDeviceSessionWithPassword.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateDeviceSessionWithPassword.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Device signed in
+            ///
+            /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateDeviceSessionWithPassword.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateDeviceSessionWithPassword.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -11254,6 +11832,1181 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List invitations with their status (pending/accepted/expired/revoked)
+    ///
+    /// - Remark: HTTP `GET /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/get(listInvites)`.
+    public enum ListInvites {
+        public static let id: Swift.String = "listInvites"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/invites/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListInvites.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListInvites.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListInvites.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListInvites.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/invites/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.InviteListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.InviteListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListInvites.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListInvites.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Invitations
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/get(listInvites)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListInvites.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListInvites.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/get(listInvites)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/get(listInvites)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Invite a new member — returns the one-time join link token
+    ///
+    /// - Remark: HTTP `POST /household/invites`.
+    /// - Remark: Generated from `#/paths//household/invites/post(createInvite)`.
+    public enum CreateInvite {
+        public static let id: Swift.String = "createInvite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/invites/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateInvite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateInvite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateInvite.Input.Headers
+            /// - Remark: Generated from `#/paths/household/invites/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.InviteCreateRequest)
+            }
+            public var body: Operations.CreateInvite.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateInvite.Input.Headers = .init(),
+                body: Operations.CreateInvite.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/invites/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.InviteCreateResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.InviteCreateResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateInvite.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateInvite.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Invite created; the token appears ONLY in this response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/post(createInvite)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateInvite.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateInvite.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/post(createInvite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/post(createInvite)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/post(createInvite)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Mint a fresh link for an unaccepted invite (the old link stops working)
+    ///
+    /// - Remark: HTTP `POST /household/invites/{invite_id}/token`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)`.
+    public enum RegenerateInviteToken {
+        public static let id: Swift.String = "regenerateInviteToken"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/invites/{invite_id}/token/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/{invite_id}/token/POST/path/invite_id`.
+                public var inviteId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - inviteId:
+                public init(inviteId: Swift.String) {
+                    self.inviteId = inviteId
+                }
+            }
+            public var path: Operations.RegenerateInviteToken.Input.Path
+            /// - Remark: Generated from `#/paths/household/invites/{invite_id}/token/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RegenerateInviteToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RegenerateInviteToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RegenerateInviteToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.RegenerateInviteToken.Input.Path,
+                headers: Operations.RegenerateInviteToken.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/{invite_id}/token/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/invites/{invite_id}/token/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.InviteCreateResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.InviteCreateResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RegenerateInviteToken.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RegenerateInviteToken.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// New invite token
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.RegenerateInviteToken.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.RegenerateInviteToken.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/token/post(regenerateInviteToken)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Revoke a pending invite (an accepted invite is history — remove the member instead)
+    ///
+    /// - Remark: HTTP `DELETE /household/invites/{invite_id}`.
+    /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)`.
+    public enum RevokeInvite {
+        public static let id: Swift.String = "revokeInvite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/invites/{invite_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/invites/{invite_id}/DELETE/path/invite_id`.
+                public var inviteId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - inviteId:
+                public init(inviteId: Swift.String) {
+                    self.inviteId = inviteId
+                }
+            }
+            public var path: Operations.RevokeInvite.Input.Path
+            /// - Remark: Generated from `#/paths/household/invites/{invite_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RevokeInvite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RevokeInvite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RevokeInvite.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.RevokeInvite.Input.Path,
+                headers: Operations.RevokeInvite.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Invite revoked
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.RevokeInvite.Output.NoContent)
+            /// Invite revoked
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.RevokeInvite.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/invites/{invite_id}/delete(revokeInvite)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Public: what an invite link joins (household, email, role)
+    ///
+    /// The token is POSTed in the body (never a query param) so the secret stays out of access logs; the join page keeps it in the URL fragment.
+    ///
+    /// - Remark: HTTP `POST /invites/preview`.
+    /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)`.
+    public enum PreviewInvite {
+        public static let id: Swift.String = "previewInvite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/invites/preview/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.PreviewInvite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.PreviewInvite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.PreviewInvite.Input.Headers
+            /// - Remark: Generated from `#/paths/invites/preview/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/invites/preview/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.InvitePreviewRequest)
+            }
+            public var body: Operations.PreviewInvite.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.PreviewInvite.Input.Headers = .init(),
+                body: Operations.PreviewInvite.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/invites/preview/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/invites/preview/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.InvitePreview)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.InvitePreview {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.PreviewInvite.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.PreviewInvite.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Invite preview
+            ///
+            /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.PreviewInvite.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.PreviewInvite.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)/responses/410`.
+            ///
+            /// HTTP response code: `410 gone`.
+            case gone(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.gone`.
+            ///
+            /// - Throws: An error if `self` is not `.gone`.
+            /// - SeeAlso: `.gone`.
+            public var gone: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .gone(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Public: accept an invite — set your own password and join the household
+    ///
+    /// - Remark: HTTP `POST /invites/accept`.
+    /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)`.
+    public enum AcceptInvite {
+        public static let id: Swift.String = "acceptInvite"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/invites/accept/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AcceptInvite.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AcceptInvite.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.AcceptInvite.Input.Headers
+            /// - Remark: Generated from `#/paths/invites/accept/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/invites/accept/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.InviteAcceptRequest)
+            }
+            public var body: Operations.AcceptInvite.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.AcceptInvite.Input.Headers = .init(),
+                body: Operations.AcceptInvite.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/invites/accept/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/invites/accept/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.AuthSession)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AuthSession {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AcceptInvite.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AcceptInvite.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Joined; signed in
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.AcceptInvite.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.AcceptInvite.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/410`.
+            ///
+            /// HTTP response code: `410 gone`.
+            case gone(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.gone`.
+            ///
+            /// - Throws: An error if `self` is not `.gone`.
+            /// - SeeAlso: `.gone`.
+            public var gone: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .gone(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

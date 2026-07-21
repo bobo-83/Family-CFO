@@ -90,6 +90,33 @@ paths:
                 $ref: "#/components/schemas/DeviceCredential"
         "400":
           $ref: "#/components/responses/Error"
+  /pairing/login:
+    post:
+      tags:
+        - Pairing
+      operationId: createDeviceSessionWithPassword
+      summary: Sign a device in with email + password (credentialed pairing)
+      description: >-
+        ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired
+        device with a device-bound session — so the Devices page and revocation
+        cover phones however they signed in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingLoginRequest"
+      responses:
+        "201":
+          description: Device signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCredential"
+        "401":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
   /pairing/devices:
     get:
       tags:
@@ -429,6 +456,162 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
         "409":
+          $ref: "#/components/responses/Error"
+  /household/invites:
+    post:
+      tags:
+        - Household
+      operationId: createInvite
+      summary: Invite a new member — returns the one-time join link token
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteCreateRequest"
+      responses:
+        "201":
+          description: Invite created; the token appears ONLY in this response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteCreateResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+    get:
+      tags:
+        - Household
+      operationId: listInvites
+      summary: List invitations with their status (pending/accepted/expired/revoked)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /household/invites/{invite_id}/token:
+    post:
+      tags:
+        - Household
+      operationId: regenerateInviteToken
+      summary: Mint a fresh link for an unaccepted invite (the old link stops working)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: New invite token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteCreateResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /household/invites/{invite_id}:
+    delete:
+      tags:
+        - Household
+      operationId: revokeInvite
+      summary: Revoke a pending invite (an accepted invite is history — remove the member instead)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: invite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Invite revoked
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /invites/preview:
+    post:
+      tags:
+        - Household
+      operationId: previewInvite
+      summary: "Public: what an invite link joins (household, email, role)"
+      description: >-
+        The token is POSTed in the body (never a query param) so the secret
+        stays out of access logs; the join page keeps it in the URL fragment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitePreviewRequest"
+      responses:
+        "200":
+          description: Invite preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreview"
+        "404":
+          $ref: "#/components/responses/Error"
+        "410":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+  /invites/accept:
+    post:
+      tags:
+        - Household
+      operationId: acceptInvite
+      summary: "Public: accept an invite — set your own password and join the household"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteAcceptRequest"
+      responses:
+        "201":
+          description: Joined; signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "410":
+          $ref: "#/components/responses/Error"
+        "429":
           $ref: "#/components/responses/Error"
   /household/roles:
     get:
@@ -2932,6 +3115,42 @@ components:
             - array
             - "null"
           items: { type: string }
+        household_id:
+          description: >-
+            ADR 0056: the household, so the email-login path (no QR payload)
+            can build the device's ServerConfig. Also populated on QR confirm.
+          type:
+            - string
+            - "null"
+        household_name:
+          type:
+            - string
+            - "null"
+    PairingLoginRequest:
+      type: object
+      description: >-
+        ADR 0056: credentialed pairing — the iOS login screen. Same outcome as
+        a QR confirm: a paired device with a device-bound session.
+      required:
+        - email
+        - password
+        - device_name
+        - device_public_key
+      properties:
+        email:
+          type: string
+          minLength: 3
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+        device_name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        device_public_key:
+          type: string
+          minLength: 1
     PairedDevice:
       type: object
       required:
@@ -5319,6 +5538,130 @@ components:
             - string
             - "null"
           format: uuid
+    Invite:
+      type: object
+      description: >-
+        ADR 0056: a copy-link invitation. Status is computed from the
+        timestamps; the raw token is NEVER in this model.
+      required:
+        - id
+        - email
+        - role
+        - status
+        - created_at
+        - expires_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+        role_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        role_name:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum: [pending, accepted, expired, revoked]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        invited_by_display_name:
+          type:
+            - string
+            - "null"
+    InviteListResponse:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invite"
+    InviteCreateRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 3
+          maxLength: 255
+        role:
+          description: Legacy tier; maps to its preset role. role_id wins if both sent.
+          $ref: "#/components/schemas/HouseholdRole"
+        role_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+    InviteCreateResponse:
+      type: object
+      required: [invite, invite_token]
+      properties:
+        invite:
+          $ref: "#/components/schemas/Invite"
+        invite_token:
+          description: >-
+            The one-time secret for the join link — returned ONLY at creation
+            and regeneration; stored hashed, so it can never be shown again.
+          type: string
+    InvitePreviewRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+    InvitePreview:
+      type: object
+      required:
+        - household_name
+        - email
+        - expires_at
+      properties:
+        household_name:
+          type: string
+        email:
+          type: string
+        role_name:
+          type:
+            - string
+            - "null"
+        expires_at:
+          type: string
+          format: date-time
+    InviteAcceptRequest:
+      type: object
+      required:
+        - token
+        - password
+        - display_name
+      properties:
+        token:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 120
     MemberRoleUpdateRequest:
       type: object
       properties:
