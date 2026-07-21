@@ -208,12 +208,12 @@ export class Chat {
   // M87a: read an assistant answer aloud via the on-box voice service, falling
   // back to the browser's built-in speech synthesizer when it isn't available.
   protected readonly speaking = signal<number | null>(null);
-  // A single reused <audio> element. Playing a silent clip on it inside the tap
-  // "unlocks" it, so assigning the fetched TTS src afterwards can still play on
-  // mobile Safari (which otherwise blocks audio started after an await).
-  private ttsAudio: HTMLAudioElement | null = null;
-  private static readonly SILENCE =
-    'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+  // The fetched TTS audio is played through Web Audio, not a plain <audio>
+  // element: an AudioContext resumed inside the tap stays playable across the
+  // synthesis fetch, which is the reliable way to play audio on mobile Safari
+  // (a bare audio.play() after an await is blocked there).
+  private audioContext: AudioContext | null = null;
+  private currentSource: AudioBufferSourceNode | null = null;
 
   protected async speak(text: string, index: number): Promise<void> {
     // Tapping the one that's playing (or any, mid-playback) stops it.
@@ -227,50 +227,55 @@ export class Chat {
     this.speaking.set(index);
     const spoken = speakableText(text);
 
-    const audio = this.ttsAudio ?? new Audio();
-    this.ttsAudio = audio;
-    audio.src = Chat.SILENCE;
-    try {
-      await audio.play(); // unlock within the user gesture
-    } catch {
-      // Unlock is best-effort; server audio may still play, else we fall back.
-    }
-
-    let url: string | null = null;
-    try {
-      url = await this.api.synthesizeSpeech(spoken);
-    } catch {
-      url = null;
-    }
-    if (this.speaking() !== index) {
-      // Stopped while synthesizing.
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
-      return;
-    }
-
-    if (url) {
-      audio.src = url;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        if (this.speaking() === index) {
-          this.speaking.set(null);
+    const context = this.ensureAudioContext();
+    if (context) {
+      // Resume within the user gesture so playback is allowed later.
+      if (context.state === 'suspended') {
+        try {
+          await context.resume();
+        } catch {
+          // Best-effort; fall through to the platform synthesizer if it fails.
         }
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        this.fallbackSpeak(spoken, index);
-      };
+      }
       try {
-        await audio.play();
-        return;
+        const buffer = await this.api.synthesizeSpeechBuffer(spoken);
+        if (buffer && buffer.byteLength > 0 && this.speaking() === index) {
+          const decoded = await context.decodeAudioData(buffer);
+          if (this.speaking() !== index) {
+            return; // stopped while decoding
+          }
+          const source = context.createBufferSource();
+          source.buffer = decoded;
+          source.connect(context.destination);
+          source.onended = () => {
+            if (this.currentSource === source && this.speaking() === index) {
+              this.speaking.set(null);
+            }
+          };
+          this.currentSource = source;
+          source.start();
+          return;
+        }
       } catch {
-        URL.revokeObjectURL(url);
+        // No on-box voice (503) or decode/playback failed — fall through.
       }
     }
-    // No on-box voice (503) or playback failed — use the platform synthesizer.
+    // No Web Audio or no on-box voice — use the platform speech synthesizer.
     this.fallbackSpeak(spoken, index);
+  }
+
+  private ensureAudioContext(): AudioContext | null {
+    if (this.audioContext) {
+      return this.audioContext;
+    }
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) {
+      return null;
+    }
+    this.audioContext = new Ctor();
+    return this.audioContext;
   }
 
   private fallbackSpeak(text: string, index: number): void {
@@ -297,8 +302,13 @@ export class Chat {
   }
 
   protected stopSpeaking(): void {
-    if (this.ttsAudio) {
-      this.ttsAudio.pause();
+    if (this.currentSource) {
+      try {
+        this.currentSource.stop();
+      } catch {
+        // Already stopped.
+      }
+      this.currentSource = null;
     }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();

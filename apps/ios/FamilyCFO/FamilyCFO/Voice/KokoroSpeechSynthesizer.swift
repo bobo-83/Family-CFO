@@ -167,6 +167,10 @@ final class KokoroSpeechSynthesizer: ThrowingSpeechSynthesizing {
                 fetch = fetchTask(for: chunks[index + 1])
             }
             guard !isStopped else { throw CancellationError() }
+            // A chunk that synthesized to nothing (a divider or punctuation the
+            // text cleaner missed) must not derail the on-box voice — skip it and
+            // keep going rather than throwing and dropping to the system voice.
+            if audio.isEmpty { continue }
             do {
                 try await player.play(audio)
             } catch is CancellationError {

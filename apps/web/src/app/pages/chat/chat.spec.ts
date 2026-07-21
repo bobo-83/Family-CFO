@@ -29,6 +29,7 @@ describe('Chat', () => {
     createChatMessage: ReturnType<typeof vi.fn>;
     deleteConversation: ReturnType<typeof vi.fn>;
     synthesizeSpeech: ReturnType<typeof vi.fn>;
+    synthesizeSpeechBuffer: ReturnType<typeof vi.fn>;
     submitAdvisorFeedback: ReturnType<typeof vi.fn>;
   };
 
@@ -42,6 +43,7 @@ describe('Chat', () => {
       createChatMessage: vi.fn(),
       deleteConversation: vi.fn(),
       synthesizeSpeech: vi.fn(),
+      synthesizeSpeechBuffer: vi.fn(),
       submitAdvisorFeedback: vi.fn().mockResolvedValue({ error: undefined }),
     };
 
@@ -100,7 +102,7 @@ describe('Chat', () => {
   });
 
   it('reads an answer aloud, falling back to system speech when no voice service (M87a)', async () => {
-    apiMock.synthesizeSpeech.mockResolvedValue(null); // 503 -> no on-box voice
+    apiMock.synthesizeSpeechBuffer.mockResolvedValue(null); // 503 -> no on-box voice
     const speak = vi.fn();
     Object.defineProperty(window, 'speechSynthesis', {
       value: { speak, cancel: vi.fn() },
@@ -112,11 +114,23 @@ describe('Chat', () => {
         onend: (() => void) | null = null;
         constructor(public text: string) {}
       };
+    // A minimal AudioContext so the Web Audio path runs and then hits the 503.
+    (window as unknown as { AudioContext: unknown }).AudioContext = class {
+      state = 'running';
+      destination = {};
+      async resume() {}
+      async decodeAudioData() {
+        return {};
+      }
+      createBufferSource() {
+        return { connect() {}, start() {}, buffer: null, onended: null };
+      }
+    };
     const component = TestBed.createComponent(Chat).componentInstance;
 
     await component['speak']('Your net worth is up.', 0);
 
-    expect(apiMock.synthesizeSpeech).toHaveBeenCalledWith('Your net worth is up.');
+    expect(apiMock.synthesizeSpeechBuffer).toHaveBeenCalledWith('Your net worth is up.');
     expect(speak).toHaveBeenCalledOnce();
   });
 
