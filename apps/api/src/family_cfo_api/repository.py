@@ -410,6 +410,362 @@ def revoke_paired_device(engine: Engine, household_id: str, device_id: str) -> b
     return True
 
 
+def create_paired_device_with_session(
+    engine: Engine,
+    household_id: str,
+    user_id: str,
+    device_name: str,
+    device_public_key: str,
+    access_token: str,
+    token_hash: str,
+    expires_at: datetime,
+) -> DeviceCredentialRecord:
+    """ADR 0056: credentialed pairing — the iOS login screen. Creates the same
+    paired-device row + device-bound session that QR confirm creates, so a
+    signed-in phone shows on the Devices page and revocation works identically."""
+    now = utcnow()
+    device_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.paired_devices).values(
+                id=device_id,
+                household_id=household_id,
+                user_id=user_id,
+                name=device_name,
+                public_key=device_public_key,
+                created_at=now,
+                last_seen_at=None,
+                revoked_at=None,
+            )
+        )
+        conn.execute(
+            insert(models.auth_sessions).values(
+                id=new_id(),
+                user_id=user_id,
+                household_id=household_id,
+                device_id=device_id,
+                token_hash=token_hash,
+                created_at=now,
+                expires_at=expires_at,
+                revoked_at=None,
+            )
+        )
+    return DeviceCredentialRecord(
+        device_id=device_id,
+        access_token=access_token,
+        expires_at=expires_at,
+        household_id=household_id,
+        user_id=user_id,
+    )
+
+
+# --- Household invites (ADR 0056) ---------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class InviteRecord:
+    id: str
+    household_id: str
+    email: str
+    role: str
+    role_id: str | None
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+    accepted_user_id: str | None
+    revoked_at: datetime | None
+    invited_by_display_name: str | None = None
+
+    @property
+    def status(self) -> str:
+        if self.revoked_at is not None:
+            return "revoked"
+        if self.accepted_at is not None:
+            return "accepted"
+        if _as_aware(self.expires_at) < utcnow():
+            return "expired"
+        return "pending"
+
+
+def _invite_record(row, invited_by: str | None = None) -> InviteRecord:
+    return InviteRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        email=row["email"],
+        role=row["role"],
+        role_id=row["role_id"],
+        created_at=_as_aware(row["created_at"]),
+        expires_at=_as_aware(row["expires_at"]),
+        accepted_at=_as_aware(row["accepted_at"]) if row["accepted_at"] else None,
+        accepted_user_id=row["accepted_user_id"],
+        revoked_at=_as_aware(row["revoked_at"]) if row["revoked_at"] else None,
+        invited_by_display_name=invited_by,
+    )
+
+
+def create_invite(
+    engine: Engine,
+    household_id: str,
+    email: str,
+    role: str,
+    role_id: str | None,
+    token_hash: str,
+    invited_by_user_id: str,
+    expires_at: datetime,
+) -> InviteRecord:
+    """Revokes any prior pending invite for the same email first — one valid
+    link per invitee, mirroring the pairing one-valid-QR rule."""
+    now = utcnow()
+    invite_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.household_invites)
+            .where(
+                models.household_invites.c.household_id == household_id,
+                func.lower(models.household_invites.c.email) == email.lower(),
+                models.household_invites.c.accepted_at.is_(None),
+                models.household_invites.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        conn.execute(
+            insert(models.household_invites).values(
+                id=invite_id,
+                household_id=household_id,
+                email=email,
+                role=role,
+                role_id=role_id,
+                token_hash=token_hash,
+                invited_by_user_id=invited_by_user_id,
+                created_at=now,
+                expires_at=expires_at,
+                accepted_at=None,
+                accepted_user_id=None,
+                revoked_at=None,
+            )
+        )
+    return InviteRecord(
+        id=invite_id, household_id=household_id, email=email, role=role,
+        role_id=role_id, created_at=now, expires_at=expires_at,
+        accepted_at=None, accepted_user_id=None, revoked_at=None,
+    )
+
+
+def list_invites(engine: Engine, household_id: str) -> list[InviteRecord]:
+    query = (
+        select(models.household_invites, models.users.c.display_name.label("invited_by"))
+        .select_from(
+            models.household_invites.join(
+                models.users,
+                models.household_invites.c.invited_by_user_id == models.users.c.id,
+            )
+        )
+        .where(models.household_invites.c.household_id == household_id)
+        .order_by(models.household_invites.c.created_at.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_invite_record(row, invited_by=row["invited_by"]) for row in rows]
+
+
+def get_invite(engine: Engine, household_id: str, invite_id: str) -> InviteRecord | None:
+    query = select(models.household_invites).where(
+        models.household_invites.c.id == invite_id,
+        models.household_invites.c.household_id == household_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _invite_record(row) if row else None
+
+
+def get_invite_by_token_hash(engine: Engine, token_hash: str) -> InviteRecord | None:
+    query = select(models.household_invites).where(
+        models.household_invites.c.token_hash == token_hash
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _invite_record(row) if row else None
+
+
+def revoke_invite(engine: Engine, household_id: str, invite_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.household_invites)
+            .where(
+                models.household_invites.c.id == invite_id,
+                models.household_invites.c.household_id == household_id,
+                models.household_invites.c.accepted_at.is_(None),
+                models.household_invites.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=utcnow())
+        )
+    return result.rowcount > 0
+
+
+def unrevoke_invite(engine: Engine, household_id: str, invite_id: str) -> bool:
+    """Undo of a revocation: the token hash was never touched, so the original
+    link works again (unless meanwhile expired)."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.household_invites)
+            .where(
+                models.household_invites.c.id == invite_id,
+                models.household_invites.c.household_id == household_id,
+                models.household_invites.c.accepted_at.is_(None),
+                models.household_invites.c.revoked_at.is_not(None),
+            )
+            .values(revoked_at=None)
+        )
+    return result.rowcount > 0
+
+
+def delete_invite(engine: Engine, household_id: str, invite_id: str) -> bool:
+    """Undo of creation — removes the invite outright (kills the link)."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            models.household_invites.delete().where(
+                models.household_invites.c.id == invite_id,
+                models.household_invites.c.household_id == household_id,
+                models.household_invites.c.accepted_at.is_(None),
+            )
+        )
+    return result.rowcount > 0
+
+
+def regenerate_invite_token(
+    engine: Engine, household_id: str, invite_id: str, token_hash: str, expires_at: datetime
+) -> bool:
+    """A fresh secret for an unaccepted invite: replaces the hash, extends the
+    expiry, and clears any revocation. The old link stops working."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.household_invites)
+            .where(
+                models.household_invites.c.id == invite_id,
+                models.household_invites.c.household_id == household_id,
+                models.household_invites.c.accepted_at.is_(None),
+            )
+            .values(token_hash=token_hash, expires_at=expires_at, revoked_at=None)
+        )
+    return result.rowcount > 0
+
+
+def user_membership_count(engine: Engine, user_id: str) -> int:
+    query = select(func.count()).where(
+        models.household_memberships.c.user_id == user_id
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
+@dataclass(frozen=True, slots=True)
+class InviteAcceptResult:
+    outcome: str  # "ok" | "not_found" | "gone" | "conflict"
+    user_id: str | None = None
+    household_id: str | None = None
+    role: str | None = None
+
+
+def accept_invite(
+    engine: Engine, token_hash: str, password_hash: str, display_name: str
+) -> InviteAcceptResult:
+    """Claim the invite and create (or revive) the member, atomically.
+
+    - Unknown token -> not_found; revoked/expired/already-accepted (or losing a
+      concurrent double-accept race) -> gone.
+    - Email owning an account WITH any membership -> conflict: never overwrite a
+      live account's password.
+    - Email owning an account with NO membership (a previously-removed member —
+      the users row survives removal) -> revive it: new password + display name,
+      fresh membership. The old password granted nothing (ADR 0056)."""
+    now = utcnow()
+    with engine.begin() as conn:
+        invite = (
+            conn.execute(
+                select(models.household_invites).where(
+                    models.household_invites.c.token_hash == token_hash
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if invite is None:
+            return InviteAcceptResult(outcome="not_found")
+        if (
+            invite["revoked_at"] is not None
+            or invite["accepted_at"] is not None
+            or _as_aware(invite["expires_at"]) < now
+        ):
+            return InviteAcceptResult(outcome="gone")
+
+        existing = (
+            conn.execute(
+                select(models.users).where(
+                    func.lower(models.users.c.email) == invite["email"].lower()
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if existing is not None:
+            memberships = conn.execute(
+                select(func.count()).where(
+                    models.household_memberships.c.user_id == existing["id"]
+                )
+            ).scalar_one()
+            if memberships > 0:
+                return InviteAcceptResult(outcome="conflict")
+
+        user_id = existing["id"] if existing is not None else new_id()
+
+        claimed = conn.execute(
+            update(models.household_invites)
+            .where(
+                models.household_invites.c.id == invite["id"],
+                models.household_invites.c.accepted_at.is_(None),
+                models.household_invites.c.revoked_at.is_(None),
+                models.household_invites.c.expires_at >= now,
+            )
+            .values(accepted_at=now, accepted_user_id=user_id)
+        )
+        if claimed.rowcount == 0:
+            return InviteAcceptResult(outcome="gone")
+
+        if existing is not None:
+            conn.execute(
+                update(models.users)
+                .where(models.users.c.id == user_id)
+                .values(password_hash=password_hash, display_name=display_name, updated_at=now)
+            )
+        else:
+            conn.execute(
+                insert(models.users).values(
+                    id=user_id,
+                    email=invite["email"],
+                    password_hash=password_hash,
+                    display_name=display_name,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        conn.execute(
+            insert(models.household_memberships).values(
+                id=new_id(),
+                household_id=invite["household_id"],
+                user_id=user_id,
+                role=invite["role"],
+                role_id=invite["role_id"],
+                created_at=now,
+            )
+        )
+    return InviteAcceptResult(
+        outcome="ok",
+        user_id=user_id,
+        household_id=invite["household_id"],
+        role=invite["role"],
+    )
+
+
 # --- Household and accounts ---------------------------------------------------
 
 

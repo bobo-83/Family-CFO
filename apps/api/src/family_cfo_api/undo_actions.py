@@ -113,6 +113,12 @@ UNDO_POLICY: dict[str, str] = {
     "auth.login": IRREVERSIBLE,  # a sign-in isn't a change to reverse
     "pairing.confirmed": IRREVERSIBLE,  # a device was paired (revoke it from Devices)
     "pairing.device_revoked": IRREVERSIBLE,  # a device was revoked (re-pair to restore)
+    "pairing.login": IRREVERSIBLE,  # a device signed in (revoke it from Devices)
+    # invites (ADR 0056)
+    "invite.created": UNDOABLE,
+    "invite.revoked": UNDOABLE,
+    "invite.token_regenerated": IRREVERSIBLE,  # revealed a new secret; the old one isn't stored
+    "invite.accepted": IRREVERSIBLE,  # the invitee set a password we refuse to replay
     # goals
     "goal.created": UNDOABLE,
     "goal.updated": UNDOABLE,
@@ -496,6 +502,12 @@ def member_removed(user_id: str, role: str) -> str:
     return json.dumps({"op": "restore_membership", "user_id": user_id, "role": role})
 
 
+def invite_revoked(invite_id: str) -> str:
+    """The token hash survives revocation, so clearing revoked_at makes the
+    original link work again (ADR 0056)."""
+    return json.dumps({"op": "unrevoke_invite", "id": invite_id})
+
+
 def member_role_changed(user_id: str, previous_role: str) -> str:
     return json.dumps(
         {"op": "restore", "entity": "member_role", "id": user_id, "data": {"role": previous_role}}
@@ -581,6 +593,12 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
         repository.delete_ai_runtime_config(engine, household_id)
         return
 
+    if op == "unrevoke_invite":
+        invite_id = token.get("id")
+        if not invite_id or not repository.unrevoke_invite(engine, household_id, invite_id):
+            raise UndoError("that invite no longer exists or was accepted")
+        return
+
     if op == "unapply_import":
         import_id = token.get("import_id")
         if not import_id:
@@ -627,6 +645,10 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         # Removes the membership; the user row survives (harmless, and removal
         # is itself undoable via restore_membership).
         repository.delete_member(engine, household_id, entity_id)
+    elif entity == "invite":
+        # Undo of invite.created: remove the invite outright — the link dies.
+        if not repository.delete_invite(engine, household_id, entity_id):
+            raise UndoError("that invite was already accepted")
     elif entity == "connection":
         repository.delete_institution_connection(engine, household_id, entity_id)
     elif entity == "goal":

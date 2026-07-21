@@ -104,6 +104,19 @@ class DeviceCredential(BaseModel):
     # ADR 0034: the resolved rights of that user's assigned role.
     role_name: str | None = None
     rights: list[str] | None = None
+    # ADR 0056: the household, so the email-login path (no QR payload) can
+    # build the device's ServerConfig. Also populated on QR confirm.
+    household_id: str | None = None
+    household_name: str | None = None
+
+
+class PairingLoginRequest(BaseModel):
+    # ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a
+    # QR confirm: a paired device with a device-bound session.
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=1)
+    device_name: str = Field(min_length=1, max_length=120)
+    device_public_key: str = Field(min_length=1)
 
 
 class PairedDevice(BaseModel):
@@ -1239,6 +1252,59 @@ class RoleUpdateRequest(BaseModel):
 class MemberRoleUpdateRequest(BaseModel):
     role: HouseholdRole | None = None
     role_id: str | None = None
+
+
+# --- Household invites (ADR 0056): copy-link onboarding -----------------------
+
+
+class Invite(BaseModel):
+    id: str
+    email: str
+    role: HouseholdRole
+    role_id: str | None = None
+    role_name: str | None = None
+    # Computed from the timestamps; the raw token is NEVER in this model.
+    status: Literal["pending", "accepted", "expired", "revoked"]
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None = None
+    invited_by_display_name: str | None = None
+
+
+class InviteListResponse(BaseModel):
+    invites: list[Invite]
+
+
+class InviteCreateRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    # Same role selection as MemberCreateRequest; role_id wins when both sent.
+    role: HouseholdRole | None = None
+    role_id: str | None = None
+
+
+class InviteCreateResponse(BaseModel):
+    invite: Invite
+    # The one-time secret for the join link — returned ONLY here and on
+    # regenerate; stored hashed, so it can never be shown again.
+    invite_token: str
+
+
+class InvitePreviewRequest(BaseModel):
+    # POSTed (not a query param) so the secret stays out of access logs.
+    token: str = Field(min_length=1)
+
+
+class InvitePreview(BaseModel):
+    household_name: str
+    email: str
+    role_name: str | None = None
+    expires_at: datetime
+
+
+class InviteAcceptRequest(BaseModel):
+    token: str = Field(min_length=1)
+    password: str = Field(min_length=8)
+    display_name: str = Field(min_length=1, max_length=120)
 
 
 class AccountCreateRequest(BaseModel):
