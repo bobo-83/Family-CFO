@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Drives the Accounts tab (M99): every account grouped by kind, with balances
 /// and emergency-fund designation.
@@ -9,6 +10,7 @@ final class AccountsViewModel {
 
     private(set) var accounts: [Components.Schemas.Account] = []
     private(set) var isLoading = false
+    private(set) var isScanning = false
     var errorMessage: String?
 
     init(api: AccountsAPI) { self.api = api }
@@ -100,6 +102,40 @@ final class AccountsViewModel {
             await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    // ADR 0057: read a statement photo into add-account candidates (the sheet
+    // prefills from the result; nothing is saved until the user taps Save).
+    func scanStatement(_ image: UIImage) async -> Components.Schemas.AccountScanResult? {
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            errorMessage = "That photo couldn't be processed."
+            return nil
+        }
+        return await scan { try AttachmentTranscoder.image(from: data, displayName: "Statement") }
+    }
+
+    func scanStatement(fileData: Data, isPDF: Bool) async -> Components.Schemas.AccountScanResult? {
+        await scan {
+            isPDF
+                ? try AttachmentTranscoder.pdf(from: fileData, displayName: "Statement")
+                : try AttachmentTranscoder.image(from: fileData, displayName: "Statement")
+        }
+    }
+
+    private func scan(
+        _ makeAttachment: () throws -> ChatAttachment
+    ) async -> Components.Schemas.AccountScanResult? {
+        guard !isScanning else { return nil }
+        isScanning = true
+        defer { isScanning = false }
+        do {
+            let result = try await api.scanStatement(makeAttachment())
+            errorMessage = nil
+            return result
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+            return nil
         }
     }
 

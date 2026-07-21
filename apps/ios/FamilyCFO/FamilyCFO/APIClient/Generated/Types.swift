@@ -366,6 +366,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /accounts/scan-statement`.
     /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
     func scanLoanStatement(_ input: Operations.ScanLoanStatement.Input) async throws -> Operations.ScanLoanStatement.Output
+    /// Read an asset-account statement photo or PDF into add-account candidates
+    ///
+    /// ADR 0057: paste/photograph an HSA/savings/brokerage statement and the add-account form is prefilled — name, type, current balance. Candidates only; the user confirms before anything is saved.
+    ///
+    /// - Remark: HTTP `POST /accounts/scan`.
+    /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)`.
+    func scanAccountStatement(_ input: Operations.ScanAccountStatement.Input) async throws -> Operations.ScanAccountStatement.Output
     /// Read a bill photo or PDF into candidate values (user confirms before saving)
     ///
     /// - Remark: HTTP `POST /bills/scan`.
@@ -1451,6 +1458,21 @@ extension APIProtocol {
         body: Operations.ScanLoanStatement.Input.Body
     ) async throws -> Operations.ScanLoanStatement.Output {
         try await scanLoanStatement(Operations.ScanLoanStatement.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Read an asset-account statement photo or PDF into add-account candidates
+    ///
+    /// ADR 0057: paste/photograph an HSA/savings/brokerage statement and the add-account form is prefilled — name, type, current balance. Candidates only; the user confirms before anything is saved.
+    ///
+    /// - Remark: HTTP `POST /accounts/scan`.
+    /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)`.
+    public func scanAccountStatement(
+        headers: Operations.ScanAccountStatement.Input.Headers = .init(),
+        body: Operations.ScanAccountStatement.Input.Body
+    ) async throws -> Operations.ScanAccountStatement.Output {
+        try await scanAccountStatement(Operations.ScanAccountStatement.Input(
             headers: headers,
             body: body
         ))
@@ -4213,6 +4235,79 @@ public enum Components {
                 case nextPaymentDueDate = "next_payment_due_date"
                 case aprPercent = "apr_percent"
                 case isLease = "is_lease"
+                case note
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AccountScanRequest`.
+        public struct AccountScanRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AccountScanRequest/image_base64`.
+            public var imageBase64: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AccountScanRequest/image_media_type`.
+            @frozen public enum ImageMediaTypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case imageJpeg = "image/jpeg"
+                case imagePng = "image/png"
+                case imageWebp = "image/webp"
+                case applicationPdf = "application/pdf"
+            }
+            /// - Remark: Generated from `#/components/schemas/AccountScanRequest/image_media_type`.
+            public var imageMediaType: Components.Schemas.AccountScanRequest.ImageMediaTypePayload
+            /// Creates a new `AccountScanRequest`.
+            ///
+            /// - Parameters:
+            ///   - imageBase64:
+            ///   - imageMediaType:
+            public init(
+                imageBase64: Swift.String,
+                imageMediaType: Components.Schemas.AccountScanRequest.ImageMediaTypePayload
+            ) {
+                self.imageBase64 = imageBase64
+                self.imageMediaType = imageMediaType
+            }
+            public enum CodingKeys: String, CodingKey {
+                case imageBase64 = "image_base64"
+                case imageMediaType = "image_media_type"
+            }
+        }
+        /// ADR 0057: candidate values read from an ASSET-account statement (HSA, savings, brokerage, …) to prefill the add-account form — the user confirms and edits before anything is saved.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountScanResult`.
+        public struct AccountScanResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/name`.
+            public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/account_type`.
+            public var accountType: Components.Schemas.AccountType?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/balance_minor`.
+            public var balanceMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/statement_date`.
+            public var statementDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AccountScanResult/note`.
+            public var note: Swift.String
+            /// Creates a new `AccountScanResult`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - accountType:
+            ///   - balanceMinor:
+            ///   - statementDate:
+            ///   - note:
+            public init(
+                name: Swift.String? = nil,
+                accountType: Components.Schemas.AccountType? = nil,
+                balanceMinor: Swift.Int? = nil,
+                statementDate: Swift.String? = nil,
+                note: Swift.String
+            ) {
+                self.name = name
+                self.accountType = accountType
+                self.balanceMinor = balanceMinor
+                self.statementDate = statementDate
+                self.note = note
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case accountType = "account_type"
+                case balanceMinor = "balance_minor"
+                case statementDate = "statement_date"
                 case note
             }
         }
@@ -21005,6 +21100,221 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Read an asset-account statement photo or PDF into add-account candidates
+    ///
+    /// ADR 0057: paste/photograph an HSA/savings/brokerage statement and the add-account form is prefilled — name, type, current balance. Candidates only; the user confirms before anything is saved.
+    ///
+    /// - Remark: HTTP `POST /accounts/scan`.
+    /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)`.
+    public enum ScanAccountStatement {
+        public static let id: Swift.String = "scanAccountStatement"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/scan/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanAccountStatement.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanAccountStatement.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ScanAccountStatement.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/scan/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/scan/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.AccountScanRequest)
+            }
+            public var body: Operations.ScanAccountStatement.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ScanAccountStatement.Input.Headers = .init(),
+                body: Operations.ScanAccountStatement.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/scan/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/scan/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AccountScanResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AccountScanResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanAccountStatement.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanAccountStatement.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Candidate account values extracted by the on-box vision model
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ScanAccountStatement.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ScanAccountStatement.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/scan/post(scanAccountStatement)/responses/503`.
             ///
             /// HTTP response code: `503 serviceUnavailable`.
             case serviceUnavailable(Components.Responses._Error)

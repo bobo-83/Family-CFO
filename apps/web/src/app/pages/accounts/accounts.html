@@ -11,6 +11,26 @@
     <mat-card-content>
     <form class="account-form" [formGroup]="form" (ngSubmit)="submit()">
       <h2>Add an account</h2>
+      <div class="account-form__scan">
+        <label class="account-form__scan-button">
+          📄 {{ scanning() ? 'Reading the statement…' : 'Scan a statement' }}
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            hidden
+            [disabled]="scanning()"
+            (change)="onStatementSelected($event)"
+          />
+        </label>
+        <span class="account-form__scan-hint">
+          Fastest start: a photo, PDF, or pasted screenshot (Ctrl/⌘+V anywhere on
+          this page) of an HSA, savings, or brokerage statement prefills this
+          form. Nothing is saved until you press “Add account”.
+        </span>
+      </div>
+      @if (scanNote(); as note) {
+        <p class="account-form__scan-note">{{ note }}</p>
+      }
       <mat-form-field appearance="outline">
         <mat-label>Name</mat-label>
         <input matInput type="text" formControlName="name" />

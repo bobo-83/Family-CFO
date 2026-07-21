@@ -23,6 +23,19 @@ protocol AccountsAPI: Sendable {
     func createManualAccount(
         name: String, type: Components.Schemas.AccountType, currency: String, balanceMinor: Int64
     ) async throws
+    /// ADR 0057: read a statement photo/PDF into add-account candidates.
+    func scanStatement(
+        _ attachment: ChatAttachment
+    ) async throws -> Components.Schemas.AccountScanResult
+}
+
+extension AccountsAPI {
+    /// Default so mocks/tests needn't implement it; the live client overrides.
+    func scanStatement(
+        _ attachment: ChatAttachment
+    ) async throws -> Components.Schemas.AccountScanResult {
+        throw APIError.server(501)
+    }
 }
 
 /// Asset account types offered when adding one by hand (liabilities are the
@@ -114,6 +127,35 @@ struct LiveAccountsAPI: AccountsAPI {
             throw APIError.server(403)
         case .notFound:
             throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func scanStatement(
+        _ attachment: ChatAttachment
+    ) async throws -> Components.Schemas.AccountScanResult {
+        guard case .visual(let mediaType) = attachment.kind,
+            let scanMediaType = Components.Schemas.AccountScanRequest.ImageMediaTypePayload(
+                rawValue: mediaType.rawValue)
+        else {
+            throw APIError.server(415)
+        }
+        let request = Components.Schemas.AccountScanRequest(
+            imageBase64: attachment.data.base64EncodedString(),
+            imageMediaType: scanMediaType
+        )
+        switch try await client.scanAccountStatement(.init(body: .json(request))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .unprocessableContent:
+            throw APIError.server(422)
+        case .serviceUnavailable:
+            throw APIError.server(503)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

@@ -10,6 +10,8 @@ from family_cfo_api.schemas import (
     AccountBalanceCreateRequest,
     AccountCreateRequest,
     AccountListResponse,
+    AccountScanRequest,
+    AccountScanResult,
     AccountUpdateRequest,
     ErrorResponse,
     LoanScanRequest,
@@ -36,6 +38,83 @@ _LOAN_PROMPT = (
     '"is_lease": true if this is a lease, false if a loan}. '
     "Use null for anything not shown. Do not guess."
 )
+
+
+# ADR 0057: read an ASSET-account statement (HSA, savings, brokerage …) into
+# candidates for the add-account form. Same pattern as the loan scan.
+_ACCOUNT_PROMPT = (
+    "This image is a financial account statement (e.g. an HSA, savings, checking, "
+    "brokerage, retirement, or 529 statement). Extract ONLY a JSON object, no "
+    "prose: {"
+    '"account_name": the institution and/or account name as printed, or null, '
+    '"account_type": one of "checking", "savings", "hsa", "brokerage", '
+    '"retirement", "529", "real_estate", "other_asset", or null if unclear, '
+    '"balance": the CURRENT total account balance/value as a number, or null, '
+    '"statement_date": the statement (or as-of) date in YYYY-MM-DD, or null}. '
+    "For an investment/HSA statement, balance is the total account value at the "
+    "end of the period. Use null for anything not shown. Do not guess."
+)
+
+# Model vocabulary → the app's asset AccountType; synonyms it tends to emit.
+_ACCOUNT_TYPE_ALIASES = {
+    "checking": "checking",
+    "savings": "savings",
+    "hsa": "hsa",
+    "health savings": "hsa",
+    "health savings account": "hsa",
+    "brokerage": "brokerage",
+    "investment": "brokerage",
+    "retirement": "retirement",
+    "401k": "retirement",
+    "403b": "retirement",
+    "ira": "retirement",
+    "roth ira": "retirement",
+    "529": "529",
+    "college savings": "529",
+    "cd": "savings",
+    "certificate of deposit": "savings",
+    "money market": "savings",
+    "real_estate": "real_estate",
+    "real estate": "real_estate",
+    "other_asset": "other_asset",
+}
+
+
+def parse_account_scan(text: str) -> AccountScanResult:
+    """Defensive parse of the vision model's account-statement extraction —
+    candidates only; nothing is saved until the user confirms."""
+    import json as _json
+    import re as _re
+
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-z]*\s*|\s*```$", "", cleaned, flags=_re.IGNORECASE)
+    try:
+        data = _json.loads(cleaned)
+        assert isinstance(data, dict)
+    except (ValueError, AssertionError):
+        return AccountScanResult(
+            note="The photo could not be read as a statement — enter values manually."
+        )
+
+    balance = _scan_number(data.get("balance"))
+    raw_type = data.get("account_type")
+    account_type = (
+        _ACCOUNT_TYPE_ALIASES.get(str(raw_type).strip().lower())
+        if raw_type is not None
+        else None
+    )
+    name = data.get("account_name")
+    return AccountScanResult(
+        name=str(name).strip()[:120] if isinstance(name, str) and name.strip() else None,
+        account_type=account_type,
+        balance_minor=int(round(balance * 100)) if balance is not None and balance > 0 else None,
+        statement_date=_parse_iso_or_us_date(data.get("statement_date")),
+        note=(
+            "Read by the on-box photo model — CONFIRM every value before saving. "
+            "Nothing is stored until you save."
+        ),
+    )
 
 
 def _parse_iso_or_us_date(value: object) -> date | None:
@@ -556,6 +635,69 @@ async def scan_loan_statement(
             if result.monthly_payment_minor is not None or result.balance_minor is not None:
                 return result
         return result or LoanScanResult(note="Nothing readable was found — enter values manually.")
+    except RuntimeUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
+    finally:
+        describer.close()
+
+
+@router.post(
+    "/accounts/scan",
+    operation_id="scanAccountStatement",
+    response_model=AccountScanResult,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        422: {"description": "Unreadable PDF", "model": ErrorResponse},
+        503: {"description": "No vision model available", "model": ErrorResponse},
+    },
+    summary="Read an asset-account statement photo or PDF into add-account candidates",
+)
+async def scan_account_statement(
+    payload: AccountScanRequest,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> AccountScanResult:
+    """ADR 0057: paste/photograph an HSA/savings/brokerage statement and the
+    add-account form is prefilled — name, type, current balance. Candidates
+    only; the user confirms before anything is saved."""
+    import base64
+    import binascii
+
+    from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+
+    from family_cfo_api.ai_runtime_selection import select_vision_describer
+    from family_cfo_api.api.income_analysis import pdf_page_pngs
+
+    if payload.image_media_type == "application/pdf":
+        try:
+            pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
+        data_urls = [
+            "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+            for png in pdf_page_pngs(pdf_bytes)
+        ]
+    else:
+        data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
+
+    describer, _source = select_vision_describer(engine, session.household_id)
+    if describer is None:
+        raise HTTPException(status_code=503, detail="No vision model is configured")
+    try:
+        result = None
+        for data_url in data_urls:
+            completion = describer.complete(
+                [RuntimeMessage(role="user", content=_ACCOUNT_PROMPT, image_data_url=data_url)],
+                temperature=0.0,
+                max_tokens=200,
+            )
+            result = parse_account_scan(completion.text)
+            if result.balance_minor is not None or result.name is not None:
+                return result
+        return result or AccountScanResult(
+            note="Nothing readable was found — enter values manually."
+        )
     except RuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
     finally:
