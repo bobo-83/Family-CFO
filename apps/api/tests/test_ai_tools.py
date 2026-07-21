@@ -81,6 +81,53 @@ def test_retirement_requires_retirement_age_after_current_age(demo_engine: Engin
     assert result["error"] == "invalid_arguments"
 
 
+def test_retirement_grounds_savings_and_expenses_from_household_data(
+    demo_engine: Engine,
+) -> None:
+    """The demo lesson: 'when can I retire?' must not ask for the 401k balance
+    the Accounts tab shows. Ages alone suffice; savings default to retirement+HSA
+    balances, expenses to 12x essentials, and every assumption is reported."""
+    fixtures.seed_showcase_data(demo_engine)  # 401k (showcase) = $285,000
+
+    result = _execute(
+        demo_engine, "project_retirement", {"current_age": 35, "retirement_age": 60}
+    )
+
+    assert "error" not in result
+    assumptions = result["grounded_defaults"]
+    funded = assumptions["current_savings_from_accounts"]
+    assert any("401k" in a["name"] for a in funded)
+    assert sum(a["balance_minor"] for a in funded) >= 28_500_000
+    assert assumptions["monthly_contribution_assumed_zero"] is True
+    assert assumptions["annual_return_rate_default"] == 0.05
+    assert "essentials" in assumptions["annual_expenses_basis"]
+    assert "state" in result["grounded_defaults_note"]
+
+
+def test_retirement_explicit_args_override_grounding(demo_engine: Engine) -> None:
+    result = _execute(
+        demo_engine,
+        "project_retirement",
+        {
+            "current_age": 35,
+            "retirement_age": 60,
+            "current_savings_minor": 5_000_000,
+            "monthly_contribution_minor": 100_000,
+            "annual_return_rate": 0.06,
+            "annual_expenses_minor": 6_000_000,
+        },
+    )
+
+    assert "error" not in result
+    assert "grounded_defaults" not in result  # nothing was assumed
+
+
+def test_grounding_rules_forbid_asking_for_retirement_balances() -> None:
+    rules = ai_tools.GROUNDING_RULES
+    assert "project_retirement" in rules
+    assert "NEVER ask the user for their retirement" in rules
+
+
 def test_unknown_tool_is_reported(demo_engine: Engine) -> None:
     result = _execute(demo_engine, "delete_everything", {})
 

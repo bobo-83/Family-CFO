@@ -168,7 +168,16 @@ GROUNDING_RULES = (
     "off early just because its rate looks high. Before giving any debt plan, look "
     "at the WHOLE picture: every debt get_debt_outlook returns (credit cards and "
     "leases included, not just the small loans), plus get_bills and "
-    "get_spending_insights for where the money actually goes."
+    "get_spending_insights for where the money actually goes. "
+    "For retirement questions ('when can I retire?'), call project_retirement "
+    "IMMEDIATELY with just the ages — NEVER ask the user for their retirement "
+    "balance, savings, or spending, because the tool grounds those itself from "
+    "their real accounts and essential spending and reports the assumptions for "
+    "you to state. The only inputs worth asking for are their current age and "
+    "target retirement age (if not already known from the conversation or "
+    "household memory) and, optionally, their monthly contribution — payroll "
+    "401(k) deferrals are invisible to bank data. If ages are unknown, ask for "
+    "those two numbers ONLY, in a single short question."
 )
 
 # Backwards-compatible alias (professional baseline without persona).
@@ -454,6 +463,16 @@ def _future_value(engine: Engine, household_id: str, currency: str, args: dict[s
     return _result_payload(result, calc_id)
 
 
+# Types whose balances count as "saved for retirement" when the model doesn't
+# supply a figure: tax-advantaged accounts. Taxable brokerage is deliberately
+# excluded (it may be earmarked for anything); the payload lists what was used
+# so the household can correct the assumption.
+_RETIREMENT_SAVINGS_TYPES = frozenset({"retirement", "hsa"})
+
+# A deliberately modest long-run default when the model supplies no rate.
+_DEFAULT_RETIREMENT_RETURN = 0.05
+
+
 def _project_retirement(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     resolved_currency, error = _currency_arg(args, currency)
     if error:
@@ -466,23 +485,60 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
         return error
     if retirement_age <= current_age:
         return _invalid("retirement_age must be greater than current_age")
-    current_savings_minor, error = _int_arg(args, "current_savings_minor", minimum=0)
-    if error:
-        return error
-    monthly_contribution_minor, error = _int_arg(args, "monthly_contribution_minor", minimum=0)
-    if error:
-        return error
-    rate, error = _rate_arg(args, "annual_return_rate")
-    if error:
-        return error
-    # annual_expenses is optional -- only supplied when the user asks about
-    # expense coverage / "can we retire" style questions.
-    annual_expenses = None
+
+    # Self-grounding (the demo lesson: never ask for the 401k balance the
+    # Accounts tab already shows). Omitted figures default to household data,
+    # and every assumption is reported back so the model narrates them.
+    assumptions: dict[str, Any] = {}
+
+    if args.get("current_savings_minor") is not None:
+        current_savings_minor, error = _int_arg(args, "current_savings_minor", minimum=0)
+        if error:
+            return error
+    else:
+        funded = [
+            b
+            for b in repository.list_account_balances(engine, household_id)
+            if b.account_type in _RETIREMENT_SAVINGS_TYPES and b.balance_minor > 0
+        ]
+        current_savings_minor = sum(b.balance_minor for b in funded)
+        assumptions["current_savings_from_accounts"] = [
+            {"name": b.name, "balance_minor": b.balance_minor} for b in funded
+        ]
+
+    if args.get("monthly_contribution_minor") is not None:
+        monthly_contribution_minor, error = _int_arg(
+            args, "monthly_contribution_minor", minimum=0
+        )
+        if error:
+            return error
+    else:
+        # Payroll 401k deferrals never appear in bank transactions, so this is
+        # unknowable from data — assume 0 and say so (an undercount, not a guess).
+        monthly_contribution_minor = 0
+        assumptions["monthly_contribution_assumed_zero"] = True
+
+    if args.get("annual_return_rate") is not None:
+        rate, error = _rate_arg(args, "annual_return_rate")
+        if error:
+            return error
+    else:
+        rate = _DEFAULT_RETIREMENT_RETURN
+        assumptions["annual_return_rate_default"] = rate
+
     if args.get("annual_expenses_minor") is not None:
         expenses_minor, error = _int_arg(args, "annual_expenses_minor", minimum=0)
         if error:
             return error
         annual_expenses = Money(expenses_minor, resolved_currency)
+    else:
+        essential = finance_service.monthly_essential_expenses(
+            engine, household_id, resolved_currency
+        )
+        annual_expenses = Money(essential.amount_minor * 12, essential.currency)
+        assumptions["annual_expenses_basis"] = (
+            "12 × current monthly essentials (bills + debt minimums + daily needs)"
+        )
 
     result, calc_id = finance_service.compute_retirement_projection(
         engine,
@@ -496,7 +552,16 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             annual_expenses=annual_expenses,
         ),
     )
-    return _result_payload(result, calc_id)
+    payload = _result_payload(result, calc_id)
+    # "grounded_defaults", not "assumptions" — the engine's own payload already
+    # carries an assumptions list and must not be overwritten.
+    if assumptions and isinstance(payload, dict):
+        payload["grounded_defaults"] = assumptions
+        payload["grounded_defaults_note"] = (
+            "Figures the user did not supply were grounded in household data — "
+            "state these defaults in the answer and invite corrections."
+        )
+    return payload
 
 
 def _debt_payoff(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
@@ -1070,31 +1135,38 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ToolSpec(
             name="project_retirement",
             description=(
-                "Project retirement savings from current age to retirement age given monthly "
-                "contributions and a return rate. Supply annual_expenses_minor to also estimate "
-                "how many years of expenses the balance would cover."
+                "Project retirement savings from current age to retirement age. "
+                "SELF-GROUNDING: omit current_savings_minor and annual_expenses_minor and "
+                "they default to the household's REAL retirement+HSA balances and 12× their "
+                "essential monthly spending (the response lists every assumption for you to "
+                "state). NEVER ask the user for balances or spending — only their current "
+                "age and target retirement age require asking (and monthly contribution, "
+                "which bank data cannot see)."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "current_age": {"type": "integer"},
                     "retirement_age": {"type": "integer"},
-                    "current_savings_minor": _MONEY_FIELD,
-                    "monthly_contribution_minor": _MONEY_FIELD,
-                    "annual_return_rate": _RATE_FIELD,
+                    "current_savings_minor": {
+                        **_MONEY_FIELD,
+                        "description": "optional: defaults to the household's retirement + HSA balances",
+                    },
+                    "monthly_contribution_minor": {
+                        **_MONEY_FIELD,
+                        "description": "optional: defaults to 0 (payroll deferrals are invisible to bank data)",
+                    },
+                    "annual_return_rate": {
+                        **_RATE_FIELD,
+                        "description": "optional: defaults to a modest 0.05",
+                    },
                     "annual_expenses_minor": {
                         **_MONEY_FIELD,
-                        "description": "optional: annual retirement spending, for coverage estimate",
+                        "description": "optional: defaults to 12 × the household's essential monthly spending",
                     },
                     "currency": _CURRENCY_FIELD,
                 },
-                "required": [
-                    "current_age",
-                    "retirement_age",
-                    "current_savings_minor",
-                    "monthly_contribution_minor",
-                    "annual_return_rate",
-                ],
+                "required": ["current_age", "retirement_age"],
                 "additionalProperties": False,
             },
         ),
