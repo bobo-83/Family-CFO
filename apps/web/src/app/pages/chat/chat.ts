@@ -9,6 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
+import { speakableText } from '../../shared/speakable-text';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
@@ -207,34 +208,102 @@ export class Chat {
   // M87a: read an assistant answer aloud via the on-box voice service, falling
   // back to the browser's built-in speech synthesizer when it isn't available.
   protected readonly speaking = signal<number | null>(null);
+  // A single reused <audio> element. Playing a silent clip on it inside the tap
+  // "unlocks" it, so assigning the fetched TTS src afterwards can still play on
+  // mobile Safari (which otherwise blocks audio started after an await).
+  private ttsAudio: HTMLAudioElement | null = null;
+  private static readonly SILENCE =
+    'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
   protected async speak(text: string, index: number): Promise<void> {
+    // Tapping the one that's playing (or any, mid-playback) stops it.
     if (this.speaking() !== null) {
-      return;
+      const wasThis = this.speaking() === index;
+      this.stopSpeaking();
+      if (wasThis) {
+        return;
+      }
     }
     this.speaking.set(index);
+    const spoken = speakableText(text);
+
+    const audio = this.ttsAudio ?? new Audio();
+    this.ttsAudio = audio;
+    audio.src = Chat.SILENCE;
     try {
-      const url = await this.api.synthesizeSpeech(text);
+      await audio.play(); // unlock within the user gesture
+    } catch {
+      // Unlock is best-effort; server audio may still play, else we fall back.
+    }
+
+    let url: string | null = null;
+    try {
+      url = await this.api.synthesizeSpeech(spoken);
+    } catch {
+      url = null;
+    }
+    if (this.speaking() !== index) {
+      // Stopped while synthesizing.
       if (url) {
-        const audio = new Audio(url);
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url);
+      }
+      return;
+    }
+
+    if (url) {
+      audio.src = url;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (this.speaking() === index) {
           this.speaking.set(null);
-        };
+        }
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        this.fallbackSpeak(spoken, index);
+      };
+      try {
         await audio.play();
         return;
+      } catch {
+        URL.revokeObjectURL(url);
       }
-      // No on-box voice — use the platform's own speech synthesizer.
-      if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.onend = () => this.speaking.set(null);
-        window.speechSynthesis.speak(utterance);
-        return;
-      }
-      this.speaking.set(null);
-    } catch {
+    }
+    // No on-box voice (503) or playback failed — use the platform synthesizer.
+    this.fallbackSpeak(spoken, index);
+  }
+
+  private fallbackSpeak(text: string, index: number): void {
+    if (this.speaking() !== index) {
+      return;
+    }
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => {
+        if (this.speaking() === index) {
+          this.speaking.set(null);
+        }
+      };
+      utterance.onerror = () => {
+        if (this.speaking() === index) {
+          this.speaking.set(null);
+        }
+      };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } else {
       this.speaking.set(null);
     }
+  }
+
+  protected stopSpeaking(): void {
+    if (this.ttsAudio) {
+      this.ttsAudio.pause();
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    this.speaking.set(null);
   }
 
   /** A coarse High/Medium/Low label for a 0..1 confidence score. */

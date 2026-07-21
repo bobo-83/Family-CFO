@@ -224,106 +224,113 @@
 }
 
 // Rendered advisor markdown (headings, tables, lists) — block layout, so the
-// pre-wrap used for plain user text is turned off here.
+// pre-wrap used for plain user text is turned off here. The content is injected
+// via [innerHTML], which Angular's view encapsulation does NOT tag with the
+// component's scoping attribute — so the descendant rules must use ::ng-deep to
+// reach it. (.chat__answer--md itself is a real template element and is scoped.)
 .chat__answer--md {
   white-space: normal;
   overflow-wrap: anywhere;
 
-  :first-child {
-    margin-top: 0;
-  }
-  :last-child {
-    margin-bottom: 0;
-  }
+  ::ng-deep {
+    :first-child {
+      margin-top: 0;
+    }
+    :last-child {
+      margin-bottom: 0;
+    }
 
-  h1,
-  h2,
-  h3,
-  h4 {
-    margin: 0.7em 0 0.35em;
-    line-height: 1.25;
-    font-weight: 600;
-  }
-  h1 {
-    font-size: 1.35em;
-  }
-  h2 {
-    font-size: 1.2em;
-  }
-  h3 {
-    font-size: 1.08em;
-  }
-  h4 {
-    font-size: 1em;
-  }
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0.7em 0 0.35em;
+      line-height: 1.25;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 1.35em;
+    }
+    h2 {
+      font-size: 1.2em;
+    }
+    h3 {
+      font-size: 1.08em;
+    }
+    h4 {
+      font-size: 1em;
+    }
 
-  p {
-    margin: 0.5em 0;
-  }
+    p {
+      margin: 0.5em 0;
+    }
 
-  ul,
-  ol {
-    margin: 0.4em 0;
-    padding-left: 1.4em;
-  }
-  li {
-    margin: 0.15em 0;
-  }
-
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.9em;
-    background: rgba(127, 127, 127, 0.15);
-    padding: 0.1em 0.3em;
-    border-radius: 4px;
-  }
-  pre {
-    overflow-x: auto;
-    padding: 0.6em 0.8em;
-    background: rgba(127, 127, 127, 0.12);
-    border-radius: 8px;
+    ul,
+    ol {
+      margin: 0.4em 0;
+      padding-left: 1.4em;
+    }
+    li {
+      margin: 0.15em 0;
+    }
 
     code {
-      background: none;
-      padding: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9em;
+      background: rgba(127, 127, 127, 0.15);
+      padding: 0.1em 0.3em;
+      border-radius: 4px;
     }
-  }
+    pre {
+      overflow-x: auto;
+      padding: 0.6em 0.8em;
+      background: rgba(127, 127, 127, 0.12);
+      border-radius: 8px;
 
-  // ADR 0051: table rows render as labeled cards (see MarkdownPipe) — a wide
-  // grid can't fit a phone-width bubble.
-  .md-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5em;
-    margin: 0.5em 0;
-  }
-  .md-card {
-    border: 1px solid rgba(127, 127, 127, 0.3);
-    border-radius: 10px;
-    padding: 0.6em 0.75em;
-    background: rgba(127, 127, 127, 0.05);
-  }
-  .md-card__title {
-    font-weight: 600;
-    font-size: 1.02em;
-    margin-bottom: 0.3em;
-  }
-  .md-card__field {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75em;
-    padding: 0.12em 0;
-
-    & + .md-card__field {
-      border-top: 1px solid rgba(127, 127, 127, 0.12);
+      code {
+        background: none;
+        padding: 0;
+      }
     }
-  }
-  .md-card__k {
-    color: var(--mat-sys-on-surface-variant, #666);
-    flex: 0 0 auto;
-  }
-  .md-card__v {
-    text-align: right;
+
+    // ADR 0051: table rows render as labeled cards (see MarkdownPipe) — a wide
+    // grid can't fit a phone-width bubble.
+    .md-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+      margin: 0.5em 0;
+    }
+    .md-card {
+      border: 1px solid rgba(127, 127, 127, 0.3);
+      border-radius: 10px;
+      padding: 0.6em 0.75em;
+      background: rgba(127, 127, 127, 0.05);
+    }
+    .md-card__title {
+      font-weight: 600;
+      font-size: 1.02em;
+      margin-bottom: 0.35em;
+    }
+    .md-card__field {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.25em;
+      padding: 0.15em 0;
+
+      & + .md-card__field {
+        border-top: 1px solid rgba(127, 127, 127, 0.12);
+      }
+    }
+    .md-card__k {
+      color: var(--mat-sys-on-surface-variant, #666);
+      flex: 0 0 auto;
+    }
+    .md-card__v {
+      text-align: right;
+      min-width: 0;
+    }
   }
 }
 

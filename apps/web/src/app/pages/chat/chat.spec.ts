@@ -103,7 +103,7 @@ describe('Chat', () => {
     apiMock.synthesizeSpeech.mockResolvedValue(null); // 503 -> no on-box voice
     const speak = vi.fn();
     Object.defineProperty(window, 'speechSynthesis', {
-      value: { speak },
+      value: { speak, cancel: vi.fn() },
       configurable: true,
     });
     // jsdom has neither symbol; the component uses both on the fallback path.
