@@ -195,7 +195,8 @@ export class ApiService {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ text }),
+      // WAV so Web Audio's decodeAudioData works on Safari (ADR 0052).
+      body: JSON.stringify({ text, format: 'wav' }),
     });
     if (!response.ok) {
       return null;

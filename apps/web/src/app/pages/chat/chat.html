@@ -116,12 +116,11 @@
                   mat-button
                   type="button"
                   class="chat__speak"
-                  [disabled]="speaking() === $index"
                   (click)="speak(turn.content, $index)"
-                  aria-label="Read this answer aloud"
-                  title="Read aloud"
+                  [attr.aria-label]="speaking() === $index ? 'Stop reading' : 'Read this answer aloud'"
+                  [title]="speaking() === $index ? 'Stop' : 'Read aloud'"
                 >
-                  {{ speaking() === $index ? '🔊 …' : '🔊 Read aloud' }}
+                  {{ speaking() === $index ? '⏹ Stop' : '🔊 Read aloud' }}
                 </button>
                 @if (turn.recommendation?.id || turn.recommendationId) {
                   <span class="chat__rate">

@@ -891,6 +891,10 @@ class VoiceRequest(BaseModel):
     # M87a: the advisor answer to speak. Capped to keep synthesis bounded.
     text: str = Field(min_length=1, max_length=4000)
     voice: str | None = None
+    # ADR 0052: audio container. Default mp3 (small; iOS AVAudioPlayer plays it
+    # fine). The web asks for wav — Web Audio's decodeAudioData is unreliable on
+    # Safari for the ID3-tagged mp3 Kokoro emits, but decodes PCM wav reliably.
+    format: Literal["mp3", "wav"] = "mp3"
 
 
 class AdvisorFeedbackRequest(BaseModel):

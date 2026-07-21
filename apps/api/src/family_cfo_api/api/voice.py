@@ -49,8 +49,9 @@ async def synthesize_speech(
         "model": "kokoro",
         "input": payload.text,
         "voice": payload.voice or settings.tts_voice,
-        "response_format": "mp3",
+        "response_format": payload.format,
     }
+    media_type = "audio/wav" if payload.format == "wav" else "audio/mpeg"
 
     # Open the upstream stream up front so a down service is a clean 503, not
     # a half-streamed error body reaching the client.
@@ -72,4 +73,4 @@ async def synthesize_speech(
             await response.aclose()
             await client.aclose()
 
-    return StreamingResponse(_relay(), media_type="audio/mpeg")
+    return StreamingResponse(_relay(), media_type=media_type)
