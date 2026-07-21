@@ -24,6 +24,10 @@ describe('Users', () => {
     createMember: ReturnType<typeof vi.fn>;
     updateMemberRole: ReturnType<typeof vi.fn>;
     deleteMember: ReturnType<typeof vi.fn>;
+    listInvites: ReturnType<typeof vi.fn>;
+    createInvite: ReturnType<typeof vi.fn>;
+    regenerateInviteToken: ReturnType<typeof vi.fn>;
+    revokeInvite: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -44,6 +48,10 @@ describe('Users', () => {
       createMember: vi.fn(),
       updateMemberRole: vi.fn(),
       deleteMember: vi.fn(),
+      listInvites: vi.fn().mockResolvedValue(response({ invites: [] })),
+      createInvite: vi.fn(),
+      regenerateInviteToken: vi.fn(),
+      revokeInvite: vi.fn(),
     };
   });
 
@@ -278,5 +286,65 @@ describe('Users', () => {
     // ADR 0034: pairing your OWN device needs only membership.
     expect(text).not.toContain('Only an admin can pair a device for another member.');
     expect(text).toContain('Pair a device');
+  });
+
+  it('shows invite statuses and mints a one-time join link (ADR 0056)', async () => {
+    apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
+    apiMock.listInvites.mockResolvedValue(
+      response({
+        invites: [
+          {
+            id: 'i-1', email: 'pending@example.com', role: 'adult', role_id: 'r-user',
+            role_name: 'User', status: 'pending',
+            created_at: '2026-07-20T00:00:00Z', expires_at: '2026-07-27T00:00:00Z',
+          },
+          {
+            id: 'i-2', email: 'joined@example.com', role: 'adult', role_id: 'r-user',
+            role_name: 'User', status: 'accepted',
+            created_at: '2026-07-01T00:00:00Z', expires_at: '2026-07-08T00:00:00Z',
+            accepted_at: '2026-07-02T00:00:00Z',
+          },
+        ],
+      }),
+    );
+    apiMock.createInvite.mockResolvedValue(
+      response({
+        invite: {
+          id: 'i-3', email: 'new@example.com', role: 'adult', role_id: 'r-user',
+          role_name: 'User', status: 'pending',
+          created_at: '2026-07-21T00:00:00Z', expires_at: '2026-07-28T00:00:00Z',
+        },
+        invite_token: 'one-time-secret',
+      }),
+    );
+
+    TestBed.configureTestingModule({
+      imports: [Users],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+    const fixture = TestBed.createComponent(Users);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // Status chips: sent vs accepted are clearly distinguished.
+    expect(host.textContent).toContain('Invite sent');
+    expect(host.textContent).toContain('Accepted');
+
+    const component = fixture.componentInstance;
+    component['inviteForm'].setValue({ email: 'new@example.com', roleId: 'r-user' });
+    await component['sendInvite']();
+    fixture.detectChanges();
+
+    expect(apiMock.createInvite).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      role_id: 'r-user',
+    });
+    // The one-time link is composed client-side with the token in the FRAGMENT.
+    expect(host.textContent).toContain('/join#token=one-time-secret');
   });
 });

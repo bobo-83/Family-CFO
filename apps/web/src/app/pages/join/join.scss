@@ -1,0 +1,41 @@
+// Material styles the card, fields, and button; this only handles the
+// centered layout and the few app-specific bits (subtitle, error banner).
+.join {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg);
+  padding: 1.25rem;
+}
+
+.join__card {
+  width: min(360px, 100%);
+}
+
+.join__subtitle {
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+  font-size: 0.9rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.join__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.join__error-banner {
+  color: var(--mat-sys-error, var(--color-danger));
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.join__submit {
+  margin-top: 0.5rem;
+}
+
+.join__expiry {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: rgba(127, 127, 127, 0.9);
+}
