@@ -4753,6 +4753,14 @@ components:
         voice:
           type: string
           description: Optional voice id; defaults to the server's configured voice
+        format:
+          type: string
+          enum: [mp3, wav]
+          default: mp3
+          description: >-
+            ADR 0052: audio container. Default mp3 (iOS). The web asks for wav —
+            Web Audio's decodeAudioData is unreliable on Safari for ID3-tagged
+            mp3 but decodes PCM wav reliably.
     ChatResponse:
       type: object
       required:

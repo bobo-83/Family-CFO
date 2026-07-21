@@ -5919,21 +5919,36 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/VoiceRequest/voice`.
             public var voice: Swift.String?
+            /// ADR 0052: audio container. Default mp3 (iOS). The web asks for wav — Web Audio's decodeAudioData is unreliable on Safari for ID3-tagged mp3 but decodes PCM wav reliably.
+            ///
+            /// - Remark: Generated from `#/components/schemas/VoiceRequest/format`.
+            @frozen public enum FormatPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case mp3 = "mp3"
+                case wav = "wav"
+            }
+            /// ADR 0052: audio container. Default mp3 (iOS). The web asks for wav — Web Audio's decodeAudioData is unreliable on Safari for ID3-tagged mp3 but decodes PCM wav reliably.
+            ///
+            /// - Remark: Generated from `#/components/schemas/VoiceRequest/format`.
+            public var format: Components.Schemas.VoiceRequest.FormatPayload?
             /// Creates a new `VoiceRequest`.
             ///
             /// - Parameters:
             ///   - text:
             ///   - voice: Optional voice id; defaults to the server's configured voice
+            ///   - format: ADR 0052: audio container. Default mp3 (iOS). The web asks for wav — Web Audio's decodeAudioData is unreliable on Safari for ID3-tagged mp3 but decodes PCM wav reliably.
             public init(
                 text: Swift.String,
-                voice: Swift.String? = nil
+                voice: Swift.String? = nil,
+                format: Components.Schemas.VoiceRequest.FormatPayload? = nil
             ) {
                 self.text = text
                 self.voice = voice
+                self.format = format
             }
             public enum CodingKeys: String, CodingKey {
                 case text
                 case voice
+                case format
             }
         }
         /// - Remark: Generated from `#/components/schemas/ChatResponse`.

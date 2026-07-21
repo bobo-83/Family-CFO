@@ -1046,6 +1046,10 @@ export type VoiceRequest = {
      * Optional voice id; defaults to the server's configured voice
      */
     voice?: string;
+    /**
+     * ADR 0052: audio container. Default mp3 (iOS). The web asks for wav — Web Audio's decodeAudioData is unreliable on Safari for ID3-tagged mp3 but decodes PCM wav reliably.
+     */
+    format?: 'mp3' | 'wav';
 };
 
 export type ChatResponse = {
