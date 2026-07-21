@@ -313,6 +313,43 @@ async def test_income_categorized_deposit_counts_over_transfer_heuristic(
 
 
 @pytest.mark.anyio
+async def test_brokerage_income_deposit_counts_with_its_bank(demo_client, demo_token) -> None:
+    """ADR 0054: an RSU/ESPP deposit filed under Income in a BROKERAGE account
+    (not checking) is counted, and carries its bank for the evidence detail."""
+    headers = _headers(demo_token)
+    brokerage = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "Schwab Brokerage", "type": "brokerage", "currency": "USD"},
+        )
+    ).json()["id"]
+    income_cat = (
+        await demo_client.post("/api/v1/categories", headers=headers, json={"name": "Income"})
+    ).json()["id"]
+    deposit = await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": brokerage,
+            "occurred_at": (date.today() - timedelta(days=8)).isoformat(),
+            "amount": {"amount_minor": 5_883_886, "currency": "USD"},
+            "merchant": "Broadcom Inc",
+            "category_id": income_cat,
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["rollup"]["annual_income"]["amount_minor"] >= 5_883_886
+    evidence = [t for s in body["sources"] for t in s["transactions"] if t["transaction_id"] == deposit.json()["id"]]
+    assert evidence, "brokerage income deposit should appear as a source transaction"
+    # The bank rides on the evidence (None here since a manual account has no
+    # synced institution; populated for real synced accounts).
+    assert "institution" in evidence[0]
+
+
+@pytest.mark.anyio
 async def test_matched_pair_transfer_is_hidden_entirely(demo_client, demo_token) -> None:
     """A deposit whose amount left a sibling account is money movement, not income."""
     headers = _headers(demo_token)

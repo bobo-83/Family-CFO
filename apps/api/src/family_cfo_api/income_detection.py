@@ -35,8 +35,10 @@ class IncomeTransaction:
     currency: str
     merchant: str | None
     description: str | None
-    # The checking account the deposit landed in (M62 evidence detail).
+    # The account the deposit landed in, and the bank behind it (M62 evidence;
+    # ADR 0054 — the bank matters for RSU/ESPP deposits in a brokerage).
     account_name: str = ""
+    institution: str | None = None
 
     @property
     def display_name(self) -> str:

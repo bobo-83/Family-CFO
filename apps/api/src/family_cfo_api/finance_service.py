@@ -488,9 +488,9 @@ def recurring_income_candidates(
     the single source for both the income analysis and the cash outlook."""
     from family_cfo_api import income_detection
 
-    rows = repository.list_income_detection_transactions(engine, household_id, since=since)
-    transactions = [
-        income_detection.IncomeTransaction(
+    def _to_txn(row: tuple) -> income_detection.IncomeTransaction:
+        txn_id, occurred_at, amount_minor, currency, merchant, description, account_name, inst = row
+        return income_detection.IncomeTransaction(
             id=txn_id,
             occurred_at=occurred_at,
             amount_minor=amount_minor,
@@ -498,17 +498,28 @@ def recurring_income_candidates(
             merchant=merchant,
             description=description,
             account_name=account_name,
+            institution=inst,
         )
-        for (txn_id, occurred_at, amount_minor, currency, merchant, description, account_name)
-        in rows
+
+    transactions = [
+        _to_txn(row)
+        for row in repository.list_income_detection_transactions(engine, household_id, since=since)
     ]
     overrides = repository.list_income_overrides(engine, household_id)
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
     included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
-    # ADR 0053: a deposit the user filed under the Income category counts as
-    # income — an explicit signal that beats the transfer heuristic and detection
-    # gaps. An explicit "exclude" override still wins (the user changed their mind).
-    included_ids |= repository.income_categorized_ids(engine, household_id, since=since) - excluded_ids
+
+    # ADR 0053/0054: a deposit the user filed under the Income category counts as
+    # income — an explicit signal that beats the transfer heuristic AND detection's
+    # checking-only scope, so RSU/ESPP deposits that land in a brokerage are seen.
+    # An explicit "exclude" override still wins (the user changed their mind).
+    seen = {t.id for t in transactions}
+    for row in repository.list_income_categorized_transactions(engine, household_id, since=since):
+        if row[0] not in excluded_ids:
+            included_ids.add(row[0])
+            if row[0] not in seen:
+                transactions.append(_to_txn(row))
+                seen.add(row[0])
 
     # M63: internal transfers (the household's own money changing accounts) are
     # not income. An explicit "include" verdict overrides.
