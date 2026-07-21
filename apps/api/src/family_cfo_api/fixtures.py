@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import models, repository, security
@@ -252,13 +252,62 @@ def seed_demo_household(engine: Engine) -> None:
 
 SHOWCASE_MARKER_ACCOUNT = "High-Yield Savings (showcase)"
 
+# Tables that hold the demo household's IDENTITY — kept across a data reset so
+# the demo logins, roles, and paired devices keep working.
+_RESET_PROTECTED_TABLES = frozenset(
+    {
+        "households",
+        "users",
+        "roles",
+        "household_memberships",
+        "pairing_sessions",
+        "paired_devices",
+        "auth_sessions",
+    }
+)
+
+
+def reset_demo_data(engine: Engine) -> int:
+    """Delete the demo household's DATA — accounts, transactions, bills, goals,
+    profiles, memories, history — while keeping its identity (household, users,
+    memberships, roles, sessions), so the showcase can be reseeded from scratch
+    after a persona change. Returns the number of rows deleted."""
+    hh = DEMO_HOUSEHOLD_ID
+    deleted = 0
+    with engine.begin() as conn:
+        # Children before parents; a table without household_id (account_balances,
+        # import_files, …) is purged through its FK to a household-scoped parent.
+        for table in reversed(metadata.sorted_tables):
+            if table.name in _RESET_PROTECTED_TABLES:
+                continue
+            if "household_id" in table.c:
+                result = conn.execute(table.delete().where(table.c.household_id == hh))
+                deleted += result.rowcount
+                continue
+            for column in table.c:
+                fk = next(iter(column.foreign_keys), None)
+                if fk is not None and "household_id" in fk.column.table.c:
+                    parent = fk.column.table
+                    ids = select(fk.column).where(parent.c.household_id == hh)
+                    result = conn.execute(table.delete().where(column.in_(ids)))
+                    deleted += result.rowcount
+                    break
+    return deleted
+
 
 def seed_showcase_data(engine: Engine) -> bool:  # noqa: PLR0915 - one linear script
     """Rich, additive demo data exercising every product scenario (M74).
 
+    The persona: a senior software engineer at Anthropic living in Austin, TX
+    (single filer, no state income tax), with TWO FULL YEARS of history —
+    biweekly Anthropic payroll (with a raise a year in), an Austin mortgage with
+    escrowed property taxes, seasonal Austin Energy bills, H-E-B groceries,
+    matched savings transfers, card payments, and net-worth history.
+
     Idempotent: no-op (returns False) when the showcase marker account already
     exists. Layers ON TOP of ``seed_demo_household`` — the minimal fixture the
-    test suite depends on stays untouched.
+    test suite depends on stays untouched. Run ``reset_demo_data`` first to
+    rebuild from scratch.
     """
     from family_cfo_api import repository
 
@@ -279,26 +328,28 @@ def seed_showcase_data(engine: Engine) -> bool:  # noqa: PLR0915 - one linear sc
             review_state="reviewed", category_id=category_id,
         )
 
+    def month_of(days_ago: int) -> int:
+        return (today - timedelta(days=days_ago)).month
+
     # --- Accounts across the spectrum (M33/M35 grouping) ---
     checking = repository.create_account(engine, hh, "Rewards Checking (showcase)", "checking", "USD")
     savings = repository.create_account(engine, hh, SHOWCASE_MARKER_ACCOUNT, "savings", "USD")
     brokerage = repository.create_account(engine, hh, "Brokerage (showcase)", "brokerage", "USD")
     k401 = repository.create_account(engine, hh, "401k (showcase)", "retirement", "USD")
-    plan529 = repository.create_account(engine, hh, "College 529 (showcase)", "529", "USD")
     card = repository.create_account(
         engine, hh, "Sapphire Card (showcase)", "credit_card", "USD",
         annual_interest_rate=0.239, minimum_payment_minor=15_000,
     )
     mortgage = repository.create_account(
         engine, hh, "Mortgage (showcase)", "mortgage", "USD",
-        annual_interest_rate=0.052, minimum_payment_minor=385_000,
+        annual_interest_rate=0.0625, minimum_payment_minor=388_000,
     )
     for account, balance in (
-        (checking, 2_450_000), (savings, 6_500_000), (brokerage, 21_500_000),
-        (k401, 61_000_000), (plan529, 5_400_000), (card, -412_500),
+        (checking, 1_850_000), (savings, 4_800_000), (brokerage, 14_500_000),
+        (k401, 28_500_000), (card, -228_700),
     ):
         repository.record_account_balance(engine, account.id, balance)
-    repository.record_account_balance(engine, mortgage.id, -52_000_000)
+    repository.record_account_balance(engine, mortgage.id, -43_000_000)
 
     # Emergency fund designation (M36): the savings account IS the fund.
     repository.update_account(engine, hh, savings.id, emergency_fund_percent=100.0)
@@ -307,50 +358,83 @@ def seed_showcase_data(engine: Engine) -> bool:  # noqa: PLR0915 - one linear sc
     groceries = repository.create_category(engine, hh, "Groceries (showcase)")
     dining = repository.create_category(engine, hh, "Dining (showcase)")
     gas = repository.create_category(engine, hh, "Gas (showcase)")
-    repository.create_budget(engine, hh, category_id=groceries.id, limit_minor=80_000, currency="USD")
-    repository.create_budget(engine, hh, category_id=dining.id, limit_minor=30_000, currency="USD")
-    repository.create_budget(engine, hh, category_id=gas.id, limit_minor=25_000, currency="USD")
+    repository.create_budget(engine, hh, category_id=groceries.id, limit_minor=60_000, currency="USD")
+    repository.create_budget(engine, hh, category_id=dining.id, limit_minor=40_000, currency="USD")
+    repository.create_budget(engine, hh, category_id=gas.id, limit_minor=20_000, currency="USD")
 
-    # --- ~7 months of activity ---
-    # Biweekly paycheck hidden under a generic transfer label (M65 clustering),
-    # plus big one-offs sharing it.
-    for i in range(14):
-        txn(checking.id, 8 + 14 * i, 421_137 + i, "Online Transfer",
-            "Online Transfer / Payment: Credit")
-    txn(checking.id, 45, 2_312_400, "Online Transfer", "Online Transfer / Payment: Credit")
-    # Quarterly RSU net proceeds landing in checking (M73 corroboration).
-    txn(checking.id, 20, 2_874_060, "MORGAN STANLEY ACH", "RSU net proceeds Q2")
-    txn(checking.id, 111, 2_641_220, "MORGAN STANLEY ACH", "RSU net proceeds Q1")
-    # Matched checking->savings transfer pairs (M63 suppression: money movement).
-    for days, amount in ((12, 500_000), (40, 500_000), (70, 750_000)):
-        txn(checking.id, days, -amount, "Internal Transfer", "Internal Transfer Debit: Savings")
-        txn(savings.id, days, amount, "Internal Transfer",
-            "Internal Transfer Credit: Checking -0603")
+    # --- TWO YEARS of activity -------------------------------------------------
+    MONTHS = 24
 
-    # Recurring charges. Two become EXISTING bills (one stale -> M59 drift);
-    # three stay undetected -> M58 suggestions.
-    for month in range(6):
-        txn(card.id, 4 + 30 * month, -1_549, "NETFLIX.COM *4029")            # bill @ stale 12.99
-        txn(checking.id, 9 + 30 * month, -8_000, "COMCAST INTERNET")          # bill, current
-        txn(checking.id, 14 + 30 * month, -12_000 - month * 350, "PG&E UTILITY")  # suggestion
-        txn(card.id, 2 + 30 * month, -14_800, "Goldfish Swim School")          # suggestion
-        txn(card.id, 17 + 30 * month, -1_099, "SPOTIFY USA")                    # suggestion
+    # Biweekly Anthropic payroll (M65 clustering); a ~4.7% raise a year in, so
+    # the second year's paychecks are visibly larger than the first's.
+    for i in range(53):
+        days_ago = 5 + 14 * i
+        net = 780_000 if days_ago <= 365 else 745_000
+        txn(checking.id, days_ago, net + (i % 3), "ANTHROPIC PBC PAYROLL",
+            "ANTHROPIC PBC DES:PAYROLL INDN:JORDAN CO ID:XXXXX PPD")
+
+    # Monthly HYSA interest lands in savings (not income — savings, not checking).
+    for m in range(MONTHS):
+        txn(savings.id, 11 + 30 * m, 17_000 + (m % 5) * 180, "Interest Paid",
+            "Interest Paid — 4.10% APY")
+
+    # Mortgage on an Austin house: P&I + escrowed Travis County property taxes.
+    for m in range(MONTHS):
+        txn(checking.id, 1 + 30 * m, -388_000, "MR COOPER MORTGAGE",
+            "MR COOPER DES:MTG PYMT (P&I + escrowed property tax)")
+
+    # Austin utilities: Austin Energy runs hot in summer (A/C), Texas Gas in
+    # winter; water and Google Fiber stay flat.
+    summer, winter = {6, 7, 8, 9}, {11, 12, 1, 2}
+    for m in range(MONTHS):
+        days_energy = 9 + 30 * m
+        energy = 22_400 if month_of(days_energy) in summer else 10_800
+        txn(checking.id, days_energy, -energy, "AUSTIN ENERGY", "City of Austin electric")
+        days_gas = 13 + 30 * m
+        gas_amt = 10_600 if month_of(days_gas) in winter else 2_900
+        txn(checking.id, days_gas, -gas_amt, "TEXAS GAS SERVICE")
+        txn(checking.id, 16 + 30 * m, -8_500, "CITY OF AUSTIN WATER")   # suggestion
+        txn(checking.id, 7 + 30 * m, -7_000, "GOOGLE FIBER")            # bill, current
+    # Recurring card charges: Netflix EXISTS as a stale bill (12.99 -> drift at
+    # 15.49); Spotify and the gym stay undetected -> M58 suggestions.
+    for m in range(MONTHS):
+        txn(card.id, 4 + 30 * m, -1_549, "NETFLIX.COM *4029")
+        txn(card.id, 17 + 30 * m, -1_199, "SPOTIFY USA")                # suggestion
+        txn(card.id, 2 + 30 * m, -4_500, "GOLDS GYM AUSTIN")            # suggestion
     repository.create_bill(engine, hh, "NETFLIX.COM", 1_299, "USD", "monthly",
                            next_due_date=today + timedelta(days=9))
-    repository.create_bill(engine, hh, "COMCAST INTERNET", 8_000, "USD", "monthly",
+    repository.create_bill(engine, hh, "GOOGLE FIBER", 7_000, "USD", "monthly",
                            next_due_date=today + timedelta(days=4))
+    repository.create_bill(engine, hh, "MR COOPER MORTGAGE", 388_000, "USD", "monthly",
+                           next_due_date=today + timedelta(days=12))
 
-    # Categorized spending, this month AND last month (M42 insights, M46 states):
-    # groceries "warning" (~86%), dining "over", gas "under".
-    for days, amount in ((3, -21_400), (8, -18_300), (15, -16_900), (22, -12_100)):
-        txn(card.id, days, amount, "WHOLE FOODS MKT", category_id=groceries.id)
-        txn(card.id, days + 30, amount - 2_000, "WHOLE FOODS MKT", category_id=groceries.id)
-    for days, amount in ((5, -8_200), (11, -9_900), (19, -8_400), (25, -7_300)):
-        txn(card.id, days, amount, "LOCAL BISTRO", category_id=dining.id)
-        txn(card.id, days + 30, amount + 1_500, "LOCAL BISTRO", category_id=dining.id)
-    for days in (6, 20):
-        txn(card.id, days, -6_200, "SHELL OIL", category_id=gas.id)
-        txn(card.id, days + 30, -6_800, "SHELL OIL", category_id=gas.id)
+    # Matched checking->savings transfer pairs (M63 suppression: money movement).
+    for m in range(MONTHS):
+        days = 6 + 30 * m
+        txn(checking.id, days, -150_000, "Internal Transfer",
+            "Internal Transfer Debit: Savings")
+        txn(savings.id, days, 150_000, "Internal Transfer",
+            "Internal Transfer Credit: Checking -0603")
+    # Monthly card payment — the matched pair across checking and the card.
+    for m in range(MONTHS):
+        days = 27 + 30 * m
+        txn(checking.id, days, -230_000, "Card Payment", "Payment to Sapphire Card")
+        txn(card.id, days, 230_000, "Payment Received", "Payment Received — Thank You")
+
+    # Categorized spending across ALL 24 months (M42 insights, M46 states):
+    # groceries "warning" (~88%), dining just "over", gas "under".
+    for m in range(MONTHS):
+        for offset, amount in ((3, -13_400), (10, -12_100), (17, -14_300), (24, -12_800)):
+            txn(card.id, offset + 30 * m, amount, "H-E-B", category_id=groceries.id)
+        for offset, amount, merchant in (
+            (5, -8_900, "TORCHYS TACOS"),
+            (12, -16_400, "UCHI AUSTIN"),
+            (19, -6_500, "FRANKLIN BARBECUE"),
+            (26, -9_800, "LOUNGE ON SOUTH CONGRESS"),
+        ):
+            txn(card.id, offset + 30 * m, amount, merchant, category_id=dining.id)
+        for offset, amount, merchant in ((6, -6_400, "BUC-EE'S #22"), (20, -6_900, "SHELL OIL")):
+            txn(card.id, offset + 30 * m, amount, merchant, category_id=gas.id)
 
     # --- Goals with progress (M41) ---
     vacation = repository.create_goal(engine, hh, "Japan trip 2027", "vacation",
@@ -363,36 +447,44 @@ def seed_showcase_data(engine: Engine) -> bool:  # noqa: PLR0915 - one linear sc
         )
 
     # --- Income source (cash-flow card) ---
-    repository.create_income_source(engine, hh, "Salary (take-home)", 842_274, "USD", "biweekly")
+    repository.create_income_source(engine, hh, "Anthropic salary (take-home)",
+                                    780_000, "USD", "biweekly")
 
-    # --- Compensation profile (M73): quarterly RSUs + 25% bonus + W2 actuals ---
+    # --- Compensation profile (M73): senior SWE at Anthropic. Base + equity
+    # (private — it vests but can't be sold until a liquidity event) + W2 actuals.
     repository.create_income_profile(
-        engine, hh, label="Alex (showcase)",
-        base_salary_minor=20_000_000, rsu_annual_minor=16_000_000,
-        rsu_frequency="quarterly", rsu_next_vest_date=today + timedelta(days=32),
-        bonus_percent=25.0, bonus_month=12,
-        w2_year=today.year - 1, w2_wages_minor=38_541_260, w2_withheld_minor=7_890_315,
+        engine, hh, label="Jordan — Senior SWE, Anthropic (showcase)",
+        base_salary_minor=33_000_000, rsu_annual_minor=10_000_000,
+        rsu_frequency="quarterly", rsu_next_vest_date=today + timedelta(days=40),
+        bonus_percent=0.0, bonus_month=None,
+        w2_year=today.year - 1, w2_wages_minor=30_900_000, w2_withheld_minor=6_310_000,
     )
 
-    # --- Tax settings (M65) + memories (M57) ---
-    repository.update_tax_settings(engine, hh, tax_filing_status="married_joint",
-                                   income_treated_as_net=False, state="CA")
-    repository.upsert_household_memory(engine, hh, "home_city", "We live in San Jose, CA.")
-    repository.upsert_household_memory(engine, hh, "kids_count",
-                                       "We have two kids (ages 4 and 7).")
-    repository.upsert_household_memory(engine, hh, "daycare_cost",
-                                       "Daycare costs about $1,250.00 a month.")
+    # --- Tax settings (M65) + memories (M57): Austin, TX — no state income tax.
+    repository.update_tax_settings(engine, hh, tax_filing_status="single",
+                                   income_treated_as_net=False, state="TX")
+    repository.upsert_household_memory(engine, hh, "home_city", "I live in Austin, TX.")
+    repository.upsert_household_memory(
+        engine, hh, "job",
+        "I'm a senior software engineer at Anthropic (remote from Austin).")
+    repository.upsert_household_memory(
+        engine, hh, "equity",
+        "My Anthropic equity is private — it vests quarterly but can't be sold "
+        "until a liquidity event, so it isn't cash income.")
+    repository.upsert_household_memory(
+        engine, hh, "property_tax",
+        "Travis County property taxes (~2%) are paid through the mortgage escrow.")
 
-    # --- Net-worth history (M40): a rising weekly series ---
-    base_net_worth = 60_000_000
+    # --- Net-worth history (M40): a rising MONTHLY series over the two years ---
+    base_net_worth = 4_800_000
     with engine.begin() as conn:
-        for week in range(10, 0, -1):
+        for month in range(MONTHS, 0, -1):
             conn.execute(
                 insert(models.net_worth_snapshots).values(
                     id=new_id(),
                     household_id=hh,
-                    as_of=today - timedelta(days=7 * week),
-                    net_worth_minor=base_net_worth + (10 - week) * 350_000,
+                    as_of=today - timedelta(days=30 * month),
+                    net_worth_minor=base_net_worth + (MONTHS - month) * 92_000,
                     currency="USD",
                     created_at=datetime.now(UTC),
                 )
