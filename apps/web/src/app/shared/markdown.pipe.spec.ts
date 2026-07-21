@@ -3,12 +3,22 @@ import { MarkdownPipe } from './markdown.pipe';
 describe('MarkdownPipe', () => {
   const pipe = new MarkdownPipe();
 
-  it('renders a GitHub-flavored table as HTML', () => {
-    const md = ['| A | B |', '|---|---|', '| 1 | 2 |'].join('\n');
+  it('renders a GitHub-flavored table as labeled cards (ADR 0051)', () => {
+    const md = [
+      '| Category | Current | Goal |',
+      '|---|---|---|',
+      '| Shopping | $1,222 | Save more |',
+    ].join('\n');
     const html = pipe.transform(md);
-    expect(html).toContain('<table>');
-    expect(html).toContain('<th>A</th>');
-    expect(html).toContain('<td>1</td>');
+    // First column is the card title; the rest become "label: value" fields.
+    expect(html).toContain('md-cards');
+    expect(html).toContain('md-card__title');
+    expect(html).toContain('Shopping');
+    expect(html).toContain('Current');
+    expect(html).toContain('$1,222');
+    expect(html).toContain('Goal');
+    // No raw wide table.
+    expect(html).not.toContain('<table>');
   });
 
   it('renders headings and bold', () => {

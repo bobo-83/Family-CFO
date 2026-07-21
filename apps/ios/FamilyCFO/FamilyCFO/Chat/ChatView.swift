@@ -534,8 +534,7 @@ struct MessageBubble: View {
     /// bordered tables). User messages are plain text with inline formatting.
     @ViewBuilder private var messageContent: some View {
         if message.author == .assistant {
-            Markdown(message.text)
-                .markdownTheme(.chatBubble)
+            MarkdownMessageView(text: message.text)
         } else {
             Text(markdown: message.text)
         }

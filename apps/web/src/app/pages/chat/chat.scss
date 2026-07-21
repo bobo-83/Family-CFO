@@ -289,29 +289,41 @@
     }
   }
 
-  // GitHub-flavored tables — scroll horizontally inside the bubble rather than
-  // forcing the page to widen.
-  .chat__table-scroll,
-  table {
-    display: block;
-    max-width: 100%;
-    overflow-x: auto;
-  }
-  table {
-    border-collapse: collapse;
+  // ADR 0051: table rows render as labeled cards (see MarkdownPipe) — a wide
+  // grid can't fit a phone-width bubble.
+  .md-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
     margin: 0.5em 0;
-    font-size: 0.95em;
   }
-  th,
-  td {
-    border: 1px solid rgba(127, 127, 127, 0.4);
-    padding: 0.35em 0.6em;
-    text-align: left;
-    white-space: nowrap;
+  .md-card {
+    border: 1px solid rgba(127, 127, 127, 0.3);
+    border-radius: 10px;
+    padding: 0.6em 0.75em;
+    background: rgba(127, 127, 127, 0.05);
   }
-  th {
-    background: rgba(127, 127, 127, 0.1);
+  .md-card__title {
     font-weight: 600;
+    font-size: 1.02em;
+    margin-bottom: 0.3em;
+  }
+  .md-card__field {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75em;
+    padding: 0.12em 0;
+
+    & + .md-card__field {
+      border-top: 1px solid rgba(127, 127, 127, 0.12);
+    }
+  }
+  .md-card__k {
+    color: var(--mat-sys-on-surface-variant, #666);
+    flex: 0 0 auto;
+  }
+  .md-card__v {
+    text-align: right;
   }
 }
 
