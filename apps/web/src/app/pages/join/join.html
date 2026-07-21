@@ -1,0 +1,54 @@
+<div class="join">
+  <mat-card class="join__card" appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Family CFO</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (loading()) {
+        <p class="join__subtitle">Checking your invitation…</p>
+      } @else if (loadError(); as message) {
+        <p class="join__error-banner" role="alert">{{ message }}</p>
+      } @else if (preview(); as invite) {
+        <p class="join__subtitle">
+          You've been invited to join <strong>{{ invite.household_name }}</strong>
+          @if (invite.role_name) {
+            as <strong>{{ invite.role_name }}</strong>
+          }
+          — set up your account for <strong>{{ invite.email }}</strong>.
+          <span class="join__expiry">Invitation valid until {{ invite.expires_at | date: 'MMM d, y' }}.</span>
+        </p>
+
+        <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="join__form">
+          <mat-form-field appearance="outline">
+            <mat-label>Your name</mat-label>
+            <input matInput type="text" formControlName="displayName" autocomplete="name" />
+            @if (form.controls.displayName.hasError('required')) {
+              <mat-error>Your name is required.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Choose a password</mat-label>
+            <input
+              matInput
+              type="password"
+              formControlName="password"
+              autocomplete="new-password"
+            />
+            @if (form.controls.password.invalid) {
+              <mat-error>Password must be at least 8 characters.</mat-error>
+            }
+          </mat-form-field>
+
+          @if (submitError(); as message) {
+            <p class="join__error-banner" role="alert">{{ message }}</p>
+          }
+
+          <button mat-flat-button type="submit" class="join__submit" [disabled]="submitting()">
+            {{ submitting() ? 'Joining…' : 'Join the household' }}
+          </button>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>
