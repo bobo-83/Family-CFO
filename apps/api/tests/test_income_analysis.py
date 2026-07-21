@@ -248,6 +248,71 @@ async def test_state_setting_changes_the_tax_estimate(demo_client, demo_token) -
 
 
 @pytest.mark.anyio
+async def test_income_categorized_deposit_counts_over_transfer_heuristic(
+    demo_client, demo_token
+) -> None:
+    """ADR 0053: a deposit the user files under Income counts as income even when
+    it looks like an internal transfer (a matching outflow) and has no override."""
+    headers = _headers(demo_token)
+    checking = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "Checking", "type": "checking", "currency": "USD"},
+        )
+    ).json()["id"]
+    savings = (
+        await demo_client.post(
+            "/api/v1/accounts",
+            headers=headers,
+            json={"name": "Savings", "type": "savings", "currency": "USD"},
+        )
+    ).json()["id"]
+    income_cat = (
+        await demo_client.post("/api/v1/categories", headers=headers, json={"name": "Income"})
+    ).json()["id"]
+    today = date.today()
+    # A big inflow WITH a matching outflow — the transfer heuristic would hide it.
+    deposit = await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": checking,
+            "occurred_at": (today - timedelta(days=6)).isoformat(),
+            "amount": {"amount_minor": 5_000_000, "currency": "USD"},
+            "merchant": "Online Transfer",
+            "category_id": income_cat,
+        },
+    )
+    await demo_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "account_id": savings,
+            "occurred_at": (today - timedelta(days=7)).isoformat(),
+            "amount": {"amount_minor": -5_000_000, "currency": "USD"},
+            "merchant": "Online Transfer",
+        },
+    )
+
+    body = await _analysis(demo_client, demo_token)
+
+    assert body["rollup"]["annual_income"]["amount_minor"] >= 5_000_000
+    counted_ids = {t["transaction_id"] for s in body["sources"] for t in s["transactions"]}
+    assert deposit.json()["id"] in counted_ids
+
+    # An explicit "not income" still wins over the category.
+    await demo_client.post(
+        "/api/v1/income/analysis/overrides",
+        headers=headers,
+        json={"transaction_id": deposit.json()["id"], "verdict": "exclude"},
+    )
+    body = await _analysis(demo_client, demo_token)
+    counted_ids = {t["transaction_id"] for s in body["sources"] for t in s["transactions"]}
+    assert deposit.json()["id"] not in counted_ids
+
+
+@pytest.mark.anyio
 async def test_matched_pair_transfer_is_hidden_entirely(demo_client, demo_token) -> None:
     """A deposit whose amount left a sibling account is money movement, not income."""
     headers = _headers(demo_token)

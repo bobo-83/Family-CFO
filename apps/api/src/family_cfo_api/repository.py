@@ -1107,6 +1107,25 @@ def sum_income(
         return int(conn.execute(query).scalar_one())
 
 
+def income_categorized_ids(engine: Engine, household_id: str, *, since: date) -> set[str]:
+    """Ids of positive inflows the household filed under the Income category since
+    `since`. Filing a deposit under Income is an explicit "this is income" signal
+    the analysis honors even when detection would miss it or exclude it as an
+    internal transfer (ADR 0053)."""
+    income_ids = select(models.transaction_categories.c.id).where(
+        (models.transaction_categories.c.household_id == household_id)
+        & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
+    )
+    query = select(models.transactions.c.id).where(
+        (models.transactions.c.household_id == household_id)
+        & (models.transactions.c.amount_minor > 0)
+        & (models.transactions.c.occurred_at >= since)
+        & (models.transactions.c.category_id.in_(income_ids))
+    )
+    with engine.connect() as conn:
+        return {row[0] for row in conn.execute(query)}
+
+
 def _spending_window(household_id: str, start: date, end: date, currency: str):
     """A predicate selecting spending in [start, end], base currency, summed as
     -amount so outflows add and refunds subtract.
