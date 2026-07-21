@@ -34,6 +34,8 @@ struct ChatView: View {
     @State private var dictationEngine: SpeechEngine?
     @State private var isDictating = false
     @State private var voiceSession: VoiceSessionViewModel?
+    /// Reads a chosen answer aloud (per-message "Read aloud"); one at a time.
+    @State private var readAloud = ReadAloudController()
     /// Survives the cover's dismissal, which nils `voiceSession` before
     /// `onDismiss` runs — this is where the conversation the session started is
     /// read back from.
@@ -46,6 +48,8 @@ struct ChatView: View {
         }
         .navigationTitle("Advisor")
         .navigationBarTitleDisplayMode(.inline)
+        .task { readAloud.configure(speechAudio: model.speechAudio) }
+        .onDisappear { readAloud.stop() }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -131,7 +135,13 @@ struct ChatView: View {
                         ProgressView().padding(.top, 24)
                     }
                     ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message) { rating in
+                        MessageBubble(
+                            message: message,
+                            isSpeaking: readAloud.isSpeaking(message.id),
+                            onSpeak: {
+                                readAloud.toggle(messageID: message.id, markdown: message.text)
+                            }
+                        ) { rating in
                             // Record the vote right away; a 👎 then invites a note.
                             Task { await viewModel.rate(message, rating) }
                             if rating == .down {
@@ -465,6 +475,10 @@ struct ChatView: View {
 /// grounded metadata (confidence, warnings, impacts) rides below the text.
 struct MessageBubble: View {
     let message: ChatMessage
+    /// Whether this answer is currently being read aloud (drives the button).
+    var isSpeaking: Bool = false
+    /// Start/stop reading this answer aloud; nil for user rows / previews.
+    var onSpeak: (() -> Void)? = nil
     /// ADR 0044: invoked with the chosen rating; nil for user rows / previews.
     var onRate: ((Components.Schemas.AdvisorFeedbackRequest.RatingPayload) -> Void)? = nil
 
@@ -502,6 +516,17 @@ struct MessageBubble: View {
                 Text("Confidence \(Int((confidence * 100).rounded()))%")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+            if message.author == .assistant, let onSpeak {
+                Button(action: onSpeak) {
+                    Label(
+                        isSpeaking ? "Stop" : "Read aloud",
+                        systemImage: isSpeaking ? "stop.circle.fill" : "speaker.wave.2"
+                    )
+                    .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isSpeaking ? Color.accentColor : .secondary)
             }
             if message.author == .assistant, message.recommendationId != nil, let onRate {
                 HStack(spacing: 14) {
