@@ -21,6 +21,10 @@ enum SpokenReply {
                 of: "\(escaped)(\\S(?:[^\(escaped)\\n]*\\S)?)\(escaped)",
                 with: "$1", options: .regularExpression)
         }
+        // Horizontal rules (---, ***, ___ on their own line) — a divider Kokoro
+        // synthesizes to *zero bytes*, which would otherwise derail playback.
+        text = text.replacingOccurrences(
+            of: #"(?m)^\s*([-*_]\s*){3,}$"#, with: "", options: .regularExpression)
         // Headings and bullets at line starts.
         text = text.replacingOccurrences(
             of: #"(?m)^\s*#{1,6}\s*"#, with: "", options: .regularExpression)
@@ -41,13 +45,15 @@ enum SpokenReply {
         text.enumerateSubstrings(in: text.startIndex..., options: [.bySentences]) {
             substring, _, _, _ in
             let sentence = substring?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !sentence.isEmpty {
+            // Skip chunks with nothing to pronounce (rules, arrows, lone emoji) —
+            // the voice service returns empty audio for them.
+            if sentence.rangeOfCharacter(from: .alphanumerics) != nil {
                 chunks.append(sentence)
             }
         }
         if chunks.isEmpty {
             let whole = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return whole.isEmpty ? [] : [whole]
+            return whole.rangeOfCharacter(from: .alphanumerics) != nil ? [whole] : []
         }
         return chunks
     }

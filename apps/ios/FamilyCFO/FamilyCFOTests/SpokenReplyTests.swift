@@ -36,4 +36,27 @@ struct SpokenReplyTests {
         // A lone asterisk between spaces is not markdown emphasis.
         #expect(SpokenReply.speakable("3 * 4 = 12") == "3 * 4 = 12")
     }
+
+    @Test func stripsHorizontalRules() {
+        // A --- divider synthesizes to zero bytes and would derail playback.
+        let markdown = """
+            First part.
+
+            ---
+
+            Second part.
+            """
+        let spoken = SpokenReply.speakable(markdown)
+        #expect(!spoken.contains("---"))
+        #expect(spoken.contains("First part."))
+        #expect(spoken.contains("Second part."))
+    }
+
+    @Test func sentencesSkipChunksWithNothingToPronounce() {
+        // Dividers, arrows, and lone emoji produce empty audio — never sent.
+        let chunks = SpokenReply.sentences("Save $488. \n --- \n → \n Then invest.")
+        #expect(chunks.allSatisfy { $0.rangeOfCharacter(from: .alphanumerics) != nil })
+        #expect(chunks.contains { $0.contains("Save") })
+        #expect(chunks.contains { $0.contains("invest") })
+    }
 }
