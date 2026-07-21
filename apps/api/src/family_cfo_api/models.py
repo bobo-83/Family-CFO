@@ -180,6 +180,28 @@ household_memberships = Table(
     UniqueConstraint("household_id", "user_id", name="uq_household_memberships_household_user"),
 )
 
+# ADR 0056: copy-link invites. The admin shares a one-time LINK (the box sends
+# no email); its CSPRNG token is stored SHA-256-hashed here. Status is computed
+# at read time: revoked_at -> revoked, accepted_at -> accepted, past expires_at
+# -> expired, else pending.
+household_invites = Table(
+    "household_invites",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("email", String(255), nullable=False),
+    # Legacy tier + assigned role, mirroring household_memberships (ADR 0034).
+    Column("role", String(20), nullable=False),
+    Column("role_id", String(36), ForeignKey("roles.id"), nullable=True),
+    Column("token_hash", String(128), nullable=False, unique=True),
+    Column("invited_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("accepted_at", DateTime(timezone=True), nullable=True),
+    Column("accepted_user_id", String(36), ForeignKey("users.id"), nullable=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+)
+
 pairing_sessions = Table(
     "pairing_sessions",
     metadata,

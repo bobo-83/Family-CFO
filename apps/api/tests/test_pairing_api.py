@@ -348,3 +348,87 @@ async def test_generating_a_new_qr_invalidates_the_previous(demo_client, demo_to
         },
     )
     assert ok.status_code == 200
+
+
+# --- ADR 0056: credentialed pairing (the iOS login screen) ---------------------
+
+
+@pytest.mark.anyio
+async def test_pairing_login_creates_a_paired_device(demo_client, demo_token) -> None:
+    from family_cfo_api import fixtures
+
+    response = await demo_client.post(
+        "/api/v1/pairing/login",
+        json={
+            "email": fixtures.DEMO_USER_EMAIL,
+            "password": fixtures.DEMO_USER_PASSWORD,
+            "device_name": "Bo's iPhone (login)",
+            "device_public_key": "login-public-key",
+        },
+    )
+    assert response.status_code == 201, response.text
+    credential = response.json()
+    assert credential["access_token"]
+    # ADR 0056: the login path has no QR payload — the credential carries the
+    # household so the phone can build its ServerConfig.
+    assert credential["household_id"] == fixtures.DEMO_HOUSEHOLD_ID
+    assert credential["household_name"]
+
+    # The device token authenticates like any paired device…
+    me = await demo_client.get(
+        "/api/v1/household/members",
+        headers={"Authorization": f"Bearer {credential['access_token']}"},
+    )
+    assert me.status_code == 200
+
+    # …and the phone shows on the Devices page.
+    devices = await demo_client.get(
+        "/api/v1/pairing/devices", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    names = [d["name"] for d in devices.json()["devices"]]
+    assert "Bo's iPhone (login)" in names
+
+
+@pytest.mark.anyio
+async def test_pairing_login_rejects_bad_password(demo_client) -> None:
+    from family_cfo_api import fixtures
+
+    response = await demo_client.post(
+        "/api/v1/pairing/login",
+        json={
+            "email": fixtures.DEMO_USER_EMAIL,
+            "password": "wrong-password",
+            "device_name": "Mystery phone",
+            "device_public_key": "k",
+        },
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_revoking_a_login_device_kills_its_session(demo_client, demo_token) -> None:
+    from family_cfo_api import fixtures
+
+    credential = (
+        await demo_client.post(
+            "/api/v1/pairing/login",
+            json={
+                "email": fixtures.DEMO_USER_EMAIL,
+                "password": fixtures.DEMO_USER_PASSWORD,
+                "device_name": "Revocable phone",
+                "device_public_key": "k",
+            },
+        )
+    ).json()
+
+    revoked = await demo_client.delete(
+        f"/api/v1/pairing/devices/{credential['device_id']}",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert revoked.status_code == 204
+
+    refused = await demo_client.get(
+        "/api/v1/household/members",
+        headers={"Authorization": f"Bearer {credential['access_token']}"},
+    )
+    assert refused.status_code == 401

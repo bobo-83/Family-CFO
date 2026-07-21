@@ -8,13 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, repository, rights, security
-from family_cfo_api.deps import get_current_session, get_engine, require_right
+from family_cfo_api.deps import (
+    client_ip,
+    get_current_session,
+    get_engine,
+    get_rate_limiter,
+    require_right,
+)
+from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import (
     DeviceCredential,
     ErrorResponse,
     PairedDevice,
     PairedDeviceListResponse,
     PairingConfirmRequest,
+    PairingLoginRequest,
     PairingSession,
     PairingSessionCreateRequest,
 )
@@ -200,9 +208,16 @@ async def confirm_pairing(
         f"Paired device '{payload.device_name}'",
     )
 
+    return _device_credential(engine, credential)
+
+
+def _device_credential(
+    engine: Engine, credential: repository.DeviceCredentialRecord
+) -> DeviceCredential:
     member_rights, role_name = repository.resolve_member_rights(
         engine, credential.household_id, credential.user_id
     )
+    household = repository.get_household(engine, credential.household_id)
     return DeviceCredential(
         device_id=credential.device_id,
         access_token=credential.access_token,
@@ -212,7 +227,74 @@ async def confirm_pairing(
         role=repository.get_membership_role(engine, credential.household_id, credential.user_id),
         role_name=role_name or None,
         rights=sorted(member_rights),
+        # ADR 0056: the login path has no QR payload to learn the household
+        # from, so the credential carries it.
+        household_id=credential.household_id,
+        household_name=household.display_name if household else None,
     )
+
+
+@router.post(
+    "/pairing/login",
+    operation_id="createDeviceSessionWithPassword",
+    response_model=DeviceCredential,
+    status_code=201,
+    responses={
+        401: {"description": "Invalid credentials", "model": ErrorResponse},
+        429: {"description": "Too many attempts", "model": ErrorResponse},
+    },
+    summary="Sign a device in with email + password (credentialed pairing)",
+)
+async def create_device_session_with_password(
+    payload: PairingLoginRequest,
+    request: Request,
+    engine: Engine = Depends(get_engine),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+) -> DeviceCredential:
+    """ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired
+    device with a device-bound session — so the Devices page and revocation
+    cover phones however they signed in. Shares the brute-force counters with
+    web login (ADR 0010)."""
+    limit_keys = [f"ip:{client_ip(request)}", f"email:{payload.email.lower()}"]
+    retry_after = rate_limiter.retry_after(limit_keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    user = repository.get_user_by_email(engine, payload.email)
+    if user is None or not security.verify_password(payload.password, user.password_hash):
+        rate_limiter.record_failure(limit_keys)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    household_id = repository.get_primary_household_id(engine, user.id)
+    if household_id is None:
+        rate_limiter.record_failure(limit_keys)
+        raise HTTPException(status_code=401, detail="User has no household membership")
+    rate_limiter.reset(limit_keys)
+
+    token = security.generate_access_token()
+    credential = repository.create_paired_device_with_session(
+        engine,
+        household_id=household_id,
+        user_id=user.id,
+        device_name=payload.device_name,
+        device_public_key=payload.device_public_key,
+        access_token=token,
+        token_hash=security.hash_token(token),
+        expires_at=repository.utcnow() + DEVICE_SESSION_TTL,
+    )
+    audit.write_audit(
+        engine,
+        household_id,
+        user.id,
+        "pairing.login",
+        "paired_device",
+        credential.device_id,
+        f"Signed in device '{payload.device_name}'",
+    )
+    return _device_credential(engine, credential)
 
 
 @router.get(
