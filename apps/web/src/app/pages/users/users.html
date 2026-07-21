@@ -142,10 +142,102 @@
 }
 
 @if (canManageMembers()) {
+  <h2>Invitations</h2>
+  <p class="page-hint">
+    Invite a family member by email: you get a one-time link to send them
+    yourself (from your own mail or messages app — this server never sends
+    email). They open it, choose their own password, and join.
+  </p>
+
+  <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
+      <form class="member-form invite-form" [formGroup]="inviteForm" (ngSubmit)="sendInvite()">
+        <h3>Invite by email</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Role</mat-label>
+          <mat-select formControlName="roleId">
+            @for (role of roles.value() ?? []; track role.id) {
+              <mat-option [value]="role.id">{{ role.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="inviteSubmitting()">
+          {{ inviteSubmitting() ? 'Creating…' : 'Create invite link' }}
+        </button>
+        @if (inviteError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+      </form>
+
+      @if (inviteLink(); as link) {
+        <div class="invite-link" role="status">
+          <p class="invite-link__note">
+            Send this link to <strong>{{ link.email }}</strong> — it's shown
+            <strong>only once</strong> (use “New link” later if it's lost) and
+            expires in 7 days.
+          </p>
+          <code class="invite-link__url">{{ link.url }}</code>
+          <div class="invite-link__actions">
+            <button mat-flat-button type="button" (click)="copyInviteLink()">
+              {{ inviteLinkCopied() ? 'Copied ✓' : 'Copy link' }}
+            </button>
+            <button mat-button type="button" (click)="dismissInviteLink()">Done</button>
+          </div>
+        </div>
+      }
+
+      @if (invites.value(); as inviteRows) {
+        @if (inviteRows.length > 0) {
+          <ul class="invite-list">
+            @for (invite of inviteRows; track invite.id) {
+              <li class="invite-list__item">
+                <div>
+                  <div class="invite-list__email">{{ invite.email }}</div>
+                  <div class="invite-list__meta">
+                    {{ invite.role_name || invite.role }}
+                    · invited {{ invite.created_at | date: 'MMM d' }}
+                    @if (invite.status === 'pending') {
+                      · expires {{ invite.expires_at | date: 'MMM d' }}
+                    }
+                    @if (invite.accepted_at) {
+                      · joined {{ invite.accepted_at | date: 'MMM d' }}
+                    }
+                  </div>
+                </div>
+                <div class="invite-list__actions">
+                  <span class="invite-status invite-status--{{ invite.status }}">
+                    {{ invite.status === 'pending' ? 'Invite sent' :
+                       invite.status === 'accepted' ? 'Accepted' :
+                       invite.status === 'expired' ? 'Expired' : 'Revoked' }}
+                  </span>
+                  @if (invite.status !== 'accepted') {
+                    <button mat-button type="button" (click)="regenerateInvite(invite)">
+                      New link
+                    </button>
+                  }
+                  @if (invite.status === 'pending') {
+                    <button mat-button type="button" class="invite-list__revoke"
+                            (click)="revokeInvite(invite)">
+                      Revoke
+                    </button>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </mat-card-content>
+  </mat-card>
+
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
-      <h3>Add a member</h3>
+      <h3>Add a member directly (you set their password)</h3>
       <mat-form-field appearance="outline">
         <mat-label>Email</mat-label>
         <input matInput type="email" formControlName="email" />

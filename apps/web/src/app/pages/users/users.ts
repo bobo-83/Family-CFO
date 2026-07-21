@@ -7,7 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import QRCode from 'qrcode';
-import type { Member, PairedDevice } from '../../api-client';
+import type { Invite, Member, PairedDevice } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -101,6 +101,91 @@ export class Users {
     }
     this.memberForm.reset({ email: '', password: '', displayName: '', roleId: '' });
     this.members.reload();
+  }
+
+  // --- Invitations (ADR 0056): copy-link onboarding. The box sends no email —
+  // the admin copies the link and shares it themselves. The link is shown only
+  // at creation/regeneration (the token is stored hashed).
+  protected readonly invites = resource({
+    loader: async () => {
+      if (!this.canManageMembers()) {
+        return [];
+      }
+      const { data, error } = await this.api.listInvites();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load invitations.'));
+      }
+      return data.invites;
+    },
+  });
+
+  protected readonly inviteForm = this.formBuilder.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    roleId: ['', Validators.required],
+  });
+
+  protected readonly inviteSubmitting = signal(false);
+  protected readonly inviteError = signal<string | null>(null);
+  /** The freshly-minted one-time link, shown until dismissed. */
+  protected readonly inviteLink = signal<{ email: string; url: string } | null>(null);
+  protected readonly inviteLinkCopied = signal(false);
+
+  private joinUrl(token: string): string {
+    // Fragment (not query) so the secret never reaches server access logs.
+    return `${window.location.origin}/join#token=${token}`;
+  }
+
+  protected async sendInvite(): Promise<void> {
+    if (this.inviteForm.invalid || this.inviteSubmitting()) {
+      this.inviteForm.markAllAsTouched();
+      return;
+    }
+    this.inviteSubmitting.set(true);
+    this.inviteError.set(null);
+    const { email, roleId } = this.inviteForm.getRawValue();
+    const { data, error } = await this.api.createInvite({ email, role_id: roleId });
+    this.inviteSubmitting.set(false);
+    if (error || !data) {
+      this.inviteError.set(apiErrorMessage(error, 'Failed to create the invite.'));
+      return;
+    }
+    this.inviteForm.reset({ email: '', roleId: '' });
+    this.inviteLink.set({ email: data.invite.email, url: this.joinUrl(data.invite_token) });
+    this.inviteLinkCopied.set(false);
+    this.invites.reload();
+  }
+
+  protected async regenerateInvite(invite: Invite): Promise<void> {
+    const { data, error } = await this.api.regenerateInviteToken(invite.id);
+    if (error || !data) {
+      this.inviteError.set(apiErrorMessage(error, 'Failed to mint a new link.'));
+      return;
+    }
+    this.inviteLink.set({ email: data.invite.email, url: this.joinUrl(data.invite_token) });
+    this.inviteLinkCopied.set(false);
+    this.invites.reload();
+  }
+
+  protected async revokeInvite(invite: Invite): Promise<void> {
+    const { error } = await this.api.revokeInvite(invite.id);
+    if (error) {
+      this.inviteError.set(apiErrorMessage(error, 'Failed to revoke the invite.'));
+      return;
+    }
+    this.invites.reload();
+  }
+
+  protected async copyInviteLink(): Promise<void> {
+    const link = this.inviteLink();
+    if (!link) {
+      return;
+    }
+    await navigator.clipboard.writeText(link.url);
+    this.inviteLinkCopied.set(true);
+  }
+
+  protected dismissInviteLink(): void {
+    this.inviteLink.set(null);
   }
 
   protected async changeRole(userId: string, roleId: string): Promise<void> {

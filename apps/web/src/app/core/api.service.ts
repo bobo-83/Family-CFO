@@ -30,6 +30,14 @@ import {
   createImport,
   createIncomeSource,
   createMember,
+  createInvite,
+  listInvites,
+  regenerateInviteToken,
+  revokeInvite,
+  previewInvite,
+  acceptInvite,
+  type InviteCreateRequest,
+  type InviteAcceptRequest,
   createRole,
   createMemory,
   createPairingSession,
@@ -544,6 +552,31 @@ export class ApiService {
 
   deleteMember(userId: string) {
     return deleteMember({ path: { user_id: userId } });
+  }
+
+  // --- Invites (ADR 0056): copy-link onboarding ---
+  createInvite(body: InviteCreateRequest) {
+    return createInvite({ body });
+  }
+
+  listInvites() {
+    return listInvites();
+  }
+
+  regenerateInviteToken(inviteId: string) {
+    return regenerateInviteToken({ path: { invite_id: inviteId } });
+  }
+
+  revokeInvite(inviteId: string) {
+    return revokeInvite({ path: { invite_id: inviteId } });
+  }
+
+  previewInvite(token: string) {
+    return previewInvite({ body: { token } });
+  }
+
+  acceptInvite(body: InviteAcceptRequest) {
+    return acceptInvite({ body });
   }
 
   listRoles() {

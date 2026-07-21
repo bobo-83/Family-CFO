@@ -12,6 +12,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/signup/signup').then((m) => m.Signup),
   },
   {
+    // ADR 0056: the invite landing page — unauthenticated, like login/signup.
+    // The invite token rides in the URL fragment, never a query param.
+    path: 'join',
+    loadComponent: () => import('./pages/join/join').then((m) => m.Join),
+  },
+  {
     path: '',
     component: Shell,
     canActivate: [authGuard],
