@@ -177,6 +177,17 @@ export class ApiService {
    * playable object URL, or null when no voice service is configured (503).
    */
   async synthesizeSpeech(text: string): Promise<string | null> {
+    const buffer = await this.synthesizeSpeechBuffer(text);
+    return buffer ? URL.createObjectURL(new Blob([buffer], { type: 'audio/mpeg' })) : null;
+  }
+
+  /**
+   * The synthesized MP3 as raw bytes, for the Web Audio path — decoding and
+   * playing through an AudioContext is the reliable way to play fetched audio
+   * on mobile Safari, which blocks a plain <audio>.play() after an await.
+   * Returns null when no voice service is configured (503).
+   */
+  async synthesizeSpeechBuffer(text: string): Promise<ArrayBuffer | null> {
     const token = getToken();
     const response = await fetch('/api/v1/voice/tts', {
       method: 'POST',
@@ -189,7 +200,7 @@ export class ApiService {
     if (!response.ok) {
       return null;
     }
-    return URL.createObjectURL(await response.blob());
+    return await response.arrayBuffer();
   }
 
   listConversations() {
