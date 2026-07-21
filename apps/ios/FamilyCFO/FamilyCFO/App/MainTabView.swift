@@ -125,6 +125,7 @@ struct MainTabView: View {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingUnpair = false
+    @State private var confirmingSignOut = false
 
     var body: some View {
         NavigationStack {
@@ -196,14 +197,30 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    Button("Sign out") {
+                        confirmingSignOut = true
+                    }
+                } footer: {
+                    Text("Signs this member out but keeps the server pairing info — sign back in with email + password (ADR 0056), or scan a fresh QR. Good for switching members on a shared device.")
+                }
+                Section {
                     Button("Unpair this device", role: .destructive) {
                         confirmingUnpair = true
                     }
                 } footer: {
-                    Text("Removes the credential from this phone. To revoke it server-side too, use the dashboard's Devices page.")
+                    Text("Removes the credential AND the server info from this phone. To revoke it server-side too, use the dashboard's Devices page.")
                 }
             }
             .navigationTitle("Settings")
+            .confirmationDialog(
+                "Sign out?",
+                isPresented: $confirmingSignOut,
+                titleVisibility: .visible
+            ) {
+                Button("Sign out") { Task { await model.signOut() } }
+            } message: {
+                Text("The server address and pinned certificate stay on this phone; only your session ends.")
+            }
             .confirmationDialog(
                 "Unpair this device?",
                 isPresented: $confirmingUnpair,

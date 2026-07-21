@@ -41,6 +41,13 @@ struct LoginView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .task {
+                // After a sign-out the server info survives (ADR 0056) —
+                // prefill it so signing back in is just email + password.
+                if viewModel.serverAddress.isEmpty, let server = model.server {
+                    viewModel.serverAddress = server.apiBaseURL.absoluteString
+                }
+            }
         }
     }
 
