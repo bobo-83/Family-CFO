@@ -376,9 +376,13 @@ export type IncomeAnalysisTransaction = {
      */
     description?: string;
     /**
-     * The checking account the deposit landed in.
+     * The account the deposit landed in.
      */
     account_name?: string;
+    /**
+     * ADR 0054: the bank behind the account (e.g. "Charles Schwab") — matters for RSU/ESPP deposits that land in a brokerage, not a checking account.
+     */
+    institution?: string;
     excluded: boolean;
 };
 

@@ -50,11 +50,19 @@ struct IncomeView: View {
             if !analysis.sources.isEmpty {
                 Section("Income sources") {
                     ForEach(analysis.sources, id: \.sourceKey) { source in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(source.name)
-                            Text("\(source.typicalAmount.formatted) · \(source.frequency)")
+                        DisclosureGroup {
+                            ForEach(source.transactions, id: \.transactionId) { txn in
+                                incomeDepositRow(txn)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(source.name)
+                                Text(
+                                    "\(source.totalAmount.formatted) · \(source.transactions.count) deposit\(source.transactions.count == 1 ? "" : "s") · \(source.frequency)"
+                                )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -92,6 +100,53 @@ struct IncomeView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             }
+        }
+    }
+
+    /// One income deposit: the amount and date, expandable to its evidence —
+    /// payer, bank, account, and the bank memo (which often names an RSU/ESPP
+    /// sale in a brokerage). ADR 0054.
+    @ViewBuilder private func incomeDepositRow(
+        _ txn: Components.Schemas.IncomeAnalysisTransaction
+    ) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 4) {
+                detailLine("Date", String(txn.occurredAt.prefix(10)))
+                detailLine("From / payer", txn.merchant ?? txn.name)
+                if let bank = txn.institution, !bank.isEmpty { detailLine("Bank", bank) }
+                if let account = txn.accountName, !account.isEmpty {
+                    detailLine("Account", account)
+                }
+                if let memo = txn.description, !memo.isEmpty { detailLine("Bank memo", memo) }
+                detailLine("Amount", txn.amount.formatted)
+            }
+            .padding(.vertical, 2)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(txn.name).font(.subheadline).lineLimit(1)
+                    Text(String(txn.occurredAt.prefix(10)))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(txn.amount.formatted)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.green)
+            }
+        }
+    }
+
+    private func detailLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 96, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
         }
     }
 }

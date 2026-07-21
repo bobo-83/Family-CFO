@@ -63,6 +63,7 @@ def _txn_item(
         merchant=txn.merchant,
         description=txn.description,
         account_name=txn.account_name,
+        institution=txn.institution,
         excluded=excluded,
     )
 
