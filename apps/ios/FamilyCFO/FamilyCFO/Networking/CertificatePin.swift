@@ -18,6 +18,34 @@ enum CertificatePin {
     }
 }
 
+/// ADR 0056: trust-on-first-use for the email-login path, which has no QR to
+/// carry a fingerprint. Used for exactly ONE explicit setup request (a health
+/// check the user initiates): it accepts the presented server certificate and
+/// records its SHA-256 so the user can confirm it — after which every request
+/// is pinned to that hash, exactly like a QR pairing. Never used for ongoing
+/// traffic.
+final class CertificateCaptureDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
+    private(set) var capturedSHA256Hex: String?
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard
+            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+            let trust = challenge.protectionSpace.serverTrust,
+            let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
+            let leaf = chain.first
+        else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        capturedSHA256Hex = CertificatePin.sha256Hex(of: SecCertificateCopyData(leaf) as Data)
+        completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+}
+
 /// URLSession delegate that accepts exactly the pinned server certificate
 /// (which is how a self-signed home-server cert becomes trustworthy), and
 /// falls back to system TLS evaluation when no pin is configured.
