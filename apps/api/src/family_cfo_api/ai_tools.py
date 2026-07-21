@@ -502,9 +502,20 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             if b.account_type in _RETIREMENT_SAVINGS_TYPES and b.balance_minor > 0
         ]
         current_savings_minor = sum(b.balance_minor for b in funded)
+        # Display strings matter: the guardrail's grounded-number set is built
+        # from these results, and the model quotes major units ("$285,000"),
+        # not the raw minor integers.
         assumptions["current_savings_from_accounts"] = [
-            {"name": b.name, "balance_minor": b.balance_minor} for b in funded
+            {
+                "name": b.name,
+                "balance_minor": b.balance_minor,
+                "display": format_money(Money(b.balance_minor, resolved_currency)),
+            }
+            for b in funded
         ]
+        assumptions["current_savings_total"] = _money_out(
+            Money(current_savings_minor, resolved_currency)
+        )
 
     if args.get("monthly_contribution_minor") is not None:
         monthly_contribution_minor, error = _int_arg(
@@ -539,6 +550,8 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
         assumptions["annual_expenses_basis"] = (
             "12 × current monthly essentials (bills + debt minimums + daily needs)"
         )
+        assumptions["annual_expenses"] = _money_out(annual_expenses)
+        assumptions["monthly_essentials"] = _money_out(essential)
 
     result, calc_id = finance_service.compute_retirement_projection(
         engine,

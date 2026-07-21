@@ -263,6 +263,9 @@ _RESET_PROTECTED_TABLES = frozenset(
         "pairing_sessions",
         "paired_devices",
         "auth_sessions",
+        # Operational config, not persona data: losing it silently downgrades
+        # the demo advisor to the deterministic snapshot.
+        "ai_runtime_configs",
     }
 )
 
