@@ -14,6 +14,7 @@ from family_cfo_financial_engine import (
     Money,
     PurchaseImpactInputs,
     RecurringAmount,
+    RetirementAgeSolveInput,
     RetirementInput,
     SafeToSpendInputs,
     calculate_cash_flow,
@@ -24,6 +25,7 @@ from family_cfo_financial_engine import (
     calculate_purchase_impact,
     calculate_retirement_projection,
     calculate_safe_to_spend,
+    solve_retirement_age,
 )
 from sqlalchemy.engine import Engine
 
@@ -239,6 +241,14 @@ def compute_retirement_projection(
     engine: Engine, household_id: str, inputs: RetirementInput
 ) -> tuple[CalculationResult, str]:
     result = calculate_retirement_projection(inputs)
+    calculation_id = _persist(engine, household_id, result)
+    return result, calculation_id
+
+
+def compute_retirement_age_solve(
+    engine: Engine, household_id: str, inputs: RetirementAgeSolveInput
+) -> tuple[CalculationResult, str]:
+    result = solve_retirement_age(inputs)
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 

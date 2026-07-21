@@ -125,7 +125,29 @@ def test_retirement_explicit_args_override_grounding(demo_engine: Engine) -> Non
 def test_grounding_rules_forbid_asking_for_retirement_balances() -> None:
     rules = ai_tools.GROUNDING_RULES
     assert "project_retirement" in rules
-    assert "NEVER ask the user for their retirement" in rules
+    assert "NEVER ask for retirement balances" in rules
+
+
+def test_when_can_i_retire_solves_for_age_without_target(demo_engine: Engine) -> None:
+    """'When can I retire?' is a question to ANSWER — current age suffices; the
+    tool solves for the earliest age and grounds savings/expenses itself."""
+    fixtures.seed_showcase_data(demo_engine)
+
+    result = _execute(demo_engine, "when_can_i_retire", {"current_age": 43})
+
+    assert "error" not in result
+    outputs = result["outputs"]
+    assert "earliest_retirement_age" in outputs
+    assert outputs["required_balance"]["amount_minor"] > 0
+    defaults = result["grounded_defaults"]
+    assert any("401k" in a["name"] for a in defaults["current_savings_from_accounts"])
+    assert defaults["monthly_contribution_assumed_zero"] is True
+
+
+def test_when_can_i_retire_rules_forbid_asking_target_age() -> None:
+    rules = ai_tools.GROUNDING_RULES
+    assert "when_can_i_retire" in rules
+    assert "never ask the user for a target retirement age" in rules
 
 
 def test_unknown_tool_is_reported(demo_engine: Engine) -> None:
