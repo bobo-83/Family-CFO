@@ -718,6 +718,9 @@ def accept_invite(
 
         user_id = existing["id"] if existing is not None else new_id()
 
+        # Claim FIRST with the timestamp only: the user row may not exist yet,
+        # and Postgres enforces the accepted_user_id FK immediately (SQLite in
+        # tests does not — this ordering is load-bearing).
         claimed = conn.execute(
             update(models.household_invites)
             .where(
@@ -726,7 +729,7 @@ def accept_invite(
                 models.household_invites.c.revoked_at.is_(None),
                 models.household_invites.c.expires_at >= now,
             )
-            .values(accepted_at=now, accepted_user_id=user_id)
+            .values(accepted_at=now)
         )
         if claimed.rowcount == 0:
             return InviteAcceptResult(outcome="gone")
@@ -757,6 +760,12 @@ def accept_invite(
                 role_id=invite["role_id"],
                 created_at=now,
             )
+        )
+        # Now that the user row exists, stamp who accepted (FK satisfied).
+        conn.execute(
+            update(models.household_invites)
+            .where(models.household_invites.c.id == invite["id"])
+            .values(accepted_user_id=user_id)
         )
     return InviteAcceptResult(
         outcome="ok",
