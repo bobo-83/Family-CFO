@@ -505,6 +505,10 @@ def recurring_income_candidates(
     overrides = repository.list_income_overrides(engine, household_id)
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
     included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
+    # ADR 0053: a deposit the user filed under the Income category counts as
+    # income — an explicit signal that beats the transfer heuristic and detection
+    # gaps. An explicit "exclude" override still wins (the user changed their mind).
+    included_ids |= repository.income_categorized_ids(engine, household_id, since=since) - excluded_ids
 
     # M63: internal transfers (the household's own money changing accounts) are
     # not income. An explicit "include" verdict overrides.
