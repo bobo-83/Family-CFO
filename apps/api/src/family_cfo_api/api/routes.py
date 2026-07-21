@@ -20,6 +20,7 @@ from family_cfo_api.api.households import router as households_router
 from family_cfo_api.api.imports import router as imports_router
 from family_cfo_api.api.income import router as income_router
 from family_cfo_api.api.income_analysis import router as income_analysis_router
+from family_cfo_api.api.invites import router as invites_router
 from family_cfo_api.api.members import router as members_router
 from family_cfo_api.api.memories import router as memories_router
 from family_cfo_api.api.pairing import router as pairing_router
@@ -35,6 +36,7 @@ api_router.include_router(households_router)
 api_router.include_router(pairing_router)
 api_router.include_router(household_router)
 api_router.include_router(members_router)
+api_router.include_router(invites_router)
 api_router.include_router(roles_router)
 api_router.include_router(accounts_router)
 api_router.include_router(transactions_router)

@@ -62,6 +62,21 @@ export type DeviceCredential = {
      * ADR 0034: resolved rights — clients gate screens with these.
      */
     rights?: Array<string> | null;
+    /**
+     * ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+     */
+    household_id?: string | null;
+    household_name?: string | null;
+};
+
+/**
+ * ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a QR confirm: a paired device with a device-bound session.
+ */
+export type PairingLoginRequest = {
+    email: string;
+    password: string;
+    device_name: string;
+    device_public_key: string;
 };
 
 export type PairedDevice = {
@@ -1300,6 +1315,60 @@ export type MemberCreateRequest = {
     role_id?: string | null;
 };
 
+/**
+ * ADR 0056: a copy-link invitation. Status is computed from the timestamps; the raw token is NEVER in this model.
+ */
+export type Invite = {
+    id: string;
+    email: string;
+    role: HouseholdRole;
+    role_id?: string | null;
+    role_name?: string | null;
+    status: 'pending' | 'accepted' | 'expired' | 'revoked';
+    created_at: string;
+    expires_at: string;
+    accepted_at?: string | null;
+    invited_by_display_name?: string | null;
+};
+
+export type InviteListResponse = {
+    invites: Array<Invite>;
+};
+
+export type InviteCreateRequest = {
+    email: string;
+    /**
+     * Legacy tier; maps to its preset role. role_id wins if both sent.
+     */
+    role?: HouseholdRole;
+    role_id?: string | null;
+};
+
+export type InviteCreateResponse = {
+    invite: Invite;
+    /**
+     * The one-time secret for the join link — returned ONLY at creation and regeneration; stored hashed, so it can never be shown again.
+     */
+    invite_token: string;
+};
+
+export type InvitePreviewRequest = {
+    token: string;
+};
+
+export type InvitePreview = {
+    household_name: string;
+    email: string;
+    role_name?: string | null;
+    expires_at: string;
+};
+
+export type InviteAcceptRequest = {
+    token: string;
+    password: string;
+    display_name: string;
+};
+
 export type MemberRoleUpdateRequest = {
     role?: HouseholdRole;
     role_id?: string | null;
@@ -1691,6 +1760,35 @@ export type ConfirmPairingResponses = {
 };
 
 export type ConfirmPairingResponse = ConfirmPairingResponses[keyof ConfirmPairingResponses];
+
+export type CreateDeviceSessionWithPasswordData = {
+    body: PairingLoginRequest;
+    path?: never;
+    query?: never;
+    url: '/pairing/login';
+};
+
+export type CreateDeviceSessionWithPasswordErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    429: ErrorResponse;
+};
+
+export type CreateDeviceSessionWithPasswordError = CreateDeviceSessionWithPasswordErrors[keyof CreateDeviceSessionWithPasswordErrors];
+
+export type CreateDeviceSessionWithPasswordResponses = {
+    /**
+     * Device signed in
+     */
+    201: DeviceCredential;
+};
+
+export type CreateDeviceSessionWithPasswordResponse = CreateDeviceSessionWithPasswordResponses[keyof CreateDeviceSessionWithPasswordResponses];
 
 export type ListPairedDevicesData = {
     body?: never;
@@ -2142,6 +2240,216 @@ export type UpdateMemberRoleResponses = {
 };
 
 export type UpdateMemberRoleResponse = UpdateMemberRoleResponses[keyof UpdateMemberRoleResponses];
+
+export type ListInvitesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/invites';
+};
+
+export type ListInvitesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListInvitesError = ListInvitesErrors[keyof ListInvitesErrors];
+
+export type ListInvitesResponses = {
+    /**
+     * Invitations
+     */
+    200: InviteListResponse;
+};
+
+export type ListInvitesResponse = ListInvitesResponses[keyof ListInvitesResponses];
+
+export type CreateInviteData = {
+    body: InviteCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/household/invites';
+};
+
+export type CreateInviteErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateInviteError = CreateInviteErrors[keyof CreateInviteErrors];
+
+export type CreateInviteResponses = {
+    /**
+     * Invite created; the token appears ONLY in this response
+     */
+    201: InviteCreateResponse;
+};
+
+export type CreateInviteResponse = CreateInviteResponses[keyof CreateInviteResponses];
+
+export type RegenerateInviteTokenData = {
+    body?: never;
+    path: {
+        invite_id: string;
+    };
+    query?: never;
+    url: '/household/invites/{invite_id}/token';
+};
+
+export type RegenerateInviteTokenErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type RegenerateInviteTokenError = RegenerateInviteTokenErrors[keyof RegenerateInviteTokenErrors];
+
+export type RegenerateInviteTokenResponses = {
+    /**
+     * New invite token
+     */
+    201: InviteCreateResponse;
+};
+
+export type RegenerateInviteTokenResponse = RegenerateInviteTokenResponses[keyof RegenerateInviteTokenResponses];
+
+export type RevokeInviteData = {
+    body?: never;
+    path: {
+        invite_id: string;
+    };
+    query?: never;
+    url: '/household/invites/{invite_id}';
+};
+
+export type RevokeInviteErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type RevokeInviteError = RevokeInviteErrors[keyof RevokeInviteErrors];
+
+export type RevokeInviteResponses = {
+    /**
+     * Invite revoked
+     */
+    204: void;
+};
+
+export type RevokeInviteResponse = RevokeInviteResponses[keyof RevokeInviteResponses];
+
+export type PreviewInviteData = {
+    body: InvitePreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/invites/preview';
+};
+
+export type PreviewInviteErrors = {
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    410: ErrorResponse;
+    /**
+     * Error response
+     */
+    429: ErrorResponse;
+};
+
+export type PreviewInviteError = PreviewInviteErrors[keyof PreviewInviteErrors];
+
+export type PreviewInviteResponses = {
+    /**
+     * Invite preview
+     */
+    200: InvitePreview;
+};
+
+export type PreviewInviteResponse = PreviewInviteResponses[keyof PreviewInviteResponses];
+
+export type AcceptInviteData = {
+    body: InviteAcceptRequest;
+    path?: never;
+    query?: never;
+    url: '/invites/accept';
+};
+
+export type AcceptInviteErrors = {
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+    /**
+     * Error response
+     */
+    410: ErrorResponse;
+    /**
+     * Error response
+     */
+    429: ErrorResponse;
+};
+
+export type AcceptInviteError = AcceptInviteErrors[keyof AcceptInviteErrors];
+
+export type AcceptInviteResponses = {
+    /**
+     * Joined; signed in
+     */
+    201: AuthSession;
+};
+
+export type AcceptInviteResponse = AcceptInviteResponses[keyof AcceptInviteResponses];
 
 export type ListRolesData = {
     body?: never;
