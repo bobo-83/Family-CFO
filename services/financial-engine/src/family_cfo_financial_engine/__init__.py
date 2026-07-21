@@ -9,7 +9,12 @@ from family_cfo_financial_engine.net_worth import AccountBalance, calculate_net_
 from family_cfo_financial_engine.purchase_impact import PurchaseImpactInputs, calculate_purchase_impact
 from family_cfo_financial_engine.results import CALCULATION_ENGINE_VERSION, CalculationResult
 from family_cfo_financial_engine.safe_to_spend import SafeToSpendInputs, calculate_safe_to_spend
-from family_cfo_financial_engine.retirement import RetirementInput, calculate_retirement_projection
+from family_cfo_financial_engine.retirement import (
+    RetirementAgeSolveInput,
+    RetirementInput,
+    calculate_retirement_projection,
+    solve_retirement_age,
+)
 from family_cfo_financial_engine.tax_estimate import (
     FILING_STATUSES,
     TAX_YEAR,
@@ -30,6 +35,7 @@ __all__ = [
     "Money",
     "PurchaseImpactInputs",
     "RecurringAmount",
+    "RetirementAgeSolveInput",
     "RetirementInput",
     "SafeToSpendInputs",
     "TAX_YEAR",
@@ -42,6 +48,7 @@ __all__ = [
     "calculate_net_worth",
     "calculate_purchase_impact",
     "calculate_retirement_projection",
+    "solve_retirement_age",
     "calculate_safe_to_spend",
     "estimate_annual_tax",
     "gross_up_from_net",

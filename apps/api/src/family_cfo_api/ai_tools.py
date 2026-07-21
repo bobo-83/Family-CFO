@@ -25,6 +25,7 @@ from family_cfo_financial_engine import (
     DebtInput,
     FutureValueInput,
     Money,
+    RetirementAgeSolveInput,
     RetirementInput,
 )
 from sqlalchemy.engine import Engine
@@ -169,15 +170,16 @@ GROUNDING_RULES = (
     "at the WHOLE picture: every debt get_debt_outlook returns (credit cards and "
     "leases included, not just the small loans), plus get_bills and "
     "get_spending_insights for where the money actually goes. "
-    "For retirement questions ('when can I retire?'), call project_retirement "
-    "IMMEDIATELY with just the ages — NEVER ask the user for their retirement "
-    "balance, savings, or spending, because the tool grounds those itself from "
-    "their real accounts and essential spending and reports the assumptions for "
-    "you to state. The only inputs worth asking for are their current age and "
-    "target retirement age (if not already known from the conversation or "
-    "household memory) and, optionally, their monthly contribution — payroll "
-    "401(k) deferrals are invisible to bank data. If ages are unknown, ask for "
-    "those two numbers ONLY, in a single short question."
+    "For 'WHEN can I retire?' call when_can_i_retire — it SOLVES for the "
+    "earliest age, so never ask the user for a target retirement age (they are "
+    "asking you). For 'if I retire at X, how much will I have?' use "
+    "project_retirement. NEVER ask for retirement balances, savings, or "
+    "spending for either: the tools ground those from the household's real "
+    "accounts and essential spending and report every default for you to state. "
+    "The only fact worth asking for is their current age — check household "
+    "memory and the conversation first (a birthday in memory gives the age) — "
+    "and optionally their monthly contribution, which payroll deducts invisibly "
+    "to bank data. State the 4% rule-of-thumb basis when giving an earliest age."
 )
 
 # Backwards-compatible alias (professional baseline without persona).
@@ -473,28 +475,21 @@ _RETIREMENT_SAVINGS_TYPES = frozenset({"retirement", "hsa"})
 _DEFAULT_RETIREMENT_RETURN = 0.05
 
 
-def _project_retirement(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    resolved_currency, error = _currency_arg(args, currency)
-    if error:
-        return error
-    current_age, error = _int_arg(args, "current_age", minimum=0)
-    if error:
-        return error
-    retirement_age, error = _int_arg(args, "retirement_age", minimum=0)
-    if error:
-        return error
-    if retirement_age <= current_age:
-        return _invalid("retirement_age must be greater than current_age")
-
-    # Self-grounding (the demo lesson: never ask for the 401k balance the
-    # Accounts tab already shows). Omitted figures default to household data,
-    # and every assumption is reported back so the model narrates them.
+def _grounded_retirement_inputs(
+    engine: Engine, household_id: str, resolved_currency: str, args: dict[str, Any]
+):
+    """Self-grounding shared by the retirement tools (the demo lesson: never ask
+    for the 401k balance the Accounts tab shows). Omitted figures default to
+    household data; every default is reported back — WITH display strings, which
+    the guardrail's grounded-number set is built from — so the model narrates
+    them. Returns (savings_minor, contribution_minor, rate, annual_expenses,
+    defaults, error)."""
     assumptions: dict[str, Any] = {}
 
     if args.get("current_savings_minor") is not None:
         current_savings_minor, error = _int_arg(args, "current_savings_minor", minimum=0)
         if error:
-            return error
+            return None, None, None, None, None, error
     else:
         funded = [
             b
@@ -502,9 +497,6 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             if b.account_type in _RETIREMENT_SAVINGS_TYPES and b.balance_minor > 0
         ]
         current_savings_minor = sum(b.balance_minor for b in funded)
-        # Display strings matter: the guardrail's grounded-number set is built
-        # from these results, and the model quotes major units ("$285,000"),
-        # not the raw minor integers.
         assumptions["current_savings_from_accounts"] = [
             {
                 "name": b.name,
@@ -522,7 +514,7 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             args, "monthly_contribution_minor", minimum=0
         )
         if error:
-            return error
+            return None, None, None, None, None, error
     else:
         # Payroll 401k deferrals never appear in bank transactions, so this is
         # unknowable from data — assume 0 and say so (an undercount, not a guess).
@@ -532,7 +524,7 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
     if args.get("annual_return_rate") is not None:
         rate, error = _rate_arg(args, "annual_return_rate")
         if error:
-            return error
+            return None, None, None, None, None, error
     else:
         rate = _DEFAULT_RETIREMENT_RETURN
         assumptions["annual_return_rate_default"] = rate
@@ -540,7 +532,7 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
     if args.get("annual_expenses_minor") is not None:
         expenses_minor, error = _int_arg(args, "annual_expenses_minor", minimum=0)
         if error:
-            return error
+            return None, None, None, None, None, error
         annual_expenses = Money(expenses_minor, resolved_currency)
     else:
         essential = finance_service.monthly_essential_expenses(
@@ -553,19 +545,10 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
         assumptions["annual_expenses"] = _money_out(annual_expenses)
         assumptions["monthly_essentials"] = _money_out(essential)
 
-    result, calc_id = finance_service.compute_retirement_projection(
-        engine,
-        household_id,
-        RetirementInput(
-            current_age=current_age,
-            retirement_age=retirement_age,
-            current_savings=Money(current_savings_minor, resolved_currency),
-            monthly_contribution=Money(monthly_contribution_minor, resolved_currency),
-            annual_return_rate=rate,
-            annual_expenses=annual_expenses,
-        ),
-    )
-    payload = _result_payload(result, calc_id)
+    return current_savings_minor, monthly_contribution_minor, rate, annual_expenses, assumptions, None
+
+
+def _attach_grounded_defaults(payload, assumptions):
     # "grounded_defaults", not "assumptions" — the engine's own payload already
     # carries an assumptions list and must not be overwritten.
     if assumptions and isinstance(payload, dict):
@@ -575,6 +558,70 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             "state these defaults in the answer and invite corrections."
         )
     return payload
+
+
+def _project_retirement(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    resolved_currency, error = _currency_arg(args, currency)
+    if error:
+        return error
+    current_age, error = _int_arg(args, "current_age", minimum=0)
+    if error:
+        return error
+    retirement_age, error = _int_arg(args, "retirement_age", minimum=0)
+    if error:
+        return error
+    if retirement_age <= current_age:
+        return _invalid("retirement_age must be greater than current_age")
+
+    savings_minor, contribution_minor, rate, annual_expenses, assumptions, error = (
+        _grounded_retirement_inputs(engine, household_id, resolved_currency, args)
+    )
+    if error:
+        return error
+
+    result, calc_id = finance_service.compute_retirement_projection(
+        engine,
+        household_id,
+        RetirementInput(
+            current_age=current_age,
+            retirement_age=retirement_age,
+            current_savings=Money(savings_minor, resolved_currency),
+            monthly_contribution=Money(contribution_minor, resolved_currency),
+            annual_return_rate=rate,
+            annual_expenses=annual_expenses,
+        ),
+    )
+    return _attach_grounded_defaults(_result_payload(result, calc_id), assumptions)
+
+
+def _when_can_i_retire(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """Solve WHEN — the earliest age savings reach 25× annual spending (4% rule).
+    The user asked a question to be ANSWERED, not to be asked a target age back."""
+    resolved_currency, error = _currency_arg(args, currency)
+    if error:
+        return error
+    current_age, error = _int_arg(args, "current_age", minimum=0)
+    if error:
+        return error
+
+    savings_minor, contribution_minor, rate, annual_expenses, assumptions, error = (
+        _grounded_retirement_inputs(engine, household_id, resolved_currency, args)
+    )
+    if error:
+        return error
+
+    result, calc_id = finance_service.compute_retirement_age_solve(
+        engine,
+        household_id,
+        RetirementAgeSolveInput(
+            current_age=current_age,
+            current_savings=Money(savings_minor, resolved_currency),
+            monthly_contribution=Money(contribution_minor, resolved_currency),
+            annual_return_rate=rate,
+            annual_expenses=annual_expenses,
+        ),
+    )
+    return _attach_grounded_defaults(_result_payload(result, calc_id), assumptions)
 
 
 def _debt_payoff(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
@@ -1044,6 +1091,7 @@ _HANDLERS = {
     "project_purchase_impact": _project_purchase_impact,
     "future_value": _future_value,
     "project_retirement": _project_retirement,
+    "when_can_i_retire": _when_can_i_retire,
     "debt_payoff": _debt_payoff,
     "get_income_and_tax": _get_income_and_tax,
     "get_bills": _get_bills,
@@ -1180,6 +1228,42 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                     "currency": _CURRENCY_FIELD,
                 },
                 "required": ["current_age", "retirement_age"],
+                "additionalProperties": False,
+            },
+        ),
+        ToolSpec(
+            name="when_can_i_retire",
+            description=(
+                "Answer 'WHEN can I retire?' — solves for the EARLIEST retirement age at "
+                "which savings reach 25x annual spending (the 4% rule). Requires ONLY "
+                "current_age; do NOT ask the user for a target retirement age (they asked "
+                "you when). Like project_retirement, omitted savings/expenses figures are "
+                "grounded from the household's real accounts and essential spending, and "
+                "the response lists every default for you to state."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "current_age": {"type": "integer"},
+                    "current_savings_minor": {
+                        **_MONEY_FIELD,
+                        "description": "optional: defaults to the household's retirement + HSA balances",
+                    },
+                    "monthly_contribution_minor": {
+                        **_MONEY_FIELD,
+                        "description": "optional: defaults to 0 (payroll deferrals are invisible to bank data)",
+                    },
+                    "annual_return_rate": {
+                        **_RATE_FIELD,
+                        "description": "optional: defaults to a modest 0.05",
+                    },
+                    "annual_expenses_minor": {
+                        **_MONEY_FIELD,
+                        "description": "optional: defaults to 12 x the household's essential monthly spending",
+                    },
+                    "currency": _CURRENCY_FIELD,
+                },
+                "required": ["current_age"],
                 "additionalProperties": False,
             },
         ),

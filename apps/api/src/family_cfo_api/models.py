@@ -59,6 +59,7 @@ CALCULATION_TYPES = (
     "purchase_impact",
     "debt_payoff",
     "retirement_projection",
+    "retirement_age_solve",
     "future_value",
     "safe_to_spend",
 )
