@@ -252,33 +252,24 @@ def _try_agentic_answer(
     ]
     # M57 (ADR 0016): durable facts learned across ALL conversations, plus the
     # rolling summary of this thread's turns older than the history window.
-    context_messages: list[RuntimeMessage] = []
+    # ALL system content is merged into ONE system message: newer chat templates
+    # (e.g. Qwen3.6) reject a system message anywhere but the first position
+    # ("System message must be at the beginning" -> HTTP 400).
+    system_sections: list[str] = [ai_tools.build_system_prompt(settings)]
+    if household_context:
+        system_sections.append(household_context)
     if memories:
         facts = "\n".join(f"- {value}" for value in memories[:ai_memory.MAX_INJECTED_MEMORIES])
-        context_messages.append(
-            RuntimeMessage(
-                role="system",
-                content=(
-                    "Known household facts, remembered from previous conversations "
-                    f"(each individually deletable by the family):\n{facts}"
-                ),
-            )
+        system_sections.append(
+            "Known household facts, remembered from previous conversations "
+            f"(each individually deletable by the family):\n{facts}"
         )
     if conversation_summary:
-        context_messages.append(
-            RuntimeMessage(
-                role="system",
-                content=f"Earlier in this conversation (summary): {conversation_summary}",
-            )
+        system_sections.append(
+            f"Earlier in this conversation (summary): {conversation_summary}"
         )
     messages = [
-        RuntimeMessage(role="system", content=ai_tools.build_system_prompt(settings)),
-        *(
-            [RuntimeMessage(role="system", content=household_context)]
-            if household_context
-            else []
-        ),
-        *context_messages,
+        RuntimeMessage(role="system", content="\n\n".join(system_sections)),
         *history_messages,
         RuntimeMessage(role="user", content=user_content),
     ]
