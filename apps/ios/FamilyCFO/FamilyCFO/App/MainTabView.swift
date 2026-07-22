@@ -126,6 +126,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingUnpair = false
     @State private var confirmingSignOut = false
+    @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
 
     var body: some View {
         NavigationStack {
@@ -166,10 +167,13 @@ struct SettingsView: View {
                                 Label("AI runtime", systemImage: "cpu")
                             }
                         }
+                        Toggle(isOn: $showDisclaimer) {
+                            Label("Show advisor disclaimer", systemImage: "text.badge.checkmark")
+                        }
                     } header: {
                         Text("Advisor")
                     } footer: {
-                        Text("What the AI has studied, and which model answers — switch models right from here.")
+                        Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031).")
                     }
                 }
                 if model.rolePolicy.canViewActivity || model.rolePolicy.canManageBackups {

@@ -62,13 +62,21 @@ describe('Chat', () => {
     expect(apiMock.createChatMessage).not.toHaveBeenCalled();
   });
 
-  it('always shows the advisor disclaimer (ADR 0031)', async () => {
+  it('shows the advisor disclaimer by default and hides it once dismissed (ADR 0031)', async () => {
+    localStorage.removeItem('family-cfo.hideAdvisorDisclaimer');
     const fixture = TestBed.createComponent(Chat);
     fixture.detectChanges();
     await fixture.whenStable();
     const text = fixture.nativeElement.querySelector('.chat__disclaimer')?.textContent ?? '';
     expect(text).toContain('not financial, tax, or legal advice');
     expect(text).toContain('verify before acting');
+
+    // Dismiss -> hidden, and the choice persists per-device.
+    (fixture.nativeElement.querySelector('.chat__disclaimer-hide') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.chat__disclaimer')).toBeNull();
+    expect(localStorage.getItem('family-cfo.hideAdvisorDisclaimer')).toBe('true');
+    localStorage.removeItem('family-cfo.hideAdvisorDisclaimer');
   });
 
   it('sends the message with the current conversation id and appends both turns', async () => {

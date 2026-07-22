@@ -563,3 +563,14 @@
   background: var(--color-surface);
   color: inherit;
 }
+
+.chat__disclaimer-hide {
+  margin-left: 0.5rem;
+  border: none;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+}
