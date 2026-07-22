@@ -30,6 +30,9 @@ final class MockSpeechEngine: SpeechEngine {
     func hear(_ text: String) {
         continuation?.yield(text)
     }
+
+    /// Simulated microphone energy; tests bump this to say "still talking".
+    var lastVoiceActivity: ContinuousClock.Instant?
 }
 
 @MainActor
@@ -140,6 +143,43 @@ struct VoiceSessionViewModelTests {
         #expect(model.phase == .listening)
     }
 
+    /// Regression (user report 2026-07-21): a long grounded answer outlasted
+    /// the HTTP connection and voice died with "couldn't reach the server" —
+    /// but the box finished and SAVED the answer. Voice must recover it the
+    /// same way the text chat does.
+    @Test func aDroppedConnectionRecoversTheSavedAnswerAndSpeaksIt() async {
+        let api = MockAdvisorAPI()
+        api.sendError = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        api.detail = .init(
+            id: "conv-voice",
+            title: "Retirement",
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: [
+                .init(
+                    id: "m1", role: .user, content: "I'm using it with my 401k",
+                    sequence: 1, createdAt: .now),
+                .init(
+                    id: "m2", role: .assistant, content: "Then it changes the outlook.",
+                    sequence: 2, createdAt: .now),
+            ]
+        )
+        let engine = MockSpeechEngine()
+        let synth = MockSynthesizer()
+        let model = VoiceSessionViewModel(
+            api: api, conversationID: "conv-voice", engine: engine, synthesizer: synth)
+
+        await model.begin()
+        engine.hear("I'm using it with my 401k")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(synth.spoken == ["Then it changes the outlook."])
+        #expect(model.lastAnswer == "Then it changes the outlook.")
+        #expect(model.phase == .listening)
+    }
+
     @Test func emptyTranscriptIsNeverSent() async {
         let (model, _, _, api) = makeModel()
 
@@ -190,6 +230,43 @@ struct VoiceSessionViewModelTests {
         #expect(model.phase == .listening)
         // begin() + exactly one restart — not two.
         #expect(engine.startCount == 2)
+    }
+
+    /// Regression (user report 2026-07-21): the recognizer's partial results
+    /// stall mid-word on long utterances, and transcript changes were the only
+    /// "still talking" signal — so a long question was auto-sent cut off
+    /// ("…can I rely on that when I ret"). Microphone energy must hold the
+    /// turn open while the hypothesis is being revised.
+    @Test func voiceActivityHoldsTheSendWhileTheTranscriptStalls() async {
+        let api = MockAdvisorAPI()
+        api.response = groundedResponse("Answer.")
+        let (model, engine, _, _) = makeModel(api: api)
+        model.endOfUtterance = EndOfUtterance(
+            settled: .milliseconds(40),
+            unsettled: .milliseconds(40),
+            hangingClause: .milliseconds(40)
+        )
+
+        await model.begin()
+        engine.hear("what about my social security can I rely on that when I ret")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+
+        // The transcript stalls, but the microphone keeps hearing the user.
+        for _ in 0..<25 {
+            engine.lastVoiceActivity = .now
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(api.sentMessages.isEmpty)
+
+        // The user actually stops; the required silence then elapses.
+        for _ in 0..<300 {
+            if !api.sentMessages.isEmpty { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(api.sentMessages.count == 1)
+        #expect(
+            api.sentMessages[0].message
+                == "what about my social security can I rely on that when I ret")
     }
 
     @Test func silenceTriggeredAutoSendDoesNotCancelItsOwnRequest() async {
