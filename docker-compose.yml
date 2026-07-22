@@ -186,6 +186,12 @@ services:
       - "--enable-auto-tool-choice"
       - "--tool-call-parser"
       - "${VLLM_TOOL_PARSER:-hermes}"
+      # Thinking-by-default models (Qwen3.x) put their chain-of-thought in the
+      # response content unless a reasoning parser splits it into
+      # `reasoning_content` — without this the advisor's "answer" is raw
+      # deliberation instead of the conclusion.
+      - "--reasoning-parser"
+      - "${VLLM_REASONING_PARSER:-qwen3}"
       # Fraction of GPU memory this instance may claim — must leave room for
       # the vllm-vision describer below (ADR 0011).
       - "--gpu-memory-utilization"
