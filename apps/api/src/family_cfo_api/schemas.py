@@ -57,6 +57,21 @@ class Money(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
 
 
+class SessionInfo(BaseModel):
+    """The CURRENT session's identity and freshly-resolved rights (ADR 0065).
+
+    Rights change server-side (role edits, system-admin grants) while clients
+    cache the list from pairing/login. This read-only endpoint lets a client
+    refresh without rotating its token — device-bound sessions keep theirs."""
+
+    household_id: str
+    user_id: str
+    role: HouseholdRole
+    role_name: str | None = None
+    rights: list[str]
+    is_system_admin: bool
+
+
 class AuthSessionCreateRequest(BaseModel):
     email: str
     password: str = Field(min_length=8)

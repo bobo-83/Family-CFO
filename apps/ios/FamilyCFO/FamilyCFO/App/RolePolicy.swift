@@ -59,6 +59,9 @@ struct RolePolicy: Equatable {
     var canManageBackups: Bool { has("backups.manage") }
     var canManageMembers: Bool { has("members.manage") }
     var canManageAiRuntime: Bool { has("ai_runtime.manage") }
+    /// ADR 0065: box-level roster management — granted only to system admins,
+    /// injected into the session's rights by the server.
+    var canManageSystemAdmins: Bool { has("system.admin") }
 
     /// Legacy convenience still used by a few flows: any money-editing right.
     var canEditFinances: Bool {

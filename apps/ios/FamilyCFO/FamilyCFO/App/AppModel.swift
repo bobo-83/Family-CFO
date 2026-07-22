@@ -145,6 +145,12 @@ final class AppModel {
         client.map { LiveAIRuntimeAPI(client: $0) }
     }
 
+    /// Box-level operator roster (ADR 0065) — parity with the dashboard's
+    /// Users page section.
+    var systemAdmins: SystemAdminsAPI? {
+        client.map { LiveSystemAdminsAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
@@ -163,7 +169,29 @@ final class AppModel {
         guard phase == .locked else { return }
         if await BiometricGate.authenticate() {
             phase = .ready
+            await refreshSessionRights()
         }
+    }
+
+    /// ADR 0065: rights change server-side (role edits, system-admin grants)
+    /// while the stored credential keeps its pairing-time snapshot — without
+    /// this, a freshly granted system admin would never see the new screens.
+    /// Best-effort: offline keeps the cached rights, and every server check
+    /// is per-request anyway.
+    func refreshSessionRights() async {
+        guard let client, var credential else { return }
+        guard case .ok(let response) = try? await client.getSessionInfo(.init()),
+            let info = try? response.body.json
+        else { return }
+        guard credential.rights != info.rights || credential.roleName != info.roleName else {
+            return
+        }
+        credential.rights = info.rights
+        credential.roleName = info.roleName
+        if let data = try? JSONEncoder().encode(credential) {
+            try? KeychainStore.save(data, account: Self.credentialAccount)
+        }
+        self.credential = credential
     }
 
     func completePairing(server: ServerConfig, credential: StoredCredential) {
