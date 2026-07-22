@@ -231,18 +231,22 @@ struct ChatView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 4)
-            Text(Self.disclaimer)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+            if showDisclaimer {
+                Text(Self.disclaimer)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
         }
         .background(.bar)
     }
 
-    /// Always-visible advisor disclaimer (ADR 0031); kept in sync with the web
-    /// client and DISCLAIMER.md.
+    /// Advisor disclaimer (ADR 0031, amended): shown by default; a member who
+    /// has read it can hide it per-device in Settings. Kept in sync with the
+    /// web client and DISCLAIMER.md.
+    @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
     static let disclaimer =
         "Educational guidance from a local AI — not financial, tax, or legal "
         + "advice. It can be wrong; verify before acting."

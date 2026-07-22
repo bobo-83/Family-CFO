@@ -108,6 +108,17 @@ export class Chat implements OnDestroy {
     },
   });
 
+  // ADR 0031 (amended): the disclaimer shows by default; a member who has
+  // read it can hide it per-device. The advisor's nature doesn't change.
+  protected readonly showDisclaimer = signal(
+    localStorage.getItem('family-cfo.hideAdvisorDisclaimer') !== 'true',
+  );
+
+  protected hideDisclaimer(): void {
+    localStorage.setItem('family-cfo.hideAdvisorDisclaimer', 'true');
+    this.showDisclaimer.set(false);
+  }
+
   protected readonly turns = signal<ChatTurn[]>([]);
   protected readonly conversationId = signal<string | null>(null);
   protected readonly sending = signal(false);

@@ -55,3 +55,14 @@ present at the moment a user reads any answer, and a web test asserts it renders
   the in-app line is what a user actually reads before acting.
 - **Only a README note.** Most users never read it. The disclaimer has to live on
   the advisor screen itself.
+
+## Amendment (2026-07-22)
+
+The disclaimer is **shown by default and hideable per-device** once a member
+has read it — an iOS Settings toggle ("Show advisor disclaimer") and a "Hide"
+action on the web banner, each persisted locally (UserDefaults / localStorage),
+never server-side. The owner asked for the option; a permanent banner that is
+mentally filtered out protects no one. The disclaimer text itself, the
+"Answered by <model>" attribution, DISCLAIMER.md, and the app's educational
+posture are unchanged, and a fresh device always starts with the banner
+visible.

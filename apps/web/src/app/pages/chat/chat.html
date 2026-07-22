@@ -321,12 +321,23 @@
         <button mat-flat-button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
       </form>
 
-      <!-- Always-visible advisor disclaimer (ADR 0031); kept in sync with the
-           iOS client and DISCLAIMER.md. -->
-      <p class="chat__disclaimer">
-        Educational guidance from a local AI — not financial, tax, or legal advice.
-        It can be wrong; verify before acting.
-      </p>
+      <!-- Advisor disclaimer (ADR 0031, amended): shown by default, hideable
+           per-device once read; kept in sync with the iOS client and
+           DISCLAIMER.md. -->
+      @if (showDisclaimer()) {
+        <p class="chat__disclaimer">
+          Educational guidance from a local AI — not financial, tax, or legal advice.
+          It can be wrong; verify before acting.
+          <button
+            type="button"
+            class="chat__disclaimer-hide"
+            title="Hide this reminder on this device"
+            (click)="hideDisclaimer()"
+          >
+            Hide
+          </button>
+        </p>
+      }
     </div>
   </div>
 </section>
