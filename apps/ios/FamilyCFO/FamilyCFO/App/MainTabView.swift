@@ -159,10 +159,17 @@ struct SettingsView: View {
                         } label: {
                             Label("Advisor knowledge", systemImage: "brain")
                         }
+                        if let aiRuntime = model.aiRuntime {
+                            NavigationLink {
+                                AIRuntimeView(viewModel: AIRuntimeViewModel(api: aiRuntime))
+                            } label: {
+                                Label("AI runtime", systemImage: "cpu")
+                            }
+                        }
                     } header: {
                         Text("Advisor")
                     } footer: {
-                        Text("How much of your history the AI has studied, and what it learned.")
+                        Text("What the AI has studied, and which model answers — switch models right from here.")
                     }
                 }
                 if model.rolePolicy.canViewActivity || model.rolePolicy.canManageBackups {
@@ -190,7 +197,7 @@ struct SettingsView: View {
                 if model.rolePolicy.canManageMembers {
                     Section {
                         Label(
-                            "Manage members, roles, devices and the AI runtime on the web dashboard.",
+                            "Manage members, roles and devices on the web dashboard.",
                             systemImage: "wrench.and.screwdriver"
                         )
                         .font(.callout)

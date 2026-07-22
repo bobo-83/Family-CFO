@@ -141,6 +141,10 @@ final class AppModel {
         client.map { LiveAiStudyAPI(client: $0) }
     }
 
+    var aiRuntime: AIRuntimeAPI? {
+        client.map { LiveAIRuntimeAPI(client: $0) }
+    }
+
     func bootstrap() {
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
