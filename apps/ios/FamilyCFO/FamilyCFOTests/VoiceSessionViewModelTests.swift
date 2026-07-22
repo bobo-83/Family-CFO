@@ -252,13 +252,15 @@ struct VoiceSessionViewModelTests {
         for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
 
         // The transcript stalls, but the microphone keeps hearing the user.
-        for _ in 0..<25 {
-            engine.lastVoiceActivity = .now
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // A far-future instant means "still talking" no matter how long the
+        // CI runner stalls this test between watcher ticks — refreshing
+        // `.now` in a sleep loop was flaky under load.
+        engine.lastVoiceActivity = .now + .seconds(60)
+        try? await Task.sleep(for: .milliseconds(250))
         #expect(api.sentMessages.isEmpty)
 
         // The user actually stops; the required silence then elapses.
+        engine.lastVoiceActivity = .now - .seconds(60)
         for _ in 0..<300 {
             if !api.sentMessages.isEmpty { break }
             try? await Task.sleep(for: .milliseconds(10))
