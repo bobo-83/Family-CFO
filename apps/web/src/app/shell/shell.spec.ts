@@ -10,7 +10,7 @@ describe('Shell', () => {
       providers: [
         // A stub route so the nav-link click test's navigation can resolve.
         provideRouter([{ path: 'overview', children: [] }]),
-        { provide: AuthService, useValue: { role: () => 'owner', hasRight: () => true, logout: () => undefined } },
+        { provide: AuthService, useValue: { role: () => 'owner', hasRight: () => true, logout: () => undefined, refreshRights: async () => undefined } },
       ],
     }).compileComponents();
   });

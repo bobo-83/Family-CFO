@@ -152,3 +152,23 @@ async def test_non_admin_cannot_manage_roster_or_swap(demo_client, demo_engine) 
     # Read access to the runtime pages is untouched.
     status = await demo_client.get("/api/v1/ai/runtime/status", headers=headers)
     assert status.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_session_info_reflects_roster_changes_without_relogin(
+    demo_client, demo_token, demo_engine
+) -> None:
+    # ADR 0065: clients cache rights from pairing/login; GET /auth/session is
+    # the refresh path — a mid-session revoke/grant must show immediately.
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    before = await demo_client.get("/api/v1/auth/session", headers=headers)
+    assert before.status_code == 200
+    assert before.json()["is_system_admin"] is True
+    assert "ai_runtime.manage" in before.json()["rights"]
+
+    repository.revoke_system_admin(demo_engine, fixtures.DEMO_USER_ID)
+
+    after = await demo_client.get("/api/v1/auth/session", headers=headers)
+    assert after.json()["is_system_admin"] is False
+    assert "ai_runtime.manage" not in after.json()["rights"]
+    assert "backups.manage" not in after.json()["rights"]

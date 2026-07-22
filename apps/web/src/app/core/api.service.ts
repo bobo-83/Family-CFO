@@ -102,6 +102,7 @@ import {
   searchAiModels,
   getAiModelDetail,
   listSystemAdmins,
+  getSessionInfo,
   grantSystemAdmin,
   revokeSystemAdmin,
   syncConnection,
@@ -665,6 +666,10 @@ export class ApiService {
 
   listSystemAdmins() {
     return listSystemAdmins();
+  }
+
+  getSessionInfo() {
+    return getSessionInfo();
   }
 
   grantSystemAdmin(email: string) {

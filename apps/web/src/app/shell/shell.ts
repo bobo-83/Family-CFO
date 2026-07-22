@@ -25,6 +25,7 @@ export class Shell {
 
   constructor() {
     this.loadVersion();
+    void this.auth.refreshRights();
   }
 
   private readonly auth = inject(AuthService);
