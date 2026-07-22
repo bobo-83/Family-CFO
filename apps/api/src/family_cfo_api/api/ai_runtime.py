@@ -598,6 +598,17 @@ async def apply_ai_model_selection(
         model=payload.main_model,
         enabled=True,
     )
+    # The swap replaces the model for the WHOLE box: every other household's
+    # config on this runtime must follow, or their chats silently fall back
+    # to deterministic answers requesting a model vLLM no longer serves.
+    repointed = repository.repoint_ai_runtime_configs(
+        engine,
+        provider="vllm",
+        base_url=settings.ai_default_base_url,
+        model=payload.main_model,
+    )
+    if repointed > 1:
+        logger.info("model apply repointed %d household configs", repointed)
     logger.info(
         "model apply started household_id=%s main=%s vision=%s",
         session.household_id,

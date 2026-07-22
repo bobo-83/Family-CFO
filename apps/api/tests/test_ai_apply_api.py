@@ -479,3 +479,43 @@ async def test_search_estimates_nvfp4_as_4bit(demo_client, demo_token, monkeypat
     assert resp.status_code == 200
     model = {m["id"]: m for m in resp.json()["models"]}["unsloth/Qwen3.6-35B-A3B-NVFP4"]
     assert model["est_memory_gb"] == 23  # 35 * 0.65, not 35 * 2.1
+
+
+@pytest.mark.anyio
+async def test_apply_repoints_every_household_on_the_shared_runtime(
+    demo_engine, monkeypatch
+) -> None:
+    # One vLLM serves the whole box: a swap that only updated the initiating
+    # household left every other household requesting the old model and
+    # silently falling back to deterministic answers (found 2026-07-22).
+    from family_cfo_api import repository
+    from family_cfo_api.config import get_settings
+
+    settings = get_settings()
+    other = repository.create_household_with_owner(
+        demo_engine,
+        display_name="Other",
+        base_currency="USD",
+        owner_email="other@family-cfo.local",
+        owner_password_hash="x",
+        owner_display_name="Other Owner",
+    )
+    repository.upsert_ai_runtime_config(
+        demo_engine,
+        household_id=other.household_id,
+        provider="vllm",
+        base_url=settings.ai_default_base_url,
+        model="Qwen/Old-Model",
+        enabled=True,
+    )
+
+    changed = repository.repoint_ai_runtime_configs(
+        demo_engine,
+        provider="vllm",
+        base_url=settings.ai_default_base_url,
+        model="Qwen/New-Model",
+    )
+
+    assert changed >= 1
+    record = repository.get_ai_runtime_config(demo_engine, other.household_id)
+    assert record.model == "Qwen/New-Model"
