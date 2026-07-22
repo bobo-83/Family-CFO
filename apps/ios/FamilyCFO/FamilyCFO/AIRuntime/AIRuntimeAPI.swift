@@ -52,7 +52,10 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
     }
 
     func search(query: String) async throws -> [Components.Schemas.AiModelInfo] {
-        switch try await client.searchAiModels(.init(query: .init(q: query))) {
+        // limit 30 (the contract maximum) — the default of 10 per pipeline,
+        // sorted by downloads, hid most variants of a searched family
+        // (user report 2026-07-22: "I don't see all of Qwen3.6").
+        switch try await client.searchAiModels(.init(query: .init(q: query, limit: 30))) {
         case .ok(let response):
             return try response.body.json.models
         case .unauthorized:
