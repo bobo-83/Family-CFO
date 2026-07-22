@@ -399,7 +399,7 @@ _HF_TIMEOUT_SECONDS = 6.0
 def _bytes_per_param(model_id: str) -> tuple[float, str]:
     """GB-per-billion-params from quantization markers in the name (M49)."""
     lower = model_id.lower()
-    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit")):
+    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit", "nvfp4", "mxfp4", "fp4")):
         return 0.65, "4-bit"
     if any(marker in lower for marker in ("fp8", "int8", "8bit", "8-bit")):
         return 1.1, "8-bit"
@@ -598,6 +598,17 @@ async def apply_ai_model_selection(
         model=payload.main_model,
         enabled=True,
     )
+    # The swap replaces the model for the WHOLE box: every other household's
+    # config on this runtime must follow, or their chats silently fall back
+    # to deterministic answers requesting a model vLLM no longer serves.
+    repointed = repository.repoint_ai_runtime_configs(
+        engine,
+        provider="vllm",
+        base_url=settings.ai_default_base_url,
+        model=payload.main_model,
+    )
+    if repointed > 1:
+        logger.info("model apply repointed %d household configs", repointed)
     logger.info(
         "model apply started household_id=%s main=%s vision=%s",
         session.household_id,

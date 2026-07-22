@@ -52,8 +52,16 @@ extra_args_for() {
   esac
 }
 
-# A "VL" model sees photos itself — no separate describer needed.
-is_vision_model() { case "$1" in *-VL-*|*vl-*) return 0 ;; *) return 1 ;; esac; }
+# A model that sees photos itself needs no separate describer. "-VL-" names
+# are the classic signal, but natively multimodal checkpoints (e.g. Qwen3.6
+# omni) carry no name hint — their config.json declares a vision_config
+# (user report 2026-07-22: "why is it still using a separate vision model?").
+# Offline, the name check is the fallback.
+is_vision_model() {
+  case "$1" in *-VL-*|*vl-*) return 0 ;; esac
+  curl -sf --max-time 10 "https://huggingface.co/$1/resolve/main/config.json" 2>/dev/null \
+    | grep -q '"vision_config"'
+}
 
 # M55: estimate a model's weight footprint (GB) from its name — params count
 # times a quantization factor (same heuristics as the API's fit planner).
@@ -69,7 +77,7 @@ if not match:
     raise SystemExit
 params = float(match.group(1))
 lower = model.lower()
-if any(m in lower for m in ("awq", "gptq", "int4", "4bit", "4-bit")):
+if any(m in lower for m in ("awq", "gptq", "int4", "4bit", "4-bit", "nvfp4", "mxfp4", "fp4")):
     factor = 0.65
 elif any(m in lower for m in ("fp8", "int8", "8bit", "8-bit")):
     factor = 1.0
