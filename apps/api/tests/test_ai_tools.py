@@ -41,7 +41,7 @@ def test_missing_required_argument_reports_missing_input(demo_engine: Engine) ->
     result = _execute(demo_engine, "future_value", {"annual_return_rate": 0.06, "years": 20})
 
     assert result["error"] == "missing_input"
-    assert result["missing"] == "present_value_minor"
+    assert result["missing"] == "present_value"  # dollars, ADR 0063
 
 
 def test_out_of_range_rate_reports_invalid_arguments(demo_engine: Engine) -> None:
@@ -521,3 +521,33 @@ def test_get_debt_history_tool_shape(demo_engine: Engine) -> None:
     assert "average_debt" in result and result["average_debt"]["currency"] == "USD"
     assert isinstance(result["months"], list)
     assert result["months_covered"] == len(result["months"])
+
+
+def test_money_args_are_dollars_and_legacy_minor_still_works() -> None:
+    # ADR 0063: the model speaks dollars; it once read its own cents input
+    # back as dollars ("$1.1 million per month" for $11k).
+    from family_cfo_api.ai_tools import _money_arg
+
+    minor, error = _money_arg({"price": 49.99}, "price", minimum=0)
+    assert error is None and minor == 4999
+
+    minor, error = _money_arg({"price": 11000}, "price", minimum=0)
+    assert error is None and minor == 1_100_000
+
+    minor, error = _money_arg({"price_minor": 4999}, "price", minimum=0)
+    assert error is None and minor == 4999
+
+    missing, error = _money_arg({}, "price", minimum=0)
+    assert missing is None and error["error"] == "missing_input"
+
+    bad, error = _money_arg({"price": "lots"}, "price", minimum=0)
+    assert bad is None and error["error"] == "invalid_arguments"
+
+
+def test_tool_schemas_never_expose_minor_unit_inputs() -> None:
+    # Guard: no model-facing input may be named *_minor again.
+    from family_cfo_api.ai_tools import build_tools
+
+    for tool in build_tools():
+        for name in tool.parameters.get("properties", {}):
+            assert not name.endswith("_minor"), f"{tool.name}.{name} exposes minor units"
