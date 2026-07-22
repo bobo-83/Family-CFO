@@ -61,6 +61,7 @@ describe('AiRuntime', () => {
     listAiModels: ReturnType<typeof vi.fn>;
     getAiHardwareProfile: ReturnType<typeof vi.fn>;
     searchAiModels: ReturnType<typeof vi.fn>;
+    getAiModelDetail: ReturnType<typeof vi.fn>;
     applyAiModelSelection: ReturnType<typeof vi.fn>;
     getAiApplyStatus: ReturnType<typeof vi.fn>;
     getAiStudyStatus: ReturnType<typeof vi.fn>;
@@ -95,6 +96,7 @@ describe('AiRuntime', () => {
         response({ gpu_memory_gb: null, system_memory_gb: 120, disk_free_gb: 500, source: 'system' }),
       ),
       searchAiModels: vi.fn().mockResolvedValue(response({ models: [] })),
+      getAiModelDetail: vi.fn().mockResolvedValue(response({ info: { id: 'x' } })),
       applyAiModelSelection: vi.fn(),
       getAiApplyStatus: vi.fn().mockResolvedValue(response({ state: 'idle', log_tail: '' })),
       getAiStudyStatus: vi.fn().mockResolvedValue(

@@ -83,3 +83,76 @@ async def test_chat_with_unknown_conversation_id_starts_a_new_thread(
 
     assert response.status_code == 200
     assert response.json()["conversation_id"] != unknown_id
+
+
+@pytest.mark.anyio
+async def test_chat_stream_requires_authentication(demo_client) -> None:
+    response = await demo_client.post(
+        "/api/v1/chat/messages/stream", json={"message": "Where are we?"}
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_chat_stream_emits_progress_then_one_validated_answer(
+    demo_client, demo_token
+) -> None:
+    # ADR 0061: the stream narrates progress and then delivers the SAME
+    # response shape the plain endpoint returns — exactly once, and only
+    # after grounding. Keepalive comments (": ping") are not events.
+    import json as jsonlib
+
+    events = []
+    async with demo_client.stream(
+        "POST",
+        "/api/v1/chat/messages/stream",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "How are we doing?"},
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        async for line in response.aiter_lines():
+            if line.startswith("data: "):
+                events.append(jsonlib.loads(line[len("data: "):]))
+
+    assert [e["type"] for e in events[:-1]] == ["progress"] * (len(events) - 1)
+    assert events[0]["stage"] == "thinking"
+    answers = [e for e in events if e["type"] == "answer"]
+    assert len(answers) == 1
+    assert events[-1]["type"] == "answer"
+    body = answers[0]["response"]
+    assert body["conversation_id"]
+    assert body["recommendation"]["answer"]
+    assert body["recommendation"]["calculation_refs"]
+
+
+@pytest.mark.anyio
+async def test_chat_stream_persists_the_turn_like_the_plain_endpoint(
+    demo_client, demo_token
+) -> None:
+    import json as jsonlib
+
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    answer = None
+    async with demo_client.stream(
+        "POST",
+        "/api/v1/chat/messages/stream",
+        headers=headers,
+        json={"message": "Snapshot please"},
+    ) as response:
+        async for line in response.aiter_lines():
+            if line.startswith("data: "):
+                event = jsonlib.loads(line[len("data: "):])
+                if event["type"] == "answer":
+                    answer = event["response"]
+
+    assert answer is not None
+    detail = await demo_client.get(
+        f"/api/v1/conversations/{answer['conversation_id']}", headers=headers
+    )
+    assert detail.status_code == 200
+    messages = detail.json()["messages"]
+    assert messages[0]["content"] == "Snapshot please"
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["content"] == answer["recommendation"]["answer"]

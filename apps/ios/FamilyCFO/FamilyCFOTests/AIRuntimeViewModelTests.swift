@@ -27,6 +27,11 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
     nonisolated func search(query: String) async throws -> [Components.Schemas.AiModelInfo] {
         await MainActor.run { catalogResult.filter { $0.label.contains(query) } }
     }
+    nonisolated func detail(id: String) async throws -> Components.Schemas.AiModelDetail {
+        let info = await MainActor.run { catalogResult.first { $0.id == id } }
+        guard let info else { throw APIError.server(404) }
+        return Components.Schemas.AiModelDetail(info: info, downloads: 1000, likes: 10)
+    }
     nonisolated func apply(mainModel: String, visionModel: String?) async throws
         -> Components.Schemas.AiSwapStatus
     {

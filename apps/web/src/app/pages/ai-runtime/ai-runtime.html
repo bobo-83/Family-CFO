@@ -281,6 +281,24 @@
                     @if (model.notes) {
                       <p class="model-detail__notes">{{ model.notes }}</p>
                     }
+                    <!-- Live hub stats (drill-down, 2026-07-22) -->
+                    @if (hubDetailLoading()) {
+                      <p class="model-detail__hub">Fetching Hugging Face stats…</p>
+                    } @else if (hubDetail(); as hub) {
+                      <p class="model-detail__hub">
+                        ⬇️ {{ hub.downloads?.toLocaleString() ?? '—' }} downloads
+                        · ❤️ {{ hub.likes ?? '—' }}
+                        @if (hub.license) {
+                          · {{ hub.license }}
+                        }
+                        @if (hub.last_modified) {
+                          · updated {{ formatHubDate(hub.last_modified) }}
+                        }
+                      </p>
+                      @if (hub.tags?.length) {
+                        <p class="model-detail__tags">{{ hub.tags!.join(' · ') }}</p>
+                      }
+                    }
                     @if (planFor(model); as plan) {
                       <p class="model-detail__plan">{{ plan.description }}</p>
                       <div class="fit__rows">

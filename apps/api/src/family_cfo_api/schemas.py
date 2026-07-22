@@ -950,6 +950,24 @@ class ChatResponse(BaseModel):
     recommendation: Recommendation
 
 
+class ChatStreamEvent(BaseModel):
+    """One server-sent event from the streaming chat endpoint (ADR 0061).
+
+    `progress` events narrate the grounded loop (stage: photo | thinking |
+    tool | revising); exactly one `answer` event carries the full, guardrail-
+    validated ChatResponse; `error` replaces it when the turn failed. The
+    answer is never streamed token-by-token -- validation happens on the whole
+    text before anything user-visible is sent.
+    """
+
+    type: Literal["progress", "answer", "error"]
+    stage: str | None = None
+    tool: str | None = None
+    detail: str | None = None
+    response: ChatResponse | None = None
+    message: str | None = None
+
+
 class AiRuntimeConfig(BaseModel):
     provider: AiRuntimeProvider
     base_url: str
@@ -998,6 +1016,19 @@ class AiModelInfo(BaseModel):
 
 class AiModelCatalog(BaseModel):
     models: list[AiModelInfo]
+
+
+class AiModelDetail(BaseModel):
+    """Drill-down for one model (M-runtime): catalog/estimated specs plus the
+    Hugging Face hub's live stats, so a swap decision can be made from the
+    phone without leaving the app."""
+
+    info: AiModelInfo
+    downloads: int | None = None
+    likes: int | None = None
+    last_modified: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    license: str | None = None
 
 
 class AiStudyInsight(BaseModel):

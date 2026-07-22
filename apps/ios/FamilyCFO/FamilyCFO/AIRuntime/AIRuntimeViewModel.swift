@@ -6,7 +6,9 @@ import Observation
 @MainActor
 @Observable
 final class AIRuntimeViewModel {
-    private let api: AIRuntimeAPI
+    // Internal, not private: the model drill-down screen shares this API (and
+    // this view model) so fit verdicts and the apply flow behave identically.
+    let api: AIRuntimeAPI
 
     private(set) var status: Components.Schemas.AiRuntimeStatus?
     private(set) var models: [Components.Schemas.AiModelInfo] = []

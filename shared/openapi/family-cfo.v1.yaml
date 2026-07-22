@@ -2000,6 +2000,36 @@ paths:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /chat/messages/stream:
+    post:
+      tags:
+        - Chat
+      operationId: createChatMessageStream
+      summary: Send a message to the financial advisor (streamed progress)
+      description: >
+        ADR 0061: server-sent events keep the socket alive and narrate the
+        grounded loop while the model works. `progress` events carry
+        stage/tool/detail; exactly one `answer` event carries the full
+        ChatResponse AFTER the grounding guardrail validated it (the answer is
+        never streamed token-by-token); `error` replaces it on failure.
+        SSE comment lines (": ping") are keepalives and carry no event.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Stream of ChatStreamEvent objects as SSE `data:` lines
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/ChatStreamEvent"
+        "401":
+          $ref: "#/components/responses/Error"
   /chat/feedback:
     post:
       tags:
@@ -2783,6 +2813,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/AiModelCatalog"
         "401":
+          $ref: "#/components/responses/Error"
+  /ai/models/detail:
+    get:
+      tags:
+        - AI Runtime
+      operationId: getAiModelDetail
+      summary: "Drill-down for one model: curated/estimated specs + live hub stats"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: Repo id (org/name) — a query param because ids contain '/'
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Model detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiModelDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "503":
           $ref: "#/components/responses/Error"
   /ai/hardware:
     get:
@@ -5055,6 +5113,36 @@ components:
           format: uuid
         recommendation:
           $ref: "#/components/schemas/Recommendation"
+    ChatStreamEvent:
+      type: object
+      description: >
+        One server-sent event from the streaming chat endpoint (ADR 0061).
+        progress events narrate the grounded loop (stage: photo | thinking |
+        tool | revising); exactly one answer event carries the guardrail-
+        validated ChatResponse; error replaces it when the turn failed.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [progress, answer, error]
+        stage:
+          type:
+            - string
+            - "null"
+        tool:
+          type:
+            - string
+            - "null"
+        detail:
+          type:
+            - string
+            - "null"
+        response:
+          $ref: "#/components/schemas/ChatResponse"
+        message:
+          type:
+            - string
+            - "null"
     ImportCreateRequest:
       type: object
       required:
@@ -6199,6 +6287,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiModelInfo"
+    AiModelDetail:
+      type: object
+      description: >
+        Drill-down for one model: catalog/estimated specs plus the Hugging
+        Face hub's live stats, so a swap decision can be made from the phone.
+      required:
+        - info
+      properties:
+        info:
+          $ref: "#/components/schemas/AiModelInfo"
+        downloads:
+          type:
+            - integer
+            - "null"
+        likes:
+          type:
+            - integer
+            - "null"
+        last_modified:
+          type:
+            - string
+            - "null"
+        tags:
+          type: array
+          items:
+            type: string
+        license:
+          type:
+            - string
+            - "null"
     AiStudyInsight:
       type: object
       required:
