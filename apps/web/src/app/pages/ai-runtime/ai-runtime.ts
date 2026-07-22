@@ -318,6 +318,8 @@ export class AiRuntime {
       if (this.expandedId() === id) {
         this.hubDetail.set(data ?? null);
       }
+    } catch {
+      // Hub stats are enrichment — their absence must never break the row.
     } finally {
       if (this.expandedId() === id) {
         this.hubDetailLoading.set(false);
