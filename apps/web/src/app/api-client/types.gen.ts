@@ -1713,6 +1713,18 @@ export type ConnectionSyncResult = {
 };
 
 /**
+ * The current session's identity and freshly-resolved rights
+ */
+export type SessionInfo = {
+    household_id: string;
+    user_id: string;
+    role: HouseholdRole;
+    role_name?: string | null;
+    rights: Array<string>;
+    is_system_admin: boolean;
+};
+
+/**
  * One box-level administrator (ADR 0065)
  */
 export type SystemAdmin = {
@@ -1987,6 +1999,31 @@ export type RefreshAuthSessionResponses = {
 };
 
 export type RefreshAuthSessionResponse = RefreshAuthSessionResponses[keyof RefreshAuthSessionResponses];
+
+export type GetSessionInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/session';
+};
+
+export type GetSessionInfoErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type GetSessionInfoError = GetSessionInfoErrors[keyof GetSessionInfoErrors];
+
+export type GetSessionInfoResponses = {
+    /**
+     * Session info
+     */
+    200: SessionInfo;
+};
+
+export type GetSessionInfoResponse = GetSessionInfoResponses[keyof GetSessionInfoResponses];
 
 export type CreateHouseholdData = {
     body: HouseholdCreateRequest;

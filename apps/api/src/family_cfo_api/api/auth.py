@@ -14,7 +14,12 @@ from family_cfo_api.deps import (
     get_rate_limiter,
 )
 from family_cfo_api.ratelimit import AuthRateLimiter
-from family_cfo_api.schemas import AuthSession, AuthSessionCreateRequest, ErrorResponse
+from family_cfo_api.schemas import (
+    AuthSession,
+    AuthSessionCreateRequest,
+    ErrorResponse,
+    SessionInfo,
+)
 
 router = APIRouter(tags=["Authentication"])
 
@@ -100,6 +105,29 @@ async def refresh_auth_session(
     repository.revoke_auth_session(engine, security.hash_token(token))
     return _issue_session(
         engine, session.user_id, session.household_id, session.role, settings.session_ttl_hours
+    )
+
+
+@router.get(
+    "/auth/session",
+    operation_id="getSessionInfo",
+    response_model=SessionInfo,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="The current session's identity and freshly-resolved rights",
+)
+async def get_session_info(
+    session: repository.SessionContext = Depends(get_current_session),
+) -> SessionInfo:
+    # ADR 0065: rights move server-side (role edits, system-admin grants)
+    # while clients cache their pairing/login snapshot. Read-only — the
+    # token is untouched, so device-bound sessions can refresh freely.
+    return SessionInfo(
+        household_id=session.household_id,
+        user_id=session.user_id,
+        role=session.role,
+        role_name=session.role_name or None,
+        rights=sorted(session.rights),
+        is_system_admin=session.is_system_admin,
     )
 
 

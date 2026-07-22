@@ -247,6 +247,17 @@ struct SettingsView: View {
                         Text("Review and undo past actions, and back up to your Synology. Encrypted daily backups run automatically.")
                     }
                 }
+                if model.rolePolicy.canManageSystemAdmins, let roster = model.systemAdmins {
+                    Section {
+                        NavigationLink {
+                            SystemAdminsView(viewModel: SystemAdminsViewModel(api: roster))
+                        } label: {
+                            Label("System administrators", systemImage: "person.badge.key")
+                        }
+                    } footer: {
+                        Text("Box-level operators (ADR 0065): who may swap the AI model and manage whole-box backups, across every household.")
+                    }
+                }
                 if model.rolePolicy.canManageMembers {
                     Section {
                         Label(

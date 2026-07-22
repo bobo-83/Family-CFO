@@ -867,6 +867,91 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// The current session's identity and freshly-resolved rights
+    ///
+    /// ADR 0065: rights change server-side (role edits, system-admin grants) while clients cache the list from pairing or login. Read-only — the token is untouched, so device-bound sessions can refresh freely.
+    ///
+    ///
+    /// - Remark: HTTP `GET /auth/session`.
+    /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
+    public func getSessionInfo(_ input: Operations.GetSessionInfo.Input) async throws -> Operations.GetSessionInfo.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.GetSessionInfo.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/auth/session",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetSessionInfo.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.SessionInfo.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Bootstrap a household with its first owner (self-hosted first-run setup)
     ///
     /// - Remark: HTTP `POST /households`.

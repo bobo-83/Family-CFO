@@ -43,6 +43,27 @@ export class AuthService {
     return ['finances.view', 'advisor.use'].includes(right);
   };
 
+  /** ADR 0065: rights change server-side (role edits, system-admin grants)
+   *  while the stored session keeps its login snapshot. Called at shell boot;
+   *  best-effort — offline keeps the cached rights, and the server checks
+   *  every request regardless. */
+  async refreshRights(): Promise<void> {
+    const state = authState();
+    if (!state) {
+      return;
+    }
+    const { data, error } = await this.api.getSessionInfo();
+    if (error || !data) {
+      return;
+    }
+    setAuthState({
+      ...state,
+      role: data.role,
+      roleName: data.role_name ?? undefined,
+      rights: data.rights,
+    });
+  }
+
   async login(email: string, password: string): Promise<LoginResult> {
     const { data, error } = await this.api.login({ email, password });
 

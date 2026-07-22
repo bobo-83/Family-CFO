@@ -208,6 +208,27 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "401":
           $ref: "#/components/responses/Error"
+  /auth/session:
+    get:
+      tags:
+        - Authentication
+      operationId: getSessionInfo
+      summary: The current session's identity and freshly-resolved rights
+      description: >
+        ADR 0065: rights change server-side (role edits, system-admin grants)
+        while clients cache the list from pairing or login. Read-only — the
+        token is untouched, so device-bound sessions can refresh freely.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+        "401":
+          $ref: "#/components/responses/Error"
   /households:
     post:
       tags:
@@ -6517,6 +6538,32 @@ components:
           description: >-
             Imported transactions auto-categorized by reusing the category the
             household previously assigned to the same merchant.
+    SessionInfo:
+      type: object
+      description: The current session's identity and freshly-resolved rights
+      required:
+        - household_id
+        - user_id
+        - role
+        - rights
+        - is_system_admin
+      properties:
+        household_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          $ref: "#/components/schemas/HouseholdRole"
+        role_name:
+          type:
+            - string
+            - "null"
+        rights:
+          type: array
+          items:
+            type: string
+        is_system_admin:
+          type: boolean
     SystemAdmin:
       type: object
       description: One box-level administrator (ADR 0065)

@@ -58,6 +58,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /auth/sessions/refresh`.
     /// - Remark: Generated from `#/paths//auth/sessions/refresh/post(refreshAuthSession)`.
     func refreshAuthSession(_ input: Operations.RefreshAuthSession.Input) async throws -> Operations.RefreshAuthSession.Output
+    /// The current session's identity and freshly-resolved rights
+    ///
+    /// ADR 0065: rights change server-side (role edits, system-admin grants) while clients cache the list from pairing or login. Read-only — the token is untouched, so device-bound sessions can refresh freely.
+    ///
+    ///
+    /// - Remark: HTTP `GET /auth/session`.
+    /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
+    func getSessionInfo(_ input: Operations.GetSessionInfo.Input) async throws -> Operations.GetSessionInfo.Output
     /// Bootstrap a household with its first owner (self-hosted first-run setup)
     ///
     /// - Remark: HTTP `POST /households`.
@@ -768,6 +776,16 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//auth/sessions/refresh/post(refreshAuthSession)`.
     public func refreshAuthSession(headers: Operations.RefreshAuthSession.Input.Headers = .init()) async throws -> Operations.RefreshAuthSession.Output {
         try await refreshAuthSession(Operations.RefreshAuthSession.Input(headers: headers))
+    }
+    /// The current session's identity and freshly-resolved rights
+    ///
+    /// ADR 0065: rights change server-side (role edits, system-admin grants) while clients cache the list from pairing or login. Read-only — the token is untouched, so device-bound sessions can refresh freely.
+    ///
+    ///
+    /// - Remark: HTTP `GET /auth/session`.
+    /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
+    public func getSessionInfo(headers: Operations.GetSessionInfo.Input.Headers = .init()) async throws -> Operations.GetSessionInfo.Output {
+        try await getSessionInfo(Operations.GetSessionInfo.Input(headers: headers))
     }
     /// Bootstrap a household with its first owner (self-hosted first-run setup)
     ///
@@ -8978,6 +8996,55 @@ public enum Components {
                 case autoCategorized = "auto_categorized"
             }
         }
+        /// The current session's identity and freshly-resolved rights
+        ///
+        /// - Remark: Generated from `#/components/schemas/SessionInfo`.
+        public struct SessionInfo: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/household_id`.
+            public var householdId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/user_id`.
+            public var userId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/role`.
+            public var role: Components.Schemas.HouseholdRole
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/role_name`.
+            public var roleName: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/rights`.
+            public var rights: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/is_system_admin`.
+            public var isSystemAdmin: Swift.Bool
+            /// Creates a new `SessionInfo`.
+            ///
+            /// - Parameters:
+            ///   - householdId:
+            ///   - userId:
+            ///   - role:
+            ///   - roleName:
+            ///   - rights:
+            ///   - isSystemAdmin:
+            public init(
+                householdId: Swift.String,
+                userId: Swift.String,
+                role: Components.Schemas.HouseholdRole,
+                roleName: Swift.String? = nil,
+                rights: [Swift.String],
+                isSystemAdmin: Swift.Bool
+            ) {
+                self.householdId = householdId
+                self.userId = userId
+                self.role = role
+                self.roleName = roleName
+                self.rights = rights
+                self.isSystemAdmin = isSystemAdmin
+            }
+            public enum CodingKeys: String, CodingKey {
+                case householdId = "household_id"
+                case userId = "user_id"
+                case role
+                case roleName = "role_name"
+                case rights
+                case isSystemAdmin = "is_system_admin"
+            }
+        }
         /// One box-level administrator (ADR 0065)
         ///
         /// - Remark: Generated from `#/components/schemas/SystemAdmin`.
@@ -10464,6 +10531,142 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//auth/sessions/refresh/post(refreshAuthSession)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The current session's identity and freshly-resolved rights
+    ///
+    /// ADR 0065: rights change server-side (role edits, system-admin grants) while clients cache the list from pairing or login. Read-only — the token is untouched, so device-bound sessions can refresh freely.
+    ///
+    ///
+    /// - Remark: HTTP `GET /auth/session`.
+    /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
+    public enum GetSessionInfo {
+        public static let id: Swift.String = "getSessionInfo"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/auth/session/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSessionInfo.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetSessionInfo.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetSessionInfo.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetSessionInfo.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/auth/session/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/auth/session/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SessionInfo)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SessionInfo {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetSessionInfo.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetSessionInfo.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Session info
+            ///
+            /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetSessionInfo.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetSessionInfo.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Components.Responses._Error)
