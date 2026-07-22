@@ -59,7 +59,9 @@ class VLLMAdapter:
                 response = self._client.post(f"{self._base_url}/v1/chat/completions", json=payload)
                 response.raise_for_status()
                 data = response.json()
-                text = data["choices"][0]["message"]["content"]
+                # Reasoning-parsed models return content: null when the whole
+                # budget went to thinking -- callers get "", never None.
+                text = data["choices"][0]["message"]["content"] or ""
                 model = data.get("model", self._model)
                 return RuntimeCompletion(text=text, model=model, raw=data)
             except (httpx.HTTPError, KeyError, IndexError) as exc:

@@ -105,4 +105,6 @@ def select_tool_runtime(
     config = resolve_ai_config(engine, household_id, settings)
     if not config.is_usable:
         return None
-    return VLLMAdapter(config.base_url, config.model)
+    # A reasoning model thinking + answering within _ANSWER_MAX_TOKENS can run
+    # ~50s on the box GPU; the 30s adapter default would abort mid-generation.
+    return VLLMAdapter(config.base_url, config.model, timeout_seconds=90.0)

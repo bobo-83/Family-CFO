@@ -123,6 +123,23 @@ struct VoiceSessionViewModelTests {
         #expect(engine.startCount == 2)
     }
 
+    /// An empty or unspeakable answer must never be silent dead air (user
+    /// report 2026-07-21) — the user is hands-free and would just hear nothing.
+    @Test func unspeakableAnswerIsSpokenAsAnApology() async {
+        let api = MockAdvisorAPI()
+        api.response = groundedResponse("")
+        let (model, engine, synth, _) = makeModel(api: api)
+
+        await model.begin()
+        engine.hear("what about my social security")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(synth.spoken.count == 1)
+        #expect(synth.spoken[0].contains("couldn't come up with an answer"))
+        #expect(model.phase == .listening)
+    }
+
     @Test func emptyTranscriptIsNeverSent() async {
         let (model, _, _, api) = makeModel()
 

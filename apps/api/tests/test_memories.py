@@ -336,3 +336,10 @@ async def test_memory_backfill_runs_once(
     # Second run is a no-op thanks to the marker (and the marker is never listed).
     assert ai_memory.run_memory_backfill_once(demo_engine) == 0
     assert extractor.calls == 1
+
+
+def test_parse_extracted_memories_tolerates_none_text() -> None:
+    # The extractor's completion.text is None when a reasoning model thought
+    # its whole budget away — this must yield no memories, not crash.
+    assert ai_memory.parse_extracted_memories(None) == []
+    assert ai_memory.parse_extracted_memories("") == []
