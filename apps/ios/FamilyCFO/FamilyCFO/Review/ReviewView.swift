@@ -11,8 +11,10 @@ struct ReviewView: View {
     @State private var recategorizing: Components.Schemas.Transaction?
     @State private var recategorizingGroup: ReviewViewModel.AmountGroup?
 
+    // No NavigationStack of its own: pushed inside MoreView's stack — a
+    // second stack here doubles the nav bars (user report 2026-07-22).
     var body: some View {
-        NavigationStack {
+        Group {
             Group {
                 if let errorMessage = viewModel.errorMessage, viewModel.nothingToReview {
                     ContentUnavailableView {
