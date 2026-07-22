@@ -50,13 +50,14 @@ _SUMMARY_SYSTEM_PROMPT = (
 )
 
 
-def parse_extracted_memories(text: str) -> list[tuple[str, str]]:
+def parse_extracted_memories(text: str | None) -> list[tuple[str, str]]:
     """Parse the extractor's reply into (key, value) pairs, defensively.
 
-    Model output is untrusted: code fences are stripped, non-JSON or wrongly
+    Model output is untrusted: code fences are stripped, None or empty replies
+    (a reasoning model can think its whole budget away), non-JSON or wrongly
     shaped replies yield [], keys are validated and values bounded.
     """
-    cleaned = text.strip()
+    cleaned = (text or "").strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-z]*\s*|\s*```$", "", cleaned, flags=re.IGNORECASE)
     try:

@@ -56,7 +56,24 @@ def run_tool_calling_loop(
             conversation, tools, temperature=temperature, max_tokens=max_tokens
         )
         if not completion.wants_tools:
-            return ToolCallingResult(answer=completion.text, completed=True, tool_calls=trace)
+            answer = (completion.text or "").strip()
+            if answer:
+                return ToolCallingResult(answer=answer, completed=True, tool_calls=trace)
+            # A reasoning model can spend the whole token budget thinking and
+            # emit no visible answer at all. That is not a final answer -- nudge
+            # for a brief plain-text reply instead of returning silence; the
+            # iteration cap still bounds repeated empties.
+            conversation.append(RuntimeMessage(role="assistant", content=""))
+            conversation.append(
+                RuntimeMessage(
+                    role="user",
+                    content=(
+                        "Your reply was empty. Answer the question now in plain "
+                        "text, briefly, without further deliberation."
+                    ),
+                )
+            )
+            continue
 
         conversation.append(
             RuntimeMessage(

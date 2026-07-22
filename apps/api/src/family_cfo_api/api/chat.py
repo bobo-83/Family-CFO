@@ -48,7 +48,10 @@ _HISTORY_MESSAGE_MAX_CHARS = 1500
 # The loop's 500-token default truncated multi-step plans mid-sentence (user
 # report 2026-07-20). A final answer needs room; the model still stops at its
 # natural end, so this only lifts the ceiling, it doesn't pad short answers.
-_ANSWER_MAX_TOKENS = 1200
+# Reasoning models (Qwen3.6) spend tokens thinking BEFORE the visible answer:
+# 1200 was fully consumed by thinking on open-ended questions, yielding an
+# empty answer (user report 2026-07-21) -- the budget must cover both.
+_ANSWER_MAX_TOKENS = 2400
 # The library default (6) was too few once the toolset grew to ~16 and the
 # grounding asks the advisor to consult several tools for a plan (debt outlook,
 # bills, spending, find_savings…): a thorough answer exhausted the rounds and
@@ -300,7 +303,7 @@ def _try_agentic_answer(
             max_tokens=_ANSWER_MAX_TOKENS,
             max_iterations=_ANSWER_MAX_ITERATIONS,
         )
-        if not result.completed or result.answer is None:
+        if not result.completed or not result.answer:
             logger.warning(
                 "agentic chat loop did not converge; falling back to deterministic snapshot"
             )
@@ -336,7 +339,7 @@ def _try_agentic_answer(
                 max_tokens=_ANSWER_MAX_TOKENS,
                 max_iterations=_ANSWER_MAX_ITERATIONS,
             )
-            if not retry.completed or retry.answer is None:
+            if not retry.completed or not retry.answer:
                 logger.warning(
                     "agentic chat retry did not converge; falling back to deterministic snapshot"
                 )

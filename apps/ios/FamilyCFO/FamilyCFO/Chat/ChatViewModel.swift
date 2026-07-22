@@ -32,9 +32,10 @@ final class ChatViewModel {
     /// A hands-free session talks to the same `POST /chat/messages` pipeline, so
     /// the box creates a real conversation — but the ID came back to the VOICE
     /// view model, and used to die with it. The thread existed on the server and
-    /// the app never showed it (user report, 2026-07-13).
+    /// the app never showed it (user report, 2026-07-13). An UNCHANGED id still
+    /// means new turns exist server-side — voice continued the open thread — so
+    /// the transcript is always rebuilt from the server (user report, 2026-07-21).
     func adopt(conversationID id: String) async {
-        guard conversationID != id else { return }
         conversationID = id
         messages = []
         await loadHistory()

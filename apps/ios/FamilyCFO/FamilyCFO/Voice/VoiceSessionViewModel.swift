@@ -140,7 +140,13 @@ final class VoiceSessionViewModel: Identifiable {
             let answer = response.recommendation.answer
             lastAnswer = answer
             phase = .speaking
-            await synthesizer.speak(SpokenReply.speakable(answer))
+            let speakable = SpokenReply.speakable(answer)
+            // An unspeakable answer must never be silent dead air — the user
+            // has no screen open to notice (user report, 2026-07-21).
+            await synthesizer.speak(
+                speakable.isEmpty
+                    ? "Sorry, I couldn't come up with an answer to that. Try asking again."
+                    : speakable)
             // Hands-free: keep the conversation going unless interrupted or
             // ended (both of which change phase out from under us).
             if phase == .speaking {

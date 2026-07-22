@@ -168,3 +168,58 @@ def test_a_raised_iteration_cap_lets_a_many_tool_plan_converge() -> None:
         ScriptedRuntime(script()), msgs, _TOOLS, execute, max_iterations=12
     )
     assert long.completed is True and long.answer == "Here is your plan."
+
+
+def test_an_empty_final_answer_is_nudged_not_returned() -> None:
+    # A reasoning model can burn the whole token budget thinking and emit an
+    # empty visible answer (content: null upstream). The loop must treat that
+    # as "not done" and ask for a brief plain answer — silence reached the
+    # voice UI as literal dead air (user report 2026-07-21).
+    runtime = ScriptedRuntime(
+        [
+            RuntimeToolCompletion(tool_calls=[], text="", model="m", raw={}),
+            RuntimeToolCompletion(
+                tool_calls=[], text="You can rely on it partially.", model="m", raw={}
+            ),
+        ]
+    )
+
+    result = run_tool_calling_loop(
+        runtime, [RuntimeMessage(role="user", content="social security?")], _TOOLS, lambda n, a: {}
+    )
+
+    assert result.completed is True
+    assert result.answer == "You can rely on it partially."
+    # The retry turn saw the corrective nudge.
+    assert any(
+        m.role == "user" and "empty" in m.content for m in runtime.seen_messages[-1]
+    )
+
+
+def test_persistently_empty_answers_end_as_not_converged() -> None:
+    runtime = ScriptedRuntime(
+        [RuntimeToolCompletion(tool_calls=[], text="", model="m", raw={}) for _ in range(6)]
+    )
+
+    result = run_tool_calling_loop(
+        runtime, [RuntimeMessage(role="user", content="q")], _TOOLS, lambda n, a: {}
+    )
+
+    assert result.completed is False
+    assert result.answer is None
+
+
+def test_a_whitespace_only_answer_counts_as_empty() -> None:
+    runtime = ScriptedRuntime(
+        [
+            RuntimeToolCompletion(tool_calls=[], text="  \n ", model="m", raw={}),
+            RuntimeToolCompletion(tool_calls=[], text="Done.", model="m", raw={}),
+        ]
+    )
+
+    result = run_tool_calling_loop(
+        runtime, [RuntimeMessage(role="user", content="q")], _TOOLS, lambda n, a: {}
+    )
+
+    assert result.completed is True
+    assert result.answer == "Done."

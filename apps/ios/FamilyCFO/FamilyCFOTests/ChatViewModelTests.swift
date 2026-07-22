@@ -220,13 +220,38 @@ struct VoiceConversationAdoptionTests {
         #expect(viewModel.messages.first?.text == "How much can I spend?")
     }
 
-    @Test func adoptingTheConversationAlreadyOpenIsANoOp() async {
+    /// The second half of that bug (2026-07-21): voice CONTINUING the already
+    /// open conversation returns the same id, but the new turns still only
+    /// exist server-side — adopting must re-fetch, not shortcut on "same id".
+    @Test func adoptingTheConversationAlreadyOpenReloadsItsTurns() async {
         let api = MockAdvisorAPI()
+        api.detail = .init(
+            id: "conv-1",
+            title: "When can I retire?",
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: [
+                .init(
+                    id: "m1", role: .user, content: "When can I retire?", sequence: 1,
+                    createdAt: .now),
+                .init(
+                    id: "m2", role: .assistant, content: "At 80 on current savings.",
+                    sequence: 2, createdAt: .now),
+                .init(
+                    id: "m3", role: .user, content: "What about my social security?",
+                    sequence: 3, createdAt: .now),
+                .init(
+                    id: "m4", role: .assistant, content: "It shifts the picture.",
+                    sequence: 4, createdAt: .now),
+            ]
+        )
         let viewModel = ChatViewModel(api: api, conversationID: "conv-1")
 
         await viewModel.adopt(conversationID: "conv-1")
 
         #expect(viewModel.conversationID == "conv-1")
+        #expect(viewModel.messages.count == 4)
+        #expect(viewModel.messages.last?.text == "It shifts the picture.")
     }
 
     @Test func ratingAnAnswerSubmitsFeedbackAndMarksItLocally() async {
