@@ -13,6 +13,9 @@ final class AnalyzerSpeechEngine: SpeechEngine {
     private var inputBuilder: AsyncStream<AnalyzerInput>.Continuation?
     private var recognitionTask: Task<Void, Never>?
     private var outputContinuation: AsyncStream<String>.Continuation?
+    private let activityMeter = VoiceActivityMeter()
+
+    var lastVoiceActivity: ContinuousClock.Instant? { activityMeter.lastVoiceActivity }
 
     func requestPermission() async -> Bool {
         await AVAudioApplication.requestRecordPermission()
@@ -65,8 +68,10 @@ final class AnalyzerSpeechEngine: SpeechEngine {
         // A leftover tap (from an interrupted/failed earlier session) would
         // crash Core Audio on install; removing when none exists is a no-op.
         audioEngine.inputNode.removeTap(onBus: 0)
+        let meter = activityMeter
         audioEngine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
             buffer, _ in
+            meter.process(buffer)
             let ratio = analyzerFormat.sampleRate / inputFormat.sampleRate
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
             guard

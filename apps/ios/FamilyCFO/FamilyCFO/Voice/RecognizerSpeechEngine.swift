@@ -11,6 +11,9 @@ final class RecognizerSpeechEngine: SpeechEngine {
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    private let activityMeter = VoiceActivityMeter()
+
+    var lastVoiceActivity: ContinuousClock.Instant? { activityMeter.lastVoiceActivity }
 
     func requestPermission() async -> Bool {
         let speech = await withCheckedContinuation { continuation in
@@ -45,8 +48,10 @@ final class RecognizerSpeechEngine: SpeechEngine {
         // A leftover tap (from an interrupted/failed earlier session) would
         // crash Core Audio on install; removing when none exists is a no-op.
         audioEngine.inputNode.removeTap(onBus: 0)
+        let meter = activityMeter
         audioEngine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
             buffer, _ in
+            meter.process(buffer)
             request.append(buffer)
         }
         audioEngine.prepare()

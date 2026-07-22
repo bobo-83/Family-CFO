@@ -110,9 +110,22 @@ final class VoiceSessionViewModel: Identifiable {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard let self, self.phase == .listening else { return }
-                let quietFor = ContinuousClock.now - self.lastTranscriptChange
+                let now = ContinuousClock.now
+                let sinceTranscript = now - self.lastTranscriptChange
+                // The recognizer's partial results stall mid-word on long
+                // utterances, so a still-changing transcript is NOT the only
+                // proof of speech: microphone energy says the user is still
+                // talking even while the hypothesis is being revised (user
+                // report 2026-07-21 — a long question was sent cut off).
+                let sinceVoice =
+                    self.engine.lastVoiceActivity.map { now - $0 } ?? sinceTranscript
+                let quietFor = min(sinceTranscript, sinceVoice)
                 let required = self.endOfUtterance.requiredSilence(after: self.transcript)
-                if !self.transcript.isEmpty, quietFor >= required {
+                // Steady non-speech noise (a fan, traffic) must not hold the
+                // turn open forever: once the transcript has sat unchanged far
+                // beyond the threshold, send what we have.
+                let noiseEscape = sinceTranscript >= required + .seconds(10)
+                if !self.transcript.isEmpty, quietFor >= required || noiseEscape {
                     // Hop to a fresh task: sendCurrentUtterance cancels the
                     // silence watcher as cleanup, and running it INSIDE the
                     // watcher would cancel the in-flight chat request
@@ -137,25 +150,60 @@ final class VoiceSessionViewModel: Identifiable {
             let response = try await api.sendMessage(
                 utterance, conversationID: conversationID, attachment: nil)
             conversationID = response.conversationId
-            let answer = response.recommendation.answer
-            lastAnswer = answer
-            phase = .speaking
-            let speakable = SpokenReply.speakable(answer)
-            // An unspeakable answer must never be silent dead air — the user
-            // has no screen open to notice (user report, 2026-07-21).
-            await synthesizer.speak(
-                speakable.isEmpty
-                    ? "Sorry, I couldn't come up with an answer to that. Try asking again."
-                    : speakable)
-            // Hands-free: keep the conversation going unless interrupted or
-            // ended (both of which change phase out from under us).
-            if phase == .speaking {
-                await startListening()
-            }
+            await speakAndResume(response.recommendation.answer)
         } catch is CancellationError {
             // The session was ended mid-request; nothing to report.
         } catch {
-            phase = .failed(ChatViewModel.describe(error))
+            // A long grounded answer can outlast the HTTP connection — the box
+            // finishes and SAVES it. Same recovery as the text chat's
+            // pollForSavedAnswer, or hands-free turns die on exactly the
+            // questions that need the most thinking (user report, 2026-07-21).
+            if conversationID != nil, ChatViewModel.mightStillBeGenerating(error),
+                let saved = await pollForSavedAnswer(utterance: utterance)
+            {
+                await speakAndResume(saved)
+            } else {
+                phase = .failed(ChatViewModel.describe(error))
+            }
         }
+    }
+
+    private func speakAndResume(_ answer: String) async {
+        lastAnswer = answer
+        phase = .speaking
+        let speakable = SpokenReply.speakable(answer)
+        // An unspeakable answer must never be silent dead air — the user
+        // has no screen open to notice (user report, 2026-07-21).
+        await synthesizer.speak(
+            speakable.isEmpty
+                ? "Sorry, I couldn't come up with an answer to that. Try asking again."
+                : speakable)
+        // Hands-free: keep the conversation going unless interrupted or
+        // ended (both of which change phase out from under us).
+        if phase == .speaking {
+            await startListening()
+        }
+    }
+
+    /// Poll the conversation until the box's saved answer to `utterance`
+    /// appears (or we give up). The user message and its answer are saved
+    /// together, so once our utterance is the last user turn, the assistant
+    /// message right after it is the answer.
+    private func pollForSavedAnswer(utterance: String) async -> String? {
+        guard let conversationID else { return nil }
+        for attempt in 0..<20 {  // ~2 min beyond the request that already died
+            if Task.isCancelled { return nil }
+            if attempt > 0 { try? await Task.sleep(for: .seconds(6)) }
+            guard let detail = try? await api.conversation(id: conversationID) else { continue }
+            let ordered = detail.messages.sorted { $0.sequence < $1.sequence }
+            guard
+                let userIndex = ordered.lastIndex(where: { $0.role == .user }),
+                ordered[userIndex].content == utterance,
+                userIndex + 1 < ordered.count,
+                ordered[userIndex + 1].role == .assistant
+            else { continue }
+            return ordered[userIndex + 1].content
+        }
+        return nil
     }
 }
