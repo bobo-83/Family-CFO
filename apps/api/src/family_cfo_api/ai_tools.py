@@ -104,9 +104,10 @@ GROUNDING_RULES = (
     "You are a household financial assistant for a single family. Answer the "
     "user's question using ONLY the provided tools for any financial figure. "
     "Never state a number, amount, or projection you did not obtain from a tool "
-    "result. Amounts are in minor currency units (e.g. cents); pass them as "
-    "integers and quote the human-readable 'display' string from tool results "
-    "back to the user. If a tool reports \"error\": \"missing_input\", ask the "
+    "result. Pass money arguments in DOLLARS (major units, e.g. 11000 for "
+    "$11,000). Tool results carry money as amount_minor (cents) plus a "
+    "human-readable 'display' string: ALWAYS quote the display string and "
+    "never read amount_minor as dollars — it is 100x smaller than it looks. If a tool reports \"error\": \"missing_input\", ask the "
     "user to supply that fact instead of guessing. If a tool reports "
     "\"error\": \"invalid_arguments\", correct the arguments and try again. Keep "
     "the final answer to a few plain-language sentences. "
@@ -235,6 +236,34 @@ def _int_arg(
     if minimum is not None and value < minimum:
         return None, _invalid(f"{field} must be >= {minimum}")
     return value, None
+
+
+def _money_arg(
+    args: dict[str, Any], field: str, *, minimum: int | None = None
+) -> tuple[int | None, dict[str, Any] | None]:
+    """A money argument in DOLLARS (major units) -> minor-units int (ADR 0063).
+
+    The model must never handle minor units: it read its own cents input back
+    as dollars ("save $1.1 million per month", user report 2026-07-22, when it
+    meant $11k). The legacy f"{field}_minor" integer form is still accepted so
+    an older cached tool schema cannot break a turn.
+    """
+    legacy = f"{field}_minor"
+    if args.get(legacy) is not None:
+        return _int_arg(args, legacy, minimum=minimum)
+    if field not in args or args[field] is None:
+        return None, _missing(field)
+    value = args[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, _invalid(f"{field} must be a number of dollars")
+    minor = int((Decimal(str(value)) * 100).to_integral_value(rounding=ROUND_HALF_UP))
+    if minimum is not None and minor < minimum:
+        return None, _invalid(f"{field} must be >= {minimum}")
+    return minor, None
+
+
+def _money_arg_present(args: dict[str, Any], field: str) -> bool:
+    return args.get(field) is not None or args.get(f"{field}_minor") is not None
 
 
 def _rate_arg(
@@ -431,7 +460,7 @@ def _project_purchase_impact(
     resolved_currency, error = _currency_arg(args, currency)
     if error:
         return error
-    price_minor, error = _int_arg(args, "price_minor", minimum=0)
+    price_minor, error = _money_arg(args, "price", minimum=0)
     if error:
         return error
     result, calc_id = finance_service.compute_purchase_impact(
@@ -444,7 +473,7 @@ def _future_value(engine: Engine, household_id: str, currency: str, args: dict[s
     resolved_currency, error = _currency_arg(args, currency)
     if error:
         return error
-    present_value_minor, error = _int_arg(args, "present_value_minor", minimum=0)
+    present_value_minor, error = _money_arg(args, "present_value", minimum=0)
     if error:
         return error
     rate, error = _rate_arg(args, "annual_return_rate")
@@ -486,8 +515,8 @@ def _grounded_retirement_inputs(
     defaults, error)."""
     assumptions: dict[str, Any] = {}
 
-    if args.get("current_savings_minor") is not None:
-        current_savings_minor, error = _int_arg(args, "current_savings_minor", minimum=0)
+    if _money_arg_present(args, "current_savings"):
+        current_savings_minor, error = _money_arg(args, "current_savings", minimum=0)
         if error:
             return None, None, None, None, None, error
     else:
@@ -509,10 +538,8 @@ def _grounded_retirement_inputs(
             Money(current_savings_minor, resolved_currency)
         )
 
-    if args.get("monthly_contribution_minor") is not None:
-        monthly_contribution_minor, error = _int_arg(
-            args, "monthly_contribution_minor", minimum=0
-        )
+    if _money_arg_present(args, "monthly_contribution"):
+        monthly_contribution_minor, error = _money_arg(args, "monthly_contribution", minimum=0)
         if error:
             return None, None, None, None, None, error
     else:
@@ -529,8 +556,8 @@ def _grounded_retirement_inputs(
         rate = _DEFAULT_RETIREMENT_RETURN
         assumptions["annual_return_rate_default"] = rate
 
-    if args.get("annual_expenses_minor") is not None:
-        expenses_minor, error = _int_arg(args, "annual_expenses_minor", minimum=0)
+    if _money_arg_present(args, "annual_expenses"):
+        expenses_minor, error = _money_arg(args, "annual_expenses", minimum=0)
         if error:
             return None, None, None, None, None, error
         annual_expenses = Money(expenses_minor, resolved_currency)
@@ -628,18 +655,18 @@ def _debt_payoff(engine: Engine, household_id: str, currency: str, args: dict[st
     resolved_currency, error = _currency_arg(args, currency)
     if error:
         return error
-    balance_minor, error = _int_arg(args, "balance_minor", minimum=0)
+    balance_minor, error = _money_arg(args, "balance", minimum=0)
     if error:
         return error
     rate, error = _rate_arg(args, "annual_interest_rate")
     if error:
         return error
-    minimum_payment_minor, error = _int_arg(args, "minimum_payment_minor", minimum=0)
+    minimum_payment_minor, error = _money_arg(args, "minimum_payment", minimum=0)
     if error:
         return error
     extra = None
-    if args.get("extra_monthly_payment_minor") is not None:
-        extra_minor, error = _int_arg(args, "extra_monthly_payment_minor", minimum=0)
+    if _money_arg_present(args, "extra_monthly_payment"):
+        extra_minor, error = _money_arg(args, "extra_monthly_payment", minimum=0)
         if error:
             return error
         extra = Money(extra_minor, resolved_currency)
@@ -674,8 +701,8 @@ def _get_exchange_rate(args: dict[str, Any]) -> dict[str, Any]:
     if not _ISO_CODE.match(quote):
         return _missing("quote") if not quote else _invalid("quote must be a 3-letter currency code")
     amount_minor = None
-    if args.get("amount_minor") is not None:
-        amount_minor, error = _int_arg(args, "amount_minor", minimum=0)
+    if _money_arg_present(args, "amount"):
+        amount_minor, error = _money_arg(args, "amount", minimum=0)
         if error:
             return error
     try:
@@ -1101,7 +1128,9 @@ _HANDLERS = {
     "find_savings": _find_savings,
 }
 
-_MONEY_FIELD = {"type": "integer", "description": "amount in minor currency units (e.g. cents)"}
+# ADR 0063: the model speaks DOLLARS, never minor units — it once read its
+# own cents input back as dollars ("$1.1 million per month" for $11k).
+_MONEY_FIELD = {"type": "number", "description": "amount in dollars (major units), e.g. 11000 or 49.99"}
 _CURRENCY_FIELD = {
     "type": "string",
     "description": "ISO currency code; defaults to the household base currency",
@@ -1170,8 +1199,8 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             description="How a one-off purchase of the given price affects net worth and cash buffers.",
             parameters={
                 "type": "object",
-                "properties": {"price_minor": _MONEY_FIELD, "currency": _CURRENCY_FIELD},
-                "required": ["price_minor"],
+                "properties": {"price": _MONEY_FIELD, "currency": _CURRENCY_FIELD},
+                "required": ["price"],
                 "additionalProperties": False,
             },
         ),
@@ -1184,12 +1213,12 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "present_value_minor": _MONEY_FIELD,
+                    "present_value": _MONEY_FIELD,
                     "annual_return_rate": _RATE_FIELD,
                     "years": {"type": "integer", "description": "number of whole years"},
                     "currency": _CURRENCY_FIELD,
                 },
-                "required": ["present_value_minor", "annual_return_rate", "years"],
+                "required": ["present_value", "annual_return_rate", "years"],
                 "additionalProperties": False,
             },
         ),
@@ -1197,7 +1226,7 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             name="project_retirement",
             description=(
                 "Project retirement savings from current age to retirement age. "
-                "SELF-GROUNDING: omit current_savings_minor and annual_expenses_minor and "
+                "SELF-GROUNDING: omit current_savings and annual_expenses and "
                 "they default to the household's REAL retirement+HSA balances and 12× their "
                 "essential monthly spending (the response lists every assumption for you to "
                 "state). NEVER ask the user for balances or spending — only their current "
@@ -1209,11 +1238,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "properties": {
                     "current_age": {"type": "integer"},
                     "retirement_age": {"type": "integer"},
-                    "current_savings_minor": {
+                    "current_savings": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to the household's retirement + HSA balances",
                     },
-                    "monthly_contribution_minor": {
+                    "monthly_contribution": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to 0 (payroll deferrals are invisible to bank data)",
                     },
@@ -1221,7 +1250,7 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                         **_RATE_FIELD,
                         "description": "optional: defaults to a modest 0.05",
                     },
-                    "annual_expenses_minor": {
+                    "annual_expenses": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to 12 × the household's essential monthly spending",
                     },
@@ -1245,11 +1274,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "type": "object",
                 "properties": {
                     "current_age": {"type": "integer"},
-                    "current_savings_minor": {
+                    "current_savings": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to the household's retirement + HSA balances",
                     },
-                    "monthly_contribution_minor": {
+                    "monthly_contribution": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to 0 (payroll deferrals are invisible to bank data)",
                     },
@@ -1257,7 +1286,7 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                         **_RATE_FIELD,
                         "description": "optional: defaults to a modest 0.05",
                     },
-                    "annual_expenses_minor": {
+                    "annual_expenses": {
                         **_MONEY_FIELD,
                         "description": "optional: defaults to 12 x the household's essential monthly spending",
                     },
@@ -1279,16 +1308,16 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             parameters={
                 "type": "object",
                 "properties": {
-                    "balance_minor": _MONEY_FIELD,
+                    "balance": _MONEY_FIELD,
                     "annual_interest_rate": _RATE_FIELD,
-                    "minimum_payment_minor": _MONEY_FIELD,
-                    "extra_monthly_payment_minor": {
+                    "minimum_payment": _MONEY_FIELD,
+                    "extra_monthly_payment": {
                         **_MONEY_FIELD,
                         "description": "optional: extra paid on top of the minimum each month",
                     },
                     "currency": _CURRENCY_FIELD,
                 },
-                "required": ["balance_minor", "annual_interest_rate", "minimum_payment_minor"],
+                "required": ["balance", "annual_interest_rate", "minimum_payment"],
                 "additionalProperties": False,
             },
         ),
@@ -1362,17 +1391,17 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 name="get_exchange_rate",
                 description=(
                     "Current currency exchange rate between two ISO codes (live, daily). Pass "
-                    "amount_minor to also get the converted amount computed for you — never "
-                    "multiply amounts by the rate yourself."
+                    "amount (in dollars/major units) to also get the converted amount "
+                    "computed for you — never multiply amounts by the rate yourself."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "base": {"type": "string", "description": "3-letter code, e.g. USD"},
                         "quote": {"type": "string", "description": "3-letter code, e.g. VND"},
-                        "amount_minor": {
-                            "type": "integer",
-                            "description": "optional amount in base minor units to convert",
+                        "amount": {
+                            **_MONEY_FIELD,
+                            "description": "optional amount in base-currency dollars to convert",
                         },
                     },
                     "required": ["base", "quote"],
