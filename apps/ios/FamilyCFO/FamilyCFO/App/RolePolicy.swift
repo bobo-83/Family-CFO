@@ -58,6 +58,7 @@ struct RolePolicy: Equatable {
     var canViewActivity: Bool { has("audit.view") }
     var canManageBackups: Bool { has("backups.manage") }
     var canManageMembers: Bool { has("members.manage") }
+    var canManageAiRuntime: Bool { has("ai_runtime.manage") }
 
     /// Legacy convenience still used by a few flows: any money-editing right.
     var canEditFinances: Bool {
