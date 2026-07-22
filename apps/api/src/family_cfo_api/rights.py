@@ -44,7 +44,7 @@ HOUSEHOLD_SETTINGS_MANAGE = "household.settings.manage"
 # ai_runtime.manage string — a household role must never grant them.
 AI_RUNTIME_MANAGE = "ai_runtime.manage"
 SYSTEM_ADMIN = "system.admin"
-BOX_RIGHTS: frozenset[str] = frozenset({AI_RUNTIME_MANAGE, SYSTEM_ADMIN})
+BOX_RIGHTS: frozenset[str] = frozenset({AI_RUNTIME_MANAGE, BACKUPS_MANAGE, SYSTEM_ADMIN})
 
 ALL_RIGHTS: frozenset[str] = frozenset(
     {
@@ -64,7 +64,6 @@ ALL_RIGHTS: frozenset[str] = frozenset(
         MEMBERS_MANAGE,
         ROLES_MANAGE,
         DEVICES_MANAGE,
-        BACKUPS_MANAGE,
         AUDIT_VIEW,
         HOUSEHOLD_SETTINGS_MANAGE,
     }

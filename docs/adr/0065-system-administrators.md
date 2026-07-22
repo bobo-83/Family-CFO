@@ -49,7 +49,20 @@ a per-household concept at all.
   wrong unit; operators are people, and the roster needs management UX
   (grant a second admin, revoke a departed one) that env vars can't offer.
 
+## Amendment (same day): backups are box-global too
+
+Backup, restore, key reveal, and backup deletion operate on the WHOLE box
+database — every household — via SMB to the family's NAS (M98), yet were
+gated by the household right `backups.manage`, which the demo Admin also
+held (including "reveal encryption key"). `backups.manage` joined
+`BOX_RIGHTS`: only system admins hold it, resolution/role-editor/client
+gating all follow automatically. The scheduler's automatic backups are
+server-side and unaffected. Household-scoped data stays household-gated —
+e.g. the advisor's study job (checked the same day) is per-household
+end-to-end and needs no box gating.
+
 ## Invariant
 
 A box-global power is granted only through the system-admin roster. No
-household role may ever confer one, and the roster never empties.
+household role may ever confer one, and the roster never empties. Current
+box rights: `system.admin`, `ai_runtime.manage`, `backups.manage`.
