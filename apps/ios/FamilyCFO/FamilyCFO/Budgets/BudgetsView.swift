@@ -5,7 +5,11 @@ import SwiftUI
 /// tap to change the limit, swipe to delete, + to add one for a category that
 /// doesn't have one yet.
 struct BudgetsView: View {
-    @Bindable var viewModel: BudgetsViewModel
+    // @State so the first instance survives parent re-renders — OverviewView
+    // builds this destination inline, and a plain reference property would be
+    // silently replaced by a fresh, never-loaded model (same bug as the AI
+    // runtime screen, user report 2026-07-22).
+    @State var viewModel: BudgetsViewModel
     @State private var addingBudget = false
     @State private var editing: Components.Schemas.Budget?
 

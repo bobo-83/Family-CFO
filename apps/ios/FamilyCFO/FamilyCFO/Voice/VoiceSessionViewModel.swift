@@ -155,13 +155,17 @@ final class VoiceSessionViewModel: Identifiable {
             // The session was ended mid-request; nothing to report.
         } catch {
             // A long grounded answer can outlast the HTTP connection — the box
-            // finishes and SAVES it. Same recovery as the text chat's
-            // pollForSavedAnswer, or hands-free turns die on exactly the
-            // questions that need the most thinking (user report, 2026-07-21).
-            if conversationID != nil, ChatViewModel.mightStillBeGenerating(error),
-                let saved = await pollForSavedAnswer(utterance: utterance)
+            // finishes and SAVES it. Shared recovery with the text chat, or
+            // hands-free turns die on exactly the questions that need the most
+            // thinking (user report, 2026-07-21). Works for the first turn of
+            // a fresh conversation too (no id yet — the newest conversation
+            // is matched by utterance instead).
+            if ChatViewModel.mightStillBeGenerating(error),
+                let recovered = await SavedAnswerRecovery(api: api).poll(
+                    utterance: utterance, conversationID: conversationID)
             {
-                await speakAndResume(saved)
+                conversationID = recovered.conversationID
+                await speakAndResume(recovered.answer.content)
             } else {
                 phase = .failed(ChatViewModel.describe(error))
             }
@@ -185,25 +189,4 @@ final class VoiceSessionViewModel: Identifiable {
         }
     }
 
-    /// Poll the conversation until the box's saved answer to `utterance`
-    /// appears (or we give up). The user message and its answer are saved
-    /// together, so once our utterance is the last user turn, the assistant
-    /// message right after it is the answer.
-    private func pollForSavedAnswer(utterance: String) async -> String? {
-        guard let conversationID else { return nil }
-        for attempt in 0..<20 {  // ~2 min beyond the request that already died
-            if Task.isCancelled { return nil }
-            if attempt > 0 { try? await Task.sleep(for: .seconds(6)) }
-            guard let detail = try? await api.conversation(id: conversationID) else { continue }
-            let ordered = detail.messages.sorted { $0.sequence < $1.sequence }
-            guard
-                let userIndex = ordered.lastIndex(where: { $0.role == .user }),
-                ordered[userIndex].content == utterance,
-                userIndex + 1 < ordered.count,
-                ordered[userIndex + 1].role == .assistant
-            else { continue }
-            return ordered[userIndex + 1].content
-        }
-        return nil
-    }
 }

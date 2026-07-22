@@ -5,7 +5,13 @@ import SwiftUI
 /// the box's hardware, model search, and one-tap swaps with live progress.
 struct AIRuntimeView: View {
     @Environment(AppModel.self) private var model
-    let viewModel: AIRuntimeViewModel
+    // @State, NOT let: the Settings screen re-renders whenever AppModel
+    // changes and rebuilds this destination with a FRESH view model — a plain
+    // `let` adopts that never-loaded instance while `.task` (keyed on view
+    // identity) never re-fires, leaving the screen stuck on "Checking…"
+    // (user reports 2026-07-12 and 2026-07-22). @State keeps the first
+    // instance alive across parent re-renders, like AdvisorKnowledgeView.
+    @State var viewModel: AIRuntimeViewModel
     @State private var searchText = ""
     @State private var confirmingApply: Components.Schemas.AiModelInfo?
 

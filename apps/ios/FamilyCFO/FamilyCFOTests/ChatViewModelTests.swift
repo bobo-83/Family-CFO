@@ -156,6 +156,33 @@ struct ChatViewModelTests {
         #expect(viewModel.messages.last?.recommendationId == "rec-9")  // rating still works
     }
 
+    /// The 2026-07-22 gap: the FIRST message of a conversation has no id to
+    /// poll, but the box mints the conversation and saves the answer anyway —
+    /// recovery must find it via the conversation list, newest first.
+    @Test func aDroppedFirstMessageRecoversViaTheConversationList() async {
+        let api = MockAdvisorAPI()
+        api.sendError = NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        api.conversations = [
+            .init(id: "conv-new", title: "When can I retire?", createdAt: .now, updatedAt: .now)
+        ]
+        api.detail = .init(
+            id: "conv-new", title: "When can I retire?", createdAt: .now, updatedAt: .now,
+            messages: [
+                .init(id: "u1", role: .user, content: "When can I retire?", sequence: 1, createdAt: .now),
+                .init(
+                    id: "a1", role: .assistant, content: "At 67 on current savings.",
+                    recommendationId: "rec-3", sequence: 2, createdAt: .now),
+            ]
+        )
+        let viewModel = ChatViewModel(api: api)  // brand-new chat, no conversation yet
+
+        await viewModel.send("When can I retire?")
+
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.conversationID == "conv-new")  // adopted the minted conversation
+        #expect(viewModel.messages.last?.text == "At 67 on current savings.")
+    }
+
     @Test func aTrulyOfflinePhoneStillErrors() async {
         let api = MockAdvisorAPI()
         api.error = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
