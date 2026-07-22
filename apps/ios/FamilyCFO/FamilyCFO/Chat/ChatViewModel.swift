@@ -9,6 +9,9 @@ final class ChatViewModel {
     private(set) var conversationID: String?
     private(set) var messages: [ChatMessage] = []
     private(set) var isSending = false
+    /// Live one-line narration from the streamed turn (ADR 0061): what the
+    /// advisor is doing right now ("Solving for your retirement age").
+    private(set) var progressDetail: String?
     private(set) var isLoadingHistory = false
     var errorMessage: String?
     var pendingAttachment: ChatAttachment?
@@ -69,13 +72,19 @@ final class ChatViewModel {
         outgoing.attachmentName = attachment?.displayName
         messages.append(outgoing)
         isSending = true
-        defer { isSending = false }
+        defer {
+            isSending = false
+            progressDetail = nil
+        }
 
         do {
             let response = try await api.sendMessage(
                 trimmed,
                 conversationID: conversationID,
-                attachment: attachment
+                attachment: attachment,
+                onProgress: { [weak self] detail in
+                    Task { @MainActor in self?.progressDetail = detail }
+                }
             )
             conversationID = response.conversationId
             messages.append(.from(response.recommendation))

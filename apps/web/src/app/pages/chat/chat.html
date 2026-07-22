@@ -239,7 +239,9 @@
 
         @if (sending()) {
           <div class="chat__turn">
-            <div class="chat__bubble chat__bubble--typing">The advisor is thinking…</div>
+            <div class="chat__bubble chat__bubble--typing">
+              {{ progressDetail() || 'The advisor is thinking…' }}
+            </div>
           </div>
         }
       </div>

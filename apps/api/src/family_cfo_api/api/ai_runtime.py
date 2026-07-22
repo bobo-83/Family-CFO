@@ -16,6 +16,7 @@ from family_cfo_api.schemas import (
     AiApplyRequest,
     AiHardwareProfile,
     AiModelCatalog,
+    AiModelDetail,
     AiModelInfo,
     AiRuntimeConfig,
     AiRuntimeStatus,
@@ -274,6 +275,65 @@ async def list_ai_models(
     session: repository.SessionContext = Depends(get_current_session),
 ) -> AiModelCatalog:
     return AiModelCatalog(models=[AiModelInfo(**asdict(model)) for model in MODEL_CATALOG])
+
+
+@router.get(
+    "/ai/models/detail",
+    operation_id="getAiModelDetail",
+    response_model=AiModelDetail,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Unknown model", "model": ErrorResponse},
+        503: {"description": "Hugging Face unreachable", "model": ErrorResponse},
+    },
+    summary="Drill-down for one model: curated/estimated specs + live hub stats",
+)
+async def get_ai_model_detail(
+    id: str,
+    session: repository.SessionContext = Depends(get_current_session),
+    settings: Settings = Depends(get_app_settings),
+) -> AiModelDetail:
+    # The id is a query param (repo ids contain '/'); same charset guard as
+    # the swap flow so the hub URL can't be shaped by the client.
+    if not _REPO_ID.match(id):
+        raise HTTPException(status_code=422, detail="invalid model id")
+    curated = next((m for m in MODEL_CATALOG if m.id == id), None)
+    try:
+        response = httpx.get(
+            f"{settings.hf_hub_url.rstrip('/')}/api/models/{id}",
+            timeout=_HF_TIMEOUT_SECONDS,
+        )
+    except httpx.HTTPError as exc:
+        if curated is not None:
+            # The hub being down must not blank the drill-down for models we
+            # already know everything important about.
+            return AiModelDetail(info=AiModelInfo(**asdict(curated)))
+        raise HTTPException(status_code=503, detail="Hugging Face is unreachable") from exc
+    if response.status_code in (401, 403, 404):
+        if curated is not None:
+            return AiModelDetail(info=AiModelInfo(**asdict(curated)))
+        raise HTTPException(status_code=404, detail="Model not found on the hub")
+    if response.status_code != 200:
+        raise HTTPException(status_code=503, detail="Hugging Face is unreachable")
+    item = response.json()
+    info = (
+        AiModelInfo(**asdict(curated))
+        if curated is not None
+        else _estimate_from_hf(item, item.get("pipeline_tag") or "text-generation")
+    )
+    if info is None:
+        raise HTTPException(status_code=404, detail="Model is not servable by the runtime")
+    card = item.get("cardData") or {}
+    license_value = card.get("license")
+    return AiModelDetail(
+        info=info,
+        downloads=item.get("downloads"),
+        likes=item.get("likes"),
+        last_modified=item.get("lastModified"),
+        # Bounded: HF tag lists run long; the drill-down shows a handful.
+        tags=[t for t in (item.get("tags") or []) if isinstance(t, str)][:16],
+        license=license_value if isinstance(license_value, str) else None,
+    )
 
 
 @router.get(

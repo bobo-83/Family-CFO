@@ -100,6 +100,7 @@ import {
   scanBill,
   scanLoanStatement,
   searchAiModels,
+  getAiModelDetail,
   syncConnection,
   revokePairedDevice,
   updateAccount,
@@ -123,6 +124,8 @@ import {
   type CategoryCreateRequest,
   type CategoryUpdateRequest,
   type ChatRequest,
+  type ChatResponse,
+  type ChatStreamEvent,
   type ConnectionCreateRequest,
   type GoalCreateRequest,
   type GoalUpdateRequest,
@@ -651,6 +654,79 @@ export class ApiService {
     deep?: boolean;
   }) {
     return searchAiModels({ query: options });
+  }
+
+  getAiModelDetail(id: string) {
+    return getAiModelDetail({ query: { id } });
+  }
+
+  /**
+   * Streamed chat turn (ADR 0061): `onProgress` gets live narration while the
+   * grounded loop works; resolves with the guardrail-validated answer. Falls
+   * back to the plain endpoint on a pre-ADR-0061 server (404). The socket
+   * carries keepalives while the model thinks, so weak connections no longer
+   * drop mid-generation.
+   */
+  async createChatMessageStream(
+    body: ChatRequest,
+    onProgress: (detail: string) => void,
+  ): Promise<{ data?: ChatResponse; error?: { detail?: string } | unknown }> {
+    const token = getToken();
+    let response: Response;
+    try {
+      response = await fetch('/api/v1/chat/messages/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      return { error };
+    }
+    if (response.status === 404) {
+      return await this.createChatMessage(body);
+    }
+    if (!response.ok || !response.body) {
+      return { error: { detail: `The server answered ${response.status}.` } };
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const handleFrame = (frame: string): { data?: ChatResponse; error?: { detail?: string } } | null => {
+      for (const line of frame.split('\n')) {
+        if (!line.startsWith('data: ')) continue; // ": ping" keepalive
+        const event = JSON.parse(line.slice(6)) as ChatStreamEvent;
+        if (event.type === 'progress' && event.detail) {
+          onProgress(event.detail);
+        } else if (event.type === 'answer' && event.response) {
+          return { data: event.response };
+        } else if (event.type === 'error') {
+          return { error: { detail: event.message ?? 'The advisor hit an unexpected error.' } };
+        }
+      }
+      return null;
+    };
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let separator: number;
+        while ((separator = buffer.indexOf('\n\n')) >= 0) {
+          const outcome = handleFrame(buffer.slice(0, separator));
+          buffer = buffer.slice(separator + 2);
+          if (outcome) return outcome;
+        }
+      }
+      // A final frame may arrive without its terminating blank line.
+      const tail = handleFrame(buffer);
+      if (tail) return tail;
+    } catch (error) {
+      return { error };
+    }
+    return { error: { detail: 'The connection dropped before the answer arrived.' } };
   }
 
   applyAiModelSelection(body: AiApplyRequest) {

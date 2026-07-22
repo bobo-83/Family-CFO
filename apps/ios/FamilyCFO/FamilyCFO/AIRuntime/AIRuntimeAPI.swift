@@ -9,6 +9,8 @@ protocol AIRuntimeAPI: Sendable {
     func catalog() async throws -> [Components.Schemas.AiModelInfo]
     func hardware() async throws -> Components.Schemas.AiHardwareProfile
     func search(query: String) async throws -> [Components.Schemas.AiModelInfo]
+    /// Drill-down: catalog/estimated specs + the hub's live stats for one model.
+    func detail(id: String) async throws -> Components.Schemas.AiModelDetail
     /// Kick off a swap: download (if needed) and restart the runtime.
     func apply(mainModel: String, visionModel: String?) async throws
         -> Components.Schemas.AiSwapStatus
@@ -46,6 +48,21 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
             return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func detail(id: String) async throws -> Components.Schemas.AiModelDetail {
+        switch try await client.getAiModelDetail(.init(query: .init(id: id))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
+        case .serviceUnavailable:
+            throw APIError.server(503)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

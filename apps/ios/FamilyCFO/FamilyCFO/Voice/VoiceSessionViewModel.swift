@@ -23,6 +23,8 @@ final class VoiceSessionViewModel: Identifiable {
     private(set) var transcript = ""
     private(set) var lastAnswer: String?
     private(set) var conversationID: String?
+    /// Live narration while the box works (ADR 0061), shown under the orb.
+    private(set) var thinkingDetail: String?
 
     /// When a pause counts as the end of what the user was saying. Not a flat
     /// timer: a mid-sentence hesitation must not be mistaken for a finished
@@ -146,9 +148,14 @@ final class VoiceSessionViewModel: Identifiable {
         silenceTask?.cancel()
         engine.stopTranscribing()
         phase = .thinking
+        thinkingDetail = nil
+        defer { thinkingDetail = nil }
         do {
             let response = try await api.sendMessage(
-                utterance, conversationID: conversationID, attachment: nil)
+                utterance, conversationID: conversationID, attachment: nil,
+                onProgress: { [weak self] detail in
+                    Task { @MainActor in self?.thinkingDetail = detail }
+                })
             conversationID = response.conversationId
             await speakAndResume(response.recommendation.answer)
         } catch is CancellationError {

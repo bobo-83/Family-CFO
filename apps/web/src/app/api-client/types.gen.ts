@@ -1094,6 +1094,19 @@ export type ChatResponse = {
     recommendation: Recommendation;
 };
 
+/**
+ * One server-sent event from the streaming chat endpoint (ADR 0061). progress events narrate the grounded loop (stage: photo | thinking | tool | revising); exactly one answer event carries the guardrail- validated ChatResponse; error replaces it when the turn failed.
+ *
+ */
+export type ChatStreamEvent = {
+    type: 'progress' | 'answer' | 'error';
+    stage?: string | null;
+    tool?: string | null;
+    detail?: string | null;
+    response?: ChatResponse;
+    message?: string | null;
+};
+
 export type ImportCreateRequest = {
     source_type: ImportSourceType;
     filename: string;
@@ -1622,6 +1635,19 @@ export type AiModelInfo = {
 
 export type AiModelCatalog = {
     models: Array<AiModelInfo>;
+};
+
+/**
+ * Drill-down for one model: catalog/estimated specs plus the Hugging Face hub's live stats, so a swap decision can be made from the phone.
+ *
+ */
+export type AiModelDetail = {
+    info: AiModelInfo;
+    downloads?: number | null;
+    likes?: number | null;
+    last_modified?: string | null;
+    tags?: Array<string>;
+    license?: string | null;
 };
 
 export type AiStudyInsight = {
@@ -4231,6 +4257,31 @@ export type CreateChatMessageResponses = {
 
 export type CreateChatMessageResponse = CreateChatMessageResponses[keyof CreateChatMessageResponses];
 
+export type CreateChatMessageStreamData = {
+    body: ChatRequest;
+    path?: never;
+    query?: never;
+    url: '/chat/messages/stream';
+};
+
+export type CreateChatMessageStreamErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type CreateChatMessageStreamError = CreateChatMessageStreamErrors[keyof CreateChatMessageStreamErrors];
+
+export type CreateChatMessageStreamResponses = {
+    /**
+     * Stream of ChatStreamEvent objects as SSE `data:` lines
+     */
+    200: ChatStreamEvent;
+};
+
+export type CreateChatMessageStreamResponse = CreateChatMessageStreamResponses[keyof CreateChatMessageStreamResponses];
+
 export type SubmitAdvisorFeedbackData = {
     body: AdvisorFeedbackRequest;
     path?: never;
@@ -5246,6 +5297,44 @@ export type ListAiModelsResponses = {
 };
 
 export type ListAiModelsResponse = ListAiModelsResponses[keyof ListAiModelsResponses];
+
+export type GetAiModelDetailData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Repo id (org/name) — a query param because ids contain '/'
+         */
+        id: string;
+    };
+    url: '/ai/models/detail';
+};
+
+export type GetAiModelDetailErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    503: ErrorResponse;
+};
+
+export type GetAiModelDetailError = GetAiModelDetailErrors[keyof GetAiModelDetailErrors];
+
+export type GetAiModelDetailResponses = {
+    /**
+     * Model detail
+     */
+    200: AiModelDetail;
+};
+
+export type GetAiModelDetailResponse = GetAiModelDetailResponses[keyof GetAiModelDetailResponses];
 
 export type GetAiHardwareProfileData = {
     body?: never;
