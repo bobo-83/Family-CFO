@@ -125,29 +125,35 @@ struct AIRuntimeView: View {
 
     @ViewBuilder private func modelRow(_ info: Components.Schemas.AiModelInfo) -> some View {
         let isCurrent = info.id == viewModel.status?.model
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(info.label).font(.subheadline).lineLimit(1)
-                HStack(spacing: 6) {
-                    Text("\(Self.format(info.parametersB))B · ~\(Int(info.estMemoryGb)) GB")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    if info.supportsVision {
-                        Text("vision").font(.caption2).foregroundStyle(.blue)
+        // The row is a drill-down (user request 2026-07-22); the trailing Use
+        // button keeps the one-tap swap for people who already know the model.
+        NavigationLink {
+            AIRuntimeModelDetailView(info: info, runtime: viewModel)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(info.label).font(.subheadline).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text("\(Self.format(info.parametersB))B · ~\(Int(info.estMemoryGb)) GB")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if info.supportsVision {
+                            Text("vision").font(.caption2).foregroundStyle(.blue)
+                        }
+                        if info.gated {
+                            Text("gated").font(.caption2).foregroundStyle(.orange)
+                        }
                     }
-                    if info.gated {
-                        Text("gated").font(.caption2).foregroundStyle(.orange)
-                    }
+                    fitBadge(viewModel.fit(of: info), isCurrent: isCurrent)
                 }
-                fitBadge(viewModel.fit(of: info), isCurrent: isCurrent)
-            }
-            Spacer()
-            if isCurrent {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            } else if canManage && viewModel.fit(of: info) != .tooBig {
-                Button("Use") { confirmingApply = info }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isApplying)
+                Spacer()
+                if isCurrent {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                } else if canManage && viewModel.fit(of: info) != .tooBig {
+                    Button("Use") { confirmingApply = info }
+                        .buttonStyle(.bordered)
+                        .disabled(viewModel.isApplying)
+                }
             }
         }
     }

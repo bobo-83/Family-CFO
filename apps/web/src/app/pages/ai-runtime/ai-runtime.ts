@@ -6,7 +6,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type { AiModelInfo, AiRuntimeConfig, AiSwapStatus } from '../../api-client';
+import type { AiModelDetail, AiModelInfo, AiRuntimeConfig, AiSwapStatus } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -298,6 +298,38 @@ export class AiRuntime {
 
   protected toggleExpand(id: string): void {
     this.expandedId.update((current) => (current === id ? null : id));
+    if (this.expandedId() === id) {
+      void this.loadHubDetail(id);
+    }
+  }
+
+  // Drill-down (user request 2026-07-22): the expanded row fetches the hub's
+  // live stats — downloads, likes, license, last update — via the box (the
+  // browser never talks to Hugging Face directly).
+  protected readonly hubDetail = signal<AiModelDetail | null>(null);
+  protected readonly hubDetailLoading = signal(false);
+
+  private async loadHubDetail(id: string): Promise<void> {
+    this.hubDetail.set(null);
+    this.hubDetailLoading.set(true);
+    try {
+      const { data } = await this.api.getAiModelDetail(id);
+      // Ignore a late response for a row that is no longer expanded.
+      if (this.expandedId() === id) {
+        this.hubDetail.set(data ?? null);
+      }
+    } catch {
+      // Hub stats are enrichment — their absence must never break the row.
+    } finally {
+      if (this.expandedId() === id) {
+        this.hubDetailLoading.set(false);
+      }
+    }
+  }
+
+  protected formatHubDate(iso: string): string {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
   }
 
   protected readonly applyState = signal<AiSwapStatus | null>(null);

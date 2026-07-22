@@ -391,3 +391,70 @@ async def test_catalog_lists_the_text_72b_awq(demo_client, demo_token) -> None:
     entry = models["Qwen/Qwen2.5-72B-Instruct-AWQ"]
     assert entry["role"] == "main" and entry["tool_parser"] == "hermes"
     assert entry["est_memory_gb"] == 47
+
+
+@pytest.mark.anyio
+async def test_model_detail_merges_estimates_with_hub_stats(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    def fake_get(url, params=None, timeout=None):
+        assert url.endswith("/api/models/Qwen/Qwen3.6-35B-A3B-FP8")
+        return httpx.Response(
+            200,
+            json={
+                "id": "Qwen/Qwen3.6-35B-A3B-FP8",
+                "pipeline_tag": "text-generation",
+                "downloads": 123456,
+                "likes": 789,
+                "lastModified": "2026-06-30T00:00:00.000Z",
+                "tags": ["qwen3_5_moe", "fp8", "conversational"],
+                "cardData": {"license": "apache-2.0"},
+                "gated": False,
+            },
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/detail?id=Qwen/Qwen3.6-35B-A3B-FP8",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["downloads"] == 123456
+    assert body["likes"] == 789
+    assert body["license"] == "apache-2.0"
+    assert "fp8" in body["tags"]
+    assert body["info"]["id"] == "Qwen/Qwen3.6-35B-A3B-FP8"
+    assert body["info"]["parameters_b"] > 0
+
+
+@pytest.mark.anyio
+async def test_model_detail_falls_back_to_curated_when_hub_is_down(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    from family_cfo_api.ai_catalog import MODEL_CATALOG
+
+    curated_id = MODEL_CATALOG[0].id
+
+    def fake_get(url, params=None, timeout=None):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        f"/api/v1/ai/models/detail?id={curated_id}",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["info"]["id"] == curated_id
+    assert body["downloads"] is None  # hub stats simply absent, not fabricated
+
+
+@pytest.mark.anyio
+async def test_model_detail_rejects_a_malformed_id(demo_client, demo_token) -> None:
+    resp = await demo_client.get(
+        "/api/v1/ai/models/detail?id=../etc/passwd",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert resp.status_code == 422

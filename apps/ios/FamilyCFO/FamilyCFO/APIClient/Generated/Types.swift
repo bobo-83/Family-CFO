@@ -418,6 +418,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /chat/messages`.
     /// - Remark: Generated from `#/paths//chat/messages/post(createChatMessage)`.
     func createChatMessage(_ input: Operations.CreateChatMessage.Input) async throws -> Operations.CreateChatMessage.Output
+    /// Send a message to the financial advisor (streamed progress)
+    ///
+    /// ADR 0061: server-sent events keep the socket alive and narrate the grounded loop while the model works. `progress` events carry stage/tool/detail; exactly one `answer` event carries the full ChatResponse AFTER the grounding guardrail validated it (the answer is never streamed token-by-token); `error` replaces it on failure. SSE comment lines (": ping") are keepalives and carry no event.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/messages/stream`.
+    /// - Remark: Generated from `#/paths//chat/messages/stream/post(createChatMessageStream)`.
+    func createChatMessageStream(_ input: Operations.CreateChatMessageStream.Input) async throws -> Operations.CreateChatMessageStream.Output
     /// Rate an advisor answer (👍/👎); the study job learns from it
     ///
     /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
@@ -594,6 +602,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /ai/models`.
     /// - Remark: Generated from `#/paths//ai/models/get(listAiModels)`.
     func listAiModels(_ input: Operations.ListAiModels.Input) async throws -> Operations.ListAiModels.Output
+    /// Drill-down for one model: curated/estimated specs + live hub stats
+    ///
+    /// - Remark: HTTP `GET /ai/models/detail`.
+    /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)`.
+    func getAiModelDetail(_ input: Operations.GetAiModelDetail.Input) async throws -> Operations.GetAiModelDetail.Output
     /// Report best-effort hardware facts for model-fit planning
     ///
     /// - Remark: HTTP `GET /ai/hardware`.
@@ -1590,6 +1603,22 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Send a message to the financial advisor (streamed progress)
+    ///
+    /// ADR 0061: server-sent events keep the socket alive and narrate the grounded loop while the model works. `progress` events carry stage/tool/detail; exactly one `answer` event carries the full ChatResponse AFTER the grounding guardrail validated it (the answer is never streamed token-by-token); `error` replaces it on failure. SSE comment lines (": ping") are keepalives and carry no event.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/messages/stream`.
+    /// - Remark: Generated from `#/paths//chat/messages/stream/post(createChatMessageStream)`.
+    public func createChatMessageStream(
+        headers: Operations.CreateChatMessageStream.Input.Headers = .init(),
+        body: Operations.CreateChatMessageStream.Input.Body
+    ) async throws -> Operations.CreateChatMessageStream.Output {
+        try await createChatMessageStream(Operations.CreateChatMessageStream.Input(
+            headers: headers,
+            body: body
+        ))
+    }
     /// Rate an advisor answer (👍/👎); the study job learns from it
     ///
     /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
@@ -1955,6 +1984,19 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//ai/models/get(listAiModels)`.
     public func listAiModels(headers: Operations.ListAiModels.Input.Headers = .init()) async throws -> Operations.ListAiModels.Output {
         try await listAiModels(Operations.ListAiModels.Input(headers: headers))
+    }
+    /// Drill-down for one model: curated/estimated specs + live hub stats
+    ///
+    /// - Remark: HTTP `GET /ai/models/detail`.
+    /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)`.
+    public func getAiModelDetail(
+        query: Operations.GetAiModelDetail.Input.Query,
+        headers: Operations.GetAiModelDetail.Input.Headers = .init()
+    ) async throws -> Operations.GetAiModelDetail.Output {
+        try await getAiModelDetail(Operations.GetAiModelDetail.Input(
+            query: query,
+            headers: headers
+        ))
     }
     /// Report best-effort hardware facts for model-fit planning
     ///
@@ -6268,6 +6310,62 @@ public enum Components {
                 case recommendation
             }
         }
+        /// One server-sent event from the streaming chat endpoint (ADR 0061). progress events narrate the grounded loop (stage: photo | thinking | tool | revising); exactly one answer event carries the guardrail- validated ChatResponse; error replaces it when the turn failed.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/ChatStreamEvent`.
+        public struct ChatStreamEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/type`.
+            @frozen public enum _TypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case progress = "progress"
+                case answer = "answer"
+                case error = "error"
+            }
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/type`.
+            public var _type: Components.Schemas.ChatStreamEvent._TypePayload
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/stage`.
+            public var stage: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/tool`.
+            public var tool: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/detail`.
+            public var detail: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/response`.
+            public var response: Components.Schemas.ChatResponse?
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/message`.
+            public var message: Swift.String?
+            /// Creates a new `ChatStreamEvent`.
+            ///
+            /// - Parameters:
+            ///   - _type:
+            ///   - stage:
+            ///   - tool:
+            ///   - detail:
+            ///   - response:
+            ///   - message:
+            public init(
+                _type: Components.Schemas.ChatStreamEvent._TypePayload,
+                stage: Swift.String? = nil,
+                tool: Swift.String? = nil,
+                detail: Swift.String? = nil,
+                response: Components.Schemas.ChatResponse? = nil,
+                message: Swift.String? = nil
+            ) {
+                self._type = _type
+                self.stage = stage
+                self.tool = tool
+                self.detail = detail
+                self.response = response
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case _type = "type"
+                case stage
+                case tool
+                case detail
+                case response
+                case message
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ImportCreateRequest`.
         public struct ImportCreateRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/ImportCreateRequest/source_type`.
@@ -8543,6 +8641,56 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case models
+            }
+        }
+        /// Drill-down for one model: catalog/estimated specs plus the Hugging Face hub's live stats, so a swap decision can be made from the phone.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiModelDetail`.
+        public struct AiModelDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/info`.
+            public var info: Components.Schemas.AiModelInfo
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/downloads`.
+            public var downloads: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/likes`.
+            public var likes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/last_modified`.
+            public var lastModified: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/tags`.
+            public var tags: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/AiModelDetail/license`.
+            public var license: Swift.String?
+            /// Creates a new `AiModelDetail`.
+            ///
+            /// - Parameters:
+            ///   - info:
+            ///   - downloads:
+            ///   - likes:
+            ///   - lastModified:
+            ///   - tags:
+            ///   - license:
+            public init(
+                info: Components.Schemas.AiModelInfo,
+                downloads: Swift.Int? = nil,
+                likes: Swift.Int? = nil,
+                lastModified: Swift.String? = nil,
+                tags: [Swift.String]? = nil,
+                license: Swift.String? = nil
+            ) {
+                self.info = info
+                self.downloads = downloads
+                self.likes = likes
+                self.lastModified = lastModified
+                self.tags = tags
+                self.license = license
+            }
+            public enum CodingKeys: String, CodingKey {
+                case info
+                case downloads
+                case likes
+                case lastModified = "last_modified"
+                case tags
+                case license
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiStudyInsight`.
@@ -22969,6 +23117,159 @@ public enum Operations {
             }
         }
     }
+    /// Send a message to the financial advisor (streamed progress)
+    ///
+    /// ADR 0061: server-sent events keep the socket alive and narrate the grounded loop while the model works. `progress` events carry stage/tool/detail; exactly one `answer` event carries the full ChatResponse AFTER the grounding guardrail validated it (the answer is never streamed token-by-token); `error` replaces it on failure. SSE comment lines (": ping") are keepalives and carry no event.
+    ///
+    ///
+    /// - Remark: HTTP `POST /chat/messages/stream`.
+    /// - Remark: Generated from `#/paths//chat/messages/stream/post(createChatMessageStream)`.
+    public enum CreateChatMessageStream {
+        public static let id: Swift.String = "createChatMessageStream"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/chat/messages/stream/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateChatMessageStream.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateChatMessageStream.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateChatMessageStream.Input.Headers
+            /// - Remark: Generated from `#/paths/chat/messages/stream/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/chat/messages/stream/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.ChatRequest)
+            }
+            public var body: Operations.CreateChatMessageStream.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateChatMessageStream.Input.Headers = .init(),
+                body: Operations.CreateChatMessageStream.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/content/text\/event-stream`.
+                    case textEventStream(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.textEventStream`.
+                    ///
+                    /// - Throws: An error if `self` is not `.textEventStream`.
+                    /// - SeeAlso: `.textEventStream`.
+                    public var textEventStream: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .textEventStream(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateChatMessageStream.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateChatMessageStream.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Stream of ChatStreamEvent objects as SSE `data:` lines
+            ///
+            /// - Remark: Generated from `#/paths//chat/messages/stream/post(createChatMessageStream)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.CreateChatMessageStream.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.CreateChatMessageStream.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//chat/messages/stream/post(createChatMessageStream)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case textEventStream
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "text/event-stream":
+                    self = .textEventStream
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .textEventStream:
+                    return "text/event-stream"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .textEventStream,
+                    .json
+                ]
+            }
+        }
+    }
     /// Rate an advisor answer (👍/👎); the study job learns from it
     ///
     /// ADR 0044: a member rates an advisor answer up or down (with an optional note). The idle-time study job later reviews flagged answers and distills a lesson into household knowledge. Re-rating updates in place.
@@ -28555,6 +28856,205 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Drill-down for one model: curated/estimated specs + live hub stats
+    ///
+    /// - Remark: HTTP `GET /ai/models/detail`.
+    /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)`.
+    public enum GetAiModelDetail {
+        public static let id: Swift.String = "getAiModelDetail"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/ai/models/detail/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Repo id (org/name) — a query param because ids contain '/'
+                ///
+                /// - Remark: Generated from `#/paths/ai/models/detail/GET/query/id`.
+                public var id: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - id: Repo id (org/name) — a query param because ids contain '/'
+                public init(id: Swift.String) {
+                    self.id = id
+                }
+            }
+            public var query: Operations.GetAiModelDetail.Input.Query
+            /// - Remark: Generated from `#/paths/ai/models/detail/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiModelDetail.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiModelDetail.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetAiModelDetail.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GetAiModelDetail.Input.Query,
+                headers: Operations.GetAiModelDetail.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/models/detail/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/models/detail/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AiModelDetail)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AiModelDetail {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetAiModelDetail.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetAiModelDetail.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Model detail
+            ///
+            /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetAiModelDetail.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetAiModelDetail.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }

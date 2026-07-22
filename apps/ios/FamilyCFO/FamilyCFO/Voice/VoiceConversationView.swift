@@ -75,7 +75,7 @@ struct VoiceConversationView: View {
         switch viewModel.phase {
         case .idle: return "Starting…"
         case .listening: return "Listening — just talk"
-        case .thinking: return "Thinking with your numbers…"
+        case .thinking: return viewModel.thinkingDetail ?? "Thinking with your numbers…"
         case .speaking: return "Tap the circle to interrupt"
         case .denied: return "Microphone access needed"
         case .failed: return "Something went wrong"

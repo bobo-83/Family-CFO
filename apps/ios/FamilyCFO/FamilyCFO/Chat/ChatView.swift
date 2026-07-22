@@ -154,9 +154,12 @@ struct ChatView: View {
                     if viewModel.isSending {
                         HStack {
                             ProgressView()
-                            Text("Thinking with your numbers…")
+                            // ADR 0061: the streamed turn narrates itself.
+                            Text(viewModel.progressDetail ?? "Thinking with your numbers…")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .contentTransition(.opacity)
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.progressDetail)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)

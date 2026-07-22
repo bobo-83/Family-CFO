@@ -26,7 +26,7 @@ describe('Chat', () => {
     getAiRuntimeStatus: ReturnType<typeof vi.fn>;
     listConversations: ReturnType<typeof vi.fn>;
     getConversation: ReturnType<typeof vi.fn>;
-    createChatMessage: ReturnType<typeof vi.fn>;
+    createChatMessageStream: ReturnType<typeof vi.fn>;
     deleteConversation: ReturnType<typeof vi.fn>;
     synthesizeSpeech: ReturnType<typeof vi.fn>;
     synthesizeSpeechBuffer: ReturnType<typeof vi.fn>;
@@ -40,7 +40,7 @@ describe('Chat', () => {
       }),
       listConversations: vi.fn().mockResolvedValue({ data: { conversations: [] } }),
       getConversation: vi.fn(),
-      createChatMessage: vi.fn(),
+      createChatMessageStream: vi.fn(),
       deleteConversation: vi.fn(),
       synthesizeSpeech: vi.fn(),
       synthesizeSpeechBuffer: vi.fn(),
@@ -59,7 +59,7 @@ describe('Chat', () => {
   it('does not send an empty message', async () => {
     const component = TestBed.createComponent(Chat).componentInstance;
     await component['send']();
-    expect(apiMock.createChatMessage).not.toHaveBeenCalled();
+    expect(apiMock.createChatMessageStream).not.toHaveBeenCalled();
   });
 
   it('shows the advisor disclaimer by default and hides it once dismissed (ADR 0031)', async () => {
@@ -80,7 +80,7 @@ describe('Chat', () => {
   });
 
   it('sends the message with the current conversation id and appends both turns', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
     });
     const component = TestBed.createComponent(Chat).componentInstance;
@@ -88,25 +88,25 @@ describe('Chat', () => {
     component['form'].setValue({ message: 'Can I afford a $1,000 phone?' });
     await component['send']();
 
-    expect(apiMock.createChatMessage).toHaveBeenCalledWith({
+    expect(apiMock.createChatMessageStream).toHaveBeenCalledWith({
       message: 'Can I afford a $1,000 phone?',
       conversation_id: undefined,
-    });
+    }, expect.any(Function));
     const turns = component['turns']();
     expect(turns[0]).toMatchObject({ role: 'user', content: 'Can I afford a $1,000 phone?' });
     expect(turns[1]).toMatchObject({ role: 'assistant', content: 'You can afford it.' });
     expect(component['conversationId']()).toBe('conv-9');
 
     // A follow-up carries the conversation id.
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('Still yes.') },
     });
     component['form'].setValue({ message: 'And a case too?' });
     await component['send']();
-    expect(apiMock.createChatMessage).toHaveBeenLastCalledWith({
+    expect(apiMock.createChatMessageStream).toHaveBeenLastCalledWith({
       message: 'And a case too?',
       conversation_id: 'conv-9',
-    });
+    }, expect.any(Function));
   });
 
   it('reads an answer aloud, falling back to system speech when no voice service (M87a)', async () => {
@@ -143,7 +143,7 @@ describe('Chat', () => {
   });
 
   it('surfaces an error and keeps the user turn', async () => {
-    apiMock.createChatMessage.mockResolvedValue({ error: { error: { message: 'runtime down' } } });
+    apiMock.createChatMessageStream.mockResolvedValue({ error: { error: { message: 'runtime down' } } });
     const component = TestBed.createComponent(Chat).componentInstance;
 
     component['form'].setValue({ message: 'hello' });
@@ -154,7 +154,7 @@ describe('Chat', () => {
   });
 
   it('startNewConversation clears the thread', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'c', recommendation: recommendation('hi') },
     });
     const component = TestBed.createComponent(Chat).componentInstance;
@@ -168,7 +168,7 @@ describe('Chat', () => {
   });
 
   it('sends the attached image and clears it afterwards', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'c1', recommendation: recommendation('Looks affordable.') },
     });
     const component = TestBed.createComponent(Chat).componentInstance;
@@ -181,12 +181,12 @@ describe('Chat', () => {
     component['form'].setValue({ message: 'Can I afford this?' });
     await component['send']();
 
-    expect(apiMock.createChatMessage).toHaveBeenCalledWith({
+    expect(apiMock.createChatMessageStream).toHaveBeenCalledWith({
       message: 'Can I afford this?',
       conversation_id: undefined,
       image_base64: 'aGVsbG8=',
       image_media_type: 'image/jpeg',
-    });
+    }, expect.any(Function));
     expect(component['attachedImage']()).toBeNull();
     expect(component['turns']()[0]).toMatchObject({ role: 'user', hadImage: true });
   });
@@ -202,11 +202,11 @@ describe('Chat', () => {
     component['removeImage']();
 
     expect(component['attachedImage']()).toBeNull();
-    expect(apiMock.createChatMessage).not.toHaveBeenCalled();
+    expect(apiMock.createChatMessageStream).not.toHaveBeenCalled();
   });
 
   it('renders model attribution on assistant turns', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'c', recommendation: recommendation('hi') },
     });
     const fixture = TestBed.createComponent(Chat);
@@ -222,7 +222,7 @@ describe('Chat', () => {
   it('shows both models when a photo was read', async () => {
     const rec = recommendation('Fits your budget.');
     rec.photo_described_by = 'Qwen/Qwen2.5-VL-7B-Instruct';
-    apiMock.createChatMessage.mockResolvedValue({ data: { conversation_id: 'c', recommendation: rec } });
+    apiMock.createChatMessageStream.mockResolvedValue({ data: { conversation_id: 'c', recommendation: rec } });
     const fixture = TestBed.createComponent(Chat);
     const component = fixture.componentInstance;
     component['form'].setValue({ message: 'how does this affect my savings?' });
@@ -235,7 +235,7 @@ describe('Chat', () => {
   });
 
   it('marks deterministic answers as no-AI', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'c', recommendation: recommendation('snapshot', 0.85, null) },
     });
     const fixture = TestBed.createComponent(Chat);
@@ -285,7 +285,7 @@ describe('Chat', () => {
   });
 
   it('rates an answer, submitting feedback and marking the turn (ADR 0044)', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
     });
     const component = TestBed.createComponent(Chat).componentInstance;
@@ -301,7 +301,7 @@ describe('Chat', () => {
   });
 
   it('sends a downvote note, updating the same feedback (ADR 0044)', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('You can afford it.') },
     });
     const component = TestBed.createComponent(Chat).componentInstance;
@@ -322,7 +322,7 @@ describe('Chat', () => {
   });
 
   it('reverts a failed rating and surfaces the error', async () => {
-    apiMock.createChatMessage.mockResolvedValue({
+    apiMock.createChatMessageStream.mockResolvedValue({
       data: { conversation_id: 'conv-9', recommendation: recommendation('Yes.') },
     });
     apiMock.submitAdvisorFeedback.mockResolvedValue({ error: { detail: 'nope' } });

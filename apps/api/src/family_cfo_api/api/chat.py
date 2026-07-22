@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
+import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.engine import Engine
 
 from family_cfo_ai_orchestrator import (
@@ -31,6 +35,7 @@ from family_cfo_api.schemas import (
     AdvisorFeedbackRequest,
     ChatRequest,
     ChatResponse,
+    ChatStreamEvent,
     ErrorResponse,
     Impact,
     Recommendation,
@@ -57,6 +62,29 @@ _ANSWER_MAX_TOKENS = 2400
 # bills, spending, find_savings…): a thorough answer exhausted the rounds and
 # fell back to the deterministic snapshot. Give it room to gather AND conclude.
 _ANSWER_MAX_ITERATIONS = 12
+
+# ADR 0061: streamed progress events. An event is a small JSON dict pushed to
+# the client while the loop works; the ANSWER is only ever sent after the
+# grounding guardrail passed — streaming changes what the user sees while
+# waiting, never what they see verified.
+ChatEventSink = Callable[[dict], None]
+
+# Friendly progress lines for the tools the advisor calls most; anything not
+# listed is humanized from its snake_case name.
+_TOOL_PROGRESS_LABELS = {
+    "when_can_i_retire": "Solving for your retirement age",
+    "project_retirement": "Projecting retirement savings",
+    "safe_to_spend": "Checking safe-to-spend",
+    "list_bills": "Reviewing your bills",
+    "debt_outlook": "Assessing debts",
+    "find_savings": "Looking for savings",
+    "net_worth": "Adding up net worth",
+    "emergency_fund": "Checking the emergency fund",
+}
+
+
+def _tool_progress_label(name: str) -> str:
+    return _TOOL_PROGRESS_LABELS.get(name, f"Checking {name.replace('_', ' ')}")
 
 _NO_VISION_WARNING = (
     "An attached photo could not be analyzed because no vision-capable AI model "
@@ -226,6 +254,7 @@ def _try_agentic_answer(
     memories: list[str] | None = None,
     conversation_summary: str | None = None,
     household_context: str | None = None,
+    on_event: ChatEventSink | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -239,6 +268,12 @@ def _try_agentic_answer(
 
     tools = ai_tools.build_tools(settings)
     executor = ai_tools.build_executor(engine, household.id, household.base_currency, settings)
+    if on_event is not None:
+        inner_executor = executor
+
+        def executor(name: str, arguments: dict):  # type: ignore[no-redef]
+            on_event({"type": "progress", "stage": "tool", "tool": name, "detail": _tool_progress_label(name)})
+            return inner_executor(name, arguments)
     # ADR 0011: the photo enters the loop as its text description only; the
     # description's numbers are grounded below since they trace to the image.
     user_content = message
@@ -319,6 +354,8 @@ def _try_agentic_answer(
                 "agentic chat answer had ungrounded numbers %s; retrying once",
                 guardrail.violations,
             )
+            if on_event is not None:
+                on_event({"type": "progress", "stage": "revising", "detail": "Double-checking the figures"})
             retry_messages = [
                 *messages,
                 RuntimeMessage(role="assistant", content=result.answer),
@@ -387,20 +424,19 @@ def _try_agentic_answer(
     )
 
 
-@router.post(
-    "/chat/messages",
-    operation_id="createChatMessage",
-    response_model=ChatResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
-    summary="Send a message to the financial advisor",
-)
-async def create_chat_message(
+def _chat_turn(
     payload: ChatRequest,
-    background_tasks: BackgroundTasks,
-    session: repository.SessionContext = Depends(get_current_session),
-    engine: Engine = Depends(get_engine),
-    settings: Settings = Depends(get_app_settings),
+    session: repository.SessionContext,
+    engine: Engine,
+    settings: Settings,
+    *,
+    schedule: Callable[..., None],
+    on_event: ChatEventSink | None = None,
 ) -> ChatResponse:
+    """One full advisor turn: analyze attachments, run the grounded loop,
+    persist, and build the response. Shared by the plain and streaming
+    endpoints; `schedule` defers post-response work (memory extraction) and
+    `on_event` receives progress events while the loop runs (ADR 0061)."""
     household = repository.get_household(engine, session.household_id)
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
@@ -421,6 +457,8 @@ async def create_chat_message(
     analysis = None
     image_data_url = _validate_image(payload, settings)
     if image_data_url is not None:
+        if on_event is not None:
+            on_event({"type": "progress", "stage": "photo", "detail": "Reading the attached photo"})
         analysis = _analyze_image(
             engine, household.id, settings, image_data_url, payload.message
         )
@@ -442,6 +480,8 @@ async def create_chat_message(
         latest_month=latest_month,
     )
 
+    if on_event is not None:
+        on_event({"type": "progress", "stage": "thinking", "detail": "Thinking with your numbers"})
     answer = _try_agentic_answer(
         engine,
         household,
@@ -453,6 +493,7 @@ async def create_chat_message(
         memories=memories,
         conversation_summary=conversation.summary if conversation else None,
         household_context=household_context,
+        on_event=on_event,
     ) or _deterministic_answer(engine, household)
 
     if analysis and analysis.warning:
@@ -504,7 +545,7 @@ async def create_chat_message(
 
     # M57 (ADR 0016): after the response is sent, extract durable facts from
     # this message and refresh the thread summary. Best-effort; never raises.
-    background_tasks.add_task(
+    schedule(
         ai_memory.remember_exchange,
         engine,
         household.id,
@@ -536,6 +577,106 @@ async def create_chat_message(
             answered_by=answer.answered_by,
             photo_described_by=photo_described_by,
         ),
+    )
+
+
+@router.post(
+    "/chat/messages",
+    operation_id="createChatMessage",
+    response_model=ChatResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Send a message to the financial advisor",
+)
+async def create_chat_message(
+    payload: ChatRequest,
+    background_tasks: BackgroundTasks,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> ChatResponse:
+    return _chat_turn(
+        payload, session, engine, settings, schedule=background_tasks.add_task
+    )
+
+
+@router.post(
+    "/chat/messages/stream",
+    operation_id="createChatMessageStream",
+    responses={
+        200: {
+            "description": (
+                "Server-sent events: `progress` events while the advisor works "
+                "(stage/tool/detail), then exactly one `answer` event carrying the "
+                "full ChatResponse once the grounding guardrail passed, or one "
+                "`error` event. Comment lines keep the socket alive."
+            ),
+            "content": {"text/event-stream": {"schema": ChatStreamEvent.model_json_schema()}},
+        },
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+    },
+    summary="Send a message to the financial advisor (streamed progress)",
+)
+async def create_chat_message_stream(
+    payload: ChatRequest,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> StreamingResponse:
+    """ADR 0061: the answer itself is NEVER streamed token-by-token — it is
+    sent whole, after the guardrail validated it. Streaming exists so the
+    socket carries bytes while the model thinks (weak-WiFi connections drop
+    idle sockets — nginx 499s) and so the user sees live progress."""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    def emit(event: dict | None) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    def schedule(func: Callable, /, *args) -> None:
+        # Post-response work must not hold the stream open; run it after the
+        # answer event, detached, mirroring BackgroundTasks semantics.
+        loop.call_soon_threadsafe(
+            lambda: loop.run_in_executor(None, lambda: func(*args))
+        )
+
+    def run_turn() -> None:
+        try:
+            response = _chat_turn(
+                payload, session, engine, settings, schedule=schedule, on_event=emit
+            )
+            emit({"type": "answer", "response": response.model_dump(mode="json", by_alias=True)})
+        except HTTPException as exc:
+            emit({"type": "error", "message": str(exc.detail)})
+        except Exception:
+            logger.exception("streamed chat turn failed")
+            emit({"type": "error", "message": "The advisor hit an unexpected error."})
+        finally:
+            emit(None)
+
+    worker = loop.run_in_executor(None, run_turn)
+
+    async def sse():
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=5.0)
+                except TimeoutError:
+                    yield ": ping\n\n"  # keepalive — the point of streaming
+                    continue
+                if event is None:
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            # A disconnected client must NOT cancel the turn: the worker thread
+            # keeps running, finishes, and saves the answer so the clients'
+            # SavedAnswerRecovery can find it. (No await here — the generator
+            # may be closing due to a disconnect, where awaiting is illegal.)
+            _ = worker
+
+    return StreamingResponse(
+        sse(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

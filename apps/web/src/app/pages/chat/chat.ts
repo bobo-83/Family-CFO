@@ -122,6 +122,8 @@ export class Chat implements OnDestroy {
   protected readonly turns = signal<ChatTurn[]>([]);
   protected readonly conversationId = signal<string | null>(null);
   protected readonly sending = signal(false);
+  // ADR 0061: live narration from the streamed turn ("Solving for your retirement age").
+  protected readonly progressDetail = signal<string | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly attachedImage = signal<AttachedImage | null>(null);
 
@@ -541,16 +543,21 @@ export class Chat implements OnDestroy {
     this.attachedImage.set(null);
     this.attachedFile.set(null);
 
-    const { data, error } = await this.api.createChatMessage({
-      message,
-      conversation_id: this.conversationId() ?? undefined,
-      image_base64: image?.base64,
-      image_media_type: image?.mediaType,
-      data_file_base64: file?.base64,
-      data_file_name: file?.name,
-    });
+    this.progressDetail.set(null);
+    const { data, error } = await this.api.createChatMessageStream(
+      {
+        message,
+        conversation_id: this.conversationId() ?? undefined,
+        image_base64: image?.base64,
+        image_media_type: image?.mediaType,
+        data_file_base64: file?.base64,
+        data_file_name: file?.name,
+      },
+      (detail) => this.progressDetail.set(detail),
+    );
 
     this.sending.set(false);
+    this.progressDetail.set(null);
 
     if (error || !data) {
       this.errorMessage.set(apiErrorMessage(error, 'The advisor could not answer. Please try again.'));
