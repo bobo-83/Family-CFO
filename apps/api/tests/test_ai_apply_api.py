@@ -458,3 +458,24 @@ async def test_model_detail_rejects_a_malformed_id(demo_client, demo_token) -> N
         headers={"Authorization": f"Bearer {demo_token}"},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_search_estimates_nvfp4_as_4bit(demo_client, demo_token, monkeypatch) -> None:
+    # unsloth/Qwen3.6-35B-A3B-NVFP4 was estimated at bf16 weight (74 GB) when
+    # its 4-bit weights are ~23 GB — fp4-family markers count as 4-bit.
+    def fake_get(url, params=None, timeout=None):
+        payload = (
+            [{"modelId": "unsloth/Qwen3.6-35B-A3B-NVFP4", "gated": False}]
+            if params["pipeline_tag"] == "text-generation"
+            else []
+        )
+        return httpx.Response(200, json=payload, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
+    resp = await demo_client.get(
+        "/api/v1/ai/models/search?q=nvfp4", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    assert resp.status_code == 200
+    model = {m["id"]: m for m in resp.json()["models"]}["unsloth/Qwen3.6-35B-A3B-NVFP4"]
+    assert model["est_memory_gb"] == 23  # 35 * 0.65, not 35 * 2.1

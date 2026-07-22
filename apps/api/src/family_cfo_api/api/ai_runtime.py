@@ -399,7 +399,7 @@ _HF_TIMEOUT_SECONDS = 6.0
 def _bytes_per_param(model_id: str) -> tuple[float, str]:
     """GB-per-billion-params from quantization markers in the name (M49)."""
     lower = model_id.lower()
-    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit")):
+    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit", "nvfp4", "mxfp4", "fp4")):
         return 0.65, "4-bit"
     if any(marker in lower for marker in ("fp8", "int8", "8bit", "8-bit")):
         return 1.1, "8-bit"
