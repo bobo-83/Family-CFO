@@ -968,6 +968,25 @@ class ChatStreamEvent(BaseModel):
     message: str | None = None
 
 
+class SystemAdmin(BaseModel):
+    """One box-level administrator (ADR 0065): a USER-scoped grant that
+    controls box-global machinery (model swaps), independent of households."""
+
+    user_id: str
+    email: str
+    display_name: str
+    granted_at: datetime
+    granted_by_user_id: str | None = None
+
+
+class SystemAdminList(BaseModel):
+    admins: list[SystemAdmin]
+
+
+class SystemAdminGrantRequest(BaseModel):
+    email: str
+
+
 class AiRuntimeConfig(BaseModel):
     provider: AiRuntimeProvider
     base_url: str

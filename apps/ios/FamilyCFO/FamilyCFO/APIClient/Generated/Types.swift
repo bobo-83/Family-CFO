@@ -617,6 +617,24 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /ai/models/search`.
     /// - Remark: Generated from `#/paths//ai/models/search/get(searchAiModels)`.
     func searchAiModels(_ input: Operations.SearchAiModels.Input) async throws -> Operations.SearchAiModels.Output
+    /// List the box's system administrators
+    ///
+    /// ADR 0065: box-global machinery (model swaps) is guarded by a USER-scoped system-admin roster, not household roles. The first household's owner is granted at bootstrap.
+    ///
+    ///
+    /// - Remark: HTTP `GET /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)`.
+    func listSystemAdmins(_ input: Operations.ListSystemAdmins.Input) async throws -> Operations.ListSystemAdmins.Output
+    /// Grant system administrator to an existing user by email
+    ///
+    /// - Remark: HTTP `POST /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)`.
+    func grantSystemAdmin(_ input: Operations.GrantSystemAdmin.Input) async throws -> Operations.GrantSystemAdmin.Output
+    /// Revoke a user's system administrator grant
+    ///
+    /// - Remark: HTTP `DELETE /system/admins/{user_id}`.
+    /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)`.
+    func revokeSystemAdmin(_ input: Operations.RevokeSystemAdmin.Input) async throws -> Operations.RevokeSystemAdmin.Output
     /// Apply a model selection: download and switch the served models
     ///
     /// - Remark: HTTP `POST /ai/runtime/apply`.
@@ -2015,6 +2033,42 @@ extension APIProtocol {
     ) async throws -> Operations.SearchAiModels.Output {
         try await searchAiModels(Operations.SearchAiModels.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// List the box's system administrators
+    ///
+    /// ADR 0065: box-global machinery (model swaps) is guarded by a USER-scoped system-admin roster, not household roles. The first household's owner is granted at bootstrap.
+    ///
+    ///
+    /// - Remark: HTTP `GET /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)`.
+    public func listSystemAdmins(headers: Operations.ListSystemAdmins.Input.Headers = .init()) async throws -> Operations.ListSystemAdmins.Output {
+        try await listSystemAdmins(Operations.ListSystemAdmins.Input(headers: headers))
+    }
+    /// Grant system administrator to an existing user by email
+    ///
+    /// - Remark: HTTP `POST /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)`.
+    public func grantSystemAdmin(
+        headers: Operations.GrantSystemAdmin.Input.Headers = .init(),
+        body: Operations.GrantSystemAdmin.Input.Body
+    ) async throws -> Operations.GrantSystemAdmin.Output {
+        try await grantSystemAdmin(Operations.GrantSystemAdmin.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Revoke a user's system administrator grant
+    ///
+    /// - Remark: HTTP `DELETE /system/admins/{user_id}`.
+    /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)`.
+    public func revokeSystemAdmin(
+        path: Operations.RevokeSystemAdmin.Input.Path,
+        headers: Operations.RevokeSystemAdmin.Input.Headers = .init()
+    ) async throws -> Operations.RevokeSystemAdmin.Output {
+        try await revokeSystemAdmin(Operations.RevokeSystemAdmin.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -8922,6 +8976,79 @@ public enum Components {
                 case duplicatesSkipped = "duplicates_skipped"
                 case transfersFiled = "transfers_filed"
                 case autoCategorized = "auto_categorized"
+            }
+        }
+        /// One box-level administrator (ADR 0065)
+        ///
+        /// - Remark: Generated from `#/components/schemas/SystemAdmin`.
+        public struct SystemAdmin: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SystemAdmin/user_id`.
+            public var userId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SystemAdmin/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SystemAdmin/display_name`.
+            public var displayName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SystemAdmin/granted_at`.
+            public var grantedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SystemAdmin/granted_by_user_id`.
+            public var grantedByUserId: Swift.String?
+            /// Creates a new `SystemAdmin`.
+            ///
+            /// - Parameters:
+            ///   - userId:
+            ///   - email:
+            ///   - displayName:
+            ///   - grantedAt:
+            ///   - grantedByUserId:
+            public init(
+                userId: Swift.String,
+                email: Swift.String,
+                displayName: Swift.String,
+                grantedAt: Foundation.Date,
+                grantedByUserId: Swift.String? = nil
+            ) {
+                self.userId = userId
+                self.email = email
+                self.displayName = displayName
+                self.grantedAt = grantedAt
+                self.grantedByUserId = grantedByUserId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case email
+                case displayName = "display_name"
+                case grantedAt = "granted_at"
+                case grantedByUserId = "granted_by_user_id"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SystemAdminList`.
+        public struct SystemAdminList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SystemAdminList/admins`.
+            public var admins: [Components.Schemas.SystemAdmin]
+            /// Creates a new `SystemAdminList`.
+            ///
+            /// - Parameters:
+            ///   - admins:
+            public init(admins: [Components.Schemas.SystemAdmin]) {
+                self.admins = admins
+            }
+            public enum CodingKeys: String, CodingKey {
+                case admins
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SystemAdminGrantRequest`.
+        public struct SystemAdminGrantRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SystemAdminGrantRequest/email`.
+            public var email: Swift.String
+            /// Creates a new `SystemAdminGrantRequest`.
+            ///
+            /// - Parameters:
+            ///   - email:
+            public init(email: Swift.String) {
+                self.email = email
+            }
+            public enum CodingKeys: String, CodingKey {
+                case email
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiApplyRequest`.
@@ -29389,6 +29516,582 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the box's system administrators
+    ///
+    /// ADR 0065: box-global machinery (model swaps) is guarded by a USER-scoped system-admin roster, not household roles. The first household's owner is granted at bootstrap.
+    ///
+    ///
+    /// - Remark: HTTP `GET /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)`.
+    public enum ListSystemAdmins {
+        public static let id: Swift.String = "listSystemAdmins"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/system/admins/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListSystemAdmins.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListSystemAdmins.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListSystemAdmins.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListSystemAdmins.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/system/admins/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/system/admins/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SystemAdminList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SystemAdminList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListSystemAdmins.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListSystemAdmins.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Roster
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListSystemAdmins.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListSystemAdmins.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/get(listSystemAdmins)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Grant system administrator to an existing user by email
+    ///
+    /// - Remark: HTTP `POST /system/admins`.
+    /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)`.
+    public enum GrantSystemAdmin {
+        public static let id: Swift.String = "grantSystemAdmin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/system/admins/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GrantSystemAdmin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GrantSystemAdmin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GrantSystemAdmin.Input.Headers
+            /// - Remark: Generated from `#/paths/system/admins/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/system/admins/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SystemAdminGrantRequest)
+            }
+            public var body: Operations.GrantSystemAdmin.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.GrantSystemAdmin.Input.Headers = .init(),
+                body: Operations.GrantSystemAdmin.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/system/admins/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/system/admins/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.SystemAdmin)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SystemAdmin {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GrantSystemAdmin.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GrantSystemAdmin.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Granted
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.GrantSystemAdmin.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.GrantSystemAdmin.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/post(grantSystemAdmin)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Revoke a user's system administrator grant
+    ///
+    /// - Remark: HTTP `DELETE /system/admins/{user_id}`.
+    /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)`.
+    public enum RevokeSystemAdmin {
+        public static let id: Swift.String = "revokeSystemAdmin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/system/admins/{user_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/system/admins/{user_id}/DELETE/path/user_id`.
+                public var userId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - userId:
+                public init(userId: Swift.String) {
+                    self.userId = userId
+                }
+            }
+            public var path: Operations.RevokeSystemAdmin.Input.Path
+            /// - Remark: Generated from `#/paths/system/admins/{user_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RevokeSystemAdmin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RevokeSystemAdmin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RevokeSystemAdmin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.RevokeSystemAdmin.Input.Path,
+                headers: Operations.RevokeSystemAdmin.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Revoked
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.RevokeSystemAdmin.Output.NoContent)
+            /// Revoked
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.RevokeSystemAdmin.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }

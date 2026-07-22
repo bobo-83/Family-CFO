@@ -30,12 +30,16 @@ def _to_schema(record: repository.RoleRecord) -> Role:
 
 
 def _validate_rights(requested: list[str]) -> set[str]:
-    unknown = set(requested) - rights.ALL_RIGHTS
+    # Box-level rights (ADR 0065) are silently dropped rather than rejected:
+    # roles saved before the system-admin split may still carry the legacy
+    # ai_runtime.manage string, and re-saving such a role must not 422.
+    cleaned = set(requested) - rights.BOX_RIGHTS
+    unknown = cleaned - rights.ALL_RIGHTS
     if unknown:
         raise HTTPException(
             status_code=422, detail=f"Unknown rights: {', '.join(sorted(unknown))}"
         )
-    return set(requested)
+    return cleaned
 
 
 @router.get(

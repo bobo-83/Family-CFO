@@ -25,6 +25,9 @@ describe('Users', () => {
     updateMemberRole: ReturnType<typeof vi.fn>;
     deleteMember: ReturnType<typeof vi.fn>;
     listInvites: ReturnType<typeof vi.fn>;
+    listSystemAdmins: ReturnType<typeof vi.fn>;
+    grantSystemAdmin: ReturnType<typeof vi.fn>;
+    revokeSystemAdmin: ReturnType<typeof vi.fn>;
     createInvite: ReturnType<typeof vi.fn>;
     regenerateInviteToken: ReturnType<typeof vi.fn>;
     revokeInvite: ReturnType<typeof vi.fn>;
@@ -49,6 +52,9 @@ describe('Users', () => {
       updateMemberRole: vi.fn(),
       deleteMember: vi.fn(),
       listInvites: vi.fn().mockResolvedValue(response({ invites: [] })),
+      listSystemAdmins: vi.fn().mockResolvedValue(response({ admins: [] })),
+      grantSystemAdmin: vi.fn(),
+      revokeSystemAdmin: vi.fn(),
       createInvite: vi.fn(),
       regenerateInviteToken: vi.fn(),
       revokeInvite: vi.fn(),

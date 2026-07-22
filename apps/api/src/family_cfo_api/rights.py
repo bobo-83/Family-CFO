@@ -35,7 +35,16 @@ DEVICES_MANAGE = "devices.manage"
 BACKUPS_MANAGE = "backups.manage"
 AUDIT_VIEW = "audit.view"
 HOUSEHOLD_SETTINGS_MANAGE = "household.settings.manage"
+
+# --- Box-level (ADR 0065) -----------------------------------------------------
+# These are NOT household-role rights: one vLLM serves every household, so
+# runtime control belongs to the box's SYSTEM ADMINS (users, not roles). They
+# are injected into a session's effective rights when the user is a system
+# admin, and stripped from any household role that still carries the legacy
+# ai_runtime.manage string — a household role must never grant them.
 AI_RUNTIME_MANAGE = "ai_runtime.manage"
+SYSTEM_ADMIN = "system.admin"
+BOX_RIGHTS: frozenset[str] = frozenset({AI_RUNTIME_MANAGE, SYSTEM_ADMIN})
 
 ALL_RIGHTS: frozenset[str] = frozenset(
     {
@@ -58,7 +67,6 @@ ALL_RIGHTS: frozenset[str] = frozenset(
         BACKUPS_MANAGE,
         AUDIT_VIEW,
         HOUSEHOLD_SETTINGS_MANAGE,
-        AI_RUNTIME_MANAGE,
     }
 )
 
