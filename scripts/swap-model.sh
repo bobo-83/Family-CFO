@@ -34,7 +34,21 @@ VISION="${2:-}"
 parser_for() {
   case "$1" in
     *Llama*|*llama*) echo "llama3_json" ;;
+    # Qwen3.5/3.6 and Qwen3-Coder emit XML-style tool calls; hermes silently
+    # drops them (tool calls leak into the answer as <function=...> text).
+    *Qwen3.6*|*Qwen3.5*|*Qwen3-Coder*|*qwen3.6*|*qwen3.5*|*qwen3-coder*) echo "qwen3_coder" ;;
     *) echo "hermes" ;;
+  esac
+}
+
+# Optional model-specific vLLM flags (ADR 0060). Qwen3.6-A3B checkpoints ship
+# a 1-layer MTP head -> lossless speculative decoding, ~1.35x decode. MUST be
+# cleared for models without the head or vLLM crash-loops on startup.
+extra_args_for() {
+  case "$1" in
+    *Qwen3.6-*A3B*|*qwen3.6-*a3b*)
+      echo "--speculative-config '{\"method\":\"qwen3_5_mtp\",\"num_speculative_tokens\":2}'" ;;
+    *) echo "" ;;
   esac
 }
 
@@ -86,6 +100,7 @@ set_env() { # set_env KEY VALUE — update in place or append
 
 set_env VLLM_MODEL "$MAIN"
 set_env VLLM_TOOL_PARSER "$(parser_for "$MAIN")"
+set_env VLLM_EXTRA_ARGS "$(extra_args_for "$MAIN")"
 
 scale_args=()
 if is_vision_model "$MAIN"; then

@@ -180,27 +180,28 @@ services:
     # tool-calling loop can't ground any numbers and every chat silently falls
     # back to the deterministic snapshot. The parser must match the model
     # family (hermes for Qwen2.5, llama3_json for Llama 3.x).
+    # Shell form so VLLM_EXTRA_ARGS can carry optional model-specific flags
+    # (e.g. --speculative-config for checkpoints shipping an MTP head, ADR
+    # 0060) — a static YAML list cannot express an optional argument. Compose
+    # interpolates ${...} before the shell parses the line; no interpolated
+    # value may contain spaces except VLLM_EXTRA_ARGS itself (whose JSON must
+    # be written space-free and single-quoted in .env).
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - "--model"
-      - "${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}"
-      - "--enable-auto-tool-choice"
-      - "--tool-call-parser"
-      - "${VLLM_TOOL_PARSER:-hermes}"
-      # Thinking-by-default models (Qwen3.x) put their chain-of-thought in the
-      # response content unless a reasoning parser splits it into
+      # Reasoning parser: thinking-by-default models (Qwen3.x) put their
+      # chain-of-thought in the response content unless it is split into
       # `reasoning_content` — without this the advisor's "answer" is raw
-      # deliberation instead of the conclusion.
-      - "--reasoning-parser"
-      - "${VLLM_REASONING_PARSER:-qwen3}"
-      # Fraction of GPU memory this instance may claim — must leave room for
-      # the vllm-vision describer below (ADR 0011).
-      - "--gpu-memory-utilization"
-      - "${VLLM_GPU_FRACTION:-0.60}"
-      # Cap the context window: models shipping 128k defaults (e.g. VL-72B)
-      # need ~39 GiB of KV cache at full length and crash-loop on startup.
-      # 32k is ample for chat + tool calls and keeps KV under ~10 GiB.
-      - "--max-model-len"
-      - "${VLLM_MAX_MODEL_LEN:-32768}"
+      # deliberation. GPU fraction must leave room for vllm-vision (ADR 0011).
+      # max-model-len 32k: 128k defaults need ~39 GiB KV and crash-loop.
+      - >-
+        exec vllm serve
+        '${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}'
+        --enable-auto-tool-choice
+        --tool-call-parser '${VLLM_TOOL_PARSER:-hermes}'
+        --reasoning-parser '${VLLM_REASONING_PARSER:-qwen3}'
+        --gpu-memory-utilization '${VLLM_GPU_FRACTION:-0.60}'
+        --max-model-len '${VLLM_MAX_MODEL_LEN:-32768}'
+        ${VLLM_EXTRA_ARGS:-}
     environment:
       # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
