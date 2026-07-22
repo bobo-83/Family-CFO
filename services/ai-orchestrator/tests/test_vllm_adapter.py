@@ -88,3 +88,24 @@ def test_complete_raises_runtime_unavailable_on_malformed_response() -> None:
 
     with pytest.raises(RuntimeUnavailableError):
         adapter.complete(MESSAGES)
+
+
+def test_complete_coerces_null_content_to_empty_string() -> None:
+    # vLLM's reasoning parser returns content: null when the model spent its
+    # whole token budget thinking; callers must get "" (str), never None.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "test-model",
+                "choices": [
+                    {"message": {"content": None, "reasoning_content": "hmm..."}}
+                ],
+            },
+        )
+
+    adapter = VLLMAdapter("http://vllm.local:8000", "test-model", client=_client(handler))
+
+    completion = adapter.complete(MESSAGES)
+
+    assert completion.text == ""
