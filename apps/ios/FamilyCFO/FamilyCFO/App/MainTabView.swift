@@ -37,51 +37,26 @@ struct MainTabView: View {
                     AccountsView(viewModel: AccountsViewModel(api: accounts))
                 }
             }
-            // Grouped: SwiftUI's tab builder caps at 10 direct children, and the
-            // Income tab (ADR 0041) made 11. Group is invisible to the tab bar.
-            Group {
-                if model.rolePolicy.canManageBills, let billsModel {
-                    Tab("Bills", systemImage: "calendar") {
-                        BillsView(viewModel: billsModel)
-                    }
-                    .badge(billsModel.pendingCount)
+            if model.rolePolicy.canManageBills, let billsModel {
+                Tab("Bills", systemImage: "calendar") {
+                    BillsView(viewModel: billsModel)
                 }
-                if model.rolePolicy.canManageIncome, let income = model.income {
-                    Tab("Income", systemImage: "dollarsign.circle") {
-                        IncomeView(viewModel: IncomeViewModel(api: income))
-                    }
-                }
-                if model.rolePolicy.canCategorize {
-                    Tab("Categories", systemImage: "tag") {
-                        CategorizeView()
-                    }
-                }
+                .badge(billsModel.pendingCount)
             }
-            if let debts = model.debts {
-                Tab("Debts", systemImage: "banknote") {
-                    NavigationStack { DebtsView(api: debts) }
-                }
+            // Everything else lives in OUR More tab (one NavigationStack).
+            // With more tabs than fit, iOS used to collapse the overflow into
+            // the SYSTEM More tab, which wraps its own navigation controller
+            // around screens that already own a stack — two nav bars and two
+            // back buttons (user report 2026-07-22). Settings is in here and
+            // never hidden — sign out lives there (ADR 0034).
+            Tab("More", systemImage: "ellipsis.circle") {
+                MoreView(
+                    reviewModel: reviewModel,
+                    budgetsModel: budgetsModel,
+                    goalsModel: goalsModel
+                )
             }
-            if model.rolePolicy.canCategorize, let reviewModel {
-                Tab("Review", systemImage: "checklist") {
-                    ReviewView(viewModel: reviewModel)
-                }
-                .badge(reviewModel.reviewCount)
-            }
-            if model.rolePolicy.canManageBudgets, let budgetsModel {
-                Tab("Budgets", systemImage: "chart.pie") {
-                    NavigationStack { BudgetsView(viewModel: budgetsModel) }
-                }
-            }
-            if model.rolePolicy.canManageGoals, let goalsModel {
-                Tab("Goals", systemImage: "target") {
-                    NavigationStack { GoalsView(viewModel: goalsModel) }
-                }
-            }
-            // Settings is never hidden — sign out lives here (ADR 0034).
-            Tab("Settings", systemImage: "gearshape") {
-                SettingsView()
-            }
+            .badge(reviewModel?.reviewCount ?? 0)
         }
         .sheet(isPresented: $showSharedInbox) {
             if let api = model.transactionDetail {
@@ -122,14 +97,88 @@ struct MainTabView: View {
     }
 }
 
+/// Our own overflow tab: ONE NavigationStack hosting every secondary screen,
+/// so nothing ever lands in the system More tab's extra navigation controller
+/// (which stacked a second nav bar over screens that own one — the
+/// double-back-button report, 2026-07-22). Pushed screens must NOT create
+/// their own stack; sheets inside them still may.
+private struct MoreView: View {
+    @Environment(AppModel.self) private var model
+    let reviewModel: ReviewViewModel?
+    let budgetsModel: BudgetsViewModel?
+    let goalsModel: GoalsViewModel?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if model.rolePolicy.canManageIncome, let income = model.income {
+                        NavigationLink {
+                            IncomeView(viewModel: IncomeViewModel(api: income))
+                        } label: {
+                            Label("Income", systemImage: "dollarsign.circle")
+                        }
+                    }
+                    if model.rolePolicy.canCategorize {
+                        NavigationLink {
+                            CategorizeView()
+                        } label: {
+                            Label("Categories", systemImage: "tag")
+                        }
+                    }
+                    if let debts = model.debts {
+                        NavigationLink {
+                            DebtsView(api: debts)
+                        } label: {
+                            Label("Debts", systemImage: "banknote")
+                        }
+                    }
+                    if model.rolePolicy.canCategorize, let reviewModel {
+                        NavigationLink {
+                            ReviewView(viewModel: reviewModel)
+                        } label: {
+                            Label("Review", systemImage: "checklist")
+                                .badge(reviewModel.reviewCount)
+                        }
+                    }
+                    if model.rolePolicy.canManageBudgets, let budgetsModel {
+                        NavigationLink {
+                            BudgetsView(viewModel: budgetsModel)
+                        } label: {
+                            Label("Budgets", systemImage: "chart.pie")
+                        }
+                    }
+                    if model.rolePolicy.canManageGoals, let goalsModel {
+                        NavigationLink {
+                            GoalsView(viewModel: goalsModel)
+                        } label: {
+                            Label("Goals", systemImage: "target")
+                        }
+                    }
+                }
+                Section {
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                }
+            }
+            .navigationTitle("More")
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingUnpair = false
     @State private var confirmingSignOut = false
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
 
+    // No NavigationStack of its own: pushed inside MoreView's stack — a second
+    // stack here is exactly what doubled the nav bars (2026-07-22).
     var body: some View {
-        NavigationStack {
+        Group {
             Form {
                 Section("Household") {
                     LabeledContent("Name", value: model.server?.householdName ?? "—")

@@ -13,8 +13,10 @@ struct IncomeView: View {
     @State var viewModel: IncomeViewModel
     @State private var recategorizing: Components.Schemas.IncomeAnalysisTransaction?
 
+    // No NavigationStack of its own: pushed inside MoreView's stack — a
+    // second stack here doubles the nav bars (user report 2026-07-22).
     var body: some View {
-        NavigationStack {
+        Group {
             Group {
                 if let errorMessage = viewModel.errorMessage, viewModel.analysis == nil {
                     ContentUnavailableView {
