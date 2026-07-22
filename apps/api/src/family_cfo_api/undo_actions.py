@@ -117,6 +117,10 @@ UNDO_POLICY: dict[str, str] = {
     # invites (ADR 0056)
     "invite.created": UNDOABLE,
     "invite.revoked": UNDOABLE,
+    # ADR 0065: box-admin roster changes. Both directions restore cleanly; the
+    # never-remove-the-last-admin rule is enforced on the undo path too.
+    "system_admin.granted": UNDOABLE,
+    "system_admin.revoked": UNDOABLE,
     "invite.token_regenerated": IRREVERSIBLE,  # revealed a new secret; the old one isn't stored
     "invite.accepted": IRREVERSIBLE,  # the invitee set a password we refuse to replay
     # goals
@@ -154,6 +158,16 @@ def _date(value: str | None) -> date | None:
 def created(entity: str, entity_id: str) -> str:
     """A CREATE is undone by deleting the new record."""
     return json.dumps({"op": "delete", "entity": entity, "id": entity_id})
+
+
+def system_admin_revoked(user_id: str, granted_by_user_id: str | None) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "system_admin",
+            "data": {"user_id": user_id, "granted_by_user_id": granted_by_user_id},
+        }
+    )
 
 
 def bill_deleted(bill: repository.RecurringRecord) -> str:
@@ -649,6 +663,13 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         # Undo of invite.created: remove the invite outright — the link dies.
         if not repository.delete_invite(engine, household_id, entity_id):
             raise UndoError("that invite was already accepted")
+    elif entity == "system_admin":
+        # Undo of system_admin.granted (entity_id is the USER id). The roster
+        # must never empty — same rule as the delete endpoint.
+        if repository.count_system_admins(engine) <= 1:
+            raise UndoError("the box must keep at least one system administrator")
+        if not repository.revoke_system_admin(engine, entity_id):
+            raise UndoError("that user is no longer a system administrator")
     elif entity == "connection":
         repository.delete_institution_connection(engine, household_id, entity_id)
     elif entity == "goal":
@@ -665,6 +686,12 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
 
 
 def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[str, Any]) -> None:
+    if entity == "system_admin":
+        # Undo of system_admin.revoked: put the user back on the roster.
+        repository.grant_system_admin(
+            engine, data["user_id"], data.get("granted_by_user_id")
+        )
+        return
     if entity == "bill":
         repository.create_bill(
             engine, household_id,

@@ -183,6 +183,18 @@ household_memberships = Table(
 
 # ADR 0056: copy-link invites. The admin shares a one-time LINK (the box sends
 # no email); its CSPRNG token is stored SHA-256-hashed here. Status is computed
+# ADR 0065: box-level system administrators — a USER-scoped grant (one vLLM
+# serves every household, so no household role may control it). The first
+# household's owner is granted at bootstrap; the roster is managed afterwards.
+system_admins = Table(
+    "system_admins",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("user_id", String(36), ForeignKey("users.id"), nullable=False, unique=True),
+    Column("granted_by_user_id", String(36), ForeignKey("users.id"), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 # at read time: revoked_at -> revoked, accepted_at -> accepted, past expires_at
 # -> expired, else pending.
 household_invites = Table(

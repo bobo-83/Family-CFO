@@ -379,7 +379,8 @@
                         type="button"
                         class="picker__apply"
                         (click)="applyModel(model)"
-                        [disabled]="applying() || model.id === status.value()?.served_model"
+                        [disabled]="!canManageRuntime() || applying() || model.id === status.value()?.served_model"
+                        [title]="canManageRuntime() ? '' : 'Only a system administrator can switch the box-wide model (ADR 0065)'"
                       >
                         @if (model.id === status.value()?.served_model) {
                           Already serving

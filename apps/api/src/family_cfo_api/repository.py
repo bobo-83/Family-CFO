@@ -43,8 +43,12 @@ class SessionContext:
     role: str
     # ADR 0034: the resolved rights of the member's assigned role (falls back to
     # the legacy role's preset for un-backfilled rows). Permissions check THIS.
+    # ADR 0065: box-level rights (system.admin, ai_runtime.manage) are injected
+    # here when the USER is a system admin — and stripped otherwise, even if a
+    # legacy household role still carries the string.
     rights: frozenset[str] = frozenset()
     role_name: str = ""
+    is_system_admin: bool = False
 
 
 def get_user_by_email(engine: Engine, email: str) -> UserRecord | None:
@@ -188,12 +192,20 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
         member_rights = rights_catalog.rights_for_legacy_role(role_row["role"])
         role_name = rights_catalog.LEGACY_ROLE_TO_PRESET.get(role_row["role"], "")
 
+    # ADR 0065: box-level rights come from the system-admin roster, never from
+    # a household role (legacy roles may still carry the string — strip it).
+    admin = is_system_admin(engine, session_row["user_id"])
+    member_rights = member_rights - rights_catalog.BOX_RIGHTS
+    if admin:
+        member_rights = member_rights | rights_catalog.BOX_RIGHTS
+
     return SessionContext(
         user_id=session_row["user_id"],
         household_id=session_row["household_id"],
         role=role_row["role"],
         rights=member_rights,
         role_name=role_name,
+        is_system_admin=admin,
     )
 
 
@@ -1855,6 +1867,89 @@ def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigR
     )
 
 
+@dataclass(frozen=True, slots=True)
+class SystemAdminRecord:
+    user_id: str
+    email: str
+    display_name: str
+    granted_at: datetime
+    granted_by_user_id: str | None
+
+
+def is_system_admin(engine: Engine, user_id: str) -> bool:
+    with engine.connect() as conn:
+        return (
+            conn.execute(
+                select(models.system_admins.c.id).where(
+                    models.system_admins.c.user_id == user_id
+                )
+            ).first()
+            is not None
+        )
+
+
+def list_system_admins(engine: Engine) -> list[SystemAdminRecord]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(
+                models.system_admins.c.user_id,
+                models.system_admins.c.created_at,
+                models.system_admins.c.granted_by_user_id,
+                models.users.c.email,
+                models.users.c.display_name,
+            )
+            .join(models.users, models.users.c.id == models.system_admins.c.user_id)
+            .order_by(models.system_admins.c.created_at)
+        ).mappings()
+        return [
+            SystemAdminRecord(
+                user_id=r["user_id"],
+                email=r["email"],
+                display_name=r["display_name"],
+                granted_at=_as_aware(r["created_at"]),
+                granted_by_user_id=r["granted_by_user_id"],
+            )
+            for r in rows
+        ]
+
+
+def count_system_admins(engine: Engine) -> int:
+    with engine.connect() as conn:
+        return conn.execute(select(func.count()).select_from(models.system_admins)).scalar_one()
+
+
+def grant_system_admin(engine: Engine, user_id: str, granted_by_user_id: str | None) -> bool:
+    """Grant box-admin to a user; False when already granted (idempotent)."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.system_admins.c.id).where(models.system_admins.c.user_id == user_id)
+        ).first()
+        if existing is not None:
+            return False
+        conn.execute(
+            insert(models.system_admins).values(
+                id=new_id(),
+                user_id=user_id,
+                granted_by_user_id=granted_by_user_id,
+                created_at=utcnow(),
+            )
+        )
+        return True
+
+
+def revoke_system_admin(engine: Engine, user_id: str) -> bool:
+    """Remove a user from the roster; False when they were not on it.
+
+    The caller enforces the never-remove-the-last-admin rule — this function
+    is also the undo path for a granted entry and must stay unconditional.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.system_admins).where(models.system_admins.c.user_id == user_id)
+        )
+        return result.rowcount > 0
+
+
 def repoint_ai_runtime_configs(
     engine: Engine, *, provider: str, base_url: str, model: str
 ) -> int:
@@ -3037,6 +3132,23 @@ def create_household_with_owner(
                 created_at=now,
             )
         )
+        # ADR 0065: whoever deploys the box and creates the first household is
+        # its first SYSTEM ADMIN — box-global powers (model swaps) need one,
+        # and there is nobody else yet to grant it. The demo seed bypasses
+        # this function, so showcase credentials never qualify.
+        roster_empty = (
+            conn.execute(select(func.count()).select_from(models.system_admins)).scalar_one()
+            == 0
+        )
+        if roster_empty:
+            conn.execute(
+                insert(models.system_admins).values(
+                    id=new_id(),
+                    user_id=user_id,
+                    granted_by_user_id=None,
+                    created_at=now,
+                )
+            )
     return BootstrapResult(household_id=household_id, user_id=user_id, role="owner")
 
 
@@ -3214,11 +3326,17 @@ def resolve_member_rights(
     if row is None:
         return frozenset(), ""
     if row["name"] is not None:
-        return frozenset(row["rights_json"] or []), row["name"]
-    return (
-        rights_catalog.rights_for_legacy_role(row["role"]),
-        rights_catalog.LEGACY_ROLE_TO_PRESET.get(row["role"], ""),
-    )
+        member_rights = frozenset(row["rights_json"] or [])
+        role_name = row["name"]
+    else:
+        member_rights = rights_catalog.rights_for_legacy_role(row["role"])
+        role_name = rights_catalog.LEGACY_ROLE_TO_PRESET.get(row["role"], "")
+    # ADR 0065: box-level rights come only from the system-admin roster (see
+    # get_session_context, which applies the identical rule per request).
+    member_rights = member_rights - rights_catalog.BOX_RIGHTS
+    if is_system_admin(engine, user_id):
+        member_rights = member_rights | rights_catalog.BOX_RIGHTS
+    return member_rights, role_name
 
 
 def legacy_role_for(role: RoleRecord) -> str:

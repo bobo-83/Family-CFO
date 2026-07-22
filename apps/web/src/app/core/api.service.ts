@@ -101,6 +101,9 @@ import {
   scanLoanStatement,
   searchAiModels,
   getAiModelDetail,
+  listSystemAdmins,
+  grantSystemAdmin,
+  revokeSystemAdmin,
   syncConnection,
   revokePairedDevice,
   updateAccount,
@@ -658,6 +661,18 @@ export class ApiService {
 
   getAiModelDetail(id: string) {
     return getAiModelDetail({ query: { id } });
+  }
+
+  listSystemAdmins() {
+    return listSystemAdmins();
+  }
+
+  grantSystemAdmin(email: string) {
+    return grantSystemAdmin({ body: { email } });
+  }
+
+  revokeSystemAdmin(userId: string) {
+    return revokeSystemAdmin({ path: { user_id: userId } });
   }
 
   /**

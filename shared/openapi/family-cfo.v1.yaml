@@ -2908,6 +2908,82 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+  /system/admins:
+    get:
+      tags:
+        - System Admins
+      operationId: listSystemAdmins
+      summary: List the box's system administrators
+      description: >
+        ADR 0065: box-global machinery (model swaps) is guarded by a
+        USER-scoped system-admin roster, not household roles. The first
+        household's owner is granted at bootstrap.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Roster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemAdminList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - System Admins
+      operationId: grantSystemAdmin
+      summary: Grant system administrator to an existing user by email
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemAdminGrantRequest"
+      responses:
+        "201":
+          description: Granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemAdmin"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /system/admins/{user_id}:
+    delete:
+      tags:
+        - System Admins
+      operationId: revokeSystemAdmin
+      summary: Revoke a user's system administrator grant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /ai/runtime/apply:
     post:
       tags:
@@ -6441,6 +6517,44 @@ components:
           description: >-
             Imported transactions auto-categorized by reusing the category the
             household previously assigned to the same merchant.
+    SystemAdmin:
+      type: object
+      description: One box-level administrator (ADR 0065)
+      required:
+        - user_id
+        - email
+        - display_name
+        - granted_at
+      properties:
+        user_id:
+          type: string
+        email:
+          type: string
+        display_name:
+          type: string
+        granted_at:
+          type: string
+          format: date-time
+        granted_by_user_id:
+          type:
+            - string
+            - "null"
+    SystemAdminList:
+      type: object
+      required:
+        - admins
+      properties:
+        admins:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemAdmin"
+    SystemAdminGrantRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
     AiApplyRequest:
       type: object
       required:

@@ -142,6 +142,55 @@
 }
 
 @if (canManageMembers()) {
+@if (canManageSystemAdmins()) {
+  <h2>System administrators</h2>
+  <p class="page-hint">
+    Box-level operators (ADR 0065): they control machinery shared by EVERY
+    household — like which AI model the server runs. Grants target existing
+    users by email and take effect at their next sign-in. The roster always
+    keeps at least one administrator.
+  </p>
+
+  <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
+      @if (systemAdmins.value(); as admins) {
+        <ul class="member-list">
+          @for (admin of admins; track admin.user_id) {
+            <li class="member-list__row">
+              <span>
+                <strong>{{ admin.display_name }}</strong>
+                <span class="member-list__email">{{ admin.email }}</span>
+              </span>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="revokeSystemAdmin(admin.user_id)"
+                [disabled]="admins.length <= 1"
+                [title]="admins.length <= 1 ? 'The box must keep at least one system administrator' : ''"
+              >
+                Revoke
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      <form class="member-form" [formGroup]="sysAdminForm" (ngSubmit)="grantSystemAdmin()">
+        <h3>Grant to an existing user</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="sysAdminSubmitting()">
+          {{ sysAdminSubmitting() ? 'Granting…' : 'Grant system admin' }}
+        </button>
+        @if (sysAdminError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+      </form>
+    </mat-card-content>
+  </mat-card>
+}
+
   <h2>Invitations</h2>
   <p class="page-hint">
     Invite a family member by email: you get a one-time link to send them
