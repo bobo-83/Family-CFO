@@ -1855,6 +1855,26 @@ def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigR
     )
 
 
+def repoint_ai_runtime_configs(
+    engine: Engine, *, provider: str, base_url: str, model: str
+) -> int:
+    """Point every household config on this runtime at the newly served model.
+
+    A swap replaces the model for the WHOLE box — one vLLM serves all
+    households — so leaving other households' rows on the old model name
+    silently downgrades them to deterministic answers (found 2026-07-22 when
+    the demo household kept requesting the pre-swap model). Returns the number
+    of rows updated."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.ai_runtime_configs)
+            .where(models.ai_runtime_configs.c.provider == provider)
+            .where(models.ai_runtime_configs.c.base_url == base_url)
+            .values(model=model, updated_at=utcnow())
+        )
+        return result.rowcount
+
+
 def upsert_ai_runtime_config(
     engine: Engine,
     household_id: str,
