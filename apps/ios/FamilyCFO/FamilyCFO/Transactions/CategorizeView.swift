@@ -27,8 +27,10 @@ struct CategorizeView: View {
         let transaction: Components.Schemas.Transaction?
     }
 
+    // No NavigationStack of its own: pushed inside MoreView's stack — a
+    // second stack here doubles the nav bars (user report 2026-07-22).
     var body: some View {
-        NavigationStack {
+        Group {
             Group {
                 if let viewModel {
                     content(viewModel)
