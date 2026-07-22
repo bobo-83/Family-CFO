@@ -17,6 +17,12 @@ protocol SpeechEngine: AnyObject {
     func startTranscribing() async throws -> AsyncStream<String>
 
     func stopTranscribing()
+
+    /// When the microphone last heard voice-loud audio, or nil if it hasn't
+    /// yet. The end-of-utterance detector treats this as proof the user is
+    /// still talking even while the recognizer's partial results stall
+    /// (they routinely pause mid-word on long utterances — M87b).
+    var lastVoiceActivity: ContinuousClock.Instant? { get }
 }
 
 enum SpeechEngineError: Error, LocalizedError {
