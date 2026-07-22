@@ -103,6 +103,59 @@ export class Users {
     this.members.reload();
   }
 
+  // --- System administrators (ADR 0065): box-global roster — controls model
+  // swaps for EVERY household. Visible only to current system admins; a fresh
+  // grant takes effect at the grantee's next sign-in.
+  protected readonly canManageSystemAdmins = () => this.auth.hasRight('system.admin');
+
+  protected readonly systemAdmins = resource({
+    loader: async () => {
+      if (!this.canManageSystemAdmins()) {
+        return [];
+      }
+      const { data, error } = await this.api.listSystemAdmins();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load system administrators.'));
+      }
+      return data.admins;
+    },
+  });
+
+  protected readonly sysAdminForm = this.formBuilder.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+  });
+  protected readonly sysAdminSubmitting = signal(false);
+  protected readonly sysAdminError = signal<string | null>(null);
+
+  protected async grantSystemAdmin(): Promise<void> {
+    if (this.sysAdminForm.invalid || this.sysAdminSubmitting()) {
+      this.sysAdminForm.markAllAsTouched();
+      return;
+    }
+    this.sysAdminSubmitting.set(true);
+    this.sysAdminError.set(null);
+    const { error } = await this.api.grantSystemAdmin(this.sysAdminForm.getRawValue().email.trim());
+    this.sysAdminSubmitting.set(false);
+    if (error) {
+      this.sysAdminError.set(
+        apiErrorMessage(error, 'Could not grant system administrator.'),
+      );
+      return;
+    }
+    this.sysAdminForm.reset({ email: '' });
+    this.systemAdmins.reload();
+  }
+
+  protected async revokeSystemAdmin(userId: string): Promise<void> {
+    this.sysAdminError.set(null);
+    const { error } = await this.api.revokeSystemAdmin(userId);
+    if (error) {
+      this.sysAdminError.set(apiErrorMessage(error, 'Could not revoke.'));
+      return;
+    }
+    this.systemAdmins.reload();
+  }
+
   // --- Invitations (ADR 0056): copy-link onboarding. The box sends no email —
   // the admin copies the link and shares it themselves. The link is shown only
   // at creation/regeneration (the token is stored hashed).

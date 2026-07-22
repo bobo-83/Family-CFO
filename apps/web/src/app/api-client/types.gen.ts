@@ -1712,6 +1712,25 @@ export type ConnectionSyncResult = {
     auto_categorized?: number;
 };
 
+/**
+ * One box-level administrator (ADR 0065)
+ */
+export type SystemAdmin = {
+    user_id: string;
+    email: string;
+    display_name: string;
+    granted_at: string;
+    granted_by_user_id?: string | null;
+};
+
+export type SystemAdminList = {
+    admins: Array<SystemAdmin>;
+};
+
+export type SystemAdminGrantRequest = {
+    email: string;
+};
+
 export type AiApplyRequest = {
     main_model: string;
     vision_model?: string | null;
@@ -5400,6 +5419,111 @@ export type SearchAiModelsResponses = {
 };
 
 export type SearchAiModelsResponse = SearchAiModelsResponses[keyof SearchAiModelsResponses];
+
+export type ListSystemAdminsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/system/admins';
+};
+
+export type ListSystemAdminsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListSystemAdminsError = ListSystemAdminsErrors[keyof ListSystemAdminsErrors];
+
+export type ListSystemAdminsResponses = {
+    /**
+     * Roster
+     */
+    200: SystemAdminList;
+};
+
+export type ListSystemAdminsResponse = ListSystemAdminsResponses[keyof ListSystemAdminsResponses];
+
+export type GrantSystemAdminData = {
+    body: SystemAdminGrantRequest;
+    path?: never;
+    query?: never;
+    url: '/system/admins';
+};
+
+export type GrantSystemAdminErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type GrantSystemAdminError = GrantSystemAdminErrors[keyof GrantSystemAdminErrors];
+
+export type GrantSystemAdminResponses = {
+    /**
+     * Granted
+     */
+    201: SystemAdmin;
+};
+
+export type GrantSystemAdminResponse = GrantSystemAdminResponses[keyof GrantSystemAdminResponses];
+
+export type RevokeSystemAdminData = {
+    body?: never;
+    path: {
+        user_id: string;
+    };
+    query?: never;
+    url: '/system/admins/{user_id}';
+};
+
+export type RevokeSystemAdminErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type RevokeSystemAdminError = RevokeSystemAdminErrors[keyof RevokeSystemAdminErrors];
+
+export type RevokeSystemAdminResponses = {
+    /**
+     * Revoked
+     */
+    204: void;
+};
+
+export type RevokeSystemAdminResponse = RevokeSystemAdminResponses[keyof RevokeSystemAdminResponses];
 
 export type ApplyAiModelSelectionData = {
     body: AiApplyRequest;

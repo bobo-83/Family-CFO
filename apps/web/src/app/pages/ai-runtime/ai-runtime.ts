@@ -67,6 +67,11 @@ export interface ApplyPlan {
 export class AiRuntime {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+
+  // ADR 0065: model swaps are box-global — only a SYSTEM ADMIN may apply.
+  // The session's rights include ai_runtime.manage exactly when the user is
+  // on the box's system-admin roster (re-login picks up a new grant).
+  protected readonly canManageRuntime = () => this.auth.hasRight('ai_runtime.manage');
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly providers = PROVIDERS;

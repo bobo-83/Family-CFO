@@ -13,11 +13,22 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+def _grant_demo_system_admin(engine: Engine) -> None:
+    """ADR 0065: box-global actions need a system admin, and the demo owner is
+    the only seeded user — the suite makes them one (the production seed does
+    NOT: the showcase's public credentials must never control the box, pinned
+    by test_demo_seed_grants_no_system_admin)."""
+    from family_cfo_api import repository
+
+    repository.grant_system_admin(engine, fixtures.DEMO_USER_ID, None)
+
+
 @pytest.fixture
 def demo_engine() -> Engine:
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     fixtures.create_schema(engine)
     fixtures.seed_demo_household(engine)
+    _grant_demo_system_admin(engine)
     return engine
 
 
@@ -53,6 +64,7 @@ def demo_file_engine(tmp_path) -> Engine:
     engine = create_database_engine(f"sqlite+pysqlite:///{database_path}")
     fixtures.create_schema(engine)
     fixtures.seed_demo_household(engine)
+    _grant_demo_system_admin(engine)
     return engine
 
 
