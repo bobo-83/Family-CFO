@@ -983,6 +983,37 @@ class ChatStreamEvent(BaseModel):
     message: str | None = None
 
 
+class YearMonthSummary(BaseModel):
+    """One month of the Overview's year view (M-yearly)."""
+
+    month: str
+    income: Money
+    spending: Money
+    net: Money
+    net_worth_eom: Money | None = None
+
+
+class YearlyReview(BaseModel):
+    summary: str
+    suggestions: list[str]
+    months_covered: int
+    model: str | None = None
+    generated_at: datetime
+
+
+class YearlyOverview(BaseModel):
+    """The year at a glance: monthly trend for the chart, year totals, top
+    categories, and the cached grounded narrative (null until generated)."""
+
+    year: int
+    months: list[YearMonthSummary]
+    total_income: Money
+    total_spending: Money
+    total_net: Money
+    top_categories: list[NamedAmount]
+    review: YearlyReview | None = None
+
+
 class SystemAdmin(BaseModel):
     """One box-level administrator (ADR 0065): a USER-scoped grant that
     controls box-global machinery (model swaps), independent of households."""

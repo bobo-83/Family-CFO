@@ -197,6 +197,22 @@ system_admins = Table(
 
 # at read time: revoked_at -> revoked, accepted_at -> accepted, past expires_at
 # -> expired, else pending.
+# M-yearly: cached year-in-review narratives (see migration 0067). One row per
+# household+year; regenerated on demand or when a new month completes.
+yearly_reviews = Table(
+    "yearly_reviews",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("year", Integer, nullable=False),
+    Column("summary", Text, nullable=False),
+    Column("suggestions_json", JSON, nullable=False),
+    Column("months_covered", Integer, nullable=False),
+    Column("model", String(100), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("household_id", "year", name="uq_yearly_reviews_household_year"),
+)
+
 household_invites = Table(
     "household_invites",
     metadata,
