@@ -707,6 +707,29 @@ class SpendingPlan:
     days_remaining: int  # including today
 
 
+def income_received_between(
+    engine: Engine, household_id: str, currency: str, start: date, end: date
+) -> int:
+    """Actual income landed in [start, end] (minor units): the deposits the
+    income analysis counts (ADR 0054 — detection, not categorization, is how
+    this product knows pay). The Income-category sum alone reads 0 for a
+    household that never hand-files paychecks (M-yearly bug: the year view
+    showed USD 0 income against 53 payroll deposits)."""
+    since = min(start, date.today()) - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
+    transactions, candidates, included_ids, excluded_ids = recurring_income_candidates(
+        engine, household_id, since=since
+    )
+    counted = {t.id for c in candidates for t in c.transactions} | included_ids
+    return sum(
+        t.amount_minor
+        for t in transactions
+        if start <= t.occurred_at <= end
+        and t.currency == currency
+        and t.id in counted
+        and t.id not in excluded_ids
+    )
+
+
 def spending_plan(
     engine: Engine,
     household_id: str,
