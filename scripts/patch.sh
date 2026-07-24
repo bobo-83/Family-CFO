@@ -10,7 +10,9 @@
 # an `api` patch automatically.
 #
 # `ios` is a target too — it builds and installs the iPhone app onto a paired
-# device over WiFi (scripts/deploy-ios.sh). It is NOT in the default set: you
+# device over WiFi (scripts/deploy-ios.sh). The Apple Watch app rides along:
+# it is embedded in the iPhone app, and the paired watch installs it
+# automatically (M-watch, ADR 0067). It is NOT in the default set: you
 # patch the phone when you mean to. But it composes with the container targets,
 # which matters because an iOS change that needs an API or web change must ship
 # BOTH halves — a phone talking to a box that lacks its endpoint is the failure

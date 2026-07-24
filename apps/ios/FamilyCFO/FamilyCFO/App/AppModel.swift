@@ -170,6 +170,9 @@ final class AppModel {
         if await BiometricGate.authenticate() {
             phase = .ready
             await refreshSessionRights()
+            // M-watch (ADR 0067): keep the watch's copy of the pairing fresh.
+            PhoneWatchBridge.shared.activate()
+            PhoneWatchBridge.shared.push(server: server, credential: credential)
         }
     }
 
@@ -205,11 +208,14 @@ final class AppModel {
         self.server = server
         self.credential = credential
         phase = .ready
+        PhoneWatchBridge.shared.activate()
+        PhoneWatchBridge.shared.push(server: server, credential: credential)
     }
 
     /// Forgets the pairing locally. Revoking the credential server-side
     /// happens on the dashboard's Devices page (owner-only).
     func unpair() {
+        PhoneWatchBridge.shared.push(server: nil, credential: nil)
         KeychainStore.delete(account: Self.credentialAccount)
         UserDefaults.standard.removeObject(forKey: Self.serverDefaultsKey)
         server = nil
@@ -226,6 +232,7 @@ final class AppModel {
         if let client {
             _ = try? await client.deleteAuthSession(.init())
         }
+        PhoneWatchBridge.shared.push(server: server, credential: nil)
         KeychainStore.delete(account: Self.credentialAccount)
         KeychainStore.delete(account: "device-private-key")
         credential = nil

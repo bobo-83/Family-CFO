@@ -70,7 +70,13 @@ def build_year_overview(
     category_names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
     for month in year_months(engine, household_id, year, today=today):
         start, end = month_bounds(month)
-        income = repository.sum_income(engine, household_id, start, end, currency)
+        # Detected income deposits (ADR 0054), not the Income category alone —
+        # households rarely hand-file paychecks. The hand-filed ones still
+        # count via the category when detection recognized them as income.
+        income = max(
+            finance_service.income_received_between(engine, household_id, currency, start, end),
+            repository.sum_income(engine, household_id, start, end, currency),
+        )
         spending = repository.sum_spending(engine, household_id, start, end, currency)
         eom = min(end, today)
         net_worth = finance_service.reconstruct_net_worth(engine, household_id, eom, currency)
@@ -188,15 +194,35 @@ def generate_review(
         try:
             from family_cfo_ai_orchestrator import RuntimeMessage
 
+            messages = [
+                RuntimeMessage(role="system", content=_REVIEW_PROMPT),
+                RuntimeMessage(role="user", content=facts),
+            ]
             completion = runtime.complete(
-                [
-                    RuntimeMessage(role="system", content=_REVIEW_PROMPT),
-                    RuntimeMessage(role="user", content=facts),
-                ],
-                temperature=0.4,
-                max_tokens=_NARRATIVE_MAX_TOKENS,
+                messages, temperature=0.4, max_tokens=_NARRATIVE_MAX_TOKENS
             )
-            candidate_summary, candidate_suggestions = _parse_review(completion.text or "")
+            text = (completion.text or "").strip()
+            if not text:
+                # A reasoning model can think the whole budget away (the chat
+                # loop nudges the same way — ADR 0058).
+                completion = runtime.complete(
+                    [
+                        *messages,
+                        RuntimeMessage(role="assistant", content=""),
+                        RuntimeMessage(
+                            role="user",
+                            content=(
+                                "Your reply was empty. Write the summary and the "
+                                "SUGGESTIONS: bullets now, briefly, without "
+                                "further deliberation."
+                            ),
+                        ),
+                    ],
+                    temperature=0.4,
+                    max_tokens=_NARRATIVE_MAX_TOKENS,
+                )
+                text = (completion.text or "").strip()
+            candidate_summary, candidate_suggestions = _parse_review(text)
             known = extract_numbers(facts)
             guardrail = validate_recommendation(
                 candidate_summary + "\n" + "\n".join(candidate_suggestions), known

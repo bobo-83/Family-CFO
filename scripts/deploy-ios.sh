@@ -180,6 +180,17 @@ APP_PATH="${products_dir}/${product_name}"
 [ -d "$APP_PATH" ] || die "Built app not found at ${APP_PATH}"
 [ -n "$BUNDLE_ID" ] || die "Could not determine the bundle identifier from the build settings."
 
+# M-watch (ADR 0067): the Apple Watch app ships INSIDE the iPhone app. There is
+# no direct install path to a physical watch — iOS pushes the embedded watch
+# app to the paired watch itself (Watch app -> General -> Automatic App
+# Install, on by default). All this script must do is verify it's embedded.
+WATCH_APP_PATH="${APP_PATH}/Watch/FamilyCFOWatch.app"
+if [ -d "$WATCH_APP_PATH" ]; then
+  log "Watch app embedded — the paired Apple Watch installs it automatically."
+else
+  log "WARNING: no embedded watch app in this build (Watch/FamilyCFOWatch.app missing)."
+fi
+
 # --- Install + launch --------------------------------------------------------
 log "Installing onto ${DEVICE_NAME} over the network…"
 xcrun devicectl device install app --device "$DEVICE_UDID" "$APP_PATH" >/dev/null \
