@@ -1,8 +1,6 @@
-from datetime import date
-
 import pytest
 
-from family_cfo_api import repository, yearly_review
+from family_cfo_api import repository
 from family_cfo_api.yearly_review import YearMonth, _deterministic_review, _parse_review
 
 
