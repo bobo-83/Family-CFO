@@ -31,6 +31,11 @@ jobs:
           echo "Selecting $newest"
           sudo xcode-select -s "$newest"
           xcodebuild -version
+      # M-watch (ADR 0067): the scheme embeds the watch app, so the runner
+      # needs the watchOS platform. Preinstalled on GitHub's macOS images;
+      # this is a fast no-op then, and a real download only if missing.
+      - name: Ensure watchOS platform
+        run: xcodebuild -downloadPlatform watchOS | tail -1
 
       - name: Cache generator build
         uses: actions/cache@v4
