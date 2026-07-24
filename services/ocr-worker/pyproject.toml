@@ -16,7 +16,7 @@ dependencies = [
 dev = [
   "fpdf2>=2.8,<3",
   "pytest>=9.0.3,<10",
-  "ruff>=0.6,<1",
+  "ruff>=0.6,<0.16",
 ]
 
 [tool.setuptools.packages.find]

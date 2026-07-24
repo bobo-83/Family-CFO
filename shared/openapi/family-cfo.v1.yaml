@@ -326,6 +326,61 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /overview/yearly:
+    get:
+      tags:
+        - Overview
+      operationId: getYearlyOverview
+      summary: "The year at a glance: monthly trend, totals, top categories, cached review"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Yearly overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YearlyOverview"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /overview/yearly/review:
+    post:
+      tags:
+        - Overview
+      operationId: generateYearlyReview
+      summary: (Re)generate the year's grounded narrative and suggestions
+      description: >
+        M-yearly: the narrative comes from the household's own runtime and is
+        validated against the year's computed figures (ADR 0009); a failed
+        validation stores the deterministic summary instead. Result is cached
+        per household+year.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The freshly generated review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YearlyReview"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /overview/cash-outlook:
     get:
       tags:
@@ -6538,6 +6593,75 @@ components:
           description: >-
             Imported transactions auto-categorized by reusing the category the
             household previously assigned to the same merchant.
+    YearMonthSummary:
+      type: object
+      required:
+        - month
+        - income
+        - spending
+        - net
+      properties:
+        month:
+          type: string
+        income:
+          $ref: "#/components/schemas/Money"
+        spending:
+          $ref: "#/components/schemas/Money"
+        net:
+          $ref: "#/components/schemas/Money"
+        net_worth_eom:
+          $ref: "#/components/schemas/Money"
+    YearlyReview:
+      type: object
+      required:
+        - summary
+        - suggestions
+        - months_covered
+        - generated_at
+      properties:
+        summary:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        months_covered:
+          type: integer
+        model:
+          type:
+            - string
+            - "null"
+        generated_at:
+          type: string
+          format: date-time
+    YearlyOverview:
+      type: object
+      required:
+        - year
+        - months
+        - total_income
+        - total_spending
+        - total_net
+        - top_categories
+      properties:
+        year:
+          type: integer
+        months:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearMonthSummary"
+        total_income:
+          $ref: "#/components/schemas/Money"
+        total_spending:
+          $ref: "#/components/schemas/Money"
+        total_net:
+          $ref: "#/components/schemas/Money"
+        top_categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        review:
+          $ref: "#/components/schemas/YearlyReview"
     SessionInfo:
       type: object
       description: The current session's identity and freshly-resolved rights

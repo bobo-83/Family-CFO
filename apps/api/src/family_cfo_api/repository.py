@@ -1950,6 +1950,79 @@ def revoke_system_admin(engine: Engine, user_id: str) -> bool:
         return result.rowcount > 0
 
 
+@dataclass(frozen=True, slots=True)
+class YearlyReviewRecord:
+    year: int
+    summary: str
+    suggestions: list[str]
+    months_covered: int
+    model: str | None
+    created_at: datetime
+
+
+def get_yearly_review(engine: Engine, household_id: str, year: int) -> YearlyReviewRecord | None:
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.yearly_reviews).where(
+                    models.yearly_reviews.c.household_id == household_id,
+                    models.yearly_reviews.c.year == year,
+                )
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        return None
+    return YearlyReviewRecord(
+        year=row["year"],
+        summary=row["summary"],
+        suggestions=list(row["suggestions_json"] or []),
+        months_covered=row["months_covered"],
+        model=row["model"],
+        created_at=_as_aware(row["created_at"]),
+    )
+
+
+def upsert_yearly_review(
+    engine: Engine,
+    *,
+    household_id: str,
+    year: int,
+    summary: str,
+    suggestions: list[str],
+    months_covered: int,
+    model: str | None,
+) -> None:
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.yearly_reviews.c.id).where(
+                models.yearly_reviews.c.household_id == household_id,
+                models.yearly_reviews.c.year == year,
+            )
+        ).first()
+        values = {
+            "summary": summary,
+            "suggestions_json": suggestions,
+            "months_covered": months_covered,
+            "model": model,
+            "created_at": now,
+        }
+        if existing is None:
+            conn.execute(
+                insert(models.yearly_reviews).values(
+                    id=new_id(), household_id=household_id, year=year, **values
+                )
+            )
+        else:
+            conn.execute(
+                update(models.yearly_reviews)
+                .where(models.yearly_reviews.c.id == existing[0])
+                .values(**values)
+            )
+
+
 def repoint_ai_runtime_configs(
     engine: Engine, *, provider: str, base_url: str, model: str
 ) -> int:

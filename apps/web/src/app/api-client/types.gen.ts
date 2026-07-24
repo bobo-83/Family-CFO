@@ -1712,6 +1712,32 @@ export type ConnectionSyncResult = {
     auto_categorized?: number;
 };
 
+export type YearMonthSummary = {
+    month: string;
+    income: Money;
+    spending: Money;
+    net: Money;
+    net_worth_eom?: Money;
+};
+
+export type YearlyReview = {
+    summary: string;
+    suggestions: Array<string>;
+    months_covered: number;
+    model?: string | null;
+    generated_at: string;
+};
+
+export type YearlyOverview = {
+    year: number;
+    months: Array<YearMonthSummary>;
+    total_income: Money;
+    total_spending: Money;
+    total_net: Money;
+    top_categories: Array<NamedAmount>;
+    review?: YearlyReview;
+};
+
 /**
  * The current session's identity and freshly-resolved rights
  */
@@ -2146,6 +2172,68 @@ export type UpdateHouseholdResponses = {
 };
 
 export type UpdateHouseholdResponse = UpdateHouseholdResponses[keyof UpdateHouseholdResponses];
+
+export type GetYearlyOverviewData = {
+    body?: never;
+    path?: never;
+    query?: {
+        year?: number;
+    };
+    url: '/overview/yearly';
+};
+
+export type GetYearlyOverviewErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetYearlyOverviewError = GetYearlyOverviewErrors[keyof GetYearlyOverviewErrors];
+
+export type GetYearlyOverviewResponses = {
+    /**
+     * Yearly overview
+     */
+    200: YearlyOverview;
+};
+
+export type GetYearlyOverviewResponse = GetYearlyOverviewResponses[keyof GetYearlyOverviewResponses];
+
+export type GenerateYearlyReviewData = {
+    body?: never;
+    path?: never;
+    query?: {
+        year?: number;
+    };
+    url: '/overview/yearly/review';
+};
+
+export type GenerateYearlyReviewErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GenerateYearlyReviewError = GenerateYearlyReviewErrors[keyof GenerateYearlyReviewErrors];
+
+export type GenerateYearlyReviewResponses = {
+    /**
+     * The freshly generated review
+     */
+    200: YearlyReview;
+};
+
+export type GenerateYearlyReviewResponse = GenerateYearlyReviewResponses[keyof GenerateYearlyReviewResponses];
 
 export type GetCashOutlookData = {
     body?: never;
