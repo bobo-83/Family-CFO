@@ -25,6 +25,11 @@ protocol HouseholdAPI: Sendable {
     /// The box running version (M120, ADR 0029) - compared against the app
     /// embedded version to surface "your app is stale, install the update".
     func serverVersion() async -> String?
+    /// The year at a glance (M-yearly): monthly trend, totals, top categories,
+    /// and the cached grounded review. nil year = the current year.
+    func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview
+    /// (Re)generate the year's narrative + suggestions on the box.
+    func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview
 }
 
 extension HouseholdAPI {
@@ -32,10 +37,47 @@ extension HouseholdAPI {
     func cashOutlook() async throws -> Components.Schemas.CashOutlookResponse? { nil }
     func spendingPlan() async throws -> Components.Schemas.SpendingPlanResponse? { nil }
     func serverVersion() async -> String? { nil }
+    func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
+        Components.Schemas.YearlyOverview(
+            year: year ?? 0, months: [],
+            totalIncome: .init(amountMinor: 0, currency: "USD"),
+            totalSpending: .init(amountMinor: 0, currency: "USD"),
+            totalNet: .init(amountMinor: 0, currency: "USD"),
+            topCategories: [])
+    }
+    func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview {
+        throw APIError.server(503)
+    }
 }
 
 struct LiveHouseholdAPI: HouseholdAPI {
     let client: Client
+
+    func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
+        switch try await client.getYearlyOverview(.init(query: .init(year: year))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview {
+        switch try await client.generateYearlyReview(.init(query: .init(year: year))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
 
     func context(month: String?) async throws -> Components.Schemas.HouseholdContext {
         switch try await client.getHouseholdContext(.init(query: .init(month: month))) {

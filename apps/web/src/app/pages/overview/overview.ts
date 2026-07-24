@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
 import type {
+  YearlyOverview,
   EmergencyFundSummary,
   Money,
   NetWorthPoint,
@@ -69,6 +70,82 @@ export class Overview {
   protected readonly editingTarget = signal(false);
   protected readonly targetInput = signal<number | null>(null);
   protected readonly savingTarget = signal(false);
+
+  // --- M-yearly: the Overview's Year mode ------------------------------------
+  protected readonly yearMode = signal(false);
+  protected readonly yearData = signal<YearlyOverview | null>(null);
+  protected readonly yearLoading = signal(false);
+  protected readonly yearGenerating = signal(false);
+  protected readonly yearError = signal<string | null>(null);
+  /** The month clicked in the chart — its numbers show in the detail strip. */
+  protected readonly yearFocusMonth = signal<string | null>(null);
+
+  protected toggleYearMode(on: boolean): void {
+    this.yearMode.set(on);
+    if (on && !this.yearData()) {
+      void this.loadYear();
+    }
+  }
+
+  protected async loadYear(year?: number): Promise<void> {
+    this.yearLoading.set(true);
+    this.yearError.set(null);
+    this.yearFocusMonth.set(null);
+    const { data, error } = await this.api.getYearlyOverview(year);
+    this.yearLoading.set(false);
+    if (error || !data) {
+      this.yearError.set(apiErrorMessage(error, 'Failed to load the year.'));
+      return;
+    }
+    this.yearData.set(data);
+  }
+
+  protected stepYear(delta: number): void {
+    const current = this.yearData()?.year ?? new Date().getFullYear();
+    void this.loadYear(current + delta);
+  }
+
+  protected async generateYearReview(): Promise<void> {
+    if (this.yearGenerating()) {
+      return;
+    }
+    this.yearGenerating.set(true);
+    this.yearError.set(null);
+    const { data, error } = await this.api.generateYearlyReview(this.yearData()?.year);
+    this.yearGenerating.set(false);
+    if (error || !data) {
+      this.yearError.set(apiErrorMessage(error, 'Could not write the year review.'));
+      return;
+    }
+    const overview = this.yearData();
+    if (overview) {
+      this.yearData.set({ ...overview, review: data });
+    }
+  }
+
+  /** Bar height (0-100) against the year's largest monthly flow. */
+  protected yearBarHeight(minor: number): number {
+    const overview = this.yearData();
+    if (!overview) {
+      return 0;
+    }
+    const peak = Math.max(
+      1,
+      ...overview.months.flatMap((m) => [m.income.amount_minor, m.spending.amount_minor]),
+    );
+    return Math.round((Math.max(0, minor) / peak) * 100);
+  }
+
+  protected yearMonthLabel(month: string): string {
+    const index = Number(month.slice(5, 7)) - 1;
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][index] ?? month;
+  }
+
+  protected yearFocused() {
+    const overview = this.yearData();
+    const month = this.yearFocusMonth();
+    return overview?.months.find((m) => m.month === month) ?? null;
+  }
 
   protected readonly household = resource({
     loader: async () => {

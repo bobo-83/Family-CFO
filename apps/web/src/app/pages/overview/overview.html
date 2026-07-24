@@ -1,5 +1,109 @@
 <h1>Overview</h1>
 
+<div class="overview__mode" role="group" aria-label="View mode">
+  <button mat-stroked-button type="button" [class.overview__mode--on]="!yearMode()" (click)="toggleYearMode(false)">
+    Month
+  </button>
+  <button mat-stroked-button type="button" [class.overview__mode--on]="yearMode()" (click)="toggleYearMode(true)">
+    Year
+  </button>
+</div>
+
+@if (yearMode()) {
+  <!-- M-yearly: the year at a glance — trend, totals, review, top categories. -->
+  <div class="yearly">
+    <div class="yearly__nav">
+      <button mat-stroked-button type="button" (click)="stepYear(-1)">‹</button>
+      <h2>{{ yearData()?.year ?? '' }}</h2>
+      <button mat-stroked-button type="button" (click)="stepYear(1)">›</button>
+    </div>
+    @if (yearError(); as message) {
+      <p class="page-error" role="alert">{{ message }}</p>
+    }
+    @if (yearLoading()) {
+      <p>Loading the year…</p>
+    } @else if (yearData(); as year) {
+      @if (year.months.length === 0) {
+        <p class="page-empty">No transactions recorded in {{ year.year }}.</p>
+      } @else {
+        <div class="yearly__chart" role="img" aria-label="Monthly income and spending">
+          @for (m of year.months; track m.month) {
+            <button
+              type="button"
+              class="yearly__col"
+              [class.yearly__col--focus]="yearFocusMonth() === m.month"
+              (click)="yearFocusMonth.set(yearFocusMonth() === m.month ? null : m.month)"
+              [title]="m.month"
+            >
+              <span class="yearly__bars">
+                <span class="yearly__bar yearly__bar--income" [style.height.%]="yearBarHeight(m.income.amount_minor)"></span>
+                <span class="yearly__bar yearly__bar--spending" [style.height.%]="yearBarHeight(m.spending.amount_minor)"></span>
+              </span>
+              <span class="yearly__month">{{ yearMonthLabel(m.month) }}</span>
+            </button>
+          }
+        </div>
+        @if (yearFocused(); as focus) {
+          <div class="yearly__focus">
+            <strong>{{ yearMonthLabel(focus.month) }}</strong>
+            · in {{ formatMoney(focus.income) }}
+            · out {{ formatMoney(focus.spending) }}
+            · kept {{ formatMoney(focus.net) }}
+            @if (focus.net_worth_eom; as networth) {
+              · net worth {{ formatMoney(networth) }}
+            }
+          </div>
+        }
+        <div class="yearly__totals">
+          <span>In {{ formatMoney(year.total_income) }}</span>
+          <span>Out {{ formatMoney(year.total_spending) }}</span>
+          <span>Kept {{ formatMoney(year.total_net) }}</span>
+        </div>
+        <div class="overview__card overview__card--wide yearly__review">
+          <div class="yearly__review-head">
+            <span class="overview__label">The year so far</span>
+            <button mat-stroked-button type="button" (click)="generateYearReview()" [disabled]="yearGenerating()">
+              {{ yearGenerating() ? 'Writing…' : (year.review ? 'Refresh' : '✨ Write it') }}
+            </button>
+          </div>
+          @if (year.review; as review) {
+            <p>{{ review.summary }}</p>
+            @if (review.suggestions.length) {
+              <ul class="yearly__suggestions">
+                @for (s of review.suggestions; track s) {
+                  <li>💡 {{ s }}</li>
+                }
+              </ul>
+            }
+            <p class="yearly__byline">
+              @if (review.model) {
+                🤖 Written by {{ review.model }}, from this year's real figures.
+              } @else {
+                🧮 Computed summary — enable the AI runtime for a narrative.
+              }
+            </p>
+          } @else {
+            <p class="page-hint">Ask the advisor to sum up the year and suggest improvements.</p>
+          }
+        </div>
+        @if (year.top_categories.length) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label">Where it went</span>
+            <ul class="yearly__categories">
+              @for (entry of year.top_categories; track entry.name) {
+                <li>
+                  <span>{{ entry.name }}</span>
+                  <span>{{ formatMoney(entry.amount) }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      }
+    }
+  </div>
+} @else {
+
 @switch (household.status()) {
   @case ('loading') {
     <p>Loading…</p>
@@ -433,4 +537,5 @@
       </div>
     }
   }
+}
 }

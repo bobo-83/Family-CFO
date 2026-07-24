@@ -86,6 +86,19 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PATCH /household`.
     /// - Remark: Generated from `#/paths//household/patch(updateHousehold)`.
     func updateHousehold(_ input: Operations.UpdateHousehold.Input) async throws -> Operations.UpdateHousehold.Output
+    /// The year at a glance: monthly trend, totals, top categories, cached review
+    ///
+    /// - Remark: HTTP `GET /overview/yearly`.
+    /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)`.
+    func getYearlyOverview(_ input: Operations.GetYearlyOverview.Input) async throws -> Operations.GetYearlyOverview.Output
+    /// (Re)generate the year's grounded narrative and suggestions
+    ///
+    /// M-yearly: the narrative comes from the household's own runtime and is validated against the year's computed figures (ADR 0009); a failed validation stores the deterministic summary instead. Result is cached per household+year.
+    ///
+    ///
+    /// - Remark: HTTP `POST /overview/yearly/review`.
+    /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)`.
+    func generateYearlyReview(_ input: Operations.GenerateYearlyReview.Input) async throws -> Operations.GenerateYearlyReview.Output
     /// Projected cash over the next 30 days — paychecks in, payments out
     ///
     /// M112 (ADR 0026): the lived counterpart to safe-to-spend's zero-income stress test. Expected paydays (recurring-income detection) and every payment-timeline obligation, projected day by day, with the lowest point the balance reaches. Repeats the Bills due-vs-cash headline so the Overview and Bills screens say the same thing.
@@ -837,6 +850,35 @@ extension APIProtocol {
         try await updateHousehold(Operations.UpdateHousehold.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// The year at a glance: monthly trend, totals, top categories, cached review
+    ///
+    /// - Remark: HTTP `GET /overview/yearly`.
+    /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)`.
+    public func getYearlyOverview(
+        query: Operations.GetYearlyOverview.Input.Query = .init(),
+        headers: Operations.GetYearlyOverview.Input.Headers = .init()
+    ) async throws -> Operations.GetYearlyOverview.Output {
+        try await getYearlyOverview(Operations.GetYearlyOverview.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// (Re)generate the year's grounded narrative and suggestions
+    ///
+    /// M-yearly: the narrative comes from the household's own runtime and is validated against the year's computed figures (ADR 0009); a failed validation stores the deterministic summary instead. Result is cached per household+year.
+    ///
+    ///
+    /// - Remark: HTTP `POST /overview/yearly/review`.
+    /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)`.
+    public func generateYearlyReview(
+        query: Operations.GenerateYearlyReview.Input.Query = .init(),
+        headers: Operations.GenerateYearlyReview.Input.Headers = .init()
+    ) async throws -> Operations.GenerateYearlyReview.Output {
+        try await generateYearlyReview(Operations.GenerateYearlyReview.Input(
+            query: query,
+            headers: headers
         ))
     }
     /// Projected cash over the next 30 days — paychecks in, payments out
@@ -8996,6 +9038,141 @@ public enum Components {
                 case autoCategorized = "auto_categorized"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/YearMonthSummary`.
+        public struct YearMonthSummary: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/YearMonthSummary/month`.
+            public var month: Swift.String
+            /// - Remark: Generated from `#/components/schemas/YearMonthSummary/income`.
+            public var income: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearMonthSummary/spending`.
+            public var spending: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearMonthSummary/net`.
+            public var net: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearMonthSummary/net_worth_eom`.
+            public var netWorthEom: Components.Schemas.Money?
+            /// Creates a new `YearMonthSummary`.
+            ///
+            /// - Parameters:
+            ///   - month:
+            ///   - income:
+            ///   - spending:
+            ///   - net:
+            ///   - netWorthEom:
+            public init(
+                month: Swift.String,
+                income: Components.Schemas.Money,
+                spending: Components.Schemas.Money,
+                net: Components.Schemas.Money,
+                netWorthEom: Components.Schemas.Money? = nil
+            ) {
+                self.month = month
+                self.income = income
+                self.spending = spending
+                self.net = net
+                self.netWorthEom = netWorthEom
+            }
+            public enum CodingKeys: String, CodingKey {
+                case month
+                case income
+                case spending
+                case net
+                case netWorthEom = "net_worth_eom"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/YearlyReview`.
+        public struct YearlyReview: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/YearlyReview/summary`.
+            public var summary: Swift.String
+            /// - Remark: Generated from `#/components/schemas/YearlyReview/suggestions`.
+            public var suggestions: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/YearlyReview/months_covered`.
+            public var monthsCovered: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/YearlyReview/model`.
+            public var model: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/YearlyReview/generated_at`.
+            public var generatedAt: Foundation.Date
+            /// Creates a new `YearlyReview`.
+            ///
+            /// - Parameters:
+            ///   - summary:
+            ///   - suggestions:
+            ///   - monthsCovered:
+            ///   - model:
+            ///   - generatedAt:
+            public init(
+                summary: Swift.String,
+                suggestions: [Swift.String],
+                monthsCovered: Swift.Int,
+                model: Swift.String? = nil,
+                generatedAt: Foundation.Date
+            ) {
+                self.summary = summary
+                self.suggestions = suggestions
+                self.monthsCovered = monthsCovered
+                self.model = model
+                self.generatedAt = generatedAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case summary
+                case suggestions
+                case monthsCovered = "months_covered"
+                case model
+                case generatedAt = "generated_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/YearlyOverview`.
+        public struct YearlyOverview: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/year`.
+            public var year: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/months`.
+            public var months: [Components.Schemas.YearMonthSummary]
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_income`.
+            public var totalIncome: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_spending`.
+            public var totalSpending: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_net`.
+            public var totalNet: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/top_categories`.
+            public var topCategories: [Components.Schemas.NamedAmount]
+            /// - Remark: Generated from `#/components/schemas/YearlyOverview/review`.
+            public var review: Components.Schemas.YearlyReview?
+            /// Creates a new `YearlyOverview`.
+            ///
+            /// - Parameters:
+            ///   - year:
+            ///   - months:
+            ///   - totalIncome:
+            ///   - totalSpending:
+            ///   - totalNet:
+            ///   - topCategories:
+            ///   - review:
+            public init(
+                year: Swift.Int,
+                months: [Components.Schemas.YearMonthSummary],
+                totalIncome: Components.Schemas.Money,
+                totalSpending: Components.Schemas.Money,
+                totalNet: Components.Schemas.Money,
+                topCategories: [Components.Schemas.NamedAmount],
+                review: Components.Schemas.YearlyReview? = nil
+            ) {
+                self.year = year
+                self.months = months
+                self.totalIncome = totalIncome
+                self.totalSpending = totalSpending
+                self.totalNet = totalNet
+                self.topCategories = topCategories
+                self.review = review
+            }
+            public enum CodingKeys: String, CodingKey {
+                case year
+                case months
+                case totalIncome = "total_income"
+                case totalSpending = "total_spending"
+                case totalNet = "total_net"
+                case topCategories = "top_categories"
+                case review
+            }
+        }
         /// The current session's identity and freshly-resolved rights
         ///
         /// - Remark: Generated from `#/components/schemas/SessionInfo`.
@@ -11330,6 +11507,357 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//household/patch(updateHousehold)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The year at a glance: monthly trend, totals, top categories, cached review
+    ///
+    /// - Remark: HTTP `GET /overview/yearly`.
+    /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)`.
+    public enum GetYearlyOverview {
+        public static let id: Swift.String = "getYearlyOverview"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/overview/yearly/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/yearly/GET/query/year`.
+                public var year: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - year:
+                public init(year: Swift.Int? = nil) {
+                    self.year = year
+                }
+            }
+            public var query: Operations.GetYearlyOverview.Input.Query
+            /// - Remark: Generated from `#/paths/overview/yearly/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetYearlyOverview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetYearlyOverview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetYearlyOverview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GetYearlyOverview.Input.Query = .init(),
+                headers: Operations.GetYearlyOverview.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/yearly/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/overview/yearly/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.YearlyOverview)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.YearlyOverview {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetYearlyOverview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetYearlyOverview.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Yearly overview
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetYearlyOverview.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetYearlyOverview.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/get(getYearlyOverview)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// (Re)generate the year's grounded narrative and suggestions
+    ///
+    /// M-yearly: the narrative comes from the household's own runtime and is validated against the year's computed figures (ADR 0009); a failed validation stores the deterministic summary instead. Result is cached per household+year.
+    ///
+    ///
+    /// - Remark: HTTP `POST /overview/yearly/review`.
+    /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)`.
+    public enum GenerateYearlyReview {
+        public static let id: Swift.String = "generateYearlyReview"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/overview/yearly/review/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/yearly/review/POST/query/year`.
+                public var year: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - year:
+                public init(year: Swift.Int? = nil) {
+                    self.year = year
+                }
+            }
+            public var query: Operations.GenerateYearlyReview.Input.Query
+            /// - Remark: Generated from `#/paths/overview/yearly/review/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerateYearlyReview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerateYearlyReview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GenerateYearlyReview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.GenerateYearlyReview.Input.Query = .init(),
+                headers: Operations.GenerateYearlyReview.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/yearly/review/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/overview/yearly/review/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.YearlyReview)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.YearlyReview {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GenerateYearlyReview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GenerateYearlyReview.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The freshly generated review
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GenerateYearlyReview.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GenerateYearlyReview.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Components.Responses._Error)

@@ -103,6 +103,8 @@ import {
   getAiModelDetail,
   listSystemAdmins,
   getSessionInfo,
+  getYearlyOverview,
+  generateYearlyReview,
   grantSystemAdmin,
   revokeSystemAdmin,
   syncConnection,
@@ -670,6 +672,14 @@ export class ApiService {
 
   getSessionInfo() {
     return getSessionInfo();
+  }
+
+  getYearlyOverview(year?: number) {
+    return getYearlyOverview({ query: year ? { year } : undefined });
+  }
+
+  generateYearlyReview(year?: number) {
+    return generateYearlyReview({ query: year ? { year } : undefined });
   }
 
   grantSystemAdmin(email: string) {

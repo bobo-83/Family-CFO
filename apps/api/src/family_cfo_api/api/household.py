@@ -6,8 +6,12 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import audit, finance_service, repository, rights, undo_actions
 from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.deps import get_current_session, get_engine, require_right
+from family_cfo_api import yearly_review as yearly_review_module
 from family_cfo_api.schemas import (
     CashOutlookResponse,
+    YearlyOverview,
+    YearlyReview,
+    YearMonthSummary,
     OutlookEvent,
     SpendingPlanResponse,
     AssetCategoryTotal,
@@ -423,6 +427,101 @@ async def get_household_context(
         # are left off.
         return _historical_context(engine, household, month)
     return _build_household_context(engine, household)
+
+
+@router.get(
+    "/overview/yearly",
+    operation_id="getYearlyOverview",
+    response_model=YearlyOverview,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Household not found", "model": ErrorResponse},
+    },
+    summary="The year at a glance: monthly trend, totals, top categories, cached review",
+)
+async def get_yearly_overview(
+    year: int | None = None,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> YearlyOverview:
+    household = repository.get_household(engine, session.household_id)
+    if household is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+    today = repository.utcnow().date()
+    resolved_year = year or today.year
+    months, top = yearly_review_module.build_year_overview(
+        engine, household.id, household.base_currency, resolved_year, today=today
+    )
+    currency = household.base_currency
+
+    def money(minor: int) -> MoneySchema:
+        return MoneySchema(amount_minor=minor, currency=currency)
+
+    cached = repository.get_yearly_review(engine, household.id, resolved_year)
+    review = None
+    if cached is not None:
+        review = YearlyReview(
+            summary=cached.summary,
+            suggestions=cached.suggestions,
+            months_covered=cached.months_covered,
+            model=cached.model,
+            generated_at=cached.created_at,
+        )
+    return YearlyOverview(
+        year=resolved_year,
+        months=[
+            YearMonthSummary(
+                month=m.month,
+                income=money(m.income_minor),
+                spending=money(m.spending_minor),
+                net=money(m.net_minor),
+                net_worth_eom=money(m.net_worth_eom_minor)
+                if m.net_worth_eom_minor is not None
+                else None,
+            )
+            for m in months
+        ],
+        total_income=money(sum(m.income_minor for m in months)),
+        total_spending=money(sum(m.spending_minor for m in months)),
+        total_net=money(sum(m.net_minor for m in months)),
+        top_categories=[
+            NamedAmount(name=name, amount=money(amount)) for name, amount in top
+        ],
+        review=review,
+    )
+
+
+@router.post(
+    "/overview/yearly/review",
+    operation_id="generateYearlyReview",
+    response_model=YearlyReview,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Household not found", "model": ErrorResponse},
+    },
+    summary="(Re)generate the year's grounded narrative and suggestions",
+)
+async def generate_yearly_review(
+    year: int | None = None,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> YearlyReview:
+    household = repository.get_household(engine, session.household_id)
+    if household is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+    today = repository.utcnow().date()
+    resolved_year = year or today.year
+    result = yearly_review_module.generate_review(
+        engine, household.id, household.base_currency, resolved_year, today=today
+    )
+    cached = repository.get_yearly_review(engine, household.id, resolved_year)
+    return YearlyReview(
+        summary=result["summary"],
+        suggestions=result["suggestions"],
+        months_covered=result["months_covered"],
+        model=result["model"],
+        generated_at=cached.created_at if cached else repository.utcnow(),
+    )
 
 
 @router.get(

@@ -8,6 +8,14 @@ import SwiftUI
 struct OverviewView: View {
     @Environment(AppModel.self) private var model
     @State private var viewModel: OverviewViewModel?
+    // M-yearly: the Overview flips between the month glance and the year trend.
+    @State private var viewMode: ViewMode = .month
+    @State private var yearlyModel: YearlyOverviewViewModel?
+
+    enum ViewMode: String, CaseIterable {
+        case month = "Month"
+        case year = "Year"
+    }
 
     var body: some View {
         NavigationStack {
@@ -27,6 +35,9 @@ struct OverviewView: View {
         .task {
             if viewModel == nil, let api = model.household {
                 viewModel = OverviewViewModel(api: api)
+            }
+            if yearlyModel == nil, let api = model.household {
+                yearlyModel = YearlyOverviewViewModel(api: api)
             }
             await viewModel?.load()
             // Seed the shared freshness clock so every tab agrees (M103).
@@ -94,6 +105,24 @@ struct OverviewView: View {
         } else if let context = viewModel.context {
             ScrollView {
                 VStack(spacing: 16) {
+                    Picker("View", selection: $viewMode) {
+                        ForEach(ViewMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    if viewMode == .year {
+                        if let yearlyModel {
+                            YearlyOverviewView(viewModel: yearlyModel) { month in
+                                // Drill-down: jump the whole Overview to that month.
+                                viewMode = .month
+                                Task {
+                                    await viewModel.show(month: month)
+                                    await warmMonthCache(month)
+                                }
+                            }
+                        }
+                    } else {
                     monthPicker(viewModel)
                     // M120 (ADR 0029): the box and the app ship one monorepo
                     // version - say so loudly when they have drifted apart.
@@ -147,6 +176,7 @@ struct OverviewView: View {
                     if let bills = context.upcomingBills, !bills.isEmpty {
                         upcomingBillsCard(bills)
                     }
+                    }  // viewMode == .month
                 }
                 .padding()
             }

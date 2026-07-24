@@ -96,6 +96,13 @@ final class OverviewViewModel {
     /// Reload the selected month — used after an in-place recategorize.
     func reload() async { await load() }
 
+    /// Jump straight to a month ("yyyy-MM") — the Year view's drill-down.
+    func show(month: String) async {
+        guard month != selectedMonth else { return }
+        selectedMonth = min(month, MonthKey.current())
+        await load()
+    }
+
     /// The slow path: fetch new statements from the banks, then recompute. Pull-to-
     /// refresh only recomputes what's stored; this is how new bank data arrives.
     func syncNow() async {

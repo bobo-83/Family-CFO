@@ -313,3 +313,75 @@ struct CategorySpendingDetailTests {
         }
     }
 }
+
+
+@MainActor
+struct YearlyOverviewViewModelTests {
+    final class MockYearlyAPI: HouseholdAPI, @unchecked Sendable {
+        var yearlyResult: Components.Schemas.YearlyOverview?
+        var reviewResult: Components.Schemas.YearlyReview?
+        private(set) var requestedYears: [Int?] = []
+
+        nonisolated func context(month: String?) async throws -> Components.Schemas.HouseholdContext {
+            throw APIError.server(500)
+        }
+        nonisolated func transactions(month: String?) async throws -> [Components.Schemas.Transaction] { [] }
+        nonisolated func syncAll() async throws -> SyncTotals { SyncTotals() }
+        nonisolated func spending(month: String?) async throws -> Components.Schemas.SpendingByCategory {
+            throw APIError.server(500)
+        }
+        nonisolated func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
+            await MainActor.run { requestedYears.append(year) }
+            if let yearlyResult { return yearlyResult }
+            throw APIError.server(500)
+        }
+        nonisolated func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview {
+            if let reviewResult { return reviewResult }
+            throw APIError.server(503)
+        }
+    }
+
+    private func overview(year: Int) -> Components.Schemas.YearlyOverview {
+        .init(
+            year: year,
+            months: [
+                .init(
+                    month: "\(year)-01",
+                    income: .init(amountMinor: 500_000, currency: "USD"),
+                    spending: .init(amountMinor: 300_000, currency: "USD"),
+                    net: .init(amountMinor: 200_000, currency: "USD"))
+            ],
+            totalIncome: .init(amountMinor: 500_000, currency: "USD"),
+            totalSpending: .init(amountMinor: 300_000, currency: "USD"),
+            totalNet: .init(amountMinor: 200_000, currency: "USD"),
+            topCategories: [])
+    }
+
+    @Test func loadsTheYearAndStepsBackwards() async {
+        let api = MockYearlyAPI()
+        api.yearlyResult = overview(year: 2026)
+        let viewModel = YearlyOverviewViewModel(api: api)
+
+        await viewModel.load()
+        #expect(viewModel.overview?.year == 2026)
+
+        api.yearlyResult = overview(year: 2025)
+        await viewModel.step(-1)
+        #expect(api.requestedYears.last == 2025)
+    }
+
+    @Test func generateReviewAttachesTheResult() async {
+        let api = MockYearlyAPI()
+        api.yearlyResult = overview(year: 2026)
+        api.reviewResult = .init(
+            summary: "A steady year.", suggestions: ["Trim subscriptions"],
+            monthsCovered: 7, generatedAt: Date())
+        let viewModel = YearlyOverviewViewModel(api: api)
+        await viewModel.load()
+
+        await viewModel.generateReview()
+
+        #expect(viewModel.overview?.review?.summary == "A steady year.")
+        #expect(viewModel.overview?.review?.suggestions == ["Trim subscriptions"])
+    }
+}
