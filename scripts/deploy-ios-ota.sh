@@ -93,6 +93,19 @@ mkdir -p "$BUILD_DIR"
 : "${IOS_TEAM_ID:?set IOS_TEAM_ID to your Apple Developer team id (see .deploy.env.example)}"
 APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
+# M-watch: the embedded watch app's NEW bundle id needs a provisioning profile
+# minted on first build — that requires App Store Connect API-key auth (the
+# same flags release-testflight.sh passes); Xcode-account auth isn't set up
+# on this machine.
+AUTH=()
+if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ]; then
+  ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"
+  AUTH=(
+    -authenticationKeyPath "$ASC_KEY_PATH"
+    -authenticationKeyID "$ASC_KEY_ID"
+    -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+  )
+fi
 xcodebuild archive \
   -project "$IOS_PROJECT" \
   -scheme "$IOS_SCHEME" \
@@ -100,6 +113,7 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  "${AUTH[@]}" \
   MARKETING_VERSION="$APP_VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
@@ -143,6 +157,7 @@ xcodebuild -exportArchive \
   -exportPath "$EXPORT_DIR" \
   -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
   -allowProvisioningUpdates \
+  "${AUTH[@]}" \
   -quiet \
   || die "Export failed. The build is signed for the devices in the team
        provisioning profile — if this phone was added recently, open the project in
