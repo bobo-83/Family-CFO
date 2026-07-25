@@ -78,17 +78,15 @@ struct WatchChatView: View {
                                     ? Color.blue.opacity(0.25) : Color.gray.opacity(0.2),
                                 in: RoundedRectangle(cornerRadius: 8))
                             .id(index)
-                            // Tap an answer to hear it; tap again to stop
-                            // (user request 2026-07-25) — reopened threads
-                            // and muted answers stay reachable by voice.
-                            .onTapGesture {
-                                guard turn.role == "assistant" else { return }
-                                if speaker.isSpeaking {
-                                    speaker.stop()
-                                } else {
-                                    Task { await speaker.speak(turn.text, api: model.speech) }
-                                }
-                            }
+                        // A visible per-answer voice button, like the phone's
+                        // Read aloud (user feedback 2026-07-25: a bare tap was
+                        // undiscoverable, and the synthesis delay invited
+                        // repeat taps that stacked overlapping streams — the
+                        // speaker's state machine now shows loading and only
+                        // ever runs one stream; pressing again stops it).
+                        if turn.role == "assistant" {
+                            readAloudButton(text: turn.text, tag: index)
+                        }
                     }
                     if isSending {
                         HStack(spacing: 4) {
@@ -146,6 +144,31 @@ struct WatchChatView: View {
                 }
             }
         }
+    }
+
+    /// One button, three faces: idle speaker icon, a spinner while the box
+    /// synthesizes (pressing cancels), a stop symbol while it talks.
+    @ViewBuilder
+    private func readAloudButton(text: String, tag: Int) -> some View {
+        Button {
+            if speaker.currentTag == tag, speaker.isSpeaking {
+                speaker.stop()
+            } else {
+                Task { await speaker.speak(text, api: model.speech, tag: tag) }
+            }
+        } label: {
+            if speaker.currentTag == tag, speaker.phase == .loading {
+                ProgressView().frame(width: 14, height: 14)
+            } else if speaker.currentTag == tag, speaker.phase == .speaking {
+                Label("Stop reading", systemImage: "stop.circle.fill")
+            } else {
+                Label("Read aloud", systemImage: "speaker.wave.2")
+            }
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
     }
 
     /// A clean slate: the next question starts a fresh thread on the box.
