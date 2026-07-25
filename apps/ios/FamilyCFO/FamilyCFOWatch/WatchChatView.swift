@@ -78,6 +78,17 @@ struct WatchChatView: View {
                                     ? Color.blue.opacity(0.25) : Color.gray.opacity(0.2),
                                 in: RoundedRectangle(cornerRadius: 8))
                             .id(index)
+                            // Tap an answer to hear it; tap again to stop
+                            // (user request 2026-07-25) — reopened threads
+                            // and muted answers stay reachable by voice.
+                            .onTapGesture {
+                                guard turn.role == "assistant" else { return }
+                                if speaker.isSpeaking {
+                                    speaker.stop()
+                                } else {
+                                    Task { await speaker.speak(turn.text, api: model.speech) }
+                                }
+                            }
                     }
                     if isSending {
                         HStack(spacing: 4) {
