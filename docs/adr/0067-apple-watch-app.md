@@ -107,6 +107,17 @@ first unlock, so requests can always be answered. Invariant: the watch
 never keeps showing an auth error while the phone, in reach, holds a newer
 credential.
 
+## Amendment (2026-07-25, v7): graphical complications
+
+Numbers-only face slots wasted the medium (user request 2026-07-25). The
+small slots (circular, corner) now draw a SPEND RING — the fraction of the
+month's expected income still free to spend, amount in the center, amber
+under 20% — and the rectangular slot shows the month: In and Out bars
+scaled against each other plus the left-to-spend line. The snapshot gained
+optional month fields (income received, spent, expected income) so an older
+cache still decodes and falls back to the text layout; the no-network and
+privacy-redaction rules are unchanged.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

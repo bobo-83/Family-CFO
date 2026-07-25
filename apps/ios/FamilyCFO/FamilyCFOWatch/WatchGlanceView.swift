@@ -114,6 +114,9 @@ struct WatchGlanceView: View {
                 safeToSpendMinor: context.safeToSpend.map { Int64($0.safeToSpend.amountMinor) },
                 lowestBalanceMinor: outlook.map { Int64($0.lowestBalance.amountMinor) },
                 netWorthMinor: Int64(context.netWorth.amountMinor),
+                monthIncomeMinor: plan.map { Int64($0.incomeReceived.amountMinor) },
+                monthSpendingMinor: plan.map { Int64($0.spent.amountMinor) },
+                expectedIncomeMinor: plan.map { Int64($0.expectedIncome.amountMinor) },
                 currency: context.netWorth.currency,
                 capturedAt: Date()))
         WidgetCenter.shared.reloadTimelines(ofKind: WatchFaceSnapshot.widgetKind)

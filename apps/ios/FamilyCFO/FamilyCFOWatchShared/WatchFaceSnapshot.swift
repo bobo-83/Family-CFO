@@ -10,6 +10,11 @@ struct WatchFaceSnapshot: Codable, Equatable {
     var safeToSpendMinor: Int64?
     var lowestBalanceMinor: Int64?
     var netWorthMinor: Int64?
+    // The month picture behind the graphical slots (ADR 0067 v7): optional so
+    // a cache written by an older app still decodes (text-only fallback).
+    var monthIncomeMinor: Int64?
+    var monthSpendingMinor: Int64?
+    var expectedIncomeMinor: Int64?
     var currency: String
     var capturedAt: Date
 
@@ -57,6 +62,14 @@ extension WatchFaceSnapshot {
     }
 
     /// Tight face slots ("$12.7K"): compact notation, one decimal at most.
+    /// The ring: how much of the month's expected income is still free to
+    /// spend, clamped to the gauge's 0...1. nil when the plan is unknown.
+    var spendableFraction: Double? {
+        guard let left = leftToSpendMinor, let expected = expectedIncomeMinor, expected > 0
+        else { return nil }
+        return min(max(Double(left) / Double(expected), 0), 1)
+    }
+
     func compact(_ minor: Int64) -> String {
         (Decimal(minor) / 100)
             .formatted(

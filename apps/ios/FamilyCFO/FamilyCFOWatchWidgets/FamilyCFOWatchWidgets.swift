@@ -20,6 +20,8 @@ struct GlanceProvider: TimelineProvider {
             snapshot: WatchFaceSnapshot(
                 leftToSpendMinor: 1_272_800, safeToSpendMinor: 1_050_700,
                 lowestBalanceMinor: 6_641_700, netWorthMinor: nil,
+                monthIncomeMinor: 3_029_800, monthSpendingMinor: 1_260_400,
+                expectedIncomeMinor: 3_029_800,
                 currency: "USD", capturedAt: Date()))
     }
 
@@ -55,32 +57,85 @@ struct GlanceComplicationView: View {
     private func slot(_ snapshot: WatchFaceSnapshot, _ headline: (label: String, amountMinor: Int64)) -> some View {
         switch family {
         case .accessoryRectangular:
-            VStack(alignment: .leading, spacing: 1) {
-                Text(headline.label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(snapshot.formatted(headline.amountMinor))
-                    .font(.headline)
-                    .minimumScaleFactor(0.7)
-                    .privacySensitive()
-                if headline.label != "Safe to spend", let safe = snapshot.safeToSpendMinor {
-                    Text("safe \(snapshot.compact(safe))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .privacySensitive()
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            monthDetail(snapshot, headline)
         case .accessoryInline:
             Text("\(snapshot.compact(headline.amountMinor)) left")
                 .privacySensitive()
-        default:  // circular and corner share the compact figure
+        case .accessoryCorner:
+            // The corner arc carries the ring; the figure sits in the corner.
             Text(snapshot.compact(headline.amountMinor))
                 .font(.system(.body, design: .rounded).weight(.semibold))
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .privacySensitive()
+                .widgetLabel {
+                    if let fraction = snapshot.spendableFraction {
+                        Gauge(value: fraction) { Text(headline.label) }
+                            .tint(fraction < 0.2 ? .orange : .green)
+                    } else {
+                        Text(headline.label)
+                    }
+                }
+        default:  // circular: the spend ring (ADR 0067 v7)
+            if let fraction = snapshot.spendableFraction {
+                Gauge(value: fraction) {
+                    Text("Left")
+                } currentValueLabel: {
+                    Text(snapshot.compact(headline.amountMinor))
+                        .minimumScaleFactor(0.5)
+                        .privacySensitive()
+                }
+                .gaugeStyle(.accessoryCircular)
+                .tint(fraction < 0.2 ? .orange : .green)
                 .widgetLabel(headline.label)
+            } else {
+                Text(snapshot.compact(headline.amountMinor))
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .privacySensitive()
+                    .widgetLabel(headline.label)
+            }
+        }
+    }
+
+    /// The month at a glance for the big slot: In and Out bars scaled against
+    /// each other, then the number the family acts on.
+    @ViewBuilder
+    private func monthDetail(_ snapshot: WatchFaceSnapshot, _ headline: (label: String, amountMinor: Int64)) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let income = snapshot.monthIncomeMinor, let spending = snapshot.monthSpendingMinor {
+                let peak = max(income, spending, 1)
+                barRow("In", income, peak, .green, snapshot)
+                barRow("Out", spending, peak, .orange, snapshot)
+            }
+            HStack {
+                Text(headline.label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(snapshot.compact(headline.amountMinor))
+                    .font(.caption.weight(.semibold))
+                    .privacySensitive()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func barRow(
+        _ label: String, _ minor: Int64, _ peak: Int64, _ tint: Color,
+        _ snapshot: WatchFaceSnapshot
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 24, alignment: .leading)
+            ProgressView(value: Double(minor) / Double(peak))
+                .tint(tint)
+            Text(snapshot.compact(minor))
+                .font(.caption2)
+                .privacySensitive()
         }
     }
 
