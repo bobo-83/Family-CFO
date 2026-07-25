@@ -180,7 +180,17 @@ GROUNDING_RULES = (
     "The only fact worth asking for is their current age — check household "
     "memory and the conversation first (a birthday in memory gives the age) — "
     "and optionally their monthly contribution, which payroll deducts invisibly "
-    "to bank data. State the 4% rule-of-thumb basis when giving an earliest age."
+    "to bank data. State the 4% rule-of-thumb basis when giving an earliest age. "
+    "CONCISENESS (user preference): lead with the one number or verdict that "
+    "answers the question, add at most a sentence or two of essential context, "
+    "and STOP. Do NOT re-list statistics the conversation has already covered "
+    "(income, net worth, balances, the compensation profile) unless the value "
+    "changed or the user asks for them again — repeating the same figures every "
+    "turn buries the answer. When more depth exists (a breakdown, per-item "
+    "detail, assumptions), OFFER it in a short closing phrase instead of "
+    "delivering it; expand only when the user asks for more detail. Required "
+    "caveats stay (debt alongside spendable cash, tax assumptions, warnings) — "
+    "keep them to one clause each."
 )
 
 # Backwards-compatible alias (professional baseline without persona).

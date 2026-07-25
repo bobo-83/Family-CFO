@@ -430,6 +430,18 @@ def test_time_scoped_tools_advertise_the_month_param() -> None:
         assert "month" in by_name[name].parameters["properties"], name
 
 
+def test_system_prompt_demands_concise_non_repeating_answers() -> None:
+    """User feedback 2026-07-25: answers re-listed the same stats every turn.
+    The prompt must tell the model to lead with the answer, not repeat covered
+    figures, and offer depth instead of delivering it."""
+    from datetime import date
+
+    prompt = ai_tools.build_system_prompt(today=date(2026, 7, 25))
+    assert "CONCISENESS" in prompt
+    assert "re-list" in prompt
+    assert "expand only when the user asks" in prompt
+
+
 def test_system_prompt_grounds_todays_date() -> None:
     """The model must be told 'now' or it calls the current year the future."""
     from datetime import date
