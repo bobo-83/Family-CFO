@@ -128,6 +128,17 @@ of expected income (<5% -> 1, <15% -> 2, <25% -> 3, <40% -> 4, else 5),
 drawn with pure vector shapes (no assets); the compact amount rides the
 widget label. The rectangular month bars are unchanged.
 
+## Amendment (2026-07-25, v9): budget complications
+
+A second widget kind ("Budgets", user request 2026-07-25) joins the face
+gallery: the small slots ring the whole month's budget burn (total spent
+over total limit — green, orange from 80%, red at/over the cap) with the
+percent in the center; the rectangular slot charts the three budgets
+closest to their caps (name, tinted burn bar, percent). The snapshot
+gained optional pre-sorted budget slices, fetched with the Glance load;
+the writer now reloads ALL widget kinds. Same rules: cached data only,
+no network from widgets, privacy-sensitive figures.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

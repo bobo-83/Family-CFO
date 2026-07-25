@@ -18,11 +18,36 @@ struct WatchFaceSnapshot: Codable, Equatable {
     var currency: String
     var capturedAt: Date
 
+    /// The budget complications' slices (ADR 0067 v9), pre-sorted by usage
+    /// (most at-risk first). Optional: an older cache still decodes.
+    var budgets: [BudgetSlice]?
+
+    struct BudgetSlice: Codable, Equatable {
+        var name: String
+        var limitMinor: Int64
+        var spentMinor: Int64
+
+        var fraction: Double {
+            limitMinor > 0 ? Double(spentMinor) / Double(limitMinor) : 0
+        }
+    }
+
+    /// Whole-budget burn: total spent over total limit (may exceed 1 when
+    /// over budget — gauges clamp, tints don't). nil without budgets.
+    var budgetFraction: Double? {
+        guard let budgets, !budgets.isEmpty else { return nil }
+        let limit = budgets.reduce(Int64(0)) { $0 + $1.limitMinor }
+        guard limit > 0 else { return nil }
+        let spent = budgets.reduce(Int64(0)) { $0 + $1.spentMinor }
+        return Double(spent) / Double(limit)
+    }
+
     /// Must match the `com.apple.security.application-groups` entitlement on
     /// BOTH the watch app and the watch widget extension.
     static let appGroup = "group.com.familycfo.ios"
     static let key = "watch-face-snapshot"
     static let widgetKind = "FamilyCFOWatchGlance"
+    static let budgetsWidgetKind = "FamilyCFOWatchBudgets"
 }
 
 /// Reads/writes the snapshot through the shared container. Falls back to

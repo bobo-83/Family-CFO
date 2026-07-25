@@ -22,7 +22,12 @@ struct GlanceProvider: TimelineProvider {
                 lowestBalanceMinor: 6_641_700, netWorthMinor: nil,
                 monthIncomeMinor: 3_029_800, monthSpendingMinor: 1_260_400,
                 expectedIncomeMinor: 3_029_800,
-                currency: "USD", capturedAt: Date()))
+                currency: "USD", capturedAt: Date(),
+                budgets: [
+                    .init(name: "Groceries", limitMinor: 120_000, spentMinor: 104_000),
+                    .init(name: "Dining", limitMinor: 60_000, spentMinor: 41_000),
+                    .init(name: "Fun", limitMinor: 40_000, spentMinor: 12_000),
+                ]))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (GlanceEntry) -> Void) {
@@ -159,5 +164,6 @@ struct FamilyCFOWatchGlanceWidget: Widget {
 struct FamilyCFOWatchWidgetsBundle: WidgetBundle {
     var body: some Widget {
         FamilyCFOWatchGlanceWidget()
+        FamilyCFOWatchBudgetsWidget()
     }
 }

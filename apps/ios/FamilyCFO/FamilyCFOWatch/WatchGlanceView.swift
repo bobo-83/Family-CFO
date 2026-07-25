@@ -9,6 +9,7 @@ struct WatchGlanceView: View {
     @State private var context: Components.Schemas.HouseholdContext?
     @State private var plan: Components.Schemas.SpendingPlanResponse?
     @State private var outlook: Components.Schemas.CashOutlookResponse?
+    @State private var budgets: [Components.Schemas.Budget]?
     @State private var errorMessage: String?
     @State private var isLoading = false
 
@@ -101,6 +102,10 @@ struct WatchGlanceView: View {
         if case .ok(let response)? = try? await client.getCashOutlook(.init()) {
             outlook = try? response.body.json
         }
+        // Budgets feed the budget complications only (ADR 0067 v9).
+        if case .ok(let response)? = try? await client.listBudgets(.init()) {
+            budgets = (try? response.body.json)?.budgets
+        }
         cacheFaceSnapshot()
     }
 
@@ -118,7 +123,16 @@ struct WatchGlanceView: View {
                 monthSpendingMinor: plan.map { Int64($0.spent.amountMinor) },
                 expectedIncomeMinor: plan.map { Int64($0.expectedIncome.amountMinor) },
                 currency: context.netWorth.currency,
-                capturedAt: Date()))
-        WidgetCenter.shared.reloadTimelines(ofKind: WatchFaceSnapshot.widgetKind)
+                capturedAt: Date(),
+                budgets: budgets.map { list in
+                    list.map {
+                        WatchFaceSnapshot.BudgetSlice(
+                            name: $0.categoryName,
+                            limitMinor: Int64($0.limit.amountMinor),
+                            spentMinor: Int64($0.spent.amountMinor))
+                    }
+                    .sorted { $0.fraction > $1.fraction }
+                }))
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
