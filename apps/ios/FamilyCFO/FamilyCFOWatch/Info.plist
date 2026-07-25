@@ -4,7 +4,7 @@
 <dict>
 	<!-- Long-form audio playback must outlive the wrist going down: without
 	     this, spoken advisor answers cut off mid-sentence (2026-07-25). -->
-	<key>WKBackgroundModes</key>
+	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
 	</array>
