@@ -59,6 +59,8 @@ struct WatchGlanceView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Clear of the page-indicator dots (user report 2026-07-25).
+        .contentMargins(.trailing, 10, for: .scrollContent)
         .navigationTitle(model.householdName ?? "Overview")
         .task { await load() }
         .refreshable { await load() }

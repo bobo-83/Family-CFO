@@ -2,7 +2,9 @@ import Foundation
 import Observation
 
 /// The conversation list's state. Extracted from the view so deleting a thread
-/// — which is irreversible on the server — is testable.
+/// — which is irreversible on the server — is testable. Lives in Shared so the
+/// phone's Advisor tab and the watch's Chats screen behave identically
+/// (ADR 0067 v4).
 @MainActor
 @Observable
 final class ConversationListViewModel {
@@ -24,7 +26,7 @@ final class ConversationListViewModel {
             conversations = try await api.listConversations()
             errorMessage = nil
         } catch {
-            errorMessage = ChatViewModel.describe(error)
+            errorMessage = AdvisorErrorDescriber.describe(error)
         }
     }
 
@@ -39,7 +41,7 @@ final class ConversationListViewModel {
             errorMessage = nil
         } catch {
             conversations.insert(removed, at: min(index, conversations.count))
-            errorMessage = ChatViewModel.describe(error)
+            errorMessage = AdvisorErrorDescriber.describe(error)
         }
     }
 }

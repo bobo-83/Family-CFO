@@ -56,6 +56,21 @@ a first-class path beside it (a keyboard-labelled input sheet). Learned the
 hard way and verified in the simulator rig: bottom-bar toolbar items are
 safe; top-bar items assert in this paging-TabView navigation context.
 
+## Amendment (2026-07-25, v4): conversation management on the wrist
+
+The chat page always resumed its in-memory thread; past conversations were
+invisible and unmanageable from the watch (user request 2026-07-25). The
+chat page now carries three in-content controls (top-bar toolbar items still
+crash here — v3): **Chats** pushes the conversation list (same
+`ConversationListViewModel` as the phone, moved to Shared along with the
+transport-error describer so list rules and failure wording cannot drift —
+a deleted row only leaves the list once the box confirms, and comes back if
+it refuses), **New** clears to a fresh thread, and the speaker toggle.
+Tapping a past thread reloads its turns from the box and continues in it.
+Rejected: a fourth TabView page for history (the list is a chat affordance,
+not a peer of Glance/Trend); a watch-local thread cache (the box is the
+record; a stale local list would lie).
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

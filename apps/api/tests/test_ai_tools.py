@@ -258,6 +258,33 @@ def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -
     assert any("not a full year" in w for w in result["warnings"])
 
 
+def test_income_tool_month_mode_lists_the_individual_deposits(demo_engine: Engine) -> None:
+    """User report 2026-07-25: asked "what made up my income in May?", the
+    advisor could only quote the aggregate. Month mode must carry the rows."""
+    from datetime import date, timedelta
+
+    _seed_income(demo_engine)
+    payday = date.today() - timedelta(days=14)
+    month = payday.strftime("%Y-%m")
+
+    result = _execute(demo_engine, "get_income_and_tax", {"month": month})
+
+    deposits = result["deposits"]
+    assert deposits, "the seeded paycheck must appear as an individual deposit"
+    assert any(
+        d["source"] == "ACME CORP PAYROLL"
+        and d["account"] == "Pay Checking"
+        and d["amount"]["amount_minor"] == 461_538
+        and d["date"] == payday.isoformat()
+        for d in deposits
+    )
+    # The aggregate equals (at least) the listed rows — chart-consistent (ADR 0066).
+    assert result["income_received"]["amount_minor"] >= sum(
+        d["amount"]["amount_minor"] for d in deposits
+    )
+    assert "deposits" in result["note"]
+
+
 def test_income_tool_carries_structured_earner_and_w2(demo_engine: Engine) -> None:
     """M76 follow-up: W2 actuals reach the model as data, not just a prose line."""
     from datetime import date, timedelta

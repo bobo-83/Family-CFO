@@ -54,8 +54,10 @@ starting an LLM turn) always requires a separately labeled action.
 
 ## Platform exceptions (ADR 0025)
 
-- watchOS: the Year trend page keeps its non-interactive chart — bar-level
-  tap targets are impractical at watch size, and the watch already has the
-  conversational advisor for "why" questions.
+- watchOS (amended 2026-07-25, same day: "I still can't tap my watch to see
+  the per month details"): the watch Year page selects months by tap exactly
+  like the phone, showing that month's in/out/kept. Only the advisor-handoff
+  buttons stay off the watch — the watch's chat page with its conversation
+  loop is one swipe away and covers "why" questions.
 - Web: no "Open month" action, because the web Overview's month mode has no
   historical month navigation to open (pre-existing platform difference).

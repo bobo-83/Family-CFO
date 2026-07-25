@@ -823,13 +823,30 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
         from family_cfo_api.api.budgets import _month_window
 
         start, end = _month_window(today)
-        minor = repository.sum_income(engine, household_id, start, end, currency)
+        categorized_minor = repository.sum_income(engine, household_id, start, end, currency)
+        deposits = finance_service.income_deposits_between(
+            engine, household_id, currency, start, end
+        )
+        # Same rule as the Year chart (ADR 0066): detection OR categorization,
+        # whichever saw more — so the advisor never contradicts the chart.
+        minor = max(categorized_minor, sum(t.amount_minor for t in deposits))
         return {
             "month": args.get("month"),
             "income_received": _money_out(_Money(minor, currency)),
+            "deposits": [
+                {
+                    "date": t.occurred_at.isoformat(),
+                    "source": t.merchant or t.description,
+                    "account": t.account_name,
+                    "amount": _money_out(_Money(t.amount_minor, currency)),
+                }
+                for t in deposits
+            ],
             "note": (
-                "Actual money categorized as Income that month. The compensation profile and "
-                "tax estimate are the current setup only, not historical."
+                "Actual money received that month. `deposits` are the individual income "
+                "deposits (paychecks and inflows the income analysis counts) — use them to "
+                "say where the money came from. The compensation profile and tax estimate "
+                "are the current setup only, not historical."
             ),
         }
 
@@ -1331,7 +1348,8 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "deterministic annual tax estimate (federal + FICA + modeled state, with "
                 "assumptions). Use for ANY question about income, salary, RSU vests, "
                 "bonuses, W2s, withholding, upcoming pay, or taxes. Pass `month` (YYYY-MM) "
-                "to get the actual income received in a past month."
+                "to get the actual income received in a past month, with the individual "
+                "deposits (date, source, account, amount) that made it up."
             ),
             parameters=_MONTH_PARAM,
         ),

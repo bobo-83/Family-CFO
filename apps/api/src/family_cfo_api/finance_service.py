@@ -707,6 +707,31 @@ class SpendingPlan:
     days_remaining: int  # including today
 
 
+def income_deposits_between(
+    engine: Engine, household_id: str, currency: str, start: date, end: date
+) -> list:
+    """The individual deposits behind ``income_received_between`` — who paid,
+    into which account, when — oldest first. The advisor needs the rows, not
+    just the sum, to answer "what made up my income that month?" (user report
+    2026-07-25: the month tool only knew the aggregate)."""
+    since = min(start, date.today()) - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
+    transactions, candidates, included_ids, excluded_ids = recurring_income_candidates(
+        engine, household_id, since=since
+    )
+    counted = {t.id for c in candidates for t in c.transactions} | included_ids
+    return sorted(
+        (
+            t
+            for t in transactions
+            if start <= t.occurred_at <= end
+            and t.currency == currency
+            and t.id in counted
+            and t.id not in excluded_ids
+        ),
+        key=lambda t: t.occurred_at,
+    )
+
+
 def income_received_between(
     engine: Engine, household_id: str, currency: str, start: date, end: date
 ) -> int:
@@ -715,18 +740,9 @@ def income_received_between(
     this product knows pay). The Income-category sum alone reads 0 for a
     household that never hand-files paychecks (M-yearly bug: the year view
     showed USD 0 income against 53 payroll deposits)."""
-    since = min(start, date.today()) - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
-    transactions, candidates, included_ids, excluded_ids = recurring_income_candidates(
-        engine, household_id, since=since
-    )
-    counted = {t.id for c in candidates for t in c.transactions} | included_ids
     return sum(
         t.amount_minor
-        for t in transactions
-        if start <= t.occurred_at <= end
-        and t.currency == currency
-        and t.id in counted
-        and t.id not in excluded_ids
+        for t in income_deposits_between(engine, household_id, currency, start, end)
     )
 
 

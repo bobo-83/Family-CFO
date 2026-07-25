@@ -160,14 +160,13 @@ struct YearlyOverviewView: View {
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    /// Questions the advisor answers from its month-scoped tools
-    /// (get_income_and_tax, get_spending_by_category, get_spending_insights).
+    /// Shared wording (YearChartText) so phone, watch, and web ask alike.
     static func incomeQuestion(for month: String) -> String {
-        "What made up my income in \(longLabel(month))? List where the money came from."
+        YearChartText.incomeQuestion(for: month)
     }
 
     static func spendingQuestion(for month: String) -> String {
-        "What made up my spending in \(longLabel(month))? Break it down by category and biggest merchants."
+        YearChartText.spendingQuestion(for: month)
     }
 
     private func totalsRow(_ overview: Components.Schemas.YearlyOverview) -> some View {
@@ -250,14 +249,10 @@ struct YearlyOverviewView: View {
     }
 
     static func shortLabel(_ month: String) -> String {
-        // "2026-03" -> "Mar"
-        guard let number = Int(month.suffix(2)), (1...12).contains(number) else { return month }
-        return Calendar.current.shortMonthSymbols[number - 1]
+        YearChartText.shortLabel(month)
     }
 
     static func longLabel(_ month: String) -> String {
-        // "2026-03" -> "March 2026"
-        guard let number = Int(month.suffix(2)), (1...12).contains(number) else { return month }
-        return "\(Calendar.current.monthSymbols[number - 1]) \(month.prefix(4))"
+        YearChartText.longLabel(month)
     }
 }

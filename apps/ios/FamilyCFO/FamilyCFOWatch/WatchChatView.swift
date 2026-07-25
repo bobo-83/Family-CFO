@@ -14,18 +14,35 @@ struct WatchChatView: View {
     @State private var errorMessage: String?
     @State private var speaker = WatchSpeaker()
     @State private var inConversation = false
+    @State private var showHistory = false
     @AppStorage("family-cfo.watch.speakAnswers") private var speakAnswers = true
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    // Speaker toggle lives IN content: a top-bar ToolbarItem
+                    // These controls live IN content: a top-bar ToolbarItem
                     // (any placement) trips a UINavigationBar layout assertion
                     // on watchOS inside a paging TabView's NavigationStack —
                     // the scroll-to-chat crash (user reports 2026-07-25;
                     // bisected in the simulator rig).
                     HStack {
+                        // ADR 0067 v4: past threads, and a clean slate.
+                        Button {
+                            showHistory = true
+                        } label: {
+                            Label("Chats", systemImage: "clock.arrow.circlepath")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.borderless)
+                        Button {
+                            startNewChat()
+                        } label: {
+                            Label("New", systemImage: "square.and.pencil")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(turns.isEmpty && conversationID == nil)
                         Spacer()
                         Button {
                             if speaker.isSpeaking {
@@ -42,6 +59,7 @@ struct WatchChatView: View {
                         }
                         .buttonStyle(.borderless)
                     }
+                    .labelStyle(.iconOnly)
                     if turns.isEmpty && !isSending {
                         Text("Ask about your money — \"can I afford new skis?\"")
                             .font(.footnote)
@@ -77,8 +95,18 @@ struct WatchChatView: View {
             .onChange(of: turns.count) {
                 proxy.scrollTo(turns.count - 1, anchor: .bottom)
             }
+            // Keep content clear of the vertical page-indicator dots on the
+            // trailing edge (user report 2026-07-25: they sat on the speaker
+            // toggle and the hint text).
+            .contentMargins(.trailing, 10, for: .scrollContent)
         }
         .navigationTitle("Advisor")
+        // Pushes are safe here; only top-bar toolbar items crash (ADR 0067 v3).
+        .navigationDestination(isPresented: $showHistory) {
+            WatchConversationsView { id in
+                Task { await open(conversationID: id) }
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .bottomBar) {
                 // CONVERSATION (user request 2026-07-25): tap once, talk,
@@ -106,6 +134,31 @@ struct WatchChatView: View {
                     Task { await send() }
                 }
             }
+        }
+    }
+
+    /// A clean slate: the next question starts a fresh thread on the box.
+    private func startNewChat() {
+        speaker.stop()
+        inConversation = false
+        conversationID = nil
+        turns = []
+        errorMessage = nil
+        progress = nil
+    }
+
+    /// Reopen a past thread: pull its turns from the box, then continue in it.
+    private func open(conversationID id: String) async {
+        guard let advisor = model.advisor else { return }
+        startNewChat()
+        do {
+            let detail = try await advisor.conversation(id: id)
+            conversationID = id
+            turns = detail.messages
+                .sorted { $0.sequence < $1.sequence }
+                .map { (role: $0.role == .user ? "user" : "assistant", text: $0.content) }
+        } catch {
+            errorMessage = AdvisorErrorDescriber.describe(error)
         }
     }
 
