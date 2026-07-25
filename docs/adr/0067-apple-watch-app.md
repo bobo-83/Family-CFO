@@ -32,6 +32,18 @@ revocable credential, grounded answers only.
   bundle; `deploy-ios.sh` verifies the embedding and iOS pushes it to the
   paired watch automatically.
 
+## Amendment (2026-07-25): v2 — spoken conversation and drill-downs
+
+User feedback after first wear: talking beats typing, answers should be
+audible, and the glance numbers need depth. v2 adds: a one-tap mic button
+(watchOS dictation IS the voice input path — the Speech framework does not
+exist on watchOS, so the phone's transcript-plus-audio-energy voice mode
+cannot be ported; dictation gives the same speak-to-ask result), spoken
+answers through the box's Kokoro voice with the on-device system voice as
+fallback (never silent, ADR 0058 spirit), drill-down screens for
+safe-to-spend and net worth (with the snapshot trend charted), and a third
+page charting the year's monthly in/out from `GET /overview/yearly`.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

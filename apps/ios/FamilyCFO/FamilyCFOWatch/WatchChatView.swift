@@ -12,6 +12,8 @@ struct WatchChatView: View {
     @State private var progress: String?
     @State private var isSending = false
     @State private var errorMessage: String?
+    @State private var speaker = WatchSpeaker()
+    @AppStorage("family-cfo.watch.speakAnswers") private var speakAnswers = true
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -55,9 +57,28 @@ struct WatchChatView: View {
         }
         .navigationTitle("Advisor")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // Spoken answers on/off; a tap mid-speech also stops it.
+                Button {
+                    if speaker.isSpeaking {
+                        speaker.stop()
+                    } else {
+                        speakAnswers.toggle()
+                    }
+                } label: {
+                    Image(systemName: speakAnswers ? "speaker.wave.2.fill" : "speaker.slash")
+                }
+            }
             ToolbarItem(placement: .bottomBar) {
-                TextField("Ask…", text: $draft)
-                    .onSubmit { Task { await send() } }
+                // TextFieldLink opens the watch input UI, which is
+                // dictation-first: one tap, talk, done — the wrist version of
+                // the phone's voice mode. Answers are spoken back.
+                TextFieldLink(prompt: Text("Ask about your money")) {
+                    Label("Ask", systemImage: "mic.fill")
+                } onSubmit: { spoken in
+                    draft = spoken
+                    Task { await send() }
+                }
             }
         }
     }
@@ -82,6 +103,9 @@ struct WatchChatView: View {
             conversationID = response.conversationId
             turns.append(("assistant", response.recommendation.answer))
             errorMessage = nil
+            if speakAnswers {
+                await speaker.speak(response.recommendation.answer, api: model.speech)
+            }
         } catch {
             // Same recovery as the phone: the box may have finished and saved.
             if let recovered = await SavedAnswerRecovery(api: advisor).poll(
@@ -90,6 +114,9 @@ struct WatchChatView: View {
                 conversationID = recovered.conversationID
                 turns.append(("assistant", recovered.answer.content))
                 errorMessage = nil
+                if speakAnswers {
+                    await speaker.speak(recovered.answer.content, api: model.speech)
+                }
             } else {
                 errorMessage = "Couldn't get an answer — try again on WiFi."
             }

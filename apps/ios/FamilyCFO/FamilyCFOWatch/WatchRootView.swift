@@ -7,6 +7,7 @@ struct WatchRootView: View {
         if model.isPaired {
             TabView {
                 NavigationStack { WatchGlanceView() }
+                NavigationStack { WatchYearTrendView() }
                 NavigationStack { WatchChatView() }
             }
             .tabViewStyle(.verticalPage)

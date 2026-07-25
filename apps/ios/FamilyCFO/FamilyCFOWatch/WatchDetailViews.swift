@@ -1,0 +1,148 @@
+import Charts
+import SwiftUI
+
+/// Drill-downs behind the glance rows (user request 2026-07-25): the same
+/// component numbers the phone's detail sheets show, wrist-sized, plus the
+/// net-worth trend as a real chart.
+struct WatchSafeToSpendDetail: View {
+    let safeToSpend: Components.Schemas.SafeToSpend
+
+    var body: some View {
+        List {
+            row("Liquid cash", safeToSpend.liquidBalance)
+            row("Emergency fund held back", safeToSpend.emergencyFundReserved, negative: true)
+            row("Bills due", safeToSpend.billsDue, negative: true)
+            row("Debt minimums", safeToSpend.minimumDebtPayments, negative: true)
+            HStack {
+                Text("Safe to spend").font(.footnote.weight(.semibold))
+                Spacer()
+                Text(safeToSpend.safeToSpend.formatted)
+                    .foregroundStyle(safeToSpend.safeToSpend.amountMinor >= 0 ? .green : .red)
+            }
+        }
+        .navigationTitle("Safe to spend")
+    }
+
+    private func row(_ label: String, _ money: Components.Schemas.Money, negative: Bool = false) -> some View {
+        HStack {
+            Text(label).font(.footnote)
+            Spacer()
+            Text((negative ? "−" : "") + money.formatted)
+                .font(.footnote)
+                .foregroundStyle(negative ? .orange : .primary)
+        }
+    }
+}
+
+struct WatchNetWorthDetail: View {
+    let context: Components.Schemas.HouseholdContext
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(context.netWorth.formatted)
+                    .font(.title3.weight(.semibold))
+                if let history = context.netWorthHistory, history.count > 1 {
+                    Chart(history, id: \.asOf) { point in
+                        LineMark(
+                            x: .value("Date", point.asOf),
+                            y: .value("Net worth", point.netWorth.decimalValue)
+                        )
+                        .interpolationMethod(.catmullRom)
+                    }
+                    .chartXAxis(.hidden)
+                    .frame(height: 80)
+                    Text("\(history.count) snapshots")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("The trend appears after a few daily snapshots.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Net worth")
+    }
+}
+
+/// The year at a glance on the wrist: the same monthly in/out trend the
+/// phone's Year mode charts, from `GET /overview/yearly`.
+struct WatchYearTrendView: View {
+    @Environment(WatchModel.self) private var model
+    @State private var overview: Components.Schemas.YearlyOverview?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                if let overview {
+                    if overview.months.isEmpty {
+                        Text("No data for \(String(overview.year)) yet.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Chart {
+                            ForEach(overview.months, id: \.month) { month in
+                                BarMark(
+                                    x: .value("Month", String(month.month.suffix(2))),
+                                    y: .value("In", month.income.decimalValue)
+                                )
+                                .foregroundStyle(.green)
+                                .position(by: .value("Series", "In"))
+                                BarMark(
+                                    x: .value("Month", String(month.month.suffix(2))),
+                                    y: .value("Out", month.spending.decimalValue)
+                                )
+                                .foregroundStyle(.orange)
+                                .position(by: .value("Series", "Out"))
+                            }
+                        }
+                        .chartYAxis(.hidden)
+                        .frame(height: 90)
+                        HStack {
+                            label("In", overview.totalIncome.formatted, .green)
+                            label("Out", overview.totalSpending.formatted, .orange)
+                        }
+                        label(
+                            "Kept", overview.totalNet.formatted,
+                            overview.totalNet.amountMinor >= 0 ? .green : .red)
+                        if let review = overview.review {
+                            Text(review.summary)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else if let errorMessage {
+                    Text(errorMessage).font(.caption2).foregroundStyle(.red)
+                } else {
+                    ProgressView()
+                }
+            }
+        }
+        .navigationTitle("This year")
+        .task { await load() }
+        .refreshable { await load() }
+    }
+
+    private func label(_ name: String, _ value: String, _ color: Color) -> some View {
+        HStack {
+            Text(name).font(.caption2).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(.caption).foregroundStyle(color)
+        }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        do {
+            guard case .ok(let response) = try await client.getYearlyOverview(.init()) else {
+                errorMessage = "The box answered unexpectedly."
+                return
+            }
+            overview = try response.body.json
+            errorMessage = nil
+        } catch {
+            errorMessage = "Can't reach the box."
+        }
+    }
+}

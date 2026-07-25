@@ -14,11 +14,21 @@ struct WatchGlanceView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if let context {
                     if let sts = context.safeToSpend {
-                        glanceRow(
-                            "Safe to spend", sts.safeToSpend.formatted,
-                            tint: sts.safeToSpend.amountMinor >= 0 ? .green : .red)
+                        NavigationLink {
+                            WatchSafeToSpendDetail(safeToSpend: sts)
+                        } label: {
+                            glanceRow(
+                                "Safe to spend", sts.safeToSpend.formatted,
+                                tint: sts.safeToSpend.amountMinor >= 0 ? .green : .red)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    glanceRow("Net worth", context.netWorth.formatted, tint: .primary)
+                    NavigationLink {
+                        WatchNetWorthDetail(context: context)
+                    } label: {
+                        glanceRow("Net worth", context.netWorth.formatted, tint: .primary)
+                    }
+                    .buttonStyle(.plain)
                     if let flow = context.monthlyCashFlow {
                         glanceRow("In / month", flow.income.formatted, tint: .green)
                         glanceRow("Bills / month", flow.bills.formatted, tint: .orange)

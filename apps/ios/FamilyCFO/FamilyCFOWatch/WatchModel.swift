@@ -27,6 +27,7 @@ final class WatchModel {
     }
 
     var advisor: AdvisorAPI? { client.map { LiveAdvisorAPI(client: $0) } }
+    var speech: SpeechAudioAPI? { client.map { LiveSpeechAudioAPI(client: $0) } }
 
     private let connectivity = WatchConnectivityReceiver()
 
