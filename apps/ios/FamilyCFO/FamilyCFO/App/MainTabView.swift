@@ -77,7 +77,11 @@ struct MainTabView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { checkSharedInbox() }
+            if phase == .active {
+                checkSharedInbox()
+                // ADR 0067 v6: keep the watch's pairing copy fresh.
+                model.pushWatchPairing()
+            }
         }
         .task {
             if billsModel == nil, let api = model.bills {

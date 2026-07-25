@@ -201,10 +201,14 @@ struct WatchYearTrendView: View {
         }
     }
 
-    private func load() async {
+    private func load(retried: Bool = false) async {
         guard let client = model.client else { return }
         do {
             guard case .ok(let response) = try await client.getYearlyOverview(.init()) else {
+                // Stale relayed token (ADR 0067 v6): refresh from the phone, retry once.
+                if !retried, await model.requestFreshCredential() {
+                    return await load(retried: true)
+                }
                 errorMessage = "The box answered unexpectedly."
                 return
             }

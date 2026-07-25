@@ -57,6 +57,19 @@ final class WatchModel {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
         }
     }
+
+    /// ADR 0067 v6: a 401 usually means the phone rotated the session while
+    /// our pushed copy lagged (user report 2026-07-25 — "the box answered
+    /// unexpectedly" right after an update, gone once the phone was opened).
+    /// Ask the phone for its CURRENT pairing over the live channel — waking
+    /// its app in the background if needed — and apply the reply. Returns
+    /// true when a different token landed, i.e. a retry is worth it.
+    func requestFreshCredential() async -> Bool {
+        let stale = token
+        guard let context = await connectivity.requestContext() else { return false }
+        apply(context)
+        return token != nil && token != stale
+    }
 }
 
 /// WCSession plumbing kept out of the observable model: the delegate fires on
@@ -87,5 +100,23 @@ final class WatchConnectivityReceiver: NSObject, WCSessionDelegate, @unchecked S
 
     func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
         forward(context)
+    }
+
+    /// Live round-trip to the phone for its current pairing (ADR 0067 v6).
+    /// nil when the phone is out of reach — the caller just keeps its error.
+    func requestContext() async -> [String: String]? {
+        let session = WCSession.default
+        guard WCSession.isSupported(), session.activationState == .activated,
+            session.isReachable
+        else { return nil }
+        return await withCheckedContinuation { continuation in
+            session.sendMessage(
+                ["want": "pairing"],
+                replyHandler: { reply in
+                    let typed = reply.compactMapValues { $0 as? String }
+                    continuation.resume(returning: typed.isEmpty ? nil : typed)
+                },
+                errorHandler: { _ in continuation.resume(returning: nil) })
+        }
     }
 }

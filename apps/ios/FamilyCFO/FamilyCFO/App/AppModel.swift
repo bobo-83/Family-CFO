@@ -66,8 +66,10 @@ final class AppModel {
         RolePolicy(role: credential?.role, rights: credential?.rights.map(Set.init))
     }
 
-    private static let serverDefaultsKey = "family-cfo.server"
-    private static let credentialAccount = "device-credential"
+    // Internal (not private): PhoneWatchBridge reads persisted state directly
+    // when the watch asks for the pairing from a background launch (ADR 0067 v6).
+    nonisolated static let serverDefaultsKey = "family-cfo.server"
+    nonisolated static let credentialAccount = "device-credential"
 
     /// The generated client for the paired server, or nil before pairing.
     /// The token is captured by value: the credential only changes at
@@ -175,9 +177,19 @@ final class AppModel {
             self.server = server
             self.credential = credential
             phase = .locked
+            // ADR 0067 v6: listen for the watch's credential requests from the
+            // very first launch moment, not only after an unlock.
+            PhoneWatchBridge.shared.activate()
         } else {
             phase = .unpaired
         }
+    }
+
+    /// Latest-wins re-push whenever the app comes forward (ADR 0067 v6): the
+    /// watch's copy of the pairing can never lag more than one foregrounding.
+    func pushWatchPairing() {
+        guard phase == .ready else { return }
+        PhoneWatchBridge.shared.push(server: server, credential: credential)
     }
 
     func unlock() async {

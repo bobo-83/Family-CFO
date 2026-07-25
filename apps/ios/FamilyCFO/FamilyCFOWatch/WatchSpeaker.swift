@@ -16,8 +16,13 @@ final class WatchSpeaker: NSObject, AVAudioPlayerDelegate {
         stop()
         let spoken = SpokenReply.speakable(text)
         guard !spoken.isEmpty else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // Long-form audio is the ONLY way playback survives the wrist going
+        // down on watchOS — a default session dies with the suspended app,
+        // which cut answers off mid-sentence (user report 2026-07-25). The
+        // async activation may ask once where to play (speaker or AirPods).
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+        _ = try? await session.activate()
         if let api, let data = try? await api.synthesize(spoken),
             let player = try? AVAudioPlayer(data: data)
         {

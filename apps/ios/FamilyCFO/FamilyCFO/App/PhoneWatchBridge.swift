@@ -44,6 +44,34 @@ final class PhoneWatchBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
         }
     }
 
+    /// The watch hit a 401 and wants the current pairing NOW (ADR 0067 v6).
+    /// Read persisted state directly — this can arrive in a background launch
+    /// where nobody has unlocked the app, so the in-memory model may be cold.
+    func session(
+        _ session: WCSession, didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void
+    ) {
+        guard message["want"] as? String == "pairing" else {
+            replyHandler([:])
+            return
+        }
+        replyHandler(Self.persistedPairingContext() ?? [:])
+    }
+
+    static func persistedPairingContext() -> [String: String]? {
+        guard let data = UserDefaults.standard.data(forKey: AppModel.serverDefaultsKey),
+            let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
+            let credentialData = KeychainStore.load(account: AppModel.credentialAccount),
+            let credential = try? JSONDecoder().decode(StoredCredential.self, from: credentialData)
+        else { return nil }
+        return [
+            "apiBaseURL": server.apiBaseURL.absoluteString,
+            "certificateSHA256": server.certificateSHA256 ?? "",
+            "token": credential.accessToken,
+            "householdName": server.householdName,
+        ]
+    }
+
     func sessionDidBecomeInactive(_ session: WCSession) {}
     func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }

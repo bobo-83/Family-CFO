@@ -74,12 +74,17 @@ struct WatchGlanceView: View {
         }
     }
 
-    private func load() async {
+    private func load(retried: Bool = false) async {
         guard let client = model.client else { return }
         isLoading = true
         defer { isLoading = false }
         do {
             guard case .ok(let response) = try await client.getHouseholdContext(.init()) else {
+                // Usually a 401 from a stale relayed token (ADR 0067 v6):
+                // pull the phone's current pairing and try once more.
+                if !retried, await model.requestFreshCredential() {
+                    return await load(retried: true)
+                }
                 errorMessage = "The box answered unexpectedly."
                 return
             }

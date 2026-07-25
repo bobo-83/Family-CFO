@@ -85,9 +85,27 @@ first, the Glance page's own priority) and the system can redact it
 (`privacySensitive`) on a locked wrist. The snapshot lives in a third tiny
 sync group (`FamilyCFOWatchShared`) compiled into both the watch app and the
 widget — not `FamilyCFOShared`, whose whole API client the widget doesn't
-need. Discovered en route and left for a follow-up: the phone's M92a
+need. Discovered en route: the phone's M92a
 home-screen widget target was silently LOST when the pbxproj was hand-rebuilt
-for the watch — `FamilyCFOWidget/` code exists with no target.
+for the watch — `FamilyCFOWidget/` code existed with no target. Restored the
+same day (user request): `FamilyCFOWidget` appex target re-wired, embedded in
+the phone app, `OverviewSnapshot` moved to a `FamilyCFOWidgetShared` sync
+group compiled into both, bundle id `com.familycfo.ios.widget`.
+
+## Amendment (2026-07-25, v6): self-healing credential relay
+
+The watch showed "the box answered unexpectedly" (a 401) right after an app
+update: the phone only pushed the pairing on unlock, so the watch's relayed
+token could lag a session rotation until the user happened to open the
+phone app. Three fixes, all latest-wins: (1) on any non-OK glance/trend
+response the watch asks the phone for its CURRENT pairing over the live
+WCSession message channel (waking the phone app in the background; the
+bridge answers from persisted state since nobody unlocked it) and retries
+once; (2) the phone re-pushes the pairing every time it comes to the
+foreground, not only on unlock; (3) the bridge activates at launch, not
+first unlock, so requests can always be answered. Invariant: the watch
+never keeps showing an auth error while the phone, in reach, holds a newer
+credential.
 
 ## Rejected options
 
