@@ -300,21 +300,26 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .confirmationDialog(
+            // Centered alerts, not confirmationDialog: on this screen the
+            // dialog rendered as a popover anchored far from the tapped row
+            // (user report 2026-07-25) — a modal in the middle is unambiguous.
+            .alert(
                 "Sign out?",
-                isPresented: $confirmingSignOut,
-                titleVisibility: .visible
+                isPresented: $confirmingSignOut
             ) {
                 Button("Sign out") { Task { await model.signOut() } }
+                Button("Cancel", role: .cancel) {}
             } message: {
                 Text("The server address and pinned certificate stay on this phone; only your session ends.")
             }
-            .confirmationDialog(
+            .alert(
                 "Unpair this device?",
-                isPresented: $confirmingUnpair,
-                titleVisibility: .visible
+                isPresented: $confirmingUnpair
             ) {
                 Button("Unpair", role: .destructive) { model.unpair() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes the credential and the server info from this phone.")
             }
         }
     }
