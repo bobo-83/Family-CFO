@@ -13,6 +13,7 @@ struct WatchChatView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var speaker = WatchSpeaker()
+    @State private var inConversation = false
     @AppStorage("family-cfo.watch.speakAnswers") private var speakAnswers = true
 
     var body: some View {
@@ -79,17 +80,47 @@ struct WatchChatView: View {
         }
         .navigationTitle("Advisor")
         .toolbar {
-            ToolbarItem(placement: .bottomBar) {
-                // TextFieldLink opens the watch input UI, which is
-                // dictation-first: one tap, talk, done — the wrist version of
-                // the phone's voice mode. Answers are spoken back.
+            ToolbarItemGroup(placement: .bottomBar) {
+                // CONVERSATION (user request 2026-07-25): tap once, talk,
+                // hear the answer, and the mic re-opens for the follow-up —
+                // the wrist version of the phone's voice mode, built on
+                // programmatic dictation (watchOS has no Speech framework).
+                Button {
+                    if inConversation {
+                        speaker.stop()
+                        inConversation = false
+                    } else {
+                        Task { await runConversation() }
+                    }
+                } label: {
+                    Label(
+                        inConversation ? "End" : "Talk",
+                        systemImage: inConversation ? "stop.circle.fill" : "mic.fill")
+                }
+                // Typing stays a first-class path: the same input sheet,
+                // opened deliberately for scribble/keyboard.
                 TextFieldLink(prompt: Text("Ask about your money")) {
-                    Label("Ask", systemImage: "mic.fill")
-                } onSubmit: { spoken in
-                    draft = spoken
+                    Label("Type", systemImage: "keyboard")
+                } onSubmit: { typed in
+                    draft = typed
                     Task { await send() }
                 }
             }
+        }
+    }
+
+    /// The hands-free loop: dictate, send, hear the answer, dictate again —
+    /// until the user cancels the input sheet or taps End. In conversation
+    /// the answer is always spoken, whatever the mute toggle says.
+    private func runConversation() async {
+        inConversation = true
+        defer { inConversation = false }
+        while inConversation {
+            guard let utterance = await WatchDictation.ask(),
+                !utterance.trimmingCharacters(in: .whitespaces).isEmpty
+            else { break }  // cancelled — the conversation is over
+            draft = utterance
+            await send()
         }
     }
 
@@ -113,7 +144,7 @@ struct WatchChatView: View {
             conversationID = response.conversationId
             turns.append(("assistant", response.recommendation.answer))
             errorMessage = nil
-            if speakAnswers {
+            if speakAnswers || inConversation {
                 await speaker.speak(response.recommendation.answer, api: model.speech)
             }
         } catch {
@@ -124,7 +155,7 @@ struct WatchChatView: View {
                 conversationID = recovered.conversationID
                 turns.append(("assistant", recovered.answer.content))
                 errorMessage = nil
-                if speakAnswers {
+                if speakAnswers || inConversation {
                     await speaker.speak(recovered.answer.content, api: model.speech)
                 }
             } else {

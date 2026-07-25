@@ -44,6 +44,18 @@ fallback (never silent, ADR 0058 spirit), drill-down screens for
 safe-to-spend and net worth (with the snapshot trend charted), and a third
 page charting the year's monthly in/out from `GET /overview/yearly`.
 
+## Amendment (2026-07-25, v3): the conversation loop
+
+Single dictated questions weren't a conversation (user feedback). watchOS
+still has no Speech framework, but the system input controller can be
+presented PROGRAMMATICALLY (`presentTextInputController` via the visible
+interface controller) — so the chat page now has a Talk button that loops:
+dictate → grounded answer spoken aloud (always, in conversation) → the mic
+re-opens for the follow-up, until the user cancels or taps End. Typing stays
+a first-class path beside it (a keyboard-labelled input sheet). Learned the
+hard way and verified in the simulator rig: bottom-bar toolbar items are
+safe; top-bar items assert in this paging-TabView navigation context.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful
