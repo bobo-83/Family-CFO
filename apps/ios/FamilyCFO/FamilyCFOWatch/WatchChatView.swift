@@ -19,6 +19,28 @@ struct WatchChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    // Speaker toggle lives IN content: a top-bar ToolbarItem
+                    // (any placement) trips a UINavigationBar layout assertion
+                    // on watchOS inside a paging TabView's NavigationStack —
+                    // the scroll-to-chat crash (user reports 2026-07-25;
+                    // bisected in the simulator rig).
+                    HStack {
+                        Spacer()
+                        Button {
+                            if speaker.isSpeaking {
+                                speaker.stop()
+                            } else {
+                                speakAnswers.toggle()
+                            }
+                        } label: {
+                            Label(
+                                speakAnswers ? "Speaks answers" : "Muted",
+                                systemImage: speakAnswers ? "speaker.wave.2.fill" : "speaker.slash"
+                            )
+                            .font(.caption2)
+                        }
+                        .buttonStyle(.borderless)
+                    }
                     if turns.isEmpty && !isSending {
                         Text("Ask about your money — \"can I afford new skis?\"")
                             .font(.footnote)
@@ -57,18 +79,6 @@ struct WatchChatView: View {
         }
         .navigationTitle("Advisor")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // Spoken answers on/off; a tap mid-speech also stops it.
-                Button {
-                    if speaker.isSpeaking {
-                        speaker.stop()
-                    } else {
-                        speakAnswers.toggle()
-                    }
-                } label: {
-                    Image(systemName: speakAnswers ? "speaker.wave.2.fill" : "speaker.slash")
-                }
-            }
             ToolbarItem(placement: .bottomBar) {
                 // TextFieldLink opens the watch input UI, which is
                 // dictation-first: one tap, talk, done — the wrist version of
