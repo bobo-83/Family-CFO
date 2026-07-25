@@ -6,6 +6,8 @@ import SwiftUI
 struct WatchGlanceView: View {
     @Environment(WatchModel.self) private var model
     @State private var context: Components.Schemas.HouseholdContext?
+    @State private var plan: Components.Schemas.SpendingPlanResponse?
+    @State private var outlook: Components.Schemas.CashOutlookResponse?
     @State private var errorMessage: String?
     @State private var isLoading = false
 
@@ -13,6 +15,20 @@ struct WatchGlanceView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if let context {
+                    // EXACTLY the phone Overview's headline figures, in its
+                    // order — same fields, same server numbers (user report
+                    // 2026-07-25: the wrist showed different numbers because
+                    // it read the recurring cash-flow MODEL, not the plan).
+                    if let outlook {
+                        glanceRow(
+                            "30-day low", outlook.lowestBalance.formatted,
+                            tint: outlook.lowestBalance.amountMinor >= 0 ? .green : .red)
+                    }
+                    if let plan {
+                        glanceRow(
+                            "Left to spend", plan.leftToSpend.formatted,
+                            tint: plan.leftToSpend.amountMinor >= 0 ? .green : .red)
+                    }
                     if let sts = context.safeToSpend {
                         NavigationLink {
                             WatchSafeToSpendDetail(safeToSpend: sts)
@@ -29,10 +45,6 @@ struct WatchGlanceView: View {
                         glanceRow("Net worth", context.netWorth.formatted, tint: .primary)
                     }
                     .buttonStyle(.plain)
-                    if let flow = context.monthlyCashFlow {
-                        glanceRow("In / month", flow.income.formatted, tint: .green)
-                        glanceRow("Bills / month", flow.bills.formatted, tint: .orange)
-                    }
                     if let fund = context.emergencyFund, let months = fund.months {
                         glanceRow(
                             "Emergency fund",
@@ -72,6 +84,14 @@ struct WatchGlanceView: View {
             errorMessage = nil
         } catch {
             errorMessage = "Can't reach the box — check the phone's connection."
+            return
+        }
+        // The phone's lead cards; both degrade gracefully like on the phone.
+        if case .ok(let response)? = try? await client.getSpendingPlan(.init()) {
+            plan = try? response.body.json
+        }
+        if case .ok(let response)? = try? await client.getCashOutlook(.init()) {
+            outlook = try? response.body.json
         }
     }
 }

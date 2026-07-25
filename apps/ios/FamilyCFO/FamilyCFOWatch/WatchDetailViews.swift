@@ -81,22 +81,29 @@ struct WatchYearTrendView: View {
                         Text("No data for \(String(overview.year)) yet.")
                             .font(.footnote).foregroundStyle(.secondary)
                     } else {
+                        // Canonical series form (matches the iOS Year chart):
+                        // foregroundStyle(by:) + an explicit scale. Pairing
+                        // position(by:) with FIXED styles rendered fine in the
+                        // simulator but crashed on the watch as the page
+                        // scrolled in (user report 2026-07-25).
                         Chart {
                             ForEach(overview.months, id: \.month) { month in
                                 BarMark(
                                     x: .value("Month", String(month.month.suffix(2))),
-                                    y: .value("In", month.income.decimalValue)
+                                    y: .value("Amount", month.income.decimalValue)
                                 )
-                                .foregroundStyle(.green)
+                                .foregroundStyle(by: .value("Series", "In"))
                                 .position(by: .value("Series", "In"))
                                 BarMark(
                                     x: .value("Month", String(month.month.suffix(2))),
-                                    y: .value("Out", month.spending.decimalValue)
+                                    y: .value("Amount", month.spending.decimalValue)
                                 )
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(by: .value("Series", "Out"))
                                 .position(by: .value("Series", "Out"))
                             }
                         }
+                        .chartForegroundStyleScale(["In": Color.green, "Out": Color.orange])
+                        .chartLegend(.hidden)
                         .chartYAxis(.hidden)
                         .frame(height: 90)
                         HStack {
