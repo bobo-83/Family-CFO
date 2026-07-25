@@ -26,6 +26,14 @@ describe('speakableText', () => {
 import { speakableSentences } from './speakable-text';
 
 describe('speakableSentences (pipelined TTS)', () => {
+  it('speaks rate abbreviations in full (user report 2026-07-25)', () => {
+    expect(speakableText('this frees $500/mo toward your goal')).toBe(
+      'this frees $500 per month toward your goal',
+    );
+    expect(speakableText('about $6,000/yr')).toBe('about $6,000 per year');
+    expect(speakableText('either/or')).toBe('either/or');
+  });
+
   it('splits an answer into sentence chunks', () => {
     const parts = speakableSentences('You can afford it. Save the rest! Any questions?');
     expect(parts.length).toBe(3);

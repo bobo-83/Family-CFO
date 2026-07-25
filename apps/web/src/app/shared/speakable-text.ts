@@ -42,6 +42,13 @@ export function speakableText(markdown: string): string {
   // Emphasis markers around text.
   text = text.replace(/(\*\*\*|\*\*|\*|___|__|_|~~)(\S(?:[^*_~\n]*\S)?)\1/g, '$2');
 
+  // Rate abbreviations the voice mangles — "$500/mo" read as "slash mo"
+  // (user report 2026-07-25). Mirrors SpokenReply.speakable.
+  text = text.replace(/(?<=\S)\/mo\b/g, ' per month');
+  text = text.replace(/(?<=\S)\/yr\b/g, ' per year');
+  text = text.replace(/(?<=\S)\/wk\b/g, ' per week');
+  text = text.replace(/(?<=\S)\/day\b/g, ' per day');
+
   // Collapse the whitespace left behind.
   return text
     .replace(/[ \t]+/g, ' ')

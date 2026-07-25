@@ -30,6 +30,15 @@ enum SpokenReply {
             of: #"(?m)^\s*#{1,6}\s*"#, with: "", options: .regularExpression)
         text = text.replacingOccurrences(
             of: #"(?m)^\s*[-*•]\s+"#, with: "", options: .regularExpression)
+        // Rate abbreviations the voice mangles — "$500/mo" came out as
+        // "five hundred dollars slash mo" (user report 2026-07-25).
+        for (short, spoken) in [
+            ("mo", " per month"), ("yr", " per year"), ("wk", " per week"),
+            ("day", " per day"),
+        ] {
+            text = text.replacingOccurrences(
+                of: #"(?<=\S)/"# + short + #"\b"#, with: spoken, options: .regularExpression)
+        }
         // Collapse leftover whitespace runs.
         text = text.replacingOccurrences(
             of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)

@@ -52,6 +52,17 @@ struct SpokenReplyTests {
         #expect(spoken.contains("Second part."))
     }
 
+    @Test func rateAbbreviationsAreSpokenInFull() {
+        // "$500/mo" was read as "slash mo" (user report 2026-07-25).
+        #expect(
+            SpokenReply.speakable("this frees $500/mo toward your goal")
+                == "this frees $500 per month toward your goal")
+        #expect(SpokenReply.speakable("about $6,000/yr") == "about $6,000 per year")
+        #expect(SpokenReply.speakable("$40/day budget") == "$40 per day budget")
+        // A bare path-like slash between words is untouched.
+        #expect(SpokenReply.speakable("either/or") == "either/or")
+    }
+
     @Test func sentencesSkipChunksWithNothingToPronounce() {
         // Dividers, arrows, and lone emoji produce empty audio — never sent.
         let chunks = SpokenReply.sentences("Save $488. \n --- \n → \n Then invest.")
