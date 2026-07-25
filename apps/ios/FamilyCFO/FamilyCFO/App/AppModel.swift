@@ -43,6 +43,21 @@ final class AppModel {
     /// Shared bank-data freshness, shown identically on every synced screen (M103).
     let syncStatus = SyncStatusModel()
 
+    /// A grounded question another screen wants the advisor to answer — e.g. the
+    /// Year chart's "explain this month's income" (ADR 0068). MainTabView jumps
+    /// to the Advisor tab; ConversationListView consumes it into a new chat.
+    /// UUID-stamped so asking the same question twice still fires onChange.
+    struct AdvisorAsk: Equatable {
+        let id: UUID
+        let question: String
+    }
+
+    var advisorAsk: AdvisorAsk?
+
+    func askAdvisor(_ question: String) {
+        advisorAsk = AdvisorAsk(id: UUID(), question: question)
+    }
+
     /// Memoizes a month's transactions so category drill-downs don't re-fetch the
     /// whole month each time (M105).
     let monthTransactions = MonthTransactionsCache()

@@ -53,6 +53,17 @@
               · net worth {{ formatMoney(networth) }}
             }
           </div>
+          @if (canChat()) {
+            <!-- ADR 0068: the advisor explains what made the tapped bar up. -->
+            <div class="yearly__focus-actions">
+              <button mat-stroked-button type="button" (click)="askAboutMonth(focus.month, 'income')">
+                ✨ Explain income
+              </button>
+              <button mat-stroked-button type="button" (click)="askAboutMonth(focus.month, 'spending')">
+                ✨ Explain spending
+              </button>
+            </div>
+          }
         }
         <div class="yearly__totals">
           <span>In {{ formatMoney(year.total_income) }}</span>

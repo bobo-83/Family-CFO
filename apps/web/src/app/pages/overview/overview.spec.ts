@@ -1,4 +1,4 @@
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
@@ -206,6 +206,27 @@ describe('Overview', () => {
 
     const errorEl = (fixture.nativeElement as HTMLElement).querySelector('.page-error');
     expect(errorEl?.textContent).toContain('Failed to load');
+  });
+
+  it('hands the advisor a grounded month question from the year chart (ADR 0068)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response(undefined, { error: { code: 'http_error', message: 'Failed to load' } }),
+    );
+    const fixture = TestBed.createComponent(Overview);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    fixture.componentInstance['askAboutMonth']('2026-04', 'income');
+    expect(navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: { ask: 'What made up my income in April 2026? List where the money came from.' },
+    });
+
+    fixture.componentInstance['askAboutMonth']('2026-06', 'spending');
+    expect(navigate).toHaveBeenCalledWith(['/chat'], {
+      queryParams: {
+        ask: 'What made up my spending in June 2026? Break it down by category and biggest merchants.',
+      },
+    });
   });
 
   it('lets an owner adjust the emergency-fund target (M43)', async () => {

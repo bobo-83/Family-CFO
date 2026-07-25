@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -22,6 +23,10 @@ function recommendation(answer: string, confidence = 0.85, answeredBy: string | 
 }
 
 describe('Chat', () => {
+  // ADR 0068: `?ask=` lets other pages hand the advisor a question. Mutated
+  // per-test BEFORE createComponent; the factory reads it at construction.
+  let queryParams: Record<string, string>;
+  let routerMock: { navigate: ReturnType<typeof vi.fn> };
   let apiMock: {
     getAiRuntimeStatus: ReturnType<typeof vi.fn>;
     listConversations: ReturnType<typeof vi.fn>;
@@ -47,11 +52,19 @@ describe('Chat', () => {
       submitAdvisorFeedback: vi.fn().mockResolvedValue({ error: undefined }),
     };
 
+    queryParams = {};
+    routerMock = { navigate: vi.fn().mockResolvedValue(true) };
+
     await TestBed.configureTestingModule({
       imports: [Chat],
       providers: [
         { provide: ApiService, useValue: apiMock },
         { provide: AuthService, useValue: authMock('owner') },
+        { provide: Router, useValue: routerMock },
+        {
+          provide: ActivatedRoute,
+          useFactory: () => ({ snapshot: { queryParamMap: convertToParamMap(queryParams) } }),
+        },
       ],
     }).compileComponents();
   });
@@ -77,6 +90,26 @@ describe('Chat', () => {
     expect(fixture.nativeElement.querySelector('.chat__disclaimer')).toBeNull();
     expect(localStorage.getItem('family-cfo.hideAdvisorDisclaimer')).toBe('true');
     localStorage.removeItem('family-cfo.hideAdvisorDisclaimer');
+  });
+
+  it('auto-sends a question handed over via ?ask= and strips the param (ADR 0068)', async () => {
+    apiMock.createChatMessageStream.mockResolvedValue({
+      data: { conversation_id: 'conv-year', recommendation: recommendation('Mostly paychecks.') },
+    });
+    queryParams = { ask: 'What made up my income in April 2026? List where the money came from.' };
+    const fixture = TestBed.createComponent(Chat);
+    await fixture.whenStable();
+
+    expect(apiMock.createChatMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'What made up my income in April 2026? List where the money came from.',
+      }),
+      expect.any(Function),
+    );
+    // The param is dropped so a refresh doesn't ask twice.
+    expect(routerMock.navigate).toHaveBeenCalledWith([], { queryParams: {}, replaceUrl: true });
+    const turns = fixture.componentInstance['turns']();
+    expect(turns[1]).toMatchObject({ role: 'assistant', content: 'Mostly paychecks.' });
   });
 
   it('sends the message with the current conversation id and appends both turns', async () => {

@@ -3,6 +3,7 @@ import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angu
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { ActivatedRoute, Router } from '@angular/router';
 import type { Recommendation } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -88,6 +89,20 @@ export class Chat implements OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+
+  constructor() {
+    // ADR 0068: another page sent the advisor a question (the year chart's
+    // "explain this month"). Ask it right away, and drop the param so a
+    // refresh doesn't ask twice.
+    const route = inject(ActivatedRoute);
+    const router = inject(Router);
+    const ask = route.snapshot.queryParamMap.get('ask')?.trim();
+    if (ask) {
+      this.form.setValue({ message: ask });
+      void router.navigate([], { queryParams: {}, replaceUrl: true });
+      void this.send();
+    }
+  }
 
   /** Conversation deletion mirrors the API's role gate (owner/adult). */
   protected readonly canDeleteConversations = () => {

@@ -374,6 +374,13 @@
   font-size: 14px;
 }
 
+.yearly__focus-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
 .yearly__review-head {
   display: flex;
   justify-content: space-between;

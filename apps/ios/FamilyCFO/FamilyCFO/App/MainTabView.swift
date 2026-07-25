@@ -19,26 +19,35 @@ struct MainTabView: View {
     // M102: photos shared into the app via the Share Extension surface here.
     @State private var showSharedInbox = false
 
+    enum MainTab: Hashable {
+        case advisor, overview, accounts, bills, more
+    }
+
+    // Selection exists so other screens can steer here — the Year chart's
+    // "explain this month" jumps to the Advisor tab (ADR 0068). If the role
+    // can't chat, the Advisor tab is absent and SwiftUI shows the first tab.
+    @State private var selectedTab: MainTab = .advisor
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             // ADR 0034: every tab names the RIGHT that reveals it. Overview,
             // Accounts, and Debts are money VIEWS (all members); their editing
             // affordances gate separately inside each screen.
             if model.rolePolicy.canChat {
-                Tab("Advisor", systemImage: "bubble.left.and.text.bubble.right") {
+                Tab("Advisor", systemImage: "bubble.left.and.text.bubble.right", value: MainTab.advisor) {
                     ConversationListView()
                 }
             }
-            Tab("Overview", systemImage: "chart.line.uptrend.xyaxis") {
+            Tab("Overview", systemImage: "chart.line.uptrend.xyaxis", value: MainTab.overview) {
                 OverviewView()
             }
             if let accounts = model.accounts {
-                Tab("Accounts", systemImage: "building.columns") {
+                Tab("Accounts", systemImage: "building.columns", value: MainTab.accounts) {
                     AccountsView(viewModel: AccountsViewModel(api: accounts))
                 }
             }
             if model.rolePolicy.canManageBills, let billsModel {
-                Tab("Bills", systemImage: "calendar") {
+                Tab("Bills", systemImage: "calendar", value: MainTab.bills) {
                     BillsView(viewModel: billsModel)
                 }
                 .badge(billsModel.pendingCount)
@@ -49,7 +58,7 @@ struct MainTabView: View {
             // around screens that already own a stack — two nav bars and two
             // back buttons (user report 2026-07-22). Settings is in here and
             // never hidden — sign out lives there (ADR 0034).
-            Tab("More", systemImage: "ellipsis.circle") {
+            Tab("More", systemImage: "ellipsis.circle", value: MainTab.more) {
                 MoreView(
                     reviewModel: reviewModel,
                     budgetsModel: budgetsModel,
@@ -57,6 +66,10 @@ struct MainTabView: View {
                 )
             }
             .badge(reviewModel?.reviewCount ?? 0)
+        }
+        .onChange(of: model.advisorAsk) { _, ask in
+            guard ask != nil, model.rolePolicy.canChat else { return }
+            selectedTab = .advisor
         }
         .sheet(isPresented: $showSharedInbox) {
             if let api = model.transactionDetail {

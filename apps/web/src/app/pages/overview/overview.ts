@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import type {
   YearlyOverview,
   EmergencyFundSummary,
@@ -62,9 +62,14 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
 export class Overview {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly canWrite = () => {
     return this.auth.hasRight('transactions.manage');
+  };
+
+  protected readonly canChat = () => {
+    return this.auth.hasRight('advisor.use');
   };
 
   protected readonly editingTarget = signal(false);
@@ -145,6 +150,25 @@ export class Overview {
     const overview = this.yearData();
     const month = this.yearFocusMonth();
     return overview?.months.find((m) => m.month === month) ?? null;
+  }
+
+  protected yearMonthLongLabel(month: string): string {
+    const index = Number(month.slice(5, 7)) - 1;
+    const name = ['January','February','March','April','May','June','July','August','September','October','November','December'][index];
+    return name ? `${name} ${month.slice(0, 4)}` : month;
+  }
+
+  /**
+   * ADR 0068: hand the advisor a grounded "what made this bar up?" question.
+   * Same wording as iOS; the advisor's month-scoped tools do the digging.
+   */
+  protected askAboutMonth(month: string, kind: 'income' | 'spending'): void {
+    const label = this.yearMonthLongLabel(month);
+    const ask =
+      kind === 'income'
+        ? `What made up my income in ${label}? List where the money came from.`
+        : `What made up my spending in ${label}? Break it down by category and biggest merchants.`;
+    void this.router.navigate(['/chat'], { queryParams: { ask } });
   }
 
   protected readonly household = resource({

@@ -26,9 +26,9 @@ struct ConversationListView: View {
                     ChatView(viewModel: ChatViewModel(api: api, conversationID: conversationID))
                 }
             }
-            .navigationDestination(for: NewChatRoute.self) { _ in
+            .navigationDestination(for: NewChatRoute.self) { route in
                 if let api = model.api {
-                    ChatView(viewModel: ChatViewModel(api: api))
+                    ChatView(viewModel: Self.newChatModel(api: api, question: route.question))
                 }
             }
         }
@@ -45,6 +45,23 @@ struct ConversationListView: View {
             guard newPath.isEmpty else { return }
             Task { await viewModel?.load() }
         }
+        // ADR 0068: another screen handed the advisor a question (Year chart's
+        // "explain this month"). Both hooks are needed: onAppear covers the tab
+        // being created by the jump itself; onChange covers it already existing.
+        .onAppear { consumeAdvisorAsk() }
+        .onChange(of: model.advisorAsk) { _, _ in consumeAdvisorAsk() }
+    }
+
+    private func consumeAdvisorAsk() {
+        guard let ask = model.advisorAsk else { return }
+        model.advisorAsk = nil
+        path.append(NewChatRoute(question: ask.question))
+    }
+
+    private static func newChatModel(api: AdvisorAPI, question: String?) -> ChatViewModel {
+        let viewModel = ChatViewModel(api: api)
+        viewModel.queuedMessage = question
+        return viewModel
     }
 
     @ViewBuilder
@@ -99,7 +116,10 @@ struct ConversationListView: View {
         }
     }
 
-    private struct NewChatRoute: Hashable {}
+    private struct NewChatRoute: Hashable {
+        /// Pre-asked question (ADR 0068) — sent as soon as the chat appears.
+        var question: String?
+    }
 
     private var newChatButton: some View {
         NavigationLink(value: NewChatRoute()) {

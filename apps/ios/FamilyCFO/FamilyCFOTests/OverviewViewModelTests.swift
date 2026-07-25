@@ -384,4 +384,16 @@ struct YearlyOverviewViewModelTests {
         #expect(viewModel.overview?.review?.summary == "A steady year.")
         #expect(viewModel.overview?.review?.suggestions == ["Trim subscriptions"])
     }
+
+    // ADR 0068: the chart's "explain" buttons must ask the advisor with the
+    // same wording on every client, naming the month unambiguously.
+    @Test func explainQuestionsNameTheMonthInFull() {
+        #expect(YearlyOverviewView.longLabel("2026-04") == "April 2026")
+        #expect(
+            YearlyOverviewView.incomeQuestion(for: "2026-04")
+                == "What made up my income in April 2026? List where the money came from.")
+        #expect(
+            YearlyOverviewView.spendingQuestion(for: "2026-06")
+                == "What made up my spending in June 2026? Break it down by category and biggest merchants.")
+    }
 }

@@ -6,9 +6,14 @@ import SwiftUI
 /// suggestions, regenerable), and the year's top categories. Tapping a month
 /// drills into that month via the Overview's existing month navigation.
 struct YearlyOverviewView: View {
+    @Environment(AppModel.self) private var model
     @State var viewModel: YearlyOverviewViewModel
     /// Drill-down: hand the tapped month ("yyyy-MM") back to the Overview.
     let onSelectMonth: (String) -> Void
+    /// ADR 0068: a tap SELECTS a month — its exact numbers show in a card with
+    /// explicit actions (explain via advisor, open the month). Never navigates
+    /// by itself.
+    @State private var selectedMonth: String?
 
     var body: some View {
         Group {
@@ -68,17 +73,20 @@ struct YearlyOverviewView: View {
                     )
                     .foregroundStyle(by: .value("Series", "Income"))
                     .position(by: .value("Series", "Income"))
+                    .opacity(barOpacity(month.month))
                     BarMark(
                         x: .value("Month", Self.shortLabel(month.month)),
                         y: .value("Spending", month.spending.decimalValue)
                     )
                     .foregroundStyle(by: .value("Series", "Spending"))
                     .position(by: .value("Series", "Spending"))
+                    .opacity(barOpacity(month.month))
                 }
             }
             .chartForegroundStyleScale(["Income": Color.green, "Spending": Color.orange])
             .frame(height: 190)
-            // Tap a month column to drill into that month's full Overview.
+            // A tap selects the month (tap again to clear); the card below
+            // carries the values and the explicit actions (ADR 0068).
             .chartOverlay { proxy in
                 GeometryReader { geometry in
                     Rectangle().fill(.clear).contentShape(Rectangle())
@@ -90,13 +98,76 @@ struct YearlyOverviewView: View {
                                     Self.shortLabel($0.month) == label
                                 })
                             {
-                                onSelectMonth(month.month)
+                                withAnimation(.snappy) {
+                                    selectedMonth =
+                                        selectedMonth == month.month ? nil : month.month
+                                }
                             }
                         }
                 }
             }
-            Text("Tap a month to open it.").font(.caption2).foregroundStyle(.secondary)
+            if let month = overview.months.first(where: { $0.month == selectedMonth }) {
+                selectedMonthCard(month)
+            } else {
+                Text("Tap a month to see its numbers.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
+        .onChange(of: viewModel.year) { _, _ in selectedMonth = nil }
+    }
+
+    private func barOpacity(_ month: String) -> Double {
+        selectedMonth == nil || selectedMonth == month ? 1 : 0.35
+    }
+
+    /// The tapped month's exact figures, plus what to do with them: have the
+    /// advisor explain either flow, or open the month's full Overview.
+    private func selectedMonthCard(_ month: Components.Schemas.YearMonthSummary) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(Self.longLabel(month.month)).font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Open month") { onSelectMonth(month.month) }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+            }
+            HStack {
+                totalCell("In", month.income.formatted, .green)
+                totalCell("Out", month.spending.formatted, .orange)
+                totalCell("Kept", month.net.formatted, month.net.amountMinor >= 0 ? .green : .red)
+                if let netWorth = month.netWorthEom {
+                    totalCell("Net worth", netWorth.formatted, .primary)
+                }
+            }
+            if model.rolePolicy.canChat {
+                HStack {
+                    Button {
+                        model.askAdvisor(Self.incomeQuestion(for: month.month))
+                    } label: {
+                        Label("Explain income", systemImage: "sparkles").font(.caption)
+                    }
+                    Button {
+                        model.askAdvisor(Self.spendingQuestion(for: month.month))
+                    } label: {
+                        Label("Explain spending", systemImage: "sparkles").font(.caption)
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Questions the advisor answers from its month-scoped tools
+    /// (get_income_and_tax, get_spending_by_category, get_spending_insights).
+    static func incomeQuestion(for month: String) -> String {
+        "What made up my income in \(longLabel(month))? List where the money came from."
+    }
+
+    static func spendingQuestion(for month: String) -> String {
+        "What made up my spending in \(longLabel(month))? Break it down by category and biggest merchants."
     }
 
     private func totalsRow(_ overview: Components.Schemas.YearlyOverview) -> some View {
@@ -182,5 +253,11 @@ struct YearlyOverviewView: View {
         // "2026-03" -> "Mar"
         guard let number = Int(month.suffix(2)), (1...12).contains(number) else { return month }
         return Calendar.current.shortMonthSymbols[number - 1]
+    }
+
+    static func longLabel(_ month: String) -> String {
+        // "2026-03" -> "March 2026"
+        guard let number = Int(month.suffix(2)), (1...12).contains(number) else { return month }
+        return "\(Calendar.current.monthSymbols[number - 1]) \(month.prefix(4))"
     }
 }
