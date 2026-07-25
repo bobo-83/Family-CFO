@@ -118,6 +118,16 @@ optional month fields (income received, spent, expected income) so an older
 cache still decodes and falls back to the text layout; the no-network and
 privacy-redaction rules are unchanged.
 
+## Amendment (2026-07-25, v8): the cash meter
+
+The ring asked the wearer to read a proportion; the user wanted something
+glanceable-er: the small slots now draw a PILE OF CASH — one bill (barely
+covering the month) up to five (way more than needed), and a torn red bill
+when left-to-spend is negative. Thresholds are the month margin as a share
+of expected income (<5% -> 1, <15% -> 2, <25% -> 3, <40% -> 4, else 5),
+drawn with pure vector shapes (no assets); the compact amount rides the
+widget label. The rectangular month bars are unchanged.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

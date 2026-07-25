@@ -70,6 +70,29 @@ extension WatchFaceSnapshot {
         return min(max(Double(left) / Double(expected), 0), 1)
     }
 
+    /// The small-slot cash meter (user request 2026-07-25): 1 bill = barely
+    /// covering the month's expenses, 5 = way more than needed, torn = in the
+    /// red. Left-to-spend already nets out bills/obligations, so the level is
+    /// the margin as a share of the month's expected income.
+    enum CashSignal: Equatable {
+        case torn
+        case bills(Int)  // 1...5
+    }
+
+    var cashSignal: CashSignal? {
+        guard let left = leftToSpendMinor else { return nil }
+        if left < 0 { return .torn }
+        guard let expected = expectedIncomeMinor, expected > 0 else { return nil }
+        let fraction = Double(left) / Double(expected)
+        switch fraction {
+        case ..<0.05: return .bills(1)
+        case ..<0.15: return .bills(2)
+        case ..<0.25: return .bills(3)
+        case ..<0.40: return .bills(4)
+        default: return .bills(5)
+        }
+    }
+
     func compact(_ minor: Int64) -> String {
         (Decimal(minor) / 100)
             .formatted(

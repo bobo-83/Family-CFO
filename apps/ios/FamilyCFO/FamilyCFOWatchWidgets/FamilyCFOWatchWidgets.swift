@@ -62,32 +62,28 @@ struct GlanceComplicationView: View {
             Text("\(snapshot.compact(headline.amountMinor)) left")
                 .privacySensitive()
         case .accessoryCorner:
-            // The corner arc carries the ring; the figure sits in the corner.
-            Text(snapshot.compact(headline.amountMinor))
-                .font(.system(.body, design: .rounded).weight(.semibold))
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-                .privacySensitive()
-                .widgetLabel {
-                    if let fraction = snapshot.spendableFraction {
-                        Gauge(value: fraction) { Text(headline.label) }
-                            .tint(fraction < 0.2 ? .orange : .green)
-                    } else {
-                        Text(headline.label)
+            // The cash pile sits in the corner; the amount rides the arc.
+            if let signal = snapshot.cashSignal {
+                CashStackView(signal: signal)
+                    .widgetLabel {
+                        Text("\(snapshot.compact(headline.amountMinor)) left")
+                            .privacySensitive()
                     }
-                }
-        default:  // circular: the spend ring (ADR 0067 v7)
-            if let fraction = snapshot.spendableFraction {
-                Gauge(value: fraction) {
-                    Text("Left")
-                } currentValueLabel: {
-                    Text(snapshot.compact(headline.amountMinor))
-                        .minimumScaleFactor(0.5)
-                        .privacySensitive()
-                }
-                .gaugeStyle(.accessoryCircular)
-                .tint(fraction < 0.2 ? .orange : .green)
-                .widgetLabel(headline.label)
+            } else {
+                Text(snapshot.compact(headline.amountMinor))
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .privacySensitive()
+                    .widgetLabel(headline.label)
+            }
+        default:  // circular: the cash meter (ADR 0067 v8) — 1..5 bills, torn = red
+            if let signal = snapshot.cashSignal {
+                CashStackView(signal: signal)
+                    .widgetLabel {
+                        Text("\(snapshot.compact(headline.amountMinor)) left")
+                            .privacySensitive()
+                    }
             } else {
                 Text(snapshot.compact(headline.amountMinor))
                     .font(.system(.body, design: .rounded).weight(.semibold))
