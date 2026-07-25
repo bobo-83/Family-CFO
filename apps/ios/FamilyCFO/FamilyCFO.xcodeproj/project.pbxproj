@@ -15,6 +15,7 @@
 		FC00000000000000000000A5 /* OpenAPIURLSession in Frameworks */ = {isa = PBXBuildFile; productRef = FC0000000000000000000095 /* OpenAPIURLSession */; };
 		FC00000000000000000000A6 /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = FC0000000000000000000096 /* HTTPTypes */; };
 		FC00000000000000000000A7 /* FamilyCFOWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = FC0000000000000000000023 /* FamilyCFOWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FC00000000000000000000A8 /* FamilyCFOWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +39,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = FC0000000000000000000012;
 			remoteInfo = FamilyCFOShareExtension;
+		};
+		FC0000000000000000000076 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FC0000000000000000000014;
+			remoteInfo = FamilyCFOWatchWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -64,6 +72,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC000000000000000000004E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				FC00000000000000000000A8 /* FamilyCFOWatchWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +90,7 @@
 		FC0000000000000000000021 /* FamilyCFOTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FamilyCFOTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000022 /* FamilyCFOShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FamilyCFOShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000023 /* FamilyCFOWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FamilyCFOWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FamilyCFOWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -81,6 +101,13 @@
 			);
 			target = FC0000000000000000000012 /* FamilyCFOShareExtension */;
 		};
+		FC00000000000000000000B1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FC0000000000000000000014 /* FamilyCFOWatchWidgets */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +116,8 @@
 		FC0000000000000000000033 /* FamilyCFOShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOShared; sourceTree = "<group>"; };
 		FC0000000000000000000034 /* FamilyCFOWatch */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOWatch; sourceTree = "<group>"; };
 		FC0000000000000000000032 /* FamilyCFOShareExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (FC00000000000000000000B0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOShareExtension; sourceTree = "<group>"; };
+		FC0000000000000000000035 /* FamilyCFOWatchWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (FC00000000000000000000B1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOWatchWidgets; sourceTree = "<group>"; };
+		FC0000000000000000000036 /* FamilyCFOWatchShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOWatchShared; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +155,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC00000000000000000000C1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -135,6 +171,8 @@
 				FC0000000000000000000030 /* FamilyCFO */,
 				FC0000000000000000000033 /* FamilyCFOShared */,
 				FC0000000000000000000034 /* FamilyCFOWatch */,
+				FC0000000000000000000036 /* FamilyCFOWatchShared */,
+				FC0000000000000000000035 /* FamilyCFOWatchWidgets */,
 				FC0000000000000000000031 /* FamilyCFOTests */,
 				FC0000000000000000000032 /* FamilyCFOShareExtension */,
 				FC0000000000000000000003 /* Products */,
@@ -148,6 +186,7 @@
 				FC0000000000000000000021 /* FamilyCFOTests.xctest */,
 				FC0000000000000000000022 /* FamilyCFOShareExtension.appex */,
 				FC0000000000000000000023 /* FamilyCFOWatch.app */,
+				FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -238,14 +277,17 @@
 				FC000000000000000000004A /* Sources */,
 				FC000000000000000000004B /* Frameworks */,
 				FC000000000000000000004C /* Resources */,
+				FC000000000000000000004E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				FC0000000000000000000077 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				FC0000000000000000000034 /* FamilyCFOWatch */,
 				FC0000000000000000000033 /* FamilyCFOShared */,
+				FC0000000000000000000036 /* FamilyCFOWatchShared */,
 			);
 			name = FamilyCFOWatch;
 			packageProductDependencies = (
@@ -256,6 +298,29 @@
 			productName = FamilyCFOWatch;
 			productReference = FC0000000000000000000023 /* FamilyCFOWatch.app */;
 			productType = "com.apple.product-type.application";
+		};
+		FC0000000000000000000014 /* FamilyCFOWatchWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC0000000000000000000055 /* Build configuration list for PBXNativeTarget "FamilyCFOWatchWidgets" */;
+			buildPhases = (
+				FC00000000000000000000C0 /* Sources */,
+				FC00000000000000000000C1 /* Frameworks */,
+				FC00000000000000000000C2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FC0000000000000000000035 /* FamilyCFOWatchWidgets */,
+				FC0000000000000000000036 /* FamilyCFOWatchShared */,
+			);
+			name = FamilyCFOWatchWidgets;
+			packageProductDependencies = (
+			);
+			productName = FamilyCFOWatchWidgets;
+			productReference = FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -278,6 +343,9 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					FC0000000000000000000013 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					FC0000000000000000000014 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -306,6 +374,7 @@
 				FC0000000000000000000011 /* FamilyCFOTests */,
 				FC0000000000000000000012 /* FamilyCFOShareExtension */,
 				FC0000000000000000000013 /* FamilyCFOWatch */,
+				FC0000000000000000000014 /* FamilyCFOWatchWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -333,6 +402,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FC000000000000000000004C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC00000000000000000000C2 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -370,6 +446,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC00000000000000000000C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -387,6 +470,11 @@
 			isa = PBXTargetDependency;
 			target = FC0000000000000000000013 /* FamilyCFOWatch */;
 			targetProxy = FC0000000000000000000074 /* PBXContainerItemProxy */;
+		};
+		FC0000000000000000000077 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC0000000000000000000014 /* FamilyCFOWatchWidgets */;
+			targetProxy = FC0000000000000000000076 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -652,6 +740,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FamilyCFOWatch/FamilyCFOWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
@@ -683,6 +772,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FamilyCFOWatch/FamilyCFOWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
@@ -707,6 +797,62 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		FC000000000000000000006A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+					CODE_SIGN_ENTITLEMENTS = FamilyCFOWatchWidgets/FamilyCFOWatchWidgets.entitlements;
+					CODE_SIGN_STYLE = Automatic;
+					CURRENT_PROJECT_VERSION = 2;
+					DEVELOPMENT_TEAM = "";
+					GENERATE_INFOPLIST_FILE = YES;
+					INFOPLIST_FILE = FamilyCFOWatchWidgets/Info.plist;
+					INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/Frameworks",
+						"@executable_path/../../Frameworks",
+					);
+					MARKETING_VERSION = 0.1.0;
+					PRODUCT_BUNDLE_IDENTIFIER = com.familycfo.ios.watchkitapp.widgets;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					SDKROOT = watchos;
+					SKIP_INSTALL = YES;
+					SWIFT_EMIT_LOC_STRINGS = YES;
+					SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+					SWIFT_VERSION = 5.0;
+					TARGETED_DEVICE_FAMILY = 4;
+					WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		FC000000000000000000006B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+					CODE_SIGN_ENTITLEMENTS = FamilyCFOWatchWidgets/FamilyCFOWatchWidgets.entitlements;
+					CODE_SIGN_STYLE = Automatic;
+					CURRENT_PROJECT_VERSION = 2;
+					DEVELOPMENT_TEAM = "";
+					GENERATE_INFOPLIST_FILE = YES;
+					INFOPLIST_FILE = FamilyCFOWatchWidgets/Info.plist;
+					INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
+					LD_RUNPATH_SEARCH_PATHS = (
+						"$(inherited)",
+						"@executable_path/Frameworks",
+						"@executable_path/../../Frameworks",
+					);
+					MARKETING_VERSION = 0.1.0;
+					PRODUCT_BUNDLE_IDENTIFIER = com.familycfo.ios.watchkitapp.widgets;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					SDKROOT = watchos;
+					SKIP_INSTALL = YES;
+					SWIFT_EMIT_LOC_STRINGS = YES;
+					SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+					SWIFT_VERSION = 5.0;
+					TARGETED_DEVICE_FAMILY = 4;
+					WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
@@ -754,6 +900,15 @@
 			buildConfigurations = (
 				FC0000000000000000000068 /* Debug */,
 				FC0000000000000000000069 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FC0000000000000000000055 /* Build configuration list for PBXNativeTarget "FamilyCFOWatchWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC000000000000000000006A /* Debug */,
+				FC000000000000000000006B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

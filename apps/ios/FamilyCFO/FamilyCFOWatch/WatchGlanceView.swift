@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 /// The Overview, wrist-sized: safe-to-spend leads (the number the family
 /// actually acts on), then net worth and this month's flow — all straight
@@ -95,5 +96,21 @@ struct WatchGlanceView: View {
         if case .ok(let response)? = try? await client.getCashOutlook(.init()) {
             outlook = try? response.body.json
         }
+        cacheFaceSnapshot()
+    }
+
+    /// Feed the watch-face complication (ADR 0067 v5): cache the fresh glance
+    /// numbers to the App Group and nudge the widget to re-read them.
+    private func cacheFaceSnapshot() {
+        guard let context else { return }
+        WatchFaceSnapshotStore().save(
+            WatchFaceSnapshot(
+                leftToSpendMinor: plan.map { Int64($0.leftToSpend.amountMinor) },
+                safeToSpendMinor: context.safeToSpend.map { Int64($0.safeToSpend.amountMinor) },
+                lowestBalanceMinor: outlook.map { Int64($0.lowestBalance.amountMinor) },
+                netWorthMinor: Int64(context.netWorth.amountMinor),
+                currency: context.netWorth.currency,
+                capturedAt: Date()))
+        WidgetCenter.shared.reloadTimelines(ofKind: WatchFaceSnapshot.widgetKind)
     }
 }

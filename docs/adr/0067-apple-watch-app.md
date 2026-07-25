@@ -71,6 +71,24 @@ Rejected: a fourth TabView page for history (the list is a chat affordance,
 not a peer of Glance/Trend); a watch-local thread cache (the box is the
 record; a stale local list would lie).
 
+## Amendment (2026-07-25, v5): watch-face complication
+
+"How do I add Family CFO to my watch face?" — faces need a complication,
+which on modern watchOS is a WidgetKit extension; the watch app had none.
+New `FamilyCFOWatchWidgets` extension (embedded in the watch app) offers a
+"Money glance" complication in circular/corner/inline/rectangular slots. It
+follows the phone widget's M92a contract exactly: NO network from the
+widget — the watch app caches a `WatchFaceSnapshot` (left to spend, safe to
+spend, 30-day low, net worth) to the shared App Group every Glance load and
+nudges the timeline; the face shows the last-known number (left to spend
+first, the Glance page's own priority) and the system can redact it
+(`privacySensitive`) on a locked wrist. The snapshot lives in a third tiny
+sync group (`FamilyCFOWatchShared`) compiled into both the watch app and the
+widget — not `FamilyCFOShared`, whose whole API client the widget doesn't
+need. Discovered en route and left for a follow-up: the phone's M92a
+home-screen widget target was silently LOST when the pbxproj was hand-rebuilt
+for the watch — `FamilyCFOWidget/` code exists with no target.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful
