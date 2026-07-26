@@ -73,16 +73,23 @@ struct BudgetComplicationView: View {
     private func budgetChart(_ snapshot: WatchFaceSnapshot) -> some View {
         HStack(alignment: .bottom, spacing: 3) {
             ForEach(snapshot.budgets ?? [], id: \.name) { slice in
-                GeometryReader { geometry in
-                    ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.gray.opacity(0.25))
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(tint(slice.fraction))
-                            .frame(
-                                height: max(
-                                    3, geometry.size.height * min(slice.fraction, 1)))
+                VStack(spacing: 1) {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .bottom) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.gray.opacity(0.25))
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(tint(slice.fraction))
+                                .frame(
+                                    height: max(
+                                        3, geometry.size.height * min(slice.fraction, 1)))
+                        }
                     }
+                    // The category's own icon (same mapping as the phone's
+                    // picker) says which budget each column is.
+                    Image(systemName: CategoryIcon.symbol(for: slice.name))
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
                 }
             }
             if let fraction = snapshot.budgetFraction {

@@ -354,6 +354,7 @@
 			fileSystemSynchronizedGroups = (
 				FC0000000000000000000035 /* FamilyCFOWatchWidgets */,
 				FC0000000000000000000036 /* FamilyCFOWatchShared */,
+				FC0000000000000000000038 /* FamilyCFOWidgetShared */,
 			);
 			name = FamilyCFOWatchWidgets;
 			packageProductDependencies = (
@@ -832,10 +833,10 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FamilyCFOWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Family CFO talks directly to your home server on your own network — no cloud in between.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_FILE = FamilyCFOWatch/Info.plist;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.familycfo.ios;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -865,10 +866,10 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FamilyCFOWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Family CFO talks directly to your home server on your own network — no cloud in between.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_FILE = FamilyCFOWatch/Info.plist;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.familycfo.ios;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				LD_RUNPATH_SEARCH_PATHS = (

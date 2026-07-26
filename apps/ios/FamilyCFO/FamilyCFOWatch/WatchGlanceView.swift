@@ -124,15 +124,7 @@ struct WatchGlanceView: View {
                 expectedIncomeMinor: plan.map { Int64($0.expectedIncome.amountMinor) },
                 currency: context.netWorth.currency,
                 capturedAt: Date(),
-                budgets: budgets.map { list in
-                    list.map {
-                        WatchFaceSnapshot.BudgetSlice(
-                            name: $0.categoryName,
-                            limitMinor: Int64($0.limit.amountMinor),
-                            spentMinor: Int64($0.spent.amountMinor))
-                    }
-                    .sorted { $0.fraction > $1.fraction }
-                }))
+                budgets: budgets.map(WatchFaceSnapshot.slices(from:))))
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

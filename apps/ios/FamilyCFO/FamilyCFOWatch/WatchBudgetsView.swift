@@ -109,6 +109,7 @@ struct WatchBudgetsView: View {
             }
             budgets = try response.body.json.budgets
             errorMessage = nil
+            WatchFaceSnapshot.refreshBudgetCache(budgets ?? [])
         } catch {
             errorMessage = "Can't reach the box."
         }
