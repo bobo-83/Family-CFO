@@ -79,3 +79,21 @@
     min-width: max-content;
   }
 }
+
+.backups-day {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 6px 0;
+
+  summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    cursor: pointer;
+    padding: 6px 0;
+  }
+}
+
+.backups-day__count {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+}

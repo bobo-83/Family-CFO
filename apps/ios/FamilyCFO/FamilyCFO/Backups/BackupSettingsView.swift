@@ -6,6 +6,7 @@ import UIKit
 /// the connection, pick a schedule, see status, and restore from the share.
 struct BackupSettingsView: View {
     @State var viewModel: BackupViewModel
+    @State private var expandedDays: Set<String> = []
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
 
@@ -198,38 +199,88 @@ struct BackupSettingsView: View {
         }
     }
 
+    /// One row per DAY, newest first, today expanded — four snapshots a day
+    /// made the flat list an endless scroll (user report 2026-07-26).
     private var restoreSection: some View {
         Section {
-            ForEach(viewModel.remoteBackups, id: \.filename) { backup in
-                Button {
-                    pendingRestore = backup
+            ForEach(groupedRemoteBackups, id: \.day) { group in
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { expandedDays.contains(group.day) },
+                        set: { open in
+                            if open { expandedDays.insert(group.day) } else {
+                                expandedDays.remove(group.day)
+                            }
+                        }
+                    )
+                ) {
+                    ForEach(group.backups, id: \.filename) { backup in
+                        remoteBackupRow(backup)
+                    }
                 } label: {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Self.dateLabel(backup.modifiedAt)).foregroundStyle(.primary)
-                            Text(ByteCountFormatter.string(fromByteCount: backup.sizeBytes, countStyle: .file))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        Text(group.day)
                         Spacer()
-                        if viewModel.isRestoring {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
-                        }
+                        Text("\(group.backups.count) backup\(group.backups.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                }
-                .disabled(viewModel.isRestoring)
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                        Task { await viewModel.deleteRemote(backup) }
-                    } label: { Label("Delete", systemImage: "trash") }
                 }
             }
         } header: {
             Text("Restore from Synology")
         } footer: {
-            Text("Backups found on the share, newest first. Restoring replaces everything currently in the app.")
+            Text("Grouped by day, newest first — tap a day for its snapshots. Restoring replaces everything currently in the app.")
         }
+        .onAppear {
+            if expandedDays.isEmpty, let newest = groupedRemoteBackups.first {
+                expandedDays.insert(newest.day)
+            }
+        }
+    }
+
+    private var groupedRemoteBackups: [(day: String, backups: [Components.Schemas.RemoteBackup])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: viewModel.remoteBackups) { backup in
+            calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(backup.modifiedAt)))
+        }
+        return grouped.keys.sorted(by: >).map { day in
+            (
+                day: day.formatted(date: .abbreviated, time: .omitted),
+                backups: grouped[day]!.sorted { $0.modifiedAt > $1.modifiedAt }
+            )
+        }
+    }
+
+    private func remoteBackupRow(_ backup: Components.Schemas.RemoteBackup) -> some View {
+        Button {
+            pendingRestore = backup
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Self.timeLabel(backup.modifiedAt)).foregroundStyle(.primary)
+                    Text(ByteCountFormatter.string(fromByteCount: backup.sizeBytes, countStyle: .file))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if viewModel.isRestoring {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
+                }
+            }
+        }
+        .disabled(viewModel.isRestoring)
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                Task { await viewModel.deleteRemote(backup) }
+            } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
+    static func timeLabel(_ epoch: Int64) -> String {
+        Date(timeIntervalSince1970: TimeInterval(epoch))
+            .formatted(date: .omitted, time: .shortened)
     }
 
     private var onBoxSection: some View {

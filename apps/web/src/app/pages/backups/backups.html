@@ -113,22 +113,30 @@
     <mat-card appearance="outlined" class="backups-card">
       <mat-card-content>
       <h2>Restore from Synology</h2>
-      <p class="backups-note">Backups found on the share, newest first. Restoring replaces all current data.</p>
-      <table class="backups-table">
-        <thead><tr><th>When</th><th>Size (bytes)</th><th></th></tr></thead>
-        <tbody>
-          @for (backup of remoteBackups(); track backup.filename) {
-            <tr>
-              <td>{{ formatDate(backup.modified_at) }}</td>
-              <td>{{ backup.size_bytes }}</td>
-              <td>
-                <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
-                <button mat-button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)">Delete</button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+      <p class="backups-note">Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</p>
+      @for (group of remoteBackupDays(); track group.day; let first = $first) {
+        <details class="backups-day" [open]="first">
+          <summary>
+            <strong>{{ group.label }}</strong>
+            <span class="backups-day__count">{{ group.backups.length }} backup{{ group.backups.length === 1 ? '' : 's' }}</span>
+          </summary>
+          <table class="backups-table">
+            <thead><tr><th>Time</th><th>Size (bytes)</th><th></th></tr></thead>
+            <tbody>
+              @for (backup of group.backups; track backup.filename) {
+                <tr>
+                  <td>{{ formatDate(backup.modified_at) }}</td>
+                  <td>{{ backup.size_bytes }}</td>
+                  <td>
+                    <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
+                    <button mat-button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)">Delete</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </details>
+      }
       </mat-card-content>
     </mat-card>
   }

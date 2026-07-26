@@ -46,6 +46,29 @@ export class Backups implements OnInit {
   protected readonly latest = signal<{ status: string; completed_at?: string | null; size_bytes?: number | null; error_message?: string | null; remote_status?: string | null; remote_error?: string | null } | null>(null);
   protected readonly remoteBackups = signal<{ filename: string; size_bytes: number; modified_at: number }[]>([]);
 
+  /** Grouped by day, newest first — four snapshots a day made the flat list
+   * an endless scroll (user report 2026-07-26). Mirrors the iOS grouping. */
+  protected readonly remoteBackupDays = computed(() => {
+    const byDay = new Map<string, { filename: string; size_bytes: number; modified_at: number }[]>();
+    for (const backup of this.remoteBackups()) {
+      const day = new Date(backup.modified_at * 1000).toDateString();
+      const list = byDay.get(day) ?? [];
+      list.push(backup);
+      byDay.set(day, list);
+    }
+    return [...byDay.entries()]
+      .map(([day, backups]) => ({
+        day,
+        label: new Date(backups[0].modified_at * 1000).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        backups: backups.sort((a, b) => b.modified_at - a.modified_at),
+      }))
+      .sort((a, b) => b.backups[0].modified_at - a.backups[0].modified_at);
+  });
+
   protected readonly busy = signal(false);
   protected readonly checking = signal(false);
   protected readonly checkResult = signal<{ writable: boolean; reason?: string | null } | null>(null);
