@@ -3172,6 +3172,38 @@ public enum Components {
             public var dueSoonCovered: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon_window_days`.
             public var dueSoonWindowDays: Swift.Int
+            /// ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/first_shortfall_date`.
+            public var firstShortfallDate: Swift.String?
+            /// The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall`.
+            public struct ShortfallPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `ShortfallPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall`.
+            public var shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload?
+            /// Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_by_date`.
+            public var sellByDate: Swift.String?
             /// Creates a new `CashOutlookResponse`.
             ///
             /// - Parameters:
@@ -3186,6 +3218,9 @@ public enum Components {
             ///   - dueSoon:
             ///   - dueSoonCovered:
             ///   - dueSoonWindowDays:
+            ///   - firstShortfallDate: ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
+            ///   - shortfall: The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
+            ///   - sellByDate: Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
             public init(
                 startingCash: Components.Schemas.Money,
                 events: [Components.Schemas.OutlookEvent],
@@ -3197,7 +3232,10 @@ public enum Components {
                 horizonDays: Swift.Int,
                 dueSoon: Components.Schemas.Money,
                 dueSoonCovered: Swift.Bool,
-                dueSoonWindowDays: Swift.Int
+                dueSoonWindowDays: Swift.Int,
+                firstShortfallDate: Swift.String? = nil,
+                shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload? = nil,
+                sellByDate: Swift.String? = nil
             ) {
                 self.startingCash = startingCash
                 self.events = events
@@ -3210,6 +3248,9 @@ public enum Components {
                 self.dueSoon = dueSoon
                 self.dueSoonCovered = dueSoonCovered
                 self.dueSoonWindowDays = dueSoonWindowDays
+                self.firstShortfallDate = firstShortfallDate
+                self.shortfall = shortfall
+                self.sellByDate = sellByDate
             }
             public enum CodingKeys: String, CodingKey {
                 case startingCash = "starting_cash"
@@ -3223,6 +3264,9 @@ public enum Components {
                 case dueSoon = "due_soon"
                 case dueSoonCovered = "due_soon_covered"
                 case dueSoonWindowDays = "due_soon_window_days"
+                case firstShortfallDate = "first_shortfall_date"
+                case shortfall
+                case sellByDate = "sell_by_date"
             }
         }
         /// M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.

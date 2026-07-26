@@ -573,6 +573,30 @@ class CashOutlook:
     expected_income_minor: int
     obligations_minor: int
     horizon_days: int
+    # ADR 0069: the RSU sell-by runway. First day the projected balance goes
+    # negative, and the last day to start an RSU sale with the household's
+    # required notice (4 business days: trade + settle + transfer). None when
+    # the horizon stays covered.
+    first_shortfall_date: date | None = None
+    sell_by_date: date | None = None
+
+
+#: Business days of notice a household needs to turn RSUs into cash in the
+#: bank: place the sale, T+1/T+2 settlement, then the ACH out (ADR 0069).
+RSU_SALE_NOTICE_BUSINESS_DAYS = 4
+
+
+def business_days_before(day: date, count: int) -> date:
+    """Step back `count` business days (weekends skipped; market holidays are
+    not modeled — documented limitation in ADR 0069, so the notice errs on
+    acting a day early around holidays rather than late)."""
+    current = day
+    remaining = count
+    while remaining > 0:
+        current -= timedelta(days=1)
+        if current.weekday() < 5:
+            remaining -= 1
+    return current
 
 
 def _step(anchor: date, frequency: str) -> date:
@@ -669,11 +693,16 @@ def cash_outlook(
     running = starting
     lowest = starting
     lowest_date: date | None = None
+    first_shortfall: date | None = None
     for event in events:
         running += event.amount_minor
         if running < lowest:
             lowest = running
             lowest_date = event.occurred_on
+        if running < 0 and first_shortfall is None:
+            first_shortfall = event.occurred_on
+    if starting < 0 and first_shortfall is None:
+        first_shortfall = today
     return CashOutlook(
         starting_cash_minor=starting,
         events=events,
@@ -683,6 +712,12 @@ def cash_outlook(
         expected_income_minor=sum(e.amount_minor for e in events if e.amount_minor > 0),
         obligations_minor=-sum(e.amount_minor for e in events if e.amount_minor < 0),
         horizon_days=horizon_days,
+        first_shortfall_date=first_shortfall,
+        sell_by_date=(
+            business_days_before(first_shortfall, RSU_SALE_NOTICE_BUSINESS_DAYS)
+            if first_shortfall is not None
+            else None
+        ),
     )
 
 

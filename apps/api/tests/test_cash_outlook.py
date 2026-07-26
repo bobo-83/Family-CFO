@@ -142,3 +142,29 @@ def test_transfers_are_not_counted_as_paydays(demo_engine: Engine) -> None:
         )
 
     assert [e for e in _outlook(demo_engine).events if e.kind == "income"] == []
+
+
+def test_sell_by_is_four_business_days_before_first_shortfall() -> None:
+    """ADR 0069: the RSU runway steps back business days, skipping weekends."""
+    # Wed Aug 5 2026 -> back 4 business days: Tue 4, Mon 3, Fri Jul 31, Thu 30.
+    assert finance_service.business_days_before(date(2026, 8, 5), 4) == date(2026, 7, 30)
+    # Monday -> lands on the previous Tuesday (weekend skipped).
+    assert finance_service.business_days_before(date(2026, 8, 3), 4) == date(2026, 7, 28)
+
+
+def test_outlook_reports_first_shortfall_and_sell_by(demo_engine: Engine) -> None:
+    """A payment bigger than cash produces the first-shortfall date and a
+    sell-by four business days earlier; a covered horizon reports neither."""
+    covered = _outlook(demo_engine)
+    assert covered.first_shortfall_date is None
+    assert covered.sell_by_date is None
+
+    due = TODAY + timedelta(days=20)
+    repository.create_bill(
+        demo_engine, HH, name="Huge Insurance", amount_minor=99_999_900,
+        currency="USD", frequency="monthly", next_due_date=due,
+    )
+    short = _outlook(demo_engine)
+    assert short.first_shortfall_date == due
+    assert short.sell_by_date == finance_service.business_days_before(due, 4)
+    assert short.lowest_minor < 0

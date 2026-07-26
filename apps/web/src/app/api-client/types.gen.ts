@@ -256,6 +256,18 @@ export type CashOutlookResponse = {
     due_soon: Money;
     due_soon_covered: boolean;
     due_soon_window_days: number;
+    /**
+     * ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
+     */
+    first_shortfall_date?: string | null;
+    /**
+     * The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
+     */
+    shortfall?: Money;
+    /**
+     * Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
+     */
+    sell_by_date?: string | null;
 };
 
 /**

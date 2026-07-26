@@ -22,6 +22,11 @@ struct WatchGlanceView: View {
                     // 2026-07-25: the wrist showed different numbers because
                     // it read the recurring cash-flow MODEL, not the plan).
                     if let outlook {
+                        // ADR 0069: the sell-by deadline outranks the raw low.
+                        if let sellBy = outlook.sellByDate {
+                            glanceRow(
+                                "Sell RSUs by", WatchGlanceView.shortDate(sellBy), tint: .red)
+                        }
                         glanceRow(
                             "30-day low", outlook.lowestBalance.formatted,
                             tint: outlook.lowestBalance.amountMinor >= 0 ? .green : .red)
@@ -66,6 +71,16 @@ struct WatchGlanceView: View {
         .navigationTitle(model.householdName ?? "Overview")
         .task { await load() }
         .refreshable { await load() }
+    }
+
+    /// "2026-08-05" -> "Tue, Aug 5" (mirrors BillsView.shortDate, which lives
+    /// in the phone target).
+    static func shortDate(_ iso: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: String(iso.prefix(10))) else { return iso }
+        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 
     private func glanceRow(_ label: String, _ value: String, tint: Color) -> some View {

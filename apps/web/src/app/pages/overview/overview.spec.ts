@@ -355,7 +355,7 @@ describe('Overview', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('Cash outlook');
     // Verdict tracks the 30-day projection: a positive lowest point => positive.
-    expect(text).toContain('stays positive over the next 30 days');
+    expect(text).toContain('Cash covers everything due in the next 30 days');
     expect(text).toContain('USD 9,149.76'); // the lowest point
     // Day-by-day rows carry the running balance beside each event.
     const rows = host.querySelectorAll('.outlook-card__table tr');
@@ -400,6 +400,9 @@ describe('Overview', () => {
         ending_cash: { amount_minor: -177_932, currency: 'USD' },
         lowest_balance: { amount_minor: -418_183, currency: 'USD' },
         lowest_date: '2026-08-14',
+        first_shortfall_date: '2026-08-14',
+        shortfall: { amount_minor: 418_183, currency: 'USD' },
+        sell_by_date: '2026-08-10',
         expected_income: { amount_minor: 647_110, currency: 'USD' },
         obligations: { amount_minor: 2_782_787, currency: 'USD' },
         horizon_days: 30,
@@ -417,7 +420,8 @@ describe('Overview', () => {
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('runs short over the next 30 days');
+    expect(text).toContain('Sell RSUs by');
+    expect(text).toContain('raise at least USD 4,181.83');
     expect(text).not.toContain('covered');
     expect(text).toContain('-USD 4,181.83'); // the lowest point, shown negative
   });

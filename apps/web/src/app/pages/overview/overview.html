@@ -142,17 +142,27 @@
               outside the 14-day check. Driving the verdict off `lowest_balance`
               keeps the verdict, the figure, and the math line consistent.
             -->
-            <span
-              class="overview__detail"
-              [class.overview__value--positive]="cash.lowest_balance.amount_minor >= 0"
-              [class.overview__value--negative]="cash.lowest_balance.amount_minor < 0"
-            >
-              @if (cash.lowest_balance.amount_minor >= 0) {
-                ✓ Your cash stays positive over the next {{ cash.horizon_days }} days
-              } @else {
+            <!-- ADR 0069: the sell-by headline leads — when must an RSU sale
+                 start (4 business days' notice) to cover the first shortfall. -->
+            @if (cash.sell_by_date; as sellBy) {
+              <span class="overview__value overview__value--negative">
+                ⚠ Sell RSUs by {{ sellBy | date: 'EEE, MMM d' }}
+              </span>
+              <span class="overview__detail overview__value--negative">
+                cash runs short {{ cash.first_shortfall_date | date: 'MMM d' }}
+                @if (cash.shortfall; as gap) {
+                  — raise at least {{ formatMoney(gap) }}
+                }
+              </span>
+            } @else if (cash.lowest_balance.amount_minor < 0) {
+              <span class="overview__detail overview__value--negative">
                 ⚠ Your cash runs short over the next {{ cash.horizon_days }} days
-              }
-            </span>
+              </span>
+            } @else {
+              <span class="overview__detail overview__value--positive">
+                ✓ Cash covers everything due in the next {{ cash.horizon_days }} days
+              </span>
+            }
             <span
               class="overview__value"
               [class.overview__value--negative]="cash.lowest_balance.amount_minor < 0"

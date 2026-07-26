@@ -596,6 +596,12 @@ class CashOutlookResponse(BaseModel):
     due_soon: Money
     due_soon_covered: bool
     due_soon_window_days: int
+    # ADR 0069: the RSU sell-by runway — first projected shortfall day, the
+    # deepest gap to raise, and the last day to start a sale with 4 business
+    # days of notice. All absent while the horizon stays covered.
+    first_shortfall_date: date | None = None
+    shortfall: Money | None = None
+    sell_by_date: date | None = None
 
 
 class SpendingPlanResponse(BaseModel):

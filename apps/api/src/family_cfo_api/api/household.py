@@ -572,6 +572,13 @@ async def get_cash_outlook(
         due_soon=money(headline.due_total_minor),
         due_soon_covered=headline.covered,
         due_soon_window_days=headline.window_days,
+        first_shortfall_date=outlook.first_shortfall_date,
+        # The DEEPEST gap, not the first crossing: selling only enough for the
+        # first shortfall would leave later payments uncovered (ADR 0069).
+        shortfall=(
+            money(-outlook.lowest_minor) if outlook.first_shortfall_date is not None else None
+        ),
+        sell_by_date=outlook.sell_by_date,
     )
 
 

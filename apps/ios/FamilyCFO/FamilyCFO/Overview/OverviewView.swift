@@ -231,20 +231,41 @@ struct OverviewView: View {
     /// outside the 14-day window, so the card could read "covered ✓" while the
     /// math below projected the balance thousands negative.
     private func cashOutlookCard(_ outlook: Components.Schemas.CashOutlookResponse) -> some View {
-        let staysPositive = outlook.lowestBalance.amountMinor >= 0
-        return NavigationLink {
+        NavigationLink {
             CashOutlookDetailView(outlook: outlook)
         } label: {
             Card("Cash outlook", systemImage: "calendar.badge.clock") {
-                Label(
-                    staysPositive
-                        ? "Your cash stays positive over the next \(outlook.horizonDays) days"
-                        : "Your cash runs short over the next \(outlook.horizonDays) days",
-                    systemImage: staysPositive
-                        ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                )
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(staysPositive ? .green : .orange)
+                // ADR 0069: THE headline — will cash cover what's due, and by
+                // when must an RSU sale start (4 business days' notice) to
+                // close the gap. Front and center per user request 2026-07-26.
+                if let sellBy = outlook.sellByDate, let shortDay = outlook.firstShortfallDate {
+                    Label(
+                        "Sell RSUs by \(BillsView.shortDate(sellBy))",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.red)
+                    Text(
+                        "cash runs short \(BillsView.shortDate(shortDay))"
+                            + (outlook.shortfall.map { " — raise at least \($0.value1.formatted)" } ?? "")
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.orange)
+                } else if outlook.lowestBalance.amountMinor < 0 {
+                    Label(
+                        "Your cash runs short over the next \(outlook.horizonDays) days",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.orange)
+                } else {
+                    Label(
+                        "Cash covers everything due in the next \(outlook.horizonDays) days",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.green)
+                }
                 Text(outlook.lowestBalance.formatted)
                     .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     .foregroundStyle(outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
