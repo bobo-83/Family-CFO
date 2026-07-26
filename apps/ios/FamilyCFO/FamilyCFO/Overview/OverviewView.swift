@@ -508,7 +508,7 @@ struct OverviewView: View {
     private func budgetCard(_ budgets: Components.Schemas.BudgetSummary) -> some View {
         let card = Card("Budgets", systemImage: "chart.pie") {
             HStack {
-                stat("Envelopes", "\(budgets.envelopeCount)", tint: .secondary)
+                stat("Budgets", "\(budgets.envelopeCount)", tint: .secondary)
                 Divider()
                 stat("Over", "\(budgets.overCount)", tint: budgets.overCount > 0 ? .red : .secondary)
                 Divider()
@@ -520,7 +520,7 @@ struct OverviewView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 3) {
-                Text("Tap to manage envelopes")
+                Text("Tap to manage budgets")
                 Image(systemName: "chevron.right")
             }
             .font(.caption2.weight(.medium))

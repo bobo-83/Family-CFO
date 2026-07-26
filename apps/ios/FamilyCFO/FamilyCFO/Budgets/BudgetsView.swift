@@ -44,7 +44,7 @@ struct BudgetsView: View {
                 }
             }
             if viewModel.budgets.isEmpty && !viewModel.isLoading {
-                Text("No envelopes yet. Add one with + to cap a category's monthly spending.")
+                Text("No budgets yet. Add one with + to cap a category's monthly spending.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

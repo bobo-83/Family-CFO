@@ -1,7 +1,7 @@
 <h1>Budgets</h1>
 
 <p class="page-hint">
-  Monthly envelopes per spending category. Spending is tracked as it happens — the bar turns amber
+  Monthly budgets per spending category. Spending is tracked as it happens — the bar turns amber
   at 80% of the limit and red when you're over. Limits reset each calendar month (no rollover).
 </p>
 
@@ -91,7 +91,7 @@
       <a routerLink="/categories">create a category first</a>.
     </p>
   } @else if (availableCategories().length === 0) {
-    <p class="page-empty">Every category already has an envelope.</p>
+    <p class="page-empty">Every category already has a budget.</p>
   } @else {
     <mat-card appearance="outlined" class="page-card">
       <mat-card-content>

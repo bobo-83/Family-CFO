@@ -161,7 +161,7 @@ describe('Overview', () => {
     expect(text).toContain('Savings rate 65%');
     // Budget summary: over-budget count leads.
     expect(text).toContain('1 over budget');
-    expect(text).toContain('3 envelopes');
+    expect(text).toContain('3 budgets');
   });
 
   it('links to the Bills page when there are no bills to measure against', async () => {
