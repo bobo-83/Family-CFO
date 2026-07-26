@@ -88,3 +88,16 @@
     margin-top: 0.5rem;
   }
 }
+
+.budget-summary {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+
+  &[data-hot='true'] span {
+    color: #b45309;
+  }
+}

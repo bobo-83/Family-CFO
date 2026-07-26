@@ -19,6 +19,30 @@ struct BudgetsView: View {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.red)
             }
+            if let summary = viewModel.summary {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Budgeted \(summary.limit) a month")
+                                .font(.callout.weight(.semibold))
+                            Spacer()
+                            Text("\(summary.percentUsed)% used")
+                                .font(.callout)
+                                .monospacedDigit()
+                                .foregroundStyle(
+                                    summary.percentUsed >= 100
+                                        ? .red : summary.percentUsed >= 80 ? .orange : .secondary)
+                        }
+                        ProgressView(value: min(Double(summary.percentUsed) / 100, 1))
+                            .tint(
+                                summary.percentUsed >= 100
+                                    ? .red : summary.percentUsed >= 80 ? .orange : .green)
+                        Text("\(summary.spent) spent so far")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
             if viewModel.budgets.isEmpty && !viewModel.isLoading {
                 Text("No envelopes yet. Add one with + to cap a category's monthly spending.")
                     .font(.callout)

@@ -61,6 +61,21 @@ function configure(apiMock: Record<string, unknown>, role: string) {
 }
 
 describe('Budgets', () => {
+  it('sums the month: total budgeted and percent used (2026-07-25)', async () => {
+    const apiMock = {
+      listBudgets: vi.fn().mockResolvedValue(response({ budgets: BUDGETS })),
+      listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Budgets);
+    await settle(fixture);
+
+    const summary = (fixture.nativeElement as HTMLElement).querySelector('.budget-summary');
+    // $500 + $800 budgeted; $600 + $200 spent -> 62% used.
+    expect(summary?.textContent).toContain('Budgeted USD 1,300.00 a month');
+    expect(summary?.textContent).toContain('62% used');
+  });
+
   it('renders envelopes with status and a capped progress bar', async () => {
     const apiMock = {
       listBudgets: vi.fn().mockResolvedValue(response({ budgets: BUDGETS })),

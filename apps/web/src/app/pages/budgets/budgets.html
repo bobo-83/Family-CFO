@@ -12,6 +12,12 @@
 } @else if (budgets().length === 0) {
   <p class="page-empty">No budgets yet.</p>
 } @else {
+  @if (summary(); as s) {
+    <div class="budget-summary" [attr.data-hot]="s.percentUsed >= 80">
+      <strong>Budgeted {{ s.limit }} a month</strong>
+      <span>{{ s.spent }} spent — {{ s.percentUsed }}% used</span>
+    </div>
+  }
   <div class="budget-list">
     @for (budget of budgets(); track budget.id) {
       <mat-card appearance="outlined" class="budget" [attr.data-status]="budget.status">

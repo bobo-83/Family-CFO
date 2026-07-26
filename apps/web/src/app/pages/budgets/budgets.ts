@@ -42,6 +42,26 @@ export class Budgets {
   protected readonly loadError = signal<string | null>(null);
 
   /** Categories that don't have an envelope yet (create-form options). */
+  /** The whole month's envelope picture (user request 2026-07-25): same
+   * arithmetic as the iOS/watch summary strips. */
+  protected readonly summary = computed(() => {
+    const list = this.budgets();
+    const currency = list[0]?.limit.currency;
+    if (!currency) {
+      return null;
+    }
+    const limitMinor = list.reduce((sum, b) => sum + b.limit.amount_minor, 0);
+    if (limitMinor <= 0) {
+      return null;
+    }
+    const spentMinor = list.reduce((sum, b) => sum + b.spent.amount_minor, 0);
+    return {
+      limit: formatMoney({ amount_minor: limitMinor, currency }),
+      spent: formatMoney({ amount_minor: spentMinor, currency }),
+      percentUsed: Math.round((spentMinor / limitMinor) * 100),
+    };
+  });
+
   protected readonly availableCategories = computed(() => {
     const used = new Set(this.budgets().map((b) => b.category_id));
     return this.categories().filter((c) => !used.has(c.id));

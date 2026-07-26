@@ -11,6 +11,30 @@ struct WatchBudgetsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if let budgets {
+                    if let summary = summary(budgets) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text("Budgeted \(summary.limit)")
+                                    .font(.footnote.weight(.semibold))
+                                Spacer()
+                                Text("\(summary.percentUsed)%")
+                                    .font(.footnote)
+                                    .monospacedDigit()
+                                    .foregroundStyle(
+                                        summary.percentUsed >= 100
+                                            ? .red
+                                            : summary.percentUsed >= 80 ? .orange : .secondary)
+                            }
+                            ProgressView(value: min(Double(summary.percentUsed) / 100, 1))
+                                .tint(
+                                    summary.percentUsed >= 100
+                                        ? .red : summary.percentUsed >= 80 ? .orange : .green)
+                            Text("\(summary.spent) spent so far")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Divider()
+                    }
                     if budgets.isEmpty {
                         Text("No budgets yet — set them on the phone or web.")
                             .font(.footnote)
@@ -52,6 +76,24 @@ struct WatchBudgetsView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Same arithmetic as the phone's BudgetsViewModel.summary (user request
+    /// 2026-07-25): total limit, total spent, burn percent.
+    private func summary(
+        _ budgets: [Components.Schemas.Budget]
+    ) -> (limit: String, spent: String, percentUsed: Int)? {
+        guard let currency = budgets.first?.limit.currency else { return nil }
+        let limit = budgets.reduce(Int64(0)) { $0 + Int64($1.limit.amountMinor) }
+        guard limit > 0 else { return nil }
+        let spent = budgets.reduce(Int64(0)) { $0 + Int64($1.spent.amountMinor) }
+        func money(_ minor: Int64) -> String {
+            (Decimal(minor) / 100).formatted(.currency(code: currency).precision(.fractionLength(0)))
+        }
+        return (
+            money(limit), money(spent),
+            Int((Double(spent) / Double(limit) * 100).rounded())
+        )
     }
 
     private func load(retried: Bool = false) async {
