@@ -66,26 +66,34 @@ struct BudgetComplicationView: View {
         }
     }
 
-    /// The three budgets closest to their caps (the snapshot pre-sorts by
-    /// usage), each a name + burn bar + percent.
+    /// EVERY budget as a vertical column (user request 2026-07-25 — three
+    /// horizontal rows hid the rest): fill height = usage, tinted like the
+    /// rows were, most at-risk first (the snapshot pre-sorts). The overall
+    /// percent anchors the right edge.
     private func budgetChart(_ snapshot: WatchFaceSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach((snapshot.budgets ?? []).prefix(3), id: \.name) { slice in
-                HStack(spacing: 4) {
-                    Text(slice.name)
-                        .font(.caption2)
-                        .lineLimit(1)
-                        .frame(width: 52, alignment: .leading)
-                    ProgressView(value: min(slice.fraction, 1))
-                        .tint(tint(slice.fraction))
-                    Text(percent(slice.fraction))
-                        .font(.caption2)
-                        .monospacedDigit()
-                        .privacySensitive()
+        HStack(alignment: .bottom, spacing: 3) {
+            ForEach(snapshot.budgets ?? [], id: \.name) { slice in
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.gray.opacity(0.25))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(tint(slice.fraction))
+                            .frame(
+                                height: max(
+                                    3, geometry.size.height * min(slice.fraction, 1)))
+                    }
                 }
             }
+            if let fraction = snapshot.budgetFraction {
+                Text(percent(fraction))
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .privacySensitive()
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
