@@ -635,7 +635,9 @@ def _historical_context(
         )
 
     month_income = repository.sum_income(engine, household.id, month_start, month_end, currency)
-    bills = finance_service.monthly_bill_total(engine, household.id, currency)
+    month_spending = repository.sum_spending(
+        engine, household.id, month_start, month_end, currency
+    )
     history = [
         NetWorthPoint(
             as_of=snapshot.as_of,
@@ -654,11 +656,11 @@ def _historical_context(
         # past month (its EmergencyFundSummary is omitted); 0 is just a safe filler.
         emergency_fund_months=0.0,
         net_worth_history=history,
-        # That month's actual money in, against the recurring bills.
+        # That month's actual money in and out (the Year chart's rule).
         monthly_cash_flow=MonthlyCashFlow(
             income=MoneySchema(amount_minor=month_income, currency=currency),
-            bills=MoneySchema(amount_minor=bills.amount_minor, currency=currency),
-            net=MoneySchema(amount_minor=month_income - bills.amount_minor, currency=currency),
+            spending=MoneySchema(amount_minor=month_spending, currency=currency),
+            net=MoneySchema(amount_minor=month_income - month_spending, currency=currency),
         ),
         spending_by_category=_spending_by_category(engine, household.id, currency, today=anchor),
         earliest_month=repository.earliest_transaction_month(engine, household.id),
@@ -685,7 +687,13 @@ def _build_household_context(
     income = finance_service.monthly_income_total(engine, household.id, currency)
     income_baseline = finance_service.w2_baseline_monthly(engine, household.id, currency)
     taxes = finance_service.monthly_taxes_total(engine, household.id, currency)
-    bills = finance_service.monthly_bill_total(engine, household.id, currency)
+    # Month-to-date SPENDING, the Year chart's own rule — the recurring-bill
+    # model here read "$208 Bills" against $22k of real outflow and made the
+    # card nonsense (user report 2026-07-25).
+    today = date.today()
+    month_spending = repository.sum_spending(
+        engine, household.id, today.replace(day=1), today, currency
+    )
     asset_breakdown, total_debt = _asset_and_debt_summary(engine, household.id, currency)
     upcoming = [
         UpcomingBill(
@@ -730,9 +738,9 @@ def _build_household_context(
         ),
         monthly_cash_flow=MonthlyCashFlow(
             income=MoneySchema(amount_minor=income.amount_minor, currency=currency),
-            bills=MoneySchema(amount_minor=bills.amount_minor, currency=currency),
+            spending=MoneySchema(amount_minor=month_spending, currency=currency),
             net=MoneySchema(
-                amount_minor=income.amount_minor - bills.amount_minor, currency=currency
+                amount_minor=income.amount_minor - month_spending, currency=currency
             ),
             income_baseline=(
                 MoneySchema(amount_minor=income_baseline.amount_minor, currency=currency)

@@ -4864,15 +4864,19 @@ components:
       type: object
       required:
         - income
-        - bills
+        - spending
         - net
       properties:
         income:
           $ref: "#/components/schemas/Money"
-        bills:
+        spending:
+          description: >-
+            Month-to-date spending (same rule as the Year chart's bars) — NOT
+            just detected recurring bills, which understated outflow badly
+            (user report 2026-07-25: "$208 Bills" against $22k real spending).
           $ref: "#/components/schemas/Money"
         net:
-          description: Income minus bills; excludes discretionary spending.
+          description: Income minus spending — what the month kept so far.
           $ref: "#/components/schemas/Money"
         income_baseline:
           description: >-

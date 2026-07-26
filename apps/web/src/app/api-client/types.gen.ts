@@ -913,9 +913,12 @@ export type EmergencyFundSummary = {
 
 export type MonthlyCashFlow = {
     income: Money;
-    bills: Money;
     /**
-     * Income minus bills; excludes discretionary spending.
+     * Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
+     */
+    spending: Money;
+    /**
+     * Income minus spending — what the month kept so far.
      */
     net: Money;
     /**

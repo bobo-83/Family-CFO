@@ -456,13 +456,15 @@ struct OverviewView: View {
 
     private func cashFlowCard(_ flow: Components.Schemas.MonthlyCashFlow) -> some View {
         Card("Monthly cash flow", systemImage: "arrow.left.arrow.right") {
+            // The Year chart's own trio (user report 2026-07-25: "$208 Bills"
+            // from the recurring model made no sense against real spending).
             HStack {
                 stat("Income", flow.income.formatted, tint: .green)
                 Divider()
-                stat("Bills", flow.bills.formatted, tint: .orange)
+                stat("Spent", flow.spending.formatted, tint: .orange)
                 Divider()
                 stat(
-                    "Net", flow.net.formatted,
+                    "Kept", flow.net.formatted,
                     tint: flow.net.amountMinor >= 0 ? .green : .red)
             }
             // Income is actual money in (net take-home). Show the W2 gross as a

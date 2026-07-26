@@ -304,7 +304,7 @@
               {{ formatMoney(cashFlow.net) }}
             </span>
             <span class="overview__detail">
-              {{ formatMoney(cashFlow.income) }} income − {{ formatMoney(cashFlow.bills) }} bills
+              {{ formatMoney(cashFlow.income) }} in − {{ formatMoney(cashFlow.spending) }} spent
             </span>
             @if (cashFlow.income.amount_minor === 0) {
               <span class="overview__hint">No income sources recorded yet.</span>

@@ -165,7 +165,9 @@ class EmergencyFundSummary(BaseModel):
 
 class MonthlyCashFlow(BaseModel):
     income: Money
-    bills: Money
+    # Month-to-date spending (the Year chart's rule) — the recurring-bill model
+    # this used to carry understated outflow badly (user report 2026-07-25).
+    spending: Money
     net: Money
     # Monthly gross from the W2 / compensation profile, when one exists. Shown as a
     # baseline next to actual income (which is net money-in) — not added to it.

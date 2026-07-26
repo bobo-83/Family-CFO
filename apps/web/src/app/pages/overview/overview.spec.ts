@@ -66,7 +66,7 @@ describe('Overview', () => {
         },
         monthly_cash_flow: {
           income: { amount_minor: 600_000, currency: 'USD' },
-          bills: { amount_minor: 208_000, currency: 'USD' },
+          spending: { amount_minor: 208_000, currency: 'USD' },
           net: { amount_minor: 392_000, currency: 'USD' },
         },
         asset_breakdown: [
@@ -135,7 +135,8 @@ describe('Overview', () => {
     expect(text).toContain('USD 10,480.00 more to reach the 6-month goal');
     // Cash flow, assets, and debt cards.
     expect(text).toContain('USD 3,920.00');
-    expect(text).toContain('USD 6,000.00 income');
+    expect(text).toContain('USD 6,000.00 in');
+    expect(text).toContain('USD 2,080.00 spent');
     expect(text).toContain('Retirement');
     expect(text).toContain('USD 300,000.00');
     // Upcoming bills card.

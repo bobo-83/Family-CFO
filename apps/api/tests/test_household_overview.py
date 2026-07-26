@@ -51,11 +51,15 @@ def test_overview_snapshot_round_trip(demo_engine) -> None:
 async def test_context_includes_enriched_summary(demo_client, demo_token) -> None:
     body = await _context(demo_client, demo_token)
 
-    # Cash flow from the demo fixtures: $6,000 income − ($2,000 + $80) bills.
+    # Cash flow = the month's actuals (Year-chart rule): income received minus
+    # month-to-date spending, NOT the recurring-bill model (2026-07-25).
     cash_flow = body["monthly_cash_flow"]
     assert cash_flow["income"]["amount_minor"] == 600_000
-    assert cash_flow["bills"]["amount_minor"] == 208_000
-    assert cash_flow["net"]["amount_minor"] == 392_000
+    assert cash_flow["spending"]["amount_minor"] >= 0
+    assert (
+        cash_flow["net"]["amount_minor"]
+        == cash_flow["income"]["amount_minor"] - cash_flow["spending"]["amount_minor"]
+    )
 
     # Emergency fund: no designations in fixtures → all-liquid fallback,
     # and the reported months must equal reserved / monthly expenses.

@@ -5645,9 +5645,11 @@ public enum Components {
         public struct MonthlyCashFlow: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income`.
             public var income: Components.Schemas.Money
-            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/bills`.
-            public var bills: Components.Schemas.Money
-            /// Income minus bills; excludes discretionary spending.
+            /// Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/spending`.
+            public var spending: Components.Schemas.Money
+            /// Income minus spending — what the month kept so far.
             ///
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/net`.
             public var net: Components.Schemas.Money
@@ -5703,26 +5705,26 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - income:
-            ///   - bills:
-            ///   - net: Income minus bills; excludes discretionary spending.
+            ///   - spending: Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
+            ///   - net: Income minus spending — what the month kept so far.
             ///   - incomeBaseline: M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
             ///   - taxes: M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
             public init(
                 income: Components.Schemas.Money,
-                bills: Components.Schemas.Money,
+                spending: Components.Schemas.Money,
                 net: Components.Schemas.Money,
                 incomeBaseline: Components.Schemas.MonthlyCashFlow.IncomeBaselinePayload? = nil,
                 taxes: Components.Schemas.MonthlyCashFlow.TaxesPayload? = nil
             ) {
                 self.income = income
-                self.bills = bills
+                self.spending = spending
                 self.net = net
                 self.incomeBaseline = incomeBaseline
                 self.taxes = taxes
             }
             public enum CodingKeys: String, CodingKey {
                 case income
-                case bills
+                case spending
                 case net
                 case incomeBaseline = "income_baseline"
                 case taxes
