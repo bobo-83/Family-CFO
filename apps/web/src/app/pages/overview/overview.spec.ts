@@ -403,6 +403,7 @@ describe('Overview', () => {
         first_shortfall_date: '2026-08-14',
         shortfall: { amount_minor: 418_183, currency: 'USD' },
         sell_by_date: '2026-08-10',
+        runway_action: 'sell_rsus',
         expected_income: { amount_minor: 647_110, currency: 'USD' },
         obligations: { amount_minor: 2_782_787, currency: 'USD' },
         horizon_days: 30,

@@ -25,7 +25,9 @@ struct WatchGlanceView: View {
                         // ADR 0069: the sell-by deadline outranks the raw low.
                         if let sellBy = outlook.sellByDate {
                             glanceRow(
-                                "Sell RSUs by", WatchGlanceView.shortDate(sellBy), tint: .red)
+                                outlook.runwayAction == .moveCash
+                                    ? "Free up cash by" : "Sell RSUs by",
+                                WatchGlanceView.shortDate(sellBy), tint: .red)
                         }
                         glanceRow(
                             "30-day low", outlook.lowestBalance.formatted,

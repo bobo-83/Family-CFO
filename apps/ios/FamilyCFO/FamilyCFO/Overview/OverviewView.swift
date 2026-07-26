@@ -240,7 +240,8 @@ struct OverviewView: View {
                 // close the gap. Front and center per user request 2026-07-26.
                 if let sellBy = outlook.sellByDate, let shortDay = outlook.firstShortfallDate {
                     Label(
-                        "Sell RSUs by \(BillsView.shortDate(sellBy))",
+                        (outlook.runwayAction == .moveCash ? "Free up cash by " : "Sell RSUs by ")
+                            + BillsView.shortDate(sellBy),
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.title3.weight(.semibold))

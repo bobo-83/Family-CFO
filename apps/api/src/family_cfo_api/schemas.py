@@ -602,6 +602,9 @@ class CashOutlookResponse(BaseModel):
     first_shortfall_date: date | None = None
     shortfall: Money | None = None
     sell_by_date: date | None = None
+    # sell_rsus when the compensation profile declares RSU income, move_cash
+    # otherwise — the deadline is the same, the instruction isn't (2026-07-26).
+    runway_action: Literal["sell_rsus", "move_cash"] | None = None
 
 
 class SpendingPlanResponse(BaseModel):

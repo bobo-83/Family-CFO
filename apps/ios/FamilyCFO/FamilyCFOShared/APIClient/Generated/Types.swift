@@ -3204,6 +3204,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_by_date`.
             public var sellByDate: Swift.String?
+            /// What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/runway_action`.
+            @frozen public enum RunwayActionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case sellRsus = "sell_rsus"
+                case moveCash = "move_cash"
+                case _empty_ = ""
+            }
+            /// What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/runway_action`.
+            public var runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload?
             /// Creates a new `CashOutlookResponse`.
             ///
             /// - Parameters:
@@ -3221,6 +3233,7 @@ public enum Components {
             ///   - firstShortfallDate: ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
             ///   - shortfall: The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
             ///   - sellByDate: Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
+            ///   - runwayAction: What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
             public init(
                 startingCash: Components.Schemas.Money,
                 events: [Components.Schemas.OutlookEvent],
@@ -3235,7 +3248,8 @@ public enum Components {
                 dueSoonWindowDays: Swift.Int,
                 firstShortfallDate: Swift.String? = nil,
                 shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload? = nil,
-                sellByDate: Swift.String? = nil
+                sellByDate: Swift.String? = nil,
+                runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload? = nil
             ) {
                 self.startingCash = startingCash
                 self.events = events
@@ -3251,6 +3265,7 @@ public enum Components {
                 self.firstShortfallDate = firstShortfallDate
                 self.shortfall = shortfall
                 self.sellByDate = sellByDate
+                self.runwayAction = runwayAction
             }
             public enum CodingKeys: String, CodingKey {
                 case startingCash = "starting_cash"
@@ -3267,6 +3282,7 @@ public enum Components {
                 case firstShortfallDate = "first_shortfall_date"
                 case shortfall
                 case sellByDate = "sell_by_date"
+                case runwayAction = "runway_action"
             }
         }
         /// M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.

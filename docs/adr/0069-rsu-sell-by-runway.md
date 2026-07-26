@@ -27,6 +27,13 @@ The sell-by is THE headline of the Overview's cash outlook card (iOS and
 web) and a red row atop the watch glance. A covered horizon says so in one
 green line. All fields are optional in the contract — absent while covered.
 
+## Amendment (2026-07-26): the action matches the household
+
+"Sell RSUs by" only makes sense for a household that HAS RSUs (user point,
+same day). The response now carries `runway_action`: `sell_rsus` when any
+compensation-profile earner declares RSU income, `move_cash` otherwise —
+same deadline, honest instruction ("Free up cash by ...").
+
 ## Rejected options
 
 - **A separate "runway" endpoint/card** — the outlook already computes the

@@ -579,6 +579,18 @@ async def get_cash_outlook(
             money(-outlook.lowest_minor) if outlook.first_shortfall_date is not None else None
         ),
         sell_by_date=outlook.sell_by_date,
+        runway_action=(
+            (
+                "sell_rsus"
+                if any(
+                    p.rsu_annual_minor > 0
+                    for p in repository.list_income_profiles(engine, session.household_id)
+                )
+                else "move_cash"
+            )
+            if outlook.sell_by_date is not None
+            else None
+        ),
     )
 
 

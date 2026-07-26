@@ -3814,6 +3814,19 @@ components:
             - string
             - "null"
           format: date
+        runway_action:
+          description: >-
+            What raising the cash means for THIS household: sell_rsus when the
+            compensation profile declares RSU income, move_cash otherwise
+            (user point 2026-07-26 — don't tell an RSU-less household to sell
+            RSUs). Present only alongside sell_by_date.
+          type:
+            - string
+            - "null"
+          enum:
+            - sell_rsus
+            - move_cash
+            - null
 
     SpendingPlanResponse:
       type: object

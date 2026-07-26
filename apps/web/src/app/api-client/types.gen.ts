@@ -268,6 +268,10 @@ export type CashOutlookResponse = {
      * Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
      */
     sell_by_date?: string | null;
+    /**
+     * What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
+     */
+    runway_action?: 'sell_rsus' | 'move_cash' | null;
 };
 
 /**
