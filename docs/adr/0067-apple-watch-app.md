@@ -139,6 +139,14 @@ gained optional pre-sorted budget slices, fetched with the Glance load;
 the writer now reloads ALL widget kinds. Same rules: cached data only,
 no network from widgets, privacy-sensitive figures.
 
+## Amendment (2026-07-25, v10): the Budgets page
+
+A fourth vertical page (user request 2026-07-25), between the year trend
+and the chat: every budget as the phone shows it — category, tinted burn
+bar (orange from 80%, red at the cap), percent, and "spent of limit" —
+read-only; edits stay on phone and web. Uses the v6 stale-credential
+retry like the other pages, and keeps clear of the page dots.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

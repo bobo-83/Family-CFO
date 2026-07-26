@@ -8,6 +8,7 @@ struct WatchRootView: View {
             TabView {
                 NavigationStack { WatchGlanceView() }
                 NavigationStack { WatchYearTrendView() }
+                NavigationStack { WatchBudgetsView() }
                 NavigationStack { WatchChatView() }
             }
             .tabViewStyle(.verticalPage)
