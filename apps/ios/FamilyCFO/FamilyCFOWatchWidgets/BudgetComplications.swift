@@ -88,11 +88,15 @@ struct BudgetComplicationView: View {
                     // The category's own icon (same mapping as the phone's
                     // picker) says which budget each column is.
                     Image(systemName: CategoryIcon.symbol(for: slice.name))
-                        .font(.system(size: 8))
+                        .font(.system(size: 12))
+                        .minimumScaleFactor(0.7)
+                        .frame(height: 13)
                         .foregroundStyle(.secondary)
                 }
             }
-            if let fraction = snapshot.budgetFraction {
+            // With many columns the percent has no room and wraps into
+            // noise (real face, 2026-07-25) — the ring slot carries it anyway.
+            if (snapshot.budgets?.count ?? 0) <= 6, let fraction = snapshot.budgetFraction {
                 Text(percent(fraction))
                     .font(.caption2)
                     .monospacedDigit()
