@@ -144,12 +144,16 @@ final class AccountsViewModel {
     func save(
         _ account: Components.Schemas.Account,
         name: String,
+        type: Components.Schemas.AccountType? = nil,
         designation: EmergencyFundDesignation?
     ) async {
         do {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty, trimmed != account.name {
                 try await api.rename(id: account.id, name: trimmed)
+            }
+            if let type, type != account._type {
+                try await api.setType(id: account.id, type: type)
             }
             if let designation, designation != Self.designation(account) {
                 try await api.setEmergencyFund(

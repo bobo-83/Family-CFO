@@ -15,6 +15,7 @@ protocol AccountsAPI: Sendable {
     /// Rename an account so generic bank labels ("Equity Awards") can be told
     /// apart. A user-set name survives future syncs.
     func rename(id: String, name: String) async throws
+    func setType(id: String, type: Components.Schemas.AccountType) async throws
     /// Pull fresh data from the linked banks (SimpleFIN) — so a newly-added
     /// account shows up on pull-to-refresh, not only after a manual sync.
     func syncBanks() async throws
@@ -83,6 +84,12 @@ struct LiveAccountsAPI: AccountsAPI {
 
     func rename(id: String, name: String) async throws {
         try await patch(id: id, .init(name: name))
+    }
+
+    /// Corrects a mis-inferred type (user report 2026-07-25: a SimpleFIN loan
+    /// landed as checking). The sync never re-types, so the correction sticks.
+    func setType(id: String, type: Components.Schemas.AccountType) async throws {
+        try await patch(id: id, .init(_type: type))
     }
 
     func syncBanks() async throws {

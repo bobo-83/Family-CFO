@@ -67,8 +67,11 @@ struct AccountsView: View {
             }
             .task { await viewModel.load() }
             .sheet(item: $designating) { account in
-                AccountDetailSheet(account: account) { name, designation in
-                    Task { await viewModel.save(account, name: name, designation: designation) }
+                AccountDetailSheet(account: account) { name, type, designation in
+                    Task {
+                        await viewModel.save(
+                            account, name: name, type: type, designation: designation)
+                    }
                 }
             }
             .sheet(isPresented: $addingAccount) {
@@ -121,12 +124,23 @@ struct AccountsView: View {
 /// Rename an account and (for asset accounts) designate how much is emergency fund.
 private struct AccountDetailSheet: View {
     let account: Components.Schemas.Account
-    let onSave: (String, EmergencyFundDesignation?) -> Void
+    let onSave: (String, Components.Schemas.AccountType, EmergencyFundDesignation?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
+    @State private var accountType: Components.Schemas.AccountType
     @State private var mode: Mode
     @State private var amount: Double
+
+    /// Human names for the picker, asset kinds first, then liabilities.
+    static let typeLabels: [(Components.Schemas.AccountType, String)] = [
+        (.checking, "Checking"), (.savings, "Savings"), (.brokerage, "Brokerage"),
+        (.retirement, "Retirement"), (.hsa, "HSA"), (._529, "529"),
+        (.realEstate, "Real estate"), (.otherAsset, "Other asset"),
+        (.creditCard, "Credit card"), (.mortgage, "Mortgage"), (.autoLoan, "Auto loan"),
+        (.studentLoan, "Student loan"), (._401kLoan, "401(k) loan"),
+        (.otherLiability, "Loan / other liability"),
+    ]
 
     private enum Mode: Hashable { case none, whole, amount }
 
@@ -134,11 +148,12 @@ private struct AccountDetailSheet: View {
 
     init(
         account: Components.Schemas.Account,
-        onSave: @escaping (String, EmergencyFundDesignation?) -> Void
+        onSave: @escaping (String, Components.Schemas.AccountType, EmergencyFundDesignation?) -> Void
     ) {
         self.account = account
         self.onSave = onSave
         _name = State(initialValue: account.name)
+        _accountType = State(initialValue: account._type)
         switch AccountsViewModel.designation(account) {
         case .none: _mode = State(initialValue: .none); _amount = State(initialValue: 0)
         case .wholeBalance: _mode = State(initialValue: .whole); _amount = State(initialValue: 0)
@@ -161,6 +176,19 @@ private struct AccountDetailSheet: View {
                     } else {
                         Text("Give it a name you'll recognize.")
                     }
+                }
+                Section {
+                    Picker("Type", selection: $accountType) {
+                        ForEach(Self.typeLabels, id: \.0) { value, label in
+                            Text(label).tag(value)
+                        }
+                    }
+                } header: {
+                    Text("Type")
+                } footer: {
+                    Text(
+                        "What kind of account this is — it decides whether the balance counts as money or debt. The bank sync guesses from the name and never re-guesses: a type you set here sticks (user report 2026-07-25: a loan can land under Cash)."
+                    )
                 }
                 if canDesignate {
                     Section {
@@ -191,7 +219,7 @@ private struct AccountDetailSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(name, canDesignate ? designation : nil)
+                        onSave(name, accountType, canDesignate ? designation : nil)
                         dismiss()
                     }
                 }
