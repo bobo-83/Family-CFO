@@ -169,6 +169,10 @@ final class AppModel {
     }
 
     func bootstrap() {
+        // Re-register the Siri App Shortcuts on every launch: rapid TestFlight
+        // updates can silently drop the registration, breaking "Ask my CFO"
+        // until a refresh (user report 2026-07-26). Cheap and idempotent.
+        FamilyCFOShortcuts.updateAppShortcutParameters()
         if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
             let credentialData = KeychainStore.load(account: Self.credentialAccount),
