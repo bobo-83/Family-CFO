@@ -461,7 +461,8 @@ def _parse_image_description(
         completion = describer.complete(
             [RuntimeMessage(role="user", content=_CHECK_PROMPT, image_data_url=data_url)],
             temperature=0.0,
-            max_tokens=80,
+            max_tokens=160,
+            thinking=False,
         )
     except RuntimeUnavailableError:
         return None

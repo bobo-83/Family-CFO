@@ -689,7 +689,8 @@ async def scan_loan_statement(
             completion = describer.complete(
                 [RuntimeMessage(role="user", content=_LOAN_PROMPT, image_data_url=data_url)],
                 temperature=0.0,
-                max_tokens=200,
+                max_tokens=500,
+                thinking=False,
             )
             result = parse_loan_scan(completion.text)
             if result.monthly_payment_minor is not None or result.balance_minor is not None:
@@ -756,7 +757,8 @@ async def scan_account_statement(
             completion = describer.complete(
                 [RuntimeMessage(role="user", content=_ACCOUNT_PROMPT, image_data_url=data_url)],
                 temperature=0.0,
-                max_tokens=200,
+                max_tokens=500,
+                thinking=False,
             )
             pages.append(parse_account_scan(completion.text))
             merged = merge_account_scans(pages)

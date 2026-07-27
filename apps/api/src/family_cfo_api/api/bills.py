@@ -392,7 +392,8 @@ async def scan_bill(
             completion = describer.complete(
                 [RuntimeMessage(role="user", content=_BILL_PROMPT, image_data_url=data_url)],
                 temperature=0.0,
-                max_tokens=200,
+                max_tokens=500,
+                thinking=False,
             )
             result = parse_bill_scan(completion.text)
             if result.amount_minor is not None or result.name is not None:

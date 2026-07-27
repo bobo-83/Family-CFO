@@ -45,6 +45,7 @@ class VLLMAdapter:
         *,
         temperature: float = 0.2,
         max_tokens: int = 400,
+        thinking: bool = True,
     ) -> RuntimeCompletion:
         payload = {
             "model": self._model,
@@ -52,6 +53,12 @@ class VLLMAdapter:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if not thinking:
+            # Hybrid reasoning models (Qwen3 family) spend max_tokens on a
+            # thinking phase before the answer; structured-extraction callers
+            # need the whole budget for the answer. Templates without an
+            # enable_thinking variable ignore the extra kwarg.
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
 
         last_error: Exception | None = None
         for attempt in range(self._max_retries + 1):

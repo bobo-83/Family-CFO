@@ -667,7 +667,7 @@ class _StubDescriber:
         self.data_urls: list[str] = []
         self._responses = responses or [self.W2_JSON]
 
-    def complete(self, messages, temperature=0.0, max_tokens=0):
+    def complete(self, messages, temperature=0.0, max_tokens=0, thinking=True):
         self.data_urls.append(messages[0].image_data_url)
         text_value = self._responses[min(len(self.data_urls) - 1, len(self._responses) - 1)]
 

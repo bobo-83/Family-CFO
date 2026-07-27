@@ -90,6 +90,37 @@ def test_complete_raises_runtime_unavailable_on_malformed_response() -> None:
         adapter.complete(MESSAGES)
 
 
+def test_complete_omits_chat_template_kwargs_by_default() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert b"chat_template_kwargs" not in request.read()
+        return httpx.Response(
+            200,
+            json={"model": "test-model", "choices": [{"message": {"content": "ok"}}]},
+        )
+
+    adapter = VLLMAdapter("http://vllm.local:8000", "test-model", client=_client(handler))
+
+    assert adapter.complete(MESSAGES).text == "ok"
+
+
+def test_complete_thinking_false_disables_thinking_in_template() -> None:
+    # Hybrid reasoning models must not spend a structured-extraction call's
+    # max_tokens budget on a thinking phase (truncated JSON otherwise).
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        body = json.loads(request.read())
+        assert body["chat_template_kwargs"] == {"enable_thinking": False}
+        return httpx.Response(
+            200,
+            json={"model": "test-model", "choices": [{"message": {"content": "{}"}}]},
+        )
+
+    adapter = VLLMAdapter("http://vllm.local:8000", "test-model", client=_client(handler))
+
+    assert adapter.complete(MESSAGES, thinking=False).text == "{}"
+
+
 def test_complete_coerces_null_content_to_empty_string() -> None:
     # vLLM's reasoning parser returns content: null when the model spent its
     # whole token budget thinking; callers must get "" (str), never None.

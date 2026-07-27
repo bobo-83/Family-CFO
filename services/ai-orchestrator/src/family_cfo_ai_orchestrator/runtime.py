@@ -74,6 +74,7 @@ class RuntimeAdapter(Protocol):
         *,
         temperature: float = 0.2,
         max_tokens: int = 400,
+        thinking: bool = True,
     ) -> RuntimeCompletion: ...
 
     def complete_with_tools(

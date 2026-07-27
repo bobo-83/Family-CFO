@@ -612,7 +612,8 @@ async def scan_w2(
             completion = describer.complete(
                 [RuntimeMessage(role="user", content=_W2_PROMPT, image_data_url=data_url)],
                 temperature=0.0,
-                max_tokens=200,
+                max_tokens=500,
+                thinking=False,
             )
             result = parse_w2_scan(completion.text)
             if result.wages_minor is not None or result.federal_withheld_minor is not None:

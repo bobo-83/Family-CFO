@@ -45,5 +45,6 @@ def describe_image(
         ],
         temperature=0.1,
         max_tokens=max_tokens,
+        thinking=False,
     )
     return completion.text.strip()
