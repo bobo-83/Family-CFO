@@ -467,6 +467,22 @@ bills = Table(
     CheckConstraint(f"frequency in {_sql_in(RECURRING_FREQUENCIES)}", name="ck_bills_frequency"),
 )
 
+# Statement credits recorded against a bill (net metering, overpayment). The
+# bill's amount_minor stays the positive recurring obligation; credits are the
+# separate history the Bills page rolls up per month/year (M-credits).
+bill_credits = Table(
+    "bill_credits",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("bill_id", String(36), ForeignKey("bills.id"), nullable=False),
+    Column("amount_minor", BigInteger, nullable=False),
+    _currency_column(),
+    Column("statement_date", Date, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("amount_minor > 0", name="ck_bill_credits_amount_positive"),
+)
+
 income_sources = Table(
     "income_sources",
     metadata,

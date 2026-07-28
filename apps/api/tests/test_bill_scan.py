@@ -26,14 +26,17 @@ def test_bill_scan_accepts_semiannual_frequency() -> None:
     assert result.frequency == "semiannual"
 
 
-def test_bill_scan_credit_balance_leaves_amount_empty_and_says_why() -> None:
+def test_bill_scan_credit_balance_becomes_zero_amount_plus_credit() -> None:
     # Net-metering statement: "No payment due $0.00", credit balance -$115.66.
+    # The bill's amount is 0 (nothing due); the credit rides separately so
+    # saving records it against the bill (M-credits).
     result = parse_bill_scan(
         '{"biller": "National Grid", "amount_due": -115.66, "frequency": "monthly"}'
     )
 
     assert result.name == "National Grid"
-    assert result.amount_minor is None
+    assert result.amount_minor == 0
+    assert result.credit_minor == 11_566
     assert "credit balance of $115.66" in result.note
 
 
@@ -63,9 +66,10 @@ def test_bill_scan_unreadable_output_falls_back_to_manual_entry() -> None:
     assert "manually" in result.note
 
 
-def test_bill_scan_negative_or_zero_amount_is_rejected() -> None:
+def test_bill_scan_negative_amount_never_fills_a_positive_amount() -> None:
     result = parse_bill_scan('{"biller": "Acme", "amount_due": -5}')
-    assert result.amount_minor is None
+    assert result.amount_minor == 0
+    assert result.credit_minor == 500
 
 
 @pytest.mark.anyio

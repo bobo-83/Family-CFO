@@ -55,6 +55,7 @@ UNDO_POLICY: dict[str, str] = {
     "bill.updated": UNDOABLE,
     "bill.deleted": UNDOABLE,
     "bill_suggestion.dismissed": UNDOABLE,
+    "bill_credit.recorded": UNDOABLE,
     # categories
     "category.created": UNDOABLE,
     "category.updated": UNDOABLE,
@@ -639,6 +640,8 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         raise UndoError("this action can't be undone")
     if entity == "bill":
         repository.delete_bill(engine, household_id, entity_id)
+    elif entity == "bill_credit":
+        repository.delete_bill_credit(engine, household_id, entity_id)
     elif entity == "category":
         repository.delete_category(engine, household_id, entity_id)
     elif entity == "account":

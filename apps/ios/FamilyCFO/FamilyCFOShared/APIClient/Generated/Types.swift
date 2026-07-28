@@ -317,6 +317,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /bills/timeline`.
     /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
     func getPaymentTimeline(_ input: Operations.GetPaymentTimeline.Input) async throws -> Operations.GetPaymentTimeline.Output
+    /// Statement credits per bill, with monthly and yearly totals
+    ///
+    /// M-credits: which bills carry statement credits (net metering, overpayment) and how much per month and per year. Rollups sum the household's base currency.
+    ///
+    /// - Remark: HTTP `GET /bills/credits`.
+    /// - Remark: Generated from `#/paths//bills/credits/get(listBillCredits)`.
+    func listBillCredits(_ input: Operations.ListBillCredits.Input) async throws -> Operations.ListBillCredits.Output
+    /// Record a statement credit against a bill
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/credits`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)`.
+    func recordBillCredit(_ input: Operations.RecordBillCredit.Input) async throws -> Operations.RecordBillCredit.Output
     /// Suggest bills detected from recurring account transactions
     ///
     /// - Remark: HTTP `GET /bills/suggestions`.
@@ -1384,6 +1396,30 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
     public func getPaymentTimeline(headers: Operations.GetPaymentTimeline.Input.Headers = .init()) async throws -> Operations.GetPaymentTimeline.Output {
         try await getPaymentTimeline(Operations.GetPaymentTimeline.Input(headers: headers))
+    }
+    /// Statement credits per bill, with monthly and yearly totals
+    ///
+    /// M-credits: which bills carry statement credits (net metering, overpayment) and how much per month and per year. Rollups sum the household's base currency.
+    ///
+    /// - Remark: HTTP `GET /bills/credits`.
+    /// - Remark: Generated from `#/paths//bills/credits/get(listBillCredits)`.
+    public func listBillCredits(headers: Operations.ListBillCredits.Input.Headers = .init()) async throws -> Operations.ListBillCredits.Output {
+        try await listBillCredits(Operations.ListBillCredits.Input(headers: headers))
+    }
+    /// Record a statement credit against a bill
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/credits`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)`.
+    public func recordBillCredit(
+        path: Operations.RecordBillCredit.Input.Path,
+        headers: Operations.RecordBillCredit.Input.Headers = .init(),
+        body: Operations.RecordBillCredit.Input.Body
+    ) async throws -> Operations.RecordBillCredit.Output {
+        try await recordBillCredit(Operations.RecordBillCredit.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
     }
     /// Suggest bills detected from recurring account transactions
     ///
@@ -4592,6 +4628,10 @@ public enum Components {
             public var frequency: Components.Schemas.BillScanResult.FrequencyPayload?
             /// - Remark: Generated from `#/components/schemas/BillScanResult/next_due_date`.
             public var nextDueDate: Swift.String?
+            /// A net-metering / overpayment statement: the credit magnitude in minor units (positive). amount_minor is 0 for such statements — the credit is recorded separately against the bill when the user saves.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BillScanResult/credit_minor`.
+            public var creditMinor: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/BillScanResult/note`.
             public var note: Swift.String
             /// Creates a new `BillScanResult`.
@@ -4601,18 +4641,21 @@ public enum Components {
             ///   - amountMinor:
             ///   - frequency:
             ///   - nextDueDate:
+            ///   - creditMinor: A net-metering / overpayment statement: the credit magnitude in minor units (positive). amount_minor is 0 for such statements — the credit is recorded separately against the bill when the user saves.
             ///   - note:
             public init(
                 name: Swift.String? = nil,
                 amountMinor: Swift.Int? = nil,
                 frequency: Components.Schemas.BillScanResult.FrequencyPayload? = nil,
                 nextDueDate: Swift.String? = nil,
+                creditMinor: Swift.Int? = nil,
                 note: Swift.String
             ) {
                 self.name = name
                 self.amountMinor = amountMinor
                 self.frequency = frequency
                 self.nextDueDate = nextDueDate
+                self.creditMinor = creditMinor
                 self.note = note
             }
             public enum CodingKeys: String, CodingKey {
@@ -4620,7 +4663,184 @@ public enum Components {
                 case amountMinor = "amount_minor"
                 case frequency
                 case nextDueDate = "next_due_date"
+                case creditMinor = "credit_minor"
                 case note
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BillCreditCreateRequest`.
+        public struct BillCreditCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillCreditCreateRequest/amount`.
+            public var amount: Components.Schemas.Money
+            /// The statement's date; the server uses today when absent.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BillCreditCreateRequest/statement_date`.
+            public var statementDate: Swift.String?
+            /// Creates a new `BillCreditCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - amount:
+            ///   - statementDate: The statement's date; the server uses today when absent.
+            public init(
+                amount: Components.Schemas.Money,
+                statementDate: Swift.String? = nil
+            ) {
+                self.amount = amount
+                self.statementDate = statementDate
+            }
+            public enum CodingKeys: String, CodingKey {
+                case amount
+                case statementDate = "statement_date"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BillCredit`.
+        public struct BillCredit: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillCredit/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillCredit/bill_id`.
+            public var billId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillCredit/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/BillCredit/statement_date`.
+            public var statementDate: Swift.String
+            /// Creates a new `BillCredit`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - billId:
+            ///   - amount:
+            ///   - statementDate:
+            public init(
+                id: Swift.String,
+                billId: Swift.String,
+                amount: Components.Schemas.Money,
+                statementDate: Swift.String
+            ) {
+                self.id = id
+                self.billId = billId
+                self.amount = amount
+                self.statementDate = statementDate
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case billId = "bill_id"
+                case amount
+                case statementDate = "statement_date"
+            }
+        }
+        /// One bill's credit history, newest statement first.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BillCreditGroup`.
+        public struct BillCreditGroup: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillCreditGroup/bill_id`.
+            public var billId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillCreditGroup/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillCreditGroup/total`.
+            public var total: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/BillCreditGroup/credits`.
+            public var credits: [Components.Schemas.BillCredit]
+            /// Creates a new `BillCreditGroup`.
+            ///
+            /// - Parameters:
+            ///   - billId:
+            ///   - name:
+            ///   - total:
+            ///   - credits:
+            public init(
+                billId: Swift.String,
+                name: Swift.String,
+                total: Components.Schemas.Money,
+                credits: [Components.Schemas.BillCredit]
+            ) {
+                self.billId = billId
+                self.name = name
+                self.total = total
+                self.credits = credits
+            }
+            public enum CodingKeys: String, CodingKey {
+                case billId = "bill_id"
+                case name
+                case total
+                case credits
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/MonthlyCreditTotal`.
+        public struct MonthlyCreditTotal: Codable, Hashable, Sendable {
+            /// YYYY-MM
+            ///
+            /// - Remark: Generated from `#/components/schemas/MonthlyCreditTotal/month`.
+            public var month: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MonthlyCreditTotal/total`.
+            public var total: Components.Schemas.Money
+            /// Creates a new `MonthlyCreditTotal`.
+            ///
+            /// - Parameters:
+            ///   - month: YYYY-MM
+            ///   - total:
+            public init(
+                month: Swift.String,
+                total: Components.Schemas.Money
+            ) {
+                self.month = month
+                self.total = total
+            }
+            public enum CodingKeys: String, CodingKey {
+                case month
+                case total
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/YearlyCreditTotal`.
+        public struct YearlyCreditTotal: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/YearlyCreditTotal/year`.
+            public var year: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/YearlyCreditTotal/total`.
+            public var total: Components.Schemas.Money
+            /// Creates a new `YearlyCreditTotal`.
+            ///
+            /// - Parameters:
+            ///   - year:
+            ///   - total:
+            public init(
+                year: Swift.Int,
+                total: Components.Schemas.Money
+            ) {
+                self.year = year
+                self.total = total
+            }
+            public enum CodingKeys: String, CodingKey {
+                case year
+                case total
+            }
+        }
+        /// Every bill that carries statement credits, with month/year rollups.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BillCreditsResponse`.
+        public struct BillCreditsResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillCreditsResponse/bills`.
+            public var bills: [Components.Schemas.BillCreditGroup]
+            /// - Remark: Generated from `#/components/schemas/BillCreditsResponse/monthly`.
+            public var monthly: [Components.Schemas.MonthlyCreditTotal]
+            /// - Remark: Generated from `#/components/schemas/BillCreditsResponse/yearly`.
+            public var yearly: [Components.Schemas.YearlyCreditTotal]
+            /// Creates a new `BillCreditsResponse`.
+            ///
+            /// - Parameters:
+            ///   - bills:
+            ///   - monthly:
+            ///   - yearly:
+            public init(
+                bills: [Components.Schemas.BillCreditGroup],
+                monthly: [Components.Schemas.MonthlyCreditTotal],
+                yearly: [Components.Schemas.YearlyCreditTotal]
+            ) {
+                self.bills = bills
+                self.monthly = monthly
+                self.yearly = yearly
+            }
+            public enum CodingKeys: String, CodingKey {
+                case bills
+                case monthly
+                case yearly
             }
         }
         /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse`.
@@ -19820,6 +20040,370 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Statement credits per bill, with monthly and yearly totals
+    ///
+    /// M-credits: which bills carry statement credits (net metering, overpayment) and how much per month and per year. Rollups sum the household's base currency.
+    ///
+    /// - Remark: HTTP `GET /bills/credits`.
+    /// - Remark: Generated from `#/paths//bills/credits/get(listBillCredits)`.
+    public enum ListBillCredits {
+        public static let id: Swift.String = "listBillCredits"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/credits/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListBillCredits.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListBillCredits.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListBillCredits.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListBillCredits.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/credits/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/credits/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BillCreditsResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BillCreditsResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListBillCredits.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListBillCredits.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Credit history and rollups
+            ///
+            /// - Remark: Generated from `#/paths//bills/credits/get(listBillCredits)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListBillCredits.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListBillCredits.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/credits/get(listBillCredits)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Record a statement credit against a bill
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/credits`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)`.
+    public enum RecordBillCredit {
+        public static let id: Swift.String = "recordBillCredit"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/path/bill_id`.
+                public var billId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - billId:
+                public init(billId: Swift.String) {
+                    self.billId = billId
+                }
+            }
+            public var path: Operations.RecordBillCredit.Input.Path
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordBillCredit.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordBillCredit.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RecordBillCredit.Input.Headers
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BillCreditCreateRequest)
+            }
+            public var body: Operations.RecordBillCredit.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.RecordBillCredit.Input.Path,
+                headers: Operations.RecordBillCredit.Input.Headers = .init(),
+                body: Operations.RecordBillCredit.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/{bill_id}/credits/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.BillCredit)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BillCredit {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordBillCredit.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordBillCredit.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Credit recorded
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.RecordBillCredit.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.RecordBillCredit.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/credits/post(recordBillCredit)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }

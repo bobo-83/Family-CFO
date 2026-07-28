@@ -1484,6 +1484,61 @@ paths:
                 $ref: "#/components/schemas/PaymentTimelineResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /bills/credits:
+    get:
+      tags:
+        - Bills
+      operationId: listBillCredits
+      summary: Statement credits per bill, with monthly and yearly totals
+      description: >-
+        M-credits: which bills carry statement credits (net metering,
+        overpayment) and how much per month and per year. Rollups sum the
+        household's base currency.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Credit history and rollups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillCreditsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+  /bills/{bill_id}/credits:
+    post:
+      tags:
+        - Bills
+      operationId: recordBillCredit
+      summary: Record a statement credit against a bill
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillCreditCreateRequest"
+      responses:
+        "201":
+          description: Credit recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillCredit"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
   /bills/suggestions:
     get:
       tags:
@@ -4380,7 +4435,77 @@ components:
           type: string
           enum: [weekly, biweekly, semimonthly, monthly, quarterly, semiannual, annual]
         next_due_date: { type: string, format: date }
+        credit_minor:
+          type: integer
+          description: >-
+            A net-metering / overpayment statement: the credit magnitude in
+            minor units (positive). amount_minor is 0 for such statements —
+            the credit is recorded separately against the bill when the user
+            saves.
         note: { type: string }
+    BillCreditCreateRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          $ref: "#/components/schemas/Money"
+        statement_date:
+          type: string
+          format: date
+          description: The statement's date; the server uses today when absent.
+    BillCredit:
+      type: object
+      required: [id, bill_id, amount, statement_date]
+      properties:
+        id: { type: string }
+        bill_id: { type: string }
+        amount:
+          $ref: "#/components/schemas/Money"
+        statement_date: { type: string, format: date }
+    BillCreditGroup:
+      type: object
+      description: One bill's credit history, newest statement first.
+      required: [bill_id, name, total, credits]
+      properties:
+        bill_id: { type: string }
+        name: { type: string }
+        total:
+          $ref: "#/components/schemas/Money"
+        credits:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillCredit"
+    MonthlyCreditTotal:
+      type: object
+      required: [month, total]
+      properties:
+        month: { type: string, description: "YYYY-MM" }
+        total:
+          $ref: "#/components/schemas/Money"
+    YearlyCreditTotal:
+      type: object
+      required: [year, total]
+      properties:
+        year: { type: integer }
+        total:
+          $ref: "#/components/schemas/Money"
+    BillCreditsResponse:
+      type: object
+      description: Every bill that carries statement credits, with month/year rollups.
+      required: [bills, monthly, yearly]
+      properties:
+        bills:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillCreditGroup"
+        monthly:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyCreditTotal"
+        yearly:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearlyCreditTotal"
     IncomeAnalysisResponse:
       type: object
       required:

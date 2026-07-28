@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import type {
   Bill as BillDto,
+  BillCreditsResponse,
   BillSuggestion,
   BillUpdateSuggestion,
   PaymentTimelineItem,
@@ -150,9 +151,10 @@ export class Bills {
   private async load(): Promise<void> {
     this.loading.set(true);
     this.loadError.set(null);
-    const [billsResult, timelineResult] = await Promise.all([
+    const [billsResult, timelineResult, creditsResult] = await Promise.all([
       this.api.listBills(),
       this.api.getPaymentTimeline(),
+      this.api.listBillCredits(),
     ]);
     this.loading.set(false);
     if (billsResult.error || !billsResult.data) {
@@ -162,6 +164,8 @@ export class Bills {
     this.bills.set(billsResult.data.bills);
     // The timeline degrades gracefully: the manage list still works without it.
     this.timeline.set(timelineResult.data ?? null);
+    // Credits too: the page works without the section.
+    this.credits.set(creditsResult.data ?? null);
   }
 
   private async loadSuggestions(): Promise<void> {
@@ -245,13 +249,51 @@ export class Bills {
 
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
-    amount: [0, [Validators.required, Validators.min(0.01)]],
+    // min 0, not 0.01: a net-metered bill legitimately saves with $0 due
+    // (the statement credit is tracked separately — M-credits).
+    amount: [0, [Validators.required, Validators.min(0)]],
     frequency: ['monthly' as RecurringFrequency, Validators.required],
     nextDueDate: [''],
   });
 
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+
+  // --- M-credits: statement credits (net metering) per bill, with rollups ---
+
+  protected readonly credits = signal<BillCreditsResponse | null>(null);
+  protected readonly creditError = signal<string | null>(null);
+
+  // A scanned statement's credit, waiting for the user to confirm. When the
+  // scanned biller matches an existing bill, targetBill lets one click record
+  // the credit there instead of creating a duplicate bill.
+  protected readonly scannedCredit = signal<{
+    amountMinor: number;
+    targetBill: BillDto | null;
+  } | null>(null);
+
+  protected readonly creditBusy = signal(false);
+
+  protected async recordScannedCredit(): Promise<void> {
+    const pending = this.scannedCredit();
+    const target = pending?.targetBill;
+    if (!pending || !target || this.creditBusy()) {
+      return;
+    }
+    this.creditBusy.set(true);
+    this.creditError.set(null);
+    const { error } = await this.api.recordBillCredit(target.id, {
+      amount: { amount_minor: pending.amountMinor, currency: target.amount.currency },
+    });
+    this.creditBusy.set(false);
+    if (error) {
+      this.creditError.set(apiErrorMessage(error, 'Failed to record the credit.'));
+      return;
+    }
+    this.scannedCredit.set(null);
+    this.scanNote.set(null);
+    await this.load();
+  }
 
   // --- Bill scan: photo/PDF → candidate values prefill the add form ---
 
@@ -296,6 +338,16 @@ export class Bills {
     if (data.next_due_date && !current.nextDueDate) {
       this.form.patchValue({ nextDueDate: data.next_due_date });
     }
+    // A credit statement: hold the credit until the user confirms. If the
+    // scanned biller matches an existing bill, offer to record it there.
+    if (data.credit_minor) {
+      const scannedName = (data.name ?? '').trim().toLowerCase();
+      const match =
+        this.bills().find((bill) => bill.name.trim().toLowerCase() === scannedName) ?? null;
+      this.scannedCredit.set({ amountMinor: data.credit_minor, targetBill: match });
+    } else {
+      this.scannedCredit.set(null);
+    }
     this.scanNote.set(data.note);
   }
 
@@ -307,18 +359,28 @@ export class Bills {
     this.submitting.set(true);
     this.submitError.set(null);
     const { name, amount, frequency, nextDueDate } = this.form.getRawValue();
-    const { error } = await this.api.createBill({
+    const { data: created, error } = await this.api.createBill({
       name,
       amount: { amount_minor: Math.round(amount * 100), currency: 'USD' },
       frequency,
       ...(nextDueDate ? { next_due_date: nextDueDate } : {}),
     });
-    this.submitting.set(false);
-    if (error) {
+    if (error || !created) {
+      this.submitting.set(false);
       this.submitError.set(apiErrorMessage(error, 'Failed to create bill.'));
       return;
     }
+    // A scanned credit statement: the new bill starts with its credit recorded.
+    const pending = this.scannedCredit();
+    if (pending) {
+      await this.api.recordBillCredit(created.id, {
+        amount: { amount_minor: pending.amountMinor, currency: created.amount.currency },
+      });
+      this.scannedCredit.set(null);
+    }
+    this.submitting.set(false);
     this.form.reset({ name: '', amount: 0, frequency: 'monthly', nextDueDate: '' });
+    this.scanNote.set(null);
     await this.load();
   }
 
@@ -340,7 +402,7 @@ export class Bills {
   protected readonly editError = signal<string | null>(null);
   protected readonly editForm = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
-    amount: [0, [Validators.required, Validators.min(0.01)]],
+    amount: [0, [Validators.required, Validators.min(0)]],
     frequency: ['monthly' as RecurringFrequency, Validators.required],
     nextDueDate: [''],
   });

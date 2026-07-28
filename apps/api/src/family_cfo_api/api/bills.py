@@ -9,6 +9,10 @@ from family_cfo_api.schemas import (
     AccountObligation,
     Bill,
     BillCreateRequest,
+    BillCredit,
+    BillCreditCreateRequest,
+    BillCreditGroup,
+    BillCreditsResponse,
     BillListResponse,
     BillScanRequest,
     BillScanResult,
@@ -18,9 +22,11 @@ from family_cfo_api.schemas import (
     BillUpdateSuggestion,
     BillUpdateRequest,
     ErrorResponse,
+    MonthlyCreditTotal,
     PaymentTimelineItem,
     PaymentTimelineResponse,
     TimelinePaidWith,
+    YearlyCreditTotal,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -339,14 +345,16 @@ def parse_bill_scan(text: str) -> BillScanResult:
     frequency = data.get("frequency")
     name = data.get("biller")
     # A zero/negative amount due is a credit balance (net metering, overpayment),
-    # not a recurring obligation — name the credit instead of silently leaving
-    # the field (the amount slot itself stays reserved for the positive
-    # recurring amount the engine budgets each month).
+    # not a recurring obligation. The bill's amount becomes 0 (nothing due) and
+    # the credit rides separately: saving records it against the bill so the
+    # Bills page can total credits per month/year (M-credits).
+    credit_minor = None
     if amount is not None and amount < 0:
+        credit_minor = int(round(abs(amount) * 100))
         note = (
             f"This statement shows a credit balance of ${abs(amount):,.2f} — "
-            "nothing is due this cycle. Enter the bill's typical amount if you "
-            "still want to track it. Nothing is stored until you save."
+            "nothing is due this cycle. Saving records the credit against this "
+            "bill. Nothing is stored until you save."
         )
     elif amount is not None and amount == 0:
         note = (
@@ -361,9 +369,12 @@ def parse_bill_scan(text: str) -> BillScanResult:
         )
     return BillScanResult(
         name=name.strip() if isinstance(name, str) and name.strip() else None,
-        amount_minor=int(round(amount * 100)) if amount is not None and amount > 0 else None,
+        amount_minor=0 if credit_minor is not None else (
+            int(round(amount * 100)) if amount is not None and amount > 0 else None
+        ),
         frequency=frequency if frequency in _BILL_FREQUENCIES else None,
         next_due_date=_parse_iso_or_us_date(data.get("due_date")),
+        credit_minor=credit_minor,
         note=note,
     )
 
@@ -423,6 +434,123 @@ async def scan_bill(
         return result or BillScanResult(note="Nothing readable was found — enter values manually.")
     except RuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
+
+
+@router.get(
+    "/bills/credits",
+    operation_id="listBillCredits",
+    response_model=BillCreditsResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Statement credits per bill, with monthly and yearly totals",
+)
+async def list_bill_credits(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> BillCreditsResponse:
+    """M-credits: which bills carry credits (net metering, overpayment) and how
+    much per month and per year. Rollups sum the household's base currency;
+    a credit in another currency still appears in its bill's history."""
+    household = repository.get_household(engine, session.household_id)
+    base = household.base_currency if household else "USD"
+    credits = repository.list_bill_credits(engine, session.household_id)
+    names = {b.id: b.name for b in repository.list_bills(engine, session.household_id)}
+
+    by_bill: dict[str, list[repository.BillCreditRecord]] = {}
+    for record in credits:
+        by_bill.setdefault(record.bill_id, []).append(record)
+    groups = [
+        BillCreditGroup(
+            bill_id=bill_id,
+            name=names.get(bill_id, "(deleted bill)"),
+            total=MoneySchema(
+                amount_minor=sum(r.amount_minor for r in records if r.currency == base),
+                currency=base,
+            ),
+            credits=[
+                BillCredit(
+                    id=r.id,
+                    bill_id=r.bill_id,
+                    amount=MoneySchema(amount_minor=r.amount_minor, currency=r.currency),
+                    statement_date=r.statement_date,
+                )
+                for r in records
+            ],
+        )
+        for bill_id, records in by_bill.items()
+    ]
+    groups.sort(key=lambda g: g.name.lower())
+
+    monthly: dict[str, int] = {}
+    yearly: dict[int, int] = {}
+    for record in credits:
+        if record.currency != base:
+            continue
+        month = record.statement_date.strftime("%Y-%m")
+        monthly[month] = monthly.get(month, 0) + record.amount_minor
+        yearly[record.statement_date.year] = (
+            yearly.get(record.statement_date.year, 0) + record.amount_minor
+        )
+    return BillCreditsResponse(
+        bills=groups,
+        monthly=[
+            MonthlyCreditTotal(month=m, total=MoneySchema(amount_minor=v, currency=base))
+            for m, v in sorted(monthly.items(), reverse=True)
+        ],
+        yearly=[
+            YearlyCreditTotal(year=y, total=MoneySchema(amount_minor=v, currency=base))
+            for y, v in sorted(yearly.items(), reverse=True)
+        ],
+    )
+
+
+@router.post(
+    "/bills/{bill_id}/credits",
+    operation_id="recordBillCredit",
+    response_model=BillCredit,
+    status_code=201,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Bill not found", "model": ErrorResponse},
+        422: {"description": "Credit must be positive", "model": ErrorResponse},
+    },
+    summary="Record a statement credit against a bill",
+)
+async def record_bill_credit(
+    bill_id: str,
+    payload: BillCreditCreateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> BillCredit:
+    bill = repository.get_bill(engine, session.household_id, bill_id)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if payload.amount.amount_minor <= 0:
+        raise HTTPException(status_code=422, detail="Credit must be positive")
+    record = repository.add_bill_credit(
+        engine,
+        session.household_id,
+        bill_id,
+        amount_minor=payload.amount.amount_minor,
+        currency=payload.amount.currency,
+        statement_date=payload.statement_date or date.today(),
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "bill_credit.recorded",
+        "bill_credit",
+        record.id,
+        f"Recorded a credit on '{bill.name}'",
+        undo_token=undo_actions.created("bill_credit", record.id),
+    )
+    return BillCredit(
+        id=record.id,
+        bill_id=record.bill_id,
+        amount=MoneySchema(amount_minor=record.amount_minor, currency=record.currency),
+        statement_date=record.statement_date,
+    )
 
 
 @router.post(

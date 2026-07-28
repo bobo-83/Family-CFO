@@ -18,6 +18,8 @@ import {
   type BackupDestinationCheckRequest,
   createBill,
   createBudget,
+  listBillCredits,
+  recordBillCredit,
   createCategory,
   updateCategory,
   createChatMessage,
@@ -124,6 +126,7 @@ import {
   type AiRuntimeConfig,
   type AuthSessionCreateRequest,
   type BillCreateRequest,
+  type BillCreditCreateRequest,
   type BillUpdateRequest,
   type BudgetCreateRequest,
   type BudgetUpdateRequest,
@@ -395,6 +398,15 @@ export class ApiService {
 
   createBill(body: BillCreateRequest) {
     return createBill({ body });
+  }
+
+  // M-credits: statement credits (net metering, overpayment) per bill.
+  listBillCredits() {
+    return listBillCredits();
+  }
+
+  recordBillCredit(billId: string, body: BillCreditCreateRequest) {
+    return recordBillCredit({ path: { bill_id: billId }, body });
   }
 
   updateBill(billId: string, body: BillUpdateRequest) {

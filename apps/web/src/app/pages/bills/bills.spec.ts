@@ -27,6 +27,8 @@ function configure(apiMock: Record<string, unknown>, role: string) {
   // Every load fetches the payment timeline (M111); default to "no data" so
   // pre-timeline tests keep exercising the manage list unchanged.
   apiMock['getPaymentTimeline'] ??= vi.fn().mockResolvedValue(response(null));
+  // Same for statement credits (M-credits).
+  apiMock['listBillCredits'] ??= vi.fn().mockResolvedValue(response(null));
   TestBed.configureTestingModule({
     imports: [Bills],
     providers: [
@@ -381,5 +383,53 @@ describe('Bills', () => {
       next_due_date: '2026-08-01',
     });
     expect(host.textContent).not.toContain('Suggested updates');
+  });
+
+  it('renders statement credits with yearly totals and per-bill history', async () => {
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [], updates: [] })),
+      listBillCredits: vi.fn().mockResolvedValue(
+        response({
+          bills: [
+            {
+              bill_id: 'b1',
+              name: 'nationalgrid',
+              total: { amount_minor: 21_155, currency: 'USD' },
+              credits: [
+                {
+                  id: 'c2',
+                  bill_id: 'b1',
+                  amount: { amount_minor: 11_566, currency: 'USD' },
+                  statement_date: '2026-07-15',
+                },
+                {
+                  id: 'c1',
+                  bill_id: 'b1',
+                  amount: { amount_minor: 9_589, currency: 'USD' },
+                  statement_date: '2026-06-15',
+                },
+              ],
+            },
+          ],
+          monthly: [
+            { month: '2026-07', total: { amount_minor: 11_566, currency: 'USD' } },
+            { month: '2026-06', total: { amount_minor: 9_589, currency: 'USD' } },
+          ],
+          yearly: [{ year: 2026, total: { amount_minor: 21_155, currency: 'USD' } }],
+        }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Statement credits');
+    expect(host.textContent).toContain('nationalgrid');
+    expect(host.textContent).toContain('USD 210.55');
+    expect(host.textContent).toContain('USD 115.66');
+    expect(host.textContent).toContain('2026-06');
   });
 });

@@ -57,6 +57,12 @@ protocol BillsAPI: Sendable {
     func syncAllTransactions() async throws -> SyncTotals
     /// Delete a category so the shared picker's long-press delete works here too.
     func deleteCategory(id: String) async throws
+
+    /// M-credits: statement credits (net metering, overpayment) per bill, with
+    /// monthly and yearly rollups.
+    func billCredits() async throws -> Components.Schemas.BillCreditsResponse?
+    /// Record a scanned statement's credit against a bill (undoable server-side).
+    func recordBillCredit(billID: String, amountMinor: Int64, currency: String) async throws
 }
 
 extension BillsAPI {
@@ -76,6 +82,8 @@ extension BillsAPI {
         nextDueDate: String?,
         categoryID: String?
     ) async throws {}
+    func billCredits() async throws -> Components.Schemas.BillCreditsResponse? { nil }
+    func recordBillCredit(billID: String, amountMinor: Int64, currency: String) async throws {}
 }
 
 /// Aggregate outcome of syncing every connection (M96): what was newly imported,
@@ -284,6 +292,38 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.server(403)
         case .notFound:
             return  // already gone
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func billCredits() async throws -> Components.Schemas.BillCreditsResponse? {
+        switch try await client.listBillCredits(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func recordBillCredit(billID: String, amountMinor: Int64, currency: String) async throws {
+        let request = Components.Schemas.BillCreditCreateRequest(
+            amount: .init(amountMinor: amountMinor, currency: currency))
+        switch try await client.recordBillCredit(
+            .init(path: .init(billId: billID), body: .json(request)))
+        {
+        case .created:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        case .unprocessableContent:
+            throw APIError.server(422)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

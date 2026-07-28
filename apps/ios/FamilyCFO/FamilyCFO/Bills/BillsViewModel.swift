@@ -21,6 +21,8 @@ final class BillsViewModel {
     private(set) var obligations: [Components.Schemas.AccountObligation] = []
     private(set) var categories: [Components.Schemas.Category] = []
     private(set) var deposits: [Components.Schemas.IncomeAnalysisTransaction] = []
+    /// M-credits: statement credits per bill with month/year rollups. nil until loaded.
+    private(set) var credits: Components.Schemas.BillCreditsResponse?
     private(set) var isLoading = false
     private(set) var isSyncing = false
     private(set) var isScanning = false
@@ -49,12 +51,14 @@ final class BillsViewModel {
             async let cats = api.categories()
             async let dep = api.unclassifiedDeposits()
             async let line = api.paymentTimeline()
+            async let creditData = api.billCredits()
             billSuggestions = try await suggestions
             bills = try await current
             obligations = try await obligated
             categories = try await cats
             deposits = try await dep
             timeline = try await line
+            credits = try await creditData
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -200,10 +204,13 @@ final class BillsViewModel {
         currency: String,
         frequency: Components.Schemas.RecurringFrequency,
         nextDueDate: String?,
-        categoryID: String? = nil
+        categoryID: String? = nil,
+        creditMinor: Int64? = nil
     ) async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, amountMinor > 0 else { return }
+        // amountMinor may be 0: a net-metered bill legitimately has nothing due
+        // (its statement credit is tracked separately — M-credits).
+        guard !trimmed.isEmpty, amountMinor >= 0 else { return }
         let request = Components.Schemas.BillCreateRequest(
             name: trimmed,
             amount: .init(amountMinor: amountMinor, currency: currency),
@@ -213,6 +220,14 @@ final class BillsViewModel {
         do {
             try await api.createBill(request)
             await load()  // pull the created bill back with its server id
+            // A scanned credit statement: the new bill starts with its credit.
+            if let creditMinor, creditMinor > 0,
+                let created = bills.first(where: { $0.name == trimmed })
+            {
+                try await api.recordBillCredit(
+                    billID: created.id, amountMinor: creditMinor, currency: currency)
+                credits = try await api.billCredits()
+            }
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
@@ -262,14 +277,21 @@ final class BillsViewModel {
         currency: String,
         frequency: Components.Schemas.RecurringFrequency,
         nextDueDate: String?,
-        categoryID: String?
+        categoryID: String?,
+        creditMinor: Int64? = nil
     ) async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, amountMinor > 0 else { return }
+        guard !trimmed.isEmpty, amountMinor >= 0 else { return }
         do {
             try await api.updateBill(
                 id: bill.id, name: trimmed, amountMinor: amountMinor, currency: currency,
                 frequency: frequency, nextDueDate: nextDueDate, categoryID: categoryID)
+            // Scanning this month's statement while editing records its credit
+            // against the bill — the monthly net-metering flow (M-credits).
+            if let creditMinor, creditMinor > 0 {
+                try await api.recordBillCredit(
+                    billID: bill.id, amountMinor: creditMinor, currency: currency)
+            }
             await load()
             errorMessage = nil
         } catch {

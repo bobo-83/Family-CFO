@@ -583,7 +583,58 @@ export type BillScanResult = {
     amount_minor?: number;
     frequency?: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
     next_due_date?: string;
+    /**
+     * A net-metering / overpayment statement: the credit magnitude in minor units (positive). amount_minor is 0 for such statements — the credit is recorded separately against the bill when the user saves.
+     */
+    credit_minor?: number;
     note: string;
+};
+
+export type BillCreditCreateRequest = {
+    amount: Money;
+    /**
+     * The statement's date; the server uses today when absent.
+     */
+    statement_date?: string;
+};
+
+export type BillCredit = {
+    id: string;
+    bill_id: string;
+    amount: Money;
+    statement_date: string;
+};
+
+/**
+ * One bill's credit history, newest statement first.
+ */
+export type BillCreditGroup = {
+    bill_id: string;
+    name: string;
+    total: Money;
+    credits: Array<BillCredit>;
+};
+
+export type MonthlyCreditTotal = {
+    /**
+     * YYYY-MM
+     */
+    month: string;
+    total: Money;
+};
+
+export type YearlyCreditTotal = {
+    year: number;
+    total: Money;
+};
+
+/**
+ * Every bill that carries statement credits, with month/year rollups.
+ */
+export type BillCreditsResponse = {
+    bills: Array<BillCreditGroup>;
+    monthly: Array<MonthlyCreditTotal>;
+    yearly: Array<YearlyCreditTotal>;
 };
 
 export type IncomeAnalysisResponse = {
@@ -3665,6 +3716,70 @@ export type GetPaymentTimelineResponses = {
 };
 
 export type GetPaymentTimelineResponse = GetPaymentTimelineResponses[keyof GetPaymentTimelineResponses];
+
+export type ListBillCreditsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/bills/credits';
+};
+
+export type ListBillCreditsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListBillCreditsError = ListBillCreditsErrors[keyof ListBillCreditsErrors];
+
+export type ListBillCreditsResponses = {
+    /**
+     * Credit history and rollups
+     */
+    200: BillCreditsResponse;
+};
+
+export type ListBillCreditsResponse = ListBillCreditsResponses[keyof ListBillCreditsResponses];
+
+export type RecordBillCreditData = {
+    body: BillCreditCreateRequest;
+    path: {
+        bill_id: string;
+    };
+    query?: never;
+    url: '/bills/{bill_id}/credits';
+};
+
+export type RecordBillCreditErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
+};
+
+export type RecordBillCreditError = RecordBillCreditErrors[keyof RecordBillCreditErrors];
+
+export type RecordBillCreditResponses = {
+    /**
+     * Credit recorded
+     */
+    201: BillCredit;
+};
+
+export type RecordBillCreditResponse = RecordBillCreditResponses[keyof RecordBillCreditResponses];
 
 export type ListBillSuggestionsData = {
     body?: never;

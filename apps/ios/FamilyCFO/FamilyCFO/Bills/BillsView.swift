@@ -379,9 +379,46 @@ struct ManageBillsView: View {
                     }
                 }
             }
+            // M-credits: which bills carry statement credits (net metering) and
+            // what they add up to per month and per year.
+            if let credits = viewModel.credits, !credits.bills.isEmpty {
+                Section {
+                    ForEach(credits.bills, id: \.billId) { group in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(group.name).lineLimit(1)
+                                Spacer()
+                                Text(group.total.formattedExact)
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            ForEach(group.credits, id: \.id) { credit in
+                                HStack {
+                                    Text(String(credit.statementDate.prefix(10)))
+                                    Spacer()
+                                    Text(credit.amount.formattedExact)
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Statement credits")
+                } footer: {
+                    Text(Self.creditTotalsLine(credits))
+                }
+            }
         }
         .navigationTitle("Manage bills")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// "2026: $210.55 · 2026-07: $115.66 · 2026-06: $95.89" — the year totals,
+    /// then the most recent months.
+    static func creditTotalsLine(_ credits: Components.Schemas.BillCreditsResponse) -> String {
+        let years = credits.yearly.map { "\($0.year): \($0.total.formattedExact)" }
+        let months = credits.monthly.prefix(6).map { "\($0.month): \($0.total.formattedExact)" }
+        return (years + months).joined(separator: " · ")
     }
 
     private func billRow(_ bill: Components.Schemas.Bill) -> some View {
@@ -456,6 +493,9 @@ struct BillFormView: View {
     @State private var showingFileImporter = false
     @State private var scanning = false
     @State private var scanNote: String?
+    // A scanned credit statement's credit (minor units); recorded against the
+    // bill when the user saves (M-credits).
+    @State private var scannedCredit: Int64?
 
     init(viewModel: BillsViewModel, mode: Mode) {
         self.viewModel = viewModel
@@ -486,40 +526,44 @@ struct BillFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if !isEditing {
-                    Section {
-                        Menu {
-                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                Button {
-                                    showingCamera = true
-                                } label: {
-                                    Label("Take a photo", systemImage: "camera")
-                                }
-                            }
+                // Scanning is available while editing too: scanning this month's
+                // statement records its credit against the bill (M-credits).
+                Section {
+                    Menu {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
                             Button {
-                                showingFileImporter = true
+                                showingCamera = true
                             } label: {
-                                Label("Choose a PDF or image", systemImage: "doc")
+                                Label("Take a photo", systemImage: "camera")
                             }
-                            Button {
-                                pasteBill()
-                            } label: {
-                                Label("Paste from clipboard", systemImage: "doc.on.clipboard")
-                            }
+                        }
+                        Button {
+                            showingFileImporter = true
                         } label: {
-                            if scanning {
-                                HStack(spacing: 6) { ProgressView(); Text("Reading bill…") }
-                            } else {
-                                Label("Scan a bill", systemImage: "doc.viewfinder")
-                            }
+                            Label("Choose a PDF or image", systemImage: "doc")
                         }
-                        .disabled(scanning)
-                        if let scanNote {
-                            Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                        Button {
+                            pasteBill()
+                        } label: {
+                            Label("Paste from clipboard", systemImage: "doc.on.clipboard")
                         }
-                    } footer: {
-                        Text("Photograph, upload, or paste a bill and the on-box vision model fills in what it can read. Confirm every value before saving.")
+                    } label: {
+                        if scanning {
+                            HStack(spacing: 6) { ProgressView(); Text("Reading bill…") }
+                        } else {
+                            Label("Scan a bill", systemImage: "doc.viewfinder")
+                        }
                     }
+                    .disabled(scanning)
+                    if let scanNote {
+                        Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text(
+                        isEditing
+                            ? "Scan this month's statement to record a credit or update values. Confirm before saving."
+                            : "Photograph, upload, or paste a bill and the on-box vision model fills in what it can read. Confirm every value before saving."
+                    )
                 }
                 Section {
                     TextField("Name (e.g. Rent)", text: $name)
@@ -548,9 +592,11 @@ struct BillFormView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isEditing ? "Save" : "Add") { save() }
+                        // Zero is a valid amount: a net-metered bill has nothing
+                        // due (its credit is tracked separately — M-credits).
                         .disabled(
                             name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || (amount ?? 0) <= 0)
+                                || (amount ?? -1) < 0)
                 }
             }
             .fullScreenCover(isPresented: $showingCamera) {
@@ -605,6 +651,9 @@ struct BillFormView: View {
                 frequency = mapped
             }
             if let due = Self.parseDate(result.nextDueDate) { nextDue = due }
+            // A credit statement (net metering): hold the credit; saving
+            // records it against the bill (M-credits).
+            if let credit = result.creditMinor, credit > 0 { scannedCredit = Int64(credit) }
             scanNote = result.note
         }
     }
@@ -625,11 +674,13 @@ struct BillFormView: View {
             case .add:
                 await viewModel.addBill(
                     name: name, amountMinor: minor, currency: currency,
-                    frequency: frequency, nextDueDate: due, categoryID: category)
+                    frequency: frequency, nextDueDate: due, categoryID: category,
+                    creditMinor: scannedCredit)
             case .edit(let bill):
                 await viewModel.editBill(
                     bill, name: name, amountMinor: minor, currency: currency,
-                    frequency: frequency, nextDueDate: due, categoryID: category)
+                    frequency: frequency, nextDueDate: due, categoryID: category,
+                    creditMinor: scannedCredit)
             }
         }
     }

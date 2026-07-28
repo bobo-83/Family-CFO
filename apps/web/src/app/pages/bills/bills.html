@@ -107,7 +107,7 @@
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>Amount (USD)</mat-label>
-                <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
+                <input matInput type="number" step="0.01" min="0" formControlName="amount" />
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>Frequency</mat-label>
@@ -167,6 +167,58 @@
     </ul>
     </mat-card-content>
   </mat-card>
+}
+
+@if (credits(); as creditData) {
+  @if (creditData.bills.length > 0) {
+    <h2>Statement credits</h2>
+    <p class="page-hint">
+      Credits your statements carry (net metering, overpayments) — tracked per
+      bill so you can see what solar gives back per month and per year.
+    </p>
+    <mat-card appearance="outlined" class="page-card">
+      <mat-card-content>
+        <div class="bill-credits__totals">
+          @for (year of creditData.yearly; track year.year) {
+            <span class="bill-credits__total">
+              {{ year.year }}: <strong>{{ formatMoney(year.total) }}</strong>
+            </span>
+          }
+        </div>
+        <ul class="bill-list">
+          @for (group of creditData.bills; track group.bill_id) {
+            <li class="bill-list__item bill-list__item--stacked">
+              <div class="bill-list__row">
+                <div class="bill-list__main">
+                  <div class="bill-list__name">{{ group.name }}</div>
+                  <div class="bill-list__frequency">
+                    {{ group.credits.length }}
+                    {{ group.credits.length === 1 ? 'credit' : 'credits' }} recorded
+                  </div>
+                </div>
+                <div class="bill-list__amount">{{ formatMoney(group.total) }}</div>
+              </div>
+              <ul class="bill-credits__history">
+                @for (credit of group.credits; track credit.id) {
+                  <li class="bill-credits__entry">
+                    {{ credit.statement_date | date: 'MMM d, y' }} ·
+                    {{ formatMoney(credit.amount) }}
+                  </li>
+                }
+              </ul>
+            </li>
+          }
+        </ul>
+        <div class="bill-credits__totals">
+          @for (month of creditData.monthly; track month.month) {
+            <span class="bill-credits__total">
+              {{ month.month }}: {{ formatMoney(month.total) }}
+            </span>
+          }
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
 }
 
 @if (updates().length > 0) {
@@ -288,6 +340,33 @@
       @if (scanNote(); as note) {
         <p class="bill-form__scan-note">{{ note }}</p>
       }
+      @if (scannedCredit(); as pending) {
+        @if (pending.targetBill; as target) {
+          <div class="bill-form__credit-offer">
+            <span>
+              Record the
+              {{ formatMoney({ amount_minor: pending.amountMinor, currency: 'USD' }) }}
+              credit on your existing bill “{{ target.name }}”?
+            </span>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="creditBusy()"
+              (click)="recordScannedCredit()"
+            >
+              {{ creditBusy() ? 'Recording…' : 'Record credit' }}
+            </button>
+          </div>
+        } @else {
+          <p class="bill-form__scan-note">
+            Saving this bill also records its
+            {{ formatMoney({ amount_minor: pending.amountMinor, currency: 'USD' }) }} credit.
+          </p>
+        }
+        @if (creditError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+      }
       <mat-form-field appearance="outline">
         <mat-label>Name</mat-label>
         <input matInput type="text" formControlName="name" />
@@ -295,7 +374,7 @@
 
       <mat-form-field appearance="outline">
         <mat-label>Amount (USD)</mat-label>
-        <input matInput type="number" step="0.01" min="0.01" formControlName="amount" />
+        <input matInput type="number" step="0.01" min="0" formControlName="amount" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">

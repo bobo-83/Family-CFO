@@ -850,7 +850,51 @@ class BillScanResult(BaseModel):
     amount_minor: int | None = None
     frequency: RecurringFrequency | None = None
     next_due_date: date | None = None
+    # A net-metering / overpayment statement: the credit magnitude in minor
+    # units (positive). amount_minor is 0 for such statements — the credit is
+    # recorded separately against the bill when the user saves.
+    credit_minor: int | None = None
     note: str
+
+
+class BillCreditCreateRequest(BaseModel):
+    amount: Money
+    # The statement's date; the server uses today when the scan couldn't read one.
+    statement_date: date | None = None
+
+
+class BillCredit(BaseModel):
+    id: str
+    bill_id: str
+    amount: Money
+    statement_date: date
+
+
+class BillCreditGroup(BaseModel):
+    """One bill's credit history, newest statement first."""
+
+    bill_id: str
+    name: str
+    total: Money
+    credits: list[BillCredit]
+
+
+class MonthlyCreditTotal(BaseModel):
+    month: str  # YYYY-MM
+    total: Money
+
+
+class YearlyCreditTotal(BaseModel):
+    year: int
+    total: Money
+
+
+class BillCreditsResponse(BaseModel):
+    """Every bill that carries statement credits, with month/year rollups."""
+
+    bills: list[BillCreditGroup]
+    monthly: list[MonthlyCreditTotal]
+    yearly: list[YearlyCreditTotal]
 
 
 class IncomeAnalysisResponse(BaseModel):

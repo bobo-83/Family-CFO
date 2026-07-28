@@ -4323,9 +4323,88 @@ def update_bill(
 
 def delete_bill(engine: Engine, household_id: str, bill_id: str) -> bool:
     with engine.begin() as conn:
+        # No FK cascades in this schema (deletes are explicit): the credit
+        # history goes with its bill.
+        conn.execute(
+            delete(models.bill_credits).where(
+                models.bill_credits.c.household_id == household_id,
+                models.bill_credits.c.bill_id == bill_id,
+            )
+        )
         result = conn.execute(
             delete(models.bills).where(
                 models.bills.c.household_id == household_id, models.bills.c.id == bill_id
+            )
+        )
+    return result.rowcount > 0
+
+
+@dataclass(frozen=True, slots=True)
+class BillCreditRecord:
+    id: str
+    bill_id: str
+    amount_minor: int
+    currency: str
+    statement_date: date
+
+
+def add_bill_credit(
+    engine: Engine,
+    household_id: str,
+    bill_id: str,
+    amount_minor: int,
+    currency: str,
+    statement_date: date,
+) -> BillCreditRecord:
+    credit_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.bill_credits).values(
+                id=credit_id,
+                household_id=household_id,
+                bill_id=bill_id,
+                amount_minor=amount_minor,
+                currency=currency,
+                statement_date=statement_date,
+                created_at=utcnow(),
+            )
+        )
+    return BillCreditRecord(
+        id=credit_id,
+        bill_id=bill_id,
+        amount_minor=amount_minor,
+        currency=currency,
+        statement_date=statement_date,
+    )
+
+
+def list_bill_credits(engine: Engine, household_id: str) -> list[BillCreditRecord]:
+    """All of the household's bill credits, newest statement first."""
+    query = (
+        select(models.bill_credits)
+        .where(models.bill_credits.c.household_id == household_id)
+        .order_by(models.bill_credits.c.statement_date.desc(), models.bill_credits.c.id)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        BillCreditRecord(
+            id=row["id"],
+            bill_id=row["bill_id"],
+            amount_minor=row["amount_minor"],
+            currency=row["currency"],
+            statement_date=row["statement_date"],
+        )
+        for row in rows
+    ]
+
+
+def delete_bill_credit(engine: Engine, household_id: str, credit_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.bill_credits).where(
+                models.bill_credits.c.household_id == household_id,
+                models.bill_credits.c.id == credit_id,
             )
         )
     return result.rowcount > 0
