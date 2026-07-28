@@ -635,7 +635,7 @@ struct BillFormView: View {
     }
 
     static let frequencies: [Components.Schemas.RecurringFrequency] =
-        [.weekly, .biweekly, .semimonthly, .monthly, .quarterly, .annual]
+        [.weekly, .biweekly, .semimonthly, .monthly, .quarterly, .semiannual, .annual]
 
     static func isoDate(_ date: Date) -> String {
         let f = DateFormatter()

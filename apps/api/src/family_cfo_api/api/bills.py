@@ -303,14 +303,18 @@ _BILL_PROMPT = (
     "This image is a household bill (utility, insurance, phone, subscription, "
     "medical, tax…). Extract ONLY a JSON object, no prose: {"
     '"biller": the company or biller name string or null, '
-    '"amount_due": the total amount due as a number or null, '
+    '"amount_due": the total amount due as a number — negative if the statement '
+    "shows a credit balance (e.g. net metering) even when it says no payment is "
+    "due — or null, "
     '"due_date": the payment due date in YYYY-MM-DD or null, '
     '"frequency": one of "weekly", "biweekly", "semimonthly", "monthly", '
-    '"quarterly", "annual" if the bill states its cycle, else null}. '
+    '"quarterly", "semiannual", "annual" if the bill states its cycle, else null}. '
     "Use null for anything not shown. Do not guess."
 )
 
-_BILL_FREQUENCIES = {"weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"}
+_BILL_FREQUENCIES = {
+    "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "semiannual", "annual"
+}
 
 
 def parse_bill_scan(text: str) -> BillScanResult:
@@ -334,15 +338,33 @@ def parse_bill_scan(text: str) -> BillScanResult:
     amount = _scan_number(data.get("amount_due"))
     frequency = data.get("frequency")
     name = data.get("biller")
+    # A zero/negative amount due is a credit balance (net metering, overpayment),
+    # not a recurring obligation — name the credit instead of silently leaving
+    # the field (the amount slot itself stays reserved for the positive
+    # recurring amount the engine budgets each month).
+    if amount is not None and amount < 0:
+        note = (
+            f"This statement shows a credit balance of ${abs(amount):,.2f} — "
+            "nothing is due this cycle. Enter the bill's typical amount if you "
+            "still want to track it. Nothing is stored until you save."
+        )
+    elif amount is not None and amount == 0:
+        note = (
+            "This statement shows nothing due this cycle. "
+            "Enter the bill's typical amount if you still want to track it. "
+            "Nothing is stored until you save."
+        )
+    else:
+        note = (
+            "Read by the on-box photo model — CONFIRM every value before saving. "
+            "Nothing is stored until you save."
+        )
     return BillScanResult(
         name=name.strip() if isinstance(name, str) and name.strip() else None,
         amount_minor=int(round(amount * 100)) if amount is not None and amount > 0 else None,
         frequency=frequency if frequency in _BILL_FREQUENCIES else None,
         next_due_date=_parse_iso_or_us_date(data.get("due_date")),
-        note=(
-            "Read by the on-box photo model — CONFIRM every value before saving. "
-            "Nothing is stored until you save."
-        ),
+        note=note,
     )
 
 

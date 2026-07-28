@@ -35,11 +35,14 @@ _CADENCES = (
     ("biweekly", 12, 16, 3),
     ("monthly", 27, 33, 3),
     ("quarterly", 84, 97, 2),
+    ("semiannual", 175, 190, 2),
     ("annual", 350, 380, 2),
 )
 
 # Interval jitter allowed around the median interval per cadence.
-_JITTER_DAYS = {"weekly": 2, "biweekly": 3, "monthly": 5, "quarterly": 10, "annual": 20}
+_JITTER_DAYS = {
+    "weekly": 2, "biweekly": 3, "monthly": 5, "quarterly": 10, "semiannual": 15, "annual": 20
+}
 
 _NON_ALPHA = re.compile(r"[^a-z]+")
 
@@ -101,6 +104,8 @@ def _next_due(last_seen: date, frequency: str) -> date:
         return add_months(last_seen, 1)
     if frequency == "quarterly":
         return add_months(last_seen, 3)
+    if frequency == "semiannual":
+        return add_months(last_seen, 6)
     return add_months(last_seen, 12)
 
 

@@ -118,7 +118,7 @@ export type AuthSession = {
 
 export type HouseholdRole = 'owner' | 'adult' | 'viewer' | 'child';
 
-export type RecurringFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'annual';
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 
 export type Transaction = {
     id: string;
@@ -581,7 +581,7 @@ export type BillScanRequest = {
 export type BillScanResult = {
     name?: string;
     amount_minor?: number;
-    frequency?: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'annual';
+    frequency?: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
     next_due_date?: string;
     note: string;
 };

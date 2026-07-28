@@ -55,7 +55,7 @@ EMERGENCY_FUND_TARGET_RECOMMENDED_MONTHS = 6.0
 UPCOMING_BILL_WINDOW_DAYS = 14
 
 _DAY_STEP_BY_FREQUENCY = {"weekly": 7, "biweekly": 14, "semimonthly": 15}
-_MONTH_STEP_BY_FREQUENCY = {"monthly": 1, "quarterly": 3, "annual": 12}
+_MONTH_STEP_BY_FREQUENCY = {"monthly": 1, "quarterly": 3, "semiannual": 6, "annual": 12}
 
 
 def add_months(anchor: date, months: int) -> date:
@@ -903,7 +903,7 @@ _PAYMENT_LABEL_WORDS = ("payment", "autopay", "auto pay", "epay", "pymt", "paid"
 # simply isn't visible to us and stop claiming it's late.
 _GRACE_DAYS_BY_FREQUENCY = {
     "weekly": 4, "biweekly": 6, "semimonthly": 6,
-    "monthly": 10, "quarterly": 15, "annual": 20,
+    "monthly": 10, "quarterly": 15, "semiannual": 18, "annual": 20,
 }
 # Utility-style bills vary in amount around a fixed due day (ADR 0024): match the
 # actual charge by merchant + window, with the same generous tolerance detection

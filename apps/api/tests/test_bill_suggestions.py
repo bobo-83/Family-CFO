@@ -79,6 +79,19 @@ def test_detects_annual_with_two_occurrences() -> None:
     assert candidates[0].frequency == "annual"
 
 
+def test_detects_semiannual_with_two_occurrences() -> None:
+    txns = [
+        _txn(date(2026, 1, 15), -25_020, "Town of a town Sewer"),
+        _txn(date(2026, 7, 16), -25_020, "Town of a town Sewer"),
+    ]
+
+    candidates = detect_bill_candidates(txns)
+
+    assert len(candidates) == 1
+    assert candidates[0].frequency == "semiannual"
+    assert candidates[0].next_due_date == date(2027, 1, 16)
+
+
 def test_irregular_dates_are_rejected() -> None:
     txns = [
         _txn(date(2026, 3, 1), -5_000, "Corner Cafe"),

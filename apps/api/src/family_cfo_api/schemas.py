@@ -23,7 +23,9 @@ AccountType = Literal[
 GoalType = Literal[
     "emergency_fund", "vacation", "retirement", "college", "vehicle", "renovation", "other"
 ]
-RecurringFrequency = Literal["weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual"]
+RecurringFrequency = Literal[
+    "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "semiannual", "annual"
+]
 PurchaseSource = Literal["manual", "mobile_vision", "receipt", "product_photo"]
 ImpactArea = Literal[
     "cash_flow", "emergency_fund", "debt", "savings_goal", "retirement", "net_worth", "other"

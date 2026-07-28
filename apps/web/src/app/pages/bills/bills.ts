@@ -25,6 +25,7 @@ const FREQUENCIES: RecurringFrequency[] = [
   'semimonthly',
   'monthly',
   'quarterly',
+  'semiannual',
   'annual',
 ];
 

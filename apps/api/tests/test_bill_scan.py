@@ -18,6 +18,32 @@ def test_bill_scan_reads_name_amount_due_date_and_frequency() -> None:
     assert "CONFIRM" in result.note
 
 
+def test_bill_scan_accepts_semiannual_frequency() -> None:
+    result = parse_bill_scan(
+        '{"biller": "Town Sewer", "amount_due": 250.20, "frequency": "semiannual"}'
+    )
+
+    assert result.frequency == "semiannual"
+
+
+def test_bill_scan_credit_balance_leaves_amount_empty_and_says_why() -> None:
+    # Net-metering statement: "No payment due $0.00", credit balance -$115.66.
+    result = parse_bill_scan(
+        '{"biller": "National Grid", "amount_due": -115.66, "frequency": "monthly"}'
+    )
+
+    assert result.name == "National Grid"
+    assert result.amount_minor is None
+    assert "credit balance of $115.66" in result.note
+
+
+def test_bill_scan_zero_amount_due_says_nothing_due() -> None:
+    result = parse_bill_scan('{"biller": "National Grid", "amount_due": 0}')
+
+    assert result.amount_minor is None
+    assert "nothing due this cycle" in result.note
+
+
 def test_bill_scan_json_in_code_fence_is_parsed() -> None:
     result = parse_bill_scan('```json\n{"biller": "Verizon", "amount_due": 120}\n```')
     assert result.name == "Verizon"

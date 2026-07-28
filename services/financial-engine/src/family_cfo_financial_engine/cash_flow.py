@@ -12,6 +12,7 @@ MONTHLY_FACTORS: dict[str, tuple[int, int]] = {
     "semimonthly": (24, 12),
     "monthly": (1, 1),
     "quarterly": (1, 3),
+    "semiannual": (1, 6),
     "annual": (1, 12),
 }
 

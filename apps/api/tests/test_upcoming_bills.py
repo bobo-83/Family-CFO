@@ -16,6 +16,7 @@ def test_next_occurrence_rolls_stale_dates_forward() -> None:
     today = date(2026, 7, 9)
     assert fs.next_bill_occurrence(date(2026, 1, 15), "monthly", today) == date(2026, 7, 15)
     assert fs.next_bill_occurrence(date(2026, 1, 10), "quarterly", today) == date(2026, 7, 10)
+    assert fs.next_bill_occurrence(date(2026, 1, 10), "semiannual", today) == date(2026, 7, 10)
     # Annual: March 9 anchored in 2020 lands on the first March 9 >= today.
     assert fs.next_bill_occurrence(date(2020, 3, 9), "annual", today) == date(2027, 3, 9)
     assert fs.next_bill_occurrence(date(2026, 7, 1), "weekly", today) == date(2026, 7, 15)

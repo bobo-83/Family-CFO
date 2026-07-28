@@ -40,7 +40,9 @@ ACCOUNT_TYPES = (
     "other_asset",
     "other_liability",
 )
-RECURRING_FREQUENCIES = ("weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annual")
+RECURRING_FREQUENCIES = (
+    "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "semiannual", "annual"
+)
 GOAL_TYPES = (
     "emergency_fund",
     "vacation",

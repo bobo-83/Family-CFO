@@ -2685,6 +2685,7 @@ public enum Components {
             case semimonthly = "semimonthly"
             case monthly = "monthly"
             case quarterly = "quarterly"
+            case semiannual = "semiannual"
             case annual = "annual"
         }
         /// - Remark: Generated from `#/components/schemas/Transaction`.
@@ -4584,6 +4585,7 @@ public enum Components {
                 case semimonthly = "semimonthly"
                 case monthly = "monthly"
                 case quarterly = "quarterly"
+                case semiannual = "semiannual"
                 case annual = "annual"
             }
             /// - Remark: Generated from `#/components/schemas/BillScanResult/frequency`.

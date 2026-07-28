@@ -60,6 +60,36 @@ ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"  # the env loader keeps ~ literal
 APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 
+# Testers can only tell releases apart by the marketing version — TestFlight
+# shows "0.119.0 (202607280110)" and the parenthetical build number is easy to
+# miss, so a same-version re-upload looks like no update at all (it happened:
+# five 0.119.0 builds in two days). Refuse to upload the version that is
+# already the newest build on TestFlight; bump /VERSION (ADR 0029) instead.
+# FORCE_SAME_VERSION=1 overrides for a genuine same-version rebuild.
+asc_python() {
+  local candidate
+  for candidate in "$REPO_ROOT/apps/api/.venv/bin/python" python3; do
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    "$candidate" -c "import cryptography" >/dev/null 2>&1 || continue
+    echo "$candidate"; return 0
+  done
+  return 1
+}
+if PY_ASC="$(asc_python)"; then
+  latest="$("$PY_ASC" "$REPO_ROOT/scripts/lib/asc-latest-testflight-version.py" \
+    com.familycfo.ios 2>/dev/null || true)"
+  latest_version="${latest%% *}"
+  if [ -n "$latest_version" ] && [ "$latest_version" = "$APP_VERSION" ] \
+    && [ "${FORCE_SAME_VERSION:-0}" != "1" ]; then
+    die "TestFlight's newest build is already v${APP_VERSION} (build ${latest#* }).
+       Bump /VERSION so testers can see the update, or re-run with
+       FORCE_SAME_VERSION=1 for a deliberate same-version rebuild."
+  fi
+  [ -n "$latest" ] && log "TestFlight currently newest: v${latest_version} (${latest#* })."
+else
+  log "Skipping same-version check (no python with 'cryptography' available)."
+fi
+
 AUTH=(
   -allowProvisioningUpdates
   -authenticationKeyPath "$ASC_KEY_PATH"

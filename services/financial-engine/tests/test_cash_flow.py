@@ -4,6 +4,12 @@ from family_cfo_financial_engine.cash_flow import RecurringAmount, calculate_cas
 from family_cfo_financial_engine.money import CurrencyMismatchError, Money
 
 
+def test_semiannual_bill_spreads_over_six_months() -> None:
+    sewer = RecurringAmount("sewer", Money(25_020, "USD"), "semiannual")
+
+    assert sewer.monthly_amount() == Money(25_020, "USD").scale(1, 6)
+
+
 def test_cash_flow_normalizes_frequencies_to_monthly() -> None:
     income = [RecurringAmount("salary", Money(600_000, "USD"), "monthly")]
     bills = [
