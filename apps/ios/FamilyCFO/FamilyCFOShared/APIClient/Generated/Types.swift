@@ -384,6 +384,41 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /income/analysis/settings`.
     /// - Remark: Generated from `#/paths//income/analysis/settings/put(updateIncomeTaxSettings)`.
     func updateIncomeTaxSettings(_ input: Operations.UpdateIncomeTaxSettings.Input) async throws -> Operations.UpdateIncomeTaxSettings.Output
+    /// RSU grants with their editable vest schedules and live quotes
+    ///
+    /// - Remark: HTTP `GET /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/get(listRsuGrants)`.
+    func listRsuGrants(_ input: Operations.ListRsuGrants.Input) async throws -> Operations.ListRsuGrants.Output
+    /// Enter an RSU grant; the vest schedule is derived, then editable
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)`.
+    func createRsuGrant(_ input: Operations.CreateRsuGrant.Input) async throws -> Operations.CreateRsuGrant.Output
+    /// Delete an RSU grant and its vest schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-grants/{grant_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)`.
+    func deleteRsuGrant(_ input: Operations.DeleteRsuGrant.Input) async throws -> Operations.DeleteRsuGrant.Output
+    /// Add a vest event to a grant's schedule
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants/{grant_id}/vest-events`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)`.
+    func addRsuVestEvent(_ input: Operations.AddRsuVestEvent.Input) async throws -> Operations.AddRsuVestEvent.Output
+    /// Edit a vest event (date and/or units)
+    ///
+    /// - Remark: HTTP `PATCH /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)`.
+    func updateRsuVestEvent(_ input: Operations.UpdateRsuVestEvent.Input) async throws -> Operations.UpdateRsuVestEvent.Output
+    /// Remove a vest event from the schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)`.
+    func deleteRsuVestEvent(_ input: Operations.DeleteRsuVestEvent.Input) async throws -> Operations.DeleteRsuVestEvent.Output
+    /// Refresh the live quotes behind the RSU valuation
+    ///
+    /// - Remark: HTTP `POST /income/rsu-quotes/refresh`.
+    /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)`.
+    func refreshRsuQuotes(_ input: Operations.RefreshRsuQuotes.Input) async throws -> Operations.RefreshRsuQuotes.Output
     /// Declare an earner's compensation (base, RSU, bonus, W2 actuals)
     ///
     /// - Remark: HTTP `POST /income/profile/earners`.
@@ -1549,6 +1584,89 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// RSU grants with their editable vest schedules and live quotes
+    ///
+    /// - Remark: HTTP `GET /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/get(listRsuGrants)`.
+    public func listRsuGrants(headers: Operations.ListRsuGrants.Input.Headers = .init()) async throws -> Operations.ListRsuGrants.Output {
+        try await listRsuGrants(Operations.ListRsuGrants.Input(headers: headers))
+    }
+    /// Enter an RSU grant; the vest schedule is derived, then editable
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)`.
+    public func createRsuGrant(
+        headers: Operations.CreateRsuGrant.Input.Headers = .init(),
+        body: Operations.CreateRsuGrant.Input.Body
+    ) async throws -> Operations.CreateRsuGrant.Output {
+        try await createRsuGrant(Operations.CreateRsuGrant.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Delete an RSU grant and its vest schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-grants/{grant_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)`.
+    public func deleteRsuGrant(
+        path: Operations.DeleteRsuGrant.Input.Path,
+        headers: Operations.DeleteRsuGrant.Input.Headers = .init()
+    ) async throws -> Operations.DeleteRsuGrant.Output {
+        try await deleteRsuGrant(Operations.DeleteRsuGrant.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Add a vest event to a grant's schedule
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants/{grant_id}/vest-events`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)`.
+    public func addRsuVestEvent(
+        path: Operations.AddRsuVestEvent.Input.Path,
+        headers: Operations.AddRsuVestEvent.Input.Headers = .init(),
+        body: Operations.AddRsuVestEvent.Input.Body
+    ) async throws -> Operations.AddRsuVestEvent.Output {
+        try await addRsuVestEvent(Operations.AddRsuVestEvent.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Edit a vest event (date and/or units)
+    ///
+    /// - Remark: HTTP `PATCH /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)`.
+    public func updateRsuVestEvent(
+        path: Operations.UpdateRsuVestEvent.Input.Path,
+        headers: Operations.UpdateRsuVestEvent.Input.Headers = .init(),
+        body: Operations.UpdateRsuVestEvent.Input.Body
+    ) async throws -> Operations.UpdateRsuVestEvent.Output {
+        try await updateRsuVestEvent(Operations.UpdateRsuVestEvent.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Remove a vest event from the schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)`.
+    public func deleteRsuVestEvent(
+        path: Operations.DeleteRsuVestEvent.Input.Path,
+        headers: Operations.DeleteRsuVestEvent.Input.Headers = .init()
+    ) async throws -> Operations.DeleteRsuVestEvent.Output {
+        try await deleteRsuVestEvent(Operations.DeleteRsuVestEvent.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Refresh the live quotes behind the RSU valuation
+    ///
+    /// - Remark: HTTP `POST /income/rsu-quotes/refresh`.
+    /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)`.
+    public func refreshRsuQuotes(headers: Operations.RefreshRsuQuotes.Input.Headers = .init()) async throws -> Operations.RefreshRsuQuotes.Output {
+        try await refreshRsuQuotes(Operations.RefreshRsuQuotes.Input(headers: headers))
     }
     /// Declare an earner's compensation (base, RSU, bonus, W2 actuals)
     ///
@@ -3253,6 +3371,12 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/runway_action`.
             public var runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload?
+            /// M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_units`.
+            public var sellUnits: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_ticker`.
+            public var sellTicker: Swift.String?
             /// Creates a new `CashOutlookResponse`.
             ///
             /// - Parameters:
@@ -3271,6 +3395,8 @@ public enum Components {
             ///   - shortfall: The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
             ///   - sellByDate: Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
             ///   - runwayAction: What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
+            ///   - sellUnits: M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
+            ///   - sellTicker:
             public init(
                 startingCash: Components.Schemas.Money,
                 events: [Components.Schemas.OutlookEvent],
@@ -3286,7 +3412,9 @@ public enum Components {
                 firstShortfallDate: Swift.String? = nil,
                 shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload? = nil,
                 sellByDate: Swift.String? = nil,
-                runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload? = nil
+                runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload? = nil,
+                sellUnits: Swift.Int? = nil,
+                sellTicker: Swift.String? = nil
             ) {
                 self.startingCash = startingCash
                 self.events = events
@@ -3303,6 +3431,8 @@ public enum Components {
                 self.shortfall = shortfall
                 self.sellByDate = sellByDate
                 self.runwayAction = runwayAction
+                self.sellUnits = sellUnits
+                self.sellTicker = sellTicker
             }
             public enum CodingKeys: String, CodingKey {
                 case startingCash = "starting_cash"
@@ -3320,6 +3450,8 @@ public enum Components {
                 case shortfall
                 case sellByDate = "sell_by_date"
                 case runwayAction = "runway_action"
+                case sellUnits = "sell_units"
+                case sellTicker = "sell_ticker"
             }
         }
         /// M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.
@@ -4209,6 +4341,283 @@ public enum Components {
                 case date
                 case label
                 case amount
+            }
+        }
+        /// One vest tranche — derived from the grant, then user-editable.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RsuVestEvent`.
+        public struct RsuVestEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuVestEvent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuVestEvent/grant_id`.
+            public var grantId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuVestEvent/vest_date`.
+            public var vestDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuVestEvent/units`.
+            public var units: Swift.Int
+            /// units × the cached live quote; absent until a quote exists.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RsuVestEvent/value`.
+            public var value: Components.Schemas.Money?
+            /// Creates a new `RsuVestEvent`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - grantId:
+            ///   - vestDate:
+            ///   - units:
+            ///   - value: units × the cached live quote; absent until a quote exists.
+            public init(
+                id: Swift.String,
+                grantId: Swift.String,
+                vestDate: Swift.String,
+                units: Swift.Int,
+                value: Components.Schemas.Money? = nil
+            ) {
+                self.id = id
+                self.grantId = grantId
+                self.vestDate = vestDate
+                self.units = units
+                self.value = value
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case grantId = "grant_id"
+                case vestDate = "vest_date"
+                case units
+                case value
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RsuGrant`.
+        public struct RsuGrant: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/earner_id`.
+            public var earnerId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/ticker`.
+            public var ticker: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/units`.
+            public var units: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/grant_date`.
+            public var grantDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/vest_years`.
+            public var vestYears: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/frequency`.
+            @frozen public enum FrequencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case monthly = "monthly"
+                case quarterly = "quarterly"
+                case semiannual = "semiannual"
+                case annual = "annual"
+            }
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/frequency`.
+            public var frequency: Components.Schemas.RsuGrant.FrequencyPayload
+            /// - Remark: Generated from `#/components/schemas/RsuGrant/events`.
+            public var events: [Components.Schemas.RsuVestEvent]
+            /// Creates a new `RsuGrant`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - earnerId:
+            ///   - ticker:
+            ///   - units:
+            ///   - grantDate:
+            ///   - vestYears:
+            ///   - frequency:
+            ///   - events:
+            public init(
+                id: Swift.String,
+                earnerId: Swift.String,
+                ticker: Swift.String,
+                units: Swift.Int,
+                grantDate: Swift.String,
+                vestYears: Swift.Int,
+                frequency: Components.Schemas.RsuGrant.FrequencyPayload,
+                events: [Components.Schemas.RsuVestEvent]
+            ) {
+                self.id = id
+                self.earnerId = earnerId
+                self.ticker = ticker
+                self.units = units
+                self.grantDate = grantDate
+                self.vestYears = vestYears
+                self.frequency = frequency
+                self.events = events
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case earnerId = "earner_id"
+                case ticker
+                case units
+                case grantDate = "grant_date"
+                case vestYears = "vest_years"
+                case frequency
+                case events
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StockQuote`.
+        public struct StockQuote: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StockQuote/ticker`.
+            public var ticker: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StockQuote/price`.
+            public var price: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/StockQuote/as_of`.
+            public var asOf: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/StockQuote/source`.
+            public var source: Swift.String
+            /// Creates a new `StockQuote`.
+            ///
+            /// - Parameters:
+            ///   - ticker:
+            ///   - price:
+            ///   - asOf:
+            ///   - source:
+            public init(
+                ticker: Swift.String,
+                price: Components.Schemas.Money,
+                asOf: Foundation.Date,
+                source: Swift.String
+            ) {
+                self.ticker = ticker
+                self.price = price
+                self.asOf = asOf
+                self.source = source
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ticker
+                case price
+                case asOf = "as_of"
+                case source
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RsuGrantsResponse`.
+        public struct RsuGrantsResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuGrantsResponse/grants`.
+            public var grants: [Components.Schemas.RsuGrant]
+            /// - Remark: Generated from `#/components/schemas/RsuGrantsResponse/quotes`.
+            public var quotes: [Components.Schemas.StockQuote]
+            /// The household's next 12 months of vests at the live quote — the figure that replaces the flat RSU annual value. Absent without grants + a quote.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RsuGrantsResponse/derived_annual`.
+            public var derivedAnnual: Components.Schemas.Money?
+            /// Creates a new `RsuGrantsResponse`.
+            ///
+            /// - Parameters:
+            ///   - grants:
+            ///   - quotes:
+            ///   - derivedAnnual: The household's next 12 months of vests at the live quote — the figure that replaces the flat RSU annual value. Absent without grants + a quote.
+            public init(
+                grants: [Components.Schemas.RsuGrant],
+                quotes: [Components.Schemas.StockQuote],
+                derivedAnnual: Components.Schemas.Money? = nil
+            ) {
+                self.grants = grants
+                self.quotes = quotes
+                self.derivedAnnual = derivedAnnual
+            }
+            public enum CodingKeys: String, CodingKey {
+                case grants
+                case quotes
+                case derivedAnnual = "derived_annual"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest`.
+        public struct RsuGrantCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/earner_id`.
+            public var earnerId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/ticker`.
+            public var ticker: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/units`.
+            public var units: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/grant_date`.
+            public var grantDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/vest_years`.
+            public var vestYears: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/frequency`.
+            @frozen public enum FrequencyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case monthly = "monthly"
+                case quarterly = "quarterly"
+                case semiannual = "semiannual"
+                case annual = "annual"
+            }
+            /// - Remark: Generated from `#/components/schemas/RsuGrantCreateRequest/frequency`.
+            public var frequency: Components.Schemas.RsuGrantCreateRequest.FrequencyPayload?
+            /// Creates a new `RsuGrantCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - earnerId:
+            ///   - ticker:
+            ///   - units:
+            ///   - grantDate:
+            ///   - vestYears:
+            ///   - frequency:
+            public init(
+                earnerId: Swift.String,
+                ticker: Swift.String,
+                units: Swift.Int,
+                grantDate: Swift.String,
+                vestYears: Swift.Int? = nil,
+                frequency: Components.Schemas.RsuGrantCreateRequest.FrequencyPayload? = nil
+            ) {
+                self.earnerId = earnerId
+                self.ticker = ticker
+                self.units = units
+                self.grantDate = grantDate
+                self.vestYears = vestYears
+                self.frequency = frequency
+            }
+            public enum CodingKeys: String, CodingKey {
+                case earnerId = "earner_id"
+                case ticker
+                case units
+                case grantDate = "grant_date"
+                case vestYears = "vest_years"
+                case frequency
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RsuVestEventCreateRequest`.
+        public struct RsuVestEventCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuVestEventCreateRequest/vest_date`.
+            public var vestDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RsuVestEventCreateRequest/units`.
+            public var units: Swift.Int
+            /// Creates a new `RsuVestEventCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - vestDate:
+            ///   - units:
+            public init(
+                vestDate: Swift.String,
+                units: Swift.Int
+            ) {
+                self.vestDate = vestDate
+                self.units = units
+            }
+            public enum CodingKeys: String, CodingKey {
+                case vestDate = "vest_date"
+                case units
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RsuVestEventUpdateRequest`.
+        public struct RsuVestEventUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RsuVestEventUpdateRequest/vest_date`.
+            public var vestDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RsuVestEventUpdateRequest/units`.
+            public var units: Swift.Int?
+            /// Creates a new `RsuVestEventUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - vestDate:
+            ///   - units:
+            public init(
+                vestDate: Swift.String? = nil,
+                units: Swift.Int? = nil
+            ) {
+                self.vestDate = vestDate
+                self.units = units
+            }
+            public enum CodingKeys: String, CodingKey {
+                case vestDate = "vest_date"
+                case units
             }
         }
         /// Declared compensation (M73). When present it is the authority for the tax estimate — no net-to-gross inference.
@@ -8824,6 +9233,10 @@ public enum Components {
             public var model: Swift.String
             /// - Remark: Generated from `#/components/schemas/AiRuntimeConfig/enabled`.
             public var enabled: Swift.Bool?
+            /// ADR 0071: use the paired second box for larger models. Only meaningful while the hardware profile reports the peer reachable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiRuntimeConfig/cluster_enabled`.
+            public var clusterEnabled: Swift.Bool?
             /// Creates a new `AiRuntimeConfig`.
             ///
             /// - Parameters:
@@ -8831,22 +9244,26 @@ public enum Components {
             ///   - baseUrl:
             ///   - model:
             ///   - enabled:
+            ///   - clusterEnabled: ADR 0071: use the paired second box for larger models. Only meaningful while the hardware profile reports the peer reachable.
             public init(
                 provider: Components.Schemas.AiRuntimeConfig.ProviderPayload,
                 baseUrl: Swift.String,
                 model: Swift.String,
-                enabled: Swift.Bool? = nil
+                enabled: Swift.Bool? = nil,
+                clusterEnabled: Swift.Bool? = nil
             ) {
                 self.provider = provider
                 self.baseUrl = baseUrl
                 self.model = model
                 self.enabled = enabled
+                self.clusterEnabled = clusterEnabled
             }
             public enum CodingKeys: String, CodingKey {
                 case provider
                 case baseUrl = "base_url"
                 case model
                 case enabled
+                case clusterEnabled = "cluster_enabled"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiRuntimeStatus`.
@@ -8964,6 +9381,10 @@ public enum Components {
             public var toolParser: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AiModelInfo/supports_vision`.
             public var supportsVision: Swift.Bool
+            /// ADR 0071: 2 = offered only with the second box reachable and the cluster toggle on.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiModelInfo/min_nodes`.
+            public var minNodes: Swift.Int?
             /// Hugging Face release timestamp (M71); absent for curated entries, which the picker treats as modern (hand-vetted).
             ///
             ///
@@ -8984,6 +9405,7 @@ public enum Components {
             ///   - estDiskGb:
             ///   - toolParser:
             ///   - supportsVision:
+            ///   - minNodes: ADR 0071: 2 = offered only with the second box reachable and the cluster toggle on.
             ///   - createdAt: Hugging Face release timestamp (M71); absent for curated entries, which the picker treats as modern (hand-vetted).
             ///   - gated:
             ///   - notes:
@@ -8996,6 +9418,7 @@ public enum Components {
                 estDiskGb: Swift.Double,
                 toolParser: Swift.String? = nil,
                 supportsVision: Swift.Bool,
+                minNodes: Swift.Int? = nil,
                 createdAt: Swift.String? = nil,
                 gated: Swift.Bool,
                 notes: Swift.String? = nil
@@ -9008,6 +9431,7 @@ public enum Components {
                 self.estDiskGb = estDiskGb
                 self.toolParser = toolParser
                 self.supportsVision = supportsVision
+                self.minNodes = minNodes
                 self.createdAt = createdAt
                 self.gated = gated
                 self.notes = notes
@@ -9021,6 +9445,7 @@ public enum Components {
                 case estDiskGb = "est_disk_gb"
                 case toolParser = "tool_parser"
                 case supportsVision = "supports_vision"
+                case minNodes = "min_nodes"
                 case createdAt = "created_at"
                 case gated
                 case notes
@@ -9583,22 +10008,30 @@ public enum Components {
         public struct AiApplyRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/AiApplyRequest/main_model`.
             public var mainModel: Swift.String
+            /// ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/cluster`.
+            public var cluster: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/AiApplyRequest/vision_model`.
             public var visionModel: Swift.String?
             /// Creates a new `AiApplyRequest`.
             ///
             /// - Parameters:
             ///   - mainModel:
+            ///   - cluster: ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
             ///   - visionModel:
             public init(
                 mainModel: Swift.String,
+                cluster: Swift.Bool? = nil,
                 visionModel: Swift.String? = nil
             ) {
                 self.mainModel = mainModel
+                self.cluster = cluster
                 self.visionModel = visionModel
             }
             public enum CodingKeys: String, CodingKey {
                 case mainModel = "main_model"
+                case cluster
                 case visionModel = "vision_model"
             }
         }
@@ -9655,6 +10088,16 @@ public enum Components {
             public var diskFreeGb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/source`.
             public var source: Swift.String
+            /// ADR 0071: the enrolled second box, probed automatically.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/cluster_peer_host`.
+            public var clusterPeerHost: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/cluster_peer_reachable`.
+            public var clusterPeerReachable: Swift.Bool?
+            /// Combined model budget when the peer is reachable (2x one node).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/cluster_memory_gb`.
+            public var clusterMemoryGb: Swift.Double?
             /// Creates a new `AiHardwareProfile`.
             ///
             /// - Parameters:
@@ -9662,22 +10105,34 @@ public enum Components {
             ///   - systemMemoryGb:
             ///   - diskFreeGb:
             ///   - source:
+            ///   - clusterPeerHost: ADR 0071: the enrolled second box, probed automatically.
+            ///   - clusterPeerReachable:
+            ///   - clusterMemoryGb: Combined model budget when the peer is reachable (2x one node).
             public init(
                 gpuMemoryGb: Swift.Double? = nil,
                 systemMemoryGb: Swift.Double? = nil,
                 diskFreeGb: Swift.Double,
-                source: Swift.String
+                source: Swift.String,
+                clusterPeerHost: Swift.String? = nil,
+                clusterPeerReachable: Swift.Bool? = nil,
+                clusterMemoryGb: Swift.Double? = nil
             ) {
                 self.gpuMemoryGb = gpuMemoryGb
                 self.systemMemoryGb = systemMemoryGb
                 self.diskFreeGb = diskFreeGb
                 self.source = source
+                self.clusterPeerHost = clusterPeerHost
+                self.clusterPeerReachable = clusterPeerReachable
+                self.clusterMemoryGb = clusterMemoryGb
             }
             public enum CodingKeys: String, CodingKey {
                 case gpuMemoryGb = "gpu_memory_gb"
                 case systemMemoryGb = "system_memory_gb"
                 case diskFreeGb = "disk_free_gb"
                 case source
+                case clusterPeerHost = "cluster_peer_host"
+                case clusterPeerReachable = "cluster_peer_reachable"
+                case clusterMemoryGb = "cluster_memory_gb"
             }
         }
     }
@@ -22205,6 +22660,1259 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//income/analysis/settings/put(updateIncomeTaxSettings)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// RSU grants with their editable vest schedules and live quotes
+    ///
+    /// - Remark: HTTP `GET /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/get(listRsuGrants)`.
+    public enum ListRsuGrants {
+        public static let id: Swift.String = "listRsuGrants"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-grants/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRsuGrants.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListRsuGrants.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListRsuGrants.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListRsuGrants.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/income/rsu-grants/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RsuGrantsResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RsuGrantsResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListRsuGrants.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListRsuGrants.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Grants, schedules, quotes, and the derived annual value
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/get(listRsuGrants)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListRsuGrants.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListRsuGrants.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/get(listRsuGrants)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Enter an RSU grant; the vest schedule is derived, then editable
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)`.
+    public enum CreateRsuGrant {
+        public static let id: Swift.String = "createRsuGrant"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-grants/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateRsuGrant.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateRsuGrant.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateRsuGrant.Input.Headers
+            /// - Remark: Generated from `#/paths/income/rsu-grants/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RsuGrantCreateRequest)
+            }
+            public var body: Operations.CreateRsuGrant.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateRsuGrant.Input.Headers = .init(),
+                body: Operations.CreateRsuGrant.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/income/rsu-grants/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.RsuGrantsResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RsuGrantsResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateRsuGrant.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateRsuGrant.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Grant created (full grants response returned)
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateRsuGrant.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateRsuGrant.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/post(createRsuGrant)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete an RSU grant and its vest schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-grants/{grant_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)`.
+    public enum DeleteRsuGrant {
+        public static let id: Swift.String = "deleteRsuGrant"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/DELETE/path/grant_id`.
+                public var grantId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - grantId:
+                public init(grantId: Swift.String) {
+                    self.grantId = grantId
+                }
+            }
+            public var path: Operations.DeleteRsuGrant.Input.Path
+            /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRsuGrant.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRsuGrant.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteRsuGrant.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteRsuGrant.Input.Path,
+                headers: Operations.DeleteRsuGrant.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Grant deleted
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteRsuGrant.Output.NoContent)
+            /// Grant deleted
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteRsuGrant.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/delete(deleteRsuGrant)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Add a vest event to a grant's schedule
+    ///
+    /// - Remark: HTTP `POST /income/rsu-grants/{grant_id}/vest-events`.
+    /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)`.
+    public enum AddRsuVestEvent {
+        public static let id: Swift.String = "addRsuVestEvent"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/path/grant_id`.
+                public var grantId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - grantId:
+                public init(grantId: Swift.String) {
+                    self.grantId = grantId
+                }
+            }
+            public var path: Operations.AddRsuVestEvent.Input.Path
+            /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AddRsuVestEvent.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.AddRsuVestEvent.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.AddRsuVestEvent.Input.Headers
+            /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RsuVestEventCreateRequest)
+            }
+            public var body: Operations.AddRsuVestEvent.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.AddRsuVestEvent.Input.Path,
+                headers: Operations.AddRsuVestEvent.Input.Headers = .init(),
+                body: Operations.AddRsuVestEvent.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/income/rsu-grants/{grant_id}/vest-events/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.RsuVestEvent)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RsuVestEvent {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AddRsuVestEvent.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AddRsuVestEvent.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Vest event added
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.AddRsuVestEvent.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.AddRsuVestEvent.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-grants/{grant_id}/vest-events/post(addRsuVestEvent)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Edit a vest event (date and/or units)
+    ///
+    /// - Remark: HTTP `PATCH /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)`.
+    public enum UpdateRsuVestEvent {
+        public static let id: Swift.String = "updateRsuVestEvent"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/path/event_id`.
+                public var eventId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - eventId:
+                public init(eventId: Swift.String) {
+                    self.eventId = eventId
+                }
+            }
+            public var path: Operations.UpdateRsuVestEvent.Input.Path
+            /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateRsuVestEvent.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateRsuVestEvent.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateRsuVestEvent.Input.Headers
+            /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/requestBody/content/application\/json`.
+                case json(Components.Schemas.RsuVestEventUpdateRequest)
+            }
+            public var body: Operations.UpdateRsuVestEvent.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UpdateRsuVestEvent.Input.Path,
+                headers: Operations.UpdateRsuVestEvent.Input.Headers = .init(),
+                body: Operations.UpdateRsuVestEvent.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RsuVestEvent)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RsuVestEvent {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateRsuVestEvent.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateRsuVestEvent.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Vest event updated
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateRsuVestEvent.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateRsuVestEvent.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/patch(updateRsuVestEvent)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Remove a vest event from the schedule
+    ///
+    /// - Remark: HTTP `DELETE /income/rsu-vest-events/{event_id}`.
+    /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)`.
+    public enum DeleteRsuVestEvent {
+        public static let id: Swift.String = "deleteRsuVestEvent"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/DELETE/path/event_id`.
+                public var eventId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - eventId:
+                public init(eventId: Swift.String) {
+                    self.eventId = eventId
+                }
+            }
+            public var path: Operations.DeleteRsuVestEvent.Input.Path
+            /// - Remark: Generated from `#/paths/income/rsu-vest-events/{event_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRsuVestEvent.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteRsuVestEvent.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteRsuVestEvent.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteRsuVestEvent.Input.Path,
+                headers: Operations.DeleteRsuVestEvent.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Vest event removed
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteRsuVestEvent.Output.NoContent)
+            /// Vest event removed
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteRsuVestEvent.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-vest-events/{event_id}/delete(deleteRsuVestEvent)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Refresh the live quotes behind the RSU valuation
+    ///
+    /// - Remark: HTTP `POST /income/rsu-quotes/refresh`.
+    /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)`.
+    public enum RefreshRsuQuotes {
+        public static let id: Swift.String = "refreshRsuQuotes"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/income/rsu-quotes/refresh/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RefreshRsuQuotes.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RefreshRsuQuotes.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RefreshRsuQuotes.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.RefreshRsuQuotes.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/income/rsu-quotes/refresh/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/income/rsu-quotes/refresh/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RsuGrantsResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RsuGrantsResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RefreshRsuQuotes.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RefreshRsuQuotes.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Refreshed grants response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.RefreshRsuQuotes.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.RefreshRsuQuotes.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//income/rsu-quotes/refresh/post(refreshRsuQuotes)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Components.Responses._Error)

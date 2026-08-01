@@ -1841,6 +1841,8 @@ class AiRuntimeConfigRecord:
     base_url: str
     model: str
     enabled: bool
+    # M-cluster (ADR 0071): use the paired second box for larger models.
+    cluster_enabled: bool = False
 
 
 def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigRecord | None:
@@ -1864,6 +1866,7 @@ def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigR
         base_url=row["base_url"],
         model=row["model"],
         enabled=bool(row["enabled"]),
+        cluster_enabled=bool(row["cluster_enabled"]),
     )
 
 
@@ -2050,6 +2053,7 @@ def upsert_ai_runtime_config(
     base_url: str,
     model: str,
     enabled: bool,
+    cluster_enabled: bool = False,
 ) -> AiRuntimeConfigRecord:
     now = utcnow()
     with engine.begin() as conn:
@@ -2068,6 +2072,7 @@ def upsert_ai_runtime_config(
                     base_url=base_url,
                     model=model,
                     enabled=enabled,
+                    cluster_enabled=cluster_enabled,
                     created_at=now,
                     updated_at=now,
                 )
@@ -2081,6 +2086,7 @@ def upsert_ai_runtime_config(
                     base_url=base_url,
                     model=model,
                     enabled=enabled,
+                    cluster_enabled=cluster_enabled,
                     updated_at=now,
                 )
             )
@@ -2091,6 +2097,7 @@ def upsert_ai_runtime_config(
         base_url=base_url,
         model=model,
         enabled=enabled,
+        cluster_enabled=cluster_enabled,
     )
 
 
@@ -4901,6 +4908,30 @@ def create_income_profile(
 
 def delete_income_profile(engine: Engine, household_id: str, profile_id: str) -> bool:
     with engine.begin() as conn:
+        # A grant belongs to its earner: remove the earner's grants (and their
+        # vest events) with the profile — no FK cascades by convention.
+        grant_ids = [
+            row[0]
+            for row in conn.execute(
+                select(models.rsu_grants.c.id).where(
+                    models.rsu_grants.c.household_id == household_id,
+                    models.rsu_grants.c.income_profile_id == profile_id,
+                )
+            )
+        ]
+        if grant_ids:
+            conn.execute(
+                delete(models.rsu_vest_events).where(
+                    models.rsu_vest_events.c.household_id == household_id,
+                    models.rsu_vest_events.c.grant_id.in_(grant_ids),
+                )
+            )
+            conn.execute(
+                delete(models.rsu_grants).where(
+                    models.rsu_grants.c.household_id == household_id,
+                    models.rsu_grants.c.id.in_(grant_ids),
+                )
+            )
         result = conn.execute(
             delete(models.income_profiles).where(
                 models.income_profiles.c.household_id == household_id,
@@ -4908,6 +4939,264 @@ def delete_income_profile(engine: Engine, household_id: str, profile_id: str) ->
             )
         )
     return result.rowcount > 0
+
+
+# --- M-rsu-grants: grant-based RSU tracking ----------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class RsuGrantRecord:
+    id: str
+    income_profile_id: str
+    ticker: str
+    units: int
+    grant_date: date
+    vest_years: int
+    frequency: str
+
+
+@dataclass(frozen=True, slots=True)
+class RsuVestEventRecord:
+    id: str
+    grant_id: str
+    vest_date: date
+    units: int
+
+
+@dataclass(frozen=True, slots=True)
+class StockQuoteRecord:
+    ticker: str
+    price_minor: int
+    currency: str
+    as_of: datetime
+    source: str
+
+
+def create_rsu_grant(
+    engine: Engine,
+    household_id: str,
+    income_profile_id: str,
+    ticker: str,
+    units: int,
+    grant_date: date,
+    vest_years: int,
+    frequency: str,
+    events: list[tuple[date, int]],
+) -> RsuGrantRecord:
+    """Insert a grant with its derived vest schedule in one transaction."""
+    grant_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.rsu_grants).values(
+                id=grant_id,
+                household_id=household_id,
+                income_profile_id=income_profile_id,
+                ticker=ticker,
+                units=units,
+                grant_date=grant_date,
+                vest_years=vest_years,
+                frequency=frequency,
+                created_at=now,
+            )
+        )
+        for vest_date, vest_units in events:
+            conn.execute(
+                insert(models.rsu_vest_events).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    grant_id=grant_id,
+                    vest_date=vest_date,
+                    units=vest_units,
+                    created_at=now,
+                )
+            )
+    return RsuGrantRecord(
+        id=grant_id,
+        income_profile_id=income_profile_id,
+        ticker=ticker,
+        units=units,
+        grant_date=grant_date,
+        vest_years=vest_years,
+        frequency=frequency,
+    )
+
+
+def list_rsu_grants(engine: Engine, household_id: str) -> list[RsuGrantRecord]:
+    query = (
+        select(models.rsu_grants)
+        .where(models.rsu_grants.c.household_id == household_id)
+        .order_by(models.rsu_grants.c.grant_date.desc(), models.rsu_grants.c.id)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        RsuGrantRecord(
+            id=row["id"],
+            income_profile_id=row["income_profile_id"],
+            ticker=row["ticker"],
+            units=row["units"],
+            grant_date=row["grant_date"],
+            vest_years=row["vest_years"],
+            frequency=row["frequency"],
+        )
+        for row in rows
+    ]
+
+
+def get_rsu_grant(engine: Engine, household_id: str, grant_id: str) -> RsuGrantRecord | None:
+    return next((g for g in list_rsu_grants(engine, household_id) if g.id == grant_id), None)
+
+
+def delete_rsu_grant(engine: Engine, household_id: str, grant_id: str) -> bool:
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.rsu_vest_events).where(
+                models.rsu_vest_events.c.household_id == household_id,
+                models.rsu_vest_events.c.grant_id == grant_id,
+            )
+        )
+        result = conn.execute(
+            delete(models.rsu_grants).where(
+                models.rsu_grants.c.household_id == household_id,
+                models.rsu_grants.c.id == grant_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def list_rsu_vest_events(engine: Engine, household_id: str) -> list[RsuVestEventRecord]:
+    """All vest events for the household, soonest first."""
+    query = (
+        select(models.rsu_vest_events)
+        .where(models.rsu_vest_events.c.household_id == household_id)
+        .order_by(models.rsu_vest_events.c.vest_date, models.rsu_vest_events.c.id)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        RsuVestEventRecord(
+            id=row["id"],
+            grant_id=row["grant_id"],
+            vest_date=row["vest_date"],
+            units=row["units"],
+        )
+        for row in rows
+    ]
+
+
+def get_rsu_vest_event(
+    engine: Engine, household_id: str, event_id: str
+) -> RsuVestEventRecord | None:
+    return next((e for e in list_rsu_vest_events(engine, household_id) if e.id == event_id), None)
+
+
+def add_rsu_vest_event(
+    engine: Engine, household_id: str, grant_id: str, vest_date: date, units: int
+) -> RsuVestEventRecord:
+    event_id = new_id()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.rsu_vest_events).values(
+                id=event_id,
+                household_id=household_id,
+                grant_id=grant_id,
+                vest_date=vest_date,
+                units=units,
+                created_at=utcnow(),
+            )
+        )
+    return RsuVestEventRecord(id=event_id, grant_id=grant_id, vest_date=vest_date, units=units)
+
+
+def update_rsu_vest_event(
+    engine: Engine,
+    household_id: str,
+    event_id: str,
+    vest_date: date | None = None,
+    units: int | None = None,
+) -> bool:
+    values: dict[str, Any] = {}
+    if vest_date is not None:
+        values["vest_date"] = vest_date
+    if units is not None:
+        values["units"] = units
+    if not values:
+        return False
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.rsu_vest_events)
+            .where(
+                models.rsu_vest_events.c.household_id == household_id,
+                models.rsu_vest_events.c.id == event_id,
+            )
+            .values(**values)
+        )
+    return result.rowcount > 0
+
+
+def delete_rsu_vest_event(engine: Engine, household_id: str, event_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.rsu_vest_events).where(
+                models.rsu_vest_events.c.household_id == household_id,
+                models.rsu_vest_events.c.id == event_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def upsert_stock_quote(
+    engine: Engine,
+    household_id: str,
+    ticker: str,
+    price_minor: int,
+    currency: str,
+    as_of: datetime,
+    source: str,
+) -> StockQuoteRecord:
+    with engine.begin() as conn:
+        updated = conn.execute(
+            update(models.stock_quotes)
+            .where(
+                models.stock_quotes.c.household_id == household_id,
+                models.stock_quotes.c.ticker == ticker,
+            )
+            .values(price_minor=price_minor, currency=currency, as_of=as_of, source=source)
+        )
+        if updated.rowcount == 0:
+            conn.execute(
+                insert(models.stock_quotes).values(
+                    id=new_id(),
+                    household_id=household_id,
+                    ticker=ticker,
+                    price_minor=price_minor,
+                    currency=currency,
+                    as_of=as_of,
+                    source=source,
+                )
+            )
+    return StockQuoteRecord(
+        ticker=ticker, price_minor=price_minor, currency=currency, as_of=as_of, source=source
+    )
+
+
+def list_stock_quotes(engine: Engine, household_id: str) -> list[StockQuoteRecord]:
+    query = select(models.stock_quotes).where(
+        models.stock_quotes.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        StockQuoteRecord(
+            ticker=row["ticker"],
+            price_minor=row["price_minor"],
+            currency=row["currency"],
+            as_of=row["as_of"],
+            source=row["source"],
+        )
+        for row in rows
+    ]
 
 
 # --- M61: income analysis ------------------------------------------------------

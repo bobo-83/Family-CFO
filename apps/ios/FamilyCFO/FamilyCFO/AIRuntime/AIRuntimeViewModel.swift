@@ -13,6 +13,8 @@ final class AIRuntimeViewModel {
     private(set) var status: Components.Schemas.AiRuntimeStatus?
     private(set) var models: [Components.Schemas.AiModelInfo] = []
     private(set) var hardware: Components.Schemas.AiHardwareProfile?
+    /// ADR 0071: the raw runtime config — carries the cluster toggle.
+    private(set) var config: Components.Schemas.AiRuntimeConfig?
     private(set) var isLoading = false
     private(set) var searchResults: [Components.Schemas.AiModelInfo]?
     private(set) var isSearching = false
@@ -31,9 +33,11 @@ final class AIRuntimeViewModel {
             async let statusTask = api.status()
             async let catalogTask = api.catalog()
             async let hardwareTask = api.hardware()
+            async let configTask = api.runtimeConfig()
             status = try await statusTask
             models = try await catalogTask
             hardware = (try? await hardwareTask) ?? hardware
+            config = (try? await configTask) ?? config
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -54,12 +58,76 @@ final class AIRuntimeViewModel {
 
     /// Mirrors the web page's verdict: comfortable under ~80% of the budget,
     /// tight up to 100%, too big beyond — unknown without a hardware profile.
+    /// Models offered as cluster deployments (ADR 0071) are judged against
+    /// the COMBINED budget.
     func fit(of model: Components.Schemas.AiModelInfo) -> Fit {
-        guard let budget = memoryBudgetGb, budget > 0 else { return .unknown }
+        let budgetGb = servesOnCluster(model) ? clusterMemoryGb : memoryBudgetGb
+        guard let budget = budgetGb, budget > 0 else { return .unknown }
         let needed = model.estMemoryGb
         if needed <= budget * 0.8 { return .fits }
         if needed <= budget { return .tight }
         return .tooBig
+    }
+
+    // MARK: - Two-box cluster (ADR 0071)
+
+    var clusterPeerHost: String? { hardware?.clusterPeerHost }
+    var clusterPeerReachable: Bool { hardware?.clusterPeerReachable ?? false }
+    /// Combined budget across both boxes; nil while the peer is unreachable.
+    var clusterMemoryGb: Double? { hardware?.clusterMemoryGb }
+    var clusterEnabled: Bool { config?.clusterEnabled ?? false }
+    /// Cluster models are offered only with the toggle ON and the peer reachable.
+    var clusterActive: Bool { clusterEnabled && clusterPeerReachable }
+
+    func isClusterModel(_ model: Components.Schemas.AiModelInfo) -> Bool {
+        (model.minNodes ?? 1) >= 2
+    }
+
+    /// Needs the second box: either the catalog says so (min_nodes >= 2), or
+    /// the model's estimated memory exceeds this box's own budget — the same
+    /// budget the single-box fit verdict uses.
+    func needsCluster(_ model: Components.Schemas.AiModelInfo) -> Bool {
+        if isClusterModel(model) { return true }
+        guard let budget = memoryBudgetGb, budget > 0 else { return false }
+        return model.estMemoryGb > budget
+    }
+
+    /// True when the model is offered (and fit-judged) as a cluster deployment.
+    func servesOnCluster(_ model: Components.Schemas.AiModelInfo) -> Bool {
+        clusterActive && needsCluster(model)
+    }
+
+    /// The single-box rows. While the cluster is active, everything that needs
+    /// both boxes moves to the cluster section; while it is inactive, only
+    /// min_nodes >= 2 entries hide — too-big single-node models still show
+    /// with their honest "Too big for this box" verdict.
+    var singleNodeModels: [Components.Schemas.AiModelInfo] {
+        (searchResults ?? models).filter { clusterActive ? !needsCluster($0) : !isClusterModel($0) }
+    }
+
+    /// Models that need both boxes, shown only while clustering is active.
+    /// Search results flow through the same rule as the curated catalog.
+    var clusterModels: [Components.Schemas.AiModelInfo] {
+        guard clusterActive else { return [] }
+        return (searchResults ?? models).filter { needsCluster($0) }
+    }
+
+    private(set) var isSavingCluster = false
+
+    /// Flip cluster_enabled through the existing runtime-config PUT — the full
+    /// object, preserving provider/base_url/model/enabled.
+    func setClusterEnabled(_ on: Bool) async {
+        guard let current = config, !isSavingCluster else { return }
+        isSavingCluster = true
+        defer { isSavingCluster = false }
+        do {
+            var updated = current
+            updated.clusterEnabled = on
+            config = try await api.updateRuntimeConfig(updated)
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
     func runSearch(_ query: String) async {
@@ -91,7 +159,11 @@ final class AIRuntimeViewModel {
         defer { isApplying = false }
         do {
             let keepVision = status?.visionModel
-            applyState = try await api.apply(mainModel: model.id, visionModel: keepVision)
+            // ADR 0071: cluster-section models apply as a both-boxes deployment;
+            // the server answers 409 (surfaced via errorMessage) if the peer is
+            // down. Single-box applies send cluster: false.
+            applyState = try await api.apply(
+                mainModel: model.id, visionModel: keepVision, cluster: servesOnCluster(model))
             errorMessage = nil
             // Poll until the swap leaves `running` — downloads can take a while.
             while applyState?.state == .running {

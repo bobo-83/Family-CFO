@@ -584,6 +584,8 @@ ai_runtime_configs = Table(
     Column("base_url", String(255), nullable=False),
     Column("model", String(100), nullable=False),
     Column("enabled", Boolean, nullable=False, server_default="0"),
+    # M-cluster: opt in to the paired second box for larger models (ADR 0071).
+    Column("cluster_enabled", Boolean, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
@@ -745,6 +747,56 @@ income_profiles = Table(
     Column("w2_withheld_minor", BigInteger, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+# M-rsu-grants: grant-based RSU tracking. An earner enters each grant (units of
+# one ticker, grant date, multi-year cycle, vest cadence); the app derives the
+# vest schedule as EDITABLE rows, and values them at the cached live quote —
+# replacing the flat rsu_annual_minor figure wherever that quote exists.
+rsu_grants = Table(
+    "rsu_grants",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column(
+        "income_profile_id", String(36), ForeignKey("income_profiles.id"), nullable=False
+    ),
+    Column("ticker", String(8), nullable=False),
+    Column("units", BigInteger, nullable=False),
+    Column("grant_date", Date, nullable=False),
+    Column("vest_years", Integer, nullable=False, server_default="2"),
+    Column("frequency", String(20), nullable=False, server_default="quarterly"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("units > 0", name="ck_rsu_grants_units_positive"),
+)
+
+# The derived (then user-editable) vest schedule: one row per vest event.
+rsu_vest_events = Table(
+    "rsu_vest_events",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("grant_id", String(36), ForeignKey("rsu_grants.id"), nullable=False),
+    Column("vest_date", Date, nullable=False),
+    Column("units", BigInteger, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("units > 0", name="ck_rsu_vest_events_units_positive"),
+)
+
+# Cached live quote per ticker (refreshed on sync / on demand) — the valuation
+# side of grant-based RSUs. Public market data, still household-scoped like
+# every other row.
+stock_quotes = Table(
+    "stock_quotes",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("ticker", String(8), nullable=False),
+    Column("price_minor", BigInteger, nullable=False),
+    _currency_column(),
+    Column("as_of", DateTime(timezone=True), nullable=False),
+    Column("source", String(40), nullable=False),
+    Index("uq_stock_quotes_household_ticker", "household_id", "ticker", unique=True),
 )
 
 # M58: "not a bill" verdicts on suggested recurring charges, so a dismissed

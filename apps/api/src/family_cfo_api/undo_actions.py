@@ -56,6 +56,12 @@ UNDO_POLICY: dict[str, str] = {
     "bill.deleted": UNDOABLE,
     "bill_suggestion.dismissed": UNDOABLE,
     "bill_credit.recorded": UNDOABLE,
+    # RSU grants (M-rsu-grants)
+    "rsu_grant.created": UNDOABLE,
+    "rsu_grant.deleted": UNDOABLE,
+    "rsu_vest_event.created": UNDOABLE,
+    "rsu_vest_event.updated": UNDOABLE,
+    "rsu_vest_event.deleted": UNDOABLE,
     # categories
     "category.created": UNDOABLE,
     "category.updated": UNDOABLE,
@@ -183,6 +189,54 @@ def bill_deleted(bill: repository.RecurringRecord) -> str:
                 "frequency": bill.frequency,
                 "next_due_date": _iso(bill.next_due_date),
                 "category_id": bill.category_id,
+            },
+        }
+    )
+
+
+def rsu_grant_deleted(
+    grant: repository.RsuGrantRecord, events: list[repository.RsuVestEventRecord]
+) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "rsu_grant",
+            "data": {
+                "income_profile_id": grant.income_profile_id,
+                "ticker": grant.ticker,
+                "units": grant.units,
+                "grant_date": _iso(grant.grant_date),
+                "vest_years": grant.vest_years,
+                "frequency": grant.frequency,
+                # The schedule as it stood (edits included), not a re-derivation.
+                "events": [
+                    {"vest_date": _iso(e.vest_date), "units": e.units} for e in events
+                ],
+            },
+        }
+    )
+
+
+def rsu_vest_event_updated(before: repository.RsuVestEventRecord) -> str:
+    return json.dumps(
+        {
+            "op": "restore",
+            "entity": "rsu_vest_event",
+            "id": before.id,
+            "data": {"vest_date": _iso(before.vest_date), "units": before.units},
+        }
+    )
+
+
+def rsu_vest_event_deleted(before: repository.RsuVestEventRecord) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "rsu_vest_event",
+            "data": {
+                "grant_id": before.grant_id,
+                "vest_date": _iso(before.vest_date),
+                "units": before.units,
             },
         }
     )
@@ -642,6 +696,10 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         repository.delete_bill(engine, household_id, entity_id)
     elif entity == "bill_credit":
         repository.delete_bill_credit(engine, household_id, entity_id)
+    elif entity == "rsu_grant":
+        repository.delete_rsu_grant(engine, household_id, entity_id)
+    elif entity == "rsu_vest_event":
+        repository.delete_rsu_vest_event(engine, household_id, entity_id)
     elif entity == "category":
         repository.delete_category(engine, household_id, entity_id)
     elif entity == "account":
@@ -701,6 +759,21 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             name=data["name"], amount_minor=data["amount_minor"], currency=data["currency"],
             frequency=data["frequency"], next_due_date=_date(data.get("next_due_date")),
             category_id=data.get("category_id"),
+        )
+    elif entity == "rsu_grant":
+        vest_date_of = _date  # readability below
+        repository.create_rsu_grant(
+            engine, household_id,
+            income_profile_id=data["income_profile_id"], ticker=data["ticker"],
+            units=data["units"], grant_date=_date(data["grant_date"]),
+            vest_years=data["vest_years"], frequency=data["frequency"],
+            events=[
+                (vest_date_of(e["vest_date"]), e["units"]) for e in data.get("events") or []
+            ],
+        )
+    elif entity == "rsu_vest_event":
+        repository.add_rsu_vest_event(
+            engine, household_id, data["grant_id"], _date(data["vest_date"]), data["units"]
         )
     elif entity == "category":
         repository.create_category(engine, household_id, data["name"])
@@ -783,6 +856,12 @@ def _restore(
         repository.update_role(
             engine, household_id, entity_id,
             name=data.get("name"), role_rights=set(data.get("rights") or []),
+        )
+        return
+    if entity == "rsu_vest_event":
+        repository.update_rsu_vest_event(
+            engine, household_id, entity_id,
+            vest_date=_date(data.get("vest_date")), units=data.get("units"),
         )
         return
     if entity == "bill":

@@ -307,11 +307,13 @@ async def dismiss_bill_suggestion(
 
 _BILL_PROMPT = (
     "This image is a household bill (utility, insurance, phone, subscription, "
-    "medical, tax…). Extract ONLY a JSON object, no prose: {"
+    "medical, tax…). IMPORTANT: if the statement shows a CREDIT BALANCE "
+    "(a negative balance, often from solar net metering), report amount_due as "
+    "that NEGATIVE number — do NOT report 0 just because it says no payment is "
+    "due. Extract ONLY a JSON object, no prose: {"
     '"biller": the company or biller name string or null, '
-    '"amount_due": the total amount due as a number — negative if the statement '
-    "shows a credit balance (e.g. net metering) even when it says no payment is "
-    "due — or null, "
+    '"amount_due": the total amount due as a number (negative for a credit '
+    "balance) or null, "
     '"due_date": the payment due date in YYYY-MM-DD or null, '
     '"frequency": one of "weekly", "biweekly", "semimonthly", "monthly", '
     '"quarterly", "semiannual", "annual" if the bill states its cycle, else null}. '

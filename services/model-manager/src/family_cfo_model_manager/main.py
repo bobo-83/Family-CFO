@@ -29,6 +29,8 @@ _REPO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.
 class SwapRequest(BaseModel):
     main_model: str
     vision_model: str | None = None  # None -> disable photo analysis ("none")
+    # ADR 0071: serve across the paired second box (tensor-parallel).
+    cluster: bool = False
 
 
 class SwapStatus(BaseModel):
@@ -49,9 +51,12 @@ def _validate_repo_id(value: str) -> None:
         raise HTTPException(status_code=422, detail=f"invalid model id: {value!r}")
 
 
-def _run_swap(main_model: str, vision_model: str | None) -> None:
+def _run_swap(main_model: str, vision_model: str | None, cluster: bool = False) -> None:
     global _status
     args = ["bash", SWAP_SCRIPT, main_model]
+    if cluster:
+        # ADR 0071: shard across the paired second box (swap-model.sh --cluster).
+        args.insert(2, "--cluster")
     # A vision-capable main takes no second arg (swap-model.sh rejects it).
     if not _is_vision_model(main_model):
         args.append(vision_model if vision_model else "none")
@@ -198,7 +203,9 @@ def swap(payload: SwapRequest) -> SwapStatus:
         )
 
     thread = threading.Thread(
-        target=_run_swap, args=(payload.main_model, payload.vision_model), daemon=True
+        target=_run_swap,
+        args=(payload.main_model, payload.vision_model, payload.cluster),
+        daemon=True,
     )
     thread.start()
     with _lock:

@@ -221,6 +221,11 @@ async def sync_all_connections(
         duplicates += result.duplicates_skipped
     # Auto-file once over everything imported, rather than per connection.
     transfers_filed, auto_categorized = _autofile_all(engine, session.household_id)
+    # M-rsu-grants: a pull-to-sync is the natural moment to refresh the live
+    # quotes behind the RSU valuation (best-effort; never blocks the sync).
+    from family_cfo_api import rsu_service
+
+    rsu_service.refresh_quotes(engine, session.household_id, settings=settings)
     return ConnectionSyncResult(
         accounts_synced=accounts,
         imported=imported,

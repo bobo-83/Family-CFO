@@ -28,7 +28,7 @@ def test_swap_runs_script_with_validated_args() -> None:
         assert resp.status_code == 202
         assert resp.json()["state"] == "running"
         args = thread.call_args.kwargs["args"]
-        assert args == ("Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-VL-3B-Instruct")
+        assert args == ("Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-VL-3B-Instruct", False)
 
 
 def test_concurrent_swap_conflicts() -> None:

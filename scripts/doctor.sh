@@ -105,6 +105,26 @@ elif [ "$ai_enabled" = "true" ]; then
   warn "No nvidia-smi on host — AI is enabled but a GPU/NVIDIA toolkit was not detected"
 else pass "No GPU needed (AI disabled)"; fi
 
+# Two-Spark cluster (ADR 0071) — advisory, and silent unless a peer has been
+# enrolled (scripts/setup-cluster.sh writes CLUSTER_PEER_HOST to .env). Probes
+# the peer's node-exporter over the QSFP link: the same endpoint the API's
+# hardware profile watches before offering min_nodes:2 models.
+cluster_peer_host="$(env_val CLUSTER_PEER_HOST)"
+if [ -n "$cluster_peer_host" ]; then
+  section "Cluster"
+  cluster_peer_port="$(env_val CLUSTER_PEER_PORT)"; cluster_peer_port="${cluster_peer_port:-9100}"
+  if command -v nc >/dev/null 2>&1; then
+    peer_reachable() { nc -z -w 2 "$cluster_peer_host" "$cluster_peer_port" >/dev/null 2>&1; }
+  else
+    peer_reachable() { timeout 2 bash -c "exec 3<>/dev/tcp/${cluster_peer_host}/${cluster_peer_port}" 2>/dev/null; }
+  fi
+  if peer_reachable; then
+    pass "peer worker reachable (${cluster_peer_host}:${cluster_peer_port} node-exporter) — cluster models can be offered"
+  else
+    warn "peer worker NOT reachable on ${cluster_peer_host}:${cluster_peer_port} — QSFP cable/link down, or the worker stack is stopped (on the peer: docker compose -f docker-compose.worker.yml up -d)"
+  fi
+fi
+
 section "Summary"
 if [ "$fail_count" -eq 0 ] && [ "$warn_count" -eq 0 ]; then
   printf "${green}All checks passed.${reset}\n"; exit 0

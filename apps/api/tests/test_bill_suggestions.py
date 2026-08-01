@@ -81,8 +81,8 @@ def test_detects_annual_with_two_occurrences() -> None:
 
 def test_detects_semiannual_with_two_occurrences() -> None:
     txns = [
-        _txn(date(2026, 1, 15), -25_020, "Town of a town Sewer"),
-        _txn(date(2026, 7, 16), -25_020, "Town of a town Sewer"),
+        _txn(date(2026, 1, 15), -21_000, "Town Sewer District"),
+        _txn(date(2026, 7, 16), -21_000, "Town Sewer District"),
     ]
 
     candidates = detect_bill_candidates(txns)

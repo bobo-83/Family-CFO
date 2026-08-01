@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import type {
   YearlyOverview,
+  CashOutlookResponse,
   EmergencyFundSummary,
   Money,
   NetWorthPoint,
@@ -215,6 +216,19 @@ export class Overview {
   }
 
   protected readonly formatMoney = formatMoney;
+
+  /**
+   * ADR 0069 headline verb. M-rsu-grants: with grants and a live quote the
+   * server translates the shortfall into whole shares — "Sell RSUs (≈ 12 XYZ)".
+   */
+  protected runwayActionLabel(cash: CashOutlookResponse): string {
+    if (cash.runway_action === 'move_cash') {
+      return 'Free up cash';
+    }
+    return cash.sell_units && cash.sell_ticker
+      ? `Sell RSUs (≈ ${cash.sell_units} ${cash.sell_ticker})`
+      : 'Sell RSUs';
+  }
 
   protected efStatusLabel(fund: EmergencyFundSummary): string {
     return EF_STATUS_LABELS[fund.status];

@@ -137,6 +137,9 @@
                   @if (bill.next_due_date) {
                     · next due {{ bill.next_due_date | date: 'MMM d, y' }}
                   }
+                  @if (creditTotalFor(bill.id); as total) {
+                    · {{ formatMoney(total) }} in credits
+                  }
                 </div>
               </div>
               <div class="bill-list__amount">{{ formatMoney(bill.amount) }}</div>

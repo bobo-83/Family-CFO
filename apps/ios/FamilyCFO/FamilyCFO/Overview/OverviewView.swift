@@ -240,8 +240,7 @@ struct OverviewView: View {
                 // close the gap. Front and center per user request 2026-07-26.
                 if let sellBy = outlook.sellByDate, let shortDay = outlook.firstShortfallDate {
                     Label(
-                        (outlook.runwayAction == .moveCash ? "Free up cash by " : "Sell RSUs by ")
-                            + BillsView.shortDate(sellBy),
+                        Self.runwayHeadline(outlook) + BillsView.shortDate(sellBy),
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.title3.weight(.semibold))
@@ -295,6 +294,16 @@ struct OverviewView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// The runway verb, with the shortfall translated into shares when the
+    /// outlook knows them (M-rsu-grants): "Sell RSUs (≈ 12 XYZ) by …".
+    static func runwayHeadline(_ outlook: Components.Schemas.CashOutlookResponse) -> String {
+        if outlook.runwayAction == .moveCash { return "Free up cash by " }
+        if let units = outlook.sellUnits, let ticker = outlook.sellTicker {
+            return "Sell RSUs (≈ \(units) \(ticker)) by "
+        }
+        return "Sell RSUs by "
     }
 
     /// M113 (ADR 0027): left to spend this month — expected income minus what's

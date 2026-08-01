@@ -20,24 +20,24 @@ def test_bill_scan_reads_name_amount_due_date_and_frequency() -> None:
 
 def test_bill_scan_accepts_semiannual_frequency() -> None:
     result = parse_bill_scan(
-        '{"biller": "Town Sewer", "amount_due": 250.20, "frequency": "semiannual"}'
+        '{"biller": "Town Sewer", "amount_due": 210.00, "frequency": "semiannual"}'
     )
 
     assert result.frequency == "semiannual"
 
 
 def test_bill_scan_credit_balance_becomes_zero_amount_plus_credit() -> None:
-    # Net-metering statement: "No payment due $0.00", credit balance -$115.66.
+    # Net-metering statement: "No payment due $0.00", credit balance -$123.40.
     # The bill's amount is 0 (nothing due); the credit rides separately so
     # saving records it against the bill (M-credits).
     result = parse_bill_scan(
-        '{"biller": "National Grid", "amount_due": -115.66, "frequency": "monthly"}'
+        '{"biller": "National Grid", "amount_due": -123.40, "frequency": "monthly"}'
     )
 
     assert result.name == "National Grid"
     assert result.amount_minor == 0
-    assert result.credit_minor == 11_566
-    assert "credit balance of $115.66" in result.note
+    assert result.credit_minor == 12_340
+    assert "credit balance of $123.40" in result.note
 
 
 def test_bill_scan_zero_amount_due_says_nothing_due() -> None:

@@ -151,6 +151,13 @@
             <mat-label>RSU value (USD/yr, pre-tax)</mat-label>
             <input matInput type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
           </mat-form-field>
+          @if ((rsuGrants()?.grants ?? []).length > 0) {
+            <p class="rsu-fallback-hint">
+              This household has RSU grants below, so the RSU value is derived
+              from the grants and the live share price — these RSU fields are
+              only the fallback.
+            </p>
+          }
           <mat-form-field appearance="outline">
             <mat-label>RSU vesting</mat-label>
             <mat-select [(ngModel)]="earnerForm.rsuFrequency" name="earnerRsuFreq">
@@ -181,6 +188,174 @@
         </mat-card-content>
       </mat-card>
     </details>
+  }
+
+  @if (rsuGrants() || (canWrite() && earners().length > 0)) {
+    <h2>RSU grants</h2>
+    <p class="page-hint">
+      Track each RSU grant and its vest schedule. The next 12 months of vests,
+      priced at the live share price, replace the flat &ldquo;RSU value&rdquo;
+      above in the income and tax numbers.
+    </p>
+    @if (rsuGrants(); as rsu) {
+      @if (rsu.quotes.length > 0) {
+        <div class="rsu-quotes">
+          @for (quote of rsu.quotes; track quote.ticker) {
+            <span class="rsu-quotes__item">
+              <strong>{{ quote.ticker }}</strong> {{ formatMoney(quote.price) }}
+              · as of {{ quote.as_of | date: 'MMM d, y' }}
+            </span>
+          }
+          @if (canWrite()) {
+            <button
+              mat-button
+              type="button"
+              [disabled]="quoteBusy()"
+              (click)="refreshQuotes()"
+            >
+              {{ quoteBusy() ? 'Refreshing…' : 'Refresh price' }}
+            </button>
+          }
+        </div>
+      }
+      @if (rsu.derived_annual; as derived) {
+        <p class="rsu-derived">
+          Next 12 months of vests at the live price:
+          <strong>{{ formatMoney(derived) }}</strong> — this is the RSU value
+          that now feeds the income and tax estimate.
+        </p>
+      }
+      @for (grant of rsu.grants; track grant.id) {
+        <details class="rsu-grant" [open]="rsu.grants.length === 1">
+          <summary class="rsu-grant__summary">
+            <span class="rsu-grant__name">{{ grant.units }} {{ grant.ticker }}</span>
+            <span class="rsu-grant__meta">
+              granted {{ grant.grant_date | date: 'MMM d, y' }} · vests
+              {{ vestFrequencyLabel(grant.frequency) }} over {{ grant.vest_years }} years
+            </span>
+            @if (canWrite()) {
+              <button
+                mat-button
+                type="button"
+                class="rsu-grant__delete"
+                [disabled]="busy() !== null"
+                (click)="$event.preventDefault(); removeGrant(grant.id)"
+              >
+                Delete
+              </button>
+            }
+          </summary>
+          <ul class="rsu-vests">
+            @for (event of grant.events; track event.id) {
+              <li class="rsu-vests__row">
+                @if (canWrite()) {
+                  <input class="rsu-vests__date" type="date" [value]="event.vest_date" #vestDate />
+                  <input class="rsu-vests__units" type="number" min="0" [value]="event.units" #vestUnits />
+                  <span class="rsu-vests__value">
+                    @if (event.value; as value) { {{ formatMoney(value) }} }
+                  </span>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="busy() !== null"
+                    (click)="saveVestEvent(event, vestDate.value, vestUnits.value)"
+                  >
+                    Save
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    class="rsu-vests__delete"
+                    [disabled]="busy() !== null"
+                    (click)="removeVestEvent(event.id)"
+                  >
+                    Delete
+                  </button>
+                } @else {
+                  <span class="rsu-vests__date">{{ event.vest_date | date: 'MMM d, y' }}</span>
+                  <span class="rsu-vests__units">{{ event.units }} units</span>
+                  <span class="rsu-vests__value">
+                    @if (event.value; as value) { {{ formatMoney(value) }} }
+                  </span>
+                }
+              </li>
+            }
+            @if (canWrite()) {
+              <li class="rsu-vests__row rsu-vests__row--add">
+                <input class="rsu-vests__date" type="date" #newVestDate />
+                <input class="rsu-vests__units" type="number" min="0" placeholder="Units" #newVestUnits />
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="busy() !== null"
+                  (click)="addVestEvent(grant, newVestDate.value, newVestUnits.value); newVestDate.value = ''; newVestUnits.value = ''"
+                >
+                  Add vest
+                </button>
+              </li>
+            }
+          </ul>
+        </details>
+      }
+    }
+
+    @if (canWrite() && earners().length > 0) {
+      <details class="earner-form-wrap rsu-grant-form-wrap" [open]="(rsuGrants()?.grants ?? []).length === 0">
+        <summary>Add an RSU grant</summary>
+        <mat-card appearance="outlined" class="earner-form-card">
+          <mat-card-content>
+            <form class="earner-form" (ngSubmit)="addGrant()">
+              <mat-form-field appearance="outline">
+                <mat-label>Earner</mat-label>
+                <mat-select [(ngModel)]="grantForm.earnerId" name="grantEarner">
+                  @for (earner of earners(); track earner.id) {
+                    <mat-option [value]="earner.id">{{ earner.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Ticker</mat-label>
+                <input
+                  matInput
+                  type="text"
+                  class="rsu-grant-form__ticker"
+                  [(ngModel)]="grantForm.ticker"
+                  name="grantTicker"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Units granted</mat-label>
+                <input matInput type="number" min="0" [(ngModel)]="grantForm.units" name="grantUnits" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Grant date</mat-label>
+                <input matInput type="date" [(ngModel)]="grantForm.grantDate" name="grantDate" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Vesting period (years)</mat-label>
+                <input matInput type="number" min="1" [(ngModel)]="grantForm.vestYears" name="grantVestYears" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Vesting frequency</mat-label>
+                <mat-select [(ngModel)]="grantForm.frequency" name="grantFrequency">
+                  <mat-option value="monthly">Monthly</mat-option>
+                  <mat-option value="quarterly">Quarterly</mat-option>
+                  <mat-option value="semiannual">Twice a year</mat-option>
+                  <mat-option value="annual">Annually</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <button
+                mat-flat-button
+                type="submit"
+                [disabled]="busy() !== null || !grantForm.earnerId || !grantForm.ticker.trim() || !grantForm.units || !grantForm.grantDate"
+              >
+                {{ busy() === 'grant' ? 'Saving…' : 'Add grant' }}
+              </button>
+            </form>
+          </mat-card-content>
+        </mat-card>
+      </details>
+    }
   }
 
   <h2>Detected income sources</h2>

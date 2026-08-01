@@ -568,7 +568,131 @@ describe('AiRuntime', () => {
       base_url: 'http://vllm:8000',
       model: 'llama-3-8b-instruct',
       enabled: true,
+      // ADR 0071: the full-object PUT preserves the saved cluster toggle.
+      cluster_enabled: false,
     });
+  });
+
+  // --- Two-box cluster (ADR 0071) ---------------------------------------------
+
+  it('shows cluster models under their heading only while the toggle is on', async () => {
+    apiMock.getAiHardwareProfile.mockResolvedValue(
+      response({
+        gpu_memory_gb: null,
+        system_memory_gb: 120,
+        disk_free_gb: 500,
+        source: 'system',
+        cluster_peer_host: 'spark-2.local',
+        cluster_peer_reachable: true,
+        cluster_memory_gb: 238,
+      }),
+    );
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'Qwen/Qwen2.5-32B-Instruct',
+        enabled: true,
+        cluster_enabled: true,
+      }),
+    );
+    apiMock.listAiModels.mockResolvedValue(
+      response({
+        models: [
+          ...CATALOG,
+          {
+            id: 'Qwen/Qwen3-235B-A22B-Instruct',
+            label: 'Qwen3 235B MoE',
+            role: 'main',
+            parameters_b: 235,
+            est_memory_gb: 180,
+            est_disk_gb: 170,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            min_nodes: 2,
+            gated: false,
+            notes: '',
+          },
+          {
+            // min_nodes 1, but too big for the 120 GB box alone: with the
+            // cluster active it must be OFFERED as a cluster deployment.
+            id: 'Qwen/Qwen2.5-72B-Instruct',
+            label: 'Qwen2.5 72B',
+            role: 'main',
+            parameters_b: 72,
+            est_memory_gb: 145,
+            est_disk_gb: 140,
+            tool_parser: 'hermes',
+            supports_vision: false,
+            gated: false,
+            notes: '',
+          },
+        ],
+      }),
+    );
+    const fixture = await create();
+    const host = fixture.nativeElement as HTMLElement;
+
+    // Toggle on + peer reachable: the section renders with the model and the
+    // COMBINED budget, and the model never leaks into the single-box list.
+    const section = host.querySelector('.cluster-models');
+    expect(section).toBeTruthy();
+    expect(section!.querySelector('.cluster-models__heading')?.textContent).toContain(
+      'Cluster (both boxes)',
+    );
+    expect(section!.textContent).toContain('Qwen3 235B MoE');
+    expect(section!.textContent).toContain('238 GB combined');
+    expect(
+      host.querySelector('.cluster__line')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toContain('Second box detected (spark-2.local) — combined budget 238 GB');
+    const component = fixture.componentInstance;
+    // "All" so exclusions below prove the cluster gating, not the fit filter.
+    component['quickFilter'].set('all');
+    expect(component['filteredModels']().map((m) => m.id)).not.toContain(
+      'Qwen/Qwen3-235B-A22B-Instruct',
+    );
+
+    // Derived gating: the big min_nodes==1 model moves into the cluster
+    // section — 145*1.15 GB fits the combined 238 — and leaves the single list.
+    expect(section!.textContent).toContain('Qwen2.5 72B');
+    expect(section!.textContent).toContain('Fits across both boxes');
+    const big = component['byId']('Qwen/Qwen2.5-72B-Instruct')!;
+    expect(component['clusterModels']().map((m) => m.id)).toContain(big.id);
+    expect(component['fitOf'](big)).toBe('fits');
+    expect(component['filteredModels']().map((m) => m.id)).not.toContain(big.id);
+
+    // Applying it from the cluster section carries cluster: true.
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response({ state: 'running', main_model: big.id, log_tail: '' }),
+    );
+    await component['applyModel'](big);
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
+      main_model: 'Qwen/Qwen2.5-72B-Instruct',
+      vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct', // current photo model kept
+      cluster: true,
+    });
+    component['stopPolling']();
+
+    // Toggle off: the section disappears.
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'Qwen/Qwen2.5-32B-Instruct',
+        enabled: true,
+        cluster_enabled: false,
+      }),
+    );
+    component['config'].reload();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(host.querySelector('.cluster-models')).toBeFalsy();
+    // Exactly today's single-box behavior: min_nodes >= 2 stays hidden, while
+    // the too-big 72B is back in the single list with an honest verdict.
+    const singleIds = component['filteredModels']().map((m) => m.id);
+    expect(singleIds).not.toContain('Qwen/Qwen3-235B-A22B-Instruct');
+    expect(singleIds).toContain('Qwen/Qwen2.5-72B-Instruct');
+    expect(component['fitOf'](big)).toBe('no');
   });
 
   it('applies a vision model change from the Advanced section via the swap', async () => {

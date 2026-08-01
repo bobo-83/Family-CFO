@@ -25,6 +25,10 @@ class ModelInfo:
     supports_vision: bool
     gated: bool
     notes: str = ""
+    # M-cluster (ADR 0071): 2 = needs the paired second box (memory beyond one
+    # node); the picker offers these only when the cluster toggle is on and the
+    # peer is reachable.
+    min_nodes: int = 1
 
 
 # Estimates assume bf16 serving via vLLM. Keep in sync with README's table.
@@ -238,6 +242,61 @@ MODEL_CATALOG: tuple[ModelInfo, ...] = (
         gated=False,
         notes="Lower quality transcription; use when memory is tight.",
     ),
+    # --- Cluster tier (ADR 0071): need the paired second box's memory pool ---
+    ModelInfo(
+        id="unsloth/Qwen3-235B-A22B-Instruct-2507-NVFP4",
+        label="Qwen3 235B MoE — cluster, biggest quality jump",
+        role="main",
+        parameters_b=235,
+        est_memory_gb=135,  # 4-bit MoE weights + working set
+        est_disk_gb=125,
+        tool_parser="hermes",
+        supports_vision=False,
+        gated=False,
+        min_nodes=2,
+        notes="22B active params: frontier-class answers at MoE speed. "
+        "Needs both Sparks over the ConnectX link.",
+    ),
+    ModelInfo(
+        id="zai-org/GLM-4.5-Air-FP8",
+        label="GLM-4.5-Air 106B MoE — cluster, strong tool use",
+        role="main",
+        parameters_b=106,
+        est_memory_gb=115,
+        est_disk_gb=105,
+        tool_parser="glm45",
+        supports_vision=False,
+        gated=False,
+        min_nodes=2,
+        notes="12B active params; excellent agentic/tool-calling behavior.",
+    ),
+    ModelInfo(
+        id="nvidia/MiniMax-M2.7-NVFP4",
+        label="MiniMax M2.7 — cluster, best-in-class agentic",
+        role="main",
+        parameters_b=230,
+        est_memory_gb=140,
+        est_disk_gb=130,
+        tool_parser="minimax_m2",
+        supports_vision=False,
+        gated=False,
+        min_nodes=2,
+        notes="10B active params; the strongest tool-calling/agentic model "
+        "here. Cluster speeds (~16 tok/s) — quality over latency.",
+    ),
+    ModelInfo(
+        id="RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic",
+        label="Llama 3.3 70B FP8 — cluster, dense and predictable",
+        role="main",
+        parameters_b=70,
+        est_memory_gb=90,  # FP8 weights + generous KV headroom
+        est_disk_gb=72,
+        tool_parser="llama3_json",
+        supports_vision=False,
+        gated=False,
+        min_nodes=2,
+        notes="Dense 70B: steadier long-context behavior than MoE peers.",
+    ),
 )
 
 
@@ -251,6 +310,31 @@ def system_memory_gb() -> float | None:
     except OSError:
         return None
     return None
+
+
+def cluster_peer_status() -> tuple[str | None, bool]:
+    """(peer_host, reachable) for the paired second box (ADR 0071).
+
+    The peer is DECLARED (FAMILY_CFO_CLUSTER_PEER_HOST, written by
+    scripts/setup-cluster.sh), never discovered by scanning; reachability is a
+    fast TCP probe of its worker's node-exporter so detection stays automatic
+    after the one-time enrollment.
+    """
+    host = os.getenv("FAMILY_CFO_CLUSTER_PEER_HOST", "").strip() or None
+    if host is None:
+        return None, False
+    port_env = os.getenv("FAMILY_CFO_CLUSTER_PEER_PORT", "9100").strip()
+    try:
+        port = int(port_env)
+    except ValueError:
+        port = 9100
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=1.5):
+            return host, True
+    except OSError:
+        return host, False
 
 
 def hardware_profile() -> dict:
@@ -269,9 +353,20 @@ def hardware_profile() -> dict:
         except ValueError:
             gpu_memory = None
     disk = shutil.disk_usage("/")
+    system_memory = system_memory_gb()
+    # M-cluster (ADR 0071): a reachable enrolled peer doubles the model budget
+    # (symmetric boxes — two GB10s). The toggle to USE it is the household's.
+    peer_host, peer_reachable = cluster_peer_status()
+    node_budget = gpu_memory if gpu_memory is not None else system_memory
+    cluster_memory = (
+        round(node_budget * 2, 1) if peer_reachable and node_budget is not None else None
+    )
     return {
         "gpu_memory_gb": gpu_memory,
-        "system_memory_gb": system_memory_gb(),
+        "system_memory_gb": system_memory,
         "disk_free_gb": round(disk.free / 1024**3, 1),
         "source": "env" if gpu_memory is not None else "system",
+        "cluster_peer_host": peer_host,
+        "cluster_peer_reachable": peer_reachable,
+        "cluster_memory_gb": cluster_memory,
     }

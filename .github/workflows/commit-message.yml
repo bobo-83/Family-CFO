@@ -20,7 +20,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          # Validate against the LIVE base branch, not the event's base.sha
+          # snapshot: after a rebase onto a newer base, the snapshot range
+          # sweeps in the base's own squash commits — whose GitHub-suffixed
+          # titles ("… (#160)") can exceed 72 chars and are not ours to fix.
+          # Two-dot against origin/<base> excludes everything already merged.
+          git fetch --quiet origin "${{ github.base_ref }}"
+          range="origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
 
           # Skip merge commits an intermediate merge may have pulled into the PR;
           # GitHub generates their message, not authored to the convention.

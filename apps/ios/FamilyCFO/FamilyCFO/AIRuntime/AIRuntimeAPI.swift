@@ -8,11 +8,18 @@ protocol AIRuntimeAPI: Sendable {
     func status() async throws -> Components.Schemas.AiRuntimeStatus
     func catalog() async throws -> [Components.Schemas.AiModelInfo]
     func hardware() async throws -> Components.Schemas.AiHardwareProfile
+    /// ADR 0071: the raw runtime config — carries the cluster toggle.
+    func runtimeConfig() async throws -> Components.Schemas.AiRuntimeConfig
+    /// Full-object PUT; the caller preserves provider/base_url/model/enabled.
+    func updateRuntimeConfig(_ config: Components.Schemas.AiRuntimeConfig) async throws
+        -> Components.Schemas.AiRuntimeConfig
     func search(query: String) async throws -> [Components.Schemas.AiModelInfo]
     /// Drill-down: catalog/estimated specs + the hub's live stats for one model.
     func detail(id: String) async throws -> Components.Schemas.AiModelDetail
     /// Kick off a swap: download (if needed) and restart the runtime.
-    func apply(mainModel: String, visionModel: String?) async throws
+    /// `cluster` (ADR 0071) asks for tensor-parallel serving across the paired
+    /// second box; the server answers 409 when the peer is unreachable.
+    func apply(mainModel: String, visionModel: String?, cluster: Bool) async throws
         -> Components.Schemas.AiSwapStatus
     func applyStatus() async throws -> Components.Schemas.AiSwapStatus
 }
@@ -53,6 +60,32 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
         }
     }
 
+    func runtimeConfig() async throws -> Components.Schemas.AiRuntimeConfig {
+        switch try await client.getAiRuntimeConfig(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateRuntimeConfig(_ config: Components.Schemas.AiRuntimeConfig) async throws
+        -> Components.Schemas.AiRuntimeConfig
+    {
+        switch try await client.updateAiRuntimeConfig(.init(body: .json(config))) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
     func detail(id: String) async throws -> Components.Schemas.AiModelDetail {
         switch try await client.getAiModelDetail(.init(query: .init(id: id))) {
         case .ok(let response):
@@ -84,11 +117,15 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
         }
     }
 
-    func apply(mainModel: String, visionModel: String?) async throws
+    func apply(mainModel: String, visionModel: String?, cluster: Bool) async throws
         -> Components.Schemas.AiSwapStatus
     {
         switch try await client.applyAiModelSelection(
-            .init(body: .json(.init(mainModel: mainModel, visionModel: visionModel)))
+            .init(body: .json(.init(
+                mainModel: mainModel,
+                // Single-box applies omit the flag (same as cluster: false).
+                cluster: cluster ? true : nil,
+                visionModel: visionModel)))
         ) {
         case .accepted(let response):
             return try response.body.json
@@ -96,8 +133,12 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
-        case .conflict:
-            // A swap is already running — the status poll will pick it up.
+        case .conflict(let response):
+            // A swap already running, or (ADR 0071) a cluster apply with the
+            // peer down — surface the server's own message when it has one.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
             throw APIError.server(409)
         case .serviceUnavailable:
             throw APIError.server(503)

@@ -98,6 +98,36 @@
           }
         </div>
 
+        <!-- ================= Two-box cluster (ADR 0071) ================= -->
+        @if (clusterPeerHost(); as peerHost) {
+          <div class="cluster">
+            <h2>Second box</h2>
+            @if (clusterPeerReachable()) {
+              <p class="cluster__line">
+                Second box detected ({{ peerHost }})
+                @if (clusterMemoryGb() !== null) {
+                  — combined budget {{ clusterMemoryGb() }} GB
+                }
+              </p>
+            } @else {
+              <p class="cluster__line cluster__line--warn" role="alert">
+                ⚠️ Second box ({{ peerHost }}) enrolled but not reachable
+              </p>
+            }
+            <mat-checkbox
+              class="cluster__toggle"
+              [ngModel]="clusterEnabled()"
+              [disabled]="!clusterPeerReachable() || savingCluster()"
+              (ngModelChange)="setClusterEnabled($event)"
+            >
+              Use both boxes for larger models
+            </mat-checkbox>
+            @if (clusterError(); as message) {
+              <p class="page-error" role="alert">{{ message }}</p>
+            }
+          </div>
+        }
+
         <!-- ================= Browse & filter (M47/M48) ================= -->
         <div class="browse">
           <h2>Find a model</h2>
@@ -207,6 +237,69 @@
               Only models that fit
             </mat-checkbox>
           </div>
+
+          <!-- ADR 0071: cluster-tier models — only with the toggle on + peer reachable -->
+          @if (clusterModels().length > 0) {
+            <div class="cluster-models">
+              <h3 class="cluster-models__heading">Cluster (both boxes)</h3>
+              <ul class="browse__list">
+                @for (model of clusterModels(); track model.id) {
+                  <li
+                    class="model-row"
+                    [class.model-row--active]="model.id === status.value()?.served_model"
+                  >
+                    <div class="model-row__summary model-row__summary--static">
+                      <div class="model-row__text">
+                        <span class="model-row__label">
+                          {{ model.label }}
+                          @if (model.id === status.value()?.served_model) {
+                            <span class="model-row__now">now serving</span>
+                          }
+                        </span>
+                        <span class="model-row__meta">
+                          @if (model.parameters_b) {
+                            {{ model.parameters_b }}B ·
+                          }
+                          ~{{ model.est_memory_gb }} GB needed ·
+                          {{ clusterMemoryGb() ?? '?' }} GB combined
+                        </span>
+                      </div>
+                      <span class="model-row__fit" [attr.data-verdict]="fitOf(model)">
+                        @switch (fitOf(model)) {
+                          @case ('fits') {
+                            ✅ Fits across both boxes
+                          }
+                          @case ('tight') {
+                            ⚠️ Tight — may need reduced context
+                          }
+                          @case ('no') {
+                            ❌ Too big even for both boxes
+                          }
+                          @default {
+                            ❓ Unknown
+                          }
+                        }
+                      </span>
+                      <button
+                        mat-flat-button
+                        type="button"
+                        class="picker__apply"
+                        (click)="applyModel(model)"
+                        [disabled]="!canManageRuntime() || applying() || model.id === status.value()?.served_model"
+                        [title]="canManageRuntime() ? '' : 'Only a system administrator can switch the box-wide model (ADR 0065)'"
+                      >
+                        @if (model.id === status.value()?.served_model) {
+                          Already serving
+                        } @else {
+                          {{ applying() ? 'Starting…' : 'Apply' }}
+                        }
+                      </button>
+                    </div>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
 
           @if (visibleModels().length === 0 && !searching()) {
             @if (quickFilter() === 'all-in-one') {

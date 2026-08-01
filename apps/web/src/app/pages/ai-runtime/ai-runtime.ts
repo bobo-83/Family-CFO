@@ -211,8 +211,75 @@ export class AiRuntime {
     return hw != null && hw.gpu_memory_gb == null && hw.system_memory_gb != null;
   });
 
-  private memoryVerdictFor(requiredGb: number | null): FitVerdict {
+  // --- Two-box cluster (ADR 0071) --------------------------------------------
+
+  protected readonly clusterPeerHost = computed(
+    () => this.hardware.value()?.cluster_peer_host ?? null,
+  );
+  protected readonly clusterPeerReachable = computed(
+    () => this.hardware.value()?.cluster_peer_reachable ?? false,
+  );
+  /** Combined budget across both boxes; null while the peer is unreachable. */
+  protected readonly clusterMemoryGb = computed(
+    () => this.hardware.value()?.cluster_memory_gb ?? null,
+  );
+  protected readonly clusterEnabled = computed(
+    () => this.config.value()?.cluster_enabled ?? false,
+  );
+  /** Cluster models are offered only with the toggle ON and the peer reachable. */
+  protected readonly clusterActive = computed(
+    () => this.clusterEnabled() && this.clusterPeerReachable(),
+  );
+
+  protected isClusterModel(model: AiModelInfo): boolean {
+    return (model.min_nodes ?? 1) >= 2;
+  }
+
+  /**
+   * Needs the second box: either the catalog says so (min_nodes >= 2), or the
+   * model's estimated memory (with headroom) exceeds this box's own budget —
+   * the same budget the single-box fit verdict uses.
+   */
+  protected needsCluster(model: AiModelInfo): boolean {
+    if (this.isClusterModel(model)) {
+      return true;
+    }
     const budget = this.memoryBudgetGb();
+    return budget != null && !!model.est_memory_gb && model.est_memory_gb * HEADROOM > budget;
+  }
+
+  /** True when the model is offered (and fit-judged) as a cluster deployment. */
+  protected servesOnCluster(model: AiModelInfo): boolean {
+    return this.clusterActive() && this.needsCluster(model);
+  }
+
+  protected readonly savingCluster = signal(false);
+  protected readonly clusterError = signal<string | null>(null);
+
+  /** Flip cluster_enabled through the existing runtime-config PUT (full object). */
+  protected async setClusterEnabled(on: boolean): Promise<void> {
+    const current = this.config.value();
+    if (!current || this.savingCluster()) {
+      return;
+    }
+    this.savingCluster.set(true);
+    this.clusterError.set(null);
+    const { error } = await this.api.updateAiRuntimeConfig({
+      provider: current.provider,
+      base_url: current.base_url,
+      model: current.model,
+      enabled: current.enabled ?? false,
+      cluster_enabled: on,
+    });
+    this.savingCluster.set(false);
+    if (error) {
+      this.clusterError.set(apiErrorMessage(error, 'Could not update the cluster setting.'));
+      return;
+    }
+    this.config.reload();
+  }
+
+  private verdictAgainst(requiredGb: number | null, budget: number | null): FitVerdict {
     if (requiredGb == null || budget == null) {
       return 'unknown';
     }
@@ -220,6 +287,11 @@ export class AiRuntime {
       return 'fits';
     }
     return requiredGb <= budget ? 'tight' : 'no';
+  }
+
+  private memoryVerdictFor(requiredGb: number | null, cluster = false): FitVerdict {
+    // ADR 0071: cluster-tier entries are judged against the COMBINED budget.
+    return this.verdictAgainst(requiredGb, cluster ? this.clusterMemoryGb() : this.memoryBudgetGb());
   }
 
   private diskVerdictFor(requiredGb: number | null): FitVerdict {
@@ -249,7 +321,7 @@ export class AiRuntime {
     if (!model.est_memory_gb) {
       return 'unknown';
     }
-    return this.memoryVerdictFor(model.est_memory_gb * HEADROOM);
+    return this.memoryVerdictFor(model.est_memory_gb * HEADROOM, this.servesOnCluster(model));
   }
 
   /**
@@ -292,7 +364,7 @@ export class AiRuntime {
       description,
       memoryGb,
       diskGb,
-      memoryVerdict: this.memoryVerdictFor(memoryGb),
+      memoryVerdict: this.memoryVerdictFor(memoryGb, this.servesOnCluster(model)),
       diskVerdict: this.diskVerdictFor(diskGb),
     };
   }
@@ -372,7 +444,9 @@ export class AiRuntime {
       return;
     }
     const plan = this.planFor(model);
-    await this.postApply(plan.mainId, plan.visionId ?? undefined);
+    // ADR 0071: applies from the cluster section serve across both boxes; the
+    // server answers 409 (surfaced via applyError) if the peer is down.
+    await this.postApply(plan.mainId, plan.visionId ?? undefined, this.servesOnCluster(model));
   }
 
   /** M51: pair a vision-capable model with the CURRENT chat model (photos only). */
@@ -393,12 +467,18 @@ export class AiRuntime {
     await this.postApply(main, model.id);
   }
 
-  private async postApply(mainId: string, visionId: string | undefined): Promise<void> {
+  private async postApply(
+    mainId: string,
+    visionId: string | undefined,
+    cluster = false,
+  ): Promise<void> {
     this.applying.set(true);
     this.applyError.set(null);
     const { data, error } = await this.api.applyAiModelSelection({
       main_model: mainId,
       vision_model: visionId,
+      // Single-box applies omit the flag (same as cluster: false).
+      ...(cluster ? { cluster: true } : {}),
     });
     this.applying.set(false);
     if (error || !data) {
@@ -521,8 +601,19 @@ export class AiRuntime {
     }
   }
 
+  /** ADR 0071: models that need both boxes, shown only while clustering is on. */
+  protected readonly clusterModels = computed<AiModelInfo[]>(() =>
+    this.clusterActive() ? this.knownModels().filter((m) => this.needsCluster(m)) : [],
+  );
+
   protected readonly filteredModels = computed<AiModelInfo[]>(() => {
-    let models = [...this.knownModels()];
+    // While the cluster is active, everything that needs both boxes renders in
+    // the "Cluster (both boxes)" section — never here. While it is inactive,
+    // only min_nodes >= 2 entries hide; too-big single-node models still show
+    // with their honest "Too big for this box" verdict.
+    let models = this.knownModels().filter((m) =>
+      this.clusterActive() ? !this.needsCluster(m) : !this.isClusterModel(m),
+    );
     let order: 'asc' | 'desc' | null = null;
 
     switch (this.quickFilter()) {
@@ -696,7 +787,12 @@ export class AiRuntime {
     this.submitError.set(null);
     this.submitSuccess.set(false);
 
-    const { error } = await this.api.updateAiRuntimeConfig(this.form.getRawValue());
+    // The PUT replaces the whole config — carry the saved cluster toggle along
+    // so an Advanced save never silently disables clustering (ADR 0071).
+    const { error } = await this.api.updateAiRuntimeConfig({
+      ...this.form.getRawValue(),
+      cluster_enabled: this.config.value()?.cluster_enabled ?? false,
+    });
 
     this.submitting.set(false);
 

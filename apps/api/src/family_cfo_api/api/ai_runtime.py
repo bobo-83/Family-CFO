@@ -73,6 +73,7 @@ def _to_schema(record: repository.AiRuntimeConfigRecord) -> AiRuntimeConfig:
         base_url=record.base_url,
         model=record.model,
         enabled=record.enabled,
+        cluster_enabled=record.cluster_enabled,
     )
 
 
@@ -384,6 +385,7 @@ async def update_ai_runtime_config(
         base_url=payload.base_url,
         model=payload.model,
         enabled=payload.enabled,
+        cluster_enabled=payload.cluster_enabled,
     )
     return _to_schema(record)
 
@@ -408,6 +410,27 @@ def _bytes_per_param(model_id: str) -> tuple[float, str]:
 
 # Formats vLLM cannot serve — they crowd the pool without being usable (M54).
 _UNSERVABLE_MARKERS = ("gguf", "mlx", "bnb", "exl2", "onnx", "openvino")
+
+
+def _vision_slot_gb(settings: Settings) -> float | None:
+    """The dedicated describer's memory budget: fraction × one node's memory."""
+    profile = hardware_profile()
+    node_gb = profile.get("gpu_memory_gb") or profile.get("system_memory_gb")
+    if node_gb is None or settings.vision_gpu_fraction <= 0:
+        return None
+    return node_gb * settings.vision_gpu_fraction
+
+
+def _model_estimate_gb(model_id: str) -> float | None:
+    """Weights estimate for a model id: catalog truth, else name-derived."""
+    for model in MODEL_CATALOG:
+        if model.id == model_id:
+            return model.est_memory_gb
+    match = _PARAMS_IN_NAME.search(model_id.rsplit("/", 1)[-1])
+    if not match:
+        return None
+    gb_per_b, _precision = _bytes_per_param(model_id)
+    return float(match.group(1)) * gb_per_b
 
 
 def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
@@ -576,10 +599,42 @@ async def apply_ai_model_selection(
     if payload.vision_model == payload.main_model:
         payload.vision_model = None
 
+    # The photo-model slot is a FIXED memory share (VLLM_VISION_GPU_FRACTION):
+    # a describer whose weights exceed it crash-loops silently after the swap
+    # (found live when a text-only main inherited a 35B as its photo model).
+    # Unknown estimates pass — this guard only refuses the provably absurd.
+    if payload.vision_model is not None:
+        slot_gb = _vision_slot_gb(settings)
+        est_gb = _model_estimate_gb(payload.vision_model)
+        if slot_gb is not None and est_gb is not None and est_gb > slot_gb:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"'{payload.vision_model}' needs ~{est_gb:.0f} GB but the "
+                    f"photo-model slot has ~{slot_gb:.0f} GB "
+                    f"(VLLM_VISION_GPU_FRACTION) — pick a smaller vision model"
+                ),
+            )
+
     try:
+        # ADR 0071: a cluster apply is refused while the peer is down — a TP=2
+        # engine with one node would crash-loop exactly like the first bring-up.
+        if payload.cluster:
+            from family_cfo_api.ai_catalog import cluster_peer_status
+
+            _, peer_reachable = cluster_peer_status()
+            if not peer_reachable:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The second box is not reachable; cluster serving needs it",
+                )
         response = httpx.post(
             f"{settings.model_manager_url.rstrip('/')}/swap",
-            json={"main_model": payload.main_model, "vision_model": payload.vision_model},
+            json={
+                "main_model": payload.main_model,
+                "vision_model": payload.vision_model,
+                "cluster": payload.cluster,
+            },
             timeout=_HF_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError as exc:
@@ -590,6 +645,8 @@ async def apply_ai_model_selection(
         raise HTTPException(status_code=503, detail="Model manager rejected the request")
 
     # Keep the household config in sync so status/mismatch reflect the new target.
+    # A model swap must not flip the cluster toggle (ADR 0071) — preserve it.
+    existing_config = repository.get_ai_runtime_config(engine, session.household_id)
     repository.upsert_ai_runtime_config(
         engine,
         household_id=session.household_id,
@@ -597,6 +654,7 @@ async def apply_ai_model_selection(
         base_url=settings.ai_default_base_url,
         model=payload.main_model,
         enabled=True,
+        cluster_enabled=existing_config.cluster_enabled if existing_config else False,
     )
     # The swap replaces the model for the WHOLE box: every other household's
     # config on this runtime must follow, or their chats silently fall back

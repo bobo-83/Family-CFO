@@ -1793,6 +1793,175 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
+  /income/rsu-grants:
+    get:
+      tags:
+        - Income
+      operationId: listRsuGrants
+      summary: RSU grants with their editable vest schedules and live quotes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Grants, schedules, quotes, and the derived annual value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RsuGrantsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Income
+      operationId: createRsuGrant
+      summary: Enter an RSU grant; the vest schedule is derived, then editable
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RsuGrantCreateRequest"
+      responses:
+        "201":
+          description: Grant created (full grants response returned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RsuGrantsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/rsu-grants/{grant_id}:
+    delete:
+      tags:
+        - Income
+      operationId: deleteRsuGrant
+      summary: Delete an RSU grant and its vest schedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: grant_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Grant deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/rsu-grants/{grant_id}/vest-events:
+    post:
+      tags:
+        - Income
+      operationId: addRsuVestEvent
+      summary: Add a vest event to a grant's schedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: grant_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RsuVestEventCreateRequest"
+      responses:
+        "201":
+          description: Vest event added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RsuVestEvent"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/rsu-vest-events/{event_id}:
+    patch:
+      tags:
+        - Income
+      operationId: updateRsuVestEvent
+      summary: Edit a vest event (date and/or units)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RsuVestEventUpdateRequest"
+      responses:
+        "200":
+          description: Vest event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RsuVestEvent"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - Income
+      operationId: deleteRsuVestEvent
+      summary: Remove a vest event from the schedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Vest event removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /income/rsu-quotes/refresh:
+    post:
+      tags:
+        - Income
+      operationId: refreshRsuQuotes
+      summary: Refresh the live quotes behind the RSU valuation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Refreshed grants response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RsuGrantsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /income/profile/earners:
     post:
       tags:
@@ -3883,6 +4052,17 @@ components:
             - sell_rsus
             - move_cash
             - null
+        sell_units:
+          description: >-
+            M-rsu-grants: with grants and a live quote, the shortfall
+            translated into whole shares to sell. Absent otherwise.
+          type:
+            - integer
+            - "null"
+        sell_ticker:
+          type:
+            - string
+            - "null"
 
     SpendingPlanResponse:
       type: object
@@ -4315,6 +4495,85 @@ components:
         date: { type: string, format: date }
         label: { type: string }
         amount: { $ref: "#/components/schemas/Money" }
+    RsuVestEvent:
+      type: object
+      description: One vest tranche — derived from the grant, then user-editable.
+      required: [id, grant_id, vest_date, units]
+      properties:
+        id: { type: string }
+        grant_id: { type: string }
+        vest_date: { type: string, format: date }
+        units: { type: integer }
+        value:
+          description: units × the cached live quote; absent until a quote exists.
+          $ref: "#/components/schemas/Money"
+    RsuGrant:
+      type: object
+      required: [id, earner_id, ticker, units, grant_date, vest_years, frequency, events]
+      properties:
+        id: { type: string }
+        earner_id: { type: string }
+        ticker: { type: string }
+        units: { type: integer }
+        grant_date: { type: string, format: date }
+        vest_years: { type: integer }
+        frequency:
+          type: string
+          enum: [monthly, quarterly, semiannual, annual]
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/RsuVestEvent"
+    StockQuote:
+      type: object
+      required: [ticker, price, as_of, source]
+      properties:
+        ticker: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        as_of: { type: string, format: date-time }
+        source: { type: string }
+    RsuGrantsResponse:
+      type: object
+      required: [grants, quotes]
+      properties:
+        grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/RsuGrant"
+        quotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockQuote"
+        derived_annual:
+          description: >-
+            The household's next 12 months of vests at the live quote — the
+            figure that replaces the flat RSU annual value. Absent without
+            grants + a quote.
+          $ref: "#/components/schemas/Money"
+    RsuGrantCreateRequest:
+      type: object
+      required: [earner_id, ticker, units, grant_date]
+      properties:
+        earner_id: { type: string }
+        ticker: { type: string, minLength: 1, maxLength: 8 }
+        units: { type: integer, minimum: 1 }
+        grant_date: { type: string, format: date }
+        vest_years: { type: integer, minimum: 1, maximum: 10, default: 2 }
+        frequency:
+          type: string
+          enum: [monthly, quarterly, semiannual, annual]
+          default: quarterly
+    RsuVestEventCreateRequest:
+      type: object
+      required: [vest_date, units]
+      properties:
+        vest_date: { type: string, format: date }
+        units: { type: integer, minimum: 1 }
+    RsuVestEventUpdateRequest:
+      type: object
+      properties:
+        vest_date: { type: string, format: date }
+        units: { type: integer, minimum: 1 }
     IncomeProfile:
       type: object
       description: >
@@ -6515,6 +6774,12 @@ components:
         enabled:
           type: boolean
           default: true
+        cluster_enabled:
+          description: >-
+            ADR 0071: use the paired second box for larger models. Only
+            meaningful while the hardware profile reports the peer reachable.
+          type: boolean
+          default: false
     AiRuntimeStatus:
       type: object
       required:
@@ -6588,6 +6853,12 @@ components:
             - "null"
         supports_vision:
           type: boolean
+        min_nodes:
+          description: >-
+            ADR 0071: 2 = offered only with the second box reachable and the
+            cluster toggle on.
+          type: integer
+          default: 1
         created_at:
           type: string
           description: >
@@ -6900,6 +7171,13 @@ components:
       properties:
         main_model:
           type: string
+        cluster:
+          description: >-
+            ADR 0071: serve tensor-parallel across the paired second box. The
+            client sets this for models exceeding one node; the server
+            verifies the peer is reachable.
+          type: boolean
+          default: false
         vision_model:
           type:
             - string
@@ -6940,3 +7218,16 @@ components:
           type: number
         source:
           type: string
+        cluster_peer_host:
+          description: "ADR 0071: the enrolled second box, probed automatically."
+          type:
+            - string
+            - "null"
+        cluster_peer_reachable:
+          type: boolean
+          default: false
+        cluster_memory_gb:
+          description: Combined model budget when the peer is reachable (2x one node).
+          type:
+            - number
+            - "null"

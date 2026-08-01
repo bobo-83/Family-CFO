@@ -106,4 +106,5 @@ async def test_put_upserts_existing_config(demo_client, demo_token) -> None:
         "base_url": "http://ollama.local:11434",
         "model": "b",
         "enabled": False,
+        "cluster_enabled": False,
     }

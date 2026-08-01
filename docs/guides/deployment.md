@@ -396,3 +396,115 @@ rendering it), and `/ota/` must not fall through to the dashboard's SPA
 |---|---|---|
 | `scripts/patch.sh ios` (push) | ✅ | ❌ Bonjour can't cross the tunnel |
 | `scripts/deploy-ios-ota.sh` (pull) | ✅ | ✅ |
+
+## Two-Spark cluster (ADR 0071)
+
+One DGX Spark (GB10) tops out around 120 GB of usable unified memory — enough
+for the 70B-class models, not for the 235B-class ones. A second Spark connected
+back-to-back over the ConnectX QSFP port (200 GbE, no switch needed) lets vLLM
+serve one model **tensor-parallel across both boxes**: each node holds half the
+weights, and every token's activations cross the QSFP link.
+
+```
+   head box (Spark 1)                       worker box (Spark 2)
+   ┌──────────────────────────┐             ┌──────────────────────────┐
+   │ full stack               │  QSFP link  │ docker-compose.worker.yml │
+   │ (docker-compose.yml      │ 10.0.0.1 ←→ │ ONLY:                     │
+   │  + docker-compose        │   10.0.0.2  │   ray-worker  (joins head)│
+   │    .cluster.yml overlay) │  200 GbE    │   node-exporter  :9100    │
+   │ vllm = Ray head, TP=2    │             │                           │
+   └──────────────────────────┘             └──────────────────────────┘
+```
+
+The head runs the whole application; the worker contributes exactly two things:
+a Ray worker the head's vLLM schedules shards onto, and a node-exporter on
+`:9100` that answers "is the second node alive?".
+
+### Requirements — all of them
+
+- **The ConnectX QSFP link, cabled and configured.** Give the QSFP interface a
+  static address on each node (e.g. `10.0.0.1` head, `10.0.0.2` worker). The
+  LAN is *not* enough: tensor-parallel serving pushes activations across nodes
+  on every token, and only the 200GbE link makes that usable.
+- **The same `vllm/vllm-openai` image on both nodes.** The worker compose file
+  uses the identical image reference so Ray/vLLM/NCCL versions match. A skew
+  fails only at model load, with an opaque collective-ops error — after
+  pulling a new image on one box, pull it on the other.
+- **Key-based SSH from the head to the worker** (`scripts/setup-cluster.sh`
+  checks; no password is ever handled — same rule as `scripts/setup-ssh.sh`).
+
+### Enrollment (once, on the head box)
+
+```sh
+scripts/setup-cluster.sh spark2 --link-ip 10.0.0.2 --head-ip 10.0.0.1 --ifname enp1s0f0
+```
+
+This ships `docker-compose.worker.yml` plus a minimal `.env` to
+`~/family-cfo-worker/` on the peer, starts the worker stack there, and records
+the cluster in the head's `.env` (`CLUSTER_PEER_HOST`, `CLUSTER_PEER_PORT`,
+`CLUSTER_NCCL_IFNAME`, `CLUSTER_HEAD_ADDR`). It runs on the head box because
+that `.env` is what it edits. It is honest about limits: SSH, Docker, the
+worker containers and node-exporter are verified; NCCL over the QSFP link is
+not verifiable until the cable is up and a model actually loads.
+
+Then restart the head stack with the cluster overlay and pick a cluster model:
+
+```sh
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.cluster.yml" scripts/patch.sh api
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.cluster.yml" \
+  scripts/swap-model.sh unsloth/Qwen3-235B-A22B-Instruct-2507-NVFP4
+```
+
+The overlay moves `vllm` onto the **host network** (Ray and NCCL negotiate
+dynamic ports between nodes; a bridge NAT breaks them), points api/worker at
+`http://host.docker.internal:8000`, and passes the peer's declared address
+through to the API.
+
+### How detection and the toggle behave
+
+Detection is **declared, never discovered**: nothing scans the network. The
+API's hardware profile reads `FAMILY_CFO_CLUSTER_PEER_HOST` / `_PORT` (set by
+the overlay from `.env`) and probes the peer's node-exporter. When the peer
+answers, catalog models with `min_nodes: 2` become offerable; when it doesn't
+(cable out, worker stopped), they are withheld — the single-node catalog is
+unaffected either way. `scripts/doctor.sh` mirrors the same probe in its
+advisory **Cluster** section (silent unless `CLUSTER_PEER_HOST` is set), and
+`scripts/swap-model.sh` refuses a cluster model outright until
+`scripts/setup-cluster.sh` has run.
+
+The cluster-tier models and their tool parsers:
+
+| Model | Tool parser |
+|---|---|
+| `unsloth/Qwen3-235B-A22B-Instruct-2507-NVFP4` | `hermes` |
+| `zai-org/GLM-4.5-Air-FP8` | `glm45` |
+| `RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic` | `llama3_json` |
+
+All three get `VLLM_EXTRA_ARGS=--tensor-parallel-size=2
+--distributed-executor-backend=ray` (the one `.env` variable allowed to carry
+spaces — see the `vllm` command comment in `docker-compose.yml`).
+
+### Troubleshooting
+
+- **`NCCL_SOCKET_IFNAME` must name the QSFP interface on BOTH nodes.** This is
+  the classic failure: left to autodetect, NCCL/Gloo bind the LAN NIC — loads
+  then time out or tokens crawl. `setup-cluster.sh --ifname` writes it to both
+  `.env` files; if the interface name differs between the boxes, edit the
+  worker's `~/family-cfo-worker/.env` by hand.
+- **Model load hangs at "waiting for resources"** — the Ray worker never
+  joined. On the worker: `docker compose -f docker-compose.worker.yml logs
+  ray-worker`. Usual causes: `CLUSTER_HEAD_ADDR` wrong, the QSFP link down, or
+  the head not yet restarted with the cluster overlay (its Ray head listens on
+  `:6379` only on the host network).
+- **Collective-ops errors at load** (`NCCL error`, mismatched protocol) —
+  image version skew. `docker compose pull` on both boxes, restart both.
+- **Peer shows unreachable in doctor/API but SSH works** — the probe uses the
+  QSFP link IP on purpose (health rides the cable the tensors ride), so a
+  working LAN with a dead link is still "not clustered".
+
+> **Cluster overlay gotcha — saved runtime configs.** Households that saved an
+> AI runtime config store the base URL (`http://vllm:8000`). Switching to the
+> cluster overlay moves vLLM to host networking, so those rows must be
+> repointed to `http://host.docker.internal:8000` (one UPDATE on
+> `ai_runtime_configs`, or re-save from the AI runtime page) — otherwise chat
+> reports the runtime unreachable while the deployment default works fine.

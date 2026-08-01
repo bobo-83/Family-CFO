@@ -45,6 +45,12 @@ final class RecognizerSpeechEngine: SpeechEngine {
         recognitionRequest = request
 
         let inputFormat = audioEngine.inputNode.outputFormat(forBus: 0)
+        // Same guard as AnalyzerSpeechEngine: a 0 Hz format means the mic
+        // route isn't live, and installTap with it raises an uncatchable
+        // ObjC exception (SIGABRT). Refuse recoverably instead.
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            throw SpeechEngineError.microphoneUnavailable
+        }
         // A leftover tap (from an interrupted/failed earlier session) would
         // crash Core Audio on install; removing when none exists is a no-op.
         audioEngine.inputNode.removeTap(onBus: 0)

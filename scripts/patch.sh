@@ -53,7 +53,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
+# COMPOSE_FILES resolves AFTER load_deploy_env (below) so a persisted value in
+# .deploy.env (e.g. the ADR 0071 cluster overlay) survives routine patches; a
+# real environment variable still outranks the file, and the plain default
+# applies only when neither says otherwise.
 
 # Services this script is allowed to rebuild. vllm and db are intentionally
 # excluded: rebuilding vllm would reload the model, and db must never be
@@ -78,6 +81,7 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
 load_deploy_env "$REPO_ROOT"
+COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 
 # How a target is routed: `ios` is the one reserved word and means the phone
 # (scripts/deploy-ios.sh, built here on the Mac). Everything else must name a

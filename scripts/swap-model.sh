@@ -24,15 +24,44 @@ COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ "$#" -ge 1 ] || die "usage: scripts/swap-model.sh <main-model> [vision-model|none]"
-MAIN="$1"
-VISION="${2:-}"
+# --cluster: serve THIS model tensor-parallel across the paired second box
+# (ADR 0071). min_nodes:2 catalog models imply it; any other model whose
+# estimate exceeds one node can request it (the app's apply does).
+CLUSTER_FLAG=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --cluster) CLUSTER_FLAG=1 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+[ "${#ARGS[@]}" -ge 1 ] || die "usage: scripts/swap-model.sh [--cluster] <main-model> [vision-model|none]"
+MAIN="${ARGS[0]}"
+VISION="${ARGS[1]:-}"
 
 [ -f .env ] || die ".env not found — deploy first (scripts/deploy.sh)."
+
+# Effective cluster mode: forced by min_nodes:2 models, or requested by flag.
+cluster_mode() { [ "$CLUSTER_FLAG" = "1" ] || is_cluster_model "$MAIN"; }
+
+# Cluster-tier catalog models (ADR 0071): min_nodes 2 — served tensor-parallel
+# across BOTH Sparks over the QSFP link, so they need the second box enrolled
+# (scripts/setup-cluster.sh) and the cluster compose overlay.
+is_cluster_model() {
+  case "$1" in
+    unsloth/Qwen3-235B-A22B-Instruct-2507-NVFP4 \
+    | zai-org/GLM-4.5-Air-FP8 \
+    | RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Tool parser by model family (must match what vLLM expects).
 parser_for() {
   case "$1" in
+    # GLM-4.5 family (incl. the cluster-tier GLM-4.5-Air-FP8, ADR 0071).
+    *GLM-4.5*|*glm-4.5*) echo "glm45" ;;
+    *MiniMax-M2*|*minimax-m2*) echo "minimax_m2" ;;
     *Llama*|*llama*) echo "llama3_json" ;;
     # Qwen3.5/3.6 and Qwen3-Coder emit XML-style tool calls; hermes silently
     # drops them (tool calls leak into the answer as <function=...> text).
@@ -45,6 +74,16 @@ parser_for() {
 # a 1-layer MTP head -> lossless speculative decoding, ~1.35x decode. MUST be
 # cleared for models without the head or vLLM crash-loops on startup.
 extra_args_for() {
+  # Cluster-tier models (ADR 0071): shard across both Sparks with Ray.
+  # VLLM_EXTRA_ARGS is the ONE variable allowed to carry spaces (single-quoted
+  # in .env — see the vllm command comment in docker-compose.yml).
+  if [ "$1" = "$MAIN" ] && cluster_mode; then
+    # --enforce-eager: CUDA-graph replay of FP8 MoE kernels crashed the
+    # worker rank on the first token (GLM-4.5 bring-up, 2026-07-31);
+    # eager mode costs ~10-15% latency and removes the failure mode.
+    echo "--tensor-parallel-size=2 --distributed-executor-backend=ray --enforce-eager"
+    return
+  fi
   case "$1" in
     *Qwen3.6-*A3B*|*qwen3.6-*a3b*)
       echo "--speculative-config '{\"method\":\"qwen3_5_mtp\",\"num_speculative_tokens\":2}'" ;;
@@ -106,8 +145,19 @@ set_env() { # set_env KEY VALUE — update in place or append
   fi
 }
 
+# A cluster-tier model without an enrolled second box would crash-loop at
+# startup waiting for a Ray worker that doesn't exist — refuse up front.
+if cluster_mode && ! grep -qE '^CLUSTER_PEER_HOST=.+' .env; then
+  die "'$MAIN' needs two nodes (ADR 0071) — enroll the second box first: scripts/setup-cluster.sh"
+fi
+
 set_env VLLM_MODEL "$MAIN"
 set_env VLLM_TOOL_PARSER "$(parser_for "$MAIN")"
+case "$MAIN" in
+  *GLM-4.5*|*glm-4.5*) set_env VLLM_REASONING_PARSER "glm45" ;;
+  *MiniMax-M2*|*minimax-m2*) set_env VLLM_REASONING_PARSER "minimax_m2" ;;
+  *) set_env VLLM_REASONING_PARSER "qwen3" ;;
+esac
 set_env VLLM_EXTRA_ARGS "$(extra_args_for "$MAIN")"
 
 scale_args=()
@@ -137,6 +187,13 @@ fi
 # combinations BEFORE touching containers.
 TOTAL_GB="$(total_memory_gb)"
 MAIN_WEIGHTS="$(estimate_weights_gb "$MAIN")"
+# TP=2 shards the weights evenly across both Sparks (ADR 0071), so the fit
+# check must budget PER NODE — against one node's memory the 235B-class
+# checkpoints would be refused even though the cluster serves them fine.
+if cluster_mode && [ "$MAIN_WEIGHTS" -gt 0 ]; then
+  MAIN_WEIGHTS=$(( (MAIN_WEIGHTS + 1) / 2 ))
+  log "Cluster model: budgeting per-node weights (~${MAIN_WEIGHTS}GB per Spark under TP=2)."
+fi
 MAIN_RESERVE=10   # 32k-context KV cache + runtime overhead
 VISION_RESERVE=5  # 8k-context describer overhead
 

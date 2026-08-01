@@ -1,0 +1,93 @@
+# Family CFO worker node — the SECOND DGX Spark of a two-Spark cluster
+# (ADR 0071).
+#
+#   docker compose -f docker-compose.worker.yml up -d
+#
+# This is the ENTIRE stack the worker box runs — it is NOT an overlay of
+# docker-compose.yml. The head box runs the full application stack; this box
+# contributes only its GPU (a Ray worker that the head's vLLM schedules
+# tensor-parallel shards onto) and a node-exporter the head's API probes
+# (FAMILY_CFO_CLUSTER_PEER_HOST/_PORT) to decide whether cluster-tier models
+# (min_nodes: 2 in the catalog) may be offered.
+#
+# Deployed by scripts/setup-cluster.sh, which also writes the .env this file
+# needs (CLUSTER_HEAD_ADDR, CLUSTER_NCCL_IFNAME). Both services use host
+# networking: Ray and NCCL negotiate ports dynamically across nodes, which
+# cannot cross a bridge NAT — and the node-exporter must be reachable from the
+# head on :9100.
+name: family-cfo-worker
+
+services:
+  # Joins the head's Ray cluster and blocks. MUST run the same image — and so
+  # the same Ray/vLLM/NCCL versions — as the head's vllm service: a version
+  # skew surfaces only at model load, as an opaque collective-ops failure.
+  ray-worker:
+    # family-cfo/vllm-cluster = upstream vllm-openai + Ray (which upstream
+    # does not ship). Built from docker/vllm-cluster/Dockerfile with BASE
+    # pinned to the same digest as the head's build.
+    image: family-cfo/vllm-cluster:latest
+    build:
+      context: ./vllm-cluster
+      args:
+        BASE: ${CLUSTER_VLLM_BASE:-vllm/vllm-openai:latest}
+    # The image's entrypoint is vLLM's API server, but this node serves
+    # nothing itself — the head's vLLM drives it through Ray. Shell form so
+    # the declared head address interpolates into one argv (same pattern as
+    # the head's vllm command).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        exec ray start --address='${CLUSTER_HEAD_ADDR:?set in .env}':6379 --block
+    environment:
+      # Pin NCCL/Gloo to the QSFP link interface — the SAME value on both
+      # nodes (the head gets it via docker-compose.cluster.yml). Left to
+      # autodetect they may pick the LAN NIC, and TP=2 loads crawl or time out.
+      NCCL_SOCKET_IFNAME: ${CLUSTER_NCCL_IFNAME:-}
+      GLOO_SOCKET_IFNAME: ${CLUSTER_NCCL_IFNAME:-}
+      # The ConnectX ports advertise RDMA, but the containers have no
+      # /dev/infiniband — NCCL must use its TCP socket transport over the
+      # QSFP link or the first collective hangs (observed: sample_tokens
+      # RPC timeout on the first token).
+      NCCL_IB_DISABLE: "1"
+      # Diagnostic knob: set NCCL_DEBUG_LEVEL=INFO in .env when chasing
+      # cross-node collective issues; WARN otherwise.
+      NCCL_DEBUG: ${NCCL_DEBUG_LEVEL:-WARN}
+      # Only needed for gated models — each node pulls the weights itself, so
+      # the token must match the head's.
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # Same GB10-class DeepGEMM FP8 assert as the head's vllm service
+      # ("Unknown SF transformation"); fallback FP8 kernels work.
+      VLLM_USE_DEEP_GEMM: ${VLLM_USE_DEEP_GEMM:-0}
+    network_mode: host
+    # vLLM's tensor-parallel workers need host IPC (shared memory), same as
+    # the head's vllm service.
+    ipc: host
+    volumes:
+      # Same volume name as the head stack's model cache: this node downloads
+      # a model's shard weights once and keeps them across restarts.
+      - model_cache:/root/.cache/huggingface
+    restart: unless-stopped
+    # Pass the host GPU into the container — identical stanza to the head's
+    # vllm service. Requires the NVIDIA Container Toolkit on this host too.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Host CPU/memory/disk, same image/config as the head stack's node-exporter,
+  # but on the host network so it listens on :9100 — THIS endpoint is what the
+  # head's API (and scripts/doctor.sh) probes to see the worker as healthy.
+  node-exporter:
+    image: prom/node-exporter:latest
+    command: ["--path.rootfs=/host"]
+    pid: host
+    network_mode: host
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
+
+volumes:
+  model_cache:

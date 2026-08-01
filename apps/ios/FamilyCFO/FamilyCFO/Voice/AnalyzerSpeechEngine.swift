@@ -62,6 +62,14 @@ final class AnalyzerSpeechEngine: SpeechEngine {
         try await analyzer.start(inputSequence: inputSequence)
 
         let inputFormat = audioEngine.inputNode.outputFormat(forBus: 0)
+        // A 0 Hz/0-channel format means the mic route isn't actually live
+        // (another app holds it, or a headset is mid-handshake). installTap
+        // with it raises an UNCATCHABLE ObjC exception — the crash a user hit
+        // on 2026-07-31 (AVFAudio CreateRecordingTap, SIGABRT) — so refuse
+        // here with a recoverable error instead.
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            throw SpeechEngineError.microphoneUnavailable
+        }
         guard let converter = AVAudioConverter(from: inputFormat, to: analyzerFormat) else {
             throw SpeechEngineError.onDeviceRecognitionUnavailable
         }

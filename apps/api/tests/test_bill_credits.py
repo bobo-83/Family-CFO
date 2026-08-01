@@ -26,7 +26,7 @@ async def test_credit_round_trips_with_monthly_and_yearly_rollups(
     headers = {"Authorization": f"Bearer {demo_token}"}
     bill_id = await _make_bill(demo_client, headers)
 
-    for statement_date, amount in (("2026-06-15", 9_589), ("2026-07-15", 11_566)):
+    for statement_date, amount in (("2026-06-15", 8_775), ("2026-07-15", 12_340)):
         recorded = await demo_client.post(
             f"/api/v1/bills/{bill_id}/credits",
             headers=headers,
@@ -41,15 +41,15 @@ async def test_credit_round_trips_with_monthly_and_yearly_rollups(
     listed = (await demo_client.get("/api/v1/bills/credits", headers=headers)).json()
     group = next(g for g in listed["bills"] if g["bill_id"] == bill_id)
     assert group["name"] == "Electric"
-    assert group["total"]["amount_minor"] == 21_155
+    assert group["total"]["amount_minor"] == 21_115
     # Newest statement first.
     assert [c["statement_date"] for c in group["credits"]] == ["2026-07-15", "2026-06-15"]
 
     months = {m["month"]: m["total"]["amount_minor"] for m in listed["monthly"]}
-    assert months["2026-07"] == 11_566
-    assert months["2026-06"] == 9_589
+    assert months["2026-07"] == 12_340
+    assert months["2026-06"] == 8_775
     years = {y["year"]: y["total"]["amount_minor"] for y in listed["yearly"]}
-    assert years[2026] == 21_155
+    assert years[2026] == 21_115
 
 
 @pytest.mark.anyio

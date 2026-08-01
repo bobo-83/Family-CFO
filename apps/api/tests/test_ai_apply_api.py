@@ -320,6 +320,7 @@ async def test_apply_collapses_duplicate_main_and_vision(demo_engine, monkeypatc
     assert calls["json"] == {
         "main_model": "Qwen/Qwen2.5-VL-32B-Instruct",
         "vision_model": None,
+        "cluster": False,
     }
     await client.aclose()
 
@@ -519,3 +520,74 @@ async def test_apply_repoints_every_household_on_the_shared_runtime(
     assert changed >= 1
     record = repository.get_ai_runtime_config(demo_engine, other.household_id)
     assert record.model == "Qwen/New-Model"
+
+
+@pytest.mark.anyio
+async def test_cluster_apply_refused_while_peer_unreachable(demo_engine, monkeypatch) -> None:
+    """ADR 0071: a TP=2 apply with the second box down would crash-loop."""
+    from family_cfo_api import ai_catalog
+
+    monkeypatch.setattr(ai_catalog, "cluster_peer_status", lambda: ("spark2", False))
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"main_model": "Qwen/Qwen2.5-72B-Instruct", "cluster": True},
+    )
+    assert resp.status_code == 409
+    assert "second box" in resp.json()["error"]["message"]
+
+
+@pytest.mark.anyio
+async def test_cluster_apply_forwards_the_flag(demo_engine, monkeypatch) -> None:
+    from family_cfo_api import ai_catalog
+
+    calls = {}
+
+    def fake_post(url, json=None, timeout=None):
+        calls["json"] = json
+        return httpx.Response(
+            202,
+            json={"state": "running", "main_model": json["main_model"], "vision_model": None},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(ai_catalog, "cluster_peer_status", lambda: ("spark2", True))
+    monkeypatch.setattr(ai_runtime_module.httpx, "post", fake_post)
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"main_model": "Qwen/Qwen2.5-72B-Instruct", "cluster": True},
+    )
+    assert resp.status_code == 202
+    assert calls["json"]["cluster"] is True
+
+
+@pytest.mark.anyio
+async def test_apply_refuses_a_photo_model_that_cannot_fit_its_slot(
+    demo_engine, monkeypatch
+) -> None:
+    """A describer bigger than the vision memory share crash-loops silently."""
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
+    monkeypatch.setattr(
+        ai_runtime_module,
+        "hardware_profile",
+        lambda: {"gpu_memory_gb": 121.0, "system_memory_gb": 121.0},
+    )
+    app = create_app(_settings(), engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    resp = await client.post(
+        "/api/v1/ai/runtime/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "main_model": "zai-org/GLM-4.5-Air-FP8",
+            "vision_model": "Qwen/Qwen2.5-VL-32B-Instruct",
+        },
+    )
+    assert resp.status_code == 422
+    assert "photo-model slot" in resp.json()["error"]["message"]

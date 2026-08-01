@@ -607,6 +607,10 @@ class CashOutlookResponse(BaseModel):
     # sell_rsus when the compensation profile declares RSU income, move_cash
     # otherwise — the deadline is the same, the instruction isn't (2026-07-26).
     runway_action: Literal["sell_rsus", "move_cash"] | None = None
+    # M-rsu-grants: with grants + a live quote, the shortfall translated into
+    # whole shares ("sell ≈ 12 XYZ by …"). Absent otherwise.
+    sell_units: int | None = None
+    sell_ticker: str | None = None
 
 
 class SpendingPlanResponse(BaseModel):
@@ -752,6 +756,65 @@ class ExpectedIncomeEvent(BaseModel):
     date: date
     label: str
     amount: Money
+
+
+# --- M-rsu-grants: grant-based RSU tracking ----------------------------------
+
+
+class RsuVestEvent(BaseModel):
+    """One vest tranche — derived from the grant, then user-editable."""
+
+    id: str
+    grant_id: str
+    vest_date: date
+    units: int
+    # units × the cached live quote; absent until a quote exists.
+    value: Money | None = None
+
+
+class RsuGrant(BaseModel):
+    id: str
+    earner_id: str
+    ticker: str
+    units: int
+    grant_date: date
+    vest_years: int
+    frequency: Literal["monthly", "quarterly", "semiannual", "annual"]
+    events: list[RsuVestEvent]
+
+
+class StockQuote(BaseModel):
+    ticker: str
+    price: Money
+    as_of: datetime
+    source: str
+
+
+class RsuGrantsResponse(BaseModel):
+    grants: list[RsuGrant]
+    quotes: list[StockQuote]
+    # The household's next 12 months of vests at the live quote — the figure
+    # that replaces the flat rsu_annual_minor. Absent without grants + a quote.
+    derived_annual: Money | None = None
+
+
+class RsuGrantCreateRequest(BaseModel):
+    earner_id: str
+    ticker: str = Field(min_length=1, max_length=8)
+    units: int = Field(gt=0)
+    grant_date: date
+    vest_years: int = Field(default=2, ge=1, le=10)
+    frequency: Literal["monthly", "quarterly", "semiannual", "annual"] = "quarterly"
+
+
+class RsuVestEventCreateRequest(BaseModel):
+    vest_date: date
+    units: int = Field(gt=0)
+
+
+class RsuVestEventUpdateRequest(BaseModel):
+    vest_date: date | None = None
+    units: int | None = Field(default=None, gt=0)
 
 
 class IncomeProfile(BaseModel):
@@ -1095,6 +1158,9 @@ class AiRuntimeConfig(BaseModel):
     base_url: str
     model: str
     enabled: bool = True
+    # M-cluster (ADR 0071): use the paired second box for larger models. Only
+    # meaningful while the hardware profile reports the peer reachable.
+    cluster_enabled: bool = False
 
 
 class AiRuntimeStatus(BaseModel):
@@ -1134,6 +1200,9 @@ class AiModelInfo(BaseModel):
     # M71: HF release timestamp (ISO); None for curated entries (hand-vetted,
     # treated as modern by the ranking).
     created_at: str | None = None
+    # M-cluster (ADR 0071): 2 = offered only with the second box reachable and
+    # the household's cluster toggle on.
+    min_nodes: int = 1
 
 
 class AiModelCatalog(BaseModel):
@@ -1177,6 +1246,10 @@ class AiApplyRequest(BaseModel):
 
     main_model: str
     vision_model: str | None = None
+    # ADR 0071: serve tensor-parallel across the paired second box. The client
+    # sets this for any model whose estimate exceeds one node (the UI owns fit
+    # math); the server verifies the peer is actually reachable first.
+    cluster: bool = False
 
 
 class AiSwapStatus(BaseModel):
@@ -1193,6 +1266,11 @@ class AiHardwareProfile(BaseModel):
     system_memory_gb: float | None = None
     disk_free_gb: float
     source: str
+    # M-cluster (ADR 0071): the enrolled second box, probed automatically.
+    cluster_peer_host: str | None = None
+    cluster_peer_reachable: bool = False
+    # Combined model budget when the peer is reachable (2× one node).
+    cluster_memory_gb: float | None = None
 
 
 class ImportCreateRequest(BaseModel):

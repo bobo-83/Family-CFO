@@ -227,6 +227,8 @@ final class BillsViewModel {
                 try await api.recordBillCredit(
                     billID: created.id, amountMinor: creditMinor, currency: currency)
                 credits = try await api.billCredits()
+                syncResult = Self.creditRecordedMessage(
+                    creditMinor: creditMinor, currency: currency, billName: trimmed)
             }
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -291,12 +293,24 @@ final class BillsViewModel {
             if let creditMinor, creditMinor > 0 {
                 try await api.recordBillCredit(
                     billID: bill.id, amountMinor: creditMinor, currency: currency)
+                syncResult = Self.creditRecordedMessage(
+                    creditMinor: creditMinor, currency: currency, billName: trimmed)
             }
             await load()
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
+    }
+
+    /// Saving a scanned credit statement must never be silent (user report,
+    /// 2026-07-28): say what was recorded and where to find it.
+    static func creditRecordedMessage(
+        creditMinor: Int64, currency: String, billName: String
+    ) -> String {
+        let amount = Components.Schemas.Money(amountMinor: creditMinor, currency: currency)
+        return
+            "Recorded a \(amount.formattedExact) credit on \(billName) — see Manage bills → Statement credits."
     }
 
     func deleteBill(_ bill: Components.Schemas.Bill) async {

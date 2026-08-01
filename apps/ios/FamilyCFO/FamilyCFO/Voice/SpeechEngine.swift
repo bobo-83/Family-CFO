@@ -28,9 +28,12 @@ protocol SpeechEngine: AnyObject {
 enum SpeechEngineError: Error, LocalizedError {
     case onDeviceRecognitionUnavailable
     case modelNotReady
+    case microphoneUnavailable
 
     var errorDescription: String? {
         switch self {
+        case .microphoneUnavailable:
+            return "The microphone isn't available right now — another app may be using it, or a headset is mid-connect. Try again in a moment."
         case .onDeviceRecognitionUnavailable:
             return "On-device speech recognition isn't available for this language on this phone — and Family CFO never sends audio off the device."
         case .modelNotReady:

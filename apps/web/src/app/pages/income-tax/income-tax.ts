@@ -10,7 +10,11 @@ import type {
   Category,
   IncomeAnalysisResponse,
   IncomeAnalysisTransaction,
+  IncomeEarner,
   IncomeEarnerCreateRequest,
+  RsuGrant,
+  RsuGrantsResponse,
+  RsuVestEvent,
   Transaction,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
@@ -82,15 +86,18 @@ export class IncomeTax {
     this.treatedAsNet = data.tax.income_treated_as_net;
     this.state = data.tax.state ?? '';
     // ADR 0049: the suspected-income review queue + categories load alongside.
-    const [review, cats] = await Promise.all([
+    // M-rsu-grants: grant schedules + live quotes load with them.
+    const [review, cats, grants] = await Promise.all([
       this.api.listTransactionsForReview('suspected_income'),
       this.api.listCategories(),
+      this.api.listRsuGrants(),
     ]);
     const items = review.data?.transactions ?? [];
     this.suspectedIncome.set(
       [...items].sort((a, b) => Math.abs(b.amount.amount_minor) - Math.abs(a.amount.amount_minor)),
     );
     this.categories.set(cats.data?.categories ?? []);
+    this.rsuGrants.set(grants.data ?? null);
   }
 
   // ADR 0049: confirm a suspected transfer really is income — refile it under the
@@ -337,6 +344,151 @@ export class IncomeTax {
       this.earnerForm.w2Withheld = data.federal_withheld_minor / 100;
     if (data.employer && !this.earnerForm.label) this.earnerForm.label = data.employer;
     this.scanNote.set(data.note);
+  }
+
+  // --- M-rsu-grants: grant-based RSU schedules priced by a live quote ---
+  protected readonly rsuGrants = signal<RsuGrantsResponse | null>(null);
+  protected readonly quoteBusy = signal(false);
+
+  protected grantForm: {
+    earnerId: string;
+    ticker: string;
+    units: number | null;
+    grantDate: string;
+    vestYears: number | null;
+    frequency: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+  } = this.emptyGrantForm();
+
+  private emptyGrantForm() {
+    return {
+      earnerId: '',
+      ticker: '',
+      units: null,
+      grantDate: '',
+      vestYears: 2,
+      frequency: 'quarterly' as const,
+    };
+  }
+
+  protected earners(): IncomeEarner[] {
+    return this.analysis()?.profile?.earners ?? [];
+  }
+
+  protected vestFrequencyLabel(frequency: RsuGrant['frequency']): string {
+    return (
+      { monthly: 'monthly', quarterly: 'quarterly', semiannual: 'twice a year', annual: 'annually' }[
+        frequency
+      ] ?? frequency
+    );
+  }
+
+  protected async refreshQuotes(): Promise<void> {
+    if (this.quoteBusy()) {
+      return;
+    }
+    this.quoteBusy.set(true);
+    this.actionError.set(null);
+    const { data, error } = await this.api.refreshRsuQuotes();
+    this.quoteBusy.set(false);
+    if (error || !data) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to refresh the share price.'));
+      return;
+    }
+    this.rsuGrants.set(data);
+  }
+
+  protected async addGrant(): Promise<void> {
+    const f = this.grantForm;
+    if (this.busy() || !f.earnerId || !f.ticker.trim() || !f.units || !f.grantDate) {
+      return;
+    }
+    this.busy.set('grant');
+    this.actionError.set(null);
+    const { error } = await this.api.createRsuGrant({
+      earner_id: f.earnerId,
+      ticker: f.ticker.trim().toUpperCase(),
+      units: f.units,
+      grant_date: f.grantDate,
+      vest_years: f.vestYears ?? 2,
+      frequency: f.frequency,
+    });
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to add the grant.'));
+      return;
+    }
+    this.grantForm = this.emptyGrantForm();
+    // The grant changes the derived RSU annual value server-side — reload
+    // the analysis (and the grants alongside it).
+    await this.load();
+  }
+
+  protected async removeGrant(grantId: string): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(grantId);
+    this.actionError.set(null);
+    const { error } = await this.api.deleteRsuGrant(grantId);
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to delete the grant.'));
+      return;
+    }
+    await this.load();
+  }
+
+  protected async addVestEvent(grant: RsuGrant, date: string, units: string): Promise<void> {
+    const parsedUnits = Number(units);
+    if (this.busy() || !date || !units || !Number.isFinite(parsedUnits) || parsedUnits <= 0) {
+      return;
+    }
+    this.busy.set(grant.id);
+    this.actionError.set(null);
+    const { error } = await this.api.addRsuVestEvent(grant.id, {
+      vest_date: date,
+      units: parsedUnits,
+    });
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to add the vest.'));
+      return;
+    }
+    await this.load();
+  }
+
+  protected async saveVestEvent(event: RsuVestEvent, date: string, units: string): Promise<void> {
+    const parsedUnits = Number(units);
+    if (this.busy() || !date || !units || !Number.isFinite(parsedUnits) || parsedUnits <= 0) {
+      return;
+    }
+    this.busy.set(event.id);
+    this.actionError.set(null);
+    const { error } = await this.api.updateRsuVestEvent(event.id, {
+      vest_date: date,
+      units: parsedUnits,
+    });
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to save the vest.'));
+      return;
+    }
+    await this.load();
+  }
+
+  protected async removeVestEvent(eventId: string): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(eventId);
+    this.actionError.set(null);
+    const { error } = await this.api.deleteRsuVestEvent(eventId);
+    this.busy.set(null);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to delete the vest.'));
+      return;
+    }
+    await this.load();
   }
 
   protected async saveSettings(): Promise<void> {

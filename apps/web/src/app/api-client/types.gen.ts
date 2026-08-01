@@ -272,6 +272,11 @@ export type CashOutlookResponse = {
      * What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
      */
     runway_action?: 'sell_rsus' | 'move_cash' | null;
+    /**
+     * M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
+     */
+    sell_units?: number | null;
+    sell_ticker?: string | null;
 };
 
 /**
@@ -491,6 +496,66 @@ export type ExpectedIncomeEvent = {
     date: string;
     label: string;
     amount: Money;
+};
+
+/**
+ * One vest tranche — derived from the grant, then user-editable.
+ */
+export type RsuVestEvent = {
+    id: string;
+    grant_id: string;
+    vest_date: string;
+    units: number;
+    /**
+     * units × the cached live quote; absent until a quote exists.
+     */
+    value?: Money;
+};
+
+export type RsuGrant = {
+    id: string;
+    earner_id: string;
+    ticker: string;
+    units: number;
+    grant_date: string;
+    vest_years: number;
+    frequency: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+    events: Array<RsuVestEvent>;
+};
+
+export type StockQuote = {
+    ticker: string;
+    price: Money;
+    as_of: string;
+    source: string;
+};
+
+export type RsuGrantsResponse = {
+    grants: Array<RsuGrant>;
+    quotes: Array<StockQuote>;
+    /**
+     * The household's next 12 months of vests at the live quote — the figure that replaces the flat RSU annual value. Absent without grants + a quote.
+     */
+    derived_annual?: Money;
+};
+
+export type RsuGrantCreateRequest = {
+    earner_id: string;
+    ticker: string;
+    units: number;
+    grant_date: string;
+    vest_years?: number;
+    frequency?: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+};
+
+export type RsuVestEventCreateRequest = {
+    vest_date: string;
+    units: number;
+};
+
+export type RsuVestEventUpdateRequest = {
+    vest_date?: string;
+    units?: number;
 };
 
 /**
@@ -1663,6 +1728,10 @@ export type AiRuntimeConfig = {
     base_url: string;
     model: string;
     enabled?: boolean;
+    /**
+     * ADR 0071: use the paired second box for larger models. Only meaningful while the hardware profile reports the peer reachable.
+     */
+    cluster_enabled?: boolean;
 };
 
 export type AiRuntimeStatus = {
@@ -1694,6 +1763,10 @@ export type AiModelInfo = {
     est_disk_gb: number;
     tool_parser?: string | null;
     supports_vision: boolean;
+    /**
+     * ADR 0071: 2 = offered only with the second box reachable and the cluster toggle on.
+     */
+    min_nodes?: number;
     /**
      * Hugging Face release timestamp (M71); absent for curated entries, which the picker treats as modern (hand-vetted).
      *
@@ -1841,6 +1914,10 @@ export type SystemAdminGrantRequest = {
 
 export type AiApplyRequest = {
     main_model: string;
+    /**
+     * ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
+     */
+    cluster?: boolean;
     vision_model?: string | null;
 };
 
@@ -1856,6 +1933,15 @@ export type AiHardwareProfile = {
     system_memory_gb?: number | null;
     disk_free_gb: number;
     source: string;
+    /**
+     * ADR 0071: the enrolled second box, probed automatically.
+     */
+    cluster_peer_host?: string | null;
+    cluster_peer_reachable?: boolean;
+    /**
+     * Combined model budget when the peer is reachable (2x one node).
+     */
+    cluster_memory_gb?: number | null;
 };
 
 export type GetHealthData = {
@@ -4115,6 +4201,233 @@ export type UpdateIncomeTaxSettingsResponses = {
 };
 
 export type UpdateIncomeTaxSettingsResponse = UpdateIncomeTaxSettingsResponses[keyof UpdateIncomeTaxSettingsResponses];
+
+export type ListRsuGrantsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/income/rsu-grants';
+};
+
+export type ListRsuGrantsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListRsuGrantsError = ListRsuGrantsErrors[keyof ListRsuGrantsErrors];
+
+export type ListRsuGrantsResponses = {
+    /**
+     * Grants, schedules, quotes, and the derived annual value
+     */
+    200: RsuGrantsResponse;
+};
+
+export type ListRsuGrantsResponse = ListRsuGrantsResponses[keyof ListRsuGrantsResponses];
+
+export type CreateRsuGrantData = {
+    body: RsuGrantCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/income/rsu-grants';
+};
+
+export type CreateRsuGrantErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type CreateRsuGrantError = CreateRsuGrantErrors[keyof CreateRsuGrantErrors];
+
+export type CreateRsuGrantResponses = {
+    /**
+     * Grant created (full grants response returned)
+     */
+    201: RsuGrantsResponse;
+};
+
+export type CreateRsuGrantResponse = CreateRsuGrantResponses[keyof CreateRsuGrantResponses];
+
+export type DeleteRsuGrantData = {
+    body?: never;
+    path: {
+        grant_id: string;
+    };
+    query?: never;
+    url: '/income/rsu-grants/{grant_id}';
+};
+
+export type DeleteRsuGrantErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteRsuGrantError = DeleteRsuGrantErrors[keyof DeleteRsuGrantErrors];
+
+export type DeleteRsuGrantResponses = {
+    /**
+     * Grant deleted
+     */
+    204: void;
+};
+
+export type DeleteRsuGrantResponse = DeleteRsuGrantResponses[keyof DeleteRsuGrantResponses];
+
+export type AddRsuVestEventData = {
+    body: RsuVestEventCreateRequest;
+    path: {
+        grant_id: string;
+    };
+    query?: never;
+    url: '/income/rsu-grants/{grant_id}/vest-events';
+};
+
+export type AddRsuVestEventErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type AddRsuVestEventError = AddRsuVestEventErrors[keyof AddRsuVestEventErrors];
+
+export type AddRsuVestEventResponses = {
+    /**
+     * Vest event added
+     */
+    201: RsuVestEvent;
+};
+
+export type AddRsuVestEventResponse = AddRsuVestEventResponses[keyof AddRsuVestEventResponses];
+
+export type DeleteRsuVestEventData = {
+    body?: never;
+    path: {
+        event_id: string;
+    };
+    query?: never;
+    url: '/income/rsu-vest-events/{event_id}';
+};
+
+export type DeleteRsuVestEventErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteRsuVestEventError = DeleteRsuVestEventErrors[keyof DeleteRsuVestEventErrors];
+
+export type DeleteRsuVestEventResponses = {
+    /**
+     * Vest event removed
+     */
+    204: void;
+};
+
+export type DeleteRsuVestEventResponse = DeleteRsuVestEventResponses[keyof DeleteRsuVestEventResponses];
+
+export type UpdateRsuVestEventData = {
+    body: RsuVestEventUpdateRequest;
+    path: {
+        event_id: string;
+    };
+    query?: never;
+    url: '/income/rsu-vest-events/{event_id}';
+};
+
+export type UpdateRsuVestEventErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateRsuVestEventError = UpdateRsuVestEventErrors[keyof UpdateRsuVestEventErrors];
+
+export type UpdateRsuVestEventResponses = {
+    /**
+     * Vest event updated
+     */
+    200: RsuVestEvent;
+};
+
+export type UpdateRsuVestEventResponse = UpdateRsuVestEventResponses[keyof UpdateRsuVestEventResponses];
+
+export type RefreshRsuQuotesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/income/rsu-quotes/refresh';
+};
+
+export type RefreshRsuQuotesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type RefreshRsuQuotesError = RefreshRsuQuotesErrors[keyof RefreshRsuQuotesErrors];
+
+export type RefreshRsuQuotesResponses = {
+    /**
+     * Refreshed grants response
+     */
+    200: RsuGrantsResponse;
+};
+
+export type RefreshRsuQuotesResponse = RefreshRsuQuotesResponses[keyof RefreshRsuQuotesResponses];
 
 export type CreateIncomeEarnerData = {
     body: IncomeEarnerCreateRequest;

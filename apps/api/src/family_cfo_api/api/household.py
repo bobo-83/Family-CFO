@@ -552,6 +552,27 @@ async def get_cash_outlook(
     def money(minor: int) -> MoneySchema:
         return MoneySchema(amount_minor=minor, currency=currency)
 
+    # ADR 0069 + M-rsu-grants: the sell-by instruction, and — with grants and a
+    # live quote — the shortfall translated into whole shares to sell.
+    runway_action = None
+    sell_units = None
+    sell_ticker = None
+    if outlook.sell_by_date is not None:
+        from family_cfo_api import rsu_service
+
+        profiles = rsu_service.effective_income_profiles(engine, session.household_id)
+        runway_action = (
+            "sell_rsus" if any(p.rsu_annual_minor > 0 for p in profiles) else "move_cash"
+        )
+        if runway_action == "sell_rsus" and outlook.first_shortfall_date is not None:
+            valuation = rsu_service.load_valuation(engine, session.household_id)
+            grant = valuation.grants[0] if valuation.grants else None
+            quote = valuation.quotes.get(grant.ticker) if grant else None
+            if quote and quote.price_minor > 0:
+                shortfall_minor = -outlook.lowest_minor
+                sell_units = -(-shortfall_minor // quote.price_minor)  # ceil
+                sell_ticker = grant.ticker
+
     return CashOutlookResponse(
         starting_cash=money(outlook.starting_cash_minor),
         events=[
@@ -579,18 +600,9 @@ async def get_cash_outlook(
             money(-outlook.lowest_minor) if outlook.first_shortfall_date is not None else None
         ),
         sell_by_date=outlook.sell_by_date,
-        runway_action=(
-            (
-                "sell_rsus"
-                if any(
-                    p.rsu_annual_minor > 0
-                    for p in repository.list_income_profiles(engine, session.household_id)
-                )
-                else "move_cash"
-            )
-            if outlook.sell_by_date is not None
-            else None
-        ),
+        runway_action=runway_action,
+        sell_units=sell_units,
+        sell_ticker=sell_ticker,
     )
 
 

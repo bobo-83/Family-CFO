@@ -370,6 +370,107 @@
   }
 }
 
+// --- M-rsu-grants: grant-based RSU schedules priced by a live quote ---
+.rsu-quotes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  max-width: 44rem;
+  font-size: 0.9rem;
+}
+
+.rsu-derived {
+  max-width: 44rem;
+  background: rgba(27, 127, 75, 0.08);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.rsu-grant {
+  background: var(--mat-sys-surface-container-low, white);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  box-shadow: var(--mat-sys-level1, 0 1px 4px rgba(0, 0, 0, 0.08));
+  margin-bottom: 0.5rem;
+  max-width: 44rem;
+}
+
+.rsu-grant__summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.35rem 0;
+  list-style: none;
+}
+
+.rsu-grant__name {
+  font-weight: 600;
+}
+
+.rsu-grant__meta {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #5b6472;
+}
+
+.rsu-grant__delete,
+.rsu-vests__delete {
+  --mdc-text-button-label-text-color: var(--mat-sys-error, #b00020);
+}
+
+.rsu-vests {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.rsu-vests__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid #eef0f3;
+  font-size: 0.9rem;
+
+  input {
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--mat-sys-outline, #ccd2da);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.9rem;
+    background: transparent;
+    color: inherit;
+  }
+}
+
+.rsu-vests__units {
+  width: 6rem;
+}
+
+.rsu-vests__value {
+  flex: 1;
+  text-align: right;
+  font-weight: 600;
+}
+
+.rsu-fallback-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8a6d1a;
+  background: #fff7e6;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.rsu-grant-form__ticker {
+  text-transform: uppercase;
+}
+
 // ADR 0049: suspected-income review — a green "confirm this is income" tag.
 .suspected-badge {
   display: inline-block;

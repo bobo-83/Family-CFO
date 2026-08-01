@@ -68,9 +68,11 @@ function analysis(overrides: Record<string, unknown> = {}) {
 function configure(apiMock: Record<string, unknown>, role: string) {
   // ADR 0049: load() also pulls the suspected-income review queue + categories;
   // default them to empty so existing tests needn't declare them.
+  // M-rsu-grants: same for the grants list.
   const withDefaults = {
     listTransactionsForReview: vi.fn().mockResolvedValue(response({ transactions: [] })),
     listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
+    listRsuGrants: vi.fn().mockResolvedValue(response(null)),
     ...apiMock,
   };
   TestBed.configureTestingModule({
@@ -361,6 +363,62 @@ describe('IncomeTax', () => {
     expect(host.textContent).toContain('withhold shares for taxes at vest');
     expect(host.textContent).toContain('RSU value (USD/yr, pre-tax)');
     expect(host.textContent).toContain('pre-tax (gross) amounts');
+  });
+
+  it('renders RSU grants with the live quote and derived annual value (M-rsu-grants)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),
+      listRsuGrants: vi.fn().mockResolvedValue(
+        response({
+          grants: [
+            {
+              id: 'g1',
+              earner_id: 'e1',
+              ticker: 'XYZ',
+              units: 800,
+              grant_date: '2025-07-15',
+              vest_years: 2,
+              frequency: 'quarterly',
+              events: [
+                {
+                  id: 'v1',
+                  grant_id: 'g1',
+                  vest_date: '2026-08-15',
+                  units: 100,
+                  value: { amount_minor: 35_000_000, currency: 'USD' },
+                },
+                { id: 'v2', grant_id: 'g1', vest_date: '2026-11-15', units: 100 },
+              ],
+            },
+          ],
+          quotes: [
+            {
+              ticker: 'XYZ',
+              price: { amount_minor: 350_000, currency: 'USD' },
+              as_of: '2026-07-25',
+              source: 'stub',
+            },
+          ],
+          derived_annual: { amount_minor: 140_000_000, currency: 'USD' },
+        }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // The grants settle on a later tick than the analysis (Promise.all chain).
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('RSU grants');
+    expect(host.textContent).toContain('800 XYZ');
+    expect(host.textContent).toContain('vests quarterly over 2 years');
+    expect(host.textContent).toContain('USD 3,500.00'); // live quote
+    expect(host.textContent).toContain('USD 1,400,000.00'); // derived annual
   });
 
   it('saves tax settings and recalculates', async () => {

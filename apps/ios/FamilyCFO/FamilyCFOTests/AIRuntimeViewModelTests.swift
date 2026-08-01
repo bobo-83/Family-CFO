@@ -12,8 +12,11 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
     var hardwareResult = Components.Schemas.AiHardwareProfile(
         gpuMemoryGb: 100, systemMemoryGb: 128, diskFreeGb: 500, source: "test")
     var applyStates: [Components.Schemas.AiSwapStatus] = []
+    var configResult = Components.Schemas.AiRuntimeConfig(
+        provider: .vllm, baseUrl: "http://vllm:8000", model: "Qwen/Current", enabled: true)
     private(set) var appliedMain: String?
     private(set) var appliedVision: String?
+    private(set) var appliedCluster: Bool?
 
     nonisolated func status() async throws -> Components.Schemas.AiRuntimeStatus {
         await MainActor.run { statusResult }
@@ -24,6 +27,17 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
     nonisolated func hardware() async throws -> Components.Schemas.AiHardwareProfile {
         await MainActor.run { hardwareResult }
     }
+    nonisolated func runtimeConfig() async throws -> Components.Schemas.AiRuntimeConfig {
+        await MainActor.run { configResult }
+    }
+    nonisolated func updateRuntimeConfig(_ config: Components.Schemas.AiRuntimeConfig) async throws
+        -> Components.Schemas.AiRuntimeConfig
+    {
+        await MainActor.run {
+            configResult = config
+            return configResult
+        }
+    }
     nonisolated func search(query: String) async throws -> [Components.Schemas.AiModelInfo] {
         await MainActor.run { catalogResult.filter { $0.label.contains(query) } }
     }
@@ -32,12 +46,13 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
         guard let info else { throw APIError.server(404) }
         return Components.Schemas.AiModelDetail(info: info, downloads: 1000, likes: 10)
     }
-    nonisolated func apply(mainModel: String, visionModel: String?) async throws
+    nonisolated func apply(mainModel: String, visionModel: String?, cluster: Bool) async throws
         -> Components.Schemas.AiSwapStatus
     {
         await MainActor.run {
             appliedMain = mainModel
             appliedVision = visionModel
+            appliedCluster = cluster
             return applyStates.first
                 ?? Components.Schemas.AiSwapStatus(state: .succeeded, mainModel: mainModel)
         }
@@ -97,6 +112,50 @@ struct AIRuntimeViewModelTests {
         // The killer regression: passing nil would silently DISABLE photo scans.
         #expect(api.appliedVision == "Qwen/Vision")
         #expect(vm.applyState?.state == .succeeded)
+    }
+
+    @Test func clusterActiveMovesTooBigModelsToTheClusterListAndAppliesWithCluster() async {
+        let api = MockAIRuntimeAPI()  // 100 GB single-box budget
+        api.hardwareResult = .init(
+            gpuMemoryGb: 100, systemMemoryGb: 128, diskFreeGb: 500, source: "test",
+            clusterPeerHost: "spark-2.local", clusterPeerReachable: true, clusterMemoryGb: 243)
+        api.configResult.clusterEnabled = true
+        api.catalogResult = [model("small", memGb: 40), model("Qwen/Big-72B", memGb: 145)]
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+
+        // A min_nodes==1 model that is too big for one box is OFFERED as a
+        // cluster deployment: cluster list, combined-budget verdict, and the
+        // apply carries cluster: true.
+        #expect(vm.clusterModels.map(\.id) == ["Qwen/Big-72B"])
+        #expect(vm.singleNodeModels.map(\.id) == ["small"])
+        #expect(vm.fit(of: api.catalogResult[1]) == .fits)  // 145 vs 243 combined
+
+        await vm.apply(api.catalogResult[1])
+        #expect(api.appliedMain == "Qwen/Big-72B")
+        #expect(api.appliedCluster == true)
+
+        await vm.apply(api.catalogResult[0])
+        #expect(api.appliedCluster == false)  // single-box applies never cluster
+    }
+
+    @Test func clusterInactiveKeepsTodaysSingleBoxBehavior() async {
+        let api = MockAIRuntimeAPI()  // 100 GB budget, no cluster fields
+        var big = model("Qwen/Big-72B", memGb: 145)
+        api.catalogResult = [big]
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+
+        #expect(vm.clusterModels.isEmpty)
+        #expect(vm.singleNodeModels.map(\.id) == ["Qwen/Big-72B"])
+        #expect(vm.fit(of: big) == .tooBig)  // honest single-box verdict
+
+        // min_nodes >= 2 entries stay hidden entirely while clustering is off.
+        big.minNodes = 2
+        api.catalogResult = [big]
+        await vm.load()
+        #expect(vm.singleNodeModels.isEmpty)
+        #expect(vm.clusterModels.isEmpty)
     }
 
     @Test func statusLineReportsServedModel() async {

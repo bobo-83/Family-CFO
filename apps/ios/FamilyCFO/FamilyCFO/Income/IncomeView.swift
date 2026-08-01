@@ -113,6 +113,10 @@ struct IncomeView: View {
                 Text("Scan a W-2 to prefill an earner — or type the figures in by hand on the same screen. Swipe an earner to delete it.")
             }
 
+            // M-rsu-grants: grants with vest schedules, the live quote, and the
+            // derived next-12-months value.
+            RsuGrantsSection(viewModel: viewModel)
+
             if let errorMessage = viewModel.errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .font(.caption)

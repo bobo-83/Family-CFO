@@ -73,7 +73,7 @@ def test_income_splits_received_and_projected(demo_engine: Engine) -> None:
 
 def test_left_is_income_minus_spent_minus_committed(demo_engine: Engine) -> None:
     checking = _checking(demo_engine)
-    _txn(demo_engine, checking, TODAY - timedelta(days=1), -12_345, "Costco")
+    _txn(demo_engine, checking, TODAY, -12_345, "Costco")
     # An unpaid bill due at month end is committed.
     repository.create_bill(
         demo_engine, HH, name="Plan Utility", amount_minor=15_000, currency="USD",
@@ -128,7 +128,7 @@ def test_cards_never_double_count(demo_engine: Engine) -> None:
     repository.record_account_balance(demo_engine, card.id, -50_000)
     # A charge ON the card is spending; the card's payment must not appear in
     # any committed term (its amount is the charges, already counted).
-    _txn(demo_engine, card.id, TODAY - timedelta(days=1), -50_000, "Restaurant")
+    _txn(demo_engine, card.id, TODAY, -50_000, "Restaurant")
 
     plan = _plan(demo_engine)
     baseline_spent = 12_000 + (5_500 if TODAY - timedelta(days=3) >= MONTH_START else 0)

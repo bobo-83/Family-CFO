@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import type {
   Bill as BillDto,
   BillCreditsResponse,
+  Money,
   BillSuggestion,
   BillUpdateSuggestion,
   PaymentTimelineItem,
@@ -273,6 +274,13 @@ export class Bills {
   } | null>(null);
 
   protected readonly creditBusy = signal(false);
+
+  // "USD 115.66 in credits" on the bill's own row — the money owed back
+  // belongs on the bill, not only in the Statement credits section.
+  protected creditTotalFor(billId: string): Money | null {
+    const group = this.credits()?.bills.find((g) => g.bill_id === billId);
+    return group && group.total.amount_minor > 0 ? group.total : null;
+  }
 
   protected async recordScannedCredit(): Promise<void> {
     const pending = this.scannedCredit();

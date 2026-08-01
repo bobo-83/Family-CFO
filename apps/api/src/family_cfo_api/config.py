@@ -10,6 +10,16 @@ DEFAULT_BACKUP_DIR = "./data/backups"
 DEFAULT_BACKUP_RETENTION_COUNT = 7
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -54,6 +64,9 @@ class Settings:
     ai_vision_enabled: bool = False
     ai_vision_base_url: str = "http://vllm-vision:8000"
     ai_vision_model: str = ""
+    # The dedicated describer's share of one node's memory (mirrors the
+    # compose VLLM_VISION_GPU_FRACTION so apply can fit-check the slot).
+    vision_gpu_fraction: float = 0.12
     # SSRF guard: base_urls a household may point its AI runtime at. Empty means
     # "just the deployment default" (ai_default_base_url) — see ADR 0010.
     ai_allowed_base_urls: tuple[str, ...] = ()
@@ -129,6 +142,9 @@ class Settings:
             ai_vision_enabled=_env_bool("FAMILY_CFO_AI_VISION_ENABLED", cls.ai_vision_enabled),
             ai_vision_base_url=os.getenv("FAMILY_CFO_AI_VISION_BASE_URL", cls.ai_vision_base_url),
             ai_vision_model=os.getenv("FAMILY_CFO_AI_VISION_MODEL", cls.ai_vision_model),
+            vision_gpu_fraction=_env_float(
+                "FAMILY_CFO_VISION_GPU_FRACTION", cls.vision_gpu_fraction
+            ),
             ai_allowed_base_urls=_env_csv("FAMILY_CFO_AI_ALLOWED_BASE_URLS"),
             auth_rate_limit_enabled=_env_bool(
                 "FAMILY_CFO_AUTH_RATE_LIMIT_ENABLED", cls.auth_rate_limit_enabled

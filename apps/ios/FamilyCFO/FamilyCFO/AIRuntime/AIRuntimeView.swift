@@ -27,6 +27,7 @@ struct AIRuntimeView: View {
                 }
             }
             hardwareSection
+            clusterModelsSection
             modelsSection
         }
         .navigationTitle("AI runtime")
@@ -93,6 +94,7 @@ struct AIRuntimeView: View {
                     LabeledContent("Memory for models", value: "\(Int(budget)) GB")
                 }
                 LabeledContent("Free disk", value: "\(Int(hardware.diskFreeGb)) GB")
+                clusterRows
             } header: {
                 Text("This box")
             } footer: {
@@ -101,9 +103,58 @@ struct AIRuntimeView: View {
         }
     }
 
+    /// ADR 0071: the enrolled second box — detection line + the cluster toggle.
+    @ViewBuilder private var clusterRows: some View {
+        if let peer = viewModel.clusterPeerHost {
+            if viewModel.clusterPeerReachable {
+                if let combined = viewModel.clusterMemoryGb {
+                    Label(
+                        "Second box detected (\(peer)) — combined budget \(Int(combined)) GB",
+                        systemImage: "server.rack"
+                    )
+                    .font(.callout)
+                } else {
+                    Label("Second box detected (\(peer))", systemImage: "server.rack")
+                        .font(.callout)
+                }
+            } else {
+                Label(
+                    "Second box (\(peer)) enrolled but not reachable",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.callout)
+                .foregroundStyle(.orange)
+            }
+            Toggle(
+                "Use both boxes for larger models",
+                isOn: Binding(
+                    get: { viewModel.clusterEnabled },
+                    set: { on in Task { await viewModel.setClusterEnabled(on) } })
+            )
+            .disabled(!viewModel.clusterPeerReachable || viewModel.isSavingCluster || !canManage)
+        }
+    }
+
+    /// ADR 0071: cluster-tier models — only with the toggle on + peer reachable.
+    @ViewBuilder private var clusterModelsSection: some View {
+        if !viewModel.clusterModels.isEmpty {
+            Section {
+                ForEach(viewModel.clusterModels, id: \.id) { info in
+                    modelRow(info)
+                }
+            } header: {
+                Text("Cluster (both boxes)")
+            } footer: {
+                if let combined = viewModel.clusterMemoryGb {
+                    Text("These models run split across both boxes — fit is against the combined \(Int(combined)) GB budget.")
+                }
+            }
+        }
+    }
+
     private var modelsSection: some View {
         Section {
-            let rows = viewModel.searchResults ?? viewModel.models
+            let rows = viewModel.singleNodeModels
             if viewModel.isSearching {
                 HStack { ProgressView(); Text("Searching…").padding(.leading, 8) }
             }
@@ -144,7 +195,10 @@ struct AIRuntimeView: View {
                             Text("gated").font(.caption2).foregroundStyle(.orange)
                         }
                     }
-                    fitBadge(viewModel.fit(of: info), isCurrent: isCurrent)
+                    fitBadge(
+                        viewModel.fit(of: info),
+                        isCurrent: isCurrent,
+                        cluster: viewModel.servesOnCluster(info))
                 }
                 Spacer()
                 if isCurrent {
@@ -158,14 +212,16 @@ struct AIRuntimeView: View {
         }
     }
 
-    @ViewBuilder private func fitBadge(_ fit: AIRuntimeViewModel.Fit, isCurrent: Bool) -> some View {
+    @ViewBuilder private func fitBadge(
+        _ fit: AIRuntimeViewModel.Fit, isCurrent: Bool, cluster: Bool = false
+    ) -> some View {
         switch fit {
         case .fits:
-            badge(isCurrent ? "Running" : "Fits this box", .green)
+            badge(isCurrent ? "Running" : (cluster ? "Fits across both boxes" : "Fits this box"), .green)
         case .tight:
             badge("Tight fit", .orange)
         case .tooBig:
-            badge("Too big for this box", .red)
+            badge(cluster ? "Too big even for both boxes" : "Too big for this box", .red)
         case .unknown:
             EmptyView()
         }

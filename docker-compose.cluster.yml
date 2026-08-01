@@ -1,0 +1,108 @@
+# Family CFO cluster overlay — the HEAD box of a two-Spark cluster (ADR 0071).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
+#
+# Overlays the main stack when a second Spark has been enrolled as a Ray
+# worker (scripts/setup-cluster.sh; the worker box runs ONLY
+# docker-compose.worker.yml). Three changes:
+#
+#   1. vllm moves to the HOST network. Ray and NCCL negotiate ports
+#      dynamically with the worker across the QSFP link, which cannot cross a
+#      bridge NAT. `!reset` (Compose v2.24+; the box runs v5.x) removes the
+#      keys the base file sets — network_mode and a networks: list are
+#      mutually exclusive.
+#   2. api/worker reach vLLM through the host gateway instead of the compose
+#      network, since vllm now binds the host's :8000.
+#   3. The api learns the peer's DECLARED address (CLUSTER_PEER_HOST, written
+#      to .env by scripts/setup-cluster.sh) so its hardware profile can probe
+#      the worker's node-exporter and offer min_nodes:2 catalog models.
+#
+# CLUSTER_NCCL_IFNAME must name the QSFP interface — the same value the worker
+# box uses — or the collectives fall back to the LAN NIC and time out.
+
+services:
+  vllm:
+    # Upstream vllm-openai ships WITHOUT Ray; cluster serving needs it. Build
+    # the derived image on this box (and identically on the worker — see
+    # docker-compose.worker.yml) pinning BASE to one digest.
+    image: family-cfo/vllm-cluster:latest
+    build:
+      context: ./docker/vllm-cluster
+      args:
+        BASE: ${CLUSTER_VLLM_BASE:-vllm/vllm-openai:latest}
+    network_mode: host
+    networks: !reset []
+    ports: !reset []
+    environment:
+      # Pin NCCL/Gloo to the QSFP link interface (same value on the worker).
+      NCCL_SOCKET_IFNAME: ${CLUSTER_NCCL_IFNAME:-}
+      GLOO_SOCKET_IFNAME: ${CLUSTER_NCCL_IFNAME:-}
+      # The ConnectX ports advertise RDMA, but the containers have no
+      # /dev/infiniband — NCCL must use its TCP socket transport over the
+      # QSFP link or the first collective hangs (observed: sample_tokens
+      # RPC timeout on the first token).
+      NCCL_IB_DISABLE: "1"
+      # Diagnostic knob: set NCCL_DEBUG_LEVEL=INFO in .env when chasing
+      # cross-node collective issues; WARN otherwise.
+      NCCL_DEBUG: ${NCCL_DEBUG_LEVEL:-WARN}
+      # The head's own address on the link, so Ray/vLLM advertise the QSFP
+      # interface (not the LAN NIC) to the worker.
+      VLLM_HOST_IP: ${CLUSTER_HEAD_ADDR:-}
+      # Connect to the ray head the command below starts — an in-process
+      # ray.init() would create a private one-node cluster the worker can
+      # never join (the exact ParallelConfig failure of the first bring-up).
+      RAY_ADDRESS: "auto"
+    # Overrides the base command WHOLESALE (keep the vllm serve line in sync
+    # with docker-compose.yml): start the Ray head the worker's
+    # `ray start --address=<head>:6379` joins, THEN serve. Ray head failure
+    # falls through to plain vllm serve, so single-node models keep working
+    # under this overlay.
+    command:
+      - >-
+        ray start --head --port=6379
+        --node-ip-address='${CLUSTER_HEAD_ADDR:-}'
+        --disable-usage-stats || true;
+        case " ${VLLM_EXTRA_ARGS:-} " in *tensor-parallel*)
+        echo "cluster model: waiting for the second node to join Ray";
+        i=0; while [ $$i -lt 90 ]; do
+        [ "$$(ray status 2>/dev/null | grep -c ' 1 node_')" -ge 2 ] && break;
+        i=$$((i+1)); sleep 2; done;
+        ray status 2>/dev/null | grep -c ' 1 node_' ;;
+        esac;
+        exec vllm serve
+        '${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}'
+        --enable-auto-tool-choice
+        --tool-call-parser '${VLLM_TOOL_PARSER:-hermes}'
+        --reasoning-parser '${VLLM_REASONING_PARSER:-qwen3}'
+        --gpu-memory-utilization '${VLLM_GPU_FRACTION:-0.60}'
+        --max-model-len '${VLLM_MAX_MODEL_LEN:-32768}'
+        ${VLLM_EXTRA_ARGS:-}
+
+  # In-app model applies run swap-model.sh INSIDE this container; without the
+  # overlay in its COMPOSE_FILES a cluster swap would recreate vllm back on
+  # the bridge network with no Ray cluster (the first bring-up's failure).
+  model-manager:
+    environment:
+      COMPOSE_FILES: "-f docker-compose.yml -f docker-compose.cluster.yml"
+
+  api:
+    environment:
+      # vllm now binds the HOST's :8000; host-gateway is how a bridge-network
+      # container reaches the host.
+      FAMILY_CFO_AI_BASE_URL: http://host.docker.internal:8000
+      # Peer worker health — declared, never discovered. The API probes this
+      # node-exporter to decide whether cluster-tier models are offered.
+      FAMILY_CFO_CLUSTER_PEER_HOST: ${CLUSTER_PEER_HOST:-}
+      FAMILY_CFO_CLUSTER_PEER_PORT: ${CLUSTER_PEER_PORT:-9100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # The background worker shares *api-env, so it carries the same AI base URL —
+  # override it identically or its AI calls dead-end on the compose network.
+  worker:
+    environment:
+      FAMILY_CFO_AI_BASE_URL: http://host.docker.internal:8000
+      FAMILY_CFO_CLUSTER_PEER_HOST: ${CLUSTER_PEER_HOST:-}
+      FAMILY_CFO_CLUSTER_PEER_PORT: ${CLUSTER_PEER_PORT:-9100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

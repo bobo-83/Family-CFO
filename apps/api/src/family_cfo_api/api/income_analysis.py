@@ -20,7 +20,7 @@ from family_cfo_financial_engine import (
     gross_up_from_net,
 )
 
-from family_cfo_api import audit, finance_service, income_detection, repository, rights, undo_actions
+from family_cfo_api import audit, finance_service, income_detection, repository, rights, rsu_service, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.finance_service import add_months
 from family_cfo_api.schemas import (
@@ -130,11 +130,26 @@ def _earner_expected_gross_minor(record: repository.IncomeProfileRecord) -> int:
 
 
 def _earner_events(
-    record: repository.IncomeProfileRecord, currency: str, *, today: date
+    record: repository.IncomeProfileRecord,
+    currency: str,
+    *,
+    today: date,
+    vest_events: list[tuple[date, int, int]] | None = None,
 ) -> list[ExpectedIncomeEvent]:
     events: list[ExpectedIncomeEvent] = []
+    # M-rsu-grants: real (editable) vest events valued at the live quote beat
+    # the cadence approximation whenever they exist.
+    if vest_events:
+        for vest_date, units, value_minor in vest_events:
+            events.append(
+                ExpectedIncomeEvent(
+                    date=vest_date,
+                    label=f"{record.label} — RSU vest ({units} sh)",
+                    amount=MoneySchema(amount_minor=value_minor, currency=currency),
+                )
+            )
     vests = _VESTS_PER_YEAR.get(record.rsu_frequency or "")
-    if vests and record.rsu_annual_minor > 0 and record.rsu_next_vest_date:
+    if not vest_events and vests and record.rsu_annual_minor > 0 and record.rsu_next_vest_date:
         step_months = 12 // vests
         vest_date = record.rsu_next_vest_date
         while vest_date < today:
@@ -183,14 +198,18 @@ def _earner_schema(record: repository.IncomeProfileRecord, currency: str) -> Inc
 def _profile_block(
     engine: Engine, household: repository.HouseholdRecord
 ) -> IncomeProfile | None:
-    records = repository.list_income_profiles(engine, household.id)
+    # M-rsu-grants: grant-derived RSU figures (live quote) substitute for the
+    # flat annual value wherever they exist; the flat value remains a fallback.
+    records = rsu_service.effective_income_profiles(engine, household.id)
     if not records:
         return None
+    valuation = rsu_service.load_valuation(engine, household.id)
     currency = household.base_currency
     today = date.today()
     events: list[ExpectedIncomeEvent] = []
     for record in records:
-        events.extend(_earner_events(record, currency, today=today))
+        real = valuation.upcoming_events(record.id, today=today)
+        events.extend(_earner_events(record, currency, today=today, vest_events=real))
     events.sort(key=lambda e: e.date)
     total = sum(_earner_expected_gross_minor(r) for r in records)
     return IncomeProfile(
@@ -200,7 +219,9 @@ def _profile_block(
     )
 
 
-def _profile_assumptions(records: list[repository.IncomeProfileRecord]) -> list[str]:
+def _profile_assumptions(
+    records: list[repository.IncomeProfileRecord], *, live_priced: bool = False
+) -> list[str]:
     lines = [
         "Gross income comes from your DECLARED compensation profile "
         "(base + RSU value + bonus), not from deposit inference."
@@ -223,8 +244,11 @@ def _profile_assumptions(records: list[repository.IncomeProfileRecord]) -> list[
                 "compare against this estimate's effective rate."
             )
     lines.append(
-        "RSU values assume the declared annual value; actual vests move with "
-        "the stock price."
+        "RSU values come from the entered grants valued at the LIVE share "
+        "price (next 12 months of vests) and move with the market."
+        if live_priced
+        else "RSU values assume the declared annual value; actual vests move "
+        "with the stock price."
     )
     lines.append(
         "All declared amounts are PRE-TAX. RSU taxes are typically withheld "
@@ -345,9 +369,15 @@ def build_income_analysis(
             False,  # declared amounts ARE gross
             household.state,
         )
-        records = repository.list_income_profiles(engine, household.id)
+        records = rsu_service.effective_income_profiles(engine, household.id)
+        has_grants = bool(repository.list_rsu_grants(engine, household.id))
         tax = tax.model_copy(
-            update={"assumptions": [*_profile_assumptions(records), *tax.assumptions]}
+            update={
+                "assumptions": [
+                    *_profile_assumptions(records, live_priced=has_grants),
+                    *tax.assumptions,
+                ]
+            }
         )
         coverage_warning = None  # the estimate no longer depends on deposit coverage
     else:

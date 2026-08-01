@@ -1828,7 +1828,10 @@ def w2_baseline_monthly(engine: Engine, household_id: str, currency: str) -> Mon
     household declared none. This is a baseline reference shown next to actual
     income (which is net money-in) — deliberately NOT part of monthly_income_total.
     Gross = base + RSU + bonus, matching how the profile is declared."""
-    profiles = repository.list_income_profiles(engine, household_id)
+    # Lazy import: rsu_service imports add_months from this module.
+    from family_cfo_api import rsu_service
+
+    profiles = rsu_service.effective_income_profiles(engine, household_id)
     if not profiles:
         return None
     annual_gross = sum(

@@ -421,13 +421,28 @@ struct ManageBillsView: View {
         return (years + months).joined(separator: " · ")
     }
 
+    /// "$115.66 in credits" when the bill carries statement credits (M-credits) —
+    /// the money owed back belongs ON the bill, not only in the bottom section.
+    private func creditsText(_ bill: Components.Schemas.Bill) -> String? {
+        guard
+            let group = viewModel.credits?.bills.first(where: { $0.billId == bill.id }),
+            group.total.amountMinor > 0
+        else { return nil }
+        return "\(group.total.formattedExact) in credits"
+    }
+
     private func billRow(_ bill: Components.Schemas.Bill) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(bill.name).lineLimit(1)
                 Text(
-                    BillsView.frequencyText(bill.frequency)
-                        + (bill.nextDueDate.map { " · next \(String($0.prefix(10)))" } ?? "")
+                    ([
+                        BillsView.frequencyText(bill.frequency)
+                            + (bill.nextDueDate.map { " · next \(String($0.prefix(10)))" } ?? ""),
+                        creditsText(bill),
+                    ]
+                    .compactMap { $0 })
+                    .joined(separator: " · ")
                 )
                 .font(.caption).foregroundStyle(.secondary)
             }

@@ -66,6 +66,13 @@ import {
   getConversation,
   createIncomeEarner,
   deleteIncomeEarner,
+  addRsuVestEvent,
+  createRsuGrant,
+  deleteRsuGrant,
+  deleteRsuVestEvent,
+  listRsuGrants,
+  refreshRsuQuotes,
+  updateRsuVestEvent,
   getHouseholdContext,
   getIncomeAnalysis,
   scanW2,
@@ -150,6 +157,9 @@ import {
   type MemberRoleUpdateRequest,
   type MemoryCreateRequest,
   type ReportGenerateRequest,
+  type RsuGrantCreateRequest,
+  type RsuVestEventCreateRequest,
+  type RsuVestEventUpdateRequest,
   type TransactionCreateRequest,
   type TransactionUpdateRequest,
 } from '../api-client';
@@ -471,6 +481,35 @@ export class ApiService {
 
   deleteIncomeSource(incomeId: string) {
     return deleteIncomeSource({ path: { income_id: incomeId } });
+  }
+
+  // M-rsu-grants: grant-based RSU schedules priced by a live quote.
+  listRsuGrants() {
+    return listRsuGrants();
+  }
+
+  createRsuGrant(body: RsuGrantCreateRequest) {
+    return createRsuGrant({ body });
+  }
+
+  deleteRsuGrant(grantId: string) {
+    return deleteRsuGrant({ path: { grant_id: grantId } });
+  }
+
+  addRsuVestEvent(grantId: string, body: RsuVestEventCreateRequest) {
+    return addRsuVestEvent({ path: { grant_id: grantId }, body });
+  }
+
+  updateRsuVestEvent(eventId: string, body: RsuVestEventUpdateRequest) {
+    return updateRsuVestEvent({ path: { event_id: eventId }, body });
+  }
+
+  deleteRsuVestEvent(eventId: string) {
+    return deleteRsuVestEvent({ path: { event_id: eventId } });
+  }
+
+  refreshRsuQuotes() {
+    return refreshRsuQuotes();
   }
 
   // --- Institution connections (M27) ---

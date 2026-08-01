@@ -14,6 +14,29 @@ protocol IncomeAPI: Sendable {
     /// income page — so a transfer double-counted as income can be reclassified.
     func categories() async throws -> [Components.Schemas.Category]
     func setCategory(transactionID: String, categoryID: String?) async throws
+
+    /// M-rsu-grants: the household's RSU grants with their vest schedules, the
+    /// cached live quotes, and the derived next-12-months value.
+    func rsuGrants() async throws -> Components.Schemas.RsuGrantsResponse?
+    func createRsuGrant(_ request: Components.Schemas.RsuGrantCreateRequest) async throws
+    func deleteRsuGrant(id: String) async throws
+    func addRsuVestEvent(grantID: String, date: String, units: Int) async throws
+    /// Patch a vest tranche; only non-nil fields are sent.
+    func updateRsuVestEvent(id: String, date: String?, units: Int?) async throws
+    func deleteRsuVestEvent(id: String) async throws
+    /// Re-fetch live quotes; returns the refreshed grants picture.
+    func refreshRsuQuotes() async throws -> Components.Schemas.RsuGrantsResponse?
+}
+
+extension IncomeAPI {
+    /// Defaults so mocks/tests needn't implement them; the live client overrides.
+    func rsuGrants() async throws -> Components.Schemas.RsuGrantsResponse? { nil }
+    func createRsuGrant(_ request: Components.Schemas.RsuGrantCreateRequest) async throws {}
+    func deleteRsuGrant(id: String) async throws {}
+    func addRsuVestEvent(grantID: String, date: String, units: Int) async throws {}
+    func updateRsuVestEvent(id: String, date: String?, units: Int?) async throws {}
+    func deleteRsuVestEvent(id: String) async throws {}
+    func refreshRsuQuotes() async throws -> Components.Schemas.RsuGrantsResponse? { nil }
 }
 
 enum IncomeAPIError: Error, LocalizedError, Equatable {
@@ -129,6 +152,113 @@ struct LiveIncomeAPI: IncomeAPI {
         ) {
         case .ok, .notFound:
             return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func rsuGrants() async throws -> Components.Schemas.RsuGrantsResponse? {
+        switch try await client.listRsuGrants(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func createRsuGrant(_ request: Components.Schemas.RsuGrantCreateRequest) async throws {
+        switch try await client.createRsuGrant(.init(body: .json(request))) {
+        case .created:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteRsuGrant(id: String) async throws {
+        switch try await client.deleteRsuGrant(.init(path: .init(grantId: id))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            return  // already gone
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func addRsuVestEvent(grantID: String, date: String, units: Int) async throws {
+        let request = Components.Schemas.RsuVestEventCreateRequest(vestDate: date, units: units)
+        switch try await client.addRsuVestEvent(
+            .init(path: .init(grantId: grantID), body: .json(request))
+        ) {
+        case .created:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateRsuVestEvent(id: String, date: String?, units: Int?) async throws {
+        // The generated client omits nil optionals, so only the provided
+        // fields reach the server.
+        let request = Components.Schemas.RsuVestEventUpdateRequest(vestDate: date, units: units)
+        switch try await client.updateRsuVestEvent(
+            .init(path: .init(eventId: id), body: .json(request))
+        ) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteRsuVestEvent(id: String) async throws {
+        switch try await client.deleteRsuVestEvent(.init(path: .init(eventId: id))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            return  // already gone
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func refreshRsuQuotes() async throws -> Components.Schemas.RsuGrantsResponse? {
+        switch try await client.refreshRsuQuotes(.init()) {
+        case .ok(let response):
+            return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:

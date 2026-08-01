@@ -36,6 +36,9 @@ x-api-env: &api-env
   FAMILY_CFO_AI_VISION_ENABLED: ${FAMILY_CFO_AI_VISION_ENABLED:-true}
   FAMILY_CFO_AI_VISION_BASE_URL: http://vllm-vision:8000
   FAMILY_CFO_AI_VISION_MODEL: ${VLLM_VISION_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
+  # Mirrors the vllm-vision service's memory share so apply can refuse a
+  # photo model that cannot fit the slot (it would crash-loop silently).
+  FAMILY_CFO_VISION_GPU_FRACTION: ${VLLM_VISION_GPU_FRACTION:-0.12}
   # Hardware planning (ADR 0012): GPU memory if known; blank on unified-memory hosts.
   FAMILY_CFO_GPU_MEMORY_GB: ${FAMILY_CFO_GPU_MEMORY_GB:-}
   # One-click model apply (ADR 0013); blank disables the in-app Apply button.

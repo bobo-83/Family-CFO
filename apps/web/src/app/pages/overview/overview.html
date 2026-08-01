@@ -146,7 +146,7 @@
                  start (4 business days' notice) to cover the first shortfall. -->
             @if (cash.sell_by_date; as sellBy) {
               <span class="overview__value overview__value--negative">
-                ⚠ {{ cash.runway_action === 'move_cash' ? 'Free up cash' : 'Sell RSUs' }} by
+                ⚠ {{ runwayActionLabel(cash) }} by
                 {{ sellBy | date: 'EEE, MMM d' }}
               </span>
               <span class="overview__detail overview__value--negative">

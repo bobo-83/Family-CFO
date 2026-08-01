@@ -75,22 +75,36 @@ struct AIRuntimeModelDetailView: View {
     }
 
     @ViewBuilder private var fitSection: some View {
+        let cluster = runtime.servesOnCluster(info)
         Section("Fit on this box") {
             switch runtime.fit(of: info) {
             case .fits:
-                Label(isCurrent ? "Running now" : "Fits this box", systemImage: "checkmark.circle")
-                    .foregroundStyle(.green)
+                Label(
+                    isCurrent
+                        ? "Running now"
+                        : (cluster ? "Fits across both boxes" : "Fits this box"),
+                    systemImage: "checkmark.circle"
+                )
+                .foregroundStyle(.green)
             case .tight:
                 Label("Tight fit — it will load, with little headroom", systemImage: "exclamationmark.circle")
                     .foregroundStyle(.orange)
             case .tooBig:
-                Label("Too big for this box", systemImage: "xmark.circle")
-                    .foregroundStyle(.red)
+                Label(
+                    cluster ? "Too big even for both boxes" : "Too big for this box",
+                    systemImage: "xmark.circle"
+                )
+                .foregroundStyle(.red)
             case .unknown:
                 Text("Hardware profile unavailable — no fit verdict.")
                     .foregroundStyle(.secondary)
             }
-            if let budget = runtime.memoryBudgetGb {
+            if cluster {
+                // ADR 0071: cluster deployments are judged against BOTH boxes.
+                if let combined = runtime.clusterMemoryGb {
+                    LabeledContent("Combined memory (both boxes)", value: "\(Int(combined)) GB")
+                }
+            } else if let budget = runtime.memoryBudgetGb {
                 LabeledContent("Memory for models", value: "\(Int(budget)) GB")
             }
         }

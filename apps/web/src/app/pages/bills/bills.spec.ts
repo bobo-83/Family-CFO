@@ -387,7 +387,21 @@ describe('Bills', () => {
 
   it('renders statement credits with yearly totals and per-bill history', async () => {
     const apiMock = {
-      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBills: vi.fn().mockResolvedValue(
+        response({
+          bills: [
+            {
+              id: 'b1',
+              name: 'nationalgrid',
+              amount: { amount_minor: 0, currency: 'USD' },
+              frequency: 'monthly',
+              next_due_date: null,
+              category_id: null,
+              category_name: null,
+            },
+          ],
+        }),
+      ),
       listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [], updates: [] })),
       listBillCredits: vi.fn().mockResolvedValue(
         response({
@@ -395,28 +409,28 @@ describe('Bills', () => {
             {
               bill_id: 'b1',
               name: 'nationalgrid',
-              total: { amount_minor: 21_155, currency: 'USD' },
+              total: { amount_minor: 21_115, currency: 'USD' },
               credits: [
                 {
                   id: 'c2',
                   bill_id: 'b1',
-                  amount: { amount_minor: 11_566, currency: 'USD' },
+                  amount: { amount_minor: 12_340, currency: 'USD' },
                   statement_date: '2026-07-15',
                 },
                 {
                   id: 'c1',
                   bill_id: 'b1',
-                  amount: { amount_minor: 9_589, currency: 'USD' },
+                  amount: { amount_minor: 8_775, currency: 'USD' },
                   statement_date: '2026-06-15',
                 },
               ],
             },
           ],
           monthly: [
-            { month: '2026-07', total: { amount_minor: 11_566, currency: 'USD' } },
-            { month: '2026-06', total: { amount_minor: 9_589, currency: 'USD' } },
+            { month: '2026-07', total: { amount_minor: 12_340, currency: 'USD' } },
+            { month: '2026-06', total: { amount_minor: 8_775, currency: 'USD' } },
           ],
-          yearly: [{ year: 2026, total: { amount_minor: 21_155, currency: 'USD' } }],
+          yearly: [{ year: 2026, total: { amount_minor: 21_115, currency: 'USD' } }],
         }),
       ),
     };
@@ -428,8 +442,10 @@ describe('Bills', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Statement credits');
     expect(host.textContent).toContain('nationalgrid');
-    expect(host.textContent).toContain('USD 210.55');
-    expect(host.textContent).toContain('USD 115.66');
+    expect(host.textContent).toContain('USD 211.15');
+    expect(host.textContent).toContain('USD 123.40');
     expect(host.textContent).toContain('2026-06');
+    // The bill's own row carries its credit total too.
+    expect(host.textContent).toContain('USD 211.15 in credits');
   });
 });
