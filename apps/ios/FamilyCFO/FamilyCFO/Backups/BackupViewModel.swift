@@ -24,6 +24,9 @@ final class BackupViewModel {
     private(set) var latest: Components.Schemas.BackupJob?
     private(set) var localBackups: [Components.Schemas.BackupJob] = []
     private(set) var remoteBackups: [Components.Schemas.RemoteBackup] = []
+    /// The box's running version — flags backups the server would refuse to
+    /// restore (409, made by a newer app). Nil until fetched or unreachable.
+    private(set) var runningVersion: String?
 
     private(set) var isLoading = false
     private(set) var isBackingUp = false
@@ -102,8 +105,24 @@ final class BackupViewModel {
 
     /// The on-box list is always fetched; the Synology list only when configured.
     func loadBackups() async {
+        runningVersion = await api.serverVersion()
         localBackups = (try? await api.localBackups()) ?? []
         if !host.isEmpty { await loadRemote() } else { remoteBackups = [] }
+    }
+
+    /// Numeric dotted-tuple compare (never string compare): true when the
+    /// backup was made by a NEWER app than the box runs — the server refuses
+    /// the restore until the box updates.
+    func isFromNewerVersion(_ appVersion: String?) -> Bool {
+        guard let appVersion, let runningVersion else { return false }
+        let backup = appVersion.split(separator: ".").map { Int($0) ?? 0 }
+        let running = runningVersion.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(backup.count, running.count) {
+            let a = i < backup.count ? backup[i] : 0
+            let b = i < running.count ? running[i] : 0
+            if a != b { return a > b }
+        }
+        return false
     }
 
     func restoreLocal(_ backup: Components.Schemas.BackupJob) async {

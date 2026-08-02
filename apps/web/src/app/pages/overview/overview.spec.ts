@@ -427,6 +427,75 @@ describe('Overview', () => {
     expect(text).toContain('-USD 4,181.83'); // the lowest point, shown negative
   });
 
+  it('shows the vested-RSU line beside the stress test when tagged accounts exist', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        safe_to_spend: {
+          safe_to_spend: { amount_minor: 120_000, currency: 'USD' },
+          liquid_balance: { amount_minor: 500_000, currency: 'USD' },
+          emergency_fund_reserved: { amount_minor: 200_000, currency: 'USD' },
+          bills_due: { amount_minor: 100_000, currency: 'USD' },
+          minimum_debt_payments: { amount_minor: 80_000, currency: 'USD' },
+          total_debt: { amount_minor: 0, currency: 'USD' },
+          warnings: [],
+          ready_to_sell: {
+            value: { amount_minor: 8_400_000, currency: 'USD' },
+            accounts: [
+              { name: 'Employer stock plan', amount: { amount_minor: 8_400_000, currency: 'USD' } },
+            ],
+            sale_notice_business_days: 4,
+          },
+        },
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Ready to sell: USD 84,000.00 in vested RSUs');
+    expect(text).toContain('about 4 business days to become cash');
+    expect(text).toContain('Employer stock plan');
+    expect(text).toContain('Not part of the number above.');
+  });
+
+  it('hides the vested-RSU line when no account is tagged', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        safe_to_spend: {
+          safe_to_spend: { amount_minor: 120_000, currency: 'USD' },
+          liquid_balance: { amount_minor: 500_000, currency: 'USD' },
+          emergency_fund_reserved: { amount_minor: 200_000, currency: 'USD' },
+          bills_due: { amount_minor: 100_000, currency: 'USD' },
+          minimum_debt_payments: { amount_minor: 80_000, currency: 'USD' },
+          total_debt: { amount_minor: 0, currency: 'USD' },
+          warnings: [],
+        },
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Stress test');
+    expect(host.querySelector('.overview__ready-to-sell')).toBeNull();
+  });
+
   it('renders the month spending plan (M113)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

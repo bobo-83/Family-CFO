@@ -383,6 +383,7 @@ def _account_schema(record: repository.AccountRecord, balance_minor: int) -> Acc
             record.emergency_fund_minor,
             balance_minor,
         ),
+        rsu_ready_to_sell=record.rsu_ready_to_sell,
     )
 
 
@@ -426,6 +427,7 @@ async def list_accounts(
                     balance.emergency_fund_minor,
                     balance.balance_minor,
                 ),
+                rsu_ready_to_sell=balance.rsu_ready_to_sell,
             )
             for balance in balances
         ]
@@ -538,6 +540,7 @@ async def update_account(
             else None
         ),
         clear_emergency_fund=payload.clear_emergency_fund,
+        rsu_ready_to_sell=payload.rsu_ready_to_sell,
     )
     record = repository.get_account(engine, session.household_id, account_id)
     assert record is not None

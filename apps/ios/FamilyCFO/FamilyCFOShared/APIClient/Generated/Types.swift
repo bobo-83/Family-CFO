@@ -5917,6 +5917,30 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast_items`.
             public var subscriptionForecastItems: [Components.Schemas.NamedAmount]?
+            /// The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell`.
+            public struct ReadyToSellPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell/value1`.
+                public var value1: Components.Schemas.ReadyToSellHoldings
+                /// Creates a new `ReadyToSellPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.ReadyToSellHoldings) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell`.
+            public var readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload?
             /// Creates a new `SafeToSpend`.
             ///
             /// - Parameters:
@@ -5936,6 +5960,7 @@ public enum Components {
             ///   - billItems: M98: the bills behind bills_due, over the safe-to-spend horizon.
             ///   - emergencyFundItems: M98: the accounts and how much of each is reserved as emergency fund.
             ///   - subscriptionForecastItems: M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
+            ///   - readyToSell: The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
             public init(
                 liquidBalance: Components.Schemas.Money,
                 emergencyFundReserved: Components.Schemas.Money,
@@ -5952,7 +5977,8 @@ public enum Components {
                 creditCardItems: [Components.Schemas.NamedAmount]? = nil,
                 billItems: [Components.Schemas.NamedAmount]? = nil,
                 emergencyFundItems: [Components.Schemas.NamedAmount]? = nil,
-                subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil
+                subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil,
+                readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload? = nil
             ) {
                 self.liquidBalance = liquidBalance
                 self.emergencyFundReserved = emergencyFundReserved
@@ -5970,6 +5996,7 @@ public enum Components {
                 self.billItems = billItems
                 self.emergencyFundItems = emergencyFundItems
                 self.subscriptionForecastItems = subscriptionForecastItems
+                self.readyToSell = readyToSell
             }
             public enum CodingKeys: String, CodingKey {
                 case liquidBalance = "liquid_balance"
@@ -5988,6 +6015,40 @@ public enum Components {
                 case billItems = "bill_items"
                 case emergencyFundItems = "emergency_fund_items"
                 case subscriptionForecastItems = "subscription_forecast_items"
+                case readyToSell = "ready_to_sell"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings`.
+        public struct ReadyToSellHoldings: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings/value`.
+            public var value: Components.Schemas.Money
+            /// The tagged accounts and their synced balances.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings/accounts`.
+            public var accounts: [Components.Schemas.NamedAmount]
+            /// ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH).
+            ///
+            /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings/sale_notice_business_days`.
+            public var saleNoticeBusinessDays: Swift.Int
+            /// Creates a new `ReadyToSellHoldings`.
+            ///
+            /// - Parameters:
+            ///   - value:
+            ///   - accounts: The tagged accounts and their synced balances.
+            ///   - saleNoticeBusinessDays: ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH).
+            public init(
+                value: Components.Schemas.Money,
+                accounts: [Components.Schemas.NamedAmount],
+                saleNoticeBusinessDays: Swift.Int
+            ) {
+                self.value = value
+                self.accounts = accounts
+                self.saleNoticeBusinessDays = saleNoticeBusinessDays
+            }
+            public enum CodingKeys: String, CodingKey {
+                case value
+                case accounts
+                case saleNoticeBusinessDays = "sale_notice_business_days"
             }
         }
         /// - Remark: Generated from `#/components/schemas/LiquidAccountBalance`.
@@ -6492,6 +6553,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Account/emergency_fund_reserved`.
             public var emergencyFundReserved: Components.Schemas.Money?
+            /// The user's tag that this account's balance is vested RSUs ready to sell — surfaced beside safe-to-spend, never added to it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/rsu_ready_to_sell`.
+            public var rsuReadyToSell: Swift.Bool?
             /// Creates a new `Account`.
             ///
             /// - Parameters:
@@ -6508,6 +6573,7 @@ public enum Components {
             ///   - emergencyFundPercent: M36: percent of this account's balance reserved for emergencies (exclusive with emergency_fund_amount).
             ///   - emergencyFundAmount: M36: fixed amount of this account reserved for emergencies (exclusive with emergency_fund_percent).
             ///   - emergencyFundReserved: M36: derived reservation — percent of the latest balance or the fixed amount, capped at the balance.
+            ///   - rsuReadyToSell: The user's tag that this account's balance is vested RSUs ready to sell — surfaced beside safe-to-spend, never added to it.
             public init(
                 id: Swift.String,
                 name: Swift.String,
@@ -6521,7 +6587,8 @@ public enum Components {
                 lastSyncedAt: Foundation.Date? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
                 emergencyFundAmount: Components.Schemas.Money? = nil,
-                emergencyFundReserved: Components.Schemas.Money? = nil
+                emergencyFundReserved: Components.Schemas.Money? = nil,
+                rsuReadyToSell: Swift.Bool? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -6536,6 +6603,7 @@ public enum Components {
                 self.emergencyFundPercent = emergencyFundPercent
                 self.emergencyFundAmount = emergencyFundAmount
                 self.emergencyFundReserved = emergencyFundReserved
+                self.rsuReadyToSell = rsuReadyToSell
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -6551,6 +6619,7 @@ public enum Components {
                 case emergencyFundPercent = "emergency_fund_percent"
                 case emergencyFundAmount = "emergency_fund_amount"
                 case emergencyFundReserved = "emergency_fund_reserved"
+                case rsuReadyToSell = "rsu_ready_to_sell"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountType`.
@@ -7639,6 +7708,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BackupJob/remote_error`.
             public var remoteError: Swift.String?
+            /// The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupJob/app_version`.
+            public var appVersion: Swift.String?
             /// Creates a new `BackupJob`.
             ///
             /// - Parameters:
@@ -7652,6 +7725,7 @@ public enum Components {
             ///   - createdAt:
             ///   - remoteStatus: M98: whether this backup reached the off-box share (synced/failed/skipped).
             ///   - remoteError: M98: the reason a copy to the share failed.
+            ///   - appVersion: The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
             public init(
                 id: Swift.String,
                 status: Components.Schemas.BackupJobStatus,
@@ -7662,7 +7736,8 @@ public enum Components {
                 prunedAt: Foundation.Date? = nil,
                 createdAt: Foundation.Date,
                 remoteStatus: Swift.String? = nil,
-                remoteError: Swift.String? = nil
+                remoteError: Swift.String? = nil,
+                appVersion: Swift.String? = nil
             ) {
                 self.id = id
                 self.status = status
@@ -7674,6 +7749,7 @@ public enum Components {
                 self.createdAt = createdAt
                 self.remoteStatus = remoteStatus
                 self.remoteError = remoteError
+                self.appVersion = appVersion
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7686,6 +7762,7 @@ public enum Components {
                 case createdAt = "created_at"
                 case remoteStatus = "remote_status"
                 case remoteError = "remote_error"
+                case appVersion = "app_version"
             }
         }
         /// - Remark: Generated from `#/components/schemas/BackupJobListResponse`.
@@ -7933,25 +8010,33 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/RemoteBackup/modified_at`.
             public var modifiedAt: Swift.Int64
+            /// Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteBackup/app_version`.
+            public var appVersion: Swift.String?
             /// Creates a new `RemoteBackup`.
             ///
             /// - Parameters:
             ///   - filename:
             ///   - sizeBytes:
             ///   - modifiedAt: Epoch seconds of the file's last-modified time.
+            ///   - appVersion: Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
             public init(
                 filename: Swift.String,
                 sizeBytes: Swift.Int64,
-                modifiedAt: Swift.Int64
+                modifiedAt: Swift.Int64,
+                appVersion: Swift.String? = nil
             ) {
                 self.filename = filename
                 self.sizeBytes = sizeBytes
                 self.modifiedAt = modifiedAt
+                self.appVersion = appVersion
             }
             public enum CodingKeys: String, CodingKey {
                 case filename
                 case sizeBytes = "size_bytes"
                 case modifiedAt = "modified_at"
+                case appVersion = "app_version"
             }
         }
         /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse`.
@@ -8648,6 +8733,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/clear_emergency_fund`.
             public var clearEmergencyFund: Swift.Bool?
+            /// Tag/untag this account's balance as vested RSUs ready to sell. Omit/null to leave unchanged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountUpdateRequest/rsu_ready_to_sell`.
+            public var rsuReadyToSell: Swift.Bool?
             /// Creates a new `AccountUpdateRequest`.
             ///
             /// - Parameters:
@@ -8660,6 +8749,7 @@ public enum Components {
             ///   - emergencyFundPercent: M36: reserve this percent of the balance for emergencies. Clears any fixed-amount designation. 400 if sent with emergency_fund_amount.
             ///   - emergencyFundAmount: M36: reserve this fixed amount for emergencies. Clears any percent designation. 400 if sent with emergency_fund_percent.
             ///   - clearEmergencyFund: M36: remove the emergency-fund designation from this account.
+            ///   - rsuReadyToSell: Tag/untag this account's balance as vested RSUs ready to sell. Omit/null to leave unchanged.
             public init(
                 name: Swift.String? = nil,
                 _type: Components.Schemas.AccountType? = nil,
@@ -8669,7 +8759,8 @@ public enum Components {
                 nextPaymentDueDate: Swift.String? = nil,
                 emergencyFundPercent: Swift.Double? = nil,
                 emergencyFundAmount: Components.Schemas.Money? = nil,
-                clearEmergencyFund: Swift.Bool? = nil
+                clearEmergencyFund: Swift.Bool? = nil,
+                rsuReadyToSell: Swift.Bool? = nil
             ) {
                 self.name = name
                 self._type = _type
@@ -8680,6 +8771,7 @@ public enum Components {
                 self.emergencyFundPercent = emergencyFundPercent
                 self.emergencyFundAmount = emergencyFundAmount
                 self.clearEmergencyFund = clearEmergencyFund
+                self.rsuReadyToSell = rsuReadyToSell
             }
             public enum CodingKeys: String, CodingKey {
                 case name
@@ -8691,6 +8783,7 @@ public enum Components {
                 case emergencyFundPercent = "emergency_fund_percent"
                 case emergencyFundAmount = "emergency_fund_amount"
                 case clearEmergencyFund = "clear_emergency_fund"
+                case rsuReadyToSell = "rsu_ready_to_sell"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AccountBalanceCreateRequest`.
@@ -9304,6 +9397,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/AiRuntimeStatus/loading_detail`.
             public var loadingDetail: Swift.String?
+            /// Median wall-clock answer time per model over recent advisor questions — felt latency, so model choice can rest on evidence.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiRuntimeStatus/answer_stats`.
+            public var answerStats: [Components.Schemas.ModelAnswerStats]?
             /// Creates a new `AiRuntimeStatus`.
             ///
             /// - Parameters:
@@ -9318,6 +9415,7 @@ public enum Components {
             ///   - visionEnabled:
             ///   - loadingPhase: M50: what 'loading' actually means, classified from the vLLM log tail.
             ///   - loadingDetail: Human detail (download %, shard %, or the crash line).
+            ///   - answerStats: Median wall-clock answer time per model over recent advisor questions — felt latency, so model choice can rest on evidence.
             public init(
                 enabled: Swift.Bool,
                 provider: Swift.String,
@@ -9329,7 +9427,8 @@ public enum Components {
                 visionModel: Swift.String? = nil,
                 visionEnabled: Swift.Bool? = nil,
                 loadingPhase: Components.Schemas.AiRuntimeStatus.LoadingPhasePayload? = nil,
-                loadingDetail: Swift.String? = nil
+                loadingDetail: Swift.String? = nil,
+                answerStats: [Components.Schemas.ModelAnswerStats]? = nil
             ) {
                 self.enabled = enabled
                 self.provider = provider
@@ -9342,6 +9441,7 @@ public enum Components {
                 self.visionEnabled = visionEnabled
                 self.loadingPhase = loadingPhase
                 self.loadingDetail = loadingDetail
+                self.answerStats = answerStats
             }
             public enum CodingKeys: String, CodingKey {
                 case enabled
@@ -9355,6 +9455,36 @@ public enum Components {
                 case visionEnabled = "vision_enabled"
                 case loadingPhase = "loading_phase"
                 case loadingDetail = "loading_detail"
+                case answerStats = "answer_stats"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ModelAnswerStats`.
+        public struct ModelAnswerStats: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ModelAnswerStats/model`.
+            public var model: Swift.String
+            /// - Remark: Generated from `#/components/schemas/ModelAnswerStats/median_ms`.
+            public var medianMs: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ModelAnswerStats/samples`.
+            public var samples: Swift.Int
+            /// Creates a new `ModelAnswerStats`.
+            ///
+            /// - Parameters:
+            ///   - model:
+            ///   - medianMs:
+            ///   - samples:
+            public init(
+                model: Swift.String,
+                medianMs: Swift.Int,
+                samples: Swift.Int
+            ) {
+                self.model = model
+                self.medianMs = medianMs
+                self.samples = samples
+            }
+            public enum CodingKeys: String, CodingKey {
+                case model
+                case medianMs = "median_ms"
+                case samples
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiModelInfo`.
@@ -29987,6 +30117,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/restore/post(restoreBackup)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -30841,6 +30994,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/restore/post(restoreRemoteBackup)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }

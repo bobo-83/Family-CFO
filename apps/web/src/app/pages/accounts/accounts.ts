@@ -270,6 +270,21 @@ export class Accounts {
     this.accounts.reload();
   }
 
+  /** Tag/untag this account's balance as vested RSUs ready to sell. */
+  protected async setRsuReadyToSell(account: Account, event: Event): Promise<void> {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked === (account.rsu_ready_to_sell ?? false)) {
+      return;
+    }
+    // Send only this field — a bare boolean can never clear another account's tag.
+    const { error } = await this.api.updateAccount(account.id, { rsu_ready_to_sell: checked });
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, 'Failed to update the RSU tag.'));
+      return;
+    }
+    this.accounts.reload();
+  }
+
   /** M35: fix mistyped accounts (e.g. a synced 401k created as "checking"). */
   protected async retype(id: string, event: Event): Promise<void> {
     const type = (event.target as HTMLSelectElement).value as AccountType;

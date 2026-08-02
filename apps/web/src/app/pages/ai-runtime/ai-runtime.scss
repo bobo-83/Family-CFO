@@ -222,6 +222,29 @@
   }
 }
 
+/* Median answer time per model — compact evidence rows under Now serving. */
+.answer-stats {
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+
+  &__heading {
+    margin: 0 0 0.35rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.6rem;
+  }
+
+  &__model {
+    overflow-wrap: anywhere;
+  }
+}
+
 /* M50: the concrete loading phase (download %, shard %, or the crash line). */
 .now-serving__phase {
   margin: 0.15rem 0 0.3rem;

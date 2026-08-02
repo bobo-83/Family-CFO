@@ -45,11 +45,11 @@ struct BackupSettingsView: View {
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } })
         ) { Button("OK", role: .cancel) {} } message: { Text(viewModel.errorMessage ?? "") }
-        .confirmationDialog(
-            pendingRestore.map { "Restore from \($0.filename)?" } ?? "",
+        .alert(
+            "Restore this backup?",
             isPresented: .init(
                 get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
-            titleVisibility: .visible, presenting: pendingRestore
+            presenting: pendingRestore
         ) { backup in
             Button("Restore (replaces all data)", role: .destructive) {
                 let target = backup
@@ -57,15 +57,17 @@ struct BackupSettingsView: View {
                 Task { await viewModel.restore(target) }
             }
             Button("Cancel", role: .cancel) { pendingRestore = nil }
-        } message: { _ in
-            Text("This overwrites the current database and documents with this backup. It can't be undone.")
+        } message: { backup in
+            Text(
+                "This overwrites the current database and documents with the backup from \(Self.dayTimeLabel(backup.modifiedAt)). It can't be undone."
+            )
         }
-        .confirmationDialog(
+        .alert(
             "Restore this backup?",
             isPresented: .init(
                 get: { pendingLocalRestore != nil },
                 set: { if !$0 { pendingLocalRestore = nil } }),
-            titleVisibility: .visible, presenting: pendingLocalRestore
+            presenting: pendingLocalRestore
         ) { backup in
             Button("Restore (replaces all data)", role: .destructive) {
                 let target = backup
@@ -73,8 +75,10 @@ struct BackupSettingsView: View {
                 Task { await viewModel.restoreLocal(target) }
             }
             Button("Cancel", role: .cancel) { pendingLocalRestore = nil }
-        } message: { _ in
-            Text("This overwrites the current database and documents with this backup. It can't be undone.")
+        } message: { backup in
+            Text(
+                "This overwrites the current database and documents with the backup from \((backup.completedAt ?? backup.createdAt).formatted(date: .abbreviated, time: .shortened)). It can't be undone."
+            )
         }
     }
 
@@ -253,24 +257,28 @@ struct BackupSettingsView: View {
     }
 
     private func remoteBackupRow(_ backup: Components.Schemas.RemoteBackup) -> some View {
-        Button {
-            pendingRestore = backup
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Self.timeLabel(backup.modifiedAt)).foregroundStyle(.primary)
-                    Text(ByteCountFormatter.string(fromByteCount: backup.sizeBytes, countStyle: .file))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if viewModel.isRestoring {
-                    ProgressView()
-                } else {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.timeLabel(backup.modifiedAt)).foregroundStyle(.primary)
+                Text(ByteCountFormatter.string(fromByteCount: backup.sizeBytes, countStyle: .file))
+                    .font(.caption).foregroundStyle(.secondary)
+                versionLabel(backup.appVersion)
+            }
+            Spacer()
+            if viewModel.isRestoring {
+                ProgressView()
+            } else {
+                // Restore arms only from this button — a tap on the row's
+                // description must never raise the destructive confirmation.
+                Button {
+                    pendingRestore = backup
+                } label: {
                     Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Restore")
             }
         }
-        .disabled(viewModel.isRestoring)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 Task { await viewModel.deleteRemote(backup) }
@@ -283,31 +291,63 @@ struct BackupSettingsView: View {
             .formatted(date: .omitted, time: .shortened)
     }
 
+    /// Day + time, for the restore alert — the centered alert isn't anchored
+    /// to a row, so it must say which backup it is about.
+    static func dayTimeLabel(_ epoch: Int64) -> String {
+        Date(timeIntervalSince1970: TimeInterval(epoch))
+            .formatted(date: .abbreviated, time: .shortened)
+    }
+
+    /// The app version that made a backup. Nil (pre-versioning) stays subtle;
+    /// a version NEWER than the box gets the warning treatment — the server
+    /// refuses that restore (409) until the box updates.
+    @ViewBuilder private func versionLabel(_ appVersion: String?) -> some View {
+        if let appVersion {
+            if viewModel.isFromNewerVersion(appVersion) {
+                Text("v\(appVersion) — made by a newer version, update first")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+            } else {
+                Text("v\(appVersion)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Text("version unknown")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
     private var onBoxSection: some View {
         Section {
             ForEach(viewModel.localBackups, id: \.id) { backup in
-                Button {
-                    pendingLocalRestore = backup
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(backup.completedAt?.formatted(date: .abbreviated, time: .shortened)
-                                ?? backup.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .foregroundStyle(.primary)
-                            if let size = backup.sizeBytes {
-                                Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(backup.completedAt?.formatted(date: .abbreviated, time: .shortened)
+                            ?? backup.createdAt.formatted(date: .abbreviated, time: .shortened))
+                            .foregroundStyle(.primary)
+                        if let size = backup.sizeBytes {
+                            Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        if viewModel.isRestoring {
-                            ProgressView()
-                        } else {
+                        versionLabel(backup.appVersion)
+                    }
+                    Spacer()
+                    if viewModel.isRestoring {
+                        ProgressView()
+                    } else {
+                        // Same rule as the Synology rows: only the button arms
+                        // the destructive confirmation, never the row itself.
+                        Button {
+                            pendingLocalRestore = backup
+                        } label: {
                             Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
                         }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Restore")
                     }
                 }
-                .disabled(viewModel.isRestoring)
                 .swipeActions(edge: .trailing) {
                     Button(role: .destructive) {
                         Task { await viewModel.deleteLocal(backup) }

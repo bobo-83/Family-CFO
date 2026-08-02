@@ -391,6 +391,22 @@ struct OverviewView: View {
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
+                // Informational companion — never added to the stress-test number.
+                if let ready = sts.readyToSell?.value1 {
+                    Divider()
+                    Label {
+                        Text(
+                            "Ready to sell: \(ready.value.formatted) in vested RSUs — about "
+                                + "\(ready.saleNoticeBusinessDays) business "
+                                + "\(ready.saleNoticeBusinessDays == 1 ? "day" : "days") "
+                                + "to become cash"
+                        )
+                    } icon: {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 HStack(spacing: 3) {
                     Text("Tap to see how this is calculated")
                     Image(systemName: "chevron.right")

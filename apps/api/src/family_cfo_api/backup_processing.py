@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import logging
 import os
+import subprocess
+import sys
 import tarfile
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -19,12 +21,20 @@ from family_cfo_backup import (
     encrypt,
     extract_archive,
 )
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from family_cfo_api import __version__ as APP_VERSION
 from family_cfo_api import banksync, repository, smb_backup
 from family_cfo_api.config import Settings
 
 logger = logging.getLogger(__name__)
+
+
+class BackupCompatibilityError(ValueError):
+    """Raised when an archive's manifest says this app is too old to restore it
+    (a newer app version or a database revision this build doesn't know)."""
+
 
 # M98/M101: how many minutes between backups for each schedule option.
 BACKUP_CADENCE_MINUTES = {
@@ -125,6 +135,95 @@ class BackupConfigurationError(ValueError):
     """Raised for a missing encryption key or an unsupported database_url scheme."""
 
 
+def _current_schema_revision(engine: Engine) -> str | None:
+    """The alembic revision the live database is stamped at, or None (test
+    databases built from metadata.create_all have no alembic_version table)."""
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
+        return row[0] if row else None
+    except Exception:  # noqa: BLE001 — no alembic_version table is a normal case
+        return None
+
+
+def _known_migrations() -> tuple[set[str], str | None]:
+    """(every revision id this build ships, the head revision). alembic.ini sits
+    in the working directory for both the container and the test runner; when it
+    isn't reachable the guard degrades to (empty set, None) — permissive."""
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        scripts = ScriptDirectory.from_config(Config("alembic.ini"))
+        revisions = {script.revision for script in scripts.walk_revisions()}
+        return revisions, scripts.get_current_head()
+    except Exception:  # noqa: BLE001
+        return set(), None
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for piece in version.split("."):
+        digits = "".join(ch for ch in piece if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def _check_restore_compatibility(manifest: dict | None) -> None:
+    if manifest is None:
+        # Archives from before backups carried a manifest. Restoring one from
+        # the same install it came from is the common (and safe) case.
+        logger.warning("restore: archive has no version manifest (pre-versioning backup)")
+        return
+    backup_version = manifest.get("app_version")
+    if backup_version and _version_tuple(str(backup_version)) > _version_tuple(APP_VERSION):
+        raise BackupCompatibilityError(
+            f"This backup was made by Family CFO {backup_version}, which is newer than "
+            f"this box ({APP_VERSION}). Update the app first, then restore."
+        )
+    revision = manifest.get("schema_revision")
+    if revision:
+        known, _head = _known_migrations()
+        if known and str(revision) not in known:
+            raise BackupCompatibilityError(
+                f"This backup uses database revision {revision}, which this version of "
+                "the app doesn't know. Update the app first, then restore."
+            )
+
+
+def _migrate_after_restore(database_url: str, manifest: dict | None) -> None:
+    """Bring a just-restored OLDER database forward to this build's schema. Only
+    runs when the manifest names a known, non-head revision — a same-version
+    restore (and a legacy manifest-less one) is left exactly as restored."""
+    if manifest is None:
+        return
+    revision = manifest.get("schema_revision")
+    if not revision:
+        return
+    known, head = _known_migrations()
+    if str(revision) not in known or str(revision) == head:
+        return
+    logger.info("restore: migrating restored database %s -> %s", revision, head)
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "alembic", "-c", "alembic.ini",
+            "-x", f"database_url={database_url}",
+            "upgrade", "head",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        # The data itself is restored; only the schema catch-up failed. Don't
+        # fail the restore — the API entrypoint reruns `upgrade head` on the
+        # next restart, which is the recovery path.
+        logger.error(
+            "restore: post-restore migration failed (restart the app to retry): %s",
+            result.stderr.strip()[-2000:],
+        )
+
+
 def select_backup_adapter(database_url: str) -> BackupAdapter:
     scheme = database_url.split("://", 1)[0].split("+")[0]
     if scheme == "postgresql":
@@ -218,7 +317,14 @@ def run_backup_once(
             database_dump = dump_path.read_bytes()
 
         documents_tar = _tar_directory(staging_dir)
-        archive = build_archive(database_dump, documents_tar)
+        # Sealed inside the encrypted archive so it survives any round-trip
+        # (Synology share, USB stick) — the restore side reads it to decide
+        # whether this app version can safely restore the archive.
+        manifest = {
+            "app_version": APP_VERSION,
+            "schema_revision": _current_schema_revision(engine),
+        }
+        archive = build_archive(database_dump, documents_tar, manifest=manifest)
         ciphertext = encrypt(encryption_key, archive)
 
         storage_path = f"{job.id}.enc"
@@ -234,7 +340,9 @@ def run_backup_once(
         remote_error: str | None = None
         if smb_target is not None:
             try:
-                smb_backup.upload(smb_target, full_path, storage_path)
+                # The remote copy carries the app version in its name so the
+                # rebuild-restore list can label archives without decrypting.
+                smb_backup.upload(smb_target, full_path, f"{job.id}.v{APP_VERSION}.enc")
                 remote_status = "synced"
             except Exception as exc:  # noqa: BLE001 — recorded, not fatal
                 remote_status = "failed"
@@ -249,6 +357,8 @@ def run_backup_once(
             size_bytes=len(ciphertext),
             remote_status=remote_status,
             remote_error=remote_error,
+            app_version=APP_VERSION,
+            schema_revision=manifest["schema_revision"],
         )
         logger.info(
             "backup completed backup_id=%s size_bytes=%s remote=%s",
@@ -357,13 +467,25 @@ def _restore_ciphertext(
     if not encryption_key:
         raise BackupConfigurationError("FAMILY_CFO_BACKUP_ENCRYPTION_KEY is not configured")
     archive = decrypt(encryption_key, ciphertext)
-    database_dump, documents_tar = extract_archive(archive)
+    database_dump, documents_tar, manifest = extract_archive(archive)
+    _check_restore_compatibility(manifest)
     adapter = select_backup_adapter(database_url)
     with tempfile.TemporaryDirectory() as tmp_dir:
         dump_path = Path(tmp_dir) / "database.dump"
         dump_path.write_bytes(database_dump)
         adapter.restore_database(dump_path)
     _untar_directory(documents_tar, staging_dir)
+    _migrate_after_restore(database_url, manifest)
+
+
+def _app_version_from_filename(name: str) -> str | None:
+    """`{job_id}.v{app_version}.enc` → the app version; None for the older
+    unversioned `{job_id}.enc` names still sitting on the share."""
+    base = name[: -len(".enc")] if name.endswith(".enc") else name
+    if ".v" not in base:
+        return None
+    candidate = base.rsplit(".v", 1)[1]
+    return candidate if candidate and candidate[0].isdigit() else None
 
 
 def list_remote_backups(path: str) -> list[dict]:
@@ -382,7 +504,12 @@ def list_remote_backups(path: str) -> list[dict]:
         except OSError:
             continue
         items.append(
-            {"filename": name, "size_bytes": stat.st_size, "modified_at": int(stat.st_mtime)}
+            {
+                "filename": name,
+                "size_bytes": stat.st_size,
+                "modified_at": int(stat.st_mtime),
+                "app_version": _app_version_from_filename(name),
+            }
         )
     items.sort(key=lambda item: item["modified_at"], reverse=True)
     return items

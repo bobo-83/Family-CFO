@@ -950,6 +950,22 @@ export type SafeToSpend = {
      * M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
      */
     subscription_forecast_items?: Array<NamedAmount>;
+    /**
+     * The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
+     */
+    ready_to_sell?: ReadyToSellHoldings;
+};
+
+export type ReadyToSellHoldings = {
+    value: Money;
+    /**
+     * The tagged accounts and their synced balances.
+     */
+    accounts: Array<NamedAmount>;
+    /**
+     * ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH).
+     */
+    sale_notice_business_days: number;
 };
 
 export type LiquidAccountBalance = {
@@ -1100,6 +1116,10 @@ export type Account = {
      * M36: derived reservation — percent of the latest balance or the fixed amount, capped at the balance.
      */
     emergency_fund_reserved?: Money;
+    /**
+     * The user's tag that this account's balance is vested RSUs ready to sell — surfaced beside safe-to-spend, never added to it.
+     */
+    rsu_ready_to_sell?: boolean;
 };
 
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | '401k_loan' | 'real_estate' | 'other_asset' | 'other_liability';
@@ -1347,6 +1367,10 @@ export type BackupJob = {
      * M98: the reason a copy to the share failed.
      */
     remote_error?: string | null;
+    /**
+     * The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
+     */
+    app_version?: string | null;
 };
 
 export type BackupJobListResponse = {
@@ -1409,6 +1433,10 @@ export type RemoteBackup = {
      * Epoch seconds of the file's last-modified time.
      */
     modified_at: number;
+    /**
+     * Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
+     */
+    app_version?: string | null;
 };
 
 export type RemoteBackupListResponse = {
@@ -1601,6 +1629,10 @@ export type AccountUpdateRequest = {
      * M36: remove the emergency-fund designation from this account.
      */
     clear_emergency_fund?: boolean;
+    /**
+     * Tag/untag this account's balance as vested RSUs ready to sell. Omit/null to leave unchanged.
+     */
+    rsu_ready_to_sell?: boolean | null;
 };
 
 export type AccountBalanceCreateRequest = {
@@ -1752,6 +1784,16 @@ export type AiRuntimeStatus = {
      * Human detail (download %, shard %, or the crash line).
      */
     loading_detail?: string | null;
+    /**
+     * Median wall-clock answer time per model over recent advisor questions — felt latency, so model choice can rest on evidence.
+     */
+    answer_stats?: Array<ModelAnswerStats>;
+};
+
+export type ModelAnswerStats = {
+    model: string;
+    median_ms: number;
+    samples: number;
 };
 
 export type AiModelInfo = {
@@ -5497,6 +5539,10 @@ export type RestoreBackupErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type RestoreBackupError = RestoreBackupErrors[keyof RestoreBackupErrors];
@@ -5650,6 +5696,10 @@ export type RestoreRemoteBackupErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type RestoreRemoteBackupError = RestoreRemoteBackupErrors[keyof RestoreRemoteBackupErrors];

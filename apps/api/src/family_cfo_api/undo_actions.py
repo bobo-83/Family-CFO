@@ -324,6 +324,7 @@ def account_updated(before: repository.AccountRecord) -> str:
                 "maturity_date": _iso(before.maturity_date),
                 "emergency_fund_percent": before.emergency_fund_percent,
                 "emergency_fund_minor": before.emergency_fund_minor,
+                "rsu_ready_to_sell": before.rsu_ready_to_sell,
             },
         }
     )
@@ -880,6 +881,7 @@ def _restore(
             maturity_date=_date(data.get("maturity_date")),
             emergency_fund_percent=data.get("emergency_fund_percent"),
             emergency_fund_minor=data.get("emergency_fund_minor"),
+            rsu_ready_to_sell=data.get("rsu_ready_to_sell"),
         )
     elif entity == "budget":
         repository.update_budget_limit(engine, household_id, entity_id, data["limit_minor"])

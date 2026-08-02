@@ -16,6 +16,9 @@ protocol AccountsAPI: Sendable {
     /// apart. A user-set name survives future syncs.
     func rename(id: String, name: String) async throws
     func setType(id: String, type: Components.Schemas.AccountType) async throws
+    /// Tag/untag this account's balance as vested RSUs ready to sell — surfaced
+    /// beside safe-to-spend, never added to it.
+    func setRsuReadyToSell(id: String, _ readyToSell: Bool) async throws
     /// Pull fresh data from the linked banks (SimpleFIN) — so a newly-added
     /// account shows up on pull-to-refresh, not only after a manual sync.
     func syncBanks() async throws
@@ -84,6 +87,11 @@ struct LiveAccountsAPI: AccountsAPI {
 
     func rename(id: String, name: String) async throws {
         try await patch(id: id, .init(name: name))
+    }
+
+    func setRsuReadyToSell(id: String, _ readyToSell: Bool) async throws {
+        // A bare boolean PATCH — omitted fields leave every other designation alone.
+        try await patch(id: id, .init(rsuReadyToSell: readyToSell))
     }
 
     /// Corrects a mis-inferred type (user report 2026-07-25: a SimpleFIN loan

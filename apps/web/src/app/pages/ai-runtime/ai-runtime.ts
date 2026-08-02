@@ -184,6 +184,20 @@ export class AiRuntime {
     return this.status.value()?.served_model ?? this.config.value()?.model ?? null;
   }
 
+  /** Median felt latency per model — present even while the runtime is off. */
+  protected readonly answerStats = computed(() => this.status.value()?.answer_stats ?? []);
+
+  /** "8.3s" under a minute, "1m 24s" above — felt latency, not benchmarks. */
+  protected formatAnswerTime(ms: number): string {
+    const seconds = ms / 1000;
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    }
+    const total = Math.round(seconds);
+    const rest = total % 60;
+    return rest ? `${Math.floor(total / 60)}m ${rest}s` : `${Math.floor(total / 60)}m`;
+  }
+
   /** M50: short label for the not-ready state ("downloading" beats "loading"). */
   protected statusPhaseLabel(): string {
     switch (this.status.value()?.loading_phase) {

@@ -67,10 +67,11 @@ struct AccountsView: View {
             }
             .task { await viewModel.load() }
             .sheet(item: $designating) { account in
-                AccountDetailSheet(account: account) { name, type, designation in
+                AccountDetailSheet(account: account) { name, type, designation, rsuReadyToSell in
                     Task {
                         await viewModel.save(
-                            account, name: name, type: type, designation: designation)
+                            account, name: name, type: type, designation: designation,
+                            rsuReadyToSell: rsuReadyToSell)
                     }
                 }
             }
@@ -107,6 +108,11 @@ struct AccountsView: View {
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.green)
                     }
+                    if account.rsuReadyToSell == true {
+                        Label("Vested RSUs · ready to sell", systemImage: "chart.line.uptrend.xyaxis")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.teal)
+                    }
                 }
                 Spacer()
                 Text(account.balance.formatted)
@@ -121,16 +127,18 @@ struct AccountsView: View {
     }
 }
 
-/// Rename an account and (for asset accounts) designate how much is emergency fund.
+/// Rename an account and (for asset accounts) designate how much is emergency fund
+/// or tag its balance as vested RSUs ready to sell.
 private struct AccountDetailSheet: View {
     let account: Components.Schemas.Account
-    let onSave: (String, Components.Schemas.AccountType, EmergencyFundDesignation?) -> Void
+    let onSave: (String, Components.Schemas.AccountType, EmergencyFundDesignation?, Bool?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var accountType: Components.Schemas.AccountType
     @State private var mode: Mode
     @State private var amount: Double
+    @State private var rsuReadyToSell: Bool
 
     /// Human names for the picker, asset kinds first, then liabilities.
     static let typeLabels: [(Components.Schemas.AccountType, String)] = [
@@ -145,15 +153,19 @@ private struct AccountDetailSheet: View {
     private enum Mode: Hashable { case none, whole, amount }
 
     private var canDesignate: Bool { AccountsViewModel.canHoldEmergencyFund(account) }
+    private var canTagRsu: Bool { AccountsViewModel.canTagRsuReadyToSell(account) }
 
     init(
         account: Components.Schemas.Account,
-        onSave: @escaping (String, Components.Schemas.AccountType, EmergencyFundDesignation?) -> Void
+        onSave: @escaping (
+            String, Components.Schemas.AccountType, EmergencyFundDesignation?, Bool?
+        ) -> Void
     ) {
         self.account = account
         self.onSave = onSave
         _name = State(initialValue: account.name)
         _accountType = State(initialValue: account._type)
+        _rsuReadyToSell = State(initialValue: account.rsuReadyToSell ?? false)
         switch AccountsViewModel.designation(account) {
         case .none: _mode = State(initialValue: .none); _amount = State(initialValue: 0)
         case .wholeBalance: _mode = State(initialValue: .whole); _amount = State(initialValue: 0)
@@ -209,6 +221,16 @@ private struct AccountDetailSheet: View {
                         Text("How much of this account is untouchable savings that safe-to-spend holds back.")
                     }
                 }
+                if canTagRsu {
+                    Section {
+                        Toggle("Vested RSUs, ready to sell", isOn: $rsuReadyToSell)
+                    } footer: {
+                        Text(
+                            "This account's balance is vested company stock you could sell "
+                                + "for cash. Shown beside Safe to Spend — never added to it."
+                        )
+                    }
+                }
             }
             .navigationTitle("Edit account")
             .navigationBarTitleDisplayMode(.inline)
@@ -219,7 +241,9 @@ private struct AccountDetailSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(name, accountType, canDesignate ? designation : nil)
+                        onSave(
+                            name, accountType, canDesignate ? designation : nil,
+                            canTagRsu ? rsuReadyToSell : nil)
                         dismiss()
                     }
                 }

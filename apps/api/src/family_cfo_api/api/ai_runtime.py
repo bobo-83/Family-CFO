@@ -14,6 +14,7 @@ from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     AiApplyRequest,
+    ModelAnswerStats,
     AiHardwareProfile,
     AiModelCatalog,
     AiModelDetail,
@@ -179,6 +180,13 @@ async def get_ai_runtime_status(
     vision_enabled = settings.ai_supports_vision or (
         settings.ai_vision_enabled and bool(settings.ai_vision_model)
     )
+    # Felt-latency history is evidence regardless of the runtime's state.
+    answer_stats = [
+        ModelAnswerStats(model=model, median_ms=median_ms, samples=samples)
+        for model, median_ms, samples in repository.answer_time_stats(
+            engine, session.household_id
+        )
+    ]
     if not config.is_usable:
         return AiRuntimeStatus(
             enabled=config.enabled,
@@ -192,6 +200,7 @@ async def get_ai_runtime_status(
                 else "AI runtime is enabled but not fully configured."
             ),
             vision_enabled=vision_enabled,
+            answer_stats=answer_stats,
         )
 
     ready, served_model = _probe_served_model(config.base_url)
@@ -231,6 +240,7 @@ async def get_ai_runtime_status(
         vision_enabled=vision_enabled,
         loading_phase=loading_phase,
         loading_detail=loading_detail,
+        answer_stats=answer_stats,
     )
 
 

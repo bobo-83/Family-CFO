@@ -121,11 +121,22 @@
             <span class="backups-day__count">{{ group.backups.length }} backup{{ group.backups.length === 1 ? '' : 's' }}</span>
           </summary>
           <table class="backups-table">
-            <thead><tr><th>Time</th><th>Size (bytes)</th><th></th></tr></thead>
+            <thead><tr><th>Time</th><th>Version</th><th>Size (bytes)</th><th></th></tr></thead>
             <tbody>
               @for (backup of group.backups; track backup.filename) {
                 <tr>
                   <td>{{ formatDate(backup.modified_at) }}</td>
+                  <td>
+                    @if (backup.app_version; as version) {
+                      <span
+                        class="backups-version"
+                        [class.backups-version--newer]="isFromNewerVersion(version)"
+                        [title]="isFromNewerVersion(version) ? 'Made by a newer version — update first' : ''"
+                      >v{{ version }}</span>
+                    } @else {
+                      <span class="backups-version-unknown">version unknown</span>
+                    }
+                  </td>
                   <td>{{ backup.size_bytes }}</td>
                   <td>
                     <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
@@ -151,13 +162,24 @@
     } @else {
       <table class="backups-table">
         <thead>
-          <tr><th>Created</th><th>Status</th><th>Size (bytes)</th><th></th></tr>
+          <tr><th>Created</th><th>Status</th><th>Version</th><th>Size (bytes)</th><th></th></tr>
         </thead>
         <tbody>
           @for (backup of backups.value() ?? []; track backup.id) {
             <tr>
               <td>{{ backup.created_at }}</td>
               <td>{{ backup.status }}{{ backup.pruned_at ? ' (pruned)' : '' }}</td>
+              <td>
+                @if (backup.app_version; as version) {
+                  <span
+                    class="backups-version"
+                    [class.backups-version--newer]="isFromNewerVersion(version)"
+                    [title]="isFromNewerVersion(version) ? 'Made by a newer version — update first' : ''"
+                  >v{{ version }}</span>
+                } @else {
+                  <span class="backups-version-unknown">version unknown</span>
+                }
+              </td>
               <td>{{ backup.size_bytes ?? '—' }}</td>
               <td>
                 @if (backup.status === 'completed' && !backup.pruned_at) {
@@ -167,7 +189,7 @@
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="4">No backups yet.</td></tr>
+            <tr><td colspan="5">No backups yet.</td></tr>
           }
         </tbody>
       </table>

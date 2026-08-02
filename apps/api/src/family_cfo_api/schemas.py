@@ -308,6 +308,17 @@ class NamedAmount(BaseModel):
     amount: Money
 
 
+class ReadyToSellHoldings(BaseModel):
+    """Balances of the accounts the user tagged "vested RSUs, ready to sell" —
+    the provider-synced balance is ground truth (sales and price moves
+    included). Shown BESIDE safe-to-spend, never added to it: shares aren't
+    cash until sold (trade + settle + ACH)."""
+
+    value: Money
+    accounts: list[NamedAmount]
+    sale_notice_business_days: int
+
+
 class SafeToSpend(BaseModel):
     """M93: what's actually free to spend now — liquid cash net of the emergency
     fund, bills due, and minimum debt payments. total_debt is reported (not
@@ -339,6 +350,9 @@ class SafeToSpend(BaseModel):
     bill_items: list[NamedAmount] = Field(default_factory=list)
     # M98: the accounts and how much of each is reserved as emergency fund.
     emergency_fund_items: list[NamedAmount] = Field(default_factory=list)
+    # Vested RSUs one sale from cash (the accounts the user tagged) —
+    # informational only, never part of safe_to_spend.
+    ready_to_sell: ReadyToSellHoldings | None = None
     # M109: the recurring subscriptions behind subscription_forecast — the next
     # charge and its amount, so the drill-down explains the reserved total.
     subscription_forecast_items: list[NamedAmount] = Field(default_factory=list)
@@ -390,6 +404,9 @@ class Account(BaseModel):
     emergency_fund_percent: float | None = None
     emergency_fund_amount: Money | None = None
     emergency_fund_reserved: Money | None = None
+    # The user's tag: this account's balance is vested RSUs ready to sell —
+    # surfaced beside safe-to-spend (never added to it).
+    rsu_ready_to_sell: bool = False
 
 
 class Transaction(BaseModel):
@@ -1163,6 +1180,14 @@ class AiRuntimeConfig(BaseModel):
     cluster_enabled: bool = False
 
 
+class ModelAnswerStats(BaseModel):
+    """Median felt latency per model, from timed advisor answers."""
+
+    model: str
+    median_ms: int
+    samples: int
+
+
 class AiRuntimeStatus(BaseModel):
     """Live readiness of the household's AI runtime, for the chat UI banner."""
 
@@ -1175,6 +1200,8 @@ class AiRuntimeStatus(BaseModel):
     # Vision routing (ADR 0011): whether photos can be analyzed, and by what.
     vision_ready: bool = False
     vision_model: str | None = None
+    # Median question-to-answer wall time per model (evidence for model choice).
+    answer_stats: list[ModelAnswerStats] = []
     # Whether a vision path is configured at all (distinguishes "loading" from "off").
     vision_enabled: bool = False
     # M50: what "loading" actually means, classified from the vLLM log tail.
@@ -1363,6 +1390,9 @@ class BackupJob(BaseModel):
     # M98: whether this backup reached the off-box share, and the reason if not.
     remote_status: str | None = None
     remote_error: str | None = None
+    # The app version that made this backup — the compatibility label. Null on
+    # backups taken before versioning shipped.
+    app_version: str | None = None
 
 
 class BackupJobListResponse(BaseModel):
@@ -1417,6 +1447,9 @@ class RemoteBackup(BaseModel):
     filename: str
     size_bytes: int
     modified_at: int  # epoch seconds
+    # Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded
+    # before backups carried a version.
+    app_version: str | None = None
 
 
 class RemoteBackupListResponse(BaseModel):
@@ -1583,6 +1616,8 @@ class AccountUpdateRequest(BaseModel):
     emergency_fund_percent: float | None = Field(default=None, ge=0, le=100)
     emergency_fund_amount: Money | None = None
     clear_emergency_fund: bool = False
+    # Omit/null to leave the tag unchanged.
+    rsu_ready_to_sell: bool | None = None
 
 
 class AccountBalanceCreateRequest(BaseModel):

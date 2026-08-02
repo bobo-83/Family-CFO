@@ -19,6 +19,10 @@ protocol BackupAPI: Sendable {
     func deleteRemote(filename: String) async throws
     /// The key that decrypts every backup — for the owner to store safely.
     func encryptionKey() async throws -> String?
+    /// The box's running version (from /health) — flags backups made by a
+    /// NEWER app, which the server refuses to restore (409). Best-effort: nil
+    /// must never break the screen.
+    func serverVersion() async -> String?
 }
 
 /// The editable backup settings. `password` is nil unless the user typed one this
@@ -102,6 +106,13 @@ struct LiveBackupAPI: BackupAPI {
         case .ok: return
         case .badRequest: throw BackupError.restoreFailed
         case .notFound: throw BackupError.notFoundOnShare
+        case .conflict(let response):
+            // Backup from a newer app version — the server's message says what
+            // to do ("update the app first"); show it verbatim.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(409)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)
@@ -123,6 +134,13 @@ struct LiveBackupAPI: BackupAPI {
         case .ok: return
         case .badRequest: throw BackupError.restoreFailed
         case .notFound: throw BackupError.notFoundOnShare
+        case .conflict(let response):
+            // Backup from a newer app version — the server's message says what
+            // to do ("update the app first"); show it verbatim.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(409)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)
@@ -156,6 +174,14 @@ struct LiveBackupAPI: BackupAPI {
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)
         }
+    }
+
+    func serverVersion() async -> String? {
+        // Best-effort, like HouseholdAPI.serverVersion — never break the screen.
+        guard case .ok(let response) = try? await client.getHealth(.init()),
+            let health = try? response.body.json
+        else { return nil }
+        return health.version
     }
 
     private func nilIfBlank(_ s: String) -> String? {

@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import type { RemoteBackup } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -44,12 +45,12 @@ export class Backups implements OnInit {
   private passwordEdited = false;
 
   protected readonly latest = signal<{ status: string; completed_at?: string | null; size_bytes?: number | null; error_message?: string | null; remote_status?: string | null; remote_error?: string | null } | null>(null);
-  protected readonly remoteBackups = signal<{ filename: string; size_bytes: number; modified_at: number }[]>([]);
+  protected readonly remoteBackups = signal<RemoteBackup[]>([]);
 
   /** Grouped by day, newest first — four snapshots a day made the flat list
    * an endless scroll (user report 2026-07-26). Mirrors the iOS grouping. */
   protected readonly remoteBackupDays = computed(() => {
-    const byDay = new Map<string, { filename: string; size_bytes: number; modified_at: number }[]>();
+    const byDay = new Map<string, RemoteBackup[]>();
     for (const backup of this.remoteBackups()) {
       const day = new Date(backup.modified_at * 1000).toDateString();
       const list = byDay.get(day) ?? [];
@@ -86,9 +87,43 @@ export class Backups implements OnInit {
   });
 
   async ngOnInit(): Promise<void> {
+    this.loadRunningVersion();
     if (this.isOwner()) {
       await this.loadConfig();
     }
+  }
+
+  /** The box's running version (same unauthenticated /health the shell footer
+   * uses) — flags backups the server would refuse to restore with a 409. */
+  protected readonly runningVersion = signal<string | null>(null);
+
+  private loadRunningVersion(): void {
+    void fetch('/api/v1/health')
+      .then((response) => response.json())
+      .then((health: { version?: string }) => this.runningVersion.set(health.version ?? null))
+      .catch(() => this.runningVersion.set(null));
+  }
+
+  /** Numeric dotted-tuple compare (never string compare): true when the backup
+   * was made by a NEWER app than the box runs — restore needs an update first. */
+  protected isFromNewerVersion(appVersion: string | null | undefined): boolean {
+    const running = this.runningVersion();
+    if (!appVersion || !running) {
+      return false;
+    }
+    const a = appVersion.split('.').map((part) => Number.parseInt(part, 10));
+    const b = running.split('.').map((part) => Number.parseInt(part, 10));
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const x = a[i] ?? 0;
+      const y = b[i] ?? 0;
+      if (Number.isNaN(x) || Number.isNaN(y)) {
+        return false;
+      }
+      if (x !== y) {
+        return x > y;
+      }
+    }
+    return false;
   }
 
   private async loadConfig(): Promise<void> {

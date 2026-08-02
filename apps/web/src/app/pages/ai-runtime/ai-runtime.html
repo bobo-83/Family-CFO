@@ -63,6 +63,22 @@
             </div>
           </div>
 
+          <!-- Median answer time per model — evidence for picking, not benchmarks -->
+          @if (answerStats().length > 0) {
+            <div class="answer-stats">
+              <h3 class="answer-stats__heading">Median answer time</h3>
+              @for (stat of answerStats(); track stat.model) {
+                <div class="answer-stats__row">
+                  <span class="answer-stats__model">{{ stat.model }}</span>
+                  <span>
+                    <strong>{{ formatAnswerTime(stat.median_ms) }}</strong>
+                    · {{ stat.samples }} answer{{ stat.samples === 1 ? '' : 's' }}
+                  </span>
+                </div>
+              }
+            </div>
+          }
+
           <!-- Live apply status (polls every 5s until active/failed) -->
           @if (applyLive(); as live) {
             <div

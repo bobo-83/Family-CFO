@@ -2831,6 +2831,8 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /backups/config:
     get:
       tags:
@@ -2946,6 +2948,8 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+        "409":
           $ref: "#/components/responses/Error"
   /backups/remote/delete:
     post:
@@ -5117,6 +5121,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NamedAmount"
+        ready_to_sell:
+          description: >-
+            The provider-synced balances of the accounts the user tagged
+            "vested RSUs, ready to sell". Informational — never added to
+            safe_to_spend, because shares aren't cash until sold. Absent when
+            no account is tagged.
+          allOf:
+            - $ref: "#/components/schemas/ReadyToSellHoldings"
+    ReadyToSellHoldings:
+      type: object
+      required:
+        - value
+        - accounts
+        - sale_notice_business_days
+      properties:
+        value:
+          $ref: "#/components/schemas/Money"
+        accounts:
+          description: The tagged accounts and their synced balances.
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        sale_notice_business_days:
+          description: "ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH)."
+          type: integer
     LiquidAccountBalance:
       type: object
       required:
@@ -5382,6 +5411,12 @@ components:
         emergency_fund_reserved:
           description: "M36: derived reservation — percent of the latest balance or the fixed amount, capped at the balance."
           $ref: "#/components/schemas/Money"
+        rsu_ready_to_sell:
+          description: >-
+            The user's tag that this account's balance is vested RSUs ready to
+            sell — surfaced beside safe-to-spend, never added to it.
+          type: boolean
+          default: false
     AccountType:
       type: string
       enum:
@@ -5999,6 +6034,13 @@ components:
           type:
             - string
             - "null"
+        app_version:
+          description: >-
+            The app version that made this backup — the restore-compatibility
+            label. Null on backups taken before versioning shipped.
+          type:
+            - string
+            - "null"
     BackupJobListResponse:
       type: object
       required:
@@ -6134,6 +6176,13 @@ components:
           description: "Epoch seconds of the file's last-modified time."
           type: integer
           format: int64
+        app_version:
+          description: >-
+            Parsed from the `{id}.v{version}.enc` filename; null for archives
+            uploaded before backups carried a version.
+          type:
+            - string
+            - "null"
     RemoteBackupListResponse:
       type: object
       required:
@@ -6504,6 +6553,11 @@ components:
         clear_emergency_fund:
           description: "M36: remove the emergency-fund designation from this account."
           type: boolean
+        rsu_ready_to_sell:
+          description: Tag/untag this account's balance as vested RSUs ready to sell. Omit/null to leave unchanged.
+          type:
+            - boolean
+            - "null"
     AccountBalanceCreateRequest:
       type: object
       required:
@@ -6822,6 +6876,27 @@ components:
           type:
             - string
             - "null"
+        answer_stats:
+          description: >-
+            Median wall-clock answer time per model over recent advisor
+            questions — felt latency, so model choice can rest on evidence.
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelAnswerStats"
+          default: []
+    ModelAnswerStats:
+      type: object
+      required:
+        - model
+        - median_ms
+        - samples
+      properties:
+        model:
+          type: string
+        median_ms:
+          type: integer
+        samples:
+          type: integer
     AiModelInfo:
       type: object
       required:

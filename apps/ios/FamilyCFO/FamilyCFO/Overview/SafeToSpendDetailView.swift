@@ -90,6 +90,44 @@ struct SafeToSpendDetailView: View {
                 }
             }
 
+            // Informational companion — the tagged accounts' vested shares are
+            // shown beside the number, never added to it.
+            if let ready = safeToSpend.readyToSell?.value1 {
+                Section {
+                    LabeledContent {
+                        Text(ready.value.formatted)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Vested RSUs, ready to sell")
+                            Text(
+                                "About \(ready.saleNoticeBusinessDays) business "
+                                    + "\(ready.saleNoticeBusinessDays == 1 ? "day" : "days") "
+                                    + "to become cash"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(ready.accounts, id: \.name) { holding in
+                        LabeledContent(holding.name) {
+                            Text(holding.amount.formatted)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .font(.subheadline)
+                    }
+                } header: {
+                    Text("Ready to sell")
+                } footer: {
+                    Text(
+                        "Vested company stock you could sell for cash — shown beside "
+                            + "Safe to Spend, never added to it."
+                    )
+                }
+            }
+
             if !safeToSpend.warnings.isEmpty {
                 Section("Heads up") {
                     ForEach(safeToSpend.warnings, id: \.self) { warning in

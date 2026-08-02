@@ -18,7 +18,7 @@
   }
 
   .accounts-table {
-    min-width: 44rem;
+    min-width: 48rem;
   }
 }
 
@@ -132,6 +132,18 @@
   margin-top: 0.2rem;
   font-size: 0.8rem;
   color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+}
+
+/* Vested RSUs, ready to sell — surfaced beside safe-to-spend, never added to it. */
+.accounts-table__rsu {
+  text-align: center;
+}
+
+.accounts-table__rsu-toggle {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-accent, #2563eb);
+  cursor: pointer;
 }
 
 /* M35: inline account-type editing */

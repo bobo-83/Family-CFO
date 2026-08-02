@@ -66,6 +66,7 @@ def _to_schema(record: repository.BackupJobRecord) -> BackupJob:
         created_at=record.created_at,
         remote_status=record.remote_status,
         remote_error=record.remote_error,
+        app_version=record.app_version,
     )
 
 
@@ -138,6 +139,10 @@ async def create_backup(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Backup not found", "model": ErrorResponse},
+        409: {
+            "description": "Backup is from a newer app version than this box",
+            "model": ErrorResponse,
+        },
     },
     summary="Restore the database and documents from a completed backup (destructive)",
 )
@@ -160,6 +165,8 @@ async def restore_backup(
             backup_dir=settings.backup_dir,
             encryption_key=settings.backup_encryption_key,
         )
+    except backup_processing.BackupCompatibilityError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -320,6 +327,7 @@ async def list_remote_backups(
                 filename=item["filename"],
                 size_bytes=item["size_bytes"],
                 modified_at=item["modified_at"],
+                app_version=backup_processing._app_version_from_filename(item["filename"]),
             )
             for item in items
         ]
@@ -335,6 +343,10 @@ async def list_remote_backups(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Backup file not found on the share", "model": ErrorResponse},
+        409: {
+            "description": "Backup is from a newer app version than this box",
+            "model": ErrorResponse,
+        },
     },
     summary="Restore from a backup file on the off-box share (destructive)",
 )
@@ -365,6 +377,8 @@ async def restore_remote_backup(
             staging_dir=settings.import_staging_dir,
             encryption_key=settings.backup_encryption_key,
         )
+    except backup_processing.BackupCompatibilityError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, backup_processing.BackupConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

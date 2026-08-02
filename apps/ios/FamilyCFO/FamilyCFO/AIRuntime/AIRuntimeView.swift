@@ -20,6 +20,7 @@ struct AIRuntimeView: View {
     var body: some View {
         List {
             statusSection
+            answerStatsSection
             if let banner = viewModel.applyBanner {
                 Section {
                     Label(banner, systemImage: viewModel.isApplying ? "arrow.triangle.2.circlepath" : "info.circle")
@@ -85,6 +86,43 @@ struct AIRuntimeView: View {
         } header: {
             Text("Status")
         }
+    }
+
+    /// Median felt latency of advisor answers per model — evidence for picking.
+    /// Present even while the runtime is off; hidden until there are samples.
+    @ViewBuilder private var answerStatsSection: some View {
+        if let stats = viewModel.status?.answerStats, !stats.isEmpty {
+            Section {
+                ForEach(stats, id: \.model) { stat in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(stat.model)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(Self.answerTimeLabel(ms: stat.medianMs))
+                                .font(.subheadline.weight(.semibold))
+                            Text("\(stat.samples) answer\(stat.samples == 1 ? "" : "s")")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Median answer time")
+            } footer: {
+                Text("Felt latency of recent advisor answers, per model.")
+            }
+        }
+    }
+
+    /// "8.3s" under a minute, "1m 24s" above.
+    static func answerTimeLabel(ms: Int) -> String {
+        let seconds = Double(ms) / 1000
+        if seconds < 60 { return String(format: "%.1fs", seconds) }
+        let total = Int(seconds.rounded())
+        let rest = total % 60
+        return rest == 0 ? "\(total / 60)m" : "\(total / 60)m \(rest)s"
     }
 
     @ViewBuilder private var hardwareSection: some View {

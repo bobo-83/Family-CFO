@@ -273,6 +273,22 @@
             @for (warning of sts.warnings; track warning) {
               <span class="overview__hint">⚠ {{ warning }}</span>
             }
+            @if (sts.ready_to_sell; as rsu) {
+              <!-- Informational companion — never added to the stress-test number. -->
+              <div class="overview__ready-to-sell">
+                <span class="overview__detail">
+                  📈 Ready to sell: {{ formatMoney(rsu.value) }} in vested RSUs —
+                  about {{ rsu.sale_notice_business_days }} business
+                  day{{ rsu.sale_notice_business_days === 1 ? '' : 's' }} to become cash
+                </span>
+                <span class="overview__value-context">
+                  Not part of the number above.
+                  @for (holding of rsu.accounts; track holding.name) {
+                    {{ holding.name }} ({{ formatMoney(holding.amount) }}){{ $last ? '' : ' · ' }}
+                  }
+                </span>
+              </div>
+            }
           </div>
         }
 

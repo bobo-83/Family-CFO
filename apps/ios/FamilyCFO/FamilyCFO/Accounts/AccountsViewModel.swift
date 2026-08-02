@@ -59,6 +59,12 @@ final class AccountsViewModel {
         }
     }
 
+    /// The RSU tag is for asset accounts (a stock-plan account syncs as one);
+    /// a card or loan balance can never be vested shares.
+    static func canTagRsuReadyToSell(_ account: Components.Schemas.Account) -> Bool {
+        manualAssetTypes.contains(account._type)
+    }
+
     static func designation(_ account: Components.Schemas.Account) -> EmergencyFundDesignation {
         if let percent = account.emergencyFundPercent, percent >= 100 { return .wholeBalance }
         if let amount = account.emergencyFundAmount { return .amount(amount.amountMinor) }
@@ -145,7 +151,8 @@ final class AccountsViewModel {
         _ account: Components.Schemas.Account,
         name: String,
         type: Components.Schemas.AccountType? = nil,
-        designation: EmergencyFundDesignation?
+        designation: EmergencyFundDesignation?,
+        rsuReadyToSell: Bool? = nil
     ) async {
         do {
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -158,6 +165,10 @@ final class AccountsViewModel {
             if let designation, designation != Self.designation(account) {
                 try await api.setEmergencyFund(
                     id: account.id, currency: account.balance.currency, designation)
+            }
+            // Only PATCH the tag when the user actually flipped it.
+            if let rsuReadyToSell, rsuReadyToSell != (account.rsuReadyToSell ?? false) {
+                try await api.setRsuReadyToSell(id: account.id, rsuReadyToSell)
             }
             await load()
         } catch {

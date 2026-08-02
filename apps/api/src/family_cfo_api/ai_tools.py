@@ -378,7 +378,18 @@ def _get_emergency_fund(engine: Engine, household_id: str, currency: str, args: 
 
 def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     result, calc_id = finance_service.compute_safe_to_spend(engine, household_id, currency)
-    return _result_payload(result, calc_id)
+    payload = _result_payload(result, calc_id)
+    # Context, not spendable cash: the synced balances of accounts the user
+    # tagged "vested RSUs, ready to sell". The advisor may mention them as one
+    # sale away (~4 business days), never fold them into safe_to_spend.
+    held = [
+        {"account": b.name, "value_minor": b.balance_minor}
+        for b in repository.list_account_balances(engine, household_id)
+        if b.rsu_ready_to_sell and b.currency == currency and b.balance_minor > 0
+    ]
+    if held:
+        payload["vested_rsus_ready_to_sell_not_cash"] = held
+    return payload
 
 
 # Roughly the long-run return of a diversified portfolio / prevailing inflation:

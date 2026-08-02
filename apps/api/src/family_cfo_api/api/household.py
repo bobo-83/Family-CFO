@@ -27,6 +27,7 @@ from family_cfo_api.schemas import (
     NetWorthPoint,
     LiquidAccountBalance,
     NamedAmount,
+    ReadyToSellHoldings,
     SafeToSpend,
     SavingsRate,
     SpendingByCategory,
@@ -261,6 +262,34 @@ def _spending_by_category(
     )
 
 
+def _ready_to_sell(engine: Engine, household_id: str, currency: str) -> ReadyToSellHoldings | None:
+    """The "vested RSUs, one sale from cash" line beside safe-to-spend: the
+    provider-synced balances of the accounts the user tagged. The balance is
+    ground truth — sales and price moves included — which is why the tag lives
+    on the account instead of deriving from the vest schedule."""
+    total = 0
+    items: list[NamedAmount] = []
+    for balance in repository.list_account_balances(engine, household_id):
+        if not balance.rsu_ready_to_sell or balance.currency != currency:
+            continue
+        if balance.balance_minor <= 0:
+            continue
+        total += balance.balance_minor
+        items.append(
+            NamedAmount(
+                name=balance.name,
+                amount=MoneySchema(amount_minor=balance.balance_minor, currency=currency),
+            )
+        )
+    if not items:
+        return None
+    return ReadyToSellHoldings(
+        value=MoneySchema(amount_minor=total, currency=currency),
+        accounts=items,
+        sale_notice_business_days=finance_service.RSU_SALE_NOTICE_BUSINESS_DAYS,
+    )
+
+
 def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSpend | None:
     """M93: what's free to spend now, for the Overview. None when there is no
     liquid balance to reason about (a brand-new household)."""
@@ -374,6 +403,7 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         safe_to_spend=money("safe_to_spend"),
         total_debt=money("total_debt"),
         warnings=user_warnings,
+        ready_to_sell=_ready_to_sell(engine, household_id, currency),
         liquid_accounts=liquid_accounts,
         minimum_debt_items=minimum_debt_items,
         credit_card_items=card_items,

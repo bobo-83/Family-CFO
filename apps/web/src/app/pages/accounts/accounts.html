@@ -89,6 +89,11 @@
                   <th>Last synced</th>
                   <th>Balance</th>
                   <th>Emergency fund</th>
+                  <th
+                    title="This account's balance is vested company stock you could sell for cash. Shown beside Safe to Spend — never added to it."
+                  >
+                    Vested RSUs
+                  </th>
                   @if (canWrite()) {
                     <th></th>
                   }
@@ -166,6 +171,20 @@
                         </span>
                       } @else if (!canWrite()) {
                         —
+                      }
+                    </td>
+                    <td class="accounts-table__rsu">
+                      @if (canWrite()) {
+                        <input
+                          type="checkbox"
+                          class="accounts-table__rsu-toggle"
+                          [checked]="account.rsu_ready_to_sell ?? false"
+                          (change)="setRsuReadyToSell(account, $event)"
+                          aria-label="Vested RSUs, ready to sell"
+                          title="This account's balance is vested company stock you could sell for cash. Shown beside Safe to Spend — never added to it."
+                        />
+                      } @else {
+                        {{ account.rsu_ready_to_sell ? '✓' : '—' }}
                       }
                     </td>
                     @if (canWrite()) {

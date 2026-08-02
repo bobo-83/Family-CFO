@@ -176,4 +176,39 @@ describe('Accounts M36: emergency fund + group rollups', () => {
       emergency_fund_amount: { amount_minor: 100_000, currency: 'USD' },
     });
   });
+
+  it('tags an account as vested RSUs with a boolean-only PATCH', async () => {
+    const apiMock = {
+      listAccounts: vi.fn().mockResolvedValue(
+        response({
+          accounts: [
+            {
+              id: 'a1',
+              name: 'Employer stock plan',
+              type: 'brokerage',
+              balance: { amount_minor: 8_400_000, currency: 'USD' },
+            },
+          ],
+        }),
+      ),
+      updateAccount: vi.fn().mockResolvedValue(response({})),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Accounts);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const toggle = host.querySelector('.accounts-table__rsu-toggle') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+
+    // Only the tag is sent — nothing that could disturb other designations.
+    expect(apiMock.updateAccount).toHaveBeenCalledWith('a1', { rsu_ready_to_sell: true });
+    expect(apiMock.updateAccount).toHaveBeenCalledTimes(1);
+  });
 });

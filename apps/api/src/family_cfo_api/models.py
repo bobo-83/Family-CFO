@@ -300,6 +300,10 @@ accounts = Table(
     # never both. Reserved money is derived at read time from the latest balance.
     Column("emergency_fund_percent", Float, nullable=True),
     Column("emergency_fund_minor", BigInteger, nullable=True),
+    # The user's tag that this account's balance is vested RSUs ready to sell —
+    # the synced balance is ground truth (sales and price moves included), so
+    # safe-to-spend shows it beside the headline without schedule guesswork.
+    Column("rsu_ready_to_sell", Boolean, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"type in {_sql_in(ACCOUNT_TYPES)}", name="ck_accounts_type"),
@@ -565,6 +569,10 @@ recommendations = Table(
     Column("explanation_source", String(30), nullable=False),
     Column("model_version", String(100), nullable=True),
     Column("prompt_version", String(50), nullable=True),
+    # Wall-clock ms from question to finished answer (tool loop included) —
+    # the latency a user actually feels; medians per model feed the AI
+    # runtime page so model choice can be evidence-based.
+    Column("answer_ms", Integer, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(
         f"explanation_source in {_sql_in(EXPLANATION_SOURCES)}",
@@ -691,6 +699,10 @@ backup_jobs = Table(
     # M98: whether the completed backup reached the off-box share, and why not.
     Column("remote_status", String(20), nullable=True),
     Column("remote_error", Text, nullable=True),
+    # The app version and alembic revision the backup was taken under, so the
+    # restore UI can label compatibility. Null on pre-versioning backups.
+    Column("app_version", String(50), nullable=True),
+    Column("schema_revision", String(64), nullable=True),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
     Column("pruned_at", DateTime(timezone=True), nullable=True),

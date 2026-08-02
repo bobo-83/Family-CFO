@@ -5,6 +5,7 @@ import base64
 import binascii
 import json
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -437,6 +438,9 @@ def _chat_turn(
     persist, and build the response. Shared by the plain and streaming
     endpoints; `schedule` defers post-response work (memory extraction) and
     `on_event` receives progress events while the loop runs (ADR 0061)."""
+    # Felt latency: wall-clock from question to persisted answer, tool loop
+    # and photo analysis included — medians per model feed the runtime page.
+    turn_started = time.monotonic()
     household = repository.get_household(engine, session.household_id)
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
@@ -519,6 +523,7 @@ def _chat_turn(
         warnings=answer.warnings,
         explanation_source=answer.explanation_source,
         model_version=answer.answered_by,
+        answer_ms=int((time.monotonic() - turn_started) * 1000),
     )
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new

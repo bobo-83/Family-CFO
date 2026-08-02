@@ -830,6 +830,7 @@ class AccountBalanceRecord:
     next_payment_due_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
+    rsu_ready_to_sell: bool = False
 
 
 def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
@@ -1045,6 +1046,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             models.accounts.c.next_payment_due_date,
             models.accounts.c.emergency_fund_percent,
             models.accounts.c.emergency_fund_minor,
+            models.accounts.c.rsu_ready_to_sell,
         )
         .select_from(models.accounts)
         .join(latest_balance, latest_balance.c.account_id == models.accounts.c.id)
@@ -1073,6 +1075,7 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
             next_payment_due_date=row.next_payment_due_date,
             emergency_fund_percent=row.emergency_fund_percent,
             emergency_fund_minor=row.emergency_fund_minor,
+            rsu_ready_to_sell=bool(row.rsu_ready_to_sell),
         )
         for row in rows
     ]
@@ -1806,6 +1809,7 @@ def create_recommendation(
     explanation_source: str,
     model_version: str | None = None,
     prompt_version: str | None = None,
+    answer_ms: int | None = None,
 ) -> str:
     recommendation_id = new_id()
     with engine.begin() as conn:
@@ -1824,6 +1828,7 @@ def create_recommendation(
                 warnings_json=warnings,
                 explanation_source=explanation_source,
                 model_version=model_version,
+                answer_ms=answer_ms,
                 prompt_version=prompt_version,
                 created_at=utcnow(),
             )
@@ -1843,6 +1848,39 @@ class AiRuntimeConfigRecord:
     enabled: bool
     # M-cluster (ADR 0071): use the paired second box for larger models.
     cluster_enabled: bool = False
+
+
+
+def answer_time_stats(
+    engine: Engine, household_id: str, limit: int = 200
+) -> list[tuple[str, int, int]]:
+    """(model_version, median_answer_ms, samples) per model over the most
+    recent `limit` timed LLM answers — the felt-latency evidence behind the
+    AI runtime page's model comparison."""
+    from statistics import median
+
+    query = (
+        select(models.recommendations.c.model_version, models.recommendations.c.answer_ms)
+        .where(
+            models.recommendations.c.household_id == household_id,
+            models.recommendations.c.model_version.is_not(None),
+            models.recommendations.c.answer_ms.is_not(None),
+        )
+        .order_by(models.recommendations.c.created_at.desc())
+        .limit(limit)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    by_model: dict[str, list[int]] = {}
+    for model_version, answer_ms in rows:
+        by_model.setdefault(model_version, []).append(answer_ms)
+    return sorted(
+        (
+            (model, int(median(values)), len(values))
+            for model, values in by_model.items()
+        ),
+        key=lambda item: item[0],
+    )
 
 
 def get_ai_runtime_config(engine: Engine, household_id: str) -> AiRuntimeConfigRecord | None:
@@ -2922,6 +2960,10 @@ class BackupJobRecord:
     # M98: whether the completed archive reached the off-box share, and why not.
     remote_status: str | None = None
     remote_error: str | None = None
+    # The app version and alembic revision the backup was taken under — the
+    # restore-compatibility label (also sealed inside the archive's manifest).
+    app_version: str | None = None
+    schema_revision: str | None = None
 
 
 def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
@@ -2937,6 +2979,8 @@ def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
         created_at=row["created_at"],
         remote_status=row.get("remote_status"),
         remote_error=row.get("remote_error"),
+        app_version=row.get("app_version"),
+        schema_revision=row.get("schema_revision"),
     )
 
 
@@ -2979,6 +3023,8 @@ def update_backup_job(
     error_message: str | None = None,
     remote_status: str | None = None,
     remote_error: str | None = None,
+    app_version: str | None = None,
+    schema_revision: str | None = None,
 ) -> None:
     values: dict[str, Any] = {"status": status}
     if storage_path is not None:
@@ -2991,6 +3037,10 @@ def update_backup_job(
         values["remote_status"] = remote_status
     if remote_error is not None:
         values["remote_error"] = remote_error
+    if app_version is not None:
+        values["app_version"] = app_version
+    if schema_revision is not None:
+        values["schema_revision"] = schema_revision
     if status in ("completed", "failed"):
         values["completed_at"] = utcnow()
 
@@ -3627,6 +3677,8 @@ class AccountRecord:
     next_payment_due_date: date | None = None
     emergency_fund_percent: float | None = None
     emergency_fund_minor: int | None = None
+    # The user's tag: this account's synced balance is vested RSUs ready to sell.
+    rsu_ready_to_sell: bool = False
 
 
 def _account_record_from_row(row: Any) -> AccountRecord:
@@ -3641,6 +3693,7 @@ def _account_record_from_row(row: Any) -> AccountRecord:
         next_payment_due_date=row["next_payment_due_date"],
         emergency_fund_percent=row["emergency_fund_percent"],
         emergency_fund_minor=row["emergency_fund_minor"],
+        rsu_ready_to_sell=bool(row["rsu_ready_to_sell"]),
     )
 
 
@@ -3800,6 +3853,7 @@ def update_account(
     emergency_fund_percent: float | None = None,
     emergency_fund_minor: int | None = None,
     clear_emergency_fund: bool = False,
+    rsu_ready_to_sell: bool | None = None,
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
@@ -3814,6 +3868,8 @@ def update_account(
         values["maturity_date"] = maturity_date
     if next_payment_due_date is not None:
         values["next_payment_due_date"] = next_payment_due_date
+    if rsu_ready_to_sell is not None:
+        values["rsu_ready_to_sell"] = rsu_ready_to_sell
     # M36: setting one designation clears the other (mutually exclusive by CHECK).
     if clear_emergency_fund:
         values["emergency_fund_percent"] = None
