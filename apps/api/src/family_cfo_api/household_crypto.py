@@ -645,7 +645,11 @@ def sealed_tables(models_module):
         (models_module.household_memories, ["value"], "household_id"),
         (models_module.advisor_feedback, ["note"], "household_id"),
         (models_module.document_extractions, ["text"], "document"),
-        (models_module.transactions, ["merchant", "description", "note"], "household_id"),
+        (
+            models_module.transactions,
+            ["merchant", "description", "note", "amount_minor"],
+            "household_id",
+        ),
         (models_module.accounts, ["name", "institution"], "household_id"),
         (models_module.bills, ["name"], "household_id"),
         (models_module.income_sources, ["name"], "household_id"),

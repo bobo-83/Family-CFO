@@ -172,12 +172,13 @@ where decryption slots in.
   SQL that grouped or ordered by those columns moved to
   decrypt-then-compute in the service layer (merchant rankings, name
   sorts, goal tiebreaks).
-- **Recorded deviation: transaction amounts stay plaintext.** Amounts
-  participate in ~30 SQL aggregations (budgets, income, savings, net
-  worth); without any text label beside them (merchant, description,
-  account name — all sealed), dates + bare amounts identify little.
-  Sealing them means porting every aggregation to per-request
-  decryption; revisit if hosting makes that trade worth it.
+- **Deviation resolved 2026-08-04 (#184): transaction amounts are now
+  sealed too.** Every SQL aggregation (sums, sign rules, dedupe
+  equality, merchant rankings, duplicate flagging) moved to
+  decrypt-then-compute at the repository seam; measured cost 3.4 µs per
+  amount with a per-process token cache, ~5 ms at current volumes.
+  Migration 0080 turns amount_minor into sealed Text; legacy digit
+  strings read through until the sealer runs.
 - Known plaintext residuals, accepted for now: report `summary_json` and
   extraction `structured_fields_json` (JSON columns), bill-suggestion
   dismissal merchant keys and transaction `import_hash` (both plaintext-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -13,9 +14,52 @@ from sqlalchemy.exc import IntegrityError
 from family_cfo_api import household_crypto, models
 
 
+logger = logging.getLogger(__name__)
+
+
 def _dec(engine, household_id, value):
     """Read-side seam for sealed content columns (ADR 0072)."""
     return household_crypto.decrypt_text(engine, household_id, value)
+
+
+# Sealed amounts (#184): tokens are immutable, so each decrypts at most once
+# per process. Bounded so a pathological workload can't grow it unboundedly.
+_amount_cache: dict[str, int] = {}
+_AMOUNT_CACHE_MAX = 200_000
+
+
+def _enc_amount(engine, household_id, amount: int):
+    return household_crypto.encrypt_text(engine, household_id, str(int(amount)))
+
+
+def _dec_amount(engine, household_id, value) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, int):
+        return value  # pre-migration rows / SQLite passthrough
+    text_value = str(value)
+    if not text_value.startswith(household_crypto.ENC_PREFIX):
+        return int(text_value)
+    cached = _amount_cache.get(text_value)
+    if cached is not None:
+        return cached
+    plain = household_crypto.decrypt_text(engine, household_id, text_value)
+    try:
+        amount = int(plain)
+    except (TypeError, ValueError):
+        # Wrong-key placeholder — never crash an aggregation over it.
+        logger.error("sealed amount unreadable household=%s", household_id)
+        return 0
+    if len(_amount_cache) < _AMOUNT_CACHE_MAX:
+        _amount_cache[text_value] = amount
+    return amount
+
+
+def _counts_as_spending(amount_minor: int, category_id) -> bool:
+    """The spending rule _spending_window used to enforce in SQL: outflows
+    always; categorized inflows net as refunds; uncategorized inflows are
+    stray deposits, excluded. In Python now — amounts are sealed (#184)."""
+    return amount_minor < 0 or category_id is not None
 
 
 def new_id() -> str:
@@ -1252,7 +1296,7 @@ def list_transactions(
             id=row.id,
             account_id=row.account_id,
             occurred_at=row.occurred_at,
-            amount_minor=row.amount_minor,
+            amount_minor=_dec_amount(engine, household_id, row.amount_minor),
             currency=row.currency,
             merchant=_dec(engine, household_id, row.merchant),
             category=row.category,
@@ -1480,19 +1524,24 @@ def delete_budget(engine: Engine, household_id: str, budget_id: str) -> bool:
 def sum_spending_by_category(
     engine: Engine, household_id: str, start: date, end: date, currency: str
 ) -> dict[str, int]:
-    """Outflow (positive) per category id over [start, end]; uncategorized excluded."""
-    total = func.sum(-models.transactions.c.amount_minor).label("total")
-    query = (
-        select(models.transactions.c.category_id, total)
-        .where(
-            _spending_window(household_id, start, end, currency),
-            models.transactions.c.category_id.is_not(None),
-        )
-        .group_by(models.transactions.c.category_id)
+    """Outflow (positive) per category id over [start, end]; uncategorized excluded.
+
+    Summed in Python: amounts are sealed per household (#184), so the database
+    can no longer do the arithmetic."""
+    query = select(
+        models.transactions.c.category_id, models.transactions.c.amount_minor
+    ).where(
+        _spending_window(household_id, start, end, currency),
+        models.transactions.c.category_id.is_not(None),
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    return {row.category_id: int(row.total) for row in rows}
+    totals: dict[str, int] = {}
+    for row in rows:
+        amount = _dec_amount(engine, household_id, row.amount_minor)
+        # Categorized rows always qualify (refunds net against their category).
+        totals[row.category_id] = totals.get(row.category_id, 0) + (-amount)
+    return totals
 
 
 # --- Spending insights (M42) -------------------------------------------------
@@ -1528,16 +1577,17 @@ def sum_taxes(
         (models.transaction_categories.c.household_id == household_id)
         & (func.lower(models.transaction_categories.c.name).in_(TAXES_CATEGORY_NAMES))
     )
-    query = select(func.coalesce(func.sum(-models.transactions.c.amount_minor), 0)).where(
+    query = select(models.transactions.c.amount_minor).where(
         (models.transactions.c.household_id == household_id)
         & (models.transactions.c.currency == currency)
-        & (models.transactions.c.amount_minor < 0)
         & (models.transactions.c.occurred_at >= start)
         & (models.transactions.c.occurred_at <= end)
         & (models.transactions.c.category_id.in_(tax_ids))
     )
     with engine.connect() as conn:
-        return int(conn.execute(query).scalar_one())
+        rows = conn.execute(query).all()
+    amounts = (_dec_amount(engine, household_id, row[0]) for row in rows)
+    return sum(-amount for amount in amounts if amount < 0)
 
 
 def _non_spending_category_ids(household_id: str):
@@ -1555,16 +1605,17 @@ def sum_income(
         (models.transaction_categories.c.household_id == household_id)
         & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
     )
-    query = select(func.coalesce(func.sum(models.transactions.c.amount_minor), 0)).where(
+    query = select(models.transactions.c.amount_minor).where(
         (models.transactions.c.household_id == household_id)
         & (models.transactions.c.currency == currency)
-        & (models.transactions.c.amount_minor > 0)
         & (models.transactions.c.occurred_at >= start)
         & (models.transactions.c.occurred_at <= end)
         & (models.transactions.c.category_id.in_(income_ids))
     )
     with engine.connect() as conn:
-        return int(conn.execute(query).scalar_one())
+        rows = conn.execute(query).all()
+    amounts = (_dec_amount(engine, household_id, row[0]) for row in rows)
+    return sum(amount for amount in amounts if amount > 0)
 
 
 def _spending_window(household_id: str, start: date, end: date, currency: str):
@@ -1587,11 +1638,8 @@ def _spending_window(household_id: str, start: date, end: date, currency: str):
             models.transactions.c.category_id.is_(None)
             | models.transactions.c.category_id.not_in(_non_spending_category_ids(household_id))
         )
-        # Outflows always; categorized inflows (refunds) net; uncategorized inflows out.
-        & (
-            (models.transactions.c.amount_minor < 0)
-            | models.transactions.c.category_id.is_not(None)
-        )
+        # The outflow/refund sign rule now lives in _counts_as_spending —
+        # amounts are sealed (#184), so SQL can't see the sign.
     )
 
 
@@ -1599,11 +1647,17 @@ def sum_spending(
     engine: Engine, household_id: str, start: date, end: date, currency: str
 ) -> int:
     """Total outflow (positive) over [start, end]; income is excluded."""
-    query = select(func.coalesce(func.sum(-models.transactions.c.amount_minor), 0)).where(
-        _spending_window(household_id, start, end, currency)
-    )
+    query = select(
+        models.transactions.c.amount_minor, models.transactions.c.category_id
+    ).where(_spending_window(household_id, start, end, currency))
     with engine.connect() as conn:
-        return int(conn.execute(query).scalar_one())
+        rows = conn.execute(query).all()
+    total = 0
+    for row in rows:
+        amount = _dec_amount(engine, household_id, row.amount_minor)
+        if _counts_as_spending(amount, row.category_id):
+            total += -amount
+    return total
 
 
 @dataclass(frozen=True, slots=True)
@@ -1619,15 +1673,20 @@ def top_spending_merchants(
 
     Grouped in Python, not SQL: the merchant column is sealed per household
     (ADR 0072), so equal merchants have unequal ciphertexts in the database."""
-    query = select(models.transactions.c.merchant, models.transactions.c.amount_minor).where(
-        _spending_window(household_id, start, end, currency)
-    )
+    query = select(
+        models.transactions.c.merchant,
+        models.transactions.c.amount_minor,
+        models.transactions.c.category_id,
+    ).where(_spending_window(household_id, start, end, currency))
     with engine.connect() as conn:
         rows = conn.execute(query).all()
     totals: dict[str, int] = {}
     for row in rows:
+        amount = _dec_amount(engine, household_id, row.amount_minor)
+        if not _counts_as_spending(amount, row.category_id):
+            continue
         name = _dec(engine, household_id, row.merchant) or "Other"
-        totals[name] = totals.get(name, 0) + (-row.amount_minor)
+        totals[name] = totals.get(name, 0) + (-amount)
     ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:limit]
     return [MerchantSpend(merchant=name, amount_minor=total) for name, total in ranked]
 
@@ -2474,16 +2533,15 @@ def transaction_exists(
     engine: Engine, household_id: str, account_id: str, occurred_at: date, amount_minor: int
 ) -> bool:
     with engine.connect() as conn:
-        row = conn.execute(
-            select(models.transactions.c.id).where(
+        rows = conn.execute(
+            select(models.transactions.c.amount_minor).where(
                 models.transactions.c.household_id == household_id,
                 models.transactions.c.account_id == account_id,
                 models.transactions.c.occurred_at == occurred_at,
-                models.transactions.c.amount_minor == amount_minor,
             )
-        ).first()
-
-    return row is not None
+        ).all()
+    # Amounts are sealed (#184): equality happens after decryption.
+    return any(_dec_amount(engine, household_id, row[0]) == amount_minor for row in rows)
 
 
 def create_transaction(
@@ -2504,6 +2562,7 @@ def create_transaction(
     transaction_id = new_id()
     merchant = household_crypto.encrypt_text(engine, household_id, merchant)
     description = household_crypto.encrypt_text(engine, household_id, description)
+    amount_minor = _enc_amount(engine, household_id, amount_minor)
     with engine.begin() as conn:
         conn.execute(
             insert(models.transactions).values(
@@ -2787,7 +2846,7 @@ def list_transactions_in_range(
             id=row.id,
             account_id=row.account_id,
             occurred_at=row.occurred_at,
-            amount_minor=row.amount_minor,
+            amount_minor=_dec_amount(engine, household_id, row.amount_minor),
             currency=row.currency,
             merchant=_dec(engine, household_id, row.merchant),
             category=row.category,
@@ -4113,7 +4172,7 @@ def get_transaction(
         id=row.id,
         account_id=row.account_id,
         occurred_at=row.occurred_at,
-        amount_minor=row.amount_minor,
+        amount_minor=_dec_amount(engine, household_id, row.amount_minor),
         currency=row.currency,
         merchant=_dec(engine, household_id, row.merchant),
         category=row.category,
@@ -4175,7 +4234,7 @@ def update_transaction(
     if occurred_at is not None:
         values["occurred_at"] = occurred_at
     if amount_minor is not None:
-        values["amount_minor"] = amount_minor
+        values["amount_minor"] = _enc_amount(engine, household_id, amount_minor)
     if currency is not None:
         values["currency"] = currency
     if merchant is not None:
@@ -4240,6 +4299,7 @@ def restore_deleted_transaction(
     merchant = household_crypto.encrypt_text(engine, household_id, merchant)
     description = household_crypto.encrypt_text(engine, household_id, description)
     note = household_crypto.encrypt_text(engine, household_id, note)
+    amount_minor = _enc_amount(engine, household_id, amount_minor)
     with engine.begin() as conn:
         conn.execute(
             insert(models.transactions).values(
@@ -4312,6 +4372,7 @@ def flag_possible_duplicates(engine: Engine, household_id: str) -> int:
                 models.transactions.c.account_id,
                 models.transactions.c.import_hash,
                 models.transactions.c.duplicate_state,
+                models.transactions.c.amount_minor,
                 func.lower(models.transaction_categories.c.name).label("category"),
             )
             .select_from(models.transactions)
@@ -4323,13 +4384,15 @@ def flag_possible_duplicates(engine: Engine, household_id: str) -> int:
             .where(
                 models.transactions.c.household_id == household_id,
                 models.transactions.c.import_hash.is_not(None),
-                # A $0 line (e.g. an RSU vest lot) is not a charge to dispute.
-                models.transactions.c.amount_minor != 0,
             )
         ).all()
 
         groups: dict[tuple[str, str], list] = defaultdict(list)
         for row in rows:
+            # A $0 line (e.g. an RSU vest lot) is not a charge to dispute.
+            # Checked in Python: amounts are sealed (#184).
+            if _dec_amount(engine, household_id, row.amount_minor) == 0:
+                continue
             groups[(row.account_id, row.import_hash)].append(row)
 
         to_flag: list[str] = []
@@ -5038,7 +5101,6 @@ def list_bill_detection_transactions(
         )
         .where(
             models.transactions.c.household_id == household_id,
-            models.transactions.c.amount_minor < 0,
             models.transactions.c.occurred_at >= since,
             models.accounts.c.type.in_(("checking", "credit_card")),
         )
@@ -5047,8 +5109,15 @@ def list_bill_detection_transactions(
     with engine.connect() as conn:
         rows = conn.execute(query).all()
     return [
-        (row[0], row[1], row[2], _dec(engine, household_id, row[3]), _dec(engine, household_id, row[4]))
+        (
+            row[0],
+            _dec_amount(engine, household_id, row[1]),
+            row[2],
+            _dec(engine, household_id, row[3]),
+            _dec(engine, household_id, row[4]),
+        )
         for row in rows
+        if _dec_amount(engine, household_id, row[1]) < 0
     ]
 
 
@@ -5499,7 +5568,6 @@ def list_income_detection_transactions(
         )
         .where(
             models.transactions.c.household_id == household_id,
-            models.transactions.c.amount_minor > 0,
             models.transactions.c.occurred_at >= since,
             models.accounts.c.type == "checking",
         )
@@ -5509,11 +5577,14 @@ def list_income_detection_transactions(
         rows = conn.execute(query).all()
     return [
         (
-            row[0], row[1], row[2], row[3],
+            row[0], row[1],
+            _dec_amount(engine, household_id, row[2]),
+            row[3],
             _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
             _dec(engine, household_id, row[6]), _dec(engine, household_id, row[7]),
         )
         for row in rows
+        if _dec_amount(engine, household_id, row[2]) > 0
     ]
 
 
@@ -5547,7 +5618,6 @@ def list_income_categorized_transactions(
         )
         .where(
             models.transactions.c.household_id == household_id,
-            models.transactions.c.amount_minor > 0,
             models.transactions.c.occurred_at >= since,
             models.transactions.c.category_id.in_(income_ids),
             models.accounts.c.type.notin_(tuple(LIABILITY_ACCOUNT_TYPES)),
@@ -5558,11 +5628,14 @@ def list_income_categorized_transactions(
         rows = conn.execute(query).all()
     return [
         (
-            row[0], row[1], row[2], row[3],
+            row[0], row[1],
+            _dec_amount(engine, household_id, row[2]),
+            row[3],
             _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
             _dec(engine, household_id, row[6]), _dec(engine, household_id, row[7]),
         )
         for row in rows
+        if _dec_amount(engine, household_id, row[2]) > 0
     ]
 
 
@@ -5576,14 +5649,19 @@ def list_household_outflows(
     """
     query = select(
         models.transactions.c.occurred_at,
-        -models.transactions.c.amount_minor,
+        models.transactions.c.amount_minor,
     ).where(
         models.transactions.c.household_id == household_id,
-        models.transactions.c.amount_minor < 0,
         models.transactions.c.occurred_at >= since,
     )
     with engine.connect() as conn:
-        return [(row[0], int(row[1])) for row in conn.execute(query).all()]
+        rows = conn.execute(query).all()
+    out: list[tuple[date, int]] = []
+    for row in rows:
+        amount = _dec_amount(engine, household_id, row[1])
+        if amount < 0:
+            out.append((row[0], -amount))
+    return out
 
 
 def list_transactions_for_indexing(
@@ -5619,7 +5697,9 @@ def list_transactions_for_indexing(
         rows = conn.execute(query).all()
     return [
         (
-            row[0], row[1], row[2], row[3],
+            row[0], row[1],
+            _dec_amount(engine, household_id, row[2]),
+            row[3],
             _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
             _dec(engine, household_id, row[6]),
         )
@@ -6252,6 +6332,7 @@ def create_transaction_deduped(
     # stored merchant/description are sealed like every content column.
     merchant = household_crypto.encrypt_text(engine, household_id, merchant)
     description = household_crypto.encrypt_text(engine, household_id, description)
+    sealed_amount = _enc_amount(engine, household_id, amount_minor)
     with engine.begin() as conn:
         if external_id is not None:
             existing = conn.execute(
@@ -6277,7 +6358,7 @@ def create_transaction_deduped(
                 household_id=household_id,
                 account_id=account_id,
                 occurred_at=occurred_at,
-                amount_minor=amount_minor,
+                amount_minor=sealed_amount,
                 currency=currency,
                 merchant=merchant,
                 category_id=None,

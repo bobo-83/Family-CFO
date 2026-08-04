@@ -377,7 +377,9 @@ transactions = Table(
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("account_id", String(36), ForeignKey("accounts.id"), nullable=False),
     Column("occurred_at", Date, nullable=False),
-    Column("amount_minor", BigInteger, nullable=False),
+    # Text: sealed (#184). Digit strings for legacy rows, enc1: tokens after
+    # sealing; every read decrypts to int at the repository seam.
+    Column("amount_minor", Text, nullable=False),
     _currency_column(),
     Column("merchant", Text, nullable=True),  # Text: sealed (ADR 0072)
     Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),

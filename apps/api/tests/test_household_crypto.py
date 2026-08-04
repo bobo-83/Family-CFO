@@ -432,3 +432,45 @@ async def test_lost_master_key_recovers_via_password_or_recovery_key(
     household_crypto.reset_cache_for_tests()
     memories = repository.list_household_memories(demo_engine, hh)  # healed again
     assert any(m.value == "a golden retriever" for m in memories)
+
+
+def test_amounts_are_sealed_and_aggregations_still_add_up(_master_key, demo_engine) -> None:
+    """#184: amount_minor is ciphertext at rest; sums, sign rules, dedupe
+    equality, and merchant rankings all still compute correctly in Python."""
+    from datetime import date as d
+
+    hh = repository.list_households(demo_engine)[0]
+    account = repository.create_account(demo_engine, hh, "Seal checking", "checking", "USD")
+    today = d.today()
+    baseline = repository.sum_spending(demo_engine, hh, today, today, "USD")
+    txn_id = repository.create_transaction(
+        demo_engine, hh, account.id, today, -7300, "USD",
+        "Corner Coffee Shop", None, None, None, "reviewed",
+    )
+    repository.create_transaction(
+        demo_engine, hh, account.id, today, -2700, "USD",
+        "Corner Coffee Shop", None, None, None, "reviewed",
+    )
+    repository.create_transaction(  # uncategorized inflow: excluded from spending
+        demo_engine, hh, account.id, today, 50000, "USD",
+        "Payroll", None, None, None, "reviewed",
+    )
+
+    # Ciphertext at rest.
+    with demo_engine.connect() as conn:
+        raw = conn.execute(
+            sql_text("select amount_minor from transactions where id = :i"), {"i": txn_id}
+        ).scalar_one()
+    assert str(raw).startswith(household_crypto.ENC_PREFIX)
+    assert "7300" not in str(raw)
+
+    # Reads decrypt to ints; aggregations respect the sign rules.
+    txn = repository.get_transaction(demo_engine, hh, txn_id)
+    assert txn.amount_minor == -7300
+    assert repository.sum_spending(demo_engine, hh, today, today, "USD") == baseline + 10000
+    spends = repository.top_spending_merchants(demo_engine, hh, today, today, "USD")
+    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 10000 for m in spends)
+
+    # Dedupe equality happens post-decrypt.
+    assert repository.transaction_exists(demo_engine, hh, account.id, today, -7300) is True
+    assert repository.transaction_exists(demo_engine, hh, account.id, today, -7301) is False

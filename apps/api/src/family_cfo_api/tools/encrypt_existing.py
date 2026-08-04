@@ -27,7 +27,10 @@ def _encrypt_table(engine, table, id_col, text_cols, household_of) -> int:
         values = {}
         for col in text_cols:
             value = row[col]
-            if value is None or value.startswith(household_crypto.ENC_PREFIX):
+            if value is None:
+                continue
+            value = str(value)  # amounts arrive as ints/digit strings (#184)
+            if value.startswith(household_crypto.ENC_PREFIX):
                 continue
             values[col] = household_crypto.encrypt_text(engine, household_id, value)
         if not values:
@@ -99,7 +102,7 @@ def main() -> int:
             "transactions",
             models.transactions,
             models.transactions.c.id,
-            ["merchant", "description", "note"],
+            ["merchant", "description", "note", "amount_minor"],
             lambda row: row["household_id"],
         ),
         (
