@@ -13,7 +13,7 @@ dependencies = [
   # fastapi >=0.139 pulls starlette >=1.3.1, which clears the starlette
   # advisories flagged by pip-audit (PYSEC-2026-161/248/249/1941/1942,
   # CVE-2026-48817/48818).
-  "fastapi>=0.139,<0.141",
+  "fastapi>=0.139,<0.142",
   # M69 (ADR 0017): local CPU embeddings for vector retrieval.
   "fastembed>=0.3,<1",
   "psycopg[binary]>=3.2,<3.4",
