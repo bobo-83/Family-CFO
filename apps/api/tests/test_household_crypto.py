@@ -25,7 +25,8 @@ def _master_key(monkeypatch):
     household_crypto.reset_cache_for_tests()
 
 
-def test_passthrough_when_disabled(demo_engine) -> None:
+def test_passthrough_when_disabled(demo_engine, monkeypatch) -> None:
+    monkeypatch.delenv("FAMILY_CFO_MASTER_KEY", raising=False)
     household_crypto.reset_cache_for_tests()
     get_settings.cache_clear()
     hh = repository.list_households(demo_engine)[0]
@@ -163,3 +164,61 @@ def test_encrypt_existing_command_seals_legacy_rows(_master_key, demo_engine) ->
     assert raw.startswith(household_crypto.ENC_PREFIX)
     memories = repository.list_household_memories(demo_engine, hh)
     assert any(m.value == "legacy plain value" for m in memories)
+
+
+def test_transactions_accounts_and_names_are_sealed(_master_key, demo_engine) -> None:
+    """Batch 2 (the aggregation refactor): merchants, descriptions, notes,
+    account/bill/income/goal names, audit summaries and undo tokens are
+    ciphertext at rest while every reader returns plaintext."""
+    hh = repository.list_households(demo_engine)[0]
+    account = repository.create_account(demo_engine, hh, "Family checking", "checking", "USD")
+    txn_id = repository.create_transaction(
+        demo_engine,
+        hh,
+        account.id,
+        __import__("datetime").date.today(),
+        -4200,
+        "USD",
+        "Corner Coffee Shop",
+        "flat white and a scone",
+        None,
+        None,
+        "reviewed",
+    )
+    repository.set_transaction_note(demo_engine, hh, txn_id, "with grandma")
+    bill = repository.create_bill(demo_engine, hh, "Metro Power", 20000, "USD", "monthly")
+
+    # Readers return plaintext.
+    assert account.name == "Family checking"
+    txn = repository.get_transaction(demo_engine, hh, txn_id)
+    assert txn.merchant == "Corner Coffee Shop"
+    assert txn.description == "flat white and a scone"
+    assert txn.note == "with grandma"
+    assert any(b.name == "Metro Power" for b in repository.list_bills(demo_engine, hh))
+    assert repository.account_name_map(demo_engine, hh)[account.id] == "Family checking"
+    spends = repository.top_spending_merchants(
+        demo_engine,
+        hh,
+        __import__("datetime").date.today() - __import__("datetime").timedelta(days=1),
+        __import__("datetime").date.today() + __import__("datetime").timedelta(days=1),
+        "USD",
+    )
+    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 4200 for m in spends)
+
+    # At rest, every one of those strings is ciphertext.
+    with demo_engine.connect() as conn:
+        raw_txn = conn.execute(
+            sql_text("select merchant, description, note from transactions where id = :i"),
+            {"i": txn_id},
+        ).one()
+        raw_account = conn.execute(
+            sql_text("select name from accounts where id = :i"), {"i": account.id}
+        ).scalar_one()
+        raw_bill = conn.execute(
+            sql_text("select name from bills where id = :i"), {"i": bill.id}
+        ).scalar_one()
+    for value in [*raw_txn, raw_account, raw_bill]:
+        assert value.startswith(household_crypto.ENC_PREFIX)
+    joined = " ".join([*raw_txn, raw_account, raw_bill])
+    for word in ["Coffee", "scone", "grandma", "checking", "Metro"]:
+        assert word not in joined

@@ -163,3 +163,27 @@ where decryption slots in.
 - Not yet sealed (needs the aggregation refactor): transaction
   merchants/descriptions/amounts, account names, bill/income/goal names.
   That is the remainder of Phase 1, tracked in issue #155.
+
+## Implementation note — Phase 1 batch 2 (shipped 2026-08-04)
+
+- Sealed: transaction merchants/descriptions/notes, account names and
+  institutions, bill/income/goal names, audit summaries and undo tokens
+  (they name entities and snapshot values), and report narratives.
+  SQL that grouped or ordered by those columns moved to
+  decrypt-then-compute in the service layer (merchant rankings, name
+  sorts, goal tiebreaks).
+- **Recorded deviation: transaction amounts stay plaintext.** Amounts
+  participate in ~30 SQL aggregations (budgets, income, savings, net
+  worth); without any text label beside them (merchant, description,
+  account name — all sealed), dates + bare amounts identify little.
+  Sealing them means porting every aggregation to per-request
+  decryption; revisit if hosting makes that trade worth it.
+- Known plaintext residuals, accepted for now: report `summary_json` and
+  extraction `structured_fields_json` (JSON columns), bill-suggestion
+  dismissal merchant keys and transaction `import_hash` (both plaintext-
+  derived fingerprints), category/role/device names, and the RSU grant
+  ticker/schedule tables.
+- Verification pattern worth keeping: the full test suite runs green
+  twice — once with no master key (legacy passthrough) and once with
+  `FAMILY_CFO_MASTER_KEY` forced, which makes every existing test
+  exercise the decrypt seams.

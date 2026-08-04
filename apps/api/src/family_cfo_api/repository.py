@@ -13,6 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from family_cfo_api import household_crypto, models
 
 
+def _dec(engine, household_id, value):
+    """Read-side seam for sealed content columns (ADR 0072)."""
+    return household_crypto.decrypt_text(engine, household_id, value)
+
+
 def new_id() -> str:
     return str(uuid.uuid4())
 
@@ -999,7 +1004,8 @@ def account_name_map(engine: Engine, household_id: str) -> dict[str, str]:
         models.accounts.c.household_id == household_id
     )
     with engine.connect() as conn:
-        return {row.id: row.name for row in conn.execute(query)}
+        rows = conn.execute(query).all()
+    return {row.id: _dec(engine, household_id, row.name) for row in rows}
 
 
 def account_type_map(engine: Engine, household_id: str) -> dict[str, str]:
@@ -1020,7 +1026,8 @@ def account_institution_map(engine: Engine, household_id: str) -> dict[str, str]
         models.accounts.c.institution.is_not(None),
     )
     with engine.connect() as conn:
-        return {row.id: row.institution for row in conn.execute(query)}
+        rows = conn.execute(query).all()
+    return {row.id: _dec(engine, household_id, row.institution) for row in rows}
 
 
 def list_account_balances(engine: Engine, household_id: str) -> list[AccountBalanceRecord]:
@@ -1062,10 +1069,10 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
     with engine.connect() as conn:
         rows = conn.execute(query).all()
 
-    return [
+    records = [
         AccountBalanceRecord(
             account_id=row.id,
-            name=row.name,
+            name=_dec(engine, household_id, row.name),
             account_type=row.type,
             currency=row.currency,
             balance_minor=row.balance_minor,
@@ -1079,6 +1086,8 @@ def list_account_balances(engine: Engine, household_id: str) -> list[AccountBala
         )
         for row in rows
     ]
+    records.sort(key=lambda record: record.name.lower())
+    return records
 
 
 # --- Transactions, bills, income ---------------------------------------------
@@ -1174,10 +1183,10 @@ def list_transactions(
             occurred_at=row.occurred_at,
             amount_minor=row.amount_minor,
             currency=row.currency,
-            merchant=row.merchant,
+            merchant=_dec(engine, household_id, row.merchant),
             category=row.category,
             category_id=row.category_id,
-            description=row.description,
+            description=_dec(engine, household_id, row.description),
             duplicate_state=row.duplicate_state,
             external_id=row.external_id,
             note=row.note,
@@ -1535,19 +1544,21 @@ class MerchantSpend:
 def top_spending_merchants(
     engine: Engine, household_id: str, start: date, end: date, currency: str, limit: int = 5
 ) -> list[MerchantSpend]:
-    """Merchants ranked by outflow over [start, end]; NULL merchant folds into 'Other'."""
-    merchant = func.coalesce(models.transactions.c.merchant, "Other").label("merchant")
-    total = func.sum(-models.transactions.c.amount_minor).label("total")
-    query = (
-        select(merchant, total)
-        .where(_spending_window(household_id, start, end, currency))
-        .group_by(merchant)
-        .order_by(total.desc())
-        .limit(limit)
+    """Merchants ranked by outflow over [start, end]; NULL merchant folds into 'Other'.
+
+    Grouped in Python, not SQL: the merchant column is sealed per household
+    (ADR 0072), so equal merchants have unequal ciphertexts in the database."""
+    query = select(models.transactions.c.merchant, models.transactions.c.amount_minor).where(
+        _spending_window(household_id, start, end, currency)
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    return [MerchantSpend(merchant=row.merchant, amount_minor=int(row.total)) for row in rows]
+    totals: dict[str, int] = {}
+    for row in rows:
+        name = _dec(engine, household_id, row.merchant) or "Other"
+        totals[name] = totals.get(name, 0) + (-row.amount_minor)
+    ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:limit]
+    return [MerchantSpend(merchant=name, amount_minor=total) for name, total in ranked]
 
 
 def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
@@ -1560,10 +1571,10 @@ def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
 
-    return [
+    records = [
         RecurringRecord(
             id=row["id"],
-            name=row["name"],
+            name=_dec(engine, household_id, row["name"]),
             amount_minor=row["amount_minor"],
             currency=row["currency"],
             frequency=row["frequency"],
@@ -1572,6 +1583,8 @@ def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
         )
         for row in rows
     ]
+    records.sort(key=lambda record: record.name.lower())
+    return records
 
 
 def list_income_sources(engine: Engine, household_id: str) -> list[RecurringRecord]:
@@ -1584,16 +1597,18 @@ def list_income_sources(engine: Engine, household_id: str) -> list[RecurringReco
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
 
-    return [
+    records = [
         RecurringRecord(
             id=row["id"],
-            name=row["name"],
+            name=_dec(engine, household_id, row["name"]),
             amount_minor=row["amount_minor"],
             currency=row["currency"],
             frequency=row["frequency"],
         )
         for row in rows
     ]
+    records.sort(key=lambda record: record.name.lower())
+    return records
 
 
 # --- Goals ---------------------------------------------------------------------
@@ -1614,16 +1629,16 @@ class GoalRecord:
 
 
 def list_goals(engine: Engine, household_id: str) -> list[GoalRecord]:
-    query = (
-        select(models.goals)
-        .where(models.goals.c.household_id == household_id)
-        .order_by(models.goals.c.priority, models.goals.c.name)
-    )
+    query = select(models.goals).where(models.goals.c.household_id == household_id)
 
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
 
-    return [_goal_record_from_row(row) for row in rows]
+    # Sorted here, not in SQL: the name column is sealed (ADR 0072), so the
+    # database only ever sees ciphertext to order by.
+    records = [_goal_record_from_row(row, engine, household_id) for row in rows]
+    records.sort(key=lambda record: (record.priority, record.name.lower()))
+    return records
 
 
 def create_goal(
@@ -1645,7 +1660,7 @@ def create_goal(
             insert(models.goals).values(
                 id=goal_id,
                 household_id=household_id,
-                name=name,
+                name=household_crypto.encrypt_text(engine, household_id, name),
                 type=goal_type,
                 target_minor=target_minor,
                 current_minor=current_minor,
@@ -1664,13 +1679,13 @@ def create_goal(
         )
 
     assert row is not None
-    return _goal_record_from_row(row)
+    return _goal_record_from_row(row, engine, household_id)
 
 
-def _goal_record_from_row(row: Any) -> GoalRecord:
+def _goal_record_from_row(row: Any, engine: Engine, household_id: str) -> GoalRecord:
     return GoalRecord(
         id=row["id"],
-        name=row["name"],
+        name=_dec(engine, household_id, row["name"]),
         goal_type=row["type"],
         target_minor=row["target_minor"],
         current_minor=row["current_minor"],
@@ -1697,7 +1712,7 @@ def get_goal(engine: Engine, household_id: str, goal_id: str) -> GoalRecord | No
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _goal_record_from_row(row) if row is not None else None
+    return _goal_record_from_row(row, engine, household_id) if row is not None else None
 
 
 def update_goal(
@@ -1715,7 +1730,7 @@ def update_goal(
     unchanged" from an explicit clear (None)."""
     values: dict[str, Any] = {}
     if name is not None:
-        values["name"] = name
+        values["name"] = household_crypto.encrypt_text(engine, household_id, name)
     if target_minor is not None:
         values["target_minor"] = target_minor
     if target_date is not _UNSET:
@@ -2416,6 +2431,8 @@ def create_transaction(
     category_id: str | None = None,
 ) -> str:
     transaction_id = new_id()
+    merchant = household_crypto.encrypt_text(engine, household_id, merchant)
+    description = household_crypto.encrypt_text(engine, household_id, description)
     with engine.begin() as conn:
         conn.execute(
             insert(models.transactions).values(
@@ -2701,9 +2718,9 @@ def list_transactions_in_range(
             occurred_at=row.occurred_at,
             amount_minor=row.amount_minor,
             currency=row.currency,
-            merchant=row.merchant,
+            merchant=_dec(engine, household_id, row.merchant),
             category=row.category,
-            description=row.description,
+            description=_dec(engine, household_id, row.description),
         )
         for row in rows
     ]
@@ -2725,7 +2742,7 @@ class ReportRecord:
     generated_at: datetime
 
 
-def _report_record_from_row(row: Any) -> ReportRecord:
+def _report_record_from_row(row: Any, engine: Engine) -> ReportRecord:
     return ReportRecord(
         id=row["id"],
         household_id=row["household_id"],
@@ -2733,7 +2750,7 @@ def _report_record_from_row(row: Any) -> ReportRecord:
         period_start=row["period_start"],
         period_end=row["period_end"],
         summary=row["summary_json"],
-        explanation_text=row["explanation_text"],
+        explanation_text=_dec(engine, row["household_id"], row["explanation_text"]),
         explanation_source=row["explanation_source"],
         model_version=row["model_version"],
         prompt_version=row["prompt_version"],
@@ -2778,7 +2795,7 @@ def upsert_report(
             period_start=period_start,
             period_end=period_end,
             summary_json=summary,
-            explanation_text=explanation_text,
+            explanation_text=household_crypto.encrypt_text(engine, household_id, explanation_text),
             explanation_source=explanation_source,
             model_version=model_version,
             prompt_version=prompt_version,
@@ -2815,7 +2832,7 @@ def get_report(engine: Engine, household_id: str, report_id: str) -> ReportRecor
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _report_record_from_row(row) if row is not None else None
+    return _report_record_from_row(row, engine) if row is not None else None
 
 
 def get_report_by_period(
@@ -2828,7 +2845,7 @@ def get_report_by_period(
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _report_record_from_row(row) if row is not None else None
+    return _report_record_from_row(row, engine) if row is not None else None
 
 
 def list_reports(engine: Engine, household_id: str) -> list[ReportRecord]:
@@ -2839,7 +2856,7 @@ def list_reports(engine: Engine, household_id: str) -> list[ReportRecord]:
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [_report_record_from_row(row) for row in rows]
+    return [_report_record_from_row(row, engine) for row in rows]
 
 
 def list_households(engine: Engine) -> list[str]:
@@ -3144,15 +3161,18 @@ def record_audit_event(
                 action=action,
                 entity_type=entity_type,
                 entity_id=entity_id,
-                summary=summary,
+                # Summaries name entities and undo tokens snapshot their values —
+                # sealing them keeps the audit trail from leaking what the
+                # content columns hide (ADR 0072).
+                summary=household_crypto.encrypt_text(engine, household_id, summary),
                 created_at=utcnow(),
-                undo_token=undo_token,
+                undo_token=household_crypto.encrypt_text(engine, household_id, undo_token),
             )
         )
     return audit_id
 
 
-def _audit_record(row: Any) -> AuditEventRecord:
+def _audit_record(row: Any, engine: Engine) -> AuditEventRecord:
     return AuditEventRecord(
         id=row["id"],
         household_id=row["household_id"],
@@ -3160,9 +3180,9 @@ def _audit_record(row: Any) -> AuditEventRecord:
         action=row["action"],
         entity_type=row["entity_type"],
         entity_id=row["entity_id"],
-        summary=row["summary"],
+        summary=_dec(engine, row["household_id"], row["summary"]),
         created_at=row["created_at"],
-        undo_token=row["undo_token"],
+        undo_token=_dec(engine, row["household_id"], row["undo_token"]),
         reverted_at=row["reverted_at"],
     )
 
@@ -3178,7 +3198,7 @@ def list_audit_events(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [_audit_record(row) for row in rows]
+    return [_audit_record(row, engine) for row in rows]
 
 
 def get_audit_event(
@@ -3190,7 +3210,7 @@ def get_audit_event(
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _audit_record(row) if row is not None else None
+    return _audit_record(row, engine) if row is not None else None
 
 
 def mark_audit_reverted(engine: Engine, household_id: str, audit_id: str) -> None:
@@ -3693,10 +3713,10 @@ class AccountRecord:
     rsu_ready_to_sell: bool = False
 
 
-def _account_record_from_row(row: Any) -> AccountRecord:
+def _account_record_from_row(row: Any, engine: Engine, household_id: str) -> AccountRecord:
     return AccountRecord(
         id=row["id"],
-        name=row["name"],
+        name=_dec(engine, household_id, row["name"]),
         account_type=row["type"],
         currency=row["currency"],
         annual_interest_rate=row["annual_interest_rate"],
@@ -3715,7 +3735,7 @@ def get_account(engine: Engine, household_id: str, account_id: str) -> AccountRe
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _account_record_from_row(row) if row is not None else None
+    return _account_record_from_row(row, engine, household_id) if row is not None else None
 
 
 def emergency_fund_reserved_minor(
@@ -3771,7 +3791,7 @@ def list_liability_accounts(engine: Engine, household_id: str) -> list[AccountRe
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [_account_record_from_row(row) for row in rows]
+    return [_account_record_from_row(row, engine, household_id) for row in rows]
 
 
 def list_debts_with_terms(engine: Engine, household_id: str) -> list[DebtAccountRecord]:
@@ -3829,7 +3849,7 @@ def create_account(
             insert(models.accounts).values(
                 id=account_id,
                 household_id=household_id,
-                name=name,
+                name=household_crypto.encrypt_text(engine, household_id, name),
                 type=account_type,
                 currency=currency,
                 annual_interest_rate=annual_interest_rate,
@@ -3869,7 +3889,7 @@ def update_account(
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
-        values["name"] = name
+        values["name"] = household_crypto.encrypt_text(engine, household_id, name)
     if account_type is not None:
         values["type"] = account_type
     if annual_interest_rate is not None:
@@ -4024,13 +4044,13 @@ def get_transaction(
         occurred_at=row.occurred_at,
         amount_minor=row.amount_minor,
         currency=row.currency,
-        merchant=row.merchant,
+        merchant=_dec(engine, household_id, row.merchant),
         category=row.category,
         category_id=row.category_id,
-        description=row.description,
+        description=_dec(engine, household_id, row.description),
         duplicate_state=row.duplicate_state,
         external_id=row.external_id,
-        note=row.note,
+        note=_dec(engine, household_id, row.note),
         attachment_path=row.attachment_path,
         attachment_content_type=row.attachment_content_type,
     )
@@ -4045,7 +4065,7 @@ def set_transaction_note(engine: Engine, household_id: str, transaction_id: str,
                 models.transactions.c.household_id == household_id,
                 models.transactions.c.id == transaction_id,
             )
-            .values(note=(note or None))
+            .values(note=household_crypto.encrypt_text(engine, household_id, note or None))
         )
     return result.rowcount > 0
 
@@ -4088,9 +4108,9 @@ def update_transaction(
     if currency is not None:
         values["currency"] = currency
     if merchant is not None:
-        values["merchant"] = merchant
+        values["merchant"] = household_crypto.encrypt_text(engine, household_id, merchant)
     if description is not None:
-        values["description"] = description
+        values["description"] = household_crypto.encrypt_text(engine, household_id, description)
     # M45: assign or clear the category (clear distinguishes from "unchanged").
     if clear_category:
         values["category_id"] = None
@@ -4146,6 +4166,9 @@ def restore_deleted_transaction(
     exists (undo applied twice)."""
     if get_transaction(engine, household_id, transaction_id) is not None:
         return
+    merchant = household_crypto.encrypt_text(engine, household_id, merchant)
+    description = household_crypto.encrypt_text(engine, household_id, description)
+    note = household_crypto.encrypt_text(engine, household_id, note)
     with engine.begin() as conn:
         conn.execute(
             insert(models.transactions).values(
@@ -4298,11 +4321,11 @@ def count_review_transactions(engine: Engine, household_id: str) -> int:
         )
 
 
-def _recurring_record_from_row(row: Any) -> RecurringRecord:
+def _recurring_record_from_row(row: Any, engine: Engine, household_id: str) -> RecurringRecord:
     # Shared by bills and income sources; only bills carry due-date/category cols.
     return RecurringRecord(
         id=row["id"],
-        name=row["name"],
+        name=_dec(engine, household_id, row["name"]),
         amount_minor=row["amount_minor"],
         currency=row["currency"],
         frequency=row["frequency"],
@@ -4317,7 +4340,7 @@ def get_bill(engine: Engine, household_id: str, bill_id: str) -> RecurringRecord
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _recurring_record_from_row(row) if row is not None else None
+    return _recurring_record_from_row(row, engine, household_id) if row is not None else None
 
 
 def create_bill(
@@ -4339,7 +4362,7 @@ def create_bill(
                 id=bill_id,
                 household_id=household_id,
                 account_id=account_id,
-                name=name,
+                name=household_crypto.encrypt_text(engine, household_id, name),
                 amount_minor=amount_minor,
                 currency=currency,
                 frequency=frequency,
@@ -4375,7 +4398,7 @@ def update_bill(
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
-        values["name"] = name
+        values["name"] = household_crypto.encrypt_text(engine, household_id, name)
     if amount_minor is not None:
         values["amount_minor"] = amount_minor
     if currency is not None:
@@ -4583,7 +4606,7 @@ def get_income_source(engine: Engine, household_id: str, income_id: str) -> Recu
     )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
-    return _recurring_record_from_row(row) if row is not None else None
+    return _recurring_record_from_row(row, engine, household_id) if row is not None else None
 
 
 def create_income_source(
@@ -4601,7 +4624,7 @@ def create_income_source(
             insert(models.income_sources).values(
                 id=income_id,
                 household_id=household_id,
-                name=name,
+                name=household_crypto.encrypt_text(engine, household_id, name),
                 amount_minor=amount_minor,
                 currency=currency,
                 frequency=frequency,
@@ -4625,7 +4648,7 @@ def update_income_source(
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
-        values["name"] = name
+        values["name"] = household_crypto.encrypt_text(engine, household_id, name)
     if amount_minor is not None:
         values["amount_minor"] = amount_minor
     if currency is not None:
@@ -4952,7 +4975,10 @@ def list_bill_detection_transactions(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    return [tuple(row) for row in rows]
+    return [
+        (row[0], row[1], row[2], _dec(engine, household_id, row[3]), _dec(engine, household_id, row[4]))
+        for row in rows
+    ]
 
 
 def list_bill_suggestion_dismissals(engine: Engine, household_id: str) -> set[str]:
@@ -5410,7 +5436,14 @@ def list_income_detection_transactions(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    return [tuple(row) for row in rows]
+    return [
+        (
+            row[0], row[1], row[2], row[3],
+            _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
+            _dec(engine, household_id, row[6]), _dec(engine, household_id, row[7]),
+        )
+        for row in rows
+    ]
 
 
 def list_income_categorized_transactions(
@@ -5451,7 +5484,15 @@ def list_income_categorized_transactions(
         .order_by(models.transactions.c.occurred_at)
     )
     with engine.connect() as conn:
-        return [tuple(row) for row in conn.execute(query).all()]
+        rows = conn.execute(query).all()
+    return [
+        (
+            row[0], row[1], row[2], row[3],
+            _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
+            _dec(engine, household_id, row[6]), _dec(engine, household_id, row[7]),
+        )
+        for row in rows
+    ]
 
 
 def list_household_outflows(
@@ -5505,7 +5546,14 @@ def list_transactions_for_indexing(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    return [tuple(row) for row in rows]
+    return [
+        (
+            row[0], row[1], row[2], row[3],
+            _dec(engine, household_id, row[4]), _dec(engine, household_id, row[5]),
+            _dec(engine, household_id, row[6]),
+        )
+        for row in rows
+    ]
 
 
 def list_income_overrides(engine: Engine, household_id: str) -> dict[str, str]:
@@ -6073,6 +6121,8 @@ def get_or_create_connection_account(
                 models.connection_accounts.c.external_account_id == external_account_id,
             )
         ).first()
+    if institution:
+        institution = household_crypto.encrypt_text(engine, household_id, institution)
     if row is not None:
         account_id = row[0]
         if institution:
@@ -6127,6 +6177,10 @@ def create_transaction_deduped(
     from family_cfo_api.banksync import compute_import_hash
 
     import_hash = compute_import_hash(account_id, occurred_at, amount_minor, merchant)
+    # The hash is a plaintext-derived fingerprint (stable across syncs); the
+    # stored merchant/description are sealed like every content column.
+    merchant = household_crypto.encrypt_text(engine, household_id, merchant)
+    description = household_crypto.encrypt_text(engine, household_id, description)
     with engine.begin() as conn:
         if external_id is not None:
             existing = conn.execute(

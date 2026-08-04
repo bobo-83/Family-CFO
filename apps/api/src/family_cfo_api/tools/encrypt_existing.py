@@ -95,6 +95,55 @@ def main() -> int:
             ["text"],
             lambda row: document_households.get(row["document_id"]),
         ),
+        (
+            "transactions",
+            models.transactions,
+            models.transactions.c.id,
+            ["merchant", "description", "note"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "accounts",
+            models.accounts,
+            models.accounts.c.id,
+            ["name", "institution"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "bills",
+            models.bills,
+            models.bills.c.id,
+            ["name"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "income_sources",
+            models.income_sources,
+            models.income_sources.c.id,
+            ["name"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "goals",
+            models.goals,
+            models.goals.c.id,
+            ["name"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "audit_events",
+            models.audit_events,
+            models.audit_events.c.id,
+            ["summary", "undo_token"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "reports",
+            models.reports,
+            models.reports.c.id,
+            ["explanation_text"],
+            lambda row: row["household_id"],
+        ),
     ]
     for name, table, id_col, cols, household_of in plan:
         changed = _encrypt_table(engine, table, id_col, cols, household_of)

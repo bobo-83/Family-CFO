@@ -281,11 +281,11 @@ accounts = Table(
     metadata,
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
-    Column("name", String(120), nullable=False),
+    Column("name", Text, nullable=False),  # Text: sealed values are ciphertext (ADR 0072)
     Column("type", String(30), nullable=False),
     # M97: the real institution (bank) behind this account, from the provider's
     # per-account org — SimpleFIN's connection name is a generic aggregator label.
-    Column("institution", String(120), nullable=True),
+    Column("institution", Text, nullable=True),
     _currency_column(),
     # Debt terms, meaningful only for liability account types (M14). Nullable —
     # an account without both set is not modeled for payoff.
@@ -376,7 +376,7 @@ transactions = Table(
     Column("occurred_at", Date, nullable=False),
     Column("amount_minor", BigInteger, nullable=False),
     _currency_column(),
-    Column("merchant", String(120), nullable=True),
+    Column("merchant", Text, nullable=True),  # Text: sealed (ADR 0072)
     Column("category_id", String(36), ForeignKey("transaction_categories.id"), nullable=True),
     Column("description", Text, nullable=True),
     Column("import_source", String(30), nullable=True),
@@ -460,7 +460,7 @@ bills = Table(
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("account_id", String(36), ForeignKey("accounts.id"), nullable=True),
-    Column("name", String(120), nullable=False),
+    Column("name", Text, nullable=False),  # Text: sealed (ADR 0072)
     Column("amount_minor", BigInteger, nullable=False),
     _currency_column(),
     Column("frequency", String(20), nullable=False),
@@ -492,7 +492,7 @@ income_sources = Table(
     metadata,
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
-    Column("name", String(120), nullable=False),
+    Column("name", Text, nullable=False),  # Text: sealed (ADR 0072)
     Column("amount_minor", BigInteger, nullable=False),
     _currency_column(),
     Column("frequency", String(20), nullable=False),
@@ -508,7 +508,7 @@ goals = Table(
     metadata,
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
-    Column("name", String(120), nullable=False),
+    Column("name", Text, nullable=False),  # Text: sealed (ADR 0072)
     Column("type", String(30), nullable=False),
     Column("target_minor", BigInteger, nullable=False),
     Column("current_minor", BigInteger, nullable=False, server_default="0"),
@@ -867,7 +867,7 @@ household_memories = Table(
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
     Column("key", String(100), nullable=False),
-    Column("value", String(500), nullable=False),
+    Column("value", Text, nullable=False),  # Text: sealed (ADR 0072)
     Column("source", String(20), nullable=False),
     Column("source_conversation_id", String(36), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -902,7 +902,7 @@ advisor_feedback = Table(
     Column("recommendation_id", String(36), ForeignKey("recommendations.id"), nullable=False),
     Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
     Column("rating", String(10), nullable=False),  # "up" | "down"
-    Column("note", String(500), nullable=True),
+    Column("note", Text, nullable=True),  # Text: sealed (ADR 0072)
     Column("reviewed", Boolean, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
