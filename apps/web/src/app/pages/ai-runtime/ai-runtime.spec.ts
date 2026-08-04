@@ -749,4 +749,25 @@ describe('AiRuntime', () => {
 
     expect(host.querySelector('.study__paused')?.textContent).toContain('Paused');
   });
+
+  it('subtracts the resident vision slot from the budget and disables no-fit models (#182)', async () => {
+    // 120 GB node with 22 GB claimed by the describer -> 98 GB budget: a
+    // 100 GB estimate no longer fits.
+    apiMock.getAiHardwareProfile = vi.fn().mockResolvedValue(
+      response({
+        gpu_memory_gb: null,
+        system_memory_gb: 120,
+        disk_free_gb: 500,
+        source: 'system',
+        vision_reserved_gb: 22,
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance as unknown as {
+      memoryBudgetGb: () => number | null;
+      fitOf: (m: { est_memory_gb: number; min_nodes?: number }) => string;
+    };
+    expect(component.memoryBudgetGb()).toBe(98);
+    expect(component.fitOf({ est_memory_gb: 100, min_nodes: 1 })).toBe('no');
+  });
 });

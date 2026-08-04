@@ -360,8 +360,14 @@ def get_ai_model_detail(
 )
 async def get_ai_hardware_profile(
     session: repository.SessionContext = Depends(get_current_session),
+    settings: Settings = Depends(get_app_settings),
 ) -> AiHardwareProfile:
-    return AiHardwareProfile(**hardware_profile())
+    profile = hardware_profile()
+    # #182: a resident dedicated describer shrinks what the MAIN model can
+    # actually claim (the 0.65-fraction lesson from the MiniMax bring-up).
+    if not settings.ai_supports_vision:
+        profile["vision_reserved_gb"] = _vision_slot_gb(settings)
+    return AiHardwareProfile(**profile)
 
 
 @router.put(

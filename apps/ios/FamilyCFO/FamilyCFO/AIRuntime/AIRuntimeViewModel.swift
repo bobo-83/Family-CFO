@@ -44,9 +44,13 @@ final class AIRuntimeViewModel {
         }
     }
 
-    /// The memory the model must fit in: GPU when reported, else unified/system.
+    /// The memory the model must fit in: GPU when reported, else unified/
+    /// system — minus what the resident vision describer already claims (#182).
     var memoryBudgetGb: Double? {
-        hardware.flatMap { $0.gpuMemoryGb ?? $0.systemMemoryGb }
+        guard let hw = hardware, let node = hw.gpuMemoryGb ?? hw.systemMemoryGb else {
+            return nil
+        }
+        return node - (hw.visionReservedGb ?? 0)
     }
 
     enum Fit: Equatable {

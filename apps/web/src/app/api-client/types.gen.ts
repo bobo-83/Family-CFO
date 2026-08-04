@@ -2059,6 +2059,10 @@ export type AiHardwareProfile = {
     cluster_peer_host?: string | null;
     cluster_peer_reachable?: boolean;
     /**
+     * Memory already claimed by the resident vision describer — the main model's real budget is the node budget minus this. Absent when the main model serves vision natively.
+     */
+    vision_reserved_gb?: number | null;
+    /**
      * Combined model budget when the peer is reachable (2x one node).
      */
     cluster_memory_gb?: number | null;

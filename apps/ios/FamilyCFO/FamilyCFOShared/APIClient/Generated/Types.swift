@@ -10625,6 +10625,10 @@ public enum Components {
             public var clusterPeerHost: Swift.String?
             /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/cluster_peer_reachable`.
             public var clusterPeerReachable: Swift.Bool?
+            /// Memory already claimed by the resident vision describer — the main model's real budget is the node budget minus this. Absent when the main model serves vision natively.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/vision_reserved_gb`.
+            public var visionReservedGb: Swift.Double?
             /// Combined model budget when the peer is reachable (2x one node).
             ///
             /// - Remark: Generated from `#/components/schemas/AiHardwareProfile/cluster_memory_gb`.
@@ -10638,6 +10642,7 @@ public enum Components {
             ///   - source:
             ///   - clusterPeerHost: ADR 0071: the enrolled second box, probed automatically.
             ///   - clusterPeerReachable:
+            ///   - visionReservedGb: Memory already claimed by the resident vision describer — the main model's real budget is the node budget minus this. Absent when the main model serves vision natively.
             ///   - clusterMemoryGb: Combined model budget when the peer is reachable (2x one node).
             public init(
                 gpuMemoryGb: Swift.Double? = nil,
@@ -10646,6 +10651,7 @@ public enum Components {
                 source: Swift.String,
                 clusterPeerHost: Swift.String? = nil,
                 clusterPeerReachable: Swift.Bool? = nil,
+                visionReservedGb: Swift.Double? = nil,
                 clusterMemoryGb: Swift.Double? = nil
             ) {
                 self.gpuMemoryGb = gpuMemoryGb
@@ -10654,6 +10660,7 @@ public enum Components {
                 self.source = source
                 self.clusterPeerHost = clusterPeerHost
                 self.clusterPeerReachable = clusterPeerReachable
+                self.visionReservedGb = visionReservedGb
                 self.clusterMemoryGb = clusterMemoryGb
             }
             public enum CodingKeys: String, CodingKey {
@@ -10663,6 +10670,7 @@ public enum Components {
                 case source
                 case clusterPeerHost = "cluster_peer_host"
                 case clusterPeerReachable = "cluster_peer_reachable"
+                case visionReservedGb = "vision_reserved_gb"
                 case clusterMemoryGb = "cluster_memory_gb"
             }
         }

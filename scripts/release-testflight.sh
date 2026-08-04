@@ -160,5 +160,12 @@ xcrun altool --upload-app --type ios --file "$IPA" \
        app record for com.familycfo.ios are common)."
 
 log "Uploaded v${APP_VERSION} (${BUILD_NUMBER}) to TestFlight."
+
+# #182: keep the over-VPN OTA bundle current too, so patch.sh stops warning
+# about a stale published app. SKIP_OTA=1 skips (saves the second archive).
+if [ "${SKIP_OTA:-0}" != "1" ]; then
+  log "Refreshing the OTA bundle (SKIP_OTA=1 to skip)..."
+  "$(dirname "$0")/deploy-ios-ota.sh" || log "OTA refresh failed (TestFlight upload is unaffected)."
+fi
 echo "  It appears under TestFlight in App Store Connect after processing"
 echo "  (usually 5–30 min). Add testers or a public link there, then share it."

@@ -217,7 +217,13 @@ export class AiRuntime {
   /** Memory budget: GPU memory when known, else system RAM (unified/unknown GPU). */
   protected readonly memoryBudgetGb = computed(() => {
     const hw = this.hardware.value();
-    return hw?.gpu_memory_gb ?? hw?.system_memory_gb ?? null;
+    const node = hw?.gpu_memory_gb ?? hw?.system_memory_gb ?? null;
+    if (node == null) {
+      return null;
+    }
+    // #182: the resident vision describer's slot isn't available to the main
+    // model — judge fits against what's actually left.
+    return node - (hw?.vision_reserved_gb ?? 0);
   });
 
   protected readonly usingSystemMemoryBudget = computed(() => {

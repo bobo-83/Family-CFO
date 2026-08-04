@@ -7685,6 +7685,14 @@ components:
         cluster_peer_reachable:
           type: boolean
           default: false
+        vision_reserved_gb:
+          description: >-
+            Memory already claimed by the resident vision describer — the main
+            model's real budget is the node budget minus this. Absent when the
+            main model serves vision natively.
+          type:
+            - number
+            - "null"
         cluster_memory_gb:
           description: Combined model budget when the peer is reachable (2x one node).
           type:

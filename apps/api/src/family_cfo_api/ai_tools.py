@@ -131,7 +131,7 @@ GROUNDING_RULES = (
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
-    "in a search query. For income, salary, RSU vest, bonus, take-home, or tax "
+    "in a search query. Never NAME an employer, company, or institution unless that exact name appears in a tool result or the user's message — pay sources without names are described generically ('your employer, by name unknown'), never given an invented name. For income, salary, RSU vest, bonus, take-home, or tax "
     "questions ALWAYS call get_income_and_tax first — it carries the household's "
     "declared compensation profile including upcoming vest dates (quote its "
     "assumptions when giving a tax figure). For what the household EARNS or TAKES "

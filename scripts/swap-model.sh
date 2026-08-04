@@ -41,6 +41,13 @@ VISION="${ARGS[1]:-}"
 
 [ -f .env ] || die ".env not found — deploy first (scripts/deploy.sh)."
 
+# #182: a CLI swap racing a dashboard Apply froze the box once (two writers
+# restarting vllm). The model-manager knows when an apply is running — ask it.
+manager_state=$(docker compose $COMPOSE_FILES exec -T model-manager   python -c "import json,urllib.request;print(json.load(urllib.request.urlopen('http://localhost:8000/status',timeout=3)).get('state',''))"   2>/dev/null || true)
+if [ "$manager_state" = "running" ]; then
+  die "A model swap is already in progress (started from the dashboard). Wait for it to finish, then retry."
+fi
+
 # Effective cluster mode: forced by min_nodes:2 models, or requested by flag.
 cluster_mode() { [ "$CLUSTER_FLAG" = "1" ] || is_cluster_model "$MAIN"; }
 

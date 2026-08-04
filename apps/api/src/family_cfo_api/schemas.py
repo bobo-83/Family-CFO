@@ -1321,6 +1321,10 @@ class AiHardwareProfile(BaseModel):
     cluster_peer_reachable: bool = False
     # Combined model budget when the peer is reachable (2× one node).
     cluster_memory_gb: float | None = None
+    # #182: memory already claimed by the resident vision describer — the main
+    # model's real budget is the node budget minus this. Null when the main
+    # model serves vision natively (no dedicated describer).
+    vision_reserved_gb: float | None = None
 
 
 class ImportCreateRequest(BaseModel):
