@@ -63,6 +63,17 @@ protocol BillsAPI: Sendable {
     func billCredits() async throws -> Components.Schemas.BillCreditsResponse?
     /// Record a scanned statement's credit against a bill (undoable server-side).
     func recordBillCredit(billID: String, amountMinor: Int64, currency: String) async throws
+
+    /// "I already paid this": outflows near the occurrence's due date, likeliest
+    /// first — the picker for linking a bill to the charge that paid it.
+    func paymentCandidates(
+        billID: String, dueDate: String
+    ) async throws -> [Components.Schemas.Transaction]
+    /// Point a bill occurrence at the transaction that paid it. `dueDate` is the
+    /// timeline row's OWN due date — the occurrence being settled.
+    func linkBillPayment(billID: String, transactionID: String, dueDate: String) async throws
+    /// Remove a link; the occurrence shows as due again. Undoable by re-linking.
+    func unlinkBillPayment(billID: String, linkID: String) async throws
 }
 
 extension BillsAPI {
@@ -84,6 +95,11 @@ extension BillsAPI {
     ) async throws {}
     func billCredits() async throws -> Components.Schemas.BillCreditsResponse? { nil }
     func recordBillCredit(billID: String, amountMinor: Int64, currency: String) async throws {}
+    func paymentCandidates(
+        billID: String, dueDate: String
+    ) async throws -> [Components.Schemas.Transaction] { [] }
+    func linkBillPayment(billID: String, transactionID: String, dueDate: String) async throws {}
+    func unlinkBillPayment(billID: String, linkID: String) async throws {}
 }
 
 /// Aggregate outcome of syncing every connection (M96): what was newly imported,
@@ -324,6 +340,64 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.server(404)
         case .unprocessableContent:
             throw APIError.server(422)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func paymentCandidates(
+        billID: String, dueDate: String
+    ) async throws -> [Components.Schemas.Transaction] {
+        switch try await client.listBillPaymentCandidates(
+            .init(path: .init(billId: billID), query: .init(dueDate: dueDate)))
+        {
+        case .ok(let response):
+            return try response.body.json.transactions
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func linkBillPayment(billID: String, transactionID: String, dueDate: String) async throws {
+        let request = Components.Schemas.BillPaymentLinkRequest(
+            transactionId: transactionID, dueDate: dueDate)
+        switch try await client.linkBillPayment(
+            .init(path: .init(billId: billID), body: .json(request)))
+        {
+        case .created:
+            return
+        // 400/404/409 carry a human explanation ("that charge is an inflow",
+        // "already linked") — show it verbatim, like the backup-restore flow.
+        case .badRequest(let response), .notFound(let response), .conflict(let response):
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(400)
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func unlinkBillPayment(billID: String, linkID: String) async throws {
+        switch try await client.unlinkBillPayment(
+            .init(path: .init(billId: billID, linkId: linkID)))
+        {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            return  // already unlinked
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

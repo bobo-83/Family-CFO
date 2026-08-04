@@ -561,6 +561,10 @@ class TimelinePaidWith(BaseModel):
     occurred_at: date
     amount: Money
     label: str
+    # "matched" = merchant+window auto-match; "linked" = the user pointed the
+    # bill at this transaction. Linked receipts carry the link id for unlinking.
+    source: Literal["matched", "linked"] = "matched"
+    link_id: str | None = None
 
 
 class PaymentTimelineItem(BaseModel):
@@ -574,6 +578,22 @@ class PaymentTimelineItem(BaseModel):
     days_until: int | None = None
     status: TimelineItemStatus
     paid_with: TimelinePaidWith | None = None
+
+
+class BillPaymentLinkRequest(BaseModel):
+    """Point a bill occurrence at the transaction that paid it — the manual
+    escape hatch when auto-matching can't pair a variable-amount bill."""
+
+    transaction_id: str
+    # The occurrence being settled — the due date shown on the timeline row.
+    due_date: date
+
+
+class BillPaymentLink(BaseModel):
+    id: str
+    bill_id: str
+    transaction_id: str
+    due_date: date
 
 
 class PaymentTimelineResponse(BaseModel):

@@ -1484,6 +1484,111 @@ paths:
                 $ref: "#/components/schemas/PaymentTimelineResponse"
         "401":
           $ref: "#/components/responses/Error"
+  /bills/{bill_id}/payment-candidates:
+    get:
+      tags:
+        - Bills
+      operationId: listBillPaymentCandidates
+      summary: Recent charges that could have paid this bill occurrence
+      description: >-
+        Outflows around the occurrence's due date, likeliest first — merchant
+        matches lead regardless of amount (variable bills are exactly the case
+        the matcher misses), then everything else by closeness to the due date.
+        The picker behind the "I already paid this" flow.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: due_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Candidate transactions, likeliest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /bills/{bill_id}/payment-link:
+    post:
+      tags:
+        - Bills
+      operationId: linkBillPayment
+      summary: Mark a bill occurrence paid by pointing at the transaction that paid it
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillPaymentLinkRequest"
+      responses:
+        "201":
+          description: Linked; the timeline row shows paid with this receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillPaymentLink"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /bills/{bill_id}/payment-link/{link_id}:
+    delete:
+      tags:
+        - Bills
+      operationId: unlinkBillPayment
+      summary: Remove a bill-payment link (the occurrence shows as due again)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bill_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: link_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Unlinked
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /bills/credits:
     get:
       tags:
@@ -4130,6 +4235,54 @@ components:
           $ref: "#/components/schemas/Money"
         label:
           type: string
+        source:
+          description: >-
+            "matched" = the merchant+due-window auto-matcher found it; "linked"
+            = the user pointed the bill at this transaction (the link wins).
+          type: string
+          enum: [matched, linked]
+          default: matched
+        link_id:
+          description: Set on linked receipts, for unlinking.
+          type:
+            - string
+            - "null"
+    BillPaymentLinkRequest:
+      type: object
+      description: >-
+        Point a bill occurrence at the transaction that paid it — the manual
+        escape hatch when auto-matching can't pair a variable-amount bill.
+      required:
+        - transaction_id
+        - due_date
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        due_date:
+          description: The occurrence being settled — the timeline row's due date.
+          type: string
+          format: date
+    BillPaymentLink:
+      type: object
+      required:
+        - id
+        - bill_id
+        - transaction_id
+        - due_date
+      properties:
+        id:
+          type: string
+          format: uuid
+        bill_id:
+          type: string
+          format: uuid
+        transaction_id:
+          type: string
+          format: uuid
+        due_date:
+          type: string
+          format: date
     PaymentTimelineItem:
       type: object
       description: >-

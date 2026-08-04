@@ -40,6 +40,10 @@
     </mat-card-content>
   </mat-card>
 
+  @if (linkError() && !markPaidItem()) {
+    <p class="page-error" role="alert">{{ linkError() }}</p>
+  }
+
   @for (section of timelineSections(); track section.status) {
     <h2>{{ section.title }}</h2>
     @if (section.status === 'paid') {
@@ -53,23 +57,106 @@
       <mat-card-content>
       <ul class="bill-list timeline-list" [attr.data-status]="section.status">
         @for (item of section.items; track item.id) {
-          <li class="bill-list__item">
-            <span class="timeline-list__kind">{{ timelineKindLabel(item.kind) }}</span>
-            <div class="bill-list__main">
-              <div class="bill-list__name">{{ item.name }}</div>
-              <div
-                class="bill-list__frequency"
-                [class.timeline-list__status--overdue]="item.status === 'overdue'"
-              >
-                {{ timelineStatusLine(item) }}
+          <li class="bill-list__item bill-list__item--stacked">
+            <div class="bill-list__row">
+              <span class="timeline-list__kind">{{ timelineKindLabel(item.kind) }}</span>
+              <div class="bill-list__main">
+                <div class="bill-list__name">{{ item.name }}</div>
+                <div
+                  class="bill-list__frequency"
+                  [class.timeline-list__status--overdue]="item.status === 'overdue'"
+                >
+                  {{ timelineStatusLine(item) }}
+                  @if (item.paid_with?.source === 'linked') {
+                    <span class="timeline-list__linked">linked by you</span>
+                  }
+                </div>
               </div>
-            </div>
-            <div class="bill-list__amount">
-              {{ formatMoney(item.amount) }}
-              @if (item.status === 'paid') {
-                <span class="timeline-list__check" aria-label="Paid">✓</span>
+              <div class="bill-list__amount">
+                {{ formatMoney(item.amount) }}
+                @if (item.status === 'paid') {
+                  <span class="timeline-list__check" aria-label="Paid">✓</span>
+                }
+              </div>
+              @if (canMarkPaid(item)) {
+                <button
+                  mat-button
+                  type="button"
+                  class="bill-list__confirm timeline-list__mark-paid"
+                  (click)="openMarkPaid(item)"
+                >
+                  Mark paid…
+                </button>
+              }
+              @if (canWrite() && item.paid_with?.source === 'linked') {
+                <button
+                  mat-button
+                  type="button"
+                  class="bill-list__delete timeline-list__unlink"
+                  [disabled]="linkBusy()"
+                  (click)="unlinkPayment(item)"
+                >
+                  Unlink
+                </button>
               }
             </div>
+            @if (markPaidItem() === item) {
+              <div class="paylink-panel">
+                <p class="paylink-panel__hint">
+                  Pick the charge that paid this bill. Charges that look like “{{ item.name }}”
+                  are listed first.
+                </p>
+                @if (linkError(); as message) {
+                  <p class="page-error" role="alert">{{ message }}</p>
+                }
+                @if (candidates(); as charges) {
+                  @if (charges.length === 0 && !linkError()) {
+                    <p class="paylink-panel__empty">
+                      No charges found near this due date — sync your accounts or add the
+                      transaction first.
+                    </p>
+                  } @else {
+                    <ul class="paylink-panel__list">
+                      @for (charge of charges; track charge.id) {
+                        <li>
+                          <button
+                            type="button"
+                            class="paylink-candidate"
+                            [disabled]="linkBusy()"
+                            (click)="linkPayment(charge)"
+                          >
+                            <span class="paylink-candidate__main">
+                              <span class="paylink-candidate__name">
+                                {{ charge.merchant || charge.description || 'Charge' }}
+                              </span>
+                              <span class="paylink-candidate__meta">
+                                {{ charge.occurred_at | date: 'MMM d, y' }}
+                                @if (charge.account_name) {
+                                  · {{ charge.account_name }}
+                                }
+                              </span>
+                            </span>
+                            <span class="paylink-candidate__amount">
+                              {{ formatMoney(charge.amount) }}
+                            </span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                } @else {
+                  <p class="paylink-panel__empty">Loading charges…</p>
+                }
+                <button
+                  mat-button
+                  type="button"
+                  class="bill-list__delete"
+                  (click)="closeMarkPaid()"
+                >
+                  Cancel
+                </button>
+              </div>
+            }
           </li>
         }
       </ul>

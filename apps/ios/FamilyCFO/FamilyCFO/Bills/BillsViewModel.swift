@@ -313,6 +313,52 @@ final class BillsViewModel {
             "Recorded a \(amount.formattedExact) credit on \(billName) — see Manage bills → Statement credits."
     }
 
+    // MARK: "I already paid this" — link a bill to the charge that paid it
+
+    /// Candidates for the mark-paid picker: outflows near the occurrence's due
+    /// date, likeliest first. Returns nil (and sets errorMessage) on failure so
+    /// the sheet can distinguish "failed" from "nothing found".
+    func paymentCandidates(
+        billID: String, dueDate: String
+    ) async -> [Components.Schemas.Transaction]? {
+        do {
+            let candidates = try await api.paymentCandidates(billID: billID, dueDate: dueDate)
+            errorMessage = nil
+            return candidates
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+            return nil
+        }
+    }
+
+    /// Link the chosen charge to the occurrence. `dueDate` must be the timeline
+    /// row's OWN due date. Returns whether it stuck; the server's refusal
+    /// (400/409) surfaces verbatim in errorMessage.
+    func linkPayment(billID: String, transactionID: String, dueDate: String) async -> Bool {
+        do {
+            try await api.linkBillPayment(
+                billID: billID, transactionID: transactionID, dueDate: dueDate)
+            errorMessage = nil
+            await load()
+            return true
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+            return false
+        }
+    }
+
+    /// Undo a link the user made; the row shows as due again. No confirmation —
+    /// re-linking from the same picker restores it.
+    func unlinkPayment(billID: String, linkID: String) async {
+        do {
+            try await api.unlinkBillPayment(billID: billID, linkID: linkID)
+            errorMessage = nil
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
     func deleteBill(_ bill: Components.Schemas.Bill) async {
         guard let index = bills.firstIndex(where: { $0.id == bill.id }) else { return }
         bills.remove(at: index)

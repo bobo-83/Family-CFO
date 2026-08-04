@@ -145,6 +145,37 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
         }
     }
 
+    var candidateTransactions: [Components.Schemas.Transaction] = []
+    private(set) var candidateRequests: [(billID: String, dueDate: String)] = []
+    private(set) var linked: [(billID: String, transactionID: String, dueDate: String)] = []
+    private(set) var unlinked: [(billID: String, linkID: String)] = []
+
+    nonisolated func paymentCandidates(
+        billID: String, dueDate: String
+    ) async throws -> [Components.Schemas.Transaction] {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            candidateRequests.append((billID, dueDate))
+            return candidateTransactions
+        }
+    }
+
+    nonisolated func linkBillPayment(
+        billID: String, transactionID: String, dueDate: String
+    ) async throws {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            linked.append((billID, transactionID, dueDate))
+        }
+    }
+
+    nonisolated func unlinkBillPayment(billID: String, linkID: String) async throws {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            unlinked.append((billID, linkID))
+        }
+    }
+
     nonisolated func unclassifiedDeposits() async throws
         -> [Components.Schemas.IncomeAnalysisTransaction]
     {
@@ -511,6 +542,128 @@ struct BillCategoryTests {
         #expect(loans.first?.bills.map(\.name) == ["Department of Education"])
         #expect(loans.first?.obligations.map(\.name) == ["MORTGAGE (8953)"])
         #expect(loans.first?.obligationFooter != nil)
+    }
+}
+
+/// "I already paid this" (bill-payment links): the picker asks with the row's
+/// own due date, a link POSTs it and reloads, and unlink DELETEs and reloads.
+@MainActor
+struct BillPaymentLinkTests {
+    private static func transaction(_ id: String) -> Components.Schemas.Transaction {
+        .init(
+            id: id, accountId: "a1", occurredAt: "2026-07-19",
+            amount: .init(amountMinor: -13_250, currency: "USD"),
+            merchant: "Metro Power", accountName: "Everyday Checking")
+    }
+
+    @Test func candidatesAreFetchedForTheRowsOwnDueDate() async {
+        let api = MockBillsAPI()
+        api.candidateTransactions = [Self.transaction("t1")]
+        let vm = BillsViewModel(api: api)
+
+        let candidates = await vm.paymentCandidates(billID: "b1", dueDate: "2026-07-20")
+
+        #expect(candidates?.map(\.id) == ["t1"])
+        #expect(api.candidateRequests.count == 1)
+        #expect(api.candidateRequests[0].billID == "b1")
+        #expect(api.candidateRequests[0].dueDate == "2026-07-20")
+    }
+
+    @Test func linkingSendsTheRowsOwnDueDateAndReloads() async {
+        let api = MockBillsAPI()
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+        #expect(vm.bills.isEmpty)
+        // The reload after linking must pull fresh state.
+        api.currentBills = [
+            .init(
+                id: "b1", name: "Metro Power",
+                amount: .init(amountMinor: 14_000, currency: "USD"),
+                frequency: .monthly, nextDueDate: "2026-08-20")
+        ]
+
+        let linked = await vm.linkPayment(
+            billID: "b1", transactionID: "t1", dueDate: "2026-07-20")
+
+        #expect(linked)
+        #expect(api.linked.count == 1)
+        #expect(api.linked[0].billID == "b1")
+        #expect(api.linked[0].transactionID == "t1")
+        #expect(api.linked[0].dueDate == "2026-07-20")
+        #expect(vm.bills.map(\.name) == ["Metro Power"])  // reloaded
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func aRefusedLinkSurfacesTheServersMessageVerbatim() async {
+        let api = MockBillsAPI()
+        api.actionError = APIError.advisor("That charge already pays another bill.")
+        let vm = BillsViewModel(api: api)
+
+        let linked = await vm.linkPayment(
+            billID: "b1", transactionID: "t1", dueDate: "2026-07-20")
+
+        #expect(!linked)
+        #expect(vm.errorMessage == "That charge already pays another bill.")
+    }
+
+    @Test func unlinkingCallsDeleteAndReloads() async {
+        let api = MockBillsAPI()
+        let vm = BillsViewModel(api: api)
+        await vm.load()
+        api.currentBills = [
+            .init(
+                id: "b1", name: "Metro Power",
+                amount: .init(amountMinor: 14_000, currency: "USD"),
+                frequency: .monthly, nextDueDate: "2026-08-20")
+        ]
+
+        await vm.unlinkPayment(billID: "b1", linkID: "l1")
+
+        #expect(api.unlinked.count == 1)
+        #expect(api.unlinked[0].billID == "b1")
+        #expect(api.unlinked[0].linkID == "l1")
+        #expect(vm.bills.map(\.name) == ["Metro Power"])  // reloaded
+    }
+
+    /// Only unpaid bill rows with a due date can be marked paid — the endpoint
+    /// is bill-scoped, and card/loan rows carry account ids.
+    @Test func onlyDatedUnpaidBillRowsOfferMarkPaid() {
+        func item(
+            kind: Components.Schemas.PaymentTimelineItem.KindPayload,
+            status: Components.Schemas.PaymentTimelineItem.StatusPayload,
+            dueDate: String?
+        ) -> Components.Schemas.PaymentTimelineItem {
+            .init(
+                id: "x", kind: kind, name: "X",
+                amount: .init(amountMinor: 1_000, currency: "USD"),
+                dueDate: dueDate, daysUntil: nil, status: status, paidWith: nil)
+        }
+        #expect(BillsView.canMarkPaid(item(kind: .bill, status: .overdue, dueDate: "2026-07-20")))
+        #expect(BillsView.canMarkPaid(item(kind: .bill, status: .dueSoon, dueDate: "2026-07-20")))
+        #expect(BillsView.canMarkPaid(item(kind: .bill, status: .upcoming, dueDate: "2026-08-20")))
+        #expect(!BillsView.canMarkPaid(item(kind: .bill, status: .paid, dueDate: "2026-07-20")))
+        #expect(!BillsView.canMarkPaid(item(kind: .bill, status: .noDate, dueDate: nil)))
+        #expect(
+            !BillsView.canMarkPaid(item(kind: .creditCard, status: .dueSoon, dueDate: "2026-07-20")))
+    }
+
+    /// A user-linked receipt says so; an auto-matched one stays exactly as it was.
+    @Test func linkedReceiptsAreMarkedInTheStatusLine() {
+        func paidItem(
+            source: Components.Schemas.TimelinePaidWith.SourcePayload?
+        ) -> Components.Schemas.PaymentTimelineItem {
+            .init(
+                id: "b1", kind: .bill, name: "Metro Power",
+                amount: .init(amountMinor: 14_000, currency: "USD"),
+                dueDate: nil, daysUntil: nil, status: .paid,
+                paidWith: .init(
+                    transactionId: "t1", occurredAt: "2026-07-19",
+                    amount: .init(amountMinor: 13_250, currency: "USD"),
+                    label: "Metro Power", source: source, linkId: source == .linked ? "l1" : nil))
+        }
+        #expect(BillsView.statusLine(paidItem(source: .linked)).hasSuffix("linked by you"))
+        #expect(!BillsView.statusLine(paidItem(source: .matched)).contains("linked by you"))
+        #expect(!BillsView.statusLine(paidItem(source: nil)).contains("linked by you"))
     }
 }
 

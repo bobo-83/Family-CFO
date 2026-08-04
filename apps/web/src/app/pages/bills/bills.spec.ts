@@ -308,6 +308,247 @@ describe('Bills', () => {
     expect(host.textContent).toContain('Paid Jul 1');
   });
 
+  it('links a candidate charge with the row’s own due date ("I already paid this")', async () => {
+    const timeline = {
+      items: [
+        {
+          id: 'b1',
+          kind: 'bill',
+          name: 'Metro Power',
+          amount: { amount_minor: 14_000, currency: 'USD' },
+          due_date: '2026-07-20',
+          days_until: -3,
+          status: 'overdue',
+        },
+      ],
+      due_total: { amount_minor: 14_000, currency: 'USD' },
+      liquid_balance: { amount_minor: 100_000, currency: 'USD' },
+      covered: true,
+      window_days: 14,
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response(timeline)),
+      listBillPaymentCandidates: vi.fn().mockResolvedValue(
+        response({
+          transactions: [
+            {
+              id: 't1',
+              account_id: 'a1',
+              occurred_at: '2026-07-19T00:00:00Z',
+              amount: { amount_minor: -13_250, currency: 'USD' },
+              merchant: 'METRO POWER CO',
+              account_name: 'Everyday Checking',
+            },
+          ],
+        }),
+      ),
+      linkBillPayment: vi.fn().mockResolvedValue(response({ id: 'l1' })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.timeline-list__mark-paid') as HTMLButtonElement).click();
+    await stabilize(fixture);
+
+    expect(apiMock.listBillPaymentCandidates).toHaveBeenCalledWith('b1', '2026-07-20');
+    expect(host.textContent).toContain('Pick the charge that paid this bill');
+    expect(host.textContent).toContain('METRO POWER CO');
+    expect(host.textContent).toContain('Everyday Checking');
+
+    (host.querySelector('.paylink-candidate') as HTMLButtonElement).click();
+    await stabilize(fixture);
+
+    // POST carries the row's OWN due date, and the page reloads the timeline.
+    expect(apiMock.linkBillPayment).toHaveBeenCalledWith('b1', 't1', '2026-07-20');
+    expect(apiMock.getPaymentTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces the server’s error detail verbatim when linking is refused', async () => {
+    const timeline = {
+      items: [
+        {
+          id: 'b1',
+          kind: 'bill',
+          name: 'Metro Power',
+          amount: { amount_minor: 14_000, currency: 'USD' },
+          due_date: '2026-07-20',
+          days_until: 2,
+          status: 'due_soon',
+        },
+      ],
+      due_total: { amount_minor: 14_000, currency: 'USD' },
+      liquid_balance: { amount_minor: 100_000, currency: 'USD' },
+      covered: true,
+      window_days: 14,
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response(timeline)),
+      listBillPaymentCandidates: vi.fn().mockResolvedValue(
+        response({
+          transactions: [
+            {
+              id: 't1',
+              account_id: 'a1',
+              occurred_at: '2026-07-19T00:00:00Z',
+              amount: { amount_minor: -13_250, currency: 'USD' },
+              merchant: 'METRO POWER CO',
+            },
+          ],
+        }),
+      ),
+      linkBillPayment: vi.fn().mockResolvedValue(
+        response(undefined, {
+          error: { code: 'conflict', message: 'That charge already pays another bill.' },
+        }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.timeline-list__mark-paid') as HTMLButtonElement).click();
+    await stabilize(fixture);
+    (host.querySelector('.paylink-candidate') as HTMLButtonElement).click();
+    await stabilize(fixture);
+
+    expect(host.textContent).toContain('That charge already pays another bill.');
+  });
+
+  it('says so plainly when no candidate charges are found', async () => {
+    const timeline = {
+      items: [
+        {
+          id: 'b1',
+          kind: 'bill',
+          name: 'Metro Power',
+          amount: { amount_minor: 14_000, currency: 'USD' },
+          due_date: '2026-07-20',
+          days_until: 2,
+          status: 'due_soon',
+        },
+      ],
+      due_total: { amount_minor: 14_000, currency: 'USD' },
+      liquid_balance: { amount_minor: 100_000, currency: 'USD' },
+      covered: true,
+      window_days: 14,
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response(timeline)),
+      listBillPaymentCandidates: vi.fn().mockResolvedValue(response({ transactions: [] })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.timeline-list__mark-paid') as HTMLButtonElement).click();
+    await stabilize(fixture);
+
+    expect(host.textContent).toContain(
+      'No charges found near this due date — sync your accounts or add the transaction first.',
+    );
+  });
+
+  it('marks a linked receipt and unlinks it without confirmation', async () => {
+    const timeline = {
+      items: [
+        {
+          id: 'b1',
+          kind: 'bill',
+          name: 'Metro Power',
+          amount: { amount_minor: 14_000, currency: 'USD' },
+          due_date: '2026-08-20',
+          days_until: 25,
+          status: 'paid',
+          paid_with: {
+            transaction_id: 't1',
+            occurred_at: '2026-07-19',
+            amount: { amount_minor: 13_250, currency: 'USD' },
+            label: 'METRO POWER CO',
+            source: 'linked',
+            link_id: 'l1',
+          },
+        },
+      ],
+      due_total: { amount_minor: 0, currency: 'USD' },
+      liquid_balance: { amount_minor: 100_000, currency: 'USD' },
+      covered: true,
+      window_days: 14,
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response(timeline)),
+      unlinkBillPayment: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('linked by you');
+    (host.querySelector('.timeline-list__unlink') as HTMLButtonElement).click();
+    await stabilize(fixture);
+
+    expect(apiMock.unlinkBillPayment).toHaveBeenCalledWith('b1', 'l1');
+    expect(apiMock.getPaymentTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps auto-matched paid rows free of the unlink affordance', async () => {
+    const timeline = {
+      items: [
+        {
+          id: 'b1',
+          kind: 'bill',
+          name: 'Metro Power',
+          amount: { amount_minor: 14_000, currency: 'USD' },
+          due_date: '2026-08-20',
+          days_until: 25,
+          status: 'paid',
+          paid_with: {
+            transaction_id: 't1',
+            occurred_at: '2026-07-19',
+            amount: { amount_minor: 14_000, currency: 'USD' },
+            label: 'METRO POWER CO',
+            source: 'matched',
+            link_id: null,
+          },
+        },
+      ],
+      due_total: { amount_minor: 0, currency: 'USD' },
+      liquid_balance: { amount_minor: 100_000, currency: 'USD' },
+      covered: true,
+      window_days: 14,
+    };
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response(timeline)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).not.toContain('linked by you');
+    expect(host.querySelector('.timeline-list__unlink')).toBeNull();
+    expect(host.querySelector('.timeline-list__mark-paid')).toBeNull();
+  });
+
   it('edits a bill inline and saves through updateBill (M110 parity)', async () => {
     const bill = {
       id: 'b1',

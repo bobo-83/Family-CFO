@@ -121,11 +121,19 @@ def upcoming_bills(
     """
     today = today or date.today()
     horizon = today + timedelta(days=window_days or UPCOMING_BILL_WINDOW_DAYS)
+    # An occurrence the user explicitly linked to its payment is settled — it
+    # is no longer due and no longer a claim on cash.
+    linked = {
+        (link.bill_id, link.due_date)
+        for link in repository.list_bill_payment_links(engine, household_id)
+    }
     result: list[UpcomingBill] = []
     for bill in repository.list_bills(engine, household_id):
         if bill.next_due_date is None:
             continue
         due = next_bill_occurrence(bill.next_due_date, bill.frequency, today)
+        if (bill.id, due) in linked:
+            continue
         if due <= horizon:
             result.append(
                 UpcomingBill(
@@ -920,6 +928,10 @@ class TimelinePayment:
     occurred_at: date
     amount_minor: int  # positive: what was actually paid/charged
     label: str
+    # "matched" = found by the merchant+window matcher; "linked" = the user
+    # pointed the bill at this transaction (the link wins over the matcher).
+    source: str = "matched"
+    link_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1083,6 +1095,30 @@ def payment_timeline(
     horizon = today + timedelta(days=window_days)
     items: list[PaymentTimelineItem] = []
 
+    links = {
+        (link.bill_id, link.due_date): link
+        for link in repository.list_bill_payment_links(engine, household_id)
+    }
+
+    def _linked_payment(bill_id: str, due: date) -> TimelinePayment | None:
+        """The user's explicit receipt for this occurrence, if they linked one.
+        The linked transaction may predate the timeline's lookback window, so
+        it is fetched directly rather than from the preloaded list."""
+        link = links.get((bill_id, due))
+        if link is None:
+            return None
+        txn = repository.get_transaction(engine, household_id, link.transaction_id)
+        if txn is None:
+            return None
+        return TimelinePayment(
+            transaction_id=txn.id,
+            occurred_at=txn.occurred_at,
+            amount_minor=abs(txn.amount_minor),
+            label=txn.merchant or txn.description or "Payment",
+            source="linked",
+            link_id=link.id,
+        )
+
     # --- Bills: the stored due date is authoritative; match the actual charge.
     for bill in repository.list_bills(engine, household_id):
         if bill.currency != currency or bill.next_due_date is None:
@@ -1099,7 +1135,7 @@ def payment_timeline(
         due: date | None
         if prev_due >= today - timedelta(days=grace):
             # A due date just passed: paid near it, or genuinely overdue.
-            paid = _find_bill_payment(
+            paid = _linked_payment(bill.id, prev_due) or _find_bill_payment(
                 bill, outflows, prev_due - timedelta(days=5),
                 min(prev_due + timedelta(days=grace), today),
             )
@@ -1110,7 +1146,7 @@ def payment_timeline(
         else:
             # Otherwise the question is the upcoming occurrence — possibly
             # already settled early by autopay.
-            paid = _find_bill_payment(
+            paid = _linked_payment(bill.id, next_due) or _find_bill_payment(
                 bill, outflows, next_due - timedelta(days=5), today
             )
             if paid is not None:

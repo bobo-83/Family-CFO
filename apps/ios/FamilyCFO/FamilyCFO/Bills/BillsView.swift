@@ -10,6 +10,9 @@ struct BillsView: View {
     @State private var addingBill = false
     @State private var editingBill: Components.Schemas.Bill?
     @State private var categorizing: Components.Schemas.Bill?
+    /// The timeline row being marked paid ("I already paid this") — drives the
+    /// candidate-charge picker sheet.
+    @State private var markingPaid: Components.Schemas.PaymentTimelineItem?
 
     var body: some View {
         NavigationStack {
@@ -42,6 +45,9 @@ struct BillsView: View {
             }
             .sheet(item: $editingBill) { bill in
                 BillFormView(viewModel: viewModel, mode: .edit(bill))
+            }
+            .sheet(item: $markingPaid) { item in
+                MarkPaidSheet(viewModel: viewModel, item: item)
             }
             .sheet(item: $categorizing) { bill in
                 CategoryPickerSheet(
@@ -93,6 +99,8 @@ struct BillsView: View {
                         Text("Matched to the actual charge — tap to see the amount that settled it.")
                     } else if section.title == "No due date yet" {
                         Text("We haven't seen a payment on this account yet, so we can't infer its due day.")
+                    } else if section.items.contains(where: Self.canMarkPaid) {
+                        Text("Already paid a bill? Swipe its row right to pick the charge that paid it.")
                     }
                 }
             }
@@ -225,10 +233,38 @@ struct BillsView: View {
                         Label("Categorize", systemImage: "tag")
                     }
                     .tint(.accentColor)
+                    // Undo a link the user made; safe (re-linkable), so no
+                    // confirmation. Auto-matched receipts have no linkId.
+                    if let paid = item.paidWith, paid.source == .linked, let linkID = paid.linkId {
+                        Button {
+                            Task { await viewModel.unlinkPayment(billID: item.id, linkID: linkID) }
+                        } label: {
+                            Label("Unlink", systemImage: "arrow.uturn.backward")
+                        }
+                        .tint(.orange)
+                    }
+                }
+                .swipeActions(edge: .leading) {
+                    if Self.canMarkPaid(item) {
+                        Button {
+                            markingPaid = item
+                        } label: {
+                            Label("Mark paid", systemImage: "checkmark.circle")
+                        }
+                        .tint(.green)
+                    }
                 }
         } else {
             row
         }
+    }
+
+    /// "I already paid this" applies to unpaid bill rows with a due date — the
+    /// link endpoint is bill-scoped, and the row's own due date names the
+    /// occurrence being settled.
+    static func canMarkPaid(_ item: Components.Schemas.PaymentTimelineItem) -> Bool {
+        item.kind == .bill && item.dueDate != nil
+            && [.overdue, .dueSoon, .upcoming].contains(item.status)
     }
 
     static func kindIcon(_ kind: Components.Schemas.PaymentTimelineItem.KindPayload) -> String {
@@ -246,8 +282,11 @@ struct BillsView: View {
         switch item.status {
         case .paid:
             if let paid = item.paidWith {
+                // "linked by you" marks a receipt the user pointed at, as
+                // opposed to one the auto-matcher found.
                 return "Paid \(shortDate(paid.occurredAt)) · \(paid.amount.formattedExact)"
                     + (item.dueDate.map { " · next \(shortDate($0))" } ?? "")
+                    + (paid.source == .linked ? " · linked by you" : "")
             }
             return "Paid"
         case .overdue:
@@ -722,3 +761,6 @@ struct BillFormView: View {
 
 /// `Bill` carries a stable `id`; conforming lets it drive `.sheet(item:)`.
 extension Components.Schemas.Bill: Identifiable {}
+
+/// Same for a timeline row, so it can drive the mark-paid picker sheet.
+extension Components.Schemas.PaymentTimelineItem: Identifiable {}

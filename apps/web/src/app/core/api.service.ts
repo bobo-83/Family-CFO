@@ -19,6 +19,9 @@ import {
   createBill,
   createBudget,
   listBillCredits,
+  listBillPaymentCandidates,
+  linkBillPayment,
+  unlinkBillPayment,
   recordBillCredit,
   createCategory,
   updateCategory,
@@ -385,6 +388,23 @@ export class ApiService {
   // payments as one time-ordered list with a cash-versus-due headline.
   getPaymentTimeline() {
     return getPaymentTimeline();
+  }
+
+  // "I already paid this": outflows near an occurrence's due date, likeliest
+  // first — the picker behind linking a bill to the charge that paid it.
+  listBillPaymentCandidates(billId: string, dueDate: string) {
+    return listBillPaymentCandidates({ path: { bill_id: billId }, query: { due_date: dueDate } });
+  }
+
+  linkBillPayment(billId: string, transactionId: string, dueDate: string) {
+    return linkBillPayment({
+      path: { bill_id: billId },
+      body: { transaction_id: transactionId, due_date: dueDate },
+    });
+  }
+
+  unlinkBillPayment(billId: string, linkId: string) {
+    return unlinkBillPayment({ path: { bill_id: billId, link_id: linkId } });
   }
 
   // M112 (ADR 0026): the 30-day cash outlook — paychecks in, payments out,

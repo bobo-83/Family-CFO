@@ -52,6 +52,8 @@ UNDO_POLICY: dict[str, str] = {
     "transaction.attachment_added": UNDOABLE,
     # bills
     "bill.created": UNDOABLE,
+    "bill.payment_linked": UNDOABLE,
+    "bill.payment_unlinked": UNDOABLE,
     "bill.updated": UNDOABLE,
     "bill.deleted": UNDOABLE,
     "bill_suggestion.dismissed": UNDOABLE,
@@ -325,6 +327,21 @@ def account_updated(before: repository.AccountRecord) -> str:
                 "emergency_fund_percent": before.emergency_fund_percent,
                 "emergency_fund_minor": before.emergency_fund_minor,
                 "rsu_ready_to_sell": before.rsu_ready_to_sell,
+            },
+        }
+    )
+
+
+def bill_payment_unlinked(link: repository.BillPaymentLinkRecord) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "bill_payment_link",
+            "data": {
+                "id": link.id,
+                "bill_id": link.bill_id,
+                "transaction_id": link.transaction_id,
+                "due_date": _iso(link.due_date),
             },
         }
     )
@@ -697,6 +714,8 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         repository.delete_bill(engine, household_id, entity_id)
     elif entity == "bill_credit":
         repository.delete_bill_credit(engine, household_id, entity_id)
+    elif entity == "bill_payment_link":
+        repository.delete_bill_payment_link(engine, household_id, entity_id)
     elif entity == "rsu_grant":
         repository.delete_rsu_grant(engine, household_id, entity_id)
     elif entity == "rsu_vest_event":
@@ -791,6 +810,12 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             annual_interest_rate=data.get("annual_interest_rate"),
             minimum_payment_minor=data.get("minimum_payment_minor"),
             maturity_date=_date(data.get("maturity_date")),
+        )
+    elif entity == "bill_payment_link":
+        repository.create_bill_payment_link(
+            engine, household_id,
+            bill_id=data["bill_id"], transaction_id=data["transaction_id"],
+            due_date=_date(data["due_date"]), link_id=data.get("id"),
         )
     elif entity == "budget":
         repository.create_budget(

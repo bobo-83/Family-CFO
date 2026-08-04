@@ -15,6 +15,7 @@ import type {
   PaymentTimelineItem,
   PaymentTimelineResponse,
   RecurringFrequency,
+  Transaction,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -135,6 +136,87 @@ export class Bills {
       default:
         return 'Bill';
     }
+  }
+
+  // --- "I already paid this": link a bill occurrence to the charge that paid
+  // it — the manual escape hatch when auto-matching misses a variable bill.
+  // Only bill rows can be linked (the endpoint is bill-scoped); card/loan rows
+  // carry account ids, not bill ids.
+
+  protected readonly markPaidItem = signal<PaymentTimelineItem | null>(null);
+  // null = still fetching; [] = fetched, nothing near the due date.
+  protected readonly candidates = signal<Transaction[] | null>(null);
+  protected readonly linkError = signal<string | null>(null);
+  protected readonly linkBusy = signal(false);
+
+  protected canMarkPaid(item: PaymentTimelineItem): boolean {
+    return (
+      this.canWrite() &&
+      item.kind === 'bill' &&
+      !!item.due_date &&
+      (item.status === 'overdue' || item.status === 'due_soon' || item.status === 'upcoming')
+    );
+  }
+
+  protected async openMarkPaid(item: PaymentTimelineItem): Promise<void> {
+    if (!item.due_date) {
+      return;
+    }
+    this.markPaidItem.set(item);
+    this.candidates.set(null);
+    this.linkError.set(null);
+    const { data, error } = await this.api.listBillPaymentCandidates(item.id, item.due_date);
+    // The user may have closed the picker (or opened another) while we fetched.
+    if (this.markPaidItem() !== item) {
+      return;
+    }
+    if (error || !data) {
+      this.linkError.set(apiErrorMessage(error, 'Failed to load charges.'));
+      this.candidates.set([]);
+      return;
+    }
+    this.candidates.set(data.transactions);
+  }
+
+  protected closeMarkPaid(): void {
+    this.markPaidItem.set(null);
+    this.candidates.set(null);
+    this.linkError.set(null);
+  }
+
+  protected async linkPayment(transaction: Transaction): Promise<void> {
+    const item = this.markPaidItem();
+    if (!item?.due_date || this.linkBusy()) {
+      return;
+    }
+    this.linkBusy.set(true);
+    this.linkError.set(null);
+    // The row's OWN due date — the occurrence being settled.
+    const { error } = await this.api.linkBillPayment(item.id, transaction.id, item.due_date);
+    this.linkBusy.set(false);
+    if (error) {
+      this.linkError.set(apiErrorMessage(error, 'Failed to link the payment.'));
+      return;
+    }
+    this.closeMarkPaid();
+    await this.load();
+  }
+
+  // No confirm: unlinking is undoable (re-link from the same picker).
+  protected async unlinkPayment(item: PaymentTimelineItem): Promise<void> {
+    const linkId = item.paid_with?.link_id;
+    if (!linkId || this.linkBusy()) {
+      return;
+    }
+    this.linkBusy.set(true);
+    this.linkError.set(null);
+    const { error } = await this.api.unlinkBillPayment(item.id, linkId);
+    this.linkBusy.set(false);
+    if (error) {
+      this.linkError.set(apiErrorMessage(error, 'Failed to unlink the payment.'));
+      return;
+    }
+    await this.load();
   }
 
   // M58: recurring charges detected in checking/credit-card transactions.

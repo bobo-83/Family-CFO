@@ -317,6 +317,23 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /bills/timeline`.
     /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
     func getPaymentTimeline(_ input: Operations.GetPaymentTimeline.Input) async throws -> Operations.GetPaymentTimeline.Output
+    /// Recent charges that could have paid this bill occurrence
+    ///
+    /// Outflows around the occurrence's due date, likeliest first — merchant matches lead regardless of amount (variable bills are exactly the case the matcher misses), then everything else by closeness to the due date. The picker behind the "I already paid this" flow.
+    ///
+    /// - Remark: HTTP `GET /bills/{bill_id}/payment-candidates`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)`.
+    func listBillPaymentCandidates(_ input: Operations.ListBillPaymentCandidates.Input) async throws -> Operations.ListBillPaymentCandidates.Output
+    /// Mark a bill occurrence paid by pointing at the transaction that paid it
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/payment-link`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)`.
+    func linkBillPayment(_ input: Operations.LinkBillPayment.Input) async throws -> Operations.LinkBillPayment.Output
+    /// Remove a bill-payment link (the occurrence shows as due again)
+    ///
+    /// - Remark: HTTP `DELETE /bills/{bill_id}/payment-link/{link_id}`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)`.
+    func unlinkBillPayment(_ input: Operations.UnlinkBillPayment.Input) async throws -> Operations.UnlinkBillPayment.Output
     /// Statement credits per bill, with monthly and yearly totals
     ///
     /// M-credits: which bills carry statement credits (net metering, overpayment) and how much per month and per year. Rollups sum the household's base currency.
@@ -1431,6 +1448,51 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//bills/timeline/get(getPaymentTimeline)`.
     public func getPaymentTimeline(headers: Operations.GetPaymentTimeline.Input.Headers = .init()) async throws -> Operations.GetPaymentTimeline.Output {
         try await getPaymentTimeline(Operations.GetPaymentTimeline.Input(headers: headers))
+    }
+    /// Recent charges that could have paid this bill occurrence
+    ///
+    /// Outflows around the occurrence's due date, likeliest first — merchant matches lead regardless of amount (variable bills are exactly the case the matcher misses), then everything else by closeness to the due date. The picker behind the "I already paid this" flow.
+    ///
+    /// - Remark: HTTP `GET /bills/{bill_id}/payment-candidates`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)`.
+    public func listBillPaymentCandidates(
+        path: Operations.ListBillPaymentCandidates.Input.Path,
+        query: Operations.ListBillPaymentCandidates.Input.Query,
+        headers: Operations.ListBillPaymentCandidates.Input.Headers = .init()
+    ) async throws -> Operations.ListBillPaymentCandidates.Output {
+        try await listBillPaymentCandidates(Operations.ListBillPaymentCandidates.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Mark a bill occurrence paid by pointing at the transaction that paid it
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/payment-link`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)`.
+    public func linkBillPayment(
+        path: Operations.LinkBillPayment.Input.Path,
+        headers: Operations.LinkBillPayment.Input.Headers = .init(),
+        body: Operations.LinkBillPayment.Input.Body
+    ) async throws -> Operations.LinkBillPayment.Output {
+        try await linkBillPayment(Operations.LinkBillPayment.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Remove a bill-payment link (the occurrence shows as due again)
+    ///
+    /// - Remark: HTTP `DELETE /bills/{bill_id}/payment-link/{link_id}`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)`.
+    public func unlinkBillPayment(
+        path: Operations.UnlinkBillPayment.Input.Path,
+        headers: Operations.UnlinkBillPayment.Input.Headers = .init()
+    ) async throws -> Operations.UnlinkBillPayment.Output {
+        try await unlinkBillPayment(Operations.UnlinkBillPayment.Input(
+            path: path,
+            headers: headers
+        ))
     }
     /// Statement credits per bill, with monthly and yearly totals
     ///
@@ -3545,6 +3607,21 @@ public enum Components {
             public var amount: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/label`.
             public var label: Swift.String
+            /// "matched" = the merchant+due-window auto-matcher found it; "linked" = the user pointed the bill at this transaction (the link wins).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/source`.
+            @frozen public enum SourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case matched = "matched"
+                case linked = "linked"
+            }
+            /// "matched" = the merchant+due-window auto-matcher found it; "linked" = the user pointed the bill at this transaction (the link wins).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/source`.
+            public var source: Components.Schemas.TimelinePaidWith.SourcePayload?
+            /// Set on linked receipts, for unlinking.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TimelinePaidWith/link_id`.
+            public var linkId: Swift.String?
             /// Creates a new `TimelinePaidWith`.
             ///
             /// - Parameters:
@@ -3552,22 +3629,92 @@ public enum Components {
             ///   - occurredAt:
             ///   - amount:
             ///   - label:
+            ///   - source: "matched" = the merchant+due-window auto-matcher found it; "linked" = the user pointed the bill at this transaction (the link wins).
+            ///   - linkId: Set on linked receipts, for unlinking.
             public init(
                 transactionId: Swift.String,
                 occurredAt: Swift.String,
                 amount: Components.Schemas.Money,
-                label: Swift.String
+                label: Swift.String,
+                source: Components.Schemas.TimelinePaidWith.SourcePayload? = nil,
+                linkId: Swift.String? = nil
             ) {
                 self.transactionId = transactionId
                 self.occurredAt = occurredAt
                 self.amount = amount
                 self.label = label
+                self.source = source
+                self.linkId = linkId
             }
             public enum CodingKeys: String, CodingKey {
                 case transactionId = "transaction_id"
                 case occurredAt = "occurred_at"
                 case amount
                 case label
+                case source
+                case linkId = "link_id"
+            }
+        }
+        /// Point a bill occurrence at the transaction that paid it — the manual escape hatch when auto-matching can't pair a variable-amount bill.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BillPaymentLinkRequest`.
+        public struct BillPaymentLinkRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLinkRequest/transaction_id`.
+            public var transactionId: Swift.String
+            /// The occurrence being settled — the timeline row's due date.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLinkRequest/due_date`.
+            public var dueDate: Swift.String
+            /// Creates a new `BillPaymentLinkRequest`.
+            ///
+            /// - Parameters:
+            ///   - transactionId:
+            ///   - dueDate: The occurrence being settled — the timeline row's due date.
+            public init(
+                transactionId: Swift.String,
+                dueDate: Swift.String
+            ) {
+                self.transactionId = transactionId
+                self.dueDate = dueDate
+            }
+            public enum CodingKeys: String, CodingKey {
+                case transactionId = "transaction_id"
+                case dueDate = "due_date"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BillPaymentLink`.
+        public struct BillPaymentLink: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLink/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLink/bill_id`.
+            public var billId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLink/transaction_id`.
+            public var transactionId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BillPaymentLink/due_date`.
+            public var dueDate: Swift.String
+            /// Creates a new `BillPaymentLink`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - billId:
+            ///   - transactionId:
+            ///   - dueDate:
+            public init(
+                id: Swift.String,
+                billId: Swift.String,
+                transactionId: Swift.String,
+                dueDate: Swift.String
+            ) {
+                self.id = id
+                self.billId = billId
+                self.transactionId = transactionId
+                self.dueDate = dueDate
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case billId = "bill_id"
+                case transactionId = "transaction_id"
+                case dueDate = "due_date"
             }
         }
         /// One payment on the Bills timeline (M111): a bill, a credit-card payment, or a loan/lease payment. `amount` is the expected figure (a bill's estimate — variable utilities show their typical amount — a card's pay-in-full balance, a loan's monthly payment); `paid_with` carries the matched actual charge when status is "paid".
@@ -20625,6 +20772,638 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Recent charges that could have paid this bill occurrence
+    ///
+    /// Outflows around the occurrence's due date, likeliest first — merchant matches lead regardless of amount (variable bills are exactly the case the matcher misses), then everything else by closeness to the due date. The picker behind the "I already paid this" flow.
+    ///
+    /// - Remark: HTTP `GET /bills/{bill_id}/payment-candidates`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)`.
+    public enum ListBillPaymentCandidates {
+        public static let id: Swift.String = "listBillPaymentCandidates"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/path/bill_id`.
+                public var billId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - billId:
+                public init(billId: Swift.String) {
+                    self.billId = billId
+                }
+            }
+            public var path: Operations.ListBillPaymentCandidates.Input.Path
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/query/due_date`.
+                public var dueDate: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - dueDate:
+                public init(dueDate: Swift.String) {
+                    self.dueDate = dueDate
+                }
+            }
+            public var query: Operations.ListBillPaymentCandidates.Input.Query
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListBillPaymentCandidates.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListBillPaymentCandidates.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListBillPaymentCandidates.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.ListBillPaymentCandidates.Input.Path,
+                query: Operations.ListBillPaymentCandidates.Input.Query,
+                headers: Operations.ListBillPaymentCandidates.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-candidates/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TransactionListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TransactionListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListBillPaymentCandidates.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListBillPaymentCandidates.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Candidate transactions, likeliest first
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListBillPaymentCandidates.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListBillPaymentCandidates.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Mark a bill occurrence paid by pointing at the transaction that paid it
+    ///
+    /// - Remark: HTTP `POST /bills/{bill_id}/payment-link`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)`.
+    public enum LinkBillPayment {
+        public static let id: Swift.String = "linkBillPayment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/path/bill_id`.
+                public var billId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - billId:
+                public init(billId: Swift.String) {
+                    self.billId = billId
+                }
+            }
+            public var path: Operations.LinkBillPayment.Input.Path
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.LinkBillPayment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.LinkBillPayment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.LinkBillPayment.Input.Headers
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BillPaymentLinkRequest)
+            }
+            public var body: Operations.LinkBillPayment.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.LinkBillPayment.Input.Path,
+                headers: Operations.LinkBillPayment.Input.Headers = .init(),
+                body: Operations.LinkBillPayment.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.BillPaymentLink)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BillPaymentLink {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.LinkBillPayment.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.LinkBillPayment.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Linked; the timeline row shows paid with this receipt
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.LinkBillPayment.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.LinkBillPayment.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/post(linkBillPayment)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Remove a bill-payment link (the occurrence shows as due again)
+    ///
+    /// - Remark: HTTP `DELETE /bills/{bill_id}/payment-link/{link_id}`.
+    /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)`.
+    public enum UnlinkBillPayment {
+        public static let id: Swift.String = "unlinkBillPayment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/{link_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/{link_id}/DELETE/path/bill_id`.
+                public var billId: Swift.String
+                /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/{link_id}/DELETE/path/link_id`.
+                public var linkId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - billId:
+                ///   - linkId:
+                public init(
+                    billId: Swift.String,
+                    linkId: Swift.String
+                ) {
+                    self.billId = billId
+                    self.linkId = linkId
+                }
+            }
+            public var path: Operations.UnlinkBillPayment.Input.Path
+            /// - Remark: Generated from `#/paths/bills/{bill_id}/payment-link/{link_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnlinkBillPayment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnlinkBillPayment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UnlinkBillPayment.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.UnlinkBillPayment.Input.Path,
+                headers: Operations.UnlinkBillPayment.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Unlinked
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.UnlinkBillPayment.Output.NoContent)
+            /// Unlinked
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.UnlinkBillPayment.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-link/{link_id}/delete(unlinkBillPayment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

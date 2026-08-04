@@ -813,6 +813,24 @@ stock_quotes = Table(
 
 # M58: "not a bill" verdicts on suggested recurring charges, so a dismissed
 # suggestion stays dismissed across refreshes.
+# The user's explicit "this transaction paid this bill occurrence" link — the
+# escape hatch when auto-matching (merchant + due-window, ±30% amount) can't
+# pair a variable-amount bill with its charge (ADR 0024).
+bill_payment_links = Table(
+    "bill_payment_links",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("bill_id", String(36), ForeignKey("bills.id"), nullable=False),
+    Column("transaction_id", String(36), ForeignKey("transactions.id"), nullable=False),
+    # The occurrence this payment settles (the due date shown on the timeline).
+    Column("due_date", Date, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("bill_id", "due_date", name="uq_bill_payment_links_bill_due"),
+    UniqueConstraint("transaction_id", name="uq_bill_payment_links_transaction"),
+)
+
+
 bill_suggestion_dismissals = Table(
     "bill_suggestion_dismissals",
     metadata,

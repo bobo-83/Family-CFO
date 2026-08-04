@@ -304,6 +304,32 @@ export type TimelinePaidWith = {
     occurred_at: string;
     amount: Money;
     label: string;
+    /**
+     * "matched" = the merchant+due-window auto-matcher found it; "linked" = the user pointed the bill at this transaction (the link wins).
+     */
+    source?: 'matched' | 'linked';
+    /**
+     * Set on linked receipts, for unlinking.
+     */
+    link_id?: string | null;
+};
+
+/**
+ * Point a bill occurrence at the transaction that paid it — the manual escape hatch when auto-matching can't pair a variable-amount bill.
+ */
+export type BillPaymentLinkRequest = {
+    transaction_id: string;
+    /**
+     * The occurrence being settled — the timeline row's due date.
+     */
+    due_date: string;
+};
+
+export type BillPaymentLink = {
+    id: string;
+    bill_id: string;
+    transaction_id: string;
+    due_date: string;
 };
 
 /**
@@ -3844,6 +3870,118 @@ export type GetPaymentTimelineResponses = {
 };
 
 export type GetPaymentTimelineResponse = GetPaymentTimelineResponses[keyof GetPaymentTimelineResponses];
+
+export type ListBillPaymentCandidatesData = {
+    body?: never;
+    path: {
+        bill_id: string;
+    };
+    query: {
+        due_date: string;
+    };
+    url: '/bills/{bill_id}/payment-candidates';
+};
+
+export type ListBillPaymentCandidatesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type ListBillPaymentCandidatesError = ListBillPaymentCandidatesErrors[keyof ListBillPaymentCandidatesErrors];
+
+export type ListBillPaymentCandidatesResponses = {
+    /**
+     * Candidate transactions, likeliest first
+     */
+    200: TransactionListResponse;
+};
+
+export type ListBillPaymentCandidatesResponse = ListBillPaymentCandidatesResponses[keyof ListBillPaymentCandidatesResponses];
+
+export type LinkBillPaymentData = {
+    body: BillPaymentLinkRequest;
+    path: {
+        bill_id: string;
+    };
+    query?: never;
+    url: '/bills/{bill_id}/payment-link';
+};
+
+export type LinkBillPaymentErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type LinkBillPaymentError = LinkBillPaymentErrors[keyof LinkBillPaymentErrors];
+
+export type LinkBillPaymentResponses = {
+    /**
+     * Linked; the timeline row shows paid with this receipt
+     */
+    201: BillPaymentLink;
+};
+
+export type LinkBillPaymentResponse = LinkBillPaymentResponses[keyof LinkBillPaymentResponses];
+
+export type UnlinkBillPaymentData = {
+    body?: never;
+    path: {
+        bill_id: string;
+        link_id: string;
+    };
+    query?: never;
+    url: '/bills/{bill_id}/payment-link/{link_id}';
+};
+
+export type UnlinkBillPaymentErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type UnlinkBillPaymentError = UnlinkBillPaymentErrors[keyof UnlinkBillPaymentErrors];
+
+export type UnlinkBillPaymentResponses = {
+    /**
+     * Unlinked
+     */
+    204: void;
+};
+
+export type UnlinkBillPaymentResponse = UnlinkBillPaymentResponses[keyof UnlinkBillPaymentResponses];
 
 export type ListBillCreditsData = {
     body?: never;

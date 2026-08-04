@@ -109,6 +109,81 @@
   margin-left: 0.35rem;
 }
 
+// "I already paid this": the linked-by-you marker and the candidate picker
+// panel that expands under a row.
+.timeline-list__linked {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mat-sys-primary, var(--color-accent));
+}
+
+.paylink-panel {
+  margin: 0.25rem 0 0.5rem 6.25rem; // kind-column width + gap: aligns under the row's main column
+  padding: 0.6rem 0.75rem;
+  background: var(--mat-sys-surface-container, #eef1f5);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.paylink-panel__hint,
+.paylink-panel__empty {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
+}
+
+.paylink-panel__list {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0;
+}
+
+.paylink-candidate {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.45rem 0.35rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
+
+  &:hover:not(:disabled) {
+    background: var(--mat-sys-surface-container-high, #e3e7ee);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.paylink-candidate__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.paylink-candidate__name {
+  font-weight: 500;
+}
+
+.paylink-candidate__meta {
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant, #5b6472);
+}
+
+.paylink-candidate__amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .bill-form {
   display: flex;
   flex-direction: column;

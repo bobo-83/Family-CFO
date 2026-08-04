@@ -4473,6 +4473,94 @@ def delete_bill_credit(engine: Engine, household_id: str, credit_id: str) -> boo
     return result.rowcount > 0
 
 
+@dataclass(frozen=True, slots=True)
+class BillPaymentLinkRecord:
+    id: str
+    bill_id: str
+    transaction_id: str
+    due_date: date
+    created_at: datetime
+
+
+def create_bill_payment_link(
+    engine: Engine,
+    household_id: str,
+    bill_id: str,
+    transaction_id: str,
+    due_date: date,
+    link_id: str | None = None,
+) -> BillPaymentLinkRecord:
+    """link_id is honored so undo of an unlink recreates the same row."""
+    record = BillPaymentLinkRecord(
+        id=link_id or new_id(),
+        bill_id=bill_id,
+        transaction_id=transaction_id,
+        due_date=due_date,
+        created_at=utcnow(),
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.bill_payment_links).values(
+                id=record.id,
+                household_id=household_id,
+                bill_id=record.bill_id,
+                transaction_id=record.transaction_id,
+                due_date=record.due_date,
+                created_at=record.created_at,
+            )
+        )
+    return record
+
+
+def list_bill_payment_links(engine: Engine, household_id: str) -> list[BillPaymentLinkRecord]:
+    query = select(models.bill_payment_links).where(
+        models.bill_payment_links.c.household_id == household_id
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        BillPaymentLinkRecord(
+            id=row["id"],
+            bill_id=row["bill_id"],
+            transaction_id=row["transaction_id"],
+            due_date=row["due_date"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def get_bill_payment_link(
+    engine: Engine, household_id: str, link_id: str
+) -> BillPaymentLinkRecord | None:
+    query = select(models.bill_payment_links).where(
+        models.bill_payment_links.c.household_id == household_id,
+        models.bill_payment_links.c.id == link_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    if row is None:
+        return None
+    return BillPaymentLinkRecord(
+        id=row["id"],
+        bill_id=row["bill_id"],
+        transaction_id=row["transaction_id"],
+        due_date=row["due_date"],
+        created_at=row["created_at"],
+    )
+
+
+def delete_bill_payment_link(engine: Engine, household_id: str, link_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.bill_payment_links).where(
+                models.bill_payment_links.c.household_id == household_id,
+                models.bill_payment_links.c.id == link_id,
+            )
+        )
+    return result.rowcount > 0
+
+
 # --- Income writes -----------------------------------------------------------
 
 

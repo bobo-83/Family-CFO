@@ -9,10 +9,10 @@ description = "Encrypted database/document backup adapters for Family CFO"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  # cryptography >=48.0.1 clears PYSEC-2026-35, CVE-2026-26007, and
-  # GHSA-537c-gmf6-5ccf flagged by pip-audit. This is the binding constraint
-  # for the API image (which pulls cryptography via this package).
-  "cryptography>=48.0.1,<50",
+  # cryptography >=50 clears CVE-2026-69247 (and the earlier PYSEC-2026-35,
+  # CVE-2026-26007, GHSA-537c-gmf6-5ccf). This is the binding constraint for
+  # the API image (which pulls cryptography via this package).
+  "cryptography>=50,<51",
 ]
 
 [project.optional-dependencies]

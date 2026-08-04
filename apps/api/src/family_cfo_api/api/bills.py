@@ -23,8 +23,11 @@ from family_cfo_api.schemas import (
     BillUpdateRequest,
     ErrorResponse,
     MonthlyCreditTotal,
+    BillPaymentLink,
+    BillPaymentLinkRequest,
     PaymentTimelineItem,
     PaymentTimelineResponse,
+    TransactionListResponse,
     TimelinePaidWith,
     YearlyCreditTotal,
 )
@@ -148,6 +151,8 @@ async def get_payment_timeline(
                             amount_minor=item.paid.amount_minor, currency=item.currency
                         ),
                         label=item.paid.label,
+                        source=item.paid.source,
+                        link_id=item.paid.link_id,
                     )
                     if item.paid
                     else None
@@ -160,6 +165,157 @@ async def get_payment_timeline(
         covered=timeline.covered,
         window_days=timeline.window_days,
     )
+
+
+@router.get(
+    "/bills/{bill_id}/payment-candidates",
+    operation_id="listBillPaymentCandidates",
+    response_model=TransactionListResponse,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Bill not found", "model": ErrorResponse},
+    },
+    summary="Recent charges that could have paid this bill occurrence",
+)
+async def list_bill_payment_candidates(
+    bill_id: str,
+    due_date: date,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> TransactionListResponse:
+    """Outflows around the occurrence's due date, likeliest first: merchant
+    matches lead (regardless of amount — variable bills are exactly the case
+    the matcher misses), then everything else by closeness to the due date.
+    The picker the "I already paid this" flow chooses from."""
+    bill = repository.get_bill(engine, session.household_id, bill_id)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
+    today = date.today()
+    window_start = due_date - timedelta(days=45)
+    window_end = min(due_date + timedelta(days=45), today)
+    transactions = repository.list_transactions(
+        engine, session.household_id, limit=10_000, start=window_start, end=window_end
+    )
+    already_linked = {
+        link.transaction_id for link in repository.list_bill_payment_links(engine, session.household_id)
+    }
+    bill_key = bill_detection.normalize_merchant(bill.name)
+
+    def merchant_matches(txn) -> bool:
+        txn_key = bill_detection.normalize_merchant(
+            txn.merchant
+        ) or bill_detection.normalize_merchant(txn.description)
+        return bool(bill_key) and finance_service._keys_match(bill_key, txn_key)
+
+    outflows = [
+        txn
+        for txn in transactions
+        if txn.amount_minor < 0 and txn.id not in already_linked and txn.currency == bill.currency
+    ]
+    outflows.sort(key=lambda t: (not merchant_matches(t), abs((t.occurred_at - due_date).days)))
+    account_names = repository.account_name_map(engine, session.household_id)
+    from family_cfo_api.api.transactions import _to_schema as _txn_schema
+
+    return TransactionListResponse(
+        transactions=[_txn_schema(txn, account_names) for txn in outflows[:30]]
+    )
+
+
+@router.post(
+    "/bills/{bill_id}/payment-link",
+    operation_id="linkBillPayment",
+    response_model=BillPaymentLink,
+    status_code=201,
+    responses={
+        400: {"description": "Not a linkable transaction", "model": ErrorResponse},
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Bill or transaction not found", "model": ErrorResponse},
+        409: {"description": "Occurrence or transaction already linked", "model": ErrorResponse},
+    },
+    summary="Mark a bill occurrence paid by pointing at the transaction that paid it",
+)
+async def link_bill_payment(
+    bill_id: str,
+    payload: BillPaymentLinkRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> BillPaymentLink:
+    bill = repository.get_bill(engine, session.household_id, bill_id)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    txn = repository.get_transaction(engine, session.household_id, payload.transaction_id)
+    if txn is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if txn.amount_minor >= 0:
+        raise HTTPException(status_code=400, detail="Only an outgoing charge can pay a bill")
+    for link in repository.list_bill_payment_links(engine, session.household_id):
+        if link.bill_id == bill_id and link.due_date == payload.due_date:
+            raise HTTPException(
+                status_code=409,
+                detail="This bill occurrence is already linked to a payment. Unlink it first.",
+            )
+        if link.transaction_id == payload.transaction_id:
+            raise HTTPException(
+                status_code=409, detail="That transaction already pays another bill."
+            )
+
+    record = repository.create_bill_payment_link(
+        engine, session.household_id, bill_id, payload.transaction_id, payload.due_date
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "bill.payment_linked",
+        "bill_payment_link",
+        record.id,
+        summary=f"Marked \u201c{bill.name}\u201d (due {payload.due_date.isoformat()}) paid",
+        undo_token=undo_actions.created("bill_payment_link", record.id),
+    )
+    return BillPaymentLink(
+        id=record.id,
+        bill_id=record.bill_id,
+        transaction_id=record.transaction_id,
+        due_date=record.due_date,
+    )
+
+
+@router.delete(
+    "/bills/{bill_id}/payment-link/{link_id}",
+    operation_id="unlinkBillPayment",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Link not found", "model": ErrorResponse},
+    },
+    summary="Remove a bill-payment link (the occurrence shows as due again)",
+)
+async def unlink_bill_payment(
+    bill_id: str,
+    link_id: str,
+    session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    link = repository.get_bill_payment_link(engine, session.household_id, link_id)
+    if link is None or link.bill_id != bill_id:
+        raise HTTPException(status_code=404, detail="Link not found")
+    bill = repository.get_bill(engine, session.household_id, bill_id)
+    undo_token = undo_actions.bill_payment_unlinked(link)
+    repository.delete_bill_payment_link(engine, session.household_id, link_id)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "bill.payment_unlinked",
+        "bill_payment_link",
+        link_id,
+        summary=f"Unlinked the payment for \u201c{(bill.name if bill else 'bill')}\u201d",
+        undo_token=undo_token,
+    )
+    return Response(status_code=204)
 
 
 @router.get(
