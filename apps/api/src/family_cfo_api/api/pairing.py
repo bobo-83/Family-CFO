@@ -7,7 +7,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, rights, security
+from family_cfo_api import audit, household_crypto, repository, rights, security
 from family_cfo_api.deps import (
     client_ip,
     get_current_session,
@@ -193,6 +193,9 @@ async def confirm_pairing(
     if credential is None:
         raise HTTPException(status_code=400, detail="Pairing session is invalid or expired")
 
+    household_crypto.ensure_device_wrap(
+        engine, credential.household_id, credential.device_id, payload.device_public_key
+    )
     logger.info(
         "device paired pairing_session_id=%s device_id=%s",
         payload.pairing_session_id,
@@ -284,6 +287,12 @@ async def create_device_session_with_password(
         access_token=token,
         token_hash=security.hash_token(token),
         expires_at=repository.utcnow() + DEVICE_SESSION_TTL,
+    )
+    # ADR 0072 Phase 2: mint the member wrap (password just proven) and the
+    # device wrap (public key just registered).
+    household_crypto.ensure_member_wrap(engine, household_id, user.id, payload.password)
+    household_crypto.ensure_device_wrap(
+        engine, household_id, credential.device_id, payload.device_public_key
     )
     audit.write_audit(
         engine,

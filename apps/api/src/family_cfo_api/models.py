@@ -861,6 +861,23 @@ household_keys = Table(
 )
 
 
+# ADR 0072 Phase 2: additional wraps of the household DEK — per member
+# (password-derived KEK), per paired device (ECIES to its P-256 key), and the
+# one-time recovery key. Dormant in convenient mode; sealed mode's only paths.
+household_key_wraps = Table(
+    "household_key_wraps",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("kind", String(20), nullable=False),
+    Column("subject_id", String(36), nullable=True),  # user_id | device_id | null
+    Column("wrap_json", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("kind in ('member', 'device', 'recovery')", name="ck_household_key_wraps_kind"),
+    Index("ix_household_key_wraps_household", "household_id"),
+)
+
+
 household_memories = Table(
     "household_memories",
     metadata,

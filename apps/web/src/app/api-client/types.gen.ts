@@ -1473,6 +1473,24 @@ export type RemoteRestoreRequest = {
     filename: string;
 };
 
+/**
+ * ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
+ */
+export type HouseholdKeyStatus = {
+    encryption_enabled: boolean;
+    member_wraps: number;
+    device_wraps: number;
+    has_recovery_key: boolean;
+    recovery_key_created_at?: string | null;
+};
+
+/**
+ * Displayed ONCE and never retrievable again — stored only as a wrap of the household data key. Losing every password, paired device, and this key loses the data (the guarantee working as designed).
+ */
+export type RecoveryKey = {
+    recovery_key: string;
+};
+
 export type BackupEncryptionKey = {
     configured: boolean;
     /**
@@ -5592,6 +5610,68 @@ export type GenerateReportResponses = {
 };
 
 export type GenerateReportResponse = GenerateReportResponses[keyof GenerateReportResponses];
+
+export type GetHouseholdKeyStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/key-status';
+};
+
+export type GetHouseholdKeyStatusErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type GetHouseholdKeyStatusError = GetHouseholdKeyStatusErrors[keyof GetHouseholdKeyStatusErrors];
+
+export type GetHouseholdKeyStatusResponses = {
+    /**
+     * Key posture
+     */
+    200: HouseholdKeyStatus;
+};
+
+export type GetHouseholdKeyStatusResponse = GetHouseholdKeyStatusResponses[keyof GetHouseholdKeyStatusResponses];
+
+export type GenerateRecoveryKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/recovery-key';
+};
+
+export type GenerateRecoveryKeyErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type GenerateRecoveryKeyError = GenerateRecoveryKeyErrors[keyof GenerateRecoveryKeyErrors];
+
+export type GenerateRecoveryKeyResponses = {
+    /**
+     * The new recovery key (shown once, never retrievable again)
+     */
+    200: RecoveryKey;
+};
+
+export type GenerateRecoveryKeyResponse = GenerateRecoveryKeyResponses[keyof GenerateRecoveryKeyResponses];
 
 export type ListBackupsData = {
     body?: never;

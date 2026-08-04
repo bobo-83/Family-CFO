@@ -91,11 +91,13 @@
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>Encryption key</h2>
+    <h2>Restore keys</h2>
     <p class="backups-note">
-      This key decrypts every backup — store it somewhere safe (a password manager). Without it,
-      backups can't be restored if the box is lost.
+      Restoring onto a new box takes both keys — store them together in a password manager.
     </p>
+
+    <h3 class="backups-step">1 · Backup key</h3>
+    <p class="backups-note">Opens your backup files.</p>
     @if (revealedKey(); as key) {
       <code class="backups-key">{{ key }}</code>
       <div class="backups-actions">
@@ -103,8 +105,51 @@
       </div>
     } @else {
       <div class="backups-actions">
-        <button mat-stroked-button type="button" (click)="revealKey()">Reveal encryption key</button>
+        <button mat-stroked-button type="button" (click)="revealKey()">Reveal backup key</button>
       </div>
+    }
+
+    @if (keyStatus(); as status) {
+      <h3 class="backups-step">2 · Recovery key</h3>
+      @if (!status.encryption_enabled) {
+        <p class="backups-note">Per-household encryption is off on this box.</p>
+      } @else {
+        <p class="backups-note">Unlocks the content inside — the spare for your passwords and phones.</p>
+        <p class="backups-caption">
+          Content encrypted per household ·
+          {{ status.member_wraps }} member key{{ status.member_wraps === 1 ? '' : 's' }},
+          {{ status.device_wraps }} device key{{ status.device_wraps === 1 ? '' : 's' }}
+        </p>
+        @if (generatedRecoveryKey(); as recoveryKey) {
+          <p class="backups-warning">
+            This is the only time it will be shown. Store it somewhere safe — it is one of the keys
+            that can unlock your household's data.
+          </p>
+          <code class="backups-key">{{ recoveryKey }}</code>
+          <div class="backups-actions">
+            <button mat-stroked-button type="button" (click)="copyRecoveryKey()">Copy recovery key</button>
+          </div>
+        } @else if (status.has_recovery_key) {
+          <p class="backups-note">
+            Recovery key created{{ status.recovery_key_created_at ? ' ' + recoveryKeyCreatedLabel(status.recovery_key_created_at) : '' }}.
+          </p>
+          <div class="backups-actions">
+            <button mat-stroked-button type="button" [disabled]="busy()" (click)="generateRecoveryKey()">
+              Replace recovery key…
+            </button>
+          </div>
+        } @else {
+          <p class="backups-warning">
+            No recovery key yet. Without one, losing every password and paired phone loses the
+            data. Create it and store it beside your backup key.
+          </p>
+          <div class="backups-actions">
+            <button mat-flat-button type="button" [disabled]="busy()" (click)="generateRecoveryKey()">
+              Create recovery key
+            </button>
+          </div>
+        }
+      }
     }
     </mat-card-content>
   </mat-card>

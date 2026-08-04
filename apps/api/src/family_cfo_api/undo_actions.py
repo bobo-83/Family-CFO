@@ -116,6 +116,8 @@ UNDO_POLICY: dict[str, str] = {
     "backup.deleted": IRREVERSIBLE,  # a backup file was removed from the NAS
     "backup.deleted_remote": IRREVERSIBLE,
     "backup.key_revealed": IRREVERSIBLE,  # a secret was shown; can't un-see it
+    "household.recovery_key_generated": IRREVERSIBLE,  # old key invalidated, new one shown
+    "household.key_rotated": IRREVERSIBLE,  # key material replaced; nothing to restore
     "backup.config_updated": IRREVERSIBLE,  # holds credentials we never store for replay
     "backup_job": IRREVERSIBLE,  # a scheduled backup ran
     # auth & pairing

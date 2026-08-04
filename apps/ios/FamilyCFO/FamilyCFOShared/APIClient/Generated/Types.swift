@@ -604,6 +604,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /reports/generate`.
     /// - Remark: Generated from `#/paths//reports/generate/post(generateReport)`.
     func generateReport(_ input: Operations.GenerateReport.Input) async throws -> Operations.GenerateReport.Output
+    /// Which unwrap paths exist for the household's data key (ADR 0072)
+    ///
+    /// - Remark: HTTP `GET /household/key-status`.
+    /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)`.
+    func getHouseholdKeyStatus(_ input: Operations.GetHouseholdKeyStatus.Input) async throws -> Operations.GetHouseholdKeyStatus.Output
+    /// Mint (or replace) the household recovery key — displayed exactly once
+    ///
+    /// - Remark: HTTP `POST /household/recovery-key`.
+    /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)`.
+    func generateRecoveryKey(_ input: Operations.GenerateRecoveryKey.Input) async throws -> Operations.GenerateRecoveryKey.Output
     /// List backup jobs
     ///
     /// - Remark: HTTP `GET /backups`.
@@ -2121,6 +2131,20 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Which unwrap paths exist for the household's data key (ADR 0072)
+    ///
+    /// - Remark: HTTP `GET /household/key-status`.
+    /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)`.
+    public func getHouseholdKeyStatus(headers: Operations.GetHouseholdKeyStatus.Input.Headers = .init()) async throws -> Operations.GetHouseholdKeyStatus.Output {
+        try await getHouseholdKeyStatus(Operations.GetHouseholdKeyStatus.Input(headers: headers))
+    }
+    /// Mint (or replace) the household recovery key — displayed exactly once
+    ///
+    /// - Remark: HTTP `POST /household/recovery-key`.
+    /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)`.
+    public func generateRecoveryKey(headers: Operations.GenerateRecoveryKey.Input.Headers = .init()) async throws -> Operations.GenerateRecoveryKey.Output {
+        try await generateRecoveryKey(Operations.GenerateRecoveryKey.Input(headers: headers))
     }
     /// List backup jobs
     ///
@@ -8214,6 +8238,66 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case filename
+            }
+        }
+        /// ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus`.
+        public struct HouseholdKeyStatus: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/encryption_enabled`.
+            public var encryptionEnabled: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/member_wraps`.
+            public var memberWraps: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/device_wraps`.
+            public var deviceWraps: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/has_recovery_key`.
+            public var hasRecoveryKey: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/recovery_key_created_at`.
+            public var recoveryKeyCreatedAt: Foundation.Date?
+            /// Creates a new `HouseholdKeyStatus`.
+            ///
+            /// - Parameters:
+            ///   - encryptionEnabled:
+            ///   - memberWraps:
+            ///   - deviceWraps:
+            ///   - hasRecoveryKey:
+            ///   - recoveryKeyCreatedAt:
+            public init(
+                encryptionEnabled: Swift.Bool,
+                memberWraps: Swift.Int,
+                deviceWraps: Swift.Int,
+                hasRecoveryKey: Swift.Bool,
+                recoveryKeyCreatedAt: Foundation.Date? = nil
+            ) {
+                self.encryptionEnabled = encryptionEnabled
+                self.memberWraps = memberWraps
+                self.deviceWraps = deviceWraps
+                self.hasRecoveryKey = hasRecoveryKey
+                self.recoveryKeyCreatedAt = recoveryKeyCreatedAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case encryptionEnabled = "encryption_enabled"
+                case memberWraps = "member_wraps"
+                case deviceWraps = "device_wraps"
+                case hasRecoveryKey = "has_recovery_key"
+                case recoveryKeyCreatedAt = "recovery_key_created_at"
+            }
+        }
+        /// Displayed ONCE and never retrievable again — stored only as a wrap of the household data key. Losing every password, paired device, and this key loses the data (the guarantee working as designed).
+        ///
+        /// - Remark: Generated from `#/components/schemas/RecoveryKey`.
+        public struct RecoveryKey: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RecoveryKey/recovery_key`.
+            public var recoveryKey: Swift.String
+            /// Creates a new `RecoveryKey`.
+            ///
+            /// - Parameters:
+            ///   - recoveryKey:
+            public init(recoveryKey: Swift.String) {
+                self.recoveryKey = recoveryKey
+            }
+            public enum CodingKeys: String, CodingKey {
+                case recoveryKey = "recovery_key"
             }
         }
         /// - Remark: Generated from `#/components/schemas/BackupEncryptionKey`.
@@ -30359,6 +30443,341 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Which unwrap paths exist for the household's data key (ADR 0072)
+    ///
+    /// - Remark: HTTP `GET /household/key-status`.
+    /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)`.
+    public enum GetHouseholdKeyStatus {
+        public static let id: Swift.String = "getHouseholdKeyStatus"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/key-status/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetHouseholdKeyStatus.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetHouseholdKeyStatus.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetHouseholdKeyStatus.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetHouseholdKeyStatus.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/key-status/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/key-status/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.HouseholdKeyStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HouseholdKeyStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetHouseholdKeyStatus.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetHouseholdKeyStatus.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Key posture
+            ///
+            /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetHouseholdKeyStatus.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetHouseholdKeyStatus.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Mint (or replace) the household recovery key — displayed exactly once
+    ///
+    /// - Remark: HTTP `POST /household/recovery-key`.
+    /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)`.
+    public enum GenerateRecoveryKey {
+        public static let id: Swift.String = "generateRecoveryKey"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/recovery-key/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerateRecoveryKey.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GenerateRecoveryKey.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GenerateRecoveryKey.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GenerateRecoveryKey.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/recovery-key/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/recovery-key/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RecoveryKey)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RecoveryKey {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GenerateRecoveryKey.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GenerateRecoveryKey.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The new recovery key (shown once, never retrievable again)
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GenerateRecoveryKey.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GenerateRecoveryKey.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-key/post(generateRecoveryKey)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }

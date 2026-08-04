@@ -1480,6 +1480,24 @@ class RemoteRestoreRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=300)
 
 
+class HouseholdKeyStatus(BaseModel):
+    """ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
+    The UI uses this to nudge for a recovery key (especially after rotation)."""
+
+    encryption_enabled: bool
+    member_wraps: int
+    device_wraps: int
+    has_recovery_key: bool
+    recovery_key_created_at: datetime | None = None
+
+
+class RecoveryKey(BaseModel):
+    """Displayed ONCE. Stored only as a wrap of the household data key —
+    losing every password, paired device, and this key loses the data."""
+
+    recovery_key: str
+
+
 class BackupEncryptionKey(BaseModel):
     """M98: the key that decrypts every backup. Returned only to the owner so they
     can store it safely — without it, backups can't be restored on a rebuilt box."""

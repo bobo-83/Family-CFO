@@ -2869,6 +2869,46 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /household/key-status:
+    get:
+      tags:
+        - Household
+      operationId: getHouseholdKeyStatus
+      summary: Which unwrap paths exist for the household's data key (ADR 0072)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Key posture
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdKeyStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /household/recovery-key:
+    post:
+      tags:
+        - Household
+      operationId: generateRecoveryKey
+      summary: Mint (or replace) the household recovery key — displayed exactly once
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The new recovery key (shown once, never retrievable again)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryKey"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /backups:
     get:
       tags:
@@ -6351,6 +6391,39 @@ components:
         - filename
       properties:
         filename:
+          type: string
+    HouseholdKeyStatus:
+      type: object
+      description: "ADR 0072 Phase 2: which unwrap paths exist for the household's data key."
+      required:
+        - encryption_enabled
+        - member_wraps
+        - device_wraps
+        - has_recovery_key
+      properties:
+        encryption_enabled:
+          type: boolean
+        member_wraps:
+          type: integer
+        device_wraps:
+          type: integer
+        has_recovery_key:
+          type: boolean
+        recovery_key_created_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+    RecoveryKey:
+      type: object
+      description: >-
+        Displayed ONCE and never retrievable again — stored only as a wrap of
+        the household data key. Losing every password, paired device, and this
+        key loses the data (the guarantee working as designed).
+      required:
+        - recovery_key
+      properties:
+        recovery_key:
           type: string
     BackupEncryptionKey:
       type: object

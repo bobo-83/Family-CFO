@@ -3,7 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, security
+from family_cfo_api import audit, household_crypto, repository, security
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import (
     client_ip,
@@ -81,6 +81,9 @@ async def create_auth_session(
         raise HTTPException(status_code=401, detail="User has no household membership")
 
     rate_limiter.reset(limit_keys)
+    # ADR 0072 Phase 2: a proven password is the only moment a member wrap can
+    # be minted/refreshed.
+    household_crypto.ensure_member_wrap(engine, household_id, user.id, payload.password)
     audit.write_audit(
         engine, household_id, user.id, "auth.login", "user", user.id, "Signed in"
     )

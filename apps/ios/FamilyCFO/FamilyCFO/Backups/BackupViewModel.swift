@@ -21,6 +21,11 @@ final class BackupViewModel {
     private(set) var hasStoredPassword = false
     private(set) var passwordEdited = false
     private(set) var revealedKey: String?
+    /// ADR 0072 Phase 2: household data-key posture. Nil until fetched.
+    private(set) var keyStatus: Components.Schemas.HouseholdKeyStatus?
+    /// The recovery key, present only right after minting — it is shown ONCE
+    /// and can never be retrieved again.
+    private(set) var generatedRecoveryKey: String?
     private(set) var latest: Components.Schemas.BackupJob?
     private(set) var localBackups: [Components.Schemas.BackupJob] = []
     private(set) var remoteBackups: [Components.Schemas.RemoteBackup] = []
@@ -107,6 +112,8 @@ final class BackupViewModel {
     func loadBackups() async {
         runningVersion = await api.serverVersion()
         localBackups = (try? await api.localBackups()) ?? []
+        // Best-effort: an older box without the endpoint must not break the screen.
+        keyStatus = try? await api.householdKeyStatus()
         if !host.isEmpty { await loadRemote() } else { remoteBackups = [] }
     }
 
@@ -183,6 +190,18 @@ final class BackupViewModel {
     func revealKey() async {
         do {
             revealedKey = try await api.encryptionKey()
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// Mints (or replaces) the household recovery key. The caller confirms the
+    /// replace case first — the old key stops working immediately.
+    func createRecoveryKey() async {
+        do {
+            generatedRecoveryKey = try await api.generateRecoveryKey().recoveryKey
+            keyStatus = try? await api.householdKeyStatus()
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)

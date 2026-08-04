@@ -148,6 +148,20 @@ def main() -> int:
     for name, table, id_col, cols, household_of in plan:
         changed = _encrypt_table(engine, table, id_col, cols, household_of)
         print(f"{name}: {changed} rows encrypted")
+
+    # Phase 2 backfill: devices paired before wraps existed get their ECIES
+    # wrap from the stored pairing public key (idempotent — upsert per device).
+    from family_cfo_api import repository
+
+    wrapped = 0
+    for household_id in repository.list_households(engine):
+        for device in repository.list_paired_devices(engine, household_id):
+            if device.revoked_at is None and device.public_key:
+                household_crypto.ensure_device_wrap(
+                    engine, household_id, device.id, device.public_key
+                )
+                wrapped += 1
+    print(f"device wraps ensured: {wrapped}")
     return 0
 
 

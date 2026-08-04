@@ -13,7 +13,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, rights, security, undo_actions
+from family_cfo_api import audit, household_crypto, repository, rights, security, undo_actions
 from family_cfo_api.api.auth import _issue_session
 from family_cfo_api.api.members import _resolve_role
 from family_cfo_api.config import Settings
@@ -307,6 +307,10 @@ async def accept_invite(
         )
     rate_limiter.reset(keys)
     assert result.user_id and result.household_id and result.role
+    # ADR 0072 Phase 2: the invitee just SET their password — mint their wrap.
+    household_crypto.ensure_member_wrap(
+        engine, result.household_id, result.user_id, payload.password
+    )
     audit.write_audit(
         engine,
         result.household_id,

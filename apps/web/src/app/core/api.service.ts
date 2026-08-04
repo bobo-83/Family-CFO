@@ -9,8 +9,10 @@ import {
   createBackup,
   deleteBackup,
   deleteRemoteBackup,
+  generateRecoveryKey,
   getBackupConfig,
   getBackupEncryptionKey,
+  getHouseholdKeyStatus,
   listRemoteBackups,
   restoreRemoteBackup,
   updateBackupConfig,
@@ -191,6 +193,15 @@ export class ApiService {
 
   updateHousehold(body: HouseholdUpdateRequest) {
     return updateHousehold({ body });
+  }
+
+  // ADR 0072 Phase 2: household data-key posture + recovery key.
+  getHouseholdKeyStatus() {
+    return getHouseholdKeyStatus();
+  }
+
+  generateRecoveryKey() {
+    return generateRecoveryKey();
   }
 
   // --- Advisor chat ---

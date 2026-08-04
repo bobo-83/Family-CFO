@@ -222,3 +222,73 @@ def test_transactions_accounts_and_names_are_sealed(_master_key, demo_engine) ->
     joined = " ".join([*raw_txn, raw_account, raw_bill])
     for word in ["Coffee", "scone", "grandma", "checking", "Metro"]:
         assert word not in joined
+
+
+def test_wraps_recovery_and_rotation(_master_key, demo_engine) -> None:
+    """Phase 2: member wraps mint where passwords are proven, the recovery key
+    unwraps the DEK, and rotation re-encrypts rows, drops member+recovery
+    wraps, and re-wraps devices from their stored public keys."""
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+
+    # A memory sealed under the CURRENT key, to survive rotation.
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "correct horse battery")
+    secret = household_crypto.generate_recovery_key(demo_engine, hh)
+    assert secret and secret.startswith("FCFO-")
+
+    status = household_crypto.wrap_status(demo_engine, hh)
+    assert status["member_wraps"] == 1
+    assert status["has_recovery_key"] is True
+
+    # The recovery secret and the member password both unwrap the same DEK.
+    with demo_engine.connect() as conn:
+        wraps = {
+            row.kind: row.wrap_json
+            for row in conn.execute(select(models.household_key_wraps)).all()
+        }
+    dek_via_password = household_crypto.unwrap_with_password(
+        wraps["member"], "correct horse battery"
+    )
+    dek_via_recovery = household_crypto.unwrap_with_password(wraps["recovery"], secret)
+    assert dek_via_password is not None
+    assert dek_via_password == dek_via_recovery
+    assert household_crypto.unwrap_with_password(wraps["member"], "wrong password") is None
+
+    # Rotation: rows stay readable, member+recovery wraps drop.
+    assert household_crypto.rotate_household_key(demo_engine, hh) is True
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+    status = household_crypto.wrap_status(demo_engine, hh)
+    assert status["member_wraps"] == 0
+    assert status["has_recovery_key"] is False
+    # The old wraps' DEK no longer decrypts anything: the sealed row now uses
+    # the rotated key.
+    with demo_engine.connect() as conn:
+        raw = conn.execute(
+            sql_text("select value from household_memories where key = 'pet'")
+        ).scalar_one()
+    old_rows = household_crypto._subkey_fernet(dek_via_password, b"rows")
+    with pytest.raises(Exception):
+        old_rows.decrypt(raw[len(household_crypto.ENC_PREFIX):].encode())
+
+
+@pytest.mark.anyio
+async def test_key_status_and_recovery_endpoints(_master_key, demo_client, demo_token) -> None:
+    """Through the ROUTE, not the helper — the helper's dict shape and the
+    response schema drifted once (enabled vs encryption_enabled) and only an
+    endpoint test can catch that class of bug."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    status = await demo_client.get("/api/v1/household/key-status", headers=headers)
+    assert status.status_code == 200, status.text
+    body = status.json()
+    assert body["encryption_enabled"] is True
+    assert body["has_recovery_key"] is False
+
+    minted = await demo_client.post("/api/v1/household/recovery-key", headers=headers)
+    assert minted.status_code == 200, minted.text
+    assert minted.json()["recovery_key"].startswith("FCFO-")
+
+    status = await demo_client.get("/api/v1/household/key-status", headers=headers)
+    assert status.json()["has_recovery_key"] is True

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, rights, security, undo_actions
+from family_cfo_api import audit, household_crypto, repository, rights, security, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     ErrorResponse,
@@ -86,6 +86,9 @@ async def create_member(
         display_name=payload.display_name,
         role=repository.legacy_role_for(assigned),
         role_id=assigned.id,
+    )
+    household_crypto.ensure_member_wrap(
+        engine, session.household_id, record.user_id, payload.password
     )
     audit.write_audit(
         engine,
@@ -173,6 +176,10 @@ async def delete_member(
     ):
         raise HTTPException(status_code=409, detail="Household must keep at least one owner")
     repository.delete_member(engine, session.household_id, user_id)
+    # ADR 0072 Phase 2: a removed member may know the old data key (their wrap
+    # covered it) — rotate, re-encrypting every sealed row. Remaining members'
+    # wraps return at their next login; the recovery key must be re-minted.
+    household_crypto.rotate_household_key(engine, session.household_id)
     audit.write_audit(
         engine,
         session.household_id,

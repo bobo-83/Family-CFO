@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, repository, rights, undo_actions
+from family_cfo_api import audit, finance_service, household_crypto, repository, rights, undo_actions
 from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api import yearly_review as yearly_review_module
@@ -27,7 +27,9 @@ from family_cfo_api.schemas import (
     NetWorthPoint,
     LiquidAccountBalance,
     NamedAmount,
+    HouseholdKeyStatus,
     ReadyToSellHoldings,
+    RecoveryKey,
     SafeToSpend,
     SavingsRate,
     SpendingByCategory,
@@ -918,3 +920,56 @@ async def update_household(
             undo_token=undo_actions.household_updated(before),
         )
     return await get_household_context(session=session, engine=engine)
+
+
+@router.get(
+    "/household/key-status",
+    operation_id="getHouseholdKeyStatus",
+    response_model=HouseholdKeyStatus,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Which unwrap paths exist for the household's data key (ADR 0072)",
+)
+async def get_household_key_status(
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> HouseholdKeyStatus:
+    return HouseholdKeyStatus(**household_crypto.wrap_status(engine, session.household_id))
+
+
+@router.post(
+    "/household/recovery-key",
+    operation_id="generateRecoveryKey",
+    response_model=RecoveryKey,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {
+            "description": "Per-household encryption is not enabled on this box",
+            "model": ErrorResponse,
+        },
+    },
+    summary="Mint (or replace) the household recovery key — displayed exactly once",
+)
+async def generate_recovery_key(
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> RecoveryKey:
+    secret = household_crypto.generate_recovery_key(engine, session.household_id)
+    if secret is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Per-household encryption is not enabled on this box (no master key).",
+        )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.recovery_key_generated",
+        "household",
+        session.household_id,
+        "Recovery key generated (any previous recovery key no longer works)",
+    )
+    return RecoveryKey(recovery_key=secret)

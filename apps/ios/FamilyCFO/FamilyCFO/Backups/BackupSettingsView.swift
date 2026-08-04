@@ -9,6 +9,7 @@ struct BackupSettingsView: View {
     @State private var expandedDays: Set<String> = []
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
+    @State private var confirmReplaceRecoveryKey = false
 
     var body: some View {
         Form {
@@ -21,7 +22,7 @@ struct BackupSettingsView: View {
             if !viewModel.localBackups.isEmpty {
                 onBoxSection
             }
-            keySection
+            restoreKeysSection
             helpSection
         }
         .navigationTitle("Backups")
@@ -45,6 +46,14 @@ struct BackupSettingsView: View {
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } })
         ) { Button("OK", role: .cancel) {} } message: { Text(viewModel.errorMessage ?? "") }
+        .alert("Replace recovery key?", isPresented: $confirmReplaceRecoveryKey) {
+            Button("Replace", role: .destructive) {
+                Task { await viewModel.createRecoveryKey() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The old recovery key stops working immediately.")
+        }
         .alert(
             "Restore this backup?",
             isPresented: .init(
@@ -150,15 +159,21 @@ struct BackupSettingsView: View {
         }
     }
 
-    private var keySection: some View {
+    /// Both restore keys as numbered steps in ONE section — user feedback said
+    /// "Encryption key" / "Data encryption" didn't convey what each is for.
+    /// 1 · Backup key opens the archives; 2 · Recovery key (ADR 0072 Phase 2)
+    /// unlocks the per-household content inside. The recovery key is shown
+    /// ONCE, right after minting, and can never be retrieved again.
+    private var restoreKeysSection: some View {
         Section {
+            stepTitle("1 · Backup key", subtitle: "Opens your backup files.")
             if let key = viewModel.revealedKey {
                 Text(key)
                     .font(.footnote.monospaced())
                     .textSelection(.enabled)
                 Button {
                     UIPasteboard.general.string = key
-                    viewModel.statusMessage = "Encryption key copied."
+                    viewModel.statusMessage = "Backup key copied."
                 } label: {
                     Label("Copy key", systemImage: "doc.on.doc")
                 }
@@ -166,13 +181,77 @@ struct BackupSettingsView: View {
                 Button {
                     Task { await viewModel.revealKey() }
                 } label: {
-                    Label("Reveal encryption key", systemImage: "key.horizontal")
+                    Label("Reveal backup key", systemImage: "key.horizontal")
+                }
+            }
+            if let status = viewModel.keyStatus {
+                if !status.encryptionEnabled {
+                    stepTitle(
+                        "2 · Recovery key",
+                        subtitle: "Per-household encryption is off on this box.")
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        stepTitle(
+                            "2 · Recovery key",
+                            subtitle:
+                                "Unlocks the content inside — the spare for your passwords and phones."
+                        )
+                        Text(
+                            "Content encrypted per household · \(status.memberWraps) member key\(status.memberWraps == 1 ? "" : "s"), \(status.deviceWraps) device key\(status.deviceWraps == 1 ? "" : "s")"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+                    if let key = viewModel.generatedRecoveryKey {
+                        Label(
+                            "This is the only time it will be shown. Store it somewhere safe — it is one of the keys that can unlock your household's data.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        Text(key)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                        Button {
+                            UIPasteboard.general.string = key
+                            viewModel.statusMessage = "Recovery key copied."
+                        } label: {
+                            Label("Copy recovery key", systemImage: "doc.on.doc")
+                        }
+                    } else if status.hasRecoveryKey {
+                        if let created = status.recoveryKeyCreatedAt {
+                            Text("Recovery key created \(created.formatted(date: .abbreviated, time: .omitted)).")
+                        } else {
+                            Text("Recovery key created.")
+                        }
+                        Button("Replace recovery key…") {
+                            confirmReplaceRecoveryKey = true
+                        }
+                    } else {
+                        Label(
+                            "No recovery key yet. Without one, losing every password and paired phone loses the data. Create it and store it beside your backup key.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        Button("Create recovery key") {
+                            Task { await viewModel.createRecoveryKey() }
+                        }
+                    }
                 }
             }
         } header: {
-            Text("Encryption key")
+            Text("Restore keys")
         } footer: {
-            Text("This key decrypts every backup — store it somewhere safe (a password manager). Without it, backups can't be restored if the box is lost.")
+            Text("Restoring onto a new box takes both keys — store them together in a password manager.")
+        }
+    }
+
+    /// A numbered step heading + its one-line purpose, as a single Form row.
+    private func stepTitle(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(subtitle).font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -373,7 +452,7 @@ struct BackupSettingsView: View {
                 .font(.caption).padding(.vertical, 4)
             }
         } footer: {
-            Text("Keep your backup encryption key safe — it's required to restore, even from the Synology.")
+            Text("Keep your backup key safe — it's required to restore, even from the Synology.")
         }
     }
 

@@ -19,6 +19,11 @@ protocol BackupAPI: Sendable {
     func deleteRemote(filename: String) async throws
     /// The key that decrypts every backup — for the owner to store safely.
     func encryptionKey() async throws -> String?
+    /// ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
+    func householdKeyStatus() async throws -> Components.Schemas.HouseholdKeyStatus
+    /// Mints (or replaces) the recovery key — the response is shown ONCE and
+    /// can never be retrieved again.
+    func generateRecoveryKey() async throws -> Components.Schemas.RecoveryKey
     /// The box's running version (from /health) — flags backups made by a
     /// NEWER app, which the server refuses to restore (409). Best-effort: nil
     /// must never break the screen.
@@ -170,6 +175,31 @@ struct LiveBackupAPI: BackupAPI {
     func encryptionKey() async throws -> String? {
         switch try await client.getBackupEncryptionKey(.init()) {
         case .ok(let r): return try r.body.json.key
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let s, _): throw APIError.server(s)
+        }
+    }
+
+    func householdKeyStatus() async throws -> Components.Schemas.HouseholdKeyStatus {
+        switch try await client.getHouseholdKeyStatus(.init()) {
+        case .ok(let r): return try r.body.json
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let s, _): throw APIError.server(s)
+        }
+    }
+
+    func generateRecoveryKey() async throws -> Components.Schemas.RecoveryKey {
+        switch try await client.generateRecoveryKey(.init()) {
+        case .ok(let r): return try r.body.json
+        case .conflict(let response):
+            // Encryption off on this box — the server's message says so; show
+            // it verbatim.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(409)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)

@@ -237,6 +237,8 @@ class PairedDeviceRecord:
     created_at: datetime
     last_seen_at: datetime | None
     revoked_at: datetime | None
+    # ADR 0072 Phase 2: the pairing public key doubles as the ECIES wrap target.
+    public_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,6 +396,7 @@ def list_paired_devices(engine: Engine, household_id: str) -> list[PairedDeviceR
             name=row["name"],
             created_at=row["created_at"],
             last_seen_at=row["last_seen_at"],
+            public_key=row["public_key"],
             revoked_at=row["revoked_at"],
         )
         for row in rows

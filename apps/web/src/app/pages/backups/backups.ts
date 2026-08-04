@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type { RemoteBackup } from '../../api-client';
+import type { HouseholdKeyStatus, RemoteBackup } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -86,10 +86,14 @@ export class Backups implements OnInit {
     },
   });
 
+  // ADR 0072 Phase 2: household data-key posture + the once-shown recovery key.
+  protected readonly keyStatus = signal<HouseholdKeyStatus | null>(null);
+  protected readonly generatedRecoveryKey = signal<string | null>(null);
+
   async ngOnInit(): Promise<void> {
     this.loadRunningVersion();
     if (this.isOwner()) {
-      await this.loadConfig();
+      await Promise.all([this.loadConfig(), this.loadKeyStatus()]);
     }
   }
 
@@ -260,8 +264,53 @@ export class Backups implements OnInit {
     const key = this.revealedKey();
     if (key) {
       await navigator.clipboard?.writeText(key);
-      this.statusMessage.set('Encryption key copied.');
+      this.statusMessage.set('Backup key copied.');
     }
+  }
+
+  private async loadKeyStatus(): Promise<void> {
+    const { data } = await this.api.getHouseholdKeyStatus();
+    this.keyStatus.set(data ?? null);
+  }
+
+  protected async generateRecoveryKey(): Promise<void> {
+    if (this.busy()) return;
+    if (
+      this.keyStatus()?.has_recovery_key &&
+      !confirm('Replace the recovery key? The old recovery key stops working immediately.')
+    ) {
+      return;
+    }
+    this.busy.set(true);
+    this.actionError.set(null);
+    const { data, error } = await this.api.generateRecoveryKey();
+    this.busy.set(false);
+    if (error) {
+      // 409 (encryption off) carries a human message — show it verbatim.
+      this.actionError.set(apiErrorMessage(error, 'Failed to create recovery key.'));
+      return;
+    }
+    this.generatedRecoveryKey.set(data?.recovery_key ?? null);
+    await this.loadKeyStatus();
+  }
+
+  protected async copyRecoveryKey(): Promise<void> {
+    const key = this.generatedRecoveryKey();
+    if (key) {
+      await navigator.clipboard?.writeText(key);
+      this.statusMessage.set('Recovery key copied.');
+    }
+  }
+
+  protected recoveryKeyCreatedLabel(iso: string | null | undefined): string {
+    if (!iso) {
+      return '';
+    }
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   }
 
   protected async deleteLocal(id: string): Promise<void> {
