@@ -329,6 +329,7 @@ async def list_paired_devices(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Paired device not found", "model": ErrorResponse},
+        409: {"description": "Cannot revoke the calling device", "model": ErrorResponse},
     },
     summary="Revoke a paired device",
 )
@@ -337,9 +338,19 @@ async def revoke_paired_device(
     session: repository.SessionContext = Depends(require_right(rights.DEVICES_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Response:
+    if session.device_id == device_id:
+        # Revoking the device you are using kills your own session mid-request
+        # (the next call 401s). Refuse — do it from another device or the web.
+        raise HTTPException(
+            status_code=409,
+            detail="You can't revoke the device you're using. Revoke it from another "
+            "device or the web dashboard.",
+        )
     revoked = repository.revoke_paired_device(engine, session.household_id, device_id)
     if not revoked:
         raise HTTPException(status_code=404, detail="Paired device not found")
+    # ADR 0072: the device's key wrap dies with the device.
+    household_crypto.delete_device_wrap(engine, session.household_id, device_id)
 
     logger.info(
         "paired device revoked household_id=%s device_id=%s", session.household_id, device_id

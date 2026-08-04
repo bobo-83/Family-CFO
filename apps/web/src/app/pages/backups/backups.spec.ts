@@ -22,6 +22,8 @@ function keyStatus(overrides: Record<string, unknown> = {}) {
     device_wraps: 3,
     has_recovery_key: true,
     recovery_key_created_at: '2026-07-01T12:00:00Z',
+    mode: 'convenient',
+    unlocked: true,
     ...overrides,
   };
 }
@@ -175,6 +177,209 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('FCFO-test-recovery-key-0000');
     expect(text).toContain('This is the only time it will be shown.');
+  });
+
+  // --- ADR 0072 Phase 3: privacy mode (convenient ↔ sealed) ---
+
+  it('shows the convenient-mode claim and the seal action', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Privacy mode');
+    expect(text).toContain('Convenient');
+    expect(text).toContain('The box keeps a spare of your data key');
+    expect(text).toContain('the box itself can still read it');
+    expect(text).toContain('Seal this household…');
+    // Never overstate: the sealed claim only appears in sealed mode (ADR 0070).
+    expect(text).not.toContain('Only your passwords, your phones, and your recovery key');
+    expect(text).not.toContain('Locked — sign in again to unlock');
+  });
+
+  it('shows the sealed-mode claim, and the locked line when locked', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'sealed', unlocked: false }))),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Sealed');
+    expect(text).toContain('Only your passwords, your phones, and your recovery key');
+    expect(text).toContain('overnight work waits for you');
+    expect(text).toContain('Switch back to convenient…');
+    expect(text).toContain('Locked — sign in again to unlock');
+    // The rescue lives right beneath the locked line.
+    expect(text).toContain('Unlock with recovery key…');
+    expect(text).not.toContain('The box keeps a spare of your data key');
+  });
+
+  // --- "Unlock with recovery key…" — the rescue for a locked household ---
+
+  it('unlocks with a trimmed recovery key and replaces the status', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'sealed', unlocked: false }))),
+      unlockWithRecoveryKey: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'sealed', unlocked: true }))),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.componentInstance['showRecoveryUnlock'].set(true);
+    fixture.componentInstance['recoveryUnlockInput'].set('  FCFO-test-recovery-key-0000  ');
+    await fixture.componentInstance['unlockWithRecoveryKey']();
+    fixture.detectChanges();
+
+    // Whitespace is trimmed before the key ever leaves the page.
+    expect(apiMock.unlockWithRecoveryKey).toHaveBeenCalledWith('FCFO-test-recovery-key-0000');
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Household unlocked.');
+    expect(text).not.toContain('Locked — sign in again to unlock');
+    expect(text).not.toContain('Unlock with recovery key…');
+  });
+
+  it('shows the 400 detail verbatim and keeps the input open', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'sealed', unlocked: false }))),
+      unlockWithRecoveryKey: vi.fn().mockResolvedValue(
+        response(undefined, {
+          error: {
+            code: 'recovery_key_mismatch',
+            message: "That recovery key doesn't match this household.",
+          },
+        }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.componentInstance['showRecoveryUnlock'].set(true);
+    fixture.componentInstance['recoveryUnlockInput'].set('FCFO-wrong');
+    await fixture.componentInstance['unlockWithRecoveryKey']();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain("That recovery key doesn't match this household.");
+    // Still locked, input still open for another try.
+    expect(host.textContent).toContain('Locked — sign in again to unlock');
+    expect(host.querySelector('input[placeholder="FCFO-…"]')).toBeTruthy();
+  });
+
+  it('offers the recovery unlock for a locked convenient household too', async () => {
+    // A convenient household restored without its master key is locked as
+    // well (stale box wrap) — the same rescue applies.
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'convenient', unlocked: false }))),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Convenient');
+    expect(text).toContain('Unlock with recovery key…');
+  });
+
+  it('confirms before sealing and refreshes the key status', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      setSealMode: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'sealed', unlocked: true }))),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await fixture.componentInstance['setSealMode']('sealed');
+    expect(apiMock.setSealMode).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    await fixture.componentInstance['setSealMode']('sealed');
+    expect(apiMock.setSealMode).toHaveBeenCalledWith('sealed');
+    confirmSpy.mockRestore();
+
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Switch back to convenient…');
+  });
+
+  it('surfaces the 409 precondition message verbatim', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      setSealMode: vi.fn().mockResolvedValue(
+        response(undefined, {
+          error: {
+            code: 'seal_preconditions',
+            message: 'Sealing needs at least one member key and a recovery key.',
+          },
+        }),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await fixture.componentInstance['setSealMode']('sealed');
+    confirmSpy.mockRestore();
+
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Sealing needs at least one member key and a recovery key.',
+    );
   });
 
   it('hides the recovery key blocks when encryption is off', async () => {

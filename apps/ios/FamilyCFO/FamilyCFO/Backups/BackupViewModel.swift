@@ -208,6 +208,35 @@ final class BackupViewModel {
         }
     }
 
+    /// ADR 0072 Phase 3: convenient ↔ sealed. The view confirms first; a 409
+    /// carries the server's human precondition message — shown verbatim.
+    func setSealMode(sealed: Bool) async {
+        do {
+            keyStatus = try await api.setSealMode(sealed ? .sealed : .convenient)
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// Unlocks a locked household with its recovery key. On success the
+    /// returned status replaces `keyStatus` (unlocked — the locked line
+    /// disappears; the server also silently heals a stale box wrap after a
+    /// fresh-hardware restore). A 400 carries the server's human message
+    /// ("doesn't match") — shown verbatim. The key is trimmed, sent once, and
+    /// never logged or stored.
+    func unlockWithRecoveryKey(_ key: String) async {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            keyStatus = try await api.unlockWithRecoveryKey(trimmed)
+            statusMessage = "Household unlocked."
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
     func deleteLocal(_ backup: Components.Schemas.BackupJob) async {
         do {
             try await api.deleteLocal(id: backup.id)

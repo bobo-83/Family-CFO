@@ -292,3 +292,143 @@ async def test_key_status_and_recovery_endpoints(_master_key, demo_client, demo_
 
     status = await demo_client.get("/api/v1/household/key-status", headers=headers)
     assert status.json()["has_recovery_key"] is True
+
+
+@pytest.mark.anyio
+async def test_sealed_mode_lifecycle(_master_key, demo_client, demo_token, demo_engine) -> None:
+    """Phase 3: sealing needs a member wrap + recovery key; a locked sealed
+    household 423s; a fresh password login unlocks; unsealing restores the box
+    wrap. Exercised through the routes."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    hh = repository.list_households(demo_engine)[0]
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+
+    # Preconditions enforced: no member wrap / recovery key yet.
+    refused = await demo_client.post(
+        "/api/v1/household/seal-mode", headers=headers, json={"mode": "sealed"}
+    )
+    assert refused.status_code == 409
+
+    member = repository.list_members(demo_engine, hh)[0]
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "demo-password")
+    await demo_client.post("/api/v1/household/recovery-key", headers=headers)
+
+    sealed = await demo_client.post(
+        "/api/v1/household/seal-mode", headers=headers, json={"mode": "sealed"}
+    )
+    assert sealed.status_code == 200, sealed.text
+    body = sealed.json()
+    assert body["mode"] == "sealed"
+    assert body["unlocked"] is True  # the sealing session keeps its key
+
+    # Still readable: the keyring holds the DEK.
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+
+    # Box restart: keyring gone. Content is LOCKED (423 through the API).
+    household_crypto.reset_cache_for_tests()
+    with pytest.raises(household_crypto.HouseholdLockedError):
+        repository.list_household_memories(demo_engine, hh)
+    locked = await demo_client.get("/api/v1/memories", headers=headers)
+    assert locked.status_code == 423
+    assert "locked" in locked.json()["error"]["message"].lower()
+
+    # A proven password reopens it (the login hook path).
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "demo-password")
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+
+    # A WRONG key is rejected by the canary; the right one via key-session works.
+    from cryptography.fernet import Fernet as F
+
+    bad = await demo_client.post(
+        "/api/v1/household/key-session",
+        headers=headers,
+        json={"dek": F.generate_key().decode()},
+    )
+    assert bad.status_code == 400
+
+    # Unseal restores the box wrap; a keyring wipe no longer locks anything.
+    unsealed = await demo_client.post(
+        "/api/v1/household/seal-mode", headers=headers, json={"mode": "convenient"}
+    )
+    assert unsealed.status_code == 200, unsealed.text
+    assert unsealed.json()["mode"] == "convenient"
+    household_crypto.reset_cache_for_tests()
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+
+
+def test_worker_jobs_defer_when_sealed_and_locked(_master_key, demo_engine) -> None:
+    """A locked sealed household defers background work instead of crashing —
+    the guard converts HouseholdLockedError into a skipped tick."""
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "pw")
+    assert household_crypto.generate_recovery_key(demo_engine, hh)
+    assert household_crypto.seal_household(demo_engine, hh) is None
+    repository.upsert_household_memory(demo_engine, hh, "sealed_fact", "only for the family")
+    household_crypto.reset_cache_for_tests()
+
+    assert household_crypto.dek_available(demo_engine, hh) is False
+    with pytest.raises(household_crypto.HouseholdLockedError):
+        repository.list_household_memories(demo_engine, hh)
+
+
+@pytest.mark.anyio
+async def test_lost_master_key_recovers_via_password_or_recovery_key(
+    _master_key, demo_client, demo_token, demo_engine, monkeypatch
+) -> None:
+    """The fresh-hardware disaster: backup restored, NEW master key, old box
+    wrap undecryptable. Content must lock (not 500), a member password login
+    must unlock AND re-mint the box wrap under the new master, and the
+    recovery key must work as the passwords-also-lost fallback."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "demo-password")
+    recovery = (
+        await demo_client.post("/api/v1/household/recovery-key", headers=headers)
+    ).json()["recovery_key"]
+
+    # New box: different master key, no cached keys.
+    monkeypatch.setenv("FAMILY_CFO_MASTER_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+
+    # Locked, not crashed.
+    with pytest.raises(household_crypto.HouseholdLockedError):
+        repository.list_household_memories(demo_engine, hh)
+    locked = await demo_client.get("/api/v1/memories", headers=headers)
+    assert locked.status_code == 423
+
+    # Path 1: a member password unlocks and HEALS the box wrap.
+    household_crypto.ensure_member_wrap(demo_engine, hh, member.user_id, "demo-password")
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+    household_crypto.reset_cache_for_tests()
+    # Healed: readable again with NO unlock — the new master key now works.
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "a golden retriever" for m in memories)
+
+    # Path 2: break the wrap again; the recovery key alone rescues it.
+    monkeypatch.setenv("FAMILY_CFO_MASTER_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+    wrong = await demo_client.post(
+        "/api/v1/household/recovery-unlock",
+        headers=headers,
+        json={"recovery_key": "FCFO-not-the-key"},
+    )
+    assert wrong.status_code == 400
+    unlocked = await demo_client.post(
+        "/api/v1/household/recovery-unlock",
+        headers=headers,
+        json={"recovery_key": recovery},
+    )
+    assert unlocked.status_code == 200, unlocked.text
+    assert unlocked.json()["unlocked"] is True
+    household_crypto.reset_cache_for_tests()
+    memories = repository.list_household_memories(demo_engine, hh)  # healed again
+    assert any(m.value == "a golden retriever" for m in memories)

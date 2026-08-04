@@ -154,6 +154,7 @@ def main() -> int:
     from family_cfo_api import repository
 
     wrapped = 0
+    purged = 0
     for household_id in repository.list_households(engine):
         for device in repository.list_paired_devices(engine, household_id):
             if device.revoked_at is None and device.public_key:
@@ -161,7 +162,10 @@ def main() -> int:
                     engine, household_id, device.id, device.public_key
                 )
                 wrapped += 1
-    print(f"device wraps ensured: {wrapped}")
+            elif device.revoked_at is not None:
+                household_crypto.delete_device_wrap(engine, household_id, device.id)
+                purged += 1
+    print(f"device wraps ensured: {wrapped}, revoked-device wraps purged: {purged}")
     return 0
 
 

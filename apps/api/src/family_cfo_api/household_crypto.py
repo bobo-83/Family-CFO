@@ -44,6 +44,26 @@ ENC_PREFIX = "enc1:"
 _dek_cache: dict[str, bytes] = {}
 _cache_lock = threading.Lock()
 
+# ADR 0072 Phase 3: sealed households have NO box wrap — their DEK exists here
+# only while a member/device session keeps it alive (sliding TTL), and the
+# guarantee is exactly that: restart the box, and sealed content is unreadable
+# until a member signs in or a device posts its unwrapped key.
+SESSION_KEYRING_TTL_SECONDS = 30 * 60
+_session_keyring: dict[str, tuple[bytes, float]] = {}
+
+CANARY_PLAINTEXT = b"family-cfo-canary-v1"
+
+
+class HouseholdLockedError(Exception):
+    """Sealed household with no live session key — mapped to HTTP 423."""
+
+    def __init__(self, household_id: str):
+        self.household_id = household_id
+        super().__init__(
+            "This household's data is sealed and currently locked. "
+            "Sign in again to unlock it."
+        )
+
 
 def _master_fernet() -> Fernet | None:
     key = get_settings().master_key
@@ -88,6 +108,7 @@ def _get_or_create_dek(engine: Engine, household_id: str, master: Fernet) -> byt
                         created_at=repository.utcnow(),
                     )
                 )
+            _write_canary(engine, household_id, dek)
         except Exception:  # noqa: BLE001 — concurrent first-write: reread the winner
             with engine.connect() as conn:
                 row = conn.execute(
@@ -111,12 +132,93 @@ def _subkey_fernet(dek: bytes, purpose: bytes) -> Fernet:
     return Fernet(base64.urlsafe_b64encode(derived))
 
 
+def _keyring_get(household_id: str) -> bytes | None:
+    import time
+
+    with _cache_lock:
+        entry = _session_keyring.get(household_id)
+        if entry is None:
+            return None
+        dek, expires = entry
+        if time.monotonic() > expires:
+            del _session_keyring[household_id]
+            return None
+        # Sliding TTL: activity keeps the household unlocked.
+        _session_keyring[household_id] = (dek, time.monotonic() + SESSION_KEYRING_TTL_SECONDS)
+        return dek
+
+
+def _keyring_put(household_id: str, dek: bytes) -> None:
+    import time
+
+    with _cache_lock:
+        _session_keyring[household_id] = (
+            dek,
+            time.monotonic() + SESSION_KEYRING_TTL_SECONDS,
+        )
+
+
+def _box_wrap_row(engine: Engine, household_id: str):
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        return conn.execute(
+            select(
+                models.household_keys.c.wrapped_dek, models.household_keys.c.canary
+            ).where(models.household_keys.c.household_id == household_id)
+        ).first()
+
+
+def _resolve_dek(engine: Engine, household_id: str, master: Fernet) -> bytes:
+    """Convenient mode: the box wrap (cached). Sealed mode: the session keyring
+    or HouseholdLockedError."""
+    with _cache_lock:
+        cached = _dek_cache.get(household_id)
+    if cached is not None:
+        return cached
+    row = _box_wrap_row(engine, household_id)
+    if row is not None and row[0] is None:
+        # Sealed: no box wrap on purpose.
+        dek = _keyring_get(household_id)
+        if dek is None:
+            raise HouseholdLockedError(household_id)
+        return dek
+    try:
+        return _get_or_create_dek(engine, household_id, master)
+    except InvalidToken:
+        # The box wrap exists but this master key can't open it — the
+        # restored-onto-new-hardware case. Behave like a locked sealed
+        # household: member passwords, devices, or the recovery key unlock,
+        # and the unlock path re-mints the wrap under the CURRENT master.
+        dek = _keyring_get(household_id)
+        if dek is None:
+            logger.warning(
+                "box wrap is stale (master key changed?) household=%s — locked "
+                "until a member password, device, or recovery key unlocks it",
+                household_id,
+            )
+            raise HouseholdLockedError(household_id) from None
+        return dek
+
+
 def _row_fernet(engine: Engine, household_id: str) -> Fernet | None:
     master = _master_fernet()
     if master is None:
         return None
-    dek = _get_or_create_dek(engine, household_id, master)
+    dek = _resolve_dek(engine, household_id, master)
     return _subkey_fernet(dek, b"rows")
+
+
+def dek_available(engine: Engine, household_id: str) -> bool:
+    """True when content for this household can be read/written right now."""
+    master = _master_fernet()
+    if master is None:
+        return True  # encryption off: plaintext passthrough
+    try:
+        _resolve_dek(engine, household_id, master)
+        return True
+    except HouseholdLockedError:
+        return False
 
 
 def encrypt_text(engine: Engine, household_id: str, value: str | None) -> str | None:
@@ -150,6 +252,7 @@ def decrypt_text(engine: Engine, household_id: str, value: str | None) -> str | 
 def reset_cache_for_tests() -> None:
     with _cache_lock:
         _dek_cache.clear()
+        _session_keyring.clear()
 
 
 # --- Phase 2 (ADR 0072): member, device, and recovery wraps -------------------
@@ -218,7 +321,195 @@ def _dek_for_wrapping(engine: Engine, household_id: str) -> bytes | None:
     master = _master_fernet()
     if master is None:
         return None
-    return _get_or_create_dek(engine, household_id, master)
+    return _resolve_dek(engine, household_id, master)
+
+
+def _canary_ok(engine: Engine, household_id: str, dek: bytes) -> bool:
+    """A posted/unwrapped DEK must decrypt the stored canary — the check that
+    stops a wrong or stale key from silently poisoning new writes."""
+    row = _box_wrap_row(engine, household_id)
+    if row is None or row[1] is None:
+        # No canary recorded (pre-Phase-3 rows): accept only when a box wrap
+        # exists to compare against.
+        if row is not None and row[0] is not None:
+            master = _master_fernet()
+            return master is not None and master.decrypt(row[0].encode()) == dek
+        return True
+    try:
+        return _subkey_fernet(dek, b"rows").decrypt(row[1].encode()) == CANARY_PLAINTEXT
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _write_canary(engine: Engine, household_id: str, dek: bytes) -> None:
+    from sqlalchemy import update as sql_update
+
+    from family_cfo_api import models
+
+    canary = _subkey_fernet(dek, b"rows").encrypt(CANARY_PLAINTEXT).decode()
+    with engine.begin() as conn:
+        conn.execute(
+            sql_update(models.household_keys)
+            .where(models.household_keys.c.household_id == household_id)
+            .values(canary=canary)
+        )
+
+
+def _heal_box_wrap(engine: Engine, household_id: str, dek: bytes) -> None:
+    """Restored onto new hardware: the old box wrap can't be opened by the new
+    master key. Once ANY household key unlocks the DEK, re-mint the wrap under
+    the current master — convenient mode heals itself. Sealed households are
+    left exactly as they are (no box wrap is the point)."""
+    from sqlalchemy import update as sql_update
+
+    from family_cfo_api import models
+
+    master = _master_fernet()
+    if master is None:
+        return
+    row = _box_wrap_row(engine, household_id)
+    if row is None or row[0] is None:
+        return  # sealed (or no key row): nothing to heal
+    try:
+        if master.decrypt(row[0].encode()) == dek:
+            return  # wrap is current
+    except InvalidToken:
+        pass
+    with engine.begin() as conn:
+        conn.execute(
+            sql_update(models.household_keys)
+            .where(models.household_keys.c.household_id == household_id)
+            .values(wrapped_dek=master.encrypt(dek).decode())
+        )
+    with _cache_lock:
+        _dek_cache[household_id] = dek
+    logger.info("box wrap re-minted under the current master key household=%s", household_id)
+
+
+def unlock_household(engine: Engine, household_id: str, dek: bytes) -> bool:
+    """Validate a DEK (device key-session or recovery flow) and open the
+    keyring. False = the key is wrong; nothing is unlocked."""
+    if not _canary_ok(engine, household_id, dek):
+        return False
+    _keyring_put(household_id, dek)
+    _heal_box_wrap(engine, household_id, dek)
+    return True
+
+
+def unlock_with_recovery_key(engine: Engine, household_id: str, recovery_key: str) -> bool:
+    """The recovery key's real job: unwrap the recovery wrap and open the
+    keyring (healing a stale box wrap on the way). False = wrong key."""
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.household_key_wraps.c.wrap_json).where(
+                models.household_key_wraps.c.household_id == household_id,
+                models.household_key_wraps.c.kind == "recovery",
+            )
+        ).first()
+    if row is None:
+        return False
+    dek = unwrap_with_password(row[0], recovery_key)
+    if dek is None:
+        return False
+    return unlock_household(engine, household_id, dek)
+
+
+def seal_household(engine: Engine, household_id: str) -> str | None:
+    """Flip to sealed: drop the box wrap so the box can no longer open this
+    household's content at rest. Returns an error string when preconditions
+    fail (caller maps to 409), None on success. Requires the DEK NOW (the
+    sealing session keeps working via the keyring)."""
+    from sqlalchemy import update as sql_update
+
+    from family_cfo_api import models
+
+    master = _master_fernet()
+    if master is None:
+        return "Per-household encryption is not enabled on this box (no master key)."
+    status = wrap_status(engine, household_id)
+    if status["member_wraps"] < 1:
+        return "Seal needs at least one member key — sign in with a password first."
+    if not status["has_recovery_key"]:
+        return "Seal needs a recovery key — create one first and store it safely."
+    dek = _resolve_dek(engine, household_id, master)
+    _write_canary(engine, household_id, dek)
+    with engine.begin() as conn:
+        conn.execute(
+            sql_update(models.household_keys)
+            .where(models.household_keys.c.household_id == household_id)
+            .values(wrapped_dek=None)
+        )
+        conn.execute(
+            sql_update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(sealed_mode=True)
+        )
+    with _cache_lock:
+        _dek_cache.pop(household_id, None)
+    _keyring_put(household_id, dek)
+    return None
+
+
+def unseal_household(engine: Engine, household_id: str) -> str | None:
+    """Flip back to convenient: re-mint the box wrap. Requires the household to
+    be UNLOCKED right now (the DEK must be in the keyring to re-wrap)."""
+    from sqlalchemy import update as sql_update
+
+    from family_cfo_api import models
+
+    master = _master_fernet()
+    if master is None:
+        return "Per-household encryption is not enabled on this box (no master key)."
+    dek = _keyring_get(household_id)
+    if dek is None:
+        return "Unlock the household first (sign in), then switch modes."
+    with engine.begin() as conn:
+        conn.execute(
+            sql_update(models.household_keys)
+            .where(models.household_keys.c.household_id == household_id)
+            .values(wrapped_dek=master.encrypt(dek).decode())
+        )
+        conn.execute(
+            sql_update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(sealed_mode=False)
+        )
+    with _cache_lock:
+        _dek_cache[household_id] = dek
+    return None
+
+
+def delete_device_wrap(engine: Engine, household_id: str, device_id: str) -> None:
+    """Revocation hygiene: a revoked device's wrap is unusable (its private key
+    is what opens it), but leaving it makes the key-status count lie."""
+    from sqlalchemy import delete as sql_delete
+
+    from family_cfo_api import models
+
+    with engine.begin() as conn:
+        conn.execute(
+            sql_delete(models.household_key_wraps).where(
+                models.household_key_wraps.c.household_id == household_id,
+                models.household_key_wraps.c.kind == "device",
+                models.household_key_wraps.c.subject_id == device_id,
+            )
+        )
+
+
+def device_wrap_json(engine: Engine, household_id: str, device_id: str) -> str | None:
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.household_key_wraps.c.wrap_json).where(
+                models.household_key_wraps.c.household_id == household_id,
+                models.household_key_wraps.c.kind == "device",
+                models.household_key_wraps.c.subject_id == device_id,
+            )
+        ).first()
+    return row[0] if row is not None else None
 
 
 def _upsert_wrap(
@@ -250,13 +541,43 @@ def _upsert_wrap(
         )
 
 
+def _member_wrap_json(engine: Engine, household_id: str, user_id: str) -> str | None:
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.household_key_wraps.c.wrap_json).where(
+                models.household_key_wraps.c.household_id == household_id,
+                models.household_key_wraps.c.kind == "member",
+                models.household_key_wraps.c.subject_id == user_id,
+            )
+        ).first()
+    return row[0] if row is not None else None
+
+
 def ensure_member_wrap(engine: Engine, household_id: str, user_id: str, password: str) -> None:
-    """Create/refresh the member's password-derived wrap. Called wherever a
-    password is PROVEN (login) or SET (invite accept, member create) — the only
-    moments the plaintext password exists. Never raises: wrap upkeep must not
-    break a login."""
+    """Create/refresh the member's password-derived wrap — and, for a sealed
+    household, UNLOCK it: a proven password is a sealed household's front door
+    (Phase 3). Called wherever a password is proven (login) or set (invite
+    accept, member create). Never raises: key upkeep must not break a login."""
     try:
-        dek = _dek_for_wrapping(engine, household_id)
+        try:
+            dek = _dek_for_wrapping(engine, household_id)
+        except HouseholdLockedError:
+            # Sealed and locked: this member's own wrap is the way in.
+            existing = _member_wrap_json(engine, household_id, user_id)
+            dek = unwrap_with_password(existing, password) if existing else None
+            if dek is None:
+                logger.warning(
+                    "sealed household locked and member has no usable wrap household=%s",
+                    household_id,
+                )
+                return
+            if not _canary_ok(engine, household_id, dek):
+                logger.error("member wrap failed canary check household=%s", household_id)
+                return
+            _keyring_put(household_id, dek)
+            _heal_box_wrap(engine, household_id, dek)
         if dek is None:
             return
         _upsert_wrap(engine, household_id, "member", user_id, _wrap_with_password(dek, password))
@@ -302,12 +623,16 @@ def wrap_status(engine: Engine, household_id: str) -> dict:
         ).all()
     kinds = [row[0] for row in rows]
     recovery_at = next((row[1] for row in rows if row[0] == "recovery"), None)
+    box_row = _box_wrap_row(engine, household_id)
+    sealed = box_row is not None and box_row[0] is None
     return {
         "encryption_enabled": enabled(),
         "member_wraps": kinds.count("member"),
         "device_wraps": kinds.count("device"),
         "has_recovery_key": "recovery" in kinds,
         "recovery_key_created_at": recovery_at,
+        "mode": "sealed" if sealed else "convenient",
+        "unlocked": dek_available(engine, household_id),
     }
 
 
@@ -343,7 +668,7 @@ def rotate_household_key(engine: Engine, household_id: str) -> bool:
     master = _master_fernet()
     if master is None:
         return False
-    old_dek = _get_or_create_dek(engine, household_id, master)
+    old_dek = _resolve_dek(engine, household_id, master)
     old_rows = _subkey_fernet(old_dek, b"rows")
     new_dek = Fernet.generate_key()
     new_rows = _subkey_fernet(new_dek, b"rows")
@@ -388,11 +713,17 @@ def rotate_household_key(engine: Engine, household_id: str) -> bool:
                         sql_update(table).where(table.c.id == row["id"]).values(**values)
                     )
 
+    box_row = _box_wrap_row(engine, household_id)
+    sealed = box_row is not None and box_row[0] is None
+    new_canary = _subkey_fernet(new_dek, b"rows").encrypt(CANARY_PLAINTEXT).decode()
     with engine.begin() as conn:
         conn.execute(
             sql_update(models.household_keys)
             .where(models.household_keys.c.household_id == household_id)
-            .values(wrapped_dek=master.encrypt(new_dek).decode())
+            .values(
+                wrapped_dek=None if sealed else master.encrypt(new_dek).decode(),
+                canary=new_canary,
+            )
         )
         conn.execute(
             sql_delete(models.household_key_wraps).where(
@@ -400,8 +731,13 @@ def rotate_household_key(engine: Engine, household_id: str) -> bool:
                 models.household_key_wraps.c.kind.in_(("member", "recovery")),
             )
         )
-    with _cache_lock:
-        _dek_cache[household_id] = new_dek
+    if sealed:
+        with _cache_lock:
+            _dek_cache.pop(household_id, None)
+        _keyring_put(household_id, new_dek)
+    else:
+        with _cache_lock:
+            _dek_cache[household_id] = new_dek
 
     # Device wraps re-wrap from the stored public keys.
     from family_cfo_api import repository

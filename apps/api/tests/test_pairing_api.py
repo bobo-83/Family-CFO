@@ -432,3 +432,71 @@ async def test_revoking_a_login_device_kills_its_session(demo_client, demo_token
         headers={"Authorization": f"Bearer {credential['access_token']}"},
     )
     assert refused.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_cannot_revoke_the_calling_device(demo_client, demo_token) -> None:
+    """The footgun guard: a device may not revoke itself (that kills its own
+    session mid-request). The session-info endpoint identifies the current
+    device so a client can mark it and hide its revoke action."""
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    confirmed = await demo_client.post(
+        "/api/v1/pairing/confirm",
+        json={
+            "pairing_session_id": created.json()["id"],
+            "device_name": "This phone",
+            "device_public_key": "public-key",
+        },
+    )
+    credential = confirmed.json()
+    device_headers = {"Authorization": f"Bearer {credential['access_token']}"}
+
+    session = await demo_client.get("/api/v1/auth/session", headers=device_headers)
+    assert session.status_code == 200
+    assert session.json()["device_id"] == credential["device_id"]
+
+    refused = await demo_client.delete(
+        f"/api/v1/pairing/devices/{credential['device_id']}", headers=device_headers
+    )
+    assert refused.status_code == 409
+    assert "using" in refused.json()["error"]["message"].lower()
+
+    # Still valid — the self-revoke never happened.
+    still_ok = await demo_client.get("/api/v1/household", headers=device_headers)
+    assert still_ok.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_device_last_seen_is_stamped_on_use(demo_client, demo_token) -> None:
+    created = await demo_client.post(
+        "/api/v1/pairing/sessions",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    confirmed = await demo_client.post(
+        "/api/v1/pairing/confirm",
+        json={
+            "pairing_session_id": created.json()["id"],
+            "device_name": "Fresh phone",
+            "device_public_key": "public-key",
+        },
+    )
+    credential = confirmed.json()
+    device_headers = {"Authorization": f"Bearer {credential['access_token']}"}
+
+    # A newly paired device has never been "used" until it makes a call.
+    devices = (
+        await demo_client.get("/api/v1/pairing/devices", headers={"Authorization": f"Bearer {demo_token}"})
+    ).json()["devices"]
+    fresh = next(d for d in devices if d["id"] == credential["device_id"])
+    assert fresh["last_seen_at"] is None
+
+    await demo_client.get("/api/v1/household", headers=device_headers)
+
+    devices = (
+        await demo_client.get("/api/v1/pairing/devices", headers={"Authorization": f"Bearer {demo_token}"})
+    ).json()["devices"]
+    seen = next(d for d in devices if d["id"] == credential["device_id"])
+    assert seen["last_seen_at"] is not None

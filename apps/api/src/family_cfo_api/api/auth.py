@@ -131,6 +131,7 @@ async def get_session_info(
         role_name=session.role_name or None,
         rights=sorted(session.rights),
         is_system_admin=session.is_system_admin,
+        device_id=session.device_id,
     )
 
 

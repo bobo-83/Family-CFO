@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, OnInit, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,6 +19,7 @@ type Frequency = 'daily' | 'weekly' | 'off';
   styleUrl: './backups.scss',
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -89,6 +91,12 @@ export class Backups implements OnInit {
   // ADR 0072 Phase 2: household data-key posture + the once-shown recovery key.
   protected readonly keyStatus = signal<HouseholdKeyStatus | null>(null);
   protected readonly generatedRecoveryKey = signal<string | null>(null);
+
+  // "Unlock with recovery key…" — the rescue for a locked household (sealed
+  // after a restart, or convenient restored without its master key). The
+  // entered key lives only in this signal: never logged, never persisted.
+  protected readonly showRecoveryUnlock = signal(false);
+  protected readonly recoveryUnlockInput = signal('');
 
   async ngOnInit(): Promise<void> {
     this.loadRunningVersion();
@@ -300,6 +308,50 @@ export class Backups implements OnInit {
       await navigator.clipboard?.writeText(key);
       this.statusMessage.set('Recovery key copied.');
     }
+  }
+
+  /** ADR 0072 Phase 3: convenient ↔ sealed. The confirm restates the
+   * consequence in one sentence; a 409 carries the server's human message
+   * (missing member key / recovery key, or locked) — show it verbatim. */
+  protected async setSealMode(mode: 'convenient' | 'sealed'): Promise<void> {
+    if (this.busy()) return;
+    const consequence =
+      mode === 'sealed'
+        ? 'Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.'
+        : 'Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.';
+    if (!confirm(consequence)) return;
+    this.busy.set(true);
+    this.actionError.set(null);
+    const { data, error } = await this.api.setSealMode(mode);
+    this.busy.set(false);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to switch privacy mode.'));
+      return;
+    }
+    this.keyStatus.set(data ?? null);
+  }
+
+  /** Unlock a locked household with its recovery key. On 200 the returned
+   * status replaces keyStatus (unlocked — the locked line disappears; the
+   * server also silently heals a stale box wrap after a fresh-hardware
+   * restore). A 400 carries the server's human message ("doesn't match") —
+   * shown verbatim, and the input stays open for another try. */
+  protected async unlockWithRecoveryKey(): Promise<void> {
+    if (this.busy()) return;
+    const key = this.recoveryUnlockInput().trim();
+    if (!key) return;
+    this.busy.set(true);
+    this.actionError.set(null);
+    const { data, error } = await this.api.unlockWithRecoveryKey(key);
+    this.busy.set(false);
+    if (error) {
+      this.actionError.set(apiErrorMessage(error, 'Failed to unlock.'));
+      return;
+    }
+    this.keyStatus.set(data ?? null);
+    this.recoveryUnlockInput.set('');
+    this.showRecoveryUnlock.set(false);
+    this.statusMessage.set('Household unlocked.');
   }
 
   protected recoveryKeyCreatedLabel(iso: string | null | undefined): string {

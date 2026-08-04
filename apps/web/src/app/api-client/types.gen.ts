@@ -1482,6 +1482,36 @@ export type HouseholdKeyStatus = {
     device_wraps: number;
     has_recovery_key: boolean;
     recovery_key_created_at?: string | null;
+    /**
+     * "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+     */
+    mode?: 'convenient' | 'sealed';
+    /**
+     * Whether this household's content is readable right now.
+     */
+    unlocked?: boolean;
+};
+
+export type SealModeRequest = {
+    mode: 'convenient' | 'sealed';
+};
+
+/**
+ * The calling paired device's ECIES wrap of the household data key — unwrapped locally with the device's pairing private key, then posted back via openKeySession to unlock a sealed household.
+ */
+export type DeviceWrap = {
+    wrap_json: string;
+};
+
+export type KeySessionRequest = {
+    /**
+     * The unwrapped data key (urlsafe base64), canary-validated server-side.
+     */
+    dek: string;
+};
+
+export type RecoveryUnlockRequest = {
+    recovery_key: string;
 };
 
 /**
@@ -1977,6 +2007,10 @@ export type SessionInfo = {
     role_name?: string | null;
     rights: Array<string>;
     is_system_admin: boolean;
+    /**
+     * The paired device backing this session (absent for web/password sessions).
+     */
+    device_id?: string | null;
 };
 
 /**
@@ -2180,6 +2214,10 @@ export type RevokePairedDeviceErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type RevokePairedDeviceError = RevokePairedDeviceErrors[keyof RevokePairedDeviceErrors];
@@ -5639,6 +5677,130 @@ export type GetHouseholdKeyStatusResponses = {
 };
 
 export type GetHouseholdKeyStatusResponse = GetHouseholdKeyStatusResponses[keyof GetHouseholdKeyStatusResponses];
+
+export type SetSealModeData = {
+    body: SealModeRequest;
+    path?: never;
+    query?: never;
+    url: '/household/seal-mode';
+};
+
+export type SetSealModeErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type SetSealModeError = SetSealModeErrors[keyof SetSealModeErrors];
+
+export type SetSealModeResponses = {
+    /**
+     * The new key posture
+     */
+    200: HouseholdKeyStatus;
+};
+
+export type SetSealModeResponse = SetSealModeResponses[keyof SetSealModeResponses];
+
+export type GetDeviceWrapData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/device-wrap';
+};
+
+export type GetDeviceWrapErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+};
+
+export type GetDeviceWrapError = GetDeviceWrapErrors[keyof GetDeviceWrapErrors];
+
+export type GetDeviceWrapResponses = {
+    /**
+     * The device's wrap
+     */
+    200: DeviceWrap;
+};
+
+export type GetDeviceWrapResponse = GetDeviceWrapResponses[keyof GetDeviceWrapResponses];
+
+export type OpenKeySessionData = {
+    body: KeySessionRequest;
+    path?: never;
+    query?: never;
+    url: '/household/key-session';
+};
+
+export type OpenKeySessionErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type OpenKeySessionError = OpenKeySessionErrors[keyof OpenKeySessionErrors];
+
+export type OpenKeySessionResponses = {
+    /**
+     * Unlocked; the new key posture
+     */
+    200: HouseholdKeyStatus;
+};
+
+export type OpenKeySessionResponse = OpenKeySessionResponses[keyof OpenKeySessionResponses];
+
+export type UnlockWithRecoveryKeyData = {
+    body: RecoveryUnlockRequest;
+    path?: never;
+    query?: never;
+    url: '/household/recovery-unlock';
+};
+
+export type UnlockWithRecoveryKeyErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type UnlockWithRecoveryKeyError = UnlockWithRecoveryKeyErrors[keyof UnlockWithRecoveryKeyErrors];
+
+export type UnlockWithRecoveryKeyResponses = {
+    /**
+     * Unlocked (and healed, when applicable)
+     */
+    200: HouseholdKeyStatus;
+};
+
+export type UnlockWithRecoveryKeyResponse = UnlockWithRecoveryKeyResponses[keyof UnlockWithRecoveryKeyResponses];
 
 export type GenerateRecoveryKeyData = {
     body?: never;

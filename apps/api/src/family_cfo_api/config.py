@@ -46,6 +46,10 @@ class Settings:
     import_staging_dir: str = DEFAULT_IMPORT_STAGING_DIR
     backup_dir: str = DEFAULT_BACKUP_DIR
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
+    # Issue #48/#3: how long dead auth sessions and long-revoked devices linger
+    # before the worker prunes them. Generous defaults; 0 disables a prune.
+    auth_session_retention_days: int = 7
+    revoked_device_retention_days: int = 90
     backup_encryption_key: str | None = None
     # ADR 0072: box master key wrapping each household's data key. Empty = the
     # per-household envelope encryption is off (dev/test default).
@@ -128,6 +132,14 @@ class Settings:
             ),
             import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
             backup_dir=os.getenv("FAMILY_CFO_BACKUP_DIR", cls.backup_dir),
+            auth_session_retention_days=int(
+                os.getenv("FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS", cls.auth_session_retention_days)
+            ),
+            revoked_device_retention_days=int(
+                os.getenv(
+                    "FAMILY_CFO_REVOKED_DEVICE_RETENTION_DAYS", cls.revoked_device_retention_days
+                )
+            ),
             backup_retention_count=int(
                 os.getenv("FAMILY_CFO_BACKUP_RETENTION_COUNT", str(cls.backup_retention_count))
             ),

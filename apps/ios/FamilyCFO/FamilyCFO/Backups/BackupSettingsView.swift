@@ -10,6 +10,13 @@ struct BackupSettingsView: View {
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
     @State private var confirmReplaceRecoveryKey = false
+    /// ADR 0072 Phase 3: the armed privacy-mode switch — true targets sealed,
+    /// false targets convenient. Nil = no confirmation showing.
+    @State private var pendingSealTarget: Bool?
+    /// "Unlock with recovery key…" — the rescue for a locked household. The
+    /// entered key lives only in this state: never logged, never persisted.
+    @State private var showRecoveryUnlock = false
+    @State private var recoveryUnlockKey = ""
 
     var body: some View {
         Form {
@@ -46,6 +53,26 @@ struct BackupSettingsView: View {
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } })
         ) { Button("OK", role: .cancel) {} } message: { Text(viewModel.errorMessage ?? "") }
+        .alert(
+            pendingSealTarget == true ? "Seal this household?" : "Switch back to convenient?",
+            isPresented: .init(
+                get: { pendingSealTarget != nil },
+                set: { if !$0 { pendingSealTarget = nil } }),
+            presenting: pendingSealTarget
+        ) { sealed in
+            Button(sealed ? "Seal" : "Switch to convenient") {
+                pendingSealTarget = nil
+                Task { await viewModel.setSealMode(sealed: sealed) }
+            }
+            Button("Cancel", role: .cancel) { pendingSealTarget = nil }
+        } message: { sealed in
+            // One sentence restating the consequence (ADR 0072 Phase 3).
+            Text(
+                sealed
+                    ? "After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in."
+                    : "The box keeps a spare of your data key again, so overnight work runs without anyone signed in."
+            )
+        }
         .alert("Replace recovery key?", isPresented: $confirmReplaceRecoveryKey) {
             Button("Replace", role: .destructive) {
                 Task { await viewModel.createRecoveryKey() }
@@ -238,12 +265,79 @@ struct BackupSettingsView: View {
                             Task { await viewModel.createRecoveryKey() }
                         }
                     }
+                    if let mode = status.mode {
+                        privacyModeRows(mode: mode, unlocked: status.unlocked ?? true)
+                    } else if status.unlocked == false {
+                        // No mode reported but still locked (encryption on) —
+                        // the same rescue applies.
+                        recoveryUnlockRows
+                    }
                 }
             }
         } header: {
             Text("Restore keys")
         } footer: {
             Text("Restoring onto a new box takes both keys — store them together in a password manager.")
+        }
+    }
+
+    /// ADR 0072 Phase 3: the household's privacy mode, below the recovery-key
+    /// step. Each mode states only its own claim — never more (ADR 0070).
+    @ViewBuilder private func privacyModeRows(
+        mode: Components.Schemas.HouseholdKeyStatus.ModePayload, unlocked: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Privacy mode").font(.subheadline.weight(.semibold))
+            Text(mode == .sealed ? "Sealed" : "Convenient")
+                .font(.caption.weight(.semibold))
+            Text(
+                mode == .sealed
+                    ? "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you."
+                    : "The box keeps a spare of your data key: overnight sync, snapshots, and idle study keep working. Your content is protected against stolen disks and backups — the box itself can still read it."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            if mode == .sealed && !unlocked {
+                Text("Locked — sign in again to unlock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        if !unlocked {
+            // Locked in either mode (sealed after a restart, or convenient
+            // restored without its master key) — the recovery key is the rescue.
+            recoveryUnlockRows
+        }
+        Button(mode == .sealed ? "Switch back to convenient…" : "Seal this household…") {
+            pendingSealTarget = (mode != .sealed)
+        }
+    }
+
+    /// "Unlock with recovery key…" beneath the locked line: tapping reveals an
+    /// inline SecureField (same pattern as the SMB password row). A 400 keeps
+    /// the field open — the server's message shows in the error alert.
+    @ViewBuilder private var recoveryUnlockRows: some View {
+        if showRecoveryUnlock {
+            SecureField("FCFO-…", text: $recoveryUnlockKey)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .onSubmit { Task { await submitRecoveryUnlock() } }
+            Button("Unlock") {
+                Task { await submitRecoveryUnlock() }
+            }
+            .disabled(recoveryUnlockKey.trimmingCharacters(in: .whitespaces).isEmpty)
+        } else {
+            Button("Unlock with recovery key…") { showRecoveryUnlock = true }
+        }
+    }
+
+    private func submitRecoveryUnlock() async {
+        await viewModel.unlockWithRecoveryKey(recoveryUnlockKey)
+        // Only a real unlock clears the field — a wrong key keeps it open for
+        // another try (the alert already showed the server's message).
+        if viewModel.keyStatus?.unlocked == true {
+            recoveryUnlockKey = ""
+            showRecoveryUnlock = false
         }
     }
 

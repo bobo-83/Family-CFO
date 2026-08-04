@@ -42,3 +42,21 @@ export function clearAuthState(): void {
 export function getToken(): string | null {
   return authState()?.accessToken ?? null;
 }
+
+/**
+ * One-shot message for the login page explaining why the session ended —
+ * e.g. a 423 "household sealed and locked" answer (ADR 0072 Phase 3). Module
+ * level for the same reason as `authState`: the fetch interceptor that sets
+ * it runs outside Angular's DI graph.
+ */
+export const sessionNotice = signal<string | null>(null);
+
+export function setSessionNotice(message: string): void {
+  sessionNotice.set(message);
+}
+
+export function consumeSessionNotice(): string | null {
+  const message = sessionNotice();
+  sessionNotice.set(null);
+  return message;
+}

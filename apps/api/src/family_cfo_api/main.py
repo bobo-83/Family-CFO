@@ -12,6 +12,7 @@ from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
 from family_cfo_api.ratelimit import AuthRateLimiter
+from family_cfo_api import household_crypto
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
 
@@ -49,6 +50,15 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         enabled=settings.auth_rate_limit_enabled,
     )
     app.include_router(api_router)
+
+    @app.exception_handler(household_crypto.HouseholdLockedError)
+    async def locked_handler(request, exc: household_crypto.HouseholdLockedError):
+        # ADR 0072 Phase 3: sealed household, no live session key. 423 Locked —
+        # clients prompt a fresh sign-in (or a device posts its key session).
+        return JSONResponse(
+            status_code=423,
+            content=error_response("household_locked", str(exc)),
+        )
 
     @app.exception_handler(HTTPException)
     async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONResponse:

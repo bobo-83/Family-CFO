@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, insert, select, update
@@ -53,6 +53,9 @@ class SessionContext:
     # legacy household role still carries the string.
     rights: frozenset[str] = frozenset()
     role_name: str = ""
+    # ADR 0072 Phase 3: set for device-bound sessions — the sealed-mode
+    # device-wrap/key-session endpoints serve the CALLING device only.
+    device_id: str | None = None
     is_system_admin: bool = False
 
 
@@ -166,6 +169,7 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
             ).first()
             if device_row is None or device_row[0] is not None:
                 return None
+            _touch_device_last_seen(engine, session_row["device_id"])
 
         role_row = conn.execute(
             select(
@@ -211,6 +215,7 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
         rights=member_rights,
         role_name=role_name,
         is_system_admin=admin,
+        device_id=session_row["device_id"],
     )
 
 
@@ -401,6 +406,69 @@ def list_paired_devices(engine: Engine, household_id: str) -> list[PairedDeviceR
         )
         for row in rows
     ]
+
+
+# So an active device stops looking identical to dead pairings, last_seen is
+# stamped at most once every few minutes (the WHERE makes most calls no-ops).
+_LAST_SEEN_THROTTLE = timedelta(minutes=5)
+
+
+def _touch_device_last_seen(engine: Engine, device_id: str) -> None:
+    cutoff = utcnow() - _LAST_SEEN_THROTTLE
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.paired_devices)
+            .where(
+                models.paired_devices.c.id == device_id,
+                (models.paired_devices.c.last_seen_at.is_(None))
+                | (models.paired_devices.c.last_seen_at < cutoff),
+            )
+            .values(last_seen_at=utcnow())
+        )
+
+
+def prune_dead_auth_sessions(engine: Engine, *, older_than: datetime) -> int:
+    """Delete sessions that are expired or revoked past the retention cutoff.
+    Issue #48/#3: nothing pruned these before, so they grew without bound.
+    Returns the number deleted."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.auth_sessions).where(
+                (models.auth_sessions.c.expires_at < older_than)
+                | (
+                    models.auth_sessions.c.revoked_at.is_not(None)
+                    & (models.auth_sessions.c.revoked_at < older_than)
+                )
+            )
+        )
+    return result.rowcount or 0
+
+
+def prune_revoked_devices(engine: Engine, *, older_than: datetime) -> int:
+    """Hard-delete devices revoked before the cutoff, after clearing any
+    sessions that still point at them (the FK would otherwise block the
+    delete). Their key wraps were already dropped at revoke time."""
+    with engine.begin() as conn:
+        stale = [
+            row[0]
+            for row in conn.execute(
+                select(models.paired_devices.c.id).where(
+                    models.paired_devices.c.revoked_at.is_not(None),
+                    models.paired_devices.c.revoked_at < older_than,
+                )
+            )
+        ]
+        if not stale:
+            return 0
+        conn.execute(
+            delete(models.auth_sessions).where(
+                models.auth_sessions.c.device_id.in_(stale)
+            )
+        )
+        result = conn.execute(
+            delete(models.paired_devices).where(models.paired_devices.c.id.in_(stale))
+        )
+    return result.rowcount or 0
 
 
 def revoke_paired_device(engine: Engine, household_id: str, device_id: str) -> bool:

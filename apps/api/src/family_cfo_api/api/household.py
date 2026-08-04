@@ -27,9 +27,13 @@ from family_cfo_api.schemas import (
     NetWorthPoint,
     LiquidAccountBalance,
     NamedAmount,
+    DeviceWrap,
     HouseholdKeyStatus,
+    KeySessionRequest,
     ReadyToSellHoldings,
     RecoveryKey,
+    RecoveryUnlockRequest,
+    SealModeRequest,
     SafeToSpend,
     SavingsRate,
     SpendingByCategory,
@@ -973,3 +977,124 @@ async def generate_recovery_key(
         "Recovery key generated (any previous recovery key no longer works)",
     )
     return RecoveryKey(recovery_key=secret)
+
+
+@router.post(
+    "/household/seal-mode",
+    operation_id="setSealMode",
+    response_model=HouseholdKeyStatus,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {"description": "Preconditions not met", "model": ErrorResponse},
+    },
+    summary="Switch the household between convenient and sealed encryption modes",
+)
+async def set_seal_mode(
+    payload: SealModeRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> HouseholdKeyStatus:
+    if payload.mode == "sealed":
+        error = household_crypto.seal_household(engine, session.household_id)
+    else:
+        error = household_crypto.unseal_household(engine, session.household_id)
+    if error is not None:
+        raise HTTPException(status_code=409, detail=error)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.seal_mode_changed",
+        "household",
+        session.household_id,
+        f"Encryption mode set to {payload.mode}",
+    )
+    return HouseholdKeyStatus(**household_crypto.wrap_status(engine, session.household_id))
+
+
+@router.get(
+    "/household/device-wrap",
+    operation_id="getDeviceWrap",
+    response_model=DeviceWrap,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "No wrap for this device", "model": ErrorResponse},
+    },
+    summary="The calling paired device's wrap of the household data key",
+)
+async def get_device_wrap(
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> DeviceWrap:
+    if session.device_id is None:
+        raise HTTPException(status_code=404, detail="This session is not device-bound")
+    wrap = household_crypto.device_wrap_json(engine, session.household_id, session.device_id)
+    if wrap is None:
+        raise HTTPException(status_code=404, detail="No key wrap exists for this device yet")
+    return DeviceWrap(wrap_json=wrap)
+
+
+@router.post(
+    "/household/key-session",
+    operation_id="openKeySession",
+    response_model=HouseholdKeyStatus,
+    responses={
+        400: {"description": "Key failed validation", "model": ErrorResponse},
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+    },
+    summary="Unlock a sealed household with a device-unwrapped data key",
+)
+async def open_key_session(
+    payload: KeySessionRequest,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> HouseholdKeyStatus:
+    import base64 as b64
+
+    try:
+        dek = payload.dek.encode()
+        # Keys are urlsafe-b64 Fernet keys already; validate decodability.
+        b64.urlsafe_b64decode(dek)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="Malformed key") from exc
+    if not household_crypto.unlock_household(engine, session.household_id, dek):
+        raise HTTPException(
+            status_code=400, detail="That key does not match this household's data."
+        )
+    return HouseholdKeyStatus(**household_crypto.wrap_status(engine, session.household_id))
+
+
+@router.post(
+    "/household/recovery-unlock",
+    operation_id="unlockWithRecoveryKey",
+    response_model=HouseholdKeyStatus,
+    responses={
+        400: {"description": "The recovery key does not match", "model": ErrorResponse},
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Unlock the household with its recovery key (fresh hardware / lost passwords)",
+)
+async def unlock_with_recovery_key(
+    payload: RecoveryUnlockRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> HouseholdKeyStatus:
+    if not household_crypto.unlock_with_recovery_key(
+        engine, session.household_id, payload.recovery_key.strip()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="That recovery key does not match this household.",
+        )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.recovery_key_used",
+        "household",
+        session.household_id,
+        "Household unlocked with the recovery key",
+    )
+    return HouseholdKeyStatus(**household_crypto.wrap_status(engine, session.household_id))

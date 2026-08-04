@@ -158,6 +158,8 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /auth/sessions:
     post:
       tags:
@@ -2884,6 +2886,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HouseholdKeyStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+  /household/seal-mode:
+    post:
+      tags:
+        - Household
+      operationId: setSealMode
+      summary: Switch the household between convenient and sealed encryption modes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SealModeRequest"
+      responses:
+        "200":
+          description: The new key posture
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdKeyStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /household/device-wrap:
+    get:
+      tags:
+        - Household
+      operationId: getDeviceWrap
+      summary: The calling paired device's wrap of the household data key
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The device's wrap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceWrap"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /household/key-session:
+    post:
+      tags:
+        - Household
+      operationId: openKeySession
+      summary: Unlock a sealed household with a device-unwrapped data key
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeySessionRequest"
+      responses:
+        "200":
+          description: Unlocked; the new key posture
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdKeyStatus"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+  /household/recovery-unlock:
+    post:
+      tags:
+        - Household
+      operationId: unlockWithRecoveryKey
+      summary: Unlock the household with its recovery key (fresh hardware / lost passwords)
+      description: >-
+        The recovery key's real job. Unwraps the recovery copy of the data key,
+        validates it against the canary, opens the session keyring — and, for a
+        convenient-mode household restored onto new hardware (stale box wrap),
+        re-mints the box wrap under the current master key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoveryUnlockRequest"
+      responses:
+        "200":
+          description: Unlocked (and healed, when applicable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdKeyStatus"
+        "400":
+          $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Error"
         "403":
@@ -6414,6 +6519,54 @@ components:
             - string
             - "null"
           format: date-time
+        mode:
+          description: >-
+            "convenient": the box also holds a key wrap — unattended sync,
+            snapshots, and study keep working; content is sealed against
+            offline artifacts (dumps, disks, backups), not the box operator.
+            "sealed": member passwords, paired devices, and the recovery key
+            are the ONLY ways in; background work waits for a live session.
+          type: string
+          enum: [convenient, sealed]
+          default: convenient
+        unlocked:
+          description: Whether this household's content is readable right now.
+          type: boolean
+          default: true
+    SealModeRequest:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum: [convenient, sealed]
+    DeviceWrap:
+      type: object
+      description: >-
+        The calling paired device's ECIES wrap of the household data key —
+        unwrapped locally with the device's pairing private key, then posted
+        back via openKeySession to unlock a sealed household.
+      required:
+        - wrap_json
+      properties:
+        wrap_json:
+          type: string
+    KeySessionRequest:
+      type: object
+      required:
+        - dek
+      properties:
+        dek:
+          description: The unwrapped data key (urlsafe base64), canary-validated server-side.
+          type: string
+    RecoveryUnlockRequest:
+      type: object
+      required:
+        - recovery_key
+      properties:
+        recovery_key:
+          type: string
     RecoveryKey:
       type: object
       description: >-
@@ -7427,6 +7580,11 @@ components:
             type: string
         is_system_admin:
           type: boolean
+        device_id:
+          description: The paired device backing this session (absent for web/password sessions).
+          type:
+            - string
+            - "null"
     SystemAdmin:
       type: object
       description: One box-level administrator (ADR 0065)

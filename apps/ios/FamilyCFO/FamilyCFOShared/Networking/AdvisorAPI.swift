@@ -36,14 +36,25 @@ enum APIError: Error, LocalizedError, Equatable {
     /// The advisor itself reported a failure (streamed `error` event) — the
     /// message is already user-appropriate.
     case advisor(String)
+    /// HTTP 409 with the server's explanation of why it refused (e.g. revoking
+    /// the device the session runs on) — shown verbatim.
+    case conflict(String)
 
     var errorDescription: String? {
         switch self {
         case .unauthorized:
             return "This device's pairing is no longer valid. Re-pair from the dashboard's Devices page."
         case .server(let status):
+            // 423 (ADR 0072 Phase 3): sealed household, no live key session,
+            // and the device auto-unlock couldn't open one — the server's
+            // household_locked message, so every screen says what to do.
+            if status == 423 {
+                return "This household's data is sealed and currently locked. Sign in again to unlock it."
+            }
             return "The server answered with an unexpected status (\(status))."
         case .advisor(let message):
+            return message
+        case .conflict(let message):
             return message
         }
     }

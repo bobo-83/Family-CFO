@@ -242,27 +242,41 @@ struct SettingsView: View {
                         Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031).")
                     }
                 }
-                if model.rolePolicy.canViewActivity || model.rolePolicy.canManageBackups {
-                    Section {
-                        if model.rolePolicy.canViewActivity, let activity = model.activity {
-                            NavigationLink {
-                                ActivityView(viewModel: ActivityViewModel(api: activity))
-                            } label: {
-                                Label("Activity", systemImage: "clock.arrow.circlepath")
-                            }
+                // Always present: Devices is listed for every member (only its
+                // revoke gates on devices.manage, inside the screen).
+                Section {
+                    if model.rolePolicy.canViewActivity, let activity = model.activity {
+                        NavigationLink {
+                            ActivityView(viewModel: ActivityViewModel(api: activity))
+                        } label: {
+                            Label("Activity", systemImage: "clock.arrow.circlepath")
                         }
-                        if model.rolePolicy.canManageBackups, let backups = model.backups {
-                            NavigationLink {
-                                BackupSettingsView(viewModel: BackupViewModel(api: backups))
-                            } label: {
-                                Label("Backups", systemImage: "externaldrive")
-                            }
-                        }
-                    } header: {
-                        Text("Data")
-                    } footer: {
-                        Text("Review and undo past actions, and back up to your Synology. Encrypted daily backups run automatically.")
                     }
+                    if model.rolePolicy.canManageBackups, let backups = model.backups {
+                        NavigationLink {
+                            BackupSettingsView(viewModel: BackupViewModel(api: backups))
+                        } label: {
+                            Label("Backups", systemImage: "externaldrive")
+                        }
+                    }
+                    if let devices = model.devices {
+                        NavigationLink {
+                            DevicesView(viewModel: DevicesViewModel(
+                                api: devices,
+                                canRevoke: model.rolePolicy.canManageDevices,
+                                currentDeviceID: model.credential?.deviceID))
+                        } label: {
+                            Label("Devices", systemImage: "iphone.radiowaves.left.and.right")
+                        }
+                    }
+                } header: {
+                    Text("Data")
+                } footer: {
+                    Text(
+                        model.rolePolicy.isOperator
+                            ? "Review and undo past actions, back up to your Synology, and see every device paired to this household. Encrypted daily backups run automatically."
+                            : "Every device paired to this household."
+                    )
                 }
                 if model.rolePolicy.canManageSystemAdmins, let roster = model.systemAdmins {
                     Section {
@@ -278,7 +292,7 @@ struct SettingsView: View {
                 if model.rolePolicy.canManageMembers {
                     Section {
                         Label(
-                            "Manage members, roles and devices on the web dashboard.",
+                            "Manage members and roles on the web dashboard.",
                             systemImage: "wrench.and.screwdriver"
                         )
                         .font(.callout)
@@ -296,7 +310,7 @@ struct SettingsView: View {
                         confirmingUnpair = true
                     }
                 } footer: {
-                    Text("Removes the credential AND the server info from this phone. To revoke it server-side too, use the dashboard's Devices page.")
+                    Text("Removes the credential AND the server info from this phone. To revoke it server-side too, use the Devices screen (here or on the dashboard).")
                 }
             }
             .navigationTitle("Settings")

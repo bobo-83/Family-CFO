@@ -105,6 +105,9 @@ households = Table(
     # M96: when true, safe-to-spend treats full credit-card balances as committed
     # (paid in full monthly), not just recorded minimum payments. Null = false.
     Column("credit_cards_paid_in_full", Boolean, nullable=True),
+    # ADR 0072 Phase 3: sealed households have no box wrap — content unlocks
+    # only via member/device/recovery keys while a session is live. Null = off.
+    Column("sealed_mode", Boolean, nullable=True),
     # M98: off-box backup destination (a mounted network share) + cadence.
     Column("backup_destination_path", String(500), nullable=True),
     Column("backup_frequency", String(20), nullable=False, server_default="daily"),
@@ -856,7 +859,10 @@ household_keys = Table(
     metadata,
     _uuid_pk(),
     Column("household_id", String(36), ForeignKey("households.id"), nullable=False, unique=True),
-    Column("wrapped_dek", Text, nullable=False),
+    # Null = sealed (ADR 0072 Phase 3): the box holds no wrap of this DEK.
+    Column("wrapped_dek", Text, nullable=True),
+    # rows-subkey ciphertext of a fixed canary — validates posted/unwrapped DEKs.
+    Column("canary", Text, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 

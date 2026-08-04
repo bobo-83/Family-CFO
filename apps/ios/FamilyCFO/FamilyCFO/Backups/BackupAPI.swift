@@ -24,6 +24,17 @@ protocol BackupAPI: Sendable {
     /// Mints (or replaces) the recovery key — the response is shown ONCE and
     /// can never be retrieved again.
     func generateRecoveryKey() async throws -> Components.Schemas.RecoveryKey
+    /// ADR 0072 Phase 3: switch the household between convenient and sealed
+    /// privacy modes. The server enforces the preconditions (≥1 member key +
+    /// recovery key to seal; unlocked to unseal) and answers 409 with a human
+    /// message when they fail.
+    func setSealMode(_ mode: Components.Schemas.SealModeRequest.ModePayload) async throws
+        -> Components.Schemas.HouseholdKeyStatus
+    /// Unlocks a locked household with its recovery key (sealed after a
+    /// restart, or convenient restored without its master key). The server
+    /// answers 400 with a human message when the key doesn't match.
+    func unlockWithRecoveryKey(_ key: String) async throws
+        -> Components.Schemas.HouseholdKeyStatus
     /// The box's running version (from /health) — flags backups made by a
     /// NEWER app, which the server refuses to restore (409). Best-effort: nil
     /// must never break the screen.
@@ -200,6 +211,43 @@ struct LiveBackupAPI: BackupAPI {
                 throw APIError.advisor(message)
             }
             throw APIError.server(409)
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let s, _): throw APIError.server(s)
+        }
+    }
+
+    func setSealMode(_ mode: Components.Schemas.SealModeRequest.ModePayload) async throws
+        -> Components.Schemas.HouseholdKeyStatus
+    {
+        switch try await client.setSealMode(.init(body: .json(.init(mode: mode)))) {
+        case .ok(let r): return try r.body.json
+        case .conflict(let response):
+            // Preconditions failed (needs a member key + recovery key, or must
+            // be unlocked to unseal) — the server's message says so; show it
+            // verbatim.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(409)
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let s, _): throw APIError.server(s)
+        }
+    }
+
+    func unlockWithRecoveryKey(_ key: String) async throws
+        -> Components.Schemas.HouseholdKeyStatus
+    {
+        switch try await client.unlockWithRecoveryKey(.init(body: .json(.init(recoveryKey: key)))) {
+        case .ok(let r): return try r.body.json
+        case .badRequest(let response):
+            // The key doesn't match — the server's message says so; show it
+            // verbatim.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(400)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)

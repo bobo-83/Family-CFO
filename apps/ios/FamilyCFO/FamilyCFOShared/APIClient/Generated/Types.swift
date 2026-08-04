@@ -609,6 +609,28 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /household/key-status`.
     /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)`.
     func getHouseholdKeyStatus(_ input: Operations.GetHouseholdKeyStatus.Input) async throws -> Operations.GetHouseholdKeyStatus.Output
+    /// Switch the household between convenient and sealed encryption modes
+    ///
+    /// - Remark: HTTP `POST /household/seal-mode`.
+    /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)`.
+    func setSealMode(_ input: Operations.SetSealMode.Input) async throws -> Operations.SetSealMode.Output
+    /// The calling paired device's wrap of the household data key
+    ///
+    /// - Remark: HTTP `GET /household/device-wrap`.
+    /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)`.
+    func getDeviceWrap(_ input: Operations.GetDeviceWrap.Input) async throws -> Operations.GetDeviceWrap.Output
+    /// Unlock a sealed household with a device-unwrapped data key
+    ///
+    /// - Remark: HTTP `POST /household/key-session`.
+    /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)`.
+    func openKeySession(_ input: Operations.OpenKeySession.Input) async throws -> Operations.OpenKeySession.Output
+    /// Unlock the household with its recovery key (fresh hardware / lost passwords)
+    ///
+    /// The recovery key's real job. Unwraps the recovery copy of the data key, validates it against the canary, opens the session keyring — and, for a convenient-mode household restored onto new hardware (stale box wrap), re-mints the box wrap under the current master key.
+    ///
+    /// - Remark: HTTP `POST /household/recovery-unlock`.
+    /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)`.
+    func unlockWithRecoveryKey(_ input: Operations.UnlockWithRecoveryKey.Input) async throws -> Operations.UnlockWithRecoveryKey.Output
     /// Mint (or replace) the household recovery key — displayed exactly once
     ///
     /// - Remark: HTTP `POST /household/recovery-key`.
@@ -2138,6 +2160,54 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)`.
     public func getHouseholdKeyStatus(headers: Operations.GetHouseholdKeyStatus.Input.Headers = .init()) async throws -> Operations.GetHouseholdKeyStatus.Output {
         try await getHouseholdKeyStatus(Operations.GetHouseholdKeyStatus.Input(headers: headers))
+    }
+    /// Switch the household between convenient and sealed encryption modes
+    ///
+    /// - Remark: HTTP `POST /household/seal-mode`.
+    /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)`.
+    public func setSealMode(
+        headers: Operations.SetSealMode.Input.Headers = .init(),
+        body: Operations.SetSealMode.Input.Body
+    ) async throws -> Operations.SetSealMode.Output {
+        try await setSealMode(Operations.SetSealMode.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// The calling paired device's wrap of the household data key
+    ///
+    /// - Remark: HTTP `GET /household/device-wrap`.
+    /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)`.
+    public func getDeviceWrap(headers: Operations.GetDeviceWrap.Input.Headers = .init()) async throws -> Operations.GetDeviceWrap.Output {
+        try await getDeviceWrap(Operations.GetDeviceWrap.Input(headers: headers))
+    }
+    /// Unlock a sealed household with a device-unwrapped data key
+    ///
+    /// - Remark: HTTP `POST /household/key-session`.
+    /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)`.
+    public func openKeySession(
+        headers: Operations.OpenKeySession.Input.Headers = .init(),
+        body: Operations.OpenKeySession.Input.Body
+    ) async throws -> Operations.OpenKeySession.Output {
+        try await openKeySession(Operations.OpenKeySession.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Unlock the household with its recovery key (fresh hardware / lost passwords)
+    ///
+    /// The recovery key's real job. Unwraps the recovery copy of the data key, validates it against the canary, opens the session keyring — and, for a convenient-mode household restored onto new hardware (stale box wrap), re-mints the box wrap under the current master key.
+    ///
+    /// - Remark: HTTP `POST /household/recovery-unlock`.
+    /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)`.
+    public func unlockWithRecoveryKey(
+        headers: Operations.UnlockWithRecoveryKey.Input.Headers = .init(),
+        body: Operations.UnlockWithRecoveryKey.Input.Body
+    ) async throws -> Operations.UnlockWithRecoveryKey.Output {
+        try await unlockWithRecoveryKey(Operations.UnlockWithRecoveryKey.Input(
+            headers: headers,
+            body: body
+        ))
     }
     /// Mint (or replace) the household recovery key — displayed exactly once
     ///
@@ -8254,6 +8324,21 @@ public enum Components {
             public var hasRecoveryKey: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/recovery_key_created_at`.
             public var recoveryKeyCreatedAt: Foundation.Date?
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case convenient = "convenient"
+                case sealed = "sealed"
+            }
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
+            public var mode: Components.Schemas.HouseholdKeyStatus.ModePayload?
+            /// Whether this household's content is readable right now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/unlocked`.
+            public var unlocked: Swift.Bool?
             /// Creates a new `HouseholdKeyStatus`.
             ///
             /// - Parameters:
@@ -8262,18 +8347,24 @@ public enum Components {
             ///   - deviceWraps:
             ///   - hasRecoveryKey:
             ///   - recoveryKeyCreatedAt:
+            ///   - mode: "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            ///   - unlocked: Whether this household's content is readable right now.
             public init(
                 encryptionEnabled: Swift.Bool,
                 memberWraps: Swift.Int,
                 deviceWraps: Swift.Int,
                 hasRecoveryKey: Swift.Bool,
-                recoveryKeyCreatedAt: Foundation.Date? = nil
+                recoveryKeyCreatedAt: Foundation.Date? = nil,
+                mode: Components.Schemas.HouseholdKeyStatus.ModePayload? = nil,
+                unlocked: Swift.Bool? = nil
             ) {
                 self.encryptionEnabled = encryptionEnabled
                 self.memberWraps = memberWraps
                 self.deviceWraps = deviceWraps
                 self.hasRecoveryKey = hasRecoveryKey
                 self.recoveryKeyCreatedAt = recoveryKeyCreatedAt
+                self.mode = mode
+                self.unlocked = unlocked
             }
             public enum CodingKeys: String, CodingKey {
                 case encryptionEnabled = "encryption_enabled"
@@ -8281,6 +8372,77 @@ public enum Components {
                 case deviceWraps = "device_wraps"
                 case hasRecoveryKey = "has_recovery_key"
                 case recoveryKeyCreatedAt = "recovery_key_created_at"
+                case mode
+                case unlocked
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SealModeRequest`.
+        public struct SealModeRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SealModeRequest/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case convenient = "convenient"
+                case sealed = "sealed"
+            }
+            /// - Remark: Generated from `#/components/schemas/SealModeRequest/mode`.
+            public var mode: Components.Schemas.SealModeRequest.ModePayload
+            /// Creates a new `SealModeRequest`.
+            ///
+            /// - Parameters:
+            ///   - mode:
+            public init(mode: Components.Schemas.SealModeRequest.ModePayload) {
+                self.mode = mode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mode
+            }
+        }
+        /// The calling paired device's ECIES wrap of the household data key — unwrapped locally with the device's pairing private key, then posted back via openKeySession to unlock a sealed household.
+        ///
+        /// - Remark: Generated from `#/components/schemas/DeviceWrap`.
+        public struct DeviceWrap: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DeviceWrap/wrap_json`.
+            public var wrapJson: Swift.String
+            /// Creates a new `DeviceWrap`.
+            ///
+            /// - Parameters:
+            ///   - wrapJson:
+            public init(wrapJson: Swift.String) {
+                self.wrapJson = wrapJson
+            }
+            public enum CodingKeys: String, CodingKey {
+                case wrapJson = "wrap_json"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/KeySessionRequest`.
+        public struct KeySessionRequest: Codable, Hashable, Sendable {
+            /// The unwrapped data key (urlsafe base64), canary-validated server-side.
+            ///
+            /// - Remark: Generated from `#/components/schemas/KeySessionRequest/dek`.
+            public var dek: Swift.String
+            /// Creates a new `KeySessionRequest`.
+            ///
+            /// - Parameters:
+            ///   - dek: The unwrapped data key (urlsafe base64), canary-validated server-side.
+            public init(dek: Swift.String) {
+                self.dek = dek
+            }
+            public enum CodingKeys: String, CodingKey {
+                case dek
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RecoveryUnlockRequest`.
+        public struct RecoveryUnlockRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RecoveryUnlockRequest/recovery_key`.
+            public var recoveryKey: Swift.String
+            /// Creates a new `RecoveryUnlockRequest`.
+            ///
+            /// - Parameters:
+            ///   - recoveryKey:
+            public init(recoveryKey: Swift.String) {
+                self.recoveryKey = recoveryKey
+            }
+            public enum CodingKeys: String, CodingKey {
+                case recoveryKey = "recovery_key"
             }
         }
         /// Displayed ONCE and never retrievable again — stored only as a wrap of the household data key. Losing every password, paired device, and this key loses the data (the guarantee working as designed).
@@ -10259,6 +10421,10 @@ public enum Components {
             public var rights: [Swift.String]
             /// - Remark: Generated from `#/components/schemas/SessionInfo/is_system_admin`.
             public var isSystemAdmin: Swift.Bool
+            /// The paired device backing this session (absent for web/password sessions).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SessionInfo/device_id`.
+            public var deviceId: Swift.String?
             /// Creates a new `SessionInfo`.
             ///
             /// - Parameters:
@@ -10268,13 +10434,15 @@ public enum Components {
             ///   - roleName:
             ///   - rights:
             ///   - isSystemAdmin:
+            ///   - deviceId: The paired device backing this session (absent for web/password sessions).
             public init(
                 householdId: Swift.String,
                 userId: Swift.String,
                 role: Components.Schemas.HouseholdRole,
                 roleName: Swift.String? = nil,
                 rights: [Swift.String],
-                isSystemAdmin: Swift.Bool
+                isSystemAdmin: Swift.Bool,
+                deviceId: Swift.String? = nil
             ) {
                 self.householdId = householdId
                 self.userId = userId
@@ -10282,6 +10450,7 @@ public enum Components {
                 self.roleName = roleName
                 self.rights = rights
                 self.isSystemAdmin = isSystemAdmin
+                self.deviceId = deviceId
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -10290,6 +10459,7 @@ public enum Components {
                 case roleName = "role_name"
                 case rights
                 case isSystemAdmin = "is_system_admin"
+                case deviceId = "device_id"
             }
         }
         /// One box-level administrator (ADR 0065)
@@ -11429,6 +11599,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//pairing/devices/{device_id}/delete(revokePairedDevice)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -30584,6 +30777,711 @@ public enum Operations {
             /// Error response
             ///
             /// - Remark: Generated from `#/paths//household/key-status/get(getHouseholdKeyStatus)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Switch the household between convenient and sealed encryption modes
+    ///
+    /// - Remark: HTTP `POST /household/seal-mode`.
+    /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)`.
+    public enum SetSealMode {
+        public static let id: Swift.String = "setSealMode"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/seal-mode/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SetSealMode.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.SetSealMode.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.SetSealMode.Input.Headers
+            /// - Remark: Generated from `#/paths/household/seal-mode/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/seal-mode/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SealModeRequest)
+            }
+            public var body: Operations.SetSealMode.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.SetSealMode.Input.Headers = .init(),
+                body: Operations.SetSealMode.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/seal-mode/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/seal-mode/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.HouseholdKeyStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HouseholdKeyStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.SetSealMode.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.SetSealMode.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The new key posture
+            ///
+            /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.SetSealMode.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.SetSealMode.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/seal-mode/post(setSealMode)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// The calling paired device's wrap of the household data key
+    ///
+    /// - Remark: HTTP `GET /household/device-wrap`.
+    /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)`.
+    public enum GetDeviceWrap {
+        public static let id: Swift.String = "getDeviceWrap"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/device-wrap/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetDeviceWrap.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetDeviceWrap.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetDeviceWrap.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetDeviceWrap.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/device-wrap/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/device-wrap/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.DeviceWrap)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DeviceWrap {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetDeviceWrap.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetDeviceWrap.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The device's wrap
+            ///
+            /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetDeviceWrap.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetDeviceWrap.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/device-wrap/get(getDeviceWrap)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Unlock a sealed household with a device-unwrapped data key
+    ///
+    /// - Remark: HTTP `POST /household/key-session`.
+    /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)`.
+    public enum OpenKeySession {
+        public static let id: Swift.String = "openKeySession"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/key-session/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.OpenKeySession.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.OpenKeySession.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.OpenKeySession.Input.Headers
+            /// - Remark: Generated from `#/paths/household/key-session/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/key-session/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.KeySessionRequest)
+            }
+            public var body: Operations.OpenKeySession.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.OpenKeySession.Input.Headers = .init(),
+                body: Operations.OpenKeySession.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/key-session/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/key-session/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.HouseholdKeyStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HouseholdKeyStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.OpenKeySession.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.OpenKeySession.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Unlocked; the new key posture
+            ///
+            /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.OpenKeySession.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.OpenKeySession.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/key-session/post(openKeySession)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Unlock the household with its recovery key (fresh hardware / lost passwords)
+    ///
+    /// The recovery key's real job. Unwraps the recovery copy of the data key, validates it against the canary, opens the session keyring — and, for a convenient-mode household restored onto new hardware (stale box wrap), re-mints the box wrap under the current master key.
+    ///
+    /// - Remark: HTTP `POST /household/recovery-unlock`.
+    /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)`.
+    public enum UnlockWithRecoveryKey {
+        public static let id: Swift.String = "unlockWithRecoveryKey"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/recovery-unlock/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnlockWithRecoveryKey.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UnlockWithRecoveryKey.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UnlockWithRecoveryKey.Input.Headers
+            /// - Remark: Generated from `#/paths/household/recovery-unlock/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/recovery-unlock/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.RecoveryUnlockRequest)
+            }
+            public var body: Operations.UnlockWithRecoveryKey.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.UnlockWithRecoveryKey.Input.Headers = .init(),
+                body: Operations.UnlockWithRecoveryKey.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/recovery-unlock/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/recovery-unlock/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.HouseholdKeyStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HouseholdKeyStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UnlockWithRecoveryKey.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UnlockWithRecoveryKey.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Unlocked (and healed, when applicable)
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UnlockWithRecoveryKey.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UnlockWithRecoveryKey.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/recovery-unlock/post(unlockWithRecoveryKey)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Components.Responses._Error)

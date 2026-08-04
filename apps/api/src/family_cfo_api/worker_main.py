@@ -21,6 +21,7 @@ from family_cfo_api import (
     import_processing,
     net_worth_history,
     report_generation,
+    repository,
     vector_indexing,
 )
 from family_cfo_api.config import get_settings
@@ -36,6 +37,9 @@ BACKUP_INTERVAL_SECONDS = 300
 # provider call is gated by banksync.SCHEDULED_SYNC_INTERVAL (~once/day), so
 # SimpleFIN is hit ≈ once/day — never the ~288/day the old 5-minute poll caused.
 BANK_SYNC_POLL_INTERVAL_SECONDS = 3600
+# Issue #48/#3: sweep dead auth sessions and long-revoked devices. Cheap and
+# idempotent; the retention windows (settings) decide what is actually old.
+PRUNE_INTERVAL_SECONDS = 6 * 3600
 # ADR 0040: study one complete month per tick while the advisor is idle. The
 # tick itself yields when a chat happened in the last STUDY_QUIET_MINUTES, so a
 # short interval costs nothing when the family is using the advisor.
@@ -48,18 +52,44 @@ def main() -> None:
     engine = create_database_engine(settings.database_url)
     logger = logging.getLogger(__name__)
 
+    def sealed_aware(job):
+        """ADR 0072 Phase 3: a sealed household with no live session key can't
+        be read or written — its background work waits for the next sign-in
+        (which reopens the keyring) instead of crashing the tick."""
+        from functools import wraps
+
+        from family_cfo_api import household_crypto
+
+        @wraps(job)
+        def guarded() -> None:
+            try:
+                job()
+            except household_crypto.HouseholdLockedError as exc:
+                logger.info(
+                    "job %s deferred: household %s is sealed and locked",
+                    job.__name__,
+                    exc.household_id,
+                )
+
+        return guarded
+
+    @sealed_aware
     def process_pending_imports() -> None:
         import_processing.run_pending_imports_once(engine, settings.import_staging_dir)
 
+    @sealed_aware
     def generate_weekly_reports() -> None:
         report_generation.run_scheduled_reports_once(engine, "weekly")
 
+    @sealed_aware
     def generate_monthly_reports() -> None:
         report_generation.run_scheduled_reports_once(engine, "monthly")
 
+    @sealed_aware
     def generate_annual_reports() -> None:
         report_generation.run_scheduled_reports_once(engine, "annual")
 
+    @sealed_aware
     def sync_bank_connections() -> None:
         # M27: pull statements from every linked institution, deduped (ADR 0015).
         # M107 (ADR 0019): syncs each connection at most once a day — SimpleFIN only
@@ -73,14 +103,17 @@ def main() -> None:
         for household_id in households:
             finance_service.autofile_all(engine, household_id)
 
+    @sealed_aware
     def capture_net_worth_snapshot() -> None:
         # M40: one snapshot per household per day for the Overview trend.
         net_worth_history.record_snapshot_once(engine)
 
+    @sealed_aware
     def rebuild_vector_index() -> None:
         # M69: daily wipe-and-rebuild prunes vectors of deleted rows.
         vector_indexing.run_indexing_once(engine, settings, wipe=True)
 
+    @sealed_aware
     def run_study_tick() -> None:
         # ADR 0040: distill one month of history into advisor memories while idle.
         ai_study.run_study_tick(engine, settings)
@@ -90,6 +123,24 @@ def main() -> None:
         # has elapsed. The logic lives in backup_processing so it's importable and
         # unit-tested (M108/ADR 0019) rather than a bare closure.
         backup_processing.run_due_backups(engine, settings)
+
+    def prune_stale_auth_state() -> None:
+        # Issue #48/#3: sweep dead auth sessions and long-revoked devices so
+        # they stop growing without bound. Retention windows come from settings.
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        sessions = devices = 0
+        if settings.auth_session_retention_days > 0:
+            sessions = repository.prune_dead_auth_sessions(
+                engine, older_than=now - timedelta(days=settings.auth_session_retention_days)
+            )
+        if settings.revoked_device_retention_days > 0:
+            devices = repository.prune_revoked_devices(
+                engine, older_than=now - timedelta(days=settings.revoked_device_retention_days)
+            )
+        if sessions or devices:
+            logger.info("pruned auth state sessions=%s devices=%s", sessions, devices)
 
     scheduler = Scheduler()
     scheduler.add_job(
@@ -146,6 +197,13 @@ def main() -> None:
             name="rebuild-vector-index",
             func=rebuild_vector_index,
             interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+        )
+    )
+    scheduler.add_job(
+        Job(
+            name="prune-stale-auth-state",
+            func=prune_stale_auth_state,
+            interval_seconds=PRUNE_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(

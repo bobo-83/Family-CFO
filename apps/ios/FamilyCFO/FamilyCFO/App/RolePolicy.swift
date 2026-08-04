@@ -57,6 +57,8 @@ struct RolePolicy: Equatable {
     var canManageAccounts: Bool { has("accounts.manage") }
     var canViewActivity: Bool { has("audit.view") }
     var canManageBackups: Bool { has("backups.manage") }
+    /// Revoke paired devices — listing them takes only membership.
+    var canManageDevices: Bool { has("devices.manage") }
     var canManageMembers: Bool { has("members.manage") }
     var canManageAiRuntime: Bool { has("ai_runtime.manage") }
     /// ADR 0065: box-level roster management — granted only to system admins,

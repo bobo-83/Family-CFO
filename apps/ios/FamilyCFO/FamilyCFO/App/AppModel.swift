@@ -80,7 +80,10 @@ final class AppModel {
         return APIClientFactory.makeClient(
             baseURL: server.apiBaseURL,
             pinnedCertificateSHA256: server.certificateSHA256,
-            token: { token }
+            token: { token },
+            // ADR 0072 Phase 3: lets a sealed household's 423 answer trigger
+            // one device unwrap-and-unlock before the request is replayed.
+            devicePrivateKey: { KeychainStore.load(account: "device-private-key") }
         )
     }
 
@@ -151,6 +154,11 @@ final class AppModel {
     /// The Activity/History log with durable undo (M101).
     var activity: ActivityAPI? {
         client.map { LiveActivityAPI(client: $0) }
+    }
+
+    /// Paired-device roster (ADR 0025 parity with the dashboard's Devices page).
+    var devices: DevicesAPI? {
+        client.map { LiveDevicesAPI(client: $0) }
     }
 
     /// Advisor study coverage — what the AI has learned from the history (ADR 0040).
@@ -244,7 +252,7 @@ final class AppModel {
     }
 
     /// Forgets the pairing locally. Revoking the credential server-side
-    /// happens on the dashboard's Devices page (owner-only).
+    /// happens on the Devices screen (in-app or dashboard, devices.manage).
     func unpair() {
         PhoneWatchBridge.shared.push(server: nil, credential: nil)
         KeychainStore.delete(account: Self.credentialAccount)

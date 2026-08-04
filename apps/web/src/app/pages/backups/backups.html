@@ -149,8 +149,81 @@
             </button>
           </div>
         }
+
+        @if (status.mode; as mode) {
+          <h3 class="backups-step">Privacy mode</h3>
+          @if (mode === 'sealed') {
+            <p class="backups-note">
+              <strong>Sealed</strong> — Only your passwords, your phones, and your recovery key can
+              open your data. After a restart, nothing is readable until someone signs in — and
+              overnight work waits for you.
+            </p>
+            @if (status.unlocked === false) {
+              <p class="backups-caption">Locked — sign in again to unlock</p>
+              <ng-container [ngTemplateOutlet]="recoveryUnlock" />
+            }
+            <div class="backups-actions">
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setSealMode('convenient')">
+                Switch back to convenient…
+              </button>
+            </div>
+          } @else {
+            <p class="backups-note">
+              <strong>Convenient</strong> — The box keeps a spare of your data key: overnight sync,
+              snapshots, and idle study keep working. Your content is protected against stolen disks
+              and backups — the box itself can still read it.
+            </p>
+            @if (status.unlocked === false) {
+              <!-- A convenient household restored without its master key is locked
+                   too (stale box wrap) — same rescue; the unlock also heals the wrap. -->
+              <ng-container [ngTemplateOutlet]="recoveryUnlock" />
+            }
+            <div class="backups-actions">
+              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setSealMode('sealed')">
+                Seal this household…
+              </button>
+            </div>
+          }
+        } @else if (status.unlocked === false) {
+          <ng-container [ngTemplateOutlet]="recoveryUnlock" />
+        }
       }
     }
+
+    <!-- "Unlock with recovery key…" — the rescue for a locked household. The
+         entered key is only held in memory and sent once, trimmed. -->
+    <ng-template #recoveryUnlock>
+      @if (showRecoveryUnlock()) {
+        <div class="backups-actions">
+          <mat-form-field appearance="outline" class="backups-unlock-field">
+            <mat-label>Recovery key</mat-label>
+            <input
+              matInput
+              type="text"
+              [ngModel]="recoveryUnlockInput()"
+              (ngModelChange)="recoveryUnlockInput.set($event)"
+              placeholder="FCFO-…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </mat-form-field>
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="busy() || !recoveryUnlockInput().trim()"
+            (click)="unlockWithRecoveryKey()"
+          >
+            Unlock
+          </button>
+        </div>
+      } @else {
+        <div class="backups-actions">
+          <button mat-stroked-button type="button" (click)="showRecoveryUnlock.set(true)">
+            Unlock with recovery key…
+          </button>
+        </div>
+      }
+    </ng-template>
     </mat-card-content>
   </mat-card>
 

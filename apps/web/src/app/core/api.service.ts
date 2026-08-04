@@ -15,6 +15,8 @@ import {
   getHouseholdKeyStatus,
   listRemoteBackups,
   restoreRemoteBackup,
+  setSealMode,
+  unlockWithRecoveryKey,
   updateBackupConfig,
   type BackupConfigUpdateRequest,
   type BackupDestinationCheckRequest,
@@ -202,6 +204,18 @@ export class ApiService {
 
   generateRecoveryKey() {
     return generateRecoveryKey();
+  }
+
+  // ADR 0072 Phase 3: convenient ↔ sealed privacy mode.
+  setSealMode(mode: 'convenient' | 'sealed') {
+    return setSealMode({ body: { mode } });
+  }
+
+  // Rescue for a locked household: the recovery key unlocks the session
+  // keyring (and silently heals a stale box wrap after a fresh-hardware
+  // restore). 400 carries a human message when the key doesn't match.
+  unlockWithRecoveryKey(recoveryKey: string) {
+    return unlockWithRecoveryKey({ body: { recovery_key: recoveryKey } });
   }
 
   // --- Advisor chat ---

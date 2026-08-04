@@ -72,6 +72,9 @@ class SessionInfo(BaseModel):
     role_name: str | None = None
     rights: list[str]
     is_system_admin: bool
+    # The paired device backing this session (None for web/password sessions) —
+    # lets a client mark "this device" and refuse to revoke the one in hand.
+    device_id: str | None = None
 
 
 class AuthSessionCreateRequest(BaseModel):
@@ -1481,14 +1484,44 @@ class RemoteRestoreRequest(BaseModel):
 
 
 class HouseholdKeyStatus(BaseModel):
-    """ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
-    The UI uses this to nudge for a recovery key (especially after rotation)."""
+    """ADR 0072: which unwrap paths exist for the household's data key, its
+    mode, and whether it is unlocked right now (Phase 3)."""
 
     encryption_enabled: bool
     member_wraps: int
     device_wraps: int
     has_recovery_key: bool
     recovery_key_created_at: datetime | None = None
+    # "convenient": the box also holds a wrap (unattended jobs work; sealed
+    # against offline artifacts). "sealed": member/device/recovery keys are the
+    # ONLY ways in; background work waits for a live session.
+    mode: Literal["convenient", "sealed"] = "convenient"
+    unlocked: bool = True
+
+
+class SealModeRequest(BaseModel):
+    mode: Literal["convenient", "sealed"]
+
+
+class DeviceWrap(BaseModel):
+    """The calling device's ECIES wrap of the household data key — the device
+    unwraps it locally with its pairing private key and posts a key session."""
+
+    wrap_json: str
+
+
+class KeySessionRequest(BaseModel):
+    """An unwrapped data key posted by a paired device to unlock a sealed
+    household (validated against the stored canary before it is trusted)."""
+
+    dek: str  # urlsafe base64, as unwrapped from the device wrap
+
+
+class RecoveryUnlockRequest(BaseModel):
+    """Unlock with the household recovery key — the fresh-hardware and
+    lost-passwords path. Heals a stale box wrap for convenient households."""
+
+    recovery_key: str = Field(min_length=8, max_length=200)
 
 
 class RecoveryKey(BaseModel):

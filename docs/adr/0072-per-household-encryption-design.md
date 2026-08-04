@@ -187,3 +187,27 @@ where decryption slots in.
   twice — once with no master key (legacy passthrough) and once with
   `FAMILY_CFO_MASTER_KEY` forced, which makes every existing test
   exercise the decrypt seams.
+
+## Implementation note — Phase 3 (shipped 2026-08-04)
+
+- `households.sealed_mode` + nullable `household_keys.wrapped_dek`
+  (migration 0079): sealed = no box wrap. The DEK lives in an in-memory
+  session keyring with a 30-minute sliding TTL, opened by a proven member
+  password (login), a device key-session (the phone unwraps its ECIES wrap
+  locally and posts the key), or — operationally — the recovery key.
+- A stored canary (rows-subkey ciphertext of a fixed plaintext) validates
+  every posted or unwrapped key before it is trusted, so a wrong key can
+  never silently poison new writes.
+- Sealing preconditions: at least one member wrap AND a recovery key. The
+  sealing session keeps its key; a box restart locks the household until
+  the next sign-in. Locked reads/writes surface as HTTP 423
+  (`household_locked`); worker jobs defer their tick for locked households
+  instead of crashing. Whole-box backups keep running — the dump carries
+  the sealed household's ciphertext, which is the point.
+- Deviation from the sketch: no durable background-work queue — every
+  worker job already polls on minutes-scale intervals, so "queue and drain
+  on next session" reduces to "the next poll tick after an unlock runs the
+  work". Revisit if a job ever becomes event-driven.
+- The recovery key currently unlocks via operational tooling (unwrap +
+  key-session), not a self-serve UI flow — deliberate: recovery is rare
+  and high-stakes; a guided flow is future work if hosting demands it.
