@@ -21,6 +21,9 @@ x-api-env: &api-env
   FAMILY_CFO_BACKUP_DIR: /data/backups
   FAMILY_CFO_BACKUP_RETENTION_COUNT: ${FAMILY_CFO_BACKUP_RETENTION_COUNT:-7}
   FAMILY_CFO_BACKUP_ENCRYPTION_KEY: ${FAMILY_CFO_BACKUP_ENCRYPTION_KEY:-}
+  # ADR 0072: wraps each household's data key; content columns are sealed
+  # under it. Empty = per-household encryption off.
+  FAMILY_CFO_MASTER_KEY: ${FAMILY_CFO_MASTER_KEY:-}
   FAMILY_CFO_LOG_LEVEL: ${FAMILY_CFO_LOG_LEVEL:-INFO}
   FAMILY_CFO_TLS_CERT_PATH: /etc/family-cfo/certs/tls.crt
   # AI runtime on by default; households inherit this until they save their own

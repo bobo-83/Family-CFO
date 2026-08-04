@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
-from family_cfo_api import models
+from family_cfo_api import household_crypto, models
 
 
 def new_id() -> str:
@@ -1812,6 +1812,7 @@ def create_recommendation(
     answer_ms: int | None = None,
 ) -> str:
     recommendation_id = new_id()
+    answer = household_crypto.encrypt_text(engine, household_id, answer)
     with engine.begin() as conn:
         conn.execute(
             insert(models.recommendations).values(
@@ -2565,13 +2566,24 @@ def create_document_extraction(
 ) -> DocumentExtractionRecord:
     extraction_id = new_id()
     now = utcnow()
+    with engine.connect() as conn:
+        household_row = conn.execute(
+            select(models.documents.c.household_id).where(
+                models.documents.c.id == document_id
+            )
+        ).first()
+    stored_text = (
+        household_crypto.encrypt_text(engine, household_row[0], text)
+        if household_row is not None
+        else text
+    )
     with engine.begin() as conn:
         conn.execute(
             insert(models.document_extractions).values(
                 id=extraction_id,
                 document_id=document_id,
                 extraction_type=extraction_type,
-                text=text,
+                text=stored_text,
                 structured_fields_json=structured_fields,
                 confidence=confidence,
                 warnings_json=warnings,
@@ -2637,7 +2649,7 @@ def list_documents_with_extractions(
                 id=row["extraction_id"],
                 document_id=row["document_id"],
                 extraction_type=row["extraction_type"],
-                text=row["text"],
+                text=household_crypto.decrypt_text(engine, row["household_id"], row["text"]),
                 structured_fields=row["structured_fields_json"],
                 confidence=row["confidence"],
                 warnings=row["warnings_json"],
@@ -4797,12 +4809,18 @@ def list_conversation_messages(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
+        household_row = conn.execute(
+            select(models.conversations.c.household_id).where(
+                models.conversations.c.id == conversation_id
+            )
+        ).first()
+    household_id = household_row[0] if household_row is not None else ""
     return [
         ConversationMessageRecord(
             id=row["id"],
             conversation_id=row["conversation_id"],
             role=row["role"],
-            content=row["content"],
+            content=household_crypto.decrypt_text(engine, household_id, row["content"]),
             recommendation_id=row["recommendation_id"],
             sequence=row["sequence"],
             created_at=row["created_at"],
@@ -4819,6 +4837,18 @@ def append_conversation_turn(
     recommendation_id: str,
 ) -> None:
     """Append a user message and its assistant answer as one atomic turn."""
+    household_row = None
+    with engine.connect() as conn:
+        household_row = conn.execute(
+            select(models.conversations.c.household_id).where(
+                models.conversations.c.id == conversation_id
+            )
+        ).first()
+    if household_row is not None:
+        user_content = household_crypto.encrypt_text(engine, household_row[0], user_content)
+        assistant_content = household_crypto.encrypt_text(
+            engine, household_row[0], assistant_content
+        )
     now = utcnow()
     with engine.begin() as conn:
         next_sequence = conn.execute(
@@ -5557,12 +5587,12 @@ class HouseholdMemoryRecord:
     updated_at: datetime
 
 
-def _memory_from_row(row: Any) -> HouseholdMemoryRecord:
+def _memory_from_row(row: Any, engine: Engine) -> HouseholdMemoryRecord:
     return HouseholdMemoryRecord(
         id=row["id"],
         household_id=row["household_id"],
         key=row["key"],
-        value=row["value"],
+        value=household_crypto.decrypt_text(engine, row["household_id"], row["value"]),
         source=row["source"],
         source_conversation_id=row["source_conversation_id"],
         created_at=row["created_at"],
@@ -5582,7 +5612,7 @@ def list_household_memories(engine: Engine, household_id: str) -> list[Household
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [_memory_from_row(row) for row in rows]
+    return [_memory_from_row(row, engine) for row in rows]
 
 
 def upsert_household_memory(
@@ -5599,7 +5629,7 @@ def upsert_household_memory(
     Stable keys are the dedupe mechanism: "we eat out 5 times a week now"
     updates eating_out_frequency instead of piling up contradictions.
     """
-    value = value[:MEMORY_VALUE_MAX_LENGTH]
+    value = household_crypto.encrypt_text(engine, household_id, value[:MEMORY_VALUE_MAX_LENGTH])
     now = utcnow()
     with engine.begin() as conn:
         existing = conn.execute(
@@ -5643,7 +5673,7 @@ def upsert_household_memory(
             .mappings()
             .one()
         )
-    return _memory_from_row(row)
+    return _memory_from_row(row, engine)
 
 
 # --- ADR 0040: idle-time study of the transaction history ---------------------
@@ -5748,7 +5778,7 @@ def list_study_insights(engine: Engine, household_id: str) -> list[HouseholdMemo
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
-    return [_memory_from_row(row) for row in rows]
+    return [_memory_from_row(row, engine) for row in rows]
 
 
 # --- ADR 0044: advisor answer feedback --------------------------------------
@@ -5785,6 +5815,7 @@ def upsert_advisor_feedback(
 ) -> None:
     """Record a member's rating of an advisor answer, or update their existing
     one. Re-rating resets `reviewed` so the study job takes another look."""
+    note = household_crypto.encrypt_text(engine, household_id, note)
     now = utcnow()
     with engine.begin() as conn:
         existing = conn.execute(
@@ -5843,8 +5874,8 @@ def list_unreviewed_feedback(
             household_id=row["household_id"],
             recommendation_id=row["recommendation_id"],
             rating=row["rating"],
-            note=row["note"],
-            answer=row["answer"],
+            note=household_crypto.decrypt_text(engine, row["household_id"], row["note"]),
+            answer=household_crypto.decrypt_text(engine, row["household_id"], row["answer"]),
         )
         for row in rows
     ]

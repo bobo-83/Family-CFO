@@ -1,0 +1,165 @@
+"""ADR 0072 Phase 1: per-household envelope encryption of content columns.
+
+The DEK is wrapped by the box master key; chats, advisor answers, memories,
+feedback notes, and document text are stored as enc1: tokens. Reads return
+plaintext transparently; the raw database file must NOT contain the words.
+"""
+
+from sqlalchemy import select, text as sql_text
+
+import pytest
+from family_cfo_api import household_crypto, models, repository
+from cryptography.fernet import Fernet
+
+from family_cfo_api.config import get_settings
+
+
+@pytest.fixture
+def _master_key(monkeypatch):
+    # Generated per test run — nothing key-shaped is ever committed.
+    monkeypatch.setenv("FAMILY_CFO_MASTER_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+    yield
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+
+
+def test_passthrough_when_disabled(demo_engine) -> None:
+    household_crypto.reset_cache_for_tests()
+    get_settings.cache_clear()
+    hh = repository.list_households(demo_engine)[0]
+    assert household_crypto.encrypt_text(demo_engine, hh, "plain words") == "plain words"
+    assert household_crypto.decrypt_text(demo_engine, hh, "plain words") == "plain words"
+
+
+def test_round_trip_and_ciphertext_at_rest(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    stored = household_crypto.encrypt_text(demo_engine, hh, "we eat out five times a week")
+    assert stored.startswith(household_crypto.ENC_PREFIX)
+    assert "eat out" not in stored
+    assert (
+        household_crypto.decrypt_text(demo_engine, hh, stored)
+        == "we eat out five times a week"
+    )
+    # A DEK row was created, wrapped (not raw) in the database.
+    with demo_engine.connect() as conn:
+        wrapped = conn.execute(select(models.household_keys.c.wrapped_dek)).scalar_one()
+    assert household_crypto.ENC_PREFIX not in wrapped  # it's a Fernet token, not enc1:
+    assert len(wrapped) > 60
+
+
+def test_cross_household_keys_do_not_decrypt(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    stored = household_crypto.encrypt_text(demo_engine, hh, "private to household A")
+    other = household_crypto.decrypt_text(demo_engine, "other-household-id", stored)
+    assert other == "[encrypted — key mismatch]"
+
+
+def test_legacy_plaintext_reads_through(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    assert (
+        household_crypto.decrypt_text(demo_engine, hh, "pre-encryption row")
+        == "pre-encryption row"
+    )
+
+
+def test_memory_and_recommendation_rows_are_sealed(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+
+    repository.upsert_household_memory(
+        demo_engine, hh, "eating_out_frequency", "five times a week", source="chat"
+    )
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "five times a week" for m in memories)
+
+    rec_id = repository.create_recommendation(
+        demo_engine,
+        hh,
+        None,
+        "Skip the beach house this year.",
+        [],
+        [],
+        [],
+        [],
+        0.9,
+        [],
+        [],
+        "llm",
+    )
+    assert rec_id
+
+    # The raw stored values are ciphertext — a dump of these tables leaks nothing.
+    with demo_engine.connect() as conn:
+        raw_memory = conn.execute(
+            sql_text("select value from household_memories where key = 'eating_out_frequency'")
+        ).scalar_one()
+        raw_answer = conn.execute(
+            sql_text("select answer from recommendations where id = :i"), {"i": rec_id}
+        ).scalar_one()
+    assert raw_memory.startswith(household_crypto.ENC_PREFIX)
+    assert "five times" not in raw_memory
+    assert raw_answer.startswith(household_crypto.ENC_PREFIX)
+    assert "beach house" not in raw_answer
+
+
+def test_conversation_turns_are_sealed_and_read_back(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    user_id = repository.list_members(demo_engine, hh)[0].user_id
+    conversation = repository.create_conversation(demo_engine, hh, user_id, "Money chat")
+    rec_id = repository.create_recommendation(
+        demo_engine, hh, None, "answer", [], [], [], [], 0.9, [], [], "llm"
+    )
+    repository.append_conversation_turn(
+        demo_engine, conversation.id, "can we afford a puppy", "yes, comfortably", rec_id
+    )
+
+    messages = repository.list_conversation_messages(demo_engine, conversation.id)
+    assert [m.content for m in messages] == ["can we afford a puppy", "yes, comfortably"]
+
+    with demo_engine.connect() as conn:
+        raw = [
+            row[0]
+            for row in conn.execute(
+                sql_text(
+                    "select content from conversation_messages where conversation_id = :c"
+                ),
+                {"c": conversation.id},
+            )
+        ]
+    assert all(value.startswith(household_crypto.ENC_PREFIX) for value in raw)
+    assert all("puppy" not in value for value in raw)
+
+
+def test_encrypt_existing_command_seals_legacy_rows(_master_key, demo_engine) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    # A legacy plaintext row, as if written before the feature shipped.
+    with demo_engine.begin() as conn:
+        conn.execute(
+            sql_text(
+                "insert into household_memories"
+                " (id, household_id, key, value, source, created_at, updated_at)"
+                " values ('legacy-1', :h, 'legacy_key', 'legacy plain value', 'chat',"
+                " CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ),
+            {"h": hh},
+        )
+
+    from family_cfo_api.tools import encrypt_existing
+
+    changed = encrypt_existing._encrypt_table(
+        demo_engine,
+        models.household_memories,
+        models.household_memories.c.id,
+        ["value"],
+        lambda row: row["household_id"],
+    )
+    assert changed >= 1
+
+    with demo_engine.connect() as conn:
+        raw = conn.execute(
+            sql_text("select value from household_memories where id = 'legacy-1'")
+        ).scalar_one()
+    assert raw.startswith(household_crypto.ENC_PREFIX)
+    memories = repository.list_household_memories(demo_engine, hh)
+    assert any(m.value == "legacy plain value" for m in memories)

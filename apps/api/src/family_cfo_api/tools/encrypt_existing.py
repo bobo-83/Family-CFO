@@ -1,0 +1,106 @@
+"""One-shot re-encryption of pre-ADR-0072 plaintext content rows.
+
+Run once after enabling FAMILY_CFO_MASTER_KEY:
+
+    python -m family_cfo_api.tools.encrypt_existing
+
+Idempotent: rows already carrying the enc1: prefix are skipped, so an
+interrupted run just resumes. Prints a per-table count.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import create_engine, select, update
+
+from family_cfo_api import household_crypto, models
+from family_cfo_api.config import get_settings
+
+
+def _encrypt_table(engine, table, id_col, text_cols, household_of) -> int:
+    changed = 0
+    with engine.connect() as conn:
+        rows = conn.execute(select(table)).mappings().all()
+    for row in rows:
+        household_id = household_of(row)
+        if household_id is None:
+            continue
+        values = {}
+        for col in text_cols:
+            value = row[col]
+            if value is None or value.startswith(household_crypto.ENC_PREFIX):
+                continue
+            values[col] = household_crypto.encrypt_text(engine, household_id, value)
+        if not values:
+            continue
+        with engine.begin() as conn:
+            conn.execute(update(table).where(id_col == row["id"]).values(**values))
+        changed += 1
+    return changed
+
+
+def main() -> int:
+    settings = get_settings()
+    if not settings.master_key:
+        print("FAMILY_CFO_MASTER_KEY is not set — nothing to do.")
+        return 1
+    engine = create_engine(settings.database_url, future=True)
+
+    with engine.connect() as conn:
+        conversation_households = {
+            row[0]: row[1]
+            for row in conn.execute(
+                select(models.conversations.c.id, models.conversations.c.household_id)
+            )
+        }
+        document_households = {
+            row[0]: row[1]
+            for row in conn.execute(
+                select(models.documents.c.id, models.documents.c.household_id)
+            )
+        }
+
+    plan = [
+        (
+            "conversation_messages",
+            models.conversation_messages,
+            models.conversation_messages.c.id,
+            ["content"],
+            lambda row: conversation_households.get(row["conversation_id"]),
+        ),
+        (
+            "recommendations",
+            models.recommendations,
+            models.recommendations.c.id,
+            ["answer"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "household_memories",
+            models.household_memories,
+            models.household_memories.c.id,
+            ["value"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "advisor_feedback",
+            models.advisor_feedback,
+            models.advisor_feedback.c.id,
+            ["note"],
+            lambda row: row["household_id"],
+        ),
+        (
+            "document_extractions",
+            models.document_extractions,
+            models.document_extractions.c.id,
+            ["text"],
+            lambda row: document_households.get(row["document_id"]),
+        ),
+    ]
+    for name, table, id_col, cols, household_of in plan:
+        changed = _encrypt_table(engine, table, id_col, cols, household_of)
+        print(f"{name}: {changed} rows encrypted")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

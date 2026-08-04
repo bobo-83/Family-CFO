@@ -849,6 +849,18 @@ bill_suggestion_dismissals = Table(
 # M57 (ADR 0016): durable facts the advisor learned from chat ("home_city",
 # "kids_count", ...). source_conversation_id deliberately has NO foreign key:
 # a memory must survive the deletion of the conversation it was learned from.
+# ADR 0072: each household's data key, stored only wrapped by the box master
+# key. Content columns are encrypted under subkeys derived from the DEK.
+household_keys = Table(
+    "household_keys",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False, unique=True),
+    Column("wrapped_dek", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+
 household_memories = Table(
     "household_memories",
     metadata,

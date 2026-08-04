@@ -1,8 +1,8 @@
 # 0072 — Per-household encryption: key hierarchy and phased design
 
 Date: 2026-08-03
-Status: Proposed (implements issue #155; supersedes the deferral in ADR 0070
-when accepted)
+Status: Accepted 2026-08-03 (implements issue #155; supersedes the deferral
+in ADR 0070). Phase 1 shipped 2026-08-03 — see implementation note below.
 
 ## Context
 
@@ -143,3 +143,23 @@ where decryption slots in.
   guard.
 - Operator honesty becomes a product surface: mode claims appear in UI copy
   and docs, and are enforced by review against the ADR 0070 invariant.
+
+## Implementation note — Phase 1 (shipped 2026-08-03)
+
+- `household_keys` (migration 0076): per-household DEK, stored only wrapped
+  by `FAMILY_CFO_MASTER_KEY` (environment, never the database). Content is
+  encrypted under an HKDF-derived `rows` subkey; values carry an `enc1:`
+  prefix and legacy plaintext reads through until
+  `python -m family_cfo_api.tools.encrypt_existing` seals it.
+- Columns sealed in Phase 1: conversation messages, recommendation answers,
+  household memories, advisor feedback notes, document extraction text —
+  the personal-content columns with no SQL-side filtering.
+- **Correction to the design**: "per-household backup subkeys" assumed
+  per-household archives, but backups are whole-database dumps. Column
+  encryption achieves the intended property directly — the dump inside any
+  backup now carries ciphertext for household content, so no backup key is
+  a content skeleton key. Per-household archive keys return in Phase 2/3 if
+  backups become per-household exports.
+- Not yet sealed (needs the aggregation refactor): transaction
+  merchants/descriptions/amounts, account names, bill/income/goal names.
+  That is the remainder of Phase 1, tracked in issue #155.

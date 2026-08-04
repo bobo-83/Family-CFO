@@ -47,6 +47,9 @@ class Settings:
     backup_dir: str = DEFAULT_BACKUP_DIR
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
     backup_encryption_key: str | None = None
+    # ADR 0072: box master key wrapping each household's data key. Empty = the
+    # per-household envelope encryption is off (dev/test default).
+    master_key: str = ""
     session_ttl_hours: int = 12
     # Default AI runtime for households that have not configured their own. The
     # deployed Docker stack sets these so the agentic advisor is on out of the
@@ -128,6 +131,7 @@ class Settings:
             backup_retention_count=int(
                 os.getenv("FAMILY_CFO_BACKUP_RETENTION_COUNT", str(cls.backup_retention_count))
             ),
+            master_key=os.getenv("FAMILY_CFO_MASTER_KEY", cls.master_key),
             backup_encryption_key=os.getenv(
                 "FAMILY_CFO_BACKUP_ENCRYPTION_KEY", cls.backup_encryption_key
             ),
