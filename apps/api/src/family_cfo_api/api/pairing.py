@@ -61,7 +61,7 @@ def certificate_fingerprint(cert_path: str) -> str | None:
     except OSError:
         return None
     match = re.search(
-        r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", pem, re.S
+        r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", pem, re.DOTALL
     )
     if match is None:
         return None

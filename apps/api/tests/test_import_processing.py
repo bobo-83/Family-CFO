@@ -230,8 +230,9 @@ def test_reimporting_the_same_statement_is_idempotent(demo_engine: Engine) -> No
     """Re-uploading the same loan statement updates the one account it's tied to —
     it never creates a second account, and it doesn't pile up duplicate balance
     rows (ADR 0033)."""
-    from family_cfo_api import models
     from sqlalchemy import func, select
+
+    from family_cfo_api import models
 
     def _account_count() -> int:
         with demo_engine.connect() as conn:

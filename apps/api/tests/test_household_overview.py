@@ -258,6 +258,7 @@ async def test_no_goal_keeps_months_based_behavior(
     # Remove the fixture's seeded emergency-fund goal: this test is the
     # no-goal baseline.
     from sqlalchemy import delete
+
     from family_cfo_api import models
     with demo_engine.begin() as conn:
         conn.execute(delete(models.goals).where(models.goals.c.household_id == hh))

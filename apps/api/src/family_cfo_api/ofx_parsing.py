@@ -14,11 +14,11 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-_STMTTRN = re.compile(r"<STMTTRN>(.*?)(?:</STMTTRN>|(?=<STMTTRN>)|\Z)", re.S | re.I)
+_STMTTRN = re.compile(r"<STMTTRN>(.*?)(?:</STMTTRN>|(?=<STMTTRN>)|\Z)", re.DOTALL | re.IGNORECASE)
 
 
 def _tag(block: str, name: str) -> str | None:
-    match = re.search(rf"<{name}>\s*([^<\r\n]+)", block, re.I)
+    match = re.search(rf"<{name}>\s*([^<\r\n]+)", block, re.IGNORECASE)
     return match.group(1).strip() if match else None
 
 

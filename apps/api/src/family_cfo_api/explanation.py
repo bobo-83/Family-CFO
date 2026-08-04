@@ -64,8 +64,8 @@ class DeterministicExplanationAdapter:
 
     def explain_purchase(self, context: PurchaseExplanationContext) -> ExplanationResult:
         sentences = [
-            f"Buying {context.item} for {format_money(context.price)} would leave "
-            f"your net worth at {format_money(context.net_worth_after)}."
+            (f"Buying {context.item} for {format_money(context.price)} would leave "
+            f"your net worth at {format_money(context.net_worth_after)}.")
         ]
 
         if (
@@ -91,8 +91,8 @@ class DeterministicExplanationAdapter:
 
     def explain_report(self, context: ReportExplanationContext) -> ExplanationResult:
         sentences = [
-            f"Your {context.report_type} report for {context.period_start} to {context.period_end} "
-            f"shows a net cash flow of {format_money(context.net_cash_flow)}."
+            (f"Your {context.report_type} report for {context.period_start} to {context.period_end} "
+            f"shows a net cash flow of {format_money(context.net_cash_flow)}.")
         ]
 
         if context.wins:

@@ -1,11 +1,11 @@
 from datetime import date
 
+from family_cfo_financial_engine import Money
 from sqlalchemy import insert
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import fixtures, models, report_generation, repository
 from family_cfo_api.explanation import DeterministicExplanationAdapter
-from family_cfo_financial_engine import Money
 
 # A reference date far from any real "today" the test suite might run on, so the
 # demo fixtures' own today-dated seed transactions never leak into these periods.

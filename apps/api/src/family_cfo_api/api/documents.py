@@ -4,9 +4,9 @@ import logging
 import os
 
 from family_cfo_ocr_worker import (
-    default_ocr_adapter,
     ExtractionResult,
     PdfTextExtractionAdapter,
+    default_ocr_adapter,
 )
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.engine import Engine
@@ -105,7 +105,7 @@ async def create_document(
     storage_path = f"{document_id}/{safe_filename}"
     full_path = os.path.join(settings.import_staging_dir, "documents", storage_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, "wb") as staged_file:
+    with open(full_path, "wb") as staged_file:  # noqa: ASYNC230 — tiny local write; not worth an async file dependency
         staged_file.write(content)
 
     document = repository.create_document(

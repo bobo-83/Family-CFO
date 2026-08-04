@@ -21,9 +21,8 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from sqlalchemy.engine import Engine
-
 from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
 from family_cfo_api.ai_memory import parse_extracted_memories
@@ -260,7 +259,7 @@ def run_study_tick(engine: Engine, settings: Settings | None = None) -> None:
                 runtime.close()
         except RuntimeUnavailableError:
             logger.info("study skipped: runtime unavailable household_id=%s", household_id)
-        except Exception:  # noqa: BLE001 — background study must never break the worker
+        except Exception:
             logger.exception("study tick failed household_id=%s", household_id)
 
 

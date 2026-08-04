@@ -1,18 +1,17 @@
 from typing import Any
 
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-import uvicorn
-
 from sqlalchemy.engine import Engine
 
+from family_cfo_api import household_crypto
 from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
 from family_cfo_api.ratelimit import AuthRateLimiter
-from family_cfo_api import household_crypto
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
 

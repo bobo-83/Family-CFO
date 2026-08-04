@@ -8,19 +8,28 @@ attached — not an AI guess.
 """
 
 from datetime import date, timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.engine import Engine
 from statistics import median
 
 from family_cfo_financial_engine import (
     FILING_STATUSES,
-    Money as EngineMoney,
     estimate_annual_tax,
     gross_up_from_net,
 )
+from family_cfo_financial_engine import (
+    Money as EngineMoney,
+)
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, income_detection, repository, rights, rsu_service, undo_actions
+from family_cfo_api import (
+    audit,
+    finance_service,
+    income_detection,
+    repository,
+    rights,
+    rsu_service,
+    undo_actions,
+)
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.finance_service import add_months
 from family_cfo_api.schemas import (
@@ -70,8 +79,7 @@ def _txn_item(
 
 # USPS codes accepted for the state setting (M65).
 US_STATES = frozenset(
-    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS "
-    "MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split()
+    ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
 )
 
 
@@ -223,8 +231,8 @@ def _profile_assumptions(
     records: list[repository.IncomeProfileRecord], *, live_priced: bool = False
 ) -> list[str]:
     lines = [
-        "Gross income comes from your DECLARED compensation profile "
-        "(base + RSU value + bonus), not from deposit inference."
+        ("Gross income comes from your DECLARED compensation profile "
+        "(base + RSU value + bonus), not from deposit inference.")
     ]
     for r in records:
         parts = [f"{r.label}: base {r.base_salary_minor / 100:,.0f}"]
@@ -543,7 +551,7 @@ def parse_w2_scan(text: str) -> W2ScanResult:
     def money_minor(key: str) -> int | None:
         value = data.get(key)
         if isinstance(value, (int, float)) and value > 0:
-            return int(round(float(value) * 100))
+            return round(float(value) * 100)
         return None
 
     year = data.get("year")

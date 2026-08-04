@@ -112,7 +112,7 @@ async def upload_import_file(
     storage_path = f"{import_id}/{safe_filename}"
     full_path = _staged_file_path(settings, storage_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, "wb") as staged_file:
+    with open(full_path, "wb") as staged_file:  # noqa: ASYNC230 — tiny local write; not worth an async file dependency
         staged_file.write(content)
 
     repository.create_import_file(

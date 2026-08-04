@@ -1,9 +1,8 @@
 """ADR 0044: member 👍/👎 on advisor answers, distilled by the study job."""
 
 import pytest
-from sqlalchemy.engine import Engine
-
 from family_cfo_ai_orchestrator import RuntimeCompletion
+from sqlalchemy.engine import Engine
 
 from family_cfo_api import ai_study, fixtures, repository
 

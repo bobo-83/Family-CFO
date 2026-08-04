@@ -1,5 +1,5 @@
 import base64
-from datetime import date
+from datetime import UTC, date
 
 import httpx
 import pytest
@@ -75,7 +75,7 @@ def _linked_connection(engine: Engine, settings: Settings) -> repository.Institu
 
 
 def _conn(last_synced_at, *, cid: str = "c") -> repository.InstitutionConnectionRecord:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     return repository.InstitutionConnectionRecord(
         id=cid,
@@ -86,7 +86,7 @@ def _conn(last_synced_at, *, cid: str = "c") -> repository.InstitutionConnection
         status="active",
         last_synced_at=last_synced_at,
         last_sync_error=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -94,9 +94,9 @@ def test_due_for_sync_is_a_daily_gate() -> None:
     """M107/ADR 0019 regression guard for the AUTOMATIC poller: SimpleFIN refreshes
     ~once/day and rate-limits, so the background sync runs at most once a day per
     connection. (The old bug was a 5-minute poll with no gate ≈ 288 calls/day.)"""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     assert banksync.due_for_sync(_conn(None)) is True
     assert banksync.due_for_sync(_conn(now - timedelta(hours=25))) is True
     # Synced 5 minutes ago — the broken cadence — and anytime within the day: skip.
@@ -176,12 +176,12 @@ def test_sync_always_requests_the_full_history_window(demo_engine: Engine) -> No
     assert connection.last_synced_at is not None
     banksync.sync_connection(demo_engine, settings, connection, connector)
 
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     expected = date.today() - timedelta(days=banksync.SYNC_LOOKBACK_DAYS)
     for params in seen_params:
         assert "start-date" in params
-        start = datetime.fromtimestamp(int(params["start-date"]), tz=timezone.utc).date()
+        start = datetime.fromtimestamp(int(params["start-date"]), tz=UTC).date()
         assert start == expected
 
 

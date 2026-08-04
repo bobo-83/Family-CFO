@@ -5,12 +5,12 @@ feedback notes, and document text are stored as enc1: tokens. Reads return
 plaintext transparently; the raw database file must NOT contain the words.
 """
 
-from sqlalchemy import select, text as sql_text
-
 import pytest
-from family_cfo_api import household_crypto, models, repository
 from cryptography.fernet import Fernet
+from sqlalchemy import select
+from sqlalchemy import text as sql_text
 
+from family_cfo_api import household_crypto, models, repository
 from family_cfo_api.config import get_settings
 
 
@@ -270,7 +270,9 @@ def test_wraps_recovery_and_rotation(_master_key, demo_engine) -> None:
             sql_text("select value from household_memories where key = 'pet'")
         ).scalar_one()
     old_rows = household_crypto._subkey_fernet(dek_via_password, b"rows")
-    with pytest.raises(Exception):
+    from cryptography.fernet import InvalidToken
+
+    with pytest.raises(InvalidToken):
         old_rows.decrypt(raw[len(household_crypto.ENC_PREFIX):].encode())
 
 

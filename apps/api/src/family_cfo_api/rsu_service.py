@@ -171,7 +171,7 @@ def fetch_quote(ticker: str, *, settings: Settings | None = None) -> tuple[int, 
         price = float(meta["regularMarketPrice"])
         if price <= 0:
             return None
-        return int(round(price * 100)), "yahoo-chart"
+        return round(price * 100), "yahoo-chart"
     except Exception:  # noqa: BLE001 — any failure means "no quote right now"
         return None
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC
 
 from family_cfo_scheduler import Job, Scheduler
 
@@ -127,9 +128,9 @@ def main() -> None:
     def prune_stale_auth_state() -> None:
         # Issue #48/#3: sweep dead auth sessions and long-revoked devices so
         # they stop growing without bound. Retention windows come from settings.
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         sessions = devices = 0
         if settings.auth_session_retention_days > 0:
             sessions = repository.prune_dead_auth_sessions(
@@ -218,7 +219,7 @@ def main() -> None:
     # rather than waiting a full day for the first interval to fire.
     try:
         capture_net_worth_snapshot()
-    except Exception:  # noqa: BLE001 - a snapshot failure must not stop the worker
+    except Exception:
         logger.exception("initial net-worth snapshot failed")
 
     # M57 (ADR 0016): one-time memory extraction from conversations that
@@ -228,7 +229,7 @@ def main() -> None:
         backfilled = ai_memory.run_memory_backfill_once(engine, settings)
         if backfilled:
             logger.info("memory backfill completed for %s household(s)", backfilled)
-    except Exception:  # noqa: BLE001 - a backfill failure must not stop the worker
+    except Exception:
         logger.exception("memory backfill failed")
 
     # M69: index existing records at startup (additive; the daily job prunes).

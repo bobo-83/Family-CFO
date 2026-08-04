@@ -129,7 +129,7 @@ def parse_account_scan(text: str) -> AccountScanResult:
 
     def money_minor(key: str) -> int | None:
         value = _scan_number(data.get(key))
-        return int(round(value * 100)) if value is not None and value > 0 else None
+        return round(value * 100) if value is not None and value > 0 else None
 
     cash = money_minor("cash_balance")
     investment = money_minor("investment_value")
@@ -263,8 +263,8 @@ def parse_loan_statement_text(text: str) -> LoanScanResult | None:
         ],
     )
     return LoanScanResult(
-        monthly_payment_minor=int(round(payment * 100)) if payment and payment > 0 else None,
-        balance_minor=int(round(balance * 100)) if balance and balance > 0 else None,
+        monthly_payment_minor=round(payment * 100) if payment and payment > 0 else None,
+        balance_minor=round(balance * 100) if balance and balance > 0 else None,
         next_payment_due_date=_parse_label_date(due) if due else None,
         apr_percent=rate if rate is not None and 0 <= rate < 100 else None,
         note="Read from the statement text — confirm every value before saving.",
@@ -294,7 +294,7 @@ def parse_loan_scan(text: str) -> LoanScanResult:
 
     def money_minor(key: str) -> int | None:
         value = _scan_number(data.get(key))
-        return int(round(value * 100)) if value is not None and value > 0 else None
+        return round(value * 100) if value is not None and value > 0 else None
 
     def positive_int(key: str) -> int | None:
         value = _scan_number(data.get(key))

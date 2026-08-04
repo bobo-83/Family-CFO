@@ -1,8 +1,8 @@
 """M57 (ADR 0016): household memory + conversation summarization."""
 
 import pytest
-
 from family_cfo_ai_orchestrator import RuntimeCompletion, RuntimeToolCompletion
+
 from family_cfo_api import ai_memory, repository
 from family_cfo_api.api import chat as chat_module
 from family_cfo_api.fixtures import DEMO_HOUSEHOLD_ID, DEMO_USER_ID

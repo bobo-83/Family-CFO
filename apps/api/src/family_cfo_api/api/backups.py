@@ -367,7 +367,7 @@ async def restore_remote_backup(
 
     try:
         ciphertext = smb_backup.download(target, filename)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
 
     try:

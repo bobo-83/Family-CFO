@@ -1,47 +1,54 @@
 from datetime import date, timedelta
 
+from family_cfo_financial_engine.money import Money
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, finance_service, household_crypto, repository, rights, undo_actions
+from family_cfo_api import (
+    audit,
+    finance_service,
+    household_crypto,
+    repository,
+    rights,
+    undo_actions,
+)
+from family_cfo_api import yearly_review as yearly_review_module
 from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.deps import get_current_session, get_engine, require_right
-from family_cfo_api import yearly_review as yearly_review_module
 from family_cfo_api.schemas import (
-    CashOutlookResponse,
-    YearlyOverview,
-    YearlyReview,
-    YearMonthSummary,
-    OutlookEvent,
-    SpendingPlanResponse,
     AssetCategoryTotal,
     BudgetSummary,
+    CashOutlookResponse,
+    CategorySpend,
+    DeviceWrap,
     EmergencyFundSummary,
     ErrorResponse,
     GoalProgress,
     HouseholdContext,
-    HouseholdUpdateRequest,
-    MerchantSpend,
-    CategorySpend,
-    MonthlyCashFlow,
-    NetWorthPoint,
-    LiquidAccountBalance,
-    NamedAmount,
-    DeviceWrap,
     HouseholdKeyStatus,
+    HouseholdUpdateRequest,
     KeySessionRequest,
+    LiquidAccountBalance,
+    MerchantSpend,
+    MonthlyCashFlow,
+    NamedAmount,
+    NetWorthPoint,
+    OutlookEvent,
     ReadyToSellHoldings,
     RecoveryKey,
     RecoveryUnlockRequest,
-    SealModeRequest,
     SafeToSpend,
     SavingsRate,
+    SealModeRequest,
     SpendingByCategory,
     SpendingInsights,
+    SpendingPlanResponse,
     UpcomingBill,
+    YearlyOverview,
+    YearlyReview,
+    YearMonthSummary,
 )
 from family_cfo_api.schemas import Money as MoneySchema
-from family_cfo_financial_engine.money import Money
 
 router = APIRouter(tags=["Household"])
 
@@ -1056,7 +1063,7 @@ async def open_key_session(
         dek = payload.dek.encode()
         # Keys are urlsafe-b64 Fernet keys already; validate decodability.
         b64.urlsafe_b64decode(dek)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=400, detail="Malformed key") from exc
     if not household_crypto.unlock_household(engine, session.household_id, dek):
         raise HTTPException(

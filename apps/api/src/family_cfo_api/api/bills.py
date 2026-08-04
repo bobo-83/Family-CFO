@@ -14,21 +14,21 @@ from family_cfo_api.schemas import (
     BillCreditGroup,
     BillCreditsResponse,
     BillListResponse,
+    BillPaymentLink,
+    BillPaymentLinkRequest,
     BillScanRequest,
     BillScanResult,
     BillSuggestion,
     BillSuggestionDismissRequest,
     BillSuggestionListResponse,
-    BillUpdateSuggestion,
     BillUpdateRequest,
+    BillUpdateSuggestion,
     ErrorResponse,
     MonthlyCreditTotal,
-    BillPaymentLink,
-    BillPaymentLinkRequest,
     PaymentTimelineItem,
     PaymentTimelineResponse,
-    TransactionListResponse,
     TimelinePaidWith,
+    TransactionListResponse,
     YearlyCreditTotal,
 )
 from family_cfo_api.schemas import Money as MoneySchema
@@ -508,7 +508,7 @@ def parse_bill_scan(text: str) -> BillScanResult:
     # Bills page can total credits per month/year (M-credits).
     credit_minor = None
     if amount is not None and amount < 0:
-        credit_minor = int(round(abs(amount) * 100))
+        credit_minor = round(abs(amount) * 100)
         note = (
             f"This statement shows a credit balance of ${abs(amount):,.2f} — "
             "nothing is due this cycle. Saving records the credit against this "
@@ -528,7 +528,7 @@ def parse_bill_scan(text: str) -> BillScanResult:
     return BillScanResult(
         name=name.strip() if isinstance(name, str) and name.strip() else None,
         amount_minor=0 if credit_minor is not None else (
-            int(round(amount * 100)) if amount is not None and amount > 0 else None
+            round(amount * 100) if amount is not None and amount > 0 else None
         ),
         frequency=frequency if frequency in _BILL_FREQUENCIES else None,
         next_due_date=_parse_iso_or_us_date(data.get("due_date")),
@@ -727,12 +727,14 @@ async def create_bill(
     session: repository.SessionContext = Depends(require_right(rights.BILLS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Bill:
-    if payload.account_id is not None:
-        if repository.get_account(engine, session.household_id, payload.account_id) is None:
-            raise HTTPException(status_code=404, detail="Account not found")
-    if payload.category_id is not None:
-        if repository.get_category(engine, session.household_id, payload.category_id) is None:
-            raise HTTPException(status_code=404, detail="Category not found")
+    if payload.account_id is not None and (
+        repository.get_account(engine, session.household_id, payload.account_id) is None
+    ):
+        raise HTTPException(status_code=404, detail="Account not found")
+    if payload.category_id is not None and (
+        repository.get_category(engine, session.household_id, payload.category_id) is None
+    ):
+        raise HTTPException(status_code=404, detail="Category not found")
     record = repository.create_bill(
         engine,
         household_id=session.household_id,
@@ -789,9 +791,12 @@ async def update_bill(
     # Only touch the category if the client actually sent the field (set OR clear);
     # a value must name a real category.
     category_changed = "category_id" in payload.model_fields_set
-    if category_changed and payload.category_id is not None:
-        if repository.get_category(engine, session.household_id, payload.category_id) is None:
-            raise HTTPException(status_code=404, detail="Category not found")
+    if (
+        category_changed
+        and payload.category_id is not None
+        and repository.get_category(engine, session.household_id, payload.category_id) is None
+    ):
+        raise HTTPException(status_code=404, detail="Category not found")
     repository.update_bill(
         engine,
         session.household_id,

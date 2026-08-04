@@ -10,11 +10,12 @@ is migrated forward; a manifest-less legacy archive restores as-is.
 import os
 
 import pytest
+from family_cfo_backup import build_archive, decrypt, encrypt, extract_archive
+from sqlalchemy.engine import Engine
+
 from family_cfo_api import __version__ as APP_VERSION
 from family_cfo_api import backup_processing, repository
 from family_cfo_api.config import Settings
-from family_cfo_backup import build_archive, decrypt, encrypt, extract_archive
-from sqlalchemy.engine import Engine
 
 
 def _run_backup(engine: Engine, settings: Settings) -> repository.BackupJobRecord:

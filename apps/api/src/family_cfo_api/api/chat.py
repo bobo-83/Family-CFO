@@ -9,10 +9,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
-from fastapi.responses import StreamingResponse
-from sqlalchemy.engine import Engine
-
 from family_cfo_ai_orchestrator import (
     RuntimeMessage,
     RuntimeUnavailableError,
@@ -22,6 +18,9 @@ from family_cfo_ai_orchestrator import (
     run_tool_calling_loop,
     validate_recommendation,
 )
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
+from sqlalchemy.engine import Engine
 
 from family_cfo_api import ai_memory, ai_tools, finance_service, repository
 from family_cfo_api.ai_runtime_selection import (

@@ -7,14 +7,14 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import audit, finance_service, repository, rights, undo_actions
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
-from family_cfo_api.schemas import ErrorResponse
-from family_cfo_api.schemas import Money as MoneySchema
 from family_cfo_api.schemas import (
+    ErrorResponse,
     Transaction,
     TransactionCreateRequest,
     TransactionListResponse,
     TransactionUpdateRequest,
 )
+from family_cfo_api.schemas import Money as MoneySchema
 
 router = APIRouter(tags=["Transactions"])
 
@@ -517,7 +517,7 @@ async def upload_transaction_attachment(
             except OSError:
                 pass
     filename = f"{transaction_id}{ext}"
-    with open(os.path.join(directory, filename), "wb") as out:
+    with open(os.path.join(directory, filename), "wb") as out:  # noqa: ASYNC230 — tiny local write; not worth an async file dependency
         out.write(content)
 
     repository.set_transaction_attachment(

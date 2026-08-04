@@ -12,10 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from family_cfo_financial_engine import Money
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import bill_detection, finance_service, repository
-from family_cfo_financial_engine import Money
 
 # Categories that are needs, not wants. Matched as substrings of the normalized
 # category name; everything else is treated as discretionary (a want).

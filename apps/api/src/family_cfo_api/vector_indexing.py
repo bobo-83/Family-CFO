@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
+from family_cfo_financial_engine import Money
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
@@ -22,7 +23,6 @@ from family_cfo_api.vector_store import (
     VectorPoint,
     VectorStoreAdapter,
 )
-from family_cfo_financial_engine import Money
 
 logger = logging.getLogger(__name__)
 
@@ -120,5 +120,5 @@ def run_indexing_once(engine: Engine, settings: Settings | None = None, *, wipe:
         indexed = index_household_data(engine, settings, wipe=wipe)
         if indexed:
             logger.info("vector index updated: %s points (wipe=%s)", indexed, wipe)
-    except Exception:  # noqa: BLE001 — indexing must never kill the worker
+    except Exception:
         logger.exception("vector indexing failed")

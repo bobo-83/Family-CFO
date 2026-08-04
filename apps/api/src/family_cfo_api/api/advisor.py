@@ -1,8 +1,8 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
 from family_cfo_financial_engine import Money as EngineMoney
 from family_cfo_financial_engine import RetirementInput
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import finance_service, repository
@@ -283,9 +283,9 @@ async def analyze_retirement(
     coverage = result.outputs["years_of_expenses_covered"]
 
     answer_parts = [
-        f"Contributing {format_money(inputs.monthly_contribution)} per month at a "
+        (f"Contributing {format_money(inputs.monthly_contribution)} per month at a "
         f"{payload.annual_return_rate * 100:.1f}% annual return, your savings would grow to about "
-        f"{format_money(projected)} by age {payload.retirement_age} (in {years} years)."
+        f"{format_money(projected)} by age {payload.retirement_age} (in {years} years).")
     ]
     if coverage is not None and inputs.annual_expenses is not None:
         answer_parts.append(

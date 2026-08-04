@@ -19,7 +19,7 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
 
@@ -94,15 +94,15 @@ def compute_import_hash(
 # first match wins; anything unmatched stays "checking". Existing accounts are
 # never retyped — manual corrections from the Accounts page stick.
 _ACCOUNT_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("retirement", re.compile(r"\b(?:401\s*\(?k\)?|403\s*\(?b\)?|457|ira|roth|sep|pension|tsp|retirement)\b", re.I)),
-    ("hsa", re.compile(r"\b(?:hsa|health\s+savings)\b", re.I)),
-    ("529", re.compile(r"\b(?:529|college\s+savings|education\s+savings)\b", re.I)),
-    ("brokerage", re.compile(r"\b(?:brokerage|investment|investing)\b", re.I)),
-    ("mortgage", re.compile(r"\bmortgage\b", re.I)),
-    ("auto_loan", re.compile(r"\b(?:auto|car|vehicle)\s+loan\b", re.I)),
-    ("student_loan", re.compile(r"\bstudent\s+loans?\b", re.I)),
-    ("credit_card", re.compile(r"\b(?:credit\s*card|visa|mastercard|amex|american\s+express)\b", re.I)),
-    ("savings", re.compile(r"\b(?:savings|money\s+market|mma)\b", re.I)),
+    ("retirement", re.compile(r"\b(?:401\s*\(?k\)?|403\s*\(?b\)?|457|ira|roth|sep|pension|tsp|retirement)\b", re.IGNORECASE)),
+    ("hsa", re.compile(r"\b(?:hsa|health\s+savings)\b", re.IGNORECASE)),
+    ("529", re.compile(r"\b(?:529|college\s+savings|education\s+savings)\b", re.IGNORECASE)),
+    ("brokerage", re.compile(r"\b(?:brokerage|investment|investing)\b", re.IGNORECASE)),
+    ("mortgage", re.compile(r"\bmortgage\b", re.IGNORECASE)),
+    ("auto_loan", re.compile(r"\b(?:auto|car|vehicle)\s+loan\b", re.IGNORECASE)),
+    ("student_loan", re.compile(r"\bstudent\s+loans?\b", re.IGNORECASE)),
+    ("credit_card", re.compile(r"\b(?:credit\s*card|visa|mastercard|amex|american\s+express)\b", re.IGNORECASE)),
+    ("savings", re.compile(r"\b(?:savings|money\s+market|mma)\b", re.IGNORECASE)),
 )
 
 
@@ -179,7 +179,7 @@ class SimpleFINConnector:
         params = {}
         if since is not None:
             params["start-date"] = str(
-                int(datetime(since.year, since.month, since.day, tzinfo=timezone.utc).timestamp())
+                int(datetime(since.year, since.month, since.day, tzinfo=UTC).timestamp())
             )
         try:
             response = self._client.get(f"{access_url.rstrip('/')}/accounts", params=params)
@@ -193,7 +193,7 @@ class SimpleFINConnector:
             transactions = [
                 ExternalTransaction(
                     external_id=str(txn["id"]),
-                    occurred_at=datetime.fromtimestamp(int(txn["posted"]), tz=timezone.utc).date(),
+                    occurred_at=datetime.fromtimestamp(int(txn["posted"]), tz=UTC).date(),
                     amount_minor=_decimal_to_minor(str(txn["amount"])),
                     payee=txn.get("payee") or None,
                     description=txn.get("description") or None,
@@ -235,7 +235,7 @@ def due_for_sync(connection: repository.InstitutionConnectionRecord) -> bool:
     this (M107). Only the poller uses this gate; user pull-to-refresh always syncs."""
     if connection.last_synced_at is None:
         return True
-    return datetime.now(timezone.utc) - connection.last_synced_at >= SCHEDULED_SYNC_INTERVAL
+    return datetime.now(UTC) - connection.last_synced_at >= SCHEDULED_SYNC_INTERVAL
 
 
 def sync_due_connections(engine: Engine, settings: Settings) -> set[str]:

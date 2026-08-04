@@ -1,8 +1,8 @@
 import base64
 
 import pytest
-
 from family_cfo_ai_orchestrator import RuntimeToolCompletion, ToolCall
+
 from family_cfo_api.api import chat as chat_module
 
 _IMG = base64.b64encode(b"fake-jpeg-bytes").decode()
@@ -92,9 +92,10 @@ async def test_image_without_vision_model_warns_gracefully(demo_client, demo_tok
 async def test_oversized_image_rejected(demo_client, demo_engine, demo_token, tmp_path) -> None:
     big = base64.b64encode(b"x" * 2048).decode()
     # demo_settings has the default 10MB cap; build an app with a tiny cap instead.
+    import httpx
+
     from family_cfo_api.config import Settings
     from family_cfo_api.main import create_app
-    import httpx
 
     app = create_app(
         Settings(
@@ -135,10 +136,10 @@ async def test_image_without_media_type_rejected(demo_client, demo_token) -> Non
 async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None:
     """A photo answer is attributed to BOTH the vision describer and the chat model."""
     import httpx
+    from family_cfo_ai_orchestrator import RuntimeToolCompletion
 
     from family_cfo_api.config import Settings
     from family_cfo_api.main import create_app
-    from family_cfo_ai_orchestrator import RuntimeToolCompletion
 
     class _Describer:
         def close(self):

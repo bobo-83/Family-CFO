@@ -12,9 +12,8 @@ import json
 import logging
 import re
 
-from sqlalchemy.engine import Engine
-
 from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+from sqlalchemy.engine import Engine
 
 from family_cfo_api import repository
 from family_cfo_api.ai_runtime_selection import select_tool_runtime
@@ -163,7 +162,7 @@ def remember_exchange(
         refresh_conversation_summary(runtime, engine, conversation_id)
     except RuntimeUnavailableError:
         logger.warning("memory extraction skipped: runtime unavailable")
-    except Exception:  # noqa: BLE001 — side effect must never break anything
+    except Exception:
         logger.exception("memory extraction failed")
     finally:
         runtime.close()
@@ -205,7 +204,7 @@ def run_memory_backfill_once(engine: Engine, settings: Settings | None = None) -
             logger.warning(
                 "memory backfill deferred for household %s: runtime unavailable", household_id
             )
-        except Exception:  # noqa: BLE001 — startup job must never kill the worker
+        except Exception:
             logger.exception("memory backfill failed for household %s", household_id)
         finally:
             runtime.close()

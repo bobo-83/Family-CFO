@@ -968,8 +968,8 @@ def _keys_match(a: str, b: str) -> bool:
 
 
 def bill_covered_account_ids(
-    bills: "list[repository.RecurringRecord]",
-    liability_accounts: "list[repository.AccountRecord]",
+    bills: list[repository.RecurringRecord],
+    liability_accounts: list[repository.AccountRecord],
 ) -> set[str]:
     """Liability accounts whose recurring payment is ALSO modeled as an explicit
     bill — same merchant (fuzzy) and amount within tolerance (ADR 0032).
@@ -1010,8 +1010,8 @@ def _previous_occurrence(due: date, frequency: str) -> date:
 
 
 def _find_bill_payment(
-    bill: "repository.RecurringRecord",
-    outflows: list["repository.TransactionRecord"],
+    bill: repository.RecurringRecord,
+    outflows: list[repository.TransactionRecord],
     window_start: date,
     window_end: date,
 ) -> TimelinePayment | None:
@@ -1039,7 +1039,7 @@ def _find_bill_payment(
 
 
 def _account_payments(
-    transactions: list["repository.TransactionRecord"],
+    transactions: list[repository.TransactionRecord],
 ) -> list[TimelinePayment]:
     """Payment-labeled inflows on a liability account, most recent first."""
     payments = [

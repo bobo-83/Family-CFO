@@ -83,8 +83,9 @@ async def test_refresh_rotates_the_token_and_invalidates_the_old_one(demo_client
 async def test_expired_session_is_rejected(demo_client, demo_engine) -> None:
     from datetime import timedelta
 
-    from family_cfo_api import models, repository, security
     from sqlalchemy import insert
+
+    from family_cfo_api import models, repository, security
 
     token = security.generate_access_token()
     with demo_engine.begin() as conn:

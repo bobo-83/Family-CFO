@@ -1,8 +1,8 @@
 from family_cfo_ai_orchestrator import RuntimeCompletion, RuntimeUnavailableError
+from family_cfo_financial_engine import Money
 
 from family_cfo_api.explanation import PurchaseExplanationContext, ReportExplanationContext
 from family_cfo_api.llm_explanation import LlmExplanationAdapter
-from family_cfo_financial_engine import Money
 
 
 def _context() -> PurchaseExplanationContext:

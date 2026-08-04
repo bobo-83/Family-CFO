@@ -8,6 +8,7 @@ not an LLM guess (ADR 0003): every suggestion is explainable as "N charges of
 
 from __future__ import annotations
 
+import itertools
 import re
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -83,7 +84,7 @@ def normalize_merchant(text: str | None) -> str:
 
 def _classify_cadence(dates: list[date]) -> str | None:
     """The cadence bucket the sorted charge dates fall into, or None."""
-    intervals = [(b - a).days for a, b in zip(dates, dates[1:])]
+    intervals = [(b - a).days for a, b in itertools.pairwise(dates)]
     if not intervals:
         return None
     typical = median(intervals)

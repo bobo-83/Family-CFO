@@ -1,10 +1,11 @@
+from family_cfo_financial_engine import Money
+
 from family_cfo_api.explanation import (
     DeterministicExplanationAdapter,
     PurchaseExplanationContext,
     ReportExplanationContext,
     format_money,
 )
-from family_cfo_financial_engine import Money
 
 
 def test_format_money_renders_negative_amounts_with_leading_sign() -> None:

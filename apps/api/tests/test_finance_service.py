@@ -1,10 +1,10 @@
 from datetime import date, timedelta
 
+from family_cfo_financial_engine import Money
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import finance_service, fixtures, models, repository
-from family_cfo_financial_engine import Money
 
 
 def test_compute_net_worth_sums_demo_accounts(demo_engine: Engine) -> None:

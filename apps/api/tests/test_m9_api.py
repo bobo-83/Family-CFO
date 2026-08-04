@@ -326,6 +326,7 @@ async def test_categorizing_a_bill_files_its_matching_transactions(
     matching transactions — so the user doesn't categorize the same merchant twice.
     Already-categorized transactions are left alone."""
     from datetime import date
+
     from family_cfo_api import fixtures, repository
 
     hh = fixtures.DEMO_HOUSEHOLD_ID

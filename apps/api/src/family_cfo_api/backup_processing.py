@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from family_cfo_backup import (
@@ -55,7 +55,7 @@ def run_due_backups(engine: Engine, settings: Settings, *, now: datetime | None 
     worker's scheduler — so the wiring is unit-testable. The old closure form let a
     bare `NameError` ship to production (M108, ADR 0019); scheduled work must be
     covered like anything else."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
 
     def backed_up_within(minutes: int) -> bool:
         cutoff = now - timedelta(minutes=minutes)
@@ -66,7 +66,7 @@ def run_due_backups(engine: Engine, settings: Settings, *, now: datetime | None 
             # naive value as UTC so the cadence gate works on both.
             completed_at = job.completed_at
             if completed_at.tzinfo is None:
-                completed_at = completed_at.replace(tzinfo=timezone.utc)
+                completed_at = completed_at.replace(tzinfo=UTC)
             if completed_at >= cutoff:
                 return True
         return False
@@ -292,7 +292,7 @@ def run_backup_once(
     backup_dir: str,
     encryption_key: str | None,
     retention_count: int,
-    smb_target: "smb_backup.SmbTarget | None" = None,
+    smb_target: smb_backup.SmbTarget | None = None,
     max_bytes: int | None = None,
 ) -> str:
     """Create one encrypted backup archive. Returns the backup_job id regardless of outcome.
@@ -401,7 +401,7 @@ def _enforce_size_cap_local(engine: Engine, backup_dir: str, max_bytes: int) -> 
         logger.info("backup size-cap pruned backup_id=%s", job.id)
 
 
-def _enforce_size_cap_remote(smb_target: "smb_backup.SmbTarget", max_bytes: int) -> None:
+def _enforce_size_cap_remote(smb_target: smb_backup.SmbTarget, max_bytes: int) -> None:
     """Delete the oldest Synology backups until the combined size is under the cap."""
     items = smb_backup.list_backups(smb_target)  # newest first
     total = sum(item["size_bytes"] for item in items)
@@ -481,7 +481,7 @@ def _restore_ciphertext(
 def _app_version_from_filename(name: str) -> str | None:
     """`{job_id}.v{app_version}.enc` → the app version; None for the older
     unversioned `{job_id}.enc` names still sitting on the share."""
-    base = name[: -len(".enc")] if name.endswith(".enc") else name
+    base = name.removesuffix(".enc")
     if ".v" not in base:
         return None
     candidate = base.rsplit(".v", 1)[1]

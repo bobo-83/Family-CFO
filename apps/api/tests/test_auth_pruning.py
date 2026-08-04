@@ -1,10 +1,11 @@
 """Issue #48/#3: the worker prunes dead auth sessions and long-revoked devices
 so they stop growing without bound (the 20+ stale pairings a real box grew)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import insert, select
 
 from family_cfo_api import models, repository
-from sqlalchemy import insert, select
 
 
 def _session(engine, hh, user_id, *, token, expires_at, revoked_at=None, device_id=None):
@@ -16,7 +17,7 @@ def _session(engine, hh, user_id, *, token, expires_at, revoked_at=None, device_
                 household_id=hh,
                 device_id=device_id,
                 token_hash=token,
-                created_at=datetime.now(timezone.utc) - timedelta(days=30),
+                created_at=datetime.now(UTC) - timedelta(days=30),
                 expires_at=expires_at,
                 revoked_at=revoked_at,
             )
@@ -26,7 +27,7 @@ def _session(engine, hh, user_id, *, token, expires_at, revoked_at=None, device_
 def test_prune_dead_sessions_keeps_the_living(demo_engine) -> None:
     hh = repository.list_households(demo_engine)[0]
     user_id = repository.list_members(demo_engine, hh)[0].user_id
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     _session(demo_engine, hh, user_id, token="expired-old", expires_at=now - timedelta(days=10))
     _session(
@@ -54,7 +55,7 @@ def test_prune_dead_sessions_keeps_the_living(demo_engine) -> None:
 def test_prune_revoked_devices_clears_their_sessions_first(demo_engine) -> None:
     hh = repository.list_households(demo_engine)[0]
     user_id = repository.list_members(demo_engine, hh)[0].user_id
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     with demo_engine.begin() as conn:
         conn.execute(

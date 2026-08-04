@@ -15,15 +15,18 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 
+from family_cfo_ai_orchestrator import (
+    RuntimeUnavailableError,
+    extract_numbers,
+    validate_recommendation,
+)
+from family_cfo_financial_engine import Money
 from sqlalchemy.engine import Engine
-
-from family_cfo_ai_orchestrator import RuntimeUnavailableError, extract_numbers, validate_recommendation
 
 from family_cfo_api import finance_service, repository
 from family_cfo_api.ai_runtime_selection import resolve_ai_config, select_tool_runtime
 from family_cfo_api.ai_study import month_bounds
 from family_cfo_api.explanation import format_money
-from family_cfo_financial_engine import Money
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +111,7 @@ def _deterministic_review(
     net = income - spending
     best = max(months, key=lambda m: m.net_minor)
     worst = min(months, key=lambda m: m.net_minor)
-    money = lambda minor: format_money(Money(minor, currency))  # noqa: E731
+    money = lambda minor: format_money(Money(minor, currency))
     summary = (
         f"Across {len(months)} months of {year}, the household brought in "
         f"{money(income)} and spent {money(spending)}, keeping {money(net)}. "
@@ -133,7 +136,7 @@ def _deterministic_review(
 def _grounded_facts(
     months: list[YearMonth], top: list[tuple[str, int]], currency: str
 ) -> str:
-    money = lambda minor: format_money(Money(minor, currency))  # noqa: E731
+    money = lambda minor: format_money(Money(minor, currency))
     lines = []
     for m in months:
         lines.append(

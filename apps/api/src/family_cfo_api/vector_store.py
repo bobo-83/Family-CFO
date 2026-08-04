@@ -101,10 +101,10 @@ class InMemoryVectorStore:
 
     points: dict[str, VectorPoint] = field(default_factory=dict)
 
-    def ensure_collection(self, dim: int) -> None:  # noqa: ARG002 - protocol shape
+    def ensure_collection(self, dim: int) -> None:
         return
 
-    def wipe_collection(self, dim: int) -> None:  # noqa: ARG002
+    def wipe_collection(self, dim: int) -> None:
         self.points.clear()
 
     def upsert(self, points: list[VectorPoint]) -> None:

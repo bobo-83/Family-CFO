@@ -14,7 +14,6 @@ from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     AiApplyRequest,
-    ModelAnswerStats,
     AiHardwareProfile,
     AiModelCatalog,
     AiModelDetail,
@@ -25,6 +24,7 @@ from family_cfo_api.schemas import (
     AiStudyStatus,
     AiSwapStatus,
     ErrorResponse,
+    ModelAnswerStats,
 )
 
 router = APIRouter(tags=["AI Runtime"])
@@ -299,7 +299,11 @@ async def list_ai_models(
     },
     summary="Drill-down for one model: curated/estimated specs + live hub stats",
 )
-async def get_ai_model_detail(
+# Sync on purpose (ruff ASYNC210, #183): these handlers make BLOCKING HTTP
+# calls (Hugging Face metadata, the model-manager sidecar) with multi-second
+# timeouts. As `def`, FastAPI runs them in the threadpool instead of stalling
+# the event loop for every concurrent request.
+def get_ai_model_detail(
     id: str,
     session: repository.SessionContext = Depends(get_current_session),
     settings: Settings = Depends(get_app_settings),
@@ -579,7 +583,7 @@ async def search_ai_models(
     },
     summary="Apply a model selection: download and switch the served models",
 )
-async def apply_ai_model_selection(
+def apply_ai_model_selection(
     payload: AiApplyRequest,
     session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
     engine: Engine = Depends(get_engine),
@@ -702,7 +706,7 @@ async def apply_ai_model_selection(
     responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
     summary="Report the state of the last model apply",
 )
-async def get_ai_apply_status(
+def get_ai_apply_status(
     session: repository.SessionContext = Depends(get_current_session),
     settings: Settings = Depends(get_app_settings),
 ) -> AiSwapStatus:

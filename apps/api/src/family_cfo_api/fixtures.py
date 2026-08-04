@@ -298,7 +298,7 @@ def reset_demo_data(engine: Engine) -> int:
     return deleted
 
 
-def seed_showcase_data(engine: Engine) -> bool:  # noqa: PLR0915 - one linear script
+def seed_showcase_data(engine: Engine) -> bool:
     """Rich, additive demo data exercising every product scenario (M74).
 
     The persona: a senior software engineer at Anthropic living in Austin, TX

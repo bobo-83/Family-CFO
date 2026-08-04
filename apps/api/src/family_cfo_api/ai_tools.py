@@ -18,8 +18,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import httpx
-
 from family_cfo_ai_orchestrator import ToolCallingResult, ToolSpec, extract_numbers
+from family_cfo_ai_orchestrator.tool_calling import ToolExecutor
 from family_cfo_financial_engine import (
     CalculationResult,
     DebtInput,
@@ -33,7 +33,6 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import finance_service, repository
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.explanation import format_money
-from family_cfo_ai_orchestrator.tool_calling import ToolExecutor
 
 # Personality layer (M31): tone only. The grounding rules below are appended
 # verbatim in every tone — fun never loosens the numbers discipline.

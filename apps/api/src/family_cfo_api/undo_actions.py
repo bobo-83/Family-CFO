@@ -266,7 +266,7 @@ def bill_updated(before: repository.RecurringRecord) -> str:
     )
 
 
-def role_updated(before: "repository.RoleRecord") -> str:
+def role_updated(before: repository.RoleRecord) -> str:
     return json.dumps(
         {
             "op": "restore",
@@ -277,7 +277,7 @@ def role_updated(before: "repository.RoleRecord") -> str:
     )
 
 
-def role_deleted(before: "repository.RoleRecord") -> str:
+def role_deleted(before: repository.RoleRecord) -> str:
     return json.dumps(
         {
             "op": "recreate",
@@ -427,7 +427,7 @@ def transaction_recategorized(transaction_id: str, previous_category_id: str | N
     )
 
 
-def transaction_updated(before: "repository.TransactionRecord") -> str:
+def transaction_updated(before: repository.TransactionRecord) -> str:
     """Any edit to a transaction (note, merchant, description, category,
     duplicate flag, amount, account, date) is undone by restoring every mutable
     field to what it was before the edit."""
@@ -453,7 +453,7 @@ def transaction_updated(before: "repository.TransactionRecord") -> str:
     )
 
 
-def transaction_deleted(before: "repository.TransactionRecord") -> str:
+def transaction_deleted(before: repository.TransactionRecord) -> str:
     """A delete is undone by re-inserting the transaction with its prior fields —
     same aggregator id (so bank dedupe still recognises it), note, category and
     duplicate flag."""
@@ -480,7 +480,7 @@ def transaction_deleted(before: "repository.TransactionRecord") -> str:
     )
 
 
-def goal_updated(before: "repository.GoalRecord") -> str:
+def goal_updated(before: repository.GoalRecord) -> str:
     return json.dumps(
         {
             "op": "restore",
@@ -497,7 +497,7 @@ def goal_updated(before: "repository.GoalRecord") -> str:
     )
 
 
-def goal_deleted(goal: "repository.GoalRecord") -> str:
+def goal_deleted(goal: repository.GoalRecord) -> str:
     return json.dumps(
         {
             "op": "recreate",
@@ -538,7 +538,7 @@ def income_override_set(transaction_id: str, previous_verdict: str | None) -> st
     )
 
 
-def income_profile_deleted(profile: "repository.IncomeProfileRecord") -> str:
+def income_profile_deleted(profile: repository.IncomeProfileRecord) -> str:
     return json.dumps(
         {
             "op": "recreate",
@@ -559,7 +559,7 @@ def income_profile_deleted(profile: "repository.IncomeProfileRecord") -> str:
     )
 
 
-def tax_settings_updated(before: "repository.HouseholdRecord") -> str:
+def tax_settings_updated(before: repository.HouseholdRecord) -> str:
     return json.dumps(
         {
             "op": "restore",
@@ -574,7 +574,7 @@ def tax_settings_updated(before: "repository.HouseholdRecord") -> str:
     )
 
 
-def household_updated(before: "repository.HouseholdRecord") -> str:
+def household_updated(before: repository.HouseholdRecord) -> str:
     return json.dumps(
         {
             "op": "restore",

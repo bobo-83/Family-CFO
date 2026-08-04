@@ -40,7 +40,7 @@ dev = [
   "httpx>=0.27,<0.28",
   # pytest >=9.0.3 clears PYSEC-2026-1845.
   "pytest>=9.0.3,<10",
-  "ruff>=0.6,<0.16",
+  "ruff>=0.16,<0.17",
 ]
 
 [project.scripts]
@@ -63,3 +63,20 @@ filterwarnings = ["error"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+ignore = [
+  # FastAPI's dependency idiom IS a function call in a default argument
+  # (Depends/Query/Body); flagging it would fight the framework (#183).
+  "B008",
+  # date.today() is pervasive and deliberate: the app models calendar days in
+  # box-local time; tests pin dates where determinism matters. An injected
+  # clock refactor is not worth the churn (#183).
+  "DTZ011",
+  # strptime here parses CALENDAR strings (statement dates, CSV cells,
+  # YYYY-MM months) straight to .date(); no timezone exists to attach.
+  "DTZ007",
+  # dict(keyword=...) is the codebase's row/fixture-building idiom; the
+  # literal-syntax rule fights ~17 deliberate sites for zero clarity gain.
+  "C408",
+]

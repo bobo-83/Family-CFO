@@ -105,7 +105,7 @@ def _preview_xlsx(name: str, raw: bytes) -> str:
         workbook = openpyxl.load_workbook(
             io.BytesIO(raw), read_only=True, data_only=True
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — any parse failure means the same user answer
         return f'Attached spreadsheet "{name}" could not be opened — it may be corrupt.'
     try:
         sheet = workbook[workbook.sheetnames[0]]
@@ -149,5 +149,5 @@ def build_data_file_preview(name: str, raw: bytes) -> str:
         if lowered.endswith((".txt", ".md", ".log")) or ("," not in sample and "\t" not in sample):
             return _preview_text(name, raw)
         return _preview_csv(name, raw)
-    except Exception:  # pragma: no cover - final safety net
+    except Exception:  # noqa: BLE001 — final safety net; pragma: no cover
         return f'Attached file "{name}" could not be summarized.'

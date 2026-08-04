@@ -54,7 +54,7 @@ def test_xlsx_preview_reads_the_first_sheet() -> None:
 
 
 def test_text_preview_shows_head_and_counts() -> None:
-    text = ("line one\nline two\nline three\n").encode()
+    text = (b"line one\nline two\nline three\n")
 
     preview = build_data_file_preview("notes.txt", text)
 

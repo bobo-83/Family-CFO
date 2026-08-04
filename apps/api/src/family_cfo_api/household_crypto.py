@@ -109,7 +109,7 @@ def _get_or_create_dek(engine: Engine, household_id: str, master: Fernet) -> byt
                     )
                 )
             _write_canary(engine, household_id, dek)
-        except Exception:  # noqa: BLE001 — concurrent first-write: reread the winner
+        except Exception:
             with engine.connect() as conn:
                 row = conn.execute(
                     select(models.household_keys.c.wrapped_dek).where(
@@ -581,7 +581,7 @@ def ensure_member_wrap(engine: Engine, household_id: str, user_id: str, password
         if dek is None:
             return
         _upsert_wrap(engine, household_id, "member", user_id, _wrap_with_password(dek, password))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("member wrap upkeep failed household=%s", household_id)
 
 
@@ -595,7 +595,7 @@ def ensure_device_wrap(
             return
         raw = base64.b64decode(public_key_b64)
         _upsert_wrap(engine, household_id, "device", device_id, _wrap_with_p256(dek, raw))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("device wrap upkeep failed household=%s", household_id)
 
 
@@ -665,7 +665,8 @@ def rotate_household_key(engine: Engine, household_id: str) -> bool:
     are DELETED (a password can't be re-derived server-side) and come back at
     each member's next login; the recovery wrap is deleted and the household is
     told to mint a new key (wrap_status shows has_recovery_key=false)."""
-    from sqlalchemy import delete as sql_delete, update as sql_update
+    from sqlalchemy import delete as sql_delete
+    from sqlalchemy import update as sql_update
 
     from family_cfo_api import models
 
