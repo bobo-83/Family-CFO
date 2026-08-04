@@ -19,6 +19,7 @@ from family_cfo_api import (
     ai_memory,
     ai_study,
     backup_processing,
+    household_crypto,
     import_processing,
     net_worth_history,
     report_generation,
@@ -102,7 +103,10 @@ def main() -> None:
         # M96: auto-file what was just imported (transfers, income, taxes, known
         # merchants) so a nightly sync doesn't leave the Categorize queue full.
         for household_id in households:
-            finance_service.autofile_all(engine, household_id)
+            try:
+                finance_service.autofile_all(engine, household_id)
+            except household_crypto.HouseholdLockedError:
+                continue  # #181: per-household isolation
 
     @sealed_aware
     def capture_net_worth_snapshot() -> None:

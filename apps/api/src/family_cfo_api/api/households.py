@@ -3,10 +3,18 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, security
+from family_cfo_api import audit, repository, rights, security
 from family_cfo_api.config import Settings
-from family_cfo_api.deps import get_app_settings, get_engine
-from family_cfo_api.schemas import AuthSession, ErrorResponse, HouseholdCreateRequest
+from family_cfo_api.deps import get_app_settings, get_engine, require_right
+from family_cfo_api.schemas import (
+    AuthSession,
+    ErrorResponse,
+    HostedHousehold,
+    HostedHouseholdCreateRequest,
+    HostedHouseholdCreateResponse,
+    HostedHouseholdList,
+    HouseholdCreateRequest,
+)
 
 router = APIRouter(tags=["Household"])
 
@@ -76,4 +84,107 @@ async def create_household(
         role=result.role,
         role_name=role_name or None,
         rights=sorted(member_rights),
+    )
+
+
+# #180: the invite a hosted family's first owner joins through lives 7 days,
+# matching member invites.
+HOSTED_INVITE_TTL = timedelta(days=7)
+
+
+def _hosted_summary(engine, summary: dict, counts: dict, pending: set) -> HostedHousehold:
+    return HostedHousehold(
+        id=summary["id"],
+        name=summary["display_name"],
+        base_currency=summary["base_currency"],
+        created_at=summary["created_at"],
+        member_count=counts.get(summary["id"], 0),
+        pending_owner_invite=summary["id"] in pending,
+        sealed=bool(summary["sealed_mode"]),
+    )
+
+
+@router.get(
+    "/households/hosted",
+    operation_id="listHostedHouseholds",
+    response_model=HostedHouseholdList,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Requires system administrator", "model": ErrorResponse},
+    },
+    summary="Every household on this box (operator view)",
+)
+async def list_hosted_households(
+    session: repository.SessionContext = Depends(require_right(rights.SYSTEM_ADMIN)),
+    engine: Engine = Depends(get_engine),
+) -> HostedHouseholdList:
+    counts = repository.household_member_counts(engine)
+    pending = repository.households_with_pending_owner_invite(engine)
+    return HostedHouseholdList(
+        households=[
+            _hosted_summary(engine, summary, counts, pending)
+            for summary in repository.list_household_summaries(engine)
+        ]
+    )
+
+
+@router.post(
+    "/households/hosted",
+    operation_id="createHostedHousehold",
+    response_model=HostedHouseholdCreateResponse,
+    status_code=201,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Requires system administrator", "model": ErrorResponse},
+        409: {"description": "Email already has an account", "model": ErrorResponse},
+    },
+    summary="Create a household for a family you host, with its first-owner invite",
+)
+async def create_hosted_household(
+    payload: HostedHouseholdCreateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.SYSTEM_ADMIN)),
+    engine: Engine = Depends(get_engine),
+) -> HostedHouseholdCreateResponse:
+    # Deliberate: this does NOT check allow_multiple_households — that flag
+    # locks PUBLIC signup. Hosting is an explicit operator action, and the
+    # public door stays shut either way (#180).
+    if repository.user_email_exists(engine, payload.owner_email):
+        raise HTTPException(
+            status_code=409,
+            detail="That email already has an account on this box — invite them "
+            "from their existing household instead.",
+        )
+    household_id, admin_role_id = repository.create_hosted_household(
+        engine, payload.display_name, payload.base_currency.upper()
+    )
+    invite_token = security.generate_access_token()
+    expires_at = repository.utcnow() + HOSTED_INVITE_TTL
+    repository.create_invite(
+        engine,
+        household_id=household_id,
+        email=payload.owner_email,
+        role="owner",
+        role_id=admin_role_id,
+        token_hash=security.hash_token(invite_token),
+        invited_by_user_id=session.user_id,
+        expires_at=expires_at,
+    )
+    audit.write_audit(
+        engine,
+        household_id,
+        session.user_id,
+        "household.hosted_created",
+        "household",
+        household_id,
+        f"Hosted household created; owner invite sent to {payload.owner_email}",
+    )
+    counts = repository.household_member_counts(engine)
+    pending = repository.households_with_pending_owner_invite(engine)
+    summary = next(
+        s for s in repository.list_household_summaries(engine) if s["id"] == household_id
+    )
+    return HostedHouseholdCreateResponse(
+        household=_hosted_summary(engine, summary, counts, pending),
+        invite_token=invite_token,
+        invite_expires_at=expires_at,
     )

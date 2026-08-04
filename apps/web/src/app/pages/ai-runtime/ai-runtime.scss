@@ -147,6 +147,8 @@
 /* --- Now serving + pinned selection (M47) ----------------------------------- */
 
 .now-serving,
+.usage,
+.cluster,
 .browse {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -257,20 +259,21 @@
   }
 }
 
-/* --- Two-box cluster (ADR 0071) ---------------------------------------------- */
+/* --- #181: per-household usage — the operator's fairness view. Card chrome
+   comes from the .now-serving group above, rows from .answer-stats (the scss
+   budget leaves no room for a parallel set of row rules). ------------------- */
 
-.cluster {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  margin-bottom: 1rem;
+.usage__cap {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
 
-  h2 {
-    margin: 0 0 0.6rem;
-    font-size: 1.05rem;
+  &--off {
+    color: var(--color-text-muted);
   }
 }
+
+/* --- Two-box cluster (ADR 0071) ---------------------------------------------- */
+/* (.cluster card chrome comes from the .now-serving group above.) */
 
 .cluster__line {
   margin: 0 0 0.5rem;
@@ -395,18 +398,9 @@
   gap: 0.5rem;
   align-items: flex-start;
 
-  &__field,
   .advanced__vision-field {
     flex: 1;
     min-width: 0;
-  }
-
-  button {
-    // hidden legacy rule kept minimal; Material owns the control chrome
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
   }
 }
 

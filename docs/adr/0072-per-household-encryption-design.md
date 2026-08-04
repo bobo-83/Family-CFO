@@ -212,3 +212,24 @@ where decryption slots in.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.
+
+## Implementation note — Phase 4 + onboarding (shipped 2026-08-04, #181/#180)
+
+- **Isolation**: every background job (snapshots, indexing, reports, bank
+  sync, autofile) skips a sealed+locked household per item and continues;
+  the whole-tick guard remains only as a backstop.
+- **Fair use**: per-household sliding-window cap on both chat endpoints
+  (FAMILY_CFO_CHAT_HOURLY_LIMIT, 0 = off — the single-family default), a
+  60s cooldown on on-demand backups, and GET /ai/usage — the operator's
+  per-household view of chats, felt latency, and storage bytes.
+- **Onboarding (#180)**: POST /households/hosted (system admin) mints a
+  seeded household shell + a one-time owner invite; the family's first
+  owner sets their own password on acceptance (which mints their member
+  key — Phase 2 composes). Deliberate posture: this does NOT consult
+  allow_multiple_households — that flag locks PUBLIC signup, which stays
+  shut; hosting is an explicit operator act.
+- **Abuse-surface review** (recorded, not all enforced): auth brute-force
+  limits are per-IP+account (existing); invite minting and pairing-session
+  creation are rights-gated and one-valid-per-target; the remaining soft
+  spot is advisor/vision cost per household, addressed by the chat cap —
+  study ticks already yield to interactive use and run one month per tick.

@@ -15,6 +15,9 @@ final class AIRuntimeViewModel {
     private(set) var hardware: Components.Schemas.AiHardwareProfile?
     /// ADR 0071: the raw runtime config — carries the cluster toggle.
     private(set) var config: Components.Schemas.AiRuntimeConfig?
+    /// #181: per-household usage — operator telemetry; nil without the manage
+    /// right (the endpoint 403s) or while the box hasn't answered yet.
+    private(set) var usage: Components.Schemas.AiUsageResponse?
     private(set) var isLoading = false
     private(set) var searchResults: [Components.Schemas.AiModelInfo]?
     private(set) var isSearching = false
@@ -34,10 +37,14 @@ final class AIRuntimeViewModel {
             async let catalogTask = api.catalog()
             async let hardwareTask = api.hardware()
             async let configTask = api.runtimeConfig()
+            async let usageTask = api.usage()
             status = try await statusTask
             models = try await catalogTask
             hardware = (try? await hardwareTask) ?? hardware
             config = (try? await configTask) ?? config
+            // Telemetry, not a workflow: a 403 (no manage right) or any other
+            // failure just leaves the usage section hidden (#181).
+            usage = (try? await usageTask) ?? usage
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -71,6 +78,30 @@ final class AIRuntimeViewModel {
         if needed <= budget * 0.8 { return .fits }
         if needed <= budget { return .tight }
         return .tooBig
+    }
+
+    // MARK: - Household usage (#181)
+
+    /// A single-family box with the cap off needs no fairness view; two or
+    /// more households always show it.
+    var showsHouseholdUsage: Bool {
+        guard let usage else { return false }
+        return usage.households.count >= 2 || usage.chatHourlyLimit > 0
+    }
+
+    var fairUseCapLabel: String {
+        guard let usage else { return "" }
+        return usage.chatHourlyLimit > 0
+            ? "Fair-use cap: \(usage.chatHourlyLimit) chats/hour per household"
+            : "Fair-use cap: off"
+    }
+
+    /// "512 MB" / "1.4 GB" — decimal units, matching the web page.
+    static func storageLabel(bytes: Int64) -> String {
+        if bytes >= 1_000_000_000 {
+            return String(format: "%.1f GB", Double(bytes) / 1_000_000_000)
+        }
+        return "\(Int((Double(bytes) / 1_000_000).rounded())) MB"
     }
 
     // MARK: - Two-box cluster (ADR 0071)

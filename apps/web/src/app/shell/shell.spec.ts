@@ -51,7 +51,26 @@ describe('Shell', () => {
     // The link list is its own scroll container so long menus never trap
     // the footer off-screen.
     expect(host.querySelector('nav.shell__nav-scroll')).not.toBeNull();
-    expect(host.querySelectorAll('.shell__nav-link').length).toBe(19); // 18 pages + System Health
+    expect(host.querySelectorAll('.shell__nav-link').length).toBe(20); // 19 pages + System Health
+  });
+
+  it('hides the Households link without system.admin (#180)', () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        role: () => 'owner',
+        hasRight: (right: string) => right !== 'system.admin',
+        logout: () => undefined,
+        refreshRights: async () => undefined,
+      },
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.shell__nav-link'),
+    ).map((el) => el.textContent?.trim());
+
+    expect(labels).not.toContain('Households');
+    expect(labels).toContain('Devices');
   });
 
   it('renders the scrim only while the menu is open', () => {

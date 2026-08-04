@@ -79,6 +79,8 @@ export class Shell {
         { path: '/users', label: 'Users', right: 'members.manage' },
         { path: '/roles', label: 'Roles', right: 'roles.manage' },
         { path: '/devices', label: 'Devices' },
+        // #180: operator hosting — only system admins ever see this.
+        { path: '/households', label: 'Households', right: 'system.admin' },
       ],
     },
   ];

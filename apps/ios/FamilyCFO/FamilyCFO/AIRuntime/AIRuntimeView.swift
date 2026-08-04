@@ -21,6 +21,7 @@ struct AIRuntimeView: View {
         List {
             statusSection
             answerStatsSection
+            usageSection
             if let banner = viewModel.applyBanner {
                 Section {
                     Label(banner, systemImage: viewModel.isApplying ? "arrow.triangle.2.circlepath" : "info.circle")
@@ -112,6 +113,40 @@ struct AIRuntimeView: View {
                 Text("Median answer time")
             } footer: {
                 Text("Felt latency of recent advisor answers, per model.")
+            }
+        }
+    }
+
+    /// #181: per-household share of the box — the operator's fairness view.
+    /// Hidden without the manage right (the endpoint 403s anyway) and for a
+    /// single-family box with the fair-use cap off.
+    @ViewBuilder private var usageSection: some View {
+        if canManage, viewModel.showsHouseholdUsage, let usage = viewModel.usage {
+            Section {
+                ForEach(usage.households, id: \.householdId) { row in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(row.name)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(AIRuntimeViewModel.storageLabel(bytes: row.storageBytes))
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        Text("\(row.chats7d) chat\(row.chats7d == 1 ? "" : "s") this week (\(row.chats24h) in the last 24 h)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if let median = row.medianAnswerMs {
+                            Text("\(Self.answerTimeLabel(ms: median)) median answer")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Household usage")
+            } footer: {
+                Text(viewModel.fairUseCapLabel)
             }
         }
     }

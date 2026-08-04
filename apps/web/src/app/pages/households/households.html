@@ -1,0 +1,90 @@
+<h1>Households</h1>
+
+@if (!canHost()) {
+  <p class="page-empty">Only a system administrator can manage hosted households.</p>
+} @else {
+  <p class="page-hint">
+    Families you host on this box. Create a household and hand its first owner the
+    one-time join link — they pick their own password and run their household from
+    there.
+  </p>
+
+  <mat-card appearance="outlined" class="page-card">
+    <mat-card-content>
+      <form class="create-form" [formGroup]="createForm" (ngSubmit)="createHousehold()">
+        <h3>Create household</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Display name</mat-label>
+          <input matInput formControlName="displayName" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="create-form__currency">
+          <mat-label>Currency</mat-label>
+          <input matInput formControlName="baseCurrency" maxlength="3" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Owner email</mat-label>
+          <input matInput type="email" formControlName="ownerEmail" />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="creating()">
+          {{ creating() ? 'Creating…' : 'Create household' }}
+        </button>
+        @if (createError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
+      </form>
+
+      @if (inviteLink(); as link) {
+        <div class="invite-link" role="status">
+          <p class="invite-link__note">
+            <strong>Shown once — share it with the family now.</strong>
+            Send this link to <strong>{{ link.email }}</strong>; it expires
+            {{ link.expiresAt | date: 'MMM d, y' }}.
+          </p>
+          <code class="invite-link__url">{{ link.url }}</code>
+          <div class="invite-link__actions">
+            <button mat-flat-button type="button" (click)="copyInviteLink()">
+              {{ inviteLinkCopied() ? 'Copied ✓' : 'Copy link' }}
+            </button>
+            <button mat-button type="button" (click)="dismissInviteLink()">Done</button>
+          </div>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <h2>Hosted households</h2>
+  @switch (households.status()) {
+    @case ('loading') {
+      <p>Loading…</p>
+    }
+    @case ('error') {
+      <p class="page-error" role="alert">{{ households.error() }}</p>
+    }
+    @default {
+      @if ((households.value() ?? []).length === 0) {
+        <p class="page-empty">No households yet.</p>
+      } @else {
+        <ul class="household-list">
+          @for (household of households.value() ?? []; track household.id) {
+            <li class="household-list__item">
+              <div class="household-list__name">
+                {{ household.name }}
+                @if (household.pending_owner_invite) {
+                  <span class="household-badge household-badge--pending">invite pending</span>
+                }
+                @if (household.sealed) {
+                  <span class="household-badge household-badge--sealed">sealed</span>
+                }
+              </div>
+              <div class="household-list__meta">
+                {{ household.base_currency }}
+                · {{ household.member_count }} {{ household.member_count === 1 ? 'member' : 'members' }}
+                · created {{ household.created_at | date: 'MMM d, y' }}
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+}

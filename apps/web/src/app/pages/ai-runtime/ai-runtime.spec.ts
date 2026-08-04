@@ -65,6 +65,7 @@ describe('AiRuntime', () => {
     applyAiModelSelection: ReturnType<typeof vi.fn>;
     getAiApplyStatus: ReturnType<typeof vi.fn>;
     getAiStudyStatus: ReturnType<typeof vi.fn>;
+    getAiUsage: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -113,6 +114,29 @@ describe('AiRuntime', () => {
               updated_at: '2026-07-19T02:10:00Z',
             },
           ],
+        }),
+      ),
+      getAiUsage: vi.fn().mockResolvedValue(
+        response({
+          households: [
+            {
+              household_id: 'hh-cedar',
+              name: 'Cedar family',
+              chats_24h: 5,
+              chats_7d: 12,
+              median_answer_ms: 8300,
+              storage_bytes: 1_200_000_000,
+            },
+            {
+              household_id: 'hh-birch',
+              name: 'Birch family',
+              chats_24h: 0,
+              chats_7d: 1,
+              median_answer_ms: null,
+              storage_bytes: 340_000_000,
+            },
+          ],
+          chat_hourly_limit: 30,
         }),
       ),
     };
@@ -719,6 +743,89 @@ describe('AiRuntime', () => {
     const picker = (fixture.nativeElement as HTMLElement).querySelector('.picker');
     expect(form).toBeFalsy();
     expect(picker).toBeFalsy();
+  });
+
+  // --- Household usage (#181) -------------------------------------------------
+
+  it('renders household usage rows in server order with formatted values', async () => {
+    const fixture = await create();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const section = host.querySelector('.usage');
+    expect(section).toBeTruthy();
+    const rows = [...section!.querySelectorAll('.usage__row')].map((row) =>
+      row.textContent!.replace(/\s+/g, ' ').trim(),
+    );
+    expect(rows.length).toBe(2);
+    // Server pre-sorts heaviest first; the page must not reorder.
+    expect(rows[0]).toContain('Cedar family');
+    expect(rows[0]).toContain('12 chats this week (5 in the last 24 h)');
+    expect(rows[0]).toContain('8.3s median'); // same formatter as the medians
+    expect(rows[0]).toContain('1.2 GB');
+    expect(rows[1]).toContain('Birch family');
+    expect(rows[1]).toContain('1 chat this week (0 in the last 24 h)');
+    expect(rows[1]).toContain('— median'); // no samples yet
+    expect(rows[1]).toContain('340 MB');
+    expect(section!.querySelector('.usage__cap')?.textContent).toContain(
+      'Fair-use cap: 30 chats/hour per household',
+    );
+  });
+
+  it('hides household usage for a single household with the cap off', async () => {
+    apiMock.getAiUsage.mockResolvedValue(
+      response({
+        households: [
+          {
+            household_id: 'hh-cedar',
+            name: 'Cedar family',
+            chats_24h: 2,
+            chats_7d: 9,
+            median_answer_ms: 4200,
+            storage_bytes: 90_000_000,
+          },
+        ],
+        chat_hourly_limit: 0,
+      }),
+    );
+    const fixture = await create();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.usage')).toBeFalsy();
+  });
+
+  it('shows household usage for a single household while the cap is armed', async () => {
+    apiMock.getAiUsage.mockResolvedValue(
+      response({
+        households: [
+          {
+            household_id: 'hh-cedar',
+            name: 'Cedar family',
+            chats_24h: 2,
+            chats_7d: 9,
+            median_answer_ms: 4200,
+            storage_bytes: 90_000_000,
+          },
+        ],
+        chat_hourly_limit: 12,
+      }),
+    );
+    const fixture = await create();
+    const section = (fixture.nativeElement as HTMLElement).querySelector('.usage');
+    expect(section).toBeTruthy();
+    expect(section!.querySelector('.usage__cap')?.textContent).toContain(
+      'Fair-use cap: 12 chats/hour per household',
+    );
+  });
+
+  it('hides household usage when the endpoint answers 403 (telemetry fails quiet)', async () => {
+    apiMock.getAiUsage.mockResolvedValue(
+      response(undefined, { error: { code: 'forbidden', message: 'AI runtime management required' } }),
+    );
+    const fixture = await create();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.usage')).toBeFalsy();
+  });
+
+  it('hides household usage for a member without the manage right', async () => {
+    const fixture = await create('adult');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.usage')).toBeFalsy();
   });
 
   // --- Knowledge of your data (ADR 0040) -------------------------------------

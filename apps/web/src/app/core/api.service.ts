@@ -36,6 +36,9 @@ import {
   deleteGoal,
   updateGoal,
   createHousehold,
+  createHostedHousehold,
+  listHostedHouseholds,
+  type HostedHouseholdCreateRequest,
   createImport,
   createIncomeSource,
   createMember,
@@ -70,6 +73,7 @@ import {
   getAiHardwareProfile,
   getAiRuntimeStatus,
   getAiStudyStatus,
+  getAiUsage,
   getConversation,
   createIncomeEarner,
   deleteIncomeEarner,
@@ -195,6 +199,15 @@ export class ApiService {
 
   updateHousehold(body: HouseholdUpdateRequest) {
     return updateHousehold({ body });
+  }
+
+  // #180: operator hosting — system admins only, the server 403s everyone else.
+  listHostedHouseholds() {
+    return listHostedHouseholds();
+  }
+
+  createHostedHousehold(body: HostedHouseholdCreateRequest) {
+    return createHostedHousehold({ body });
   }
 
   // ADR 0072 Phase 2: household data-key posture + recovery key.
@@ -747,6 +760,10 @@ export class ApiService {
 
   getAiHardwareProfile() {
     return getAiHardwareProfile();
+  }
+
+  getAiUsage() {
+    return getAiUsage();
   }
 
   searchAiModels(options: {

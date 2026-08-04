@@ -1,0 +1,80 @@
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 28rem;
+
+  h3 {
+    margin: 0 0 0.5rem;
+  }
+}
+
+.create-form__currency {
+  max-width: 10rem;
+}
+
+// #180: the one-time join link box — same treatment as the Users page invites.
+.invite-link {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border: 1px dashed rgba(127, 127, 127, 0.5);
+  border-radius: 8px;
+
+  &__note {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+  }
+  &__url {
+    display: block;
+    padding: 0.5rem;
+    background: rgba(127, 127, 127, 0.1);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    word-break: break-all;
+    user-select: all;
+  }
+  &__actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+.household-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+
+  &__item {
+    padding: 0.6rem 0;
+    border-top: 1px solid rgba(127, 127, 127, 0.15);
+  }
+  &__name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  &__meta {
+    font-size: 0.8rem;
+    color: rgba(127, 127, 127, 0.9);
+  }
+}
+
+.household-badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &--pending {
+    background: #fff3e0;
+    color: #8a5a00;
+  }
+  &--sealed {
+    background: rgba(127, 127, 127, 0.15);
+    color: #666;
+  }
+}

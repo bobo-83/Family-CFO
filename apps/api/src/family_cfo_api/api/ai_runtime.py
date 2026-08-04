@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from dataclasses import asdict
 from urllib.parse import urlparse
@@ -23,7 +24,9 @@ from family_cfo_api.schemas import (
     AiStudyInsight,
     AiStudyStatus,
     AiSwapStatus,
+    AiUsageResponse,
     ErrorResponse,
+    HouseholdUsage,
     ModelAnswerStats,
 )
 
@@ -726,3 +729,51 @@ def get_ai_apply_status(
         return AiSwapStatus(**response.json())
     except (httpx.HTTPError, ValueError):
         return AiSwapStatus(state="unavailable")
+
+
+@router.get(
+    "/ai/usage",
+    operation_id="getAiUsage",
+    response_model=AiUsageResponse,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Per-household advisor and storage usage (operator fairness view)",
+)
+async def get_ai_usage(
+    session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> AiUsageResponse:
+    usage = repository.advisor_usage_by_household(engine)
+    paths = repository.storage_paths_by_household(engine)
+    households = []
+    for household_id in repository.list_households(engine):
+        household = repository.get_household(engine, household_id)
+        if household is None:
+            continue
+        storage = 0
+        for rel in paths.get(household_id, []):
+            base = (
+                os.path.join(settings.import_staging_dir, "documents")
+                if not rel.startswith("attachments")
+                else settings.import_staging_dir
+            )
+            try:
+                storage += os.path.getsize(os.path.join(base, rel))
+            except OSError:
+                continue
+        entry = usage.get(household_id, {})
+        households.append(
+            HouseholdUsage(
+                household_id=household_id,
+                name=household.display_name,
+                chats_24h=entry.get("chats_24h", 0),
+                chats_7d=entry.get("chats_7d", 0),
+                median_answer_ms=entry.get("median_answer_ms"),
+                storage_bytes=storage,
+            )
+        )
+    households.sort(key=lambda h: h.chats_7d, reverse=True)
+    return AiUsageResponse(households=households, chat_hourly_limit=settings.chat_hourly_limit)

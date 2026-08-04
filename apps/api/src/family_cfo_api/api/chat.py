@@ -31,6 +31,7 @@ from family_cfo_api.ai_runtime_selection import (
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine
 from family_cfo_api.explanation import format_money
+from family_cfo_api.ratelimit import HouseholdQuotaLimiter
 from family_cfo_api.schemas import (
     AdvisorFeedbackRequest,
     ChatRequest,
@@ -584,6 +585,26 @@ def _chat_turn(
     )
 
 
+# #181: one shared vLLM serves every household — a fair-use cap (off by
+# default) keeps one household's heavy usage from starving the others.
+_chat_quota = HouseholdQuotaLimiter(max_per_hour=0)
+_chat_quota_configured_for = -1
+
+
+def _enforce_chat_quota(household_id: str, settings: Settings) -> None:
+    global _chat_quota, _chat_quota_configured_for
+    if settings.chat_hourly_limit != _chat_quota_configured_for:
+        _chat_quota = HouseholdQuotaLimiter(max_per_hour=settings.chat_hourly_limit)
+        _chat_quota_configured_for = settings.chat_hourly_limit
+    retry_after = _chat_quota.check_and_record(household_id)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="The advisor is rate-limited for this household right now — try again shortly.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
 @router.post(
     "/chat/messages",
     operation_id="createChatMessage",
@@ -598,6 +619,7 @@ async def create_chat_message(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> ChatResponse:
+    _enforce_chat_quota(session.household_id, settings)
     return _chat_turn(
         payload, session, engine, settings, schedule=background_tasks.add_task
     )
@@ -630,6 +652,7 @@ async def create_chat_message_stream(
     sent whole, after the guardrail validated it. Streaming exists so the
     socket carries bytes while the model thinks (weak-WiFi connections drop
     idle sockets — nginx 499s) and so the user sees live progress."""
+    _enforce_chat_quota(session.household_id, settings)
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict | None] = asyncio.Queue()
 

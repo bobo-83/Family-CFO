@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -16,7 +17,9 @@ from family_cfo_financial_engine import (
 )
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import household_crypto, repository
+
+logger = logging.getLogger(__name__)
 from family_cfo_api.ai_runtime_selection import select_explanation_adapter
 from family_cfo_api.explanation import ExplanationAdapter, ReportExplanationContext, format_money
 
@@ -336,6 +339,9 @@ def run_scheduled_reports_once(
         try:
             generate_report(engine, household_id, report_type, explanation_adapter, reference)
             generated += 1
+        except household_crypto.HouseholdLockedError:
+            # #181: sealed+locked household defers; the rest still report.
+            logger.info("report deferred: household %s locked", household_id)
         finally:
             if runtime_client is not None:
                 runtime_client.close()

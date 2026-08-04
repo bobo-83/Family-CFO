@@ -1938,6 +1938,57 @@ def create_scenario(
     return scenario_id
 
 
+def advisor_usage_by_household(engine: Engine) -> dict[str, dict]:
+    """#181: per-household advisor volume for the operator's fairness view —
+    counts + median felt latency, computed over the recommendations log."""
+    import statistics
+
+    now = utcnow()
+    day_ago = now - timedelta(hours=24)
+    week_ago = now - timedelta(days=7)
+    query = select(
+        models.recommendations.c.household_id,
+        models.recommendations.c.created_at,
+        models.recommendations.c.answer_ms,
+    ).where(models.recommendations.c.created_at >= week_ago)
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    usage: dict[str, dict] = {}
+    for row in rows:
+        entry = usage.setdefault(
+            row.household_id, {"chats_24h": 0, "chats_7d": 0, "answer_ms": []}
+        )
+        entry["chats_7d"] += 1
+        created = row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=UTC)
+        if created >= day_ago:
+            entry["chats_24h"] += 1
+        if row.answer_ms is not None:
+            entry["answer_ms"].append(row.answer_ms)
+    for entry in usage.values():
+        samples = entry.pop("answer_ms")
+        entry["median_answer_ms"] = int(statistics.median(samples)) if samples else None
+    return usage
+
+
+def storage_paths_by_household(engine: Engine) -> dict[str, list[str]]:
+    """#181: every stored file path (documents + transaction attachments) per
+    household, for the operator's storage-usage rollup."""
+    out: dict[str, list[str]] = {}
+    with engine.connect() as conn:
+        for row in conn.execute(
+            select(models.documents.c.household_id, models.documents.c.storage_path)
+        ):
+            if row[1]:
+                out.setdefault(row[0], []).append(row[1])
+        for row in conn.execute(
+            select(
+                models.transactions.c.household_id, models.transactions.c.attachment_path
+            ).where(models.transactions.c.attachment_path.is_not(None))
+        ):
+            out.setdefault(row[0], []).append(row[1])
+    return out
+
+
 def create_recommendation(
     engine: Engine,
     household_id: str,
@@ -3379,6 +3430,61 @@ def user_email_exists(engine: Engine, email: str) -> bool:
     with engine.connect() as conn:
         row = conn.execute(select(models.users.c.id).where(models.users.c.email == email)).first()
     return row is not None
+
+
+def create_hosted_household(
+    engine: Engine, display_name: str, base_currency: str
+) -> tuple[str, str]:
+    """#180: a household shell for a HOSTED family — seeded role presets, no
+    user yet. The first owner arrives via the returned Admin role's invite.
+    Returns (household_id, admin_role_id)."""
+    household_id = new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.households).values(
+                id=household_id,
+                display_name=display_name,
+                base_currency=base_currency,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        preset_ids = _seed_preset_roles(conn, household_id, now)
+    return household_id, preset_ids["Admin"]
+
+
+def household_member_counts(engine: Engine) -> dict[str, int]:
+    query = select(
+        models.household_memberships.c.household_id, func.count()
+    ).group_by(models.household_memberships.c.household_id)
+    with engine.connect() as conn:
+        return {row[0]: row[1] for row in conn.execute(query).all()}
+
+
+def households_with_pending_owner_invite(engine: Engine) -> set[str]:
+    now = utcnow()
+    query = select(models.household_invites.c.household_id).where(
+        models.household_invites.c.role == "owner",
+        models.household_invites.c.accepted_at.is_(None),
+        models.household_invites.c.revoked_at.is_(None),
+        models.household_invites.c.expires_at > now,
+    )
+    with engine.connect() as conn:
+        return {row[0] for row in conn.execute(query).all()}
+
+
+def list_household_summaries(engine: Engine) -> list[dict]:
+    """#180: every household with display name + created_at, for the operator."""
+    query = select(
+        models.households.c.id,
+        models.households.c.display_name,
+        models.households.c.base_currency,
+        models.households.c.created_at,
+        models.households.c.sealed_mode,
+    ).order_by(models.households.c.created_at)
+    with engine.connect() as conn:
+        return [dict(row._mapping) for row in conn.execute(query).all()]
 
 
 def create_household_with_owner(

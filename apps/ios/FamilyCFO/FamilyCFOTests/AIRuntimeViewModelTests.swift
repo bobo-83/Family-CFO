@@ -14,6 +14,8 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
     var applyStates: [Components.Schemas.AiSwapStatus] = []
     var configResult = Components.Schemas.AiRuntimeConfig(
         provider: .vllm, baseUrl: "http://vllm:8000", model: "Qwen/Current", enabled: true)
+    // nil = the server 403s (no AI-runtime-manage right), like production.
+    var usageResult: Components.Schemas.AiUsageResponse?
     private(set) var appliedMain: String?
     private(set) var appliedVision: String?
     private(set) var appliedCluster: Bool?
@@ -63,6 +65,12 @@ final class MockAIRuntimeAPI: AIRuntimeAPI, @unchecked Sendable {
             return applyStates.first
                 ?? Components.Schemas.AiSwapStatus(state: .succeeded)
         }
+    }
+    nonisolated func usage() async throws -> Components.Schemas.AiUsageResponse {
+        guard let result = await MainActor.run(body: { usageResult }) else {
+            throw APIError.server(403)
+        }
+        return result
     }
 }
 
@@ -163,5 +171,65 @@ struct AIRuntimeViewModelTests {
         let vm = AIRuntimeViewModel(api: api)
         await vm.load()
         #expect(vm.statusLine.contains("Qwen/Current"))
+    }
+
+    // MARK: - Household usage (#181)
+
+    @Test func householdUsageShowsWithTwoHouseholdsInServerOrder() async {
+        let api = MockAIRuntimeAPI()
+        api.usageResult = .init(
+            households: [
+                .init(
+                    householdId: "hh-cedar", name: "Cedar family", chats24h: 5, chats7d: 12,
+                    medianAnswerMs: 8300, storageBytes: 1_200_000_000),
+                .init(
+                    householdId: "hh-birch", name: "Birch family", chats24h: 0, chats7d: 1,
+                    medianAnswerMs: nil, storageBytes: 340_000_000),
+            ],
+            chatHourlyLimit: 30)
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+
+        #expect(vm.showsHouseholdUsage)
+        // Server pre-sorts heaviest first; the client must not reorder.
+        #expect(vm.usage?.households.map(\.name) == ["Cedar family", "Birch family"])
+        #expect(vm.fairUseCapLabel == "Fair-use cap: 30 chats/hour per household")
+    }
+
+    @Test func householdUsageHiddenForASingleFamilyWithTheCapOff() async {
+        let api = MockAIRuntimeAPI()
+        api.usageResult = .init(
+            households: [
+                .init(
+                    householdId: "hh-cedar", name: "Cedar family", chats24h: 2, chats7d: 9,
+                    medianAnswerMs: 4200, storageBytes: 90_000_000)
+            ],
+            chatHourlyLimit: 0)
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+
+        #expect(!vm.showsHouseholdUsage)
+
+        // Arming the cap makes the single-household view meaningful again.
+        api.usageResult?.chatHourlyLimit = 12
+        await vm.load()
+        #expect(vm.showsHouseholdUsage)
+        #expect(vm.fairUseCapLabel == "Fair-use cap: 12 chats/hour per household")
+    }
+
+    @Test func usage403FailsQuietAndLeavesTheLoadHealthy() async {
+        let api = MockAIRuntimeAPI()  // usageResult nil -> the endpoint 403s
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+
+        #expect(vm.usage == nil)
+        #expect(!vm.showsHouseholdUsage)
+        #expect(vm.errorMessage == nil)  // telemetry must never break the page
+    }
+
+    @Test func storageLabelUsesHumanMbAndGb() {
+        #expect(AIRuntimeViewModel.storageLabel(bytes: 1_200_000_000) == "1.2 GB")
+        #expect(AIRuntimeViewModel.storageLabel(bytes: 340_000_000) == "340 MB")
+        #expect(AIRuntimeViewModel.storageLabel(bytes: 0) == "0 MB")
     }
 }

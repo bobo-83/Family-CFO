@@ -127,3 +127,13 @@ async def demo_token(demo_client: httpx.AsyncClient) -> str:
 @pytest.fixture
 async def demo_viewer_token(demo_client: httpx.AsyncClient) -> str:
     return await login(demo_client, fixtures.DEMO_VIEWER_EMAIL, fixtures.DEMO_VIEWER_PASSWORD)
+
+
+@pytest.fixture(autouse=True)
+def _reset_backup_cooldown():
+    # #181: the manual-backup cooldown is process-global by design; tests must
+    # not bleed it into each other.
+    from family_cfo_api.api import backups as backups_api
+
+    backups_api.reset_backup_cooldown_for_tests()
+    yield

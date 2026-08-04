@@ -66,6 +66,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /auth/session`.
     /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
     func getSessionInfo(_ input: Operations.GetSessionInfo.Input) async throws -> Operations.GetSessionInfo.Output
+    /// Every household on this box (operator view)
+    ///
+    /// - Remark: HTTP `GET /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)`.
+    func listHostedHouseholds(_ input: Operations.ListHostedHouseholds.Input) async throws -> Operations.ListHostedHouseholds.Output
+    /// Create a household for a family you host, with its first-owner invite
+    ///
+    /// - Remark: HTTP `POST /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)`.
+    func createHostedHousehold(_ input: Operations.CreateHostedHousehold.Input) async throws -> Operations.CreateHostedHousehold.Output
     /// Bootstrap a household with its first owner (self-hosted first-run setup)
     ///
     /// - Remark: HTTP `POST /households`.
@@ -724,6 +734,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /ai/models/detail`.
     /// - Remark: Generated from `#/paths//ai/models/detail/get(getAiModelDetail)`.
     func getAiModelDetail(_ input: Operations.GetAiModelDetail.Input) async throws -> Operations.GetAiModelDetail.Output
+    /// Per-household advisor and storage usage (operator fairness view)
+    ///
+    /// - Remark: HTTP `GET /ai/usage`.
+    /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)`.
+    func getAiUsage(_ input: Operations.GetAiUsage.Input) async throws -> Operations.GetAiUsage.Output
     /// Report best-effort hardware facts for model-fit planning
     ///
     /// - Remark: HTTP `GET /ai/hardware`.
@@ -895,6 +910,26 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
     public func getSessionInfo(headers: Operations.GetSessionInfo.Input.Headers = .init()) async throws -> Operations.GetSessionInfo.Output {
         try await getSessionInfo(Operations.GetSessionInfo.Input(headers: headers))
+    }
+    /// Every household on this box (operator view)
+    ///
+    /// - Remark: HTTP `GET /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)`.
+    public func listHostedHouseholds(headers: Operations.ListHostedHouseholds.Input.Headers = .init()) async throws -> Operations.ListHostedHouseholds.Output {
+        try await listHostedHouseholds(Operations.ListHostedHouseholds.Input(headers: headers))
+    }
+    /// Create a household for a family you host, with its first-owner invite
+    ///
+    /// - Remark: HTTP `POST /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)`.
+    public func createHostedHousehold(
+        headers: Operations.CreateHostedHousehold.Input.Headers = .init(),
+        body: Operations.CreateHostedHousehold.Input.Body
+    ) async throws -> Operations.CreateHostedHousehold.Output {
+        try await createHostedHousehold(Operations.CreateHostedHousehold.Input(
+            headers: headers,
+            body: body
+        ))
     }
     /// Bootstrap a household with its first owner (self-hosted first-run setup)
     ///
@@ -2385,6 +2420,13 @@ extension APIProtocol {
             query: query,
             headers: headers
         ))
+    }
+    /// Per-household advisor and storage usage (operator fairness view)
+    ///
+    /// - Remark: HTTP `GET /ai/usage`.
+    /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)`.
+    public func getAiUsage(headers: Operations.GetAiUsage.Input.Headers = .init()) async throws -> Operations.GetAiUsage.Output {
+        try await getAiUsage(Operations.GetAiUsage.Input(headers: headers))
     }
     /// Report best-effort hardware facts for model-fit planning
     ///
@@ -8487,6 +8529,136 @@ public enum Components {
                 case key
             }
         }
+        /// #180: the operator mints a household shell; its first owner joins via the returned one-time invite.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateRequest`.
+        public struct HostedHouseholdCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateRequest/display_name`.
+            public var displayName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateRequest/base_currency`.
+            public var baseCurrency: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateRequest/owner_email`.
+            public var ownerEmail: Swift.String
+            /// Creates a new `HostedHouseholdCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - displayName:
+            ///   - baseCurrency:
+            ///   - ownerEmail:
+            public init(
+                displayName: Swift.String,
+                baseCurrency: Swift.String,
+                ownerEmail: Swift.String
+            ) {
+                self.displayName = displayName
+                self.baseCurrency = baseCurrency
+                self.ownerEmail = ownerEmail
+            }
+            public enum CodingKeys: String, CodingKey {
+                case displayName = "display_name"
+                case baseCurrency = "base_currency"
+                case ownerEmail = "owner_email"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HostedHousehold`.
+        public struct HostedHousehold: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/base_currency`.
+            public var baseCurrency: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/created_at`.
+            public var createdAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/member_count`.
+            public var memberCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/pending_owner_invite`.
+            public var pendingOwnerInvite: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/HostedHousehold/sealed`.
+            public var sealed: Swift.Bool
+            /// Creates a new `HostedHousehold`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - baseCurrency:
+            ///   - createdAt:
+            ///   - memberCount:
+            ///   - pendingOwnerInvite:
+            ///   - sealed:
+            public init(
+                id: Swift.String,
+                name: Swift.String,
+                baseCurrency: Swift.String,
+                createdAt: Foundation.Date,
+                memberCount: Swift.Int,
+                pendingOwnerInvite: Swift.Bool,
+                sealed: Swift.Bool
+            ) {
+                self.id = id
+                self.name = name
+                self.baseCurrency = baseCurrency
+                self.createdAt = createdAt
+                self.memberCount = memberCount
+                self.pendingOwnerInvite = pendingOwnerInvite
+                self.sealed = sealed
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case baseCurrency = "base_currency"
+                case createdAt = "created_at"
+                case memberCount = "member_count"
+                case pendingOwnerInvite = "pending_owner_invite"
+                case sealed
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HostedHouseholdList`.
+        public struct HostedHouseholdList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdList/households`.
+            public var households: [Components.Schemas.HostedHousehold]
+            /// Creates a new `HostedHouseholdList`.
+            ///
+            /// - Parameters:
+            ///   - households:
+            public init(households: [Components.Schemas.HostedHousehold]) {
+                self.households = households
+            }
+            public enum CodingKeys: String, CodingKey {
+                case households
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateResponse`.
+        public struct HostedHouseholdCreateResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateResponse/household`.
+            public var household: Components.Schemas.HostedHousehold
+            /// One-time join secret — stored hashed, shown only here.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateResponse/invite_token`.
+            public var inviteToken: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateResponse/invite_expires_at`.
+            public var inviteExpiresAt: Foundation.Date
+            /// Creates a new `HostedHouseholdCreateResponse`.
+            ///
+            /// - Parameters:
+            ///   - household:
+            ///   - inviteToken: One-time join secret — stored hashed, shown only here.
+            ///   - inviteExpiresAt:
+            public init(
+                household: Components.Schemas.HostedHousehold,
+                inviteToken: Swift.String,
+                inviteExpiresAt: Foundation.Date
+            ) {
+                self.household = household
+                self.inviteToken = inviteToken
+                self.inviteExpiresAt = inviteExpiresAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case household
+                case inviteToken = "invite_token"
+                case inviteExpiresAt = "invite_expires_at"
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/HouseholdCreateRequest`.
         public struct HouseholdCreateRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HouseholdCreateRequest/display_name`.
@@ -9987,6 +10159,80 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case models
+            }
+        }
+        /// #181: one household's share of the box, for the operator's fairness view.
+        ///
+        /// - Remark: Generated from `#/components/schemas/HouseholdUsage`.
+        public struct HouseholdUsage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/household_id`.
+            public var householdId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/chats_24h`.
+            public var chats24h: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/chats_7d`.
+            public var chats7d: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/median_answer_ms`.
+            public var medianAnswerMs: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/storage_bytes`.
+            public var storageBytes: Swift.Int64
+            /// Creates a new `HouseholdUsage`.
+            ///
+            /// - Parameters:
+            ///   - householdId:
+            ///   - name:
+            ///   - chats24h:
+            ///   - chats7d:
+            ///   - medianAnswerMs:
+            ///   - storageBytes:
+            public init(
+                householdId: Swift.String,
+                name: Swift.String,
+                chats24h: Swift.Int,
+                chats7d: Swift.Int,
+                medianAnswerMs: Swift.Int? = nil,
+                storageBytes: Swift.Int64
+            ) {
+                self.householdId = householdId
+                self.name = name
+                self.chats24h = chats24h
+                self.chats7d = chats7d
+                self.medianAnswerMs = medianAnswerMs
+                self.storageBytes = storageBytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case householdId = "household_id"
+                case name
+                case chats24h = "chats_24h"
+                case chats7d = "chats_7d"
+                case medianAnswerMs = "median_answer_ms"
+                case storageBytes = "storage_bytes"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AiUsageResponse`.
+        public struct AiUsageResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AiUsageResponse/households`.
+            public var households: [Components.Schemas.HouseholdUsage]
+            /// The armed per-household fair-use cap (0 = off).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiUsageResponse/chat_hourly_limit`.
+            public var chatHourlyLimit: Swift.Int
+            /// Creates a new `AiUsageResponse`.
+            ///
+            /// - Parameters:
+            ///   - households:
+            ///   - chatHourlyLimit: The armed per-household fair-use cap (0 = off).
+            public init(
+                households: [Components.Schemas.HouseholdUsage],
+                chatHourlyLimit: Swift.Int
+            ) {
+                self.households = households
+                self.chatHourlyLimit = chatHourlyLimit
+            }
+            public enum CodingKeys: String, CodingKey {
+                case households
+                case chatHourlyLimit = "chat_hourly_limit"
             }
         }
         /// Drill-down for one model: catalog/estimated specs plus the Hugging Face hub's live stats, so a swap decision can be made from the phone.
@@ -12160,6 +12406,352 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Every household on this box (operator view)
+    ///
+    /// - Remark: HTTP `GET /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)`.
+    public enum ListHostedHouseholds {
+        public static let id: Swift.String = "listHostedHouseholds"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/households/hosted/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListHostedHouseholds.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListHostedHouseholds.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListHostedHouseholds.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ListHostedHouseholds.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/households/hosted/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/households/hosted/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.HostedHouseholdList)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HostedHouseholdList {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListHostedHouseholds.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListHostedHouseholds.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Households, oldest first
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListHostedHouseholds.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListHostedHouseholds.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/get(listHostedHouseholds)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a household for a family you host, with its first-owner invite
+    ///
+    /// - Remark: HTTP `POST /households/hosted`.
+    /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)`.
+    public enum CreateHostedHousehold {
+        public static let id: Swift.String = "createHostedHousehold"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/households/hosted/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateHostedHousehold.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateHostedHousehold.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateHostedHousehold.Input.Headers
+            /// - Remark: Generated from `#/paths/households/hosted/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/households/hosted/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.HostedHouseholdCreateRequest)
+            }
+            public var body: Operations.CreateHostedHousehold.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateHostedHousehold.Input.Headers = .init(),
+                body: Operations.CreateHostedHousehold.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/households/hosted/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/households/hosted/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.HostedHouseholdCreateResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.HostedHouseholdCreateResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateHostedHousehold.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateHostedHousehold.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Household shell + one-time owner invite
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateHostedHousehold.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateHostedHousehold.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/post(createHostedHousehold)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -34549,6 +35141,162 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Per-household advisor and storage usage (operator fairness view)
+    ///
+    /// - Remark: HTTP `GET /ai/usage`.
+    /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)`.
+    public enum GetAiUsage {
+        public static let id: Swift.String = "getAiUsage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/ai/usage/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiUsage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiUsage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetAiUsage.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetAiUsage.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/usage/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/usage/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AiUsageResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AiUsageResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetAiUsage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetAiUsage.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Usage per household, heaviest first
+            ///
+            /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetAiUsage.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetAiUsage.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/usage/get(getAiUsage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

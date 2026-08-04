@@ -15,6 +15,7 @@ const ADMIN_ONLY = [
   'audit.view',
   'household.settings.manage',
   'ai_runtime.manage',
+  'system.admin',
 ];
 
 export function authMock(

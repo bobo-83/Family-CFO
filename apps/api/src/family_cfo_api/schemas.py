@@ -1259,6 +1259,23 @@ class AiModelCatalog(BaseModel):
     models: list[AiModelInfo]
 
 
+class HouseholdUsage(BaseModel):
+    """#181: one household's share of the box, for the operator's fairness view."""
+
+    household_id: str
+    name: str
+    chats_24h: int
+    chats_7d: int
+    median_answer_ms: int | None = None
+    storage_bytes: int
+
+
+class AiUsageResponse(BaseModel):
+    households: list[HouseholdUsage]
+    # The armed fair-use cap (0 = off), so the UI can say what's enforced.
+    chat_hourly_limit: int
+
+
 class AiModelDetail(BaseModel):
     """Drill-down for one model (M-runtime): catalog/estimated specs plus the
     Hugging Face hub's live stats, so a swap decision can be made from the
@@ -1543,6 +1560,37 @@ class BackupEncryptionKey(BaseModel):
 
 
 # --- M9: household setup, data management, and audit --------------------------
+
+
+class HostedHouseholdCreateRequest(BaseModel):
+    """#180: the operator mints a household shell for a family they host; the
+    family's first owner arrives via the returned one-time invite."""
+
+    display_name: str = Field(min_length=1, max_length=120)
+    base_currency: str = Field(min_length=3, max_length=3)
+    owner_email: str = Field(min_length=3, max_length=255)
+
+
+class HostedHousehold(BaseModel):
+    id: str
+    name: str
+    base_currency: str
+    created_at: datetime
+    member_count: int
+    pending_owner_invite: bool
+    sealed: bool
+
+
+class HostedHouseholdList(BaseModel):
+    households: list[HostedHousehold]
+
+
+class HostedHouseholdCreateResponse(BaseModel):
+    household: HostedHousehold
+    # One-time secret for the join link (same rules as member invites: stored
+    # hashed, shown only here). The operator shares it with the family.
+    invite_token: str
+    invite_expires_at: datetime
 
 
 class HouseholdCreateRequest(BaseModel):

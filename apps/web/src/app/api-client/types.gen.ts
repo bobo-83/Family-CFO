@@ -1529,6 +1529,38 @@ export type BackupEncryptionKey = {
     key?: string | null;
 };
 
+/**
+ * #180: the operator mints a household shell; its first owner joins via the returned one-time invite.
+ */
+export type HostedHouseholdCreateRequest = {
+    display_name: string;
+    base_currency: string;
+    owner_email: string;
+};
+
+export type HostedHousehold = {
+    id: string;
+    name: string;
+    base_currency: string;
+    created_at: string;
+    member_count: number;
+    pending_owner_invite: boolean;
+    sealed: boolean;
+};
+
+export type HostedHouseholdList = {
+    households: Array<HostedHousehold>;
+};
+
+export type HostedHouseholdCreateResponse = {
+    household: HostedHousehold;
+    /**
+     * One-time join secret — stored hashed, shown only here.
+     */
+    invite_token: string;
+    invite_expires_at: string;
+};
+
 export type HouseholdCreateRequest = {
     display_name: string;
     base_currency: string;
@@ -1894,6 +1926,26 @@ export type AiModelInfo = {
 
 export type AiModelCatalog = {
     models: Array<AiModelInfo>;
+};
+
+/**
+ * #181: one household's share of the box, for the operator's fairness view.
+ */
+export type HouseholdUsage = {
+    household_id: string;
+    name: string;
+    chats_24h: number;
+    chats_7d: number;
+    median_answer_ms?: number | null;
+    storage_bytes: number;
+};
+
+export type AiUsageResponse = {
+    households: Array<HouseholdUsage>;
+    /**
+     * The armed per-household fair-use cap (0 = off).
+     */
+    chat_hourly_limit: number;
 };
 
 /**
@@ -2334,6 +2386,68 @@ export type GetSessionInfoResponses = {
 };
 
 export type GetSessionInfoResponse = GetSessionInfoResponses[keyof GetSessionInfoResponses];
+
+export type ListHostedHouseholdsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/households/hosted';
+};
+
+export type ListHostedHouseholdsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type ListHostedHouseholdsError = ListHostedHouseholdsErrors[keyof ListHostedHouseholdsErrors];
+
+export type ListHostedHouseholdsResponses = {
+    /**
+     * Households, oldest first
+     */
+    200: HostedHouseholdList;
+};
+
+export type ListHostedHouseholdsResponse = ListHostedHouseholdsResponses[keyof ListHostedHouseholdsResponses];
+
+export type CreateHostedHouseholdData = {
+    body: HostedHouseholdCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/households/hosted';
+};
+
+export type CreateHostedHouseholdErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type CreateHostedHouseholdError = CreateHostedHouseholdErrors[keyof CreateHostedHouseholdErrors];
+
+export type CreateHostedHouseholdResponses = {
+    /**
+     * Household shell + one-time owner invite
+     */
+    201: HostedHouseholdCreateResponse;
+};
+
+export type CreateHostedHouseholdResponse = CreateHostedHouseholdResponses[keyof CreateHostedHouseholdResponses];
 
 export type CreateHouseholdData = {
     body: HouseholdCreateRequest;
@@ -6360,6 +6474,35 @@ export type GetAiModelDetailResponses = {
 };
 
 export type GetAiModelDetailResponse = GetAiModelDetailResponses[keyof GetAiModelDetailResponses];
+
+export type GetAiUsageData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/usage';
+};
+
+export type GetAiUsageErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type GetAiUsageError = GetAiUsageErrors[keyof GetAiUsageErrors];
+
+export type GetAiUsageResponses = {
+    /**
+     * Usage per household, heaviest first
+     */
+    200: AiUsageResponse;
+};
+
+export type GetAiUsageResponse = GetAiUsageResponses[keyof GetAiUsageResponses];
 
 export type GetAiHardwareProfileData = {
     body?: never;

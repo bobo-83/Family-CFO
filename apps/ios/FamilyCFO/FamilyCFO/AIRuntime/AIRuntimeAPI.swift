@@ -22,6 +22,9 @@ protocol AIRuntimeAPI: Sendable {
     func apply(mainModel: String, visionModel: String?, cluster: Bool) async throws
         -> Components.Schemas.AiSwapStatus
     func applyStatus() async throws -> Components.Schemas.AiSwapStatus
+    /// #181: per-household usage for the operator's fairness view. Requires
+    /// the AI-runtime-manage right — the server answers 403 otherwise.
+    func usage() async throws -> Components.Schemas.AiUsageResponse
 }
 
 struct LiveAIRuntimeAPI: AIRuntimeAPI {
@@ -153,6 +156,19 @@ struct LiveAIRuntimeAPI: AIRuntimeAPI {
             return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func usage() async throws -> Components.Schemas.AiUsageResponse {
+        switch try await client.getAiUsage(.init()) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

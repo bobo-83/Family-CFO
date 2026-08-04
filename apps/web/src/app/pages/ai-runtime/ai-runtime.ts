@@ -111,6 +111,36 @@ export class AiRuntime {
     },
   });
 
+  // #181: per-household share of the box — operator telemetry, fails quiet
+  // (null on 403 for non-admins or any transport error; the section just hides).
+  protected readonly usage = resource({
+    loader: async () => {
+      try {
+        const { data } = await this.api.getAiUsage();
+        return data ?? null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  /** A single-family box with the cap off needs no fairness view (#181). */
+  protected readonly usageVisible = computed(() => {
+    const usage = this.usage.value();
+    if (!usage) {
+      return false;
+    }
+    return usage.households.length >= 2 || usage.chat_hourly_limit > 0;
+  });
+
+  /** "512 MB" / "1.4 GB" — decimal units. */
+  protected formatStorage(bytes: number): string {
+    if (bytes >= 1e9) {
+      return `${(bytes / 1e9).toFixed(1)} GB`;
+    }
+    return `${Math.round(bytes / 1e6)} MB`;
+  }
+
   // ADR 0040: how much of the transaction history the advisor has studied.
   protected readonly study = resource({
     loader: async () => {

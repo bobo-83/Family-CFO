@@ -27,7 +27,7 @@ import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import household_crypto, repository
 from family_cfo_api.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -254,6 +254,10 @@ def sync_due_connections(engine: Engine, settings: Settings) -> set[str]:
             households.add(connection.household_id)
         except BankSyncError:
             # Error already recorded on the connection; keep syncing others.
+            continue
+        except household_crypto.HouseholdLockedError:
+            # #181: this household is sealed+locked — its sync waits for a
+            # session; every other household still syncs on time.
             continue
     return households
 

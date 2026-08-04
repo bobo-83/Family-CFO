@@ -88,6 +88,27 @@ async def list_backups(
     return BackupJobListResponse(backups=[_to_schema(record) for record in records])
 
 
+# #181: minimum gap between on-demand backups per household — whole-box work
+# (pg_dump + SMB push) that a stuck client or loop must not hammer.
+_BACKUP_COOLDOWN_SECONDS = 60
+_last_manual_backup: dict[str, float] = {}
+
+
+def reset_backup_cooldown_for_tests() -> None:
+    _last_manual_backup.clear()
+
+
+def _backup_retry_after(household_id: str) -> int | None:
+    import time
+
+    now = time.monotonic()
+    last = _last_manual_backup.get(household_id)
+    if last is not None and now - last < _BACKUP_COOLDOWN_SECONDS:
+        return int(_BACKUP_COOLDOWN_SECONDS - (now - last)) + 1
+    _last_manual_backup[household_id] = now
+    return None
+
+
 @router.post(
     "/backups",
     operation_id="createBackup",
@@ -104,6 +125,15 @@ async def create_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupJob:
+    # #181: an on-demand backup is whole-box work (pg_dump + SMB push) — a
+    # per-household cooldown keeps one household from hammering it.
+    retry_after = _backup_retry_after(session.household_id)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="A backup just ran — try again in a minute.",
+            headers={"Retry-After": str(retry_after)},
+        )
     household = repository.get_household(engine, session.household_id)
     backup_job_id = backup_processing.run_backup_once(
         engine,

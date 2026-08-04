@@ -114,6 +114,40 @@
           }
         </div>
 
+        <!-- #181: per-household share of the box — the operator's fairness view.
+             Hidden without the manage right (the endpoint 403s) and for a
+             single-family box with the fair-use cap off. -->
+        @if (usageVisible() && usage.value(); as usageData) {
+          <div class="usage">
+            <h2>Household usage</h2>
+            <!-- Same row chrome as the medians above — both are evidence views. -->
+            <div class="answer-stats">
+              @for (row of usageData.households; track row.household_id) {
+                <div class="usage__row answer-stats__row">
+                  <span class="usage__name answer-stats__model">{{ row.name }}</span>
+                  <span>
+                    {{ row.chats_7d }} chat{{ row.chats_7d === 1 ? '' : 's' }} this week
+                    ({{ row.chats_24h }} in the last 24 h) ·
+                    @if (row.median_answer_ms != null) {
+                      <strong>{{ formatAnswerTime(row.median_answer_ms) }}</strong> median
+                    } @else {
+                      — median
+                    }
+                    · {{ formatStorage(row.storage_bytes) }}
+                  </span>
+                </div>
+              }
+            </div>
+            <p class="usage__cap" [class.usage__cap--off]="usageData.chat_hourly_limit === 0">
+              @if (usageData.chat_hourly_limit > 0) {
+                Fair-use cap: {{ usageData.chat_hourly_limit }} chats/hour per household
+              } @else {
+                Fair-use cap: off
+              }
+            </p>
+          </div>
+        }
+
         <!-- ================= Two-box cluster (ADR 0071) ================= -->
         @if (clusterPeerHost(); as peerHost) {
           <div class="cluster">

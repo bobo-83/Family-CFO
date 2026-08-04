@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from family_cfo_financial_engine import Money
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import household_crypto, repository
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.embeddings import EmbeddingAdapter, get_default_embedder
 from family_cfo_api.explanation import format_money
@@ -100,7 +100,11 @@ def index_household_data(
 
     total = 0
     for household_id in repository.list_households(engine):
-        collected = _collect_points(engine, household_id)
+        try:
+            collected = _collect_points(engine, household_id)
+        except household_crypto.HouseholdLockedError:
+            # #181: a sealed+locked household defers; the others still index.
+            continue
         for start in range(0, len(collected), _BATCH):
             batch = collected[start : start + _BATCH]
             vectors = embedder.embed([text for _id, text, _payload in batch])

@@ -176,6 +176,12 @@ final class AppModel {
         client.map { LiveSystemAdminsAPI(client: $0) }
     }
 
+    /// Hosted-household roster (#180) — parity with the dashboard's
+    /// Households page. System admins only.
+    var hostedHouseholds: HouseholdsAPI? {
+        client.map { LiveHouseholdsAPI(client: $0) }
+    }
+
     func bootstrap() {
         // Re-register the Siri App Shortcuts on every launch: rapid TestFlight
         // updates can silently drop the registration, breaking "Ask my CFO"

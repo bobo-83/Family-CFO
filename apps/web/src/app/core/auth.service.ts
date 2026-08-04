@@ -34,10 +34,12 @@ export class AuthService {
       return true;
     }
     if (state.role === 'adult') {
+      // system.admin is never a legacy right — the server injects it only for
+      // roster members (ADR 0065).
       return ![
         'accounts.manage', 'imports.manage', 'connections.manage', 'reports.manage',
         'members.manage', 'roles.manage', 'devices.manage', 'backups.manage',
-        'audit.view', 'household.settings.manage', 'ai_runtime.manage',
+        'audit.view', 'household.settings.manage', 'ai_runtime.manage', 'system.admin',
       ].includes(right);
     }
     return ['finances.view', 'advisor.use'].includes(right);

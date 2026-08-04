@@ -231,6 +231,51 @@ paths:
                 $ref: "#/components/schemas/SessionInfo"
         "401":
           $ref: "#/components/responses/Error"
+  /households/hosted:
+    get:
+      tags:
+        - Household
+      operationId: listHostedHouseholds
+      summary: Every household on this box (operator view)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Households, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostedHouseholdList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - Household
+      operationId: createHostedHousehold
+      summary: Create a household for a family you host, with its first-owner invite
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostedHouseholdCreateRequest"
+      responses:
+        "201":
+          description: Household shell + one-time owner invite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostedHouseholdCreateResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /households:
     post:
       tags:
@@ -3395,6 +3440,25 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
         "503":
+          $ref: "#/components/responses/Error"
+  /ai/usage:
+    get:
+      tags:
+        - AI
+      operationId: getAiUsage
+      summary: Per-household advisor and storage usage (operator fairness view)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usage per household, heaviest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiUsageResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
           $ref: "#/components/responses/Error"
   /ai/hardware:
     get:
@@ -6590,6 +6654,75 @@ components:
           type:
             - string
             - "null"
+    HostedHouseholdCreateRequest:
+      type: object
+      description: "#180: the operator mints a household shell; its first owner joins via the returned one-time invite."
+      required:
+        - display_name
+        - base_currency
+        - owner_email
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        base_currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        owner_email:
+          type: string
+    HostedHousehold:
+      type: object
+      required:
+        - id
+        - name
+        - base_currency
+        - created_at
+        - member_count
+        - pending_owner_invite
+        - sealed
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        base_currency:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        member_count:
+          type: integer
+        pending_owner_invite:
+          type: boolean
+        sealed:
+          type: boolean
+    HostedHouseholdList:
+      type: object
+      required:
+        - households
+      properties:
+        households:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostedHousehold"
+    HostedHouseholdCreateResponse:
+      type: object
+      required:
+        - household
+        - invite_token
+        - invite_expires_at
+      properties:
+        household:
+          $ref: "#/components/schemas/HostedHousehold"
+        invite_token:
+          description: One-time join secret — stored hashed, shown only here.
+          type: string
+        invite_expires_at:
+          type: string
+          format: date-time
     HouseholdCreateRequest:
       type: object
       required:
@@ -7331,6 +7464,44 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiModelInfo"
+    HouseholdUsage:
+      type: object
+      description: "#181: one household's share of the box, for the operator's fairness view."
+      required:
+        - household_id
+        - name
+        - chats_24h
+        - chats_7d
+        - storage_bytes
+      properties:
+        household_id:
+          type: string
+        name:
+          type: string
+        chats_24h:
+          type: integer
+        chats_7d:
+          type: integer
+        median_answer_ms:
+          type:
+            - integer
+            - "null"
+        storage_bytes:
+          type: integer
+          format: int64
+    AiUsageResponse:
+      type: object
+      required:
+        - households
+        - chat_hourly_limit
+      properties:
+        households:
+          type: array
+          items:
+            $ref: "#/components/schemas/HouseholdUsage"
+        chat_hourly_limit:
+          description: The armed per-household fair-use cap (0 = off).
+          type: integer
     AiModelDetail:
       type: object
       description: >

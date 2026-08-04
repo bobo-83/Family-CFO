@@ -269,6 +269,19 @@ struct SettingsView: View {
                             Label("Devices", systemImage: "iphone.radiowaves.left.and.right")
                         }
                     }
+                    // #180: operator hosting — only system admins ever see it.
+                    if model.rolePolicy.canHostHouseholds,
+                        let households = model.hostedHouseholds,
+                        let server = model.server
+                    {
+                        NavigationLink {
+                            HouseholdsView(viewModel: HouseholdsViewModel(
+                                api: households,
+                                serverBaseURL: server.apiBaseURL))
+                        } label: {
+                            Label("Households", systemImage: "building.2")
+                        }
+                    }
                 } header: {
                     Text("Data")
                 } footer: {

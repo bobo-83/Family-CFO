@@ -63,3 +63,29 @@ class AuthRateLimiter:
             for key in keys:
                 self._failures.pop(key, None)
                 self._locked_until.pop(key, None)
+
+
+class HouseholdQuotaLimiter:
+    """#181: sliding-window fair-use quota keyed by household. Unlike the auth
+    limiter (failure lockouts), this counts SUCCESSFUL uses; 0 = disabled —
+    the single-family default stays unlimited, hosted boxes arm it via config."""
+
+    def __init__(self, *, max_per_hour: int) -> None:
+        self._max = max_per_hour
+        self._events: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def check_and_record(self, household_id: str, *, now: float | None = None) -> int | None:
+        """None = allowed (and recorded); otherwise seconds until a slot frees."""
+        if self._max <= 0:
+            return None
+        now = now if now is not None else time.monotonic()
+        cutoff = now - 3600
+        with self._lock:
+            events = [t for t in self._events.get(household_id, []) if t > cutoff]
+            if len(events) >= self._max:
+                self._events[household_id] = events
+                return int(events[0] - cutoff) + 1
+            events.append(now)
+            self._events[household_id] = events
+            return None

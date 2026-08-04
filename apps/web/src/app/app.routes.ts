@@ -97,6 +97,10 @@ export const routes: Routes = [
         path: 'devices',
         loadComponent: () => import('./pages/devices/devices').then((m) => m.Devices),
       },
+      {
+        path: 'households',
+        loadComponent: () => import('./pages/households/households').then((m) => m.Households),
+      },
     ],
   },
   { path: '**', redirectTo: '' },

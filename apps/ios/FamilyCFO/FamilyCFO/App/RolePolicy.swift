@@ -64,6 +64,8 @@ struct RolePolicy: Equatable {
     /// ADR 0065: box-level roster management — granted only to system admins,
     /// injected into the session's rights by the server.
     var canManageSystemAdmins: Bool { has("system.admin") }
+    /// #180: mint households for families this box hosts — system admins only.
+    var canHostHouseholds: Bool { has("system.admin") }
 
     /// Legacy convenience still used by a few flows: any money-editing right.
     var canEditFinances: Bool {
