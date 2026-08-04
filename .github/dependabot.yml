@@ -6,6 +6,13 @@ updates:
   - package-ecosystem: npm
     directory: /apps/web
     schedule: { interval: weekly }
+    groups:
+      # Angular packages must move in lockstep — individual bumps mismatch
+      # peer deps and fail the build (seen on #123/#125/#127).
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

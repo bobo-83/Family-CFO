@@ -31,6 +31,12 @@ jobs:
           # Skip merge commits an intermediate merge may have pulled into the PR;
           # GitHub generates their message, not authored to the convention.
           git rev-list --reverse --no-merges "$range" | while read -r commit_sha; do
+            # Bot commits (dependabot & co.) write their own messages and can't
+            # follow the human template; the convention governs authored work.
+            author_email=$(git log --format=%ae -n 1 "$commit_sha")
+            case "$author_email" in
+              *dependabot*|*"[bot]"*) echo "Skipping bot commit $commit_sha"; continue ;;
+            esac
             echo "Validating $commit_sha"
             git log --format=%B -n 1 "$commit_sha" > /tmp/commit-message.txt
             scripts/validate-commit-message.sh /tmp/commit-message.txt
