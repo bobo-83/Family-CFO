@@ -454,6 +454,7 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
             ),
             occurrences=c.occurrences,
             last_seen=c.last_seen,
+            inferred=c.inferred,
         )
         for c in found
     ]

@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from statistics import median
 
-from family_cfo_api.bill_detection import _classify_cadence, _next_due
+from family_cfo_api.bill_detection import _classify_cadence, _next_due, normalize_merchant
 
 #: Account types that mean "money put aside", mapped to how the app already
 #: categorises them (finance_service.ASSET_CATEGORY_BY_TYPE).
@@ -58,6 +58,9 @@ class LedgerEntry:
     occurred_at: date
     amount_minor: int  # negative = outflow (repository convention)
     currency: str
+    # #207: the outflow's own label — often the only evidence of where the
+    # money went when the destination account is not synced.
+    label: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +77,9 @@ class ContributionCandidate:
     """A recurring transfer into a savings vehicle, ready to be confirmed."""
 
     source_account_id: str
-    destination_account_id: str
+    # None when only the outflow is visible and the destination was inferred
+    # from the description rather than a matched arrival (#207).
+    destination_account_id: str | None
     destination_name: str
     destination_type: str
     amount_minor: int  # positive: what leaves the source each time
@@ -83,6 +88,9 @@ class ContributionCandidate:
     occurrences: int
     last_seen: date
     next_expected: date
+    # False when both legs were seen; True when only the outflow exists and the
+    # destination came from a learned route or a name match (#207).
+    inferred: bool = False
 
 
 def _paired_transfers(
@@ -122,14 +130,14 @@ def _paired_transfers(
 
 
 def _net_of_reverse_flows(
-    pairs: list[tuple[LedgerEntry, LedgerEntry]],
+    outflows: list[LedgerEntry],
     entries: list[LedgerEntry],
     source_id: str,
     destination_id: str,
 ) -> bool:
     """False when the destination sent at least as much back to the source as
     it received — money shuttled out and back is churn, not saving (#201)."""
-    contributed = sum(-outflow.amount_minor for outflow, _ in pairs)
+    contributed = sum(-outflow.amount_minor for outflow in outflows)
     returned = 0
     for entry in entries:
         # An outflow FROM the savings account with a matching inflow to the
@@ -149,11 +157,89 @@ def _net_of_reverse_flows(
     return returned < contributed
 
 
+def _names_match(a: str, b: str) -> bool:
+    """Fuzzy merchant-key match: equal, substring, or token-subset. Same rule
+    the payment timeline uses to pair a bill with its charge."""
+    if not a or not b:
+        return False
+    if a == b or a in b or b in a:
+        return True
+    ta, tb = set(a.split()), set(b.split())
+    return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
+
+
+def _attribute_unpaired_outflows(
+    entries: list[LedgerEntry],
+    savings: dict[str, SavingsAccount],
+    paired: list[tuple[LedgerEntry, LedgerEntry]],
+    excluded_keys: set[str],
+) -> dict[tuple[str, str], list[LedgerEntry]]:
+    """#207: outflows whose ARRIVAL was never synced, attributed to a savings
+    destination by evidence available on the outflow alone.
+
+    Two high-confidence signals only — deliberately not generic keywords,
+    which would guess at the user with no way to be corrected (that waits for
+    the confirm/dismiss channel):
+
+      1. A LEARNED ROUTE: this source has paired with this destination before
+         for a similar amount, so later unmatched outflows of that size are
+         very likely the same standing transfer.
+      2. A NAME MATCH: the outflow's own label names one of the household's
+         savings accounts ("Transfer to College 529").
+
+    Anything matching a known bill or liability label is excluded outright —
+    rent and card payments are recurring outflows too.
+    """
+    claimed = {outflow.transaction_id for outflow, _ in paired}
+
+    learned: dict[str, list[tuple[str, int]]] = {}
+    for outflow, inflow in paired:
+        learned.setdefault(outflow.account_id, []).append(
+            (inflow.account_id, -outflow.amount_minor)
+        )
+
+    by_name = {
+        account_id: normalize_merchant(account.name)
+        for account_id, account in savings.items()
+    }
+
+    attributed: dict[tuple[str, str], list[LedgerEntry]] = {}
+    for entry in entries:
+        if (
+            entry.amount_minor >= 0
+            or entry.transaction_id in claimed
+            or entry.account_id in savings  # moving between savings vehicles
+        ):
+            continue
+        magnitude = -entry.amount_minor
+        if magnitude < MIN_CONTRIBUTION_MINOR:
+            continue
+        key = normalize_merchant(entry.label)
+        if key and any(_names_match(key, excluded) for excluded in excluded_keys):
+            continue
+
+        destination_id = None
+        for candidate_id, amount in learned.get(entry.account_id, ()):
+            if abs(magnitude - amount) <= amount * AMOUNT_TOLERANCE:
+                destination_id = candidate_id
+                break
+        if destination_id is None and key:
+            for candidate_id, name_key in by_name.items():
+                if name_key and _names_match(key, name_key):
+                    destination_id = candidate_id
+                    break
+        if destination_id is None:
+            continue
+        attributed.setdefault((entry.account_id, destination_id), []).append(entry)
+    return attributed
+
+
 def detect_contributions(
     entries: list[LedgerEntry],
     accounts: list[SavingsAccount],
     *,
     today: date | None = None,
+    excluded_labels: list[str] | None = None,
 ) -> list[ContributionCandidate]:
     """Recurring transfers into savings vehicles, largest first.
 
@@ -175,25 +261,37 @@ def detect_contributions(
     pairs = _paired_transfers(entries, set(savings))
 
     # Group by the route the money takes, then by similar amount within it.
-    by_route: dict[tuple[str, str], list[tuple[LedgerEntry, LedgerEntry]]] = {}
+    by_route: dict[tuple[str, str], list[LedgerEntry]] = {}
     for outflow, inflow in pairs:
-        by_route.setdefault((outflow.account_id, inflow.account_id), []).append(
-            (outflow, inflow)
-        )
+        by_route.setdefault((outflow.account_id, inflow.account_id), []).append(outflow)
+
+    # #207: most savings destinations are not synced, so the arrival often
+    # never appears. Fold in outflows attributed by learned route or name.
+    excluded_keys = {
+        normalize_merchant(label) for label in (excluded_labels or []) if label
+    }
+    inferred_routes = _attribute_unpaired_outflows(
+        entries, savings, pairs, excluded_keys
+    )
+    inferred_only: set[tuple[str, str]] = set()
+    for route, outflows in inferred_routes.items():
+        if route not in by_route:
+            inferred_only.add(route)
+        by_route.setdefault(route, []).extend(outflows)
 
     candidates: list[ContributionCandidate] = []
-    for (source_id, destination_id), route_pairs in by_route.items():
-        amounts = [-outflow.amount_minor for outflow, _ in route_pairs]
+    for (source_id, destination_id), route_outflows in by_route.items():
+        amounts = [-outflow.amount_minor for outflow in route_outflows]
         typical = median(amounts)
         consistent = [
-            pair
-            for pair, amount in zip(route_pairs, amounts, strict=True)
+            outflow
+            for outflow, amount in zip(route_outflows, amounts, strict=True)
             if abs(amount - typical) <= typical * AMOUNT_TOLERANCE
         ]
         if len(consistent) < 2:
             continue
 
-        dates = sorted(outflow.occurred_at for outflow, _ in consistent)
+        dates = sorted(outflow.occurred_at for outflow in consistent)
         frequency = _classify_cadence(dates)
         if frequency is None:
             continue
@@ -209,13 +307,14 @@ def detect_contributions(
                 destination_name=destination.name,
                 destination_type=destination.account_type,
                 amount_minor=int(
-                    median([-outflow.amount_minor for outflow, _ in consistent])
+                    median([-outflow.amount_minor for outflow in consistent])
                 ),
-                currency=consistent[0][0].currency,
+                currency=consistent[0].currency,
                 frequency=frequency,
                 occurrences=len(consistent),
                 last_seen=last_seen,
                 next_expected=_next_due(last_seen, frequency),
+                inferred=(source_id, destination_id) in inferred_only,
             )
         )
 
@@ -251,6 +350,7 @@ def detect_for_household(
             occurred_at=record.occurred_at,
             amount_minor=record.amount_minor,
             currency=record.currency,
+            label=record.merchant or record.description,
         )
         for record in records
     ]
@@ -267,4 +367,15 @@ def detect_for_household(
         )
         for account_id, account_type in types.items()
     ]
-    return detect_contributions(entries, accounts, today=today)
+    # #207: a recurring outflow that matches a known bill or a liability
+    # account is that obligation, not saving — rent and card payments recur
+    # just as faithfully as a 529 contribution.
+    excluded = [bill.name for bill in repository.list_bills(engine, household_id)]
+    excluded += [
+        names[account_id]
+        for account_id, account_type in types.items()
+        if account_type in repository.LIABILITY_ACCOUNT_TYPES and account_id in names
+    ]
+    return detect_contributions(
+        entries, accounts, today=today, excluded_labels=excluded
+    )

@@ -561,7 +561,19 @@ struct OverviewView: View {
         Card("What you're saving", systemImage: "arrow.down.to.line") {
             ForEach(Array(contributions.enumerated()), id: \.offset) { index, contribution in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(contribution.destinationName).font(.subheadline)
+                    HStack(spacing: 6) {
+                        Text(contribution.destinationName).font(.subheadline)
+                        // #207: informational, never a warning — an unsynced 529
+                        // is the normal case, not a lower-quality result.
+                        if contribution.inferred == true {
+                            Text("inferred")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.15), in: Capsule())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Text(Self.contributionDetail(contribution))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -576,13 +588,23 @@ struct OverviewView: View {
                 Text("About \(total.formatted) a month")
                     .font(.subheadline.weight(.semibold))
             }
-            Text(
-                "Detected from transfers between your accounts. "
-                    + "Payroll deductions like a 401(k) don't appear here."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            Text(Self.savingsFootnote(contributions))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+    }
+
+    /// The payroll caveat always; the inferred caveat only when a row carries it.
+    static func savingsFootnote(
+        _ contributions: [Components.Schemas.SavingsContribution]
+    ) -> String {
+        let payroll =
+            "Detected from transfers between your accounts. "
+            + "Payroll deductions like a 401(k) don't appear here."
+        guard contributions.contains(where: { $0.inferred == true }) else { return payroll }
+        return payroll
+            + " Rows marked inferred were matched from the money leaving your account — "
+            + "the destination isn't synced."
     }
 
     static func contributionDetail(

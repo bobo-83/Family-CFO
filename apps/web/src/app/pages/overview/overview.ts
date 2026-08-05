@@ -266,6 +266,18 @@ export class Overview {
     'Detected from transfers between your accounts. ' +
     "Payroll deductions like a 401(k) don't appear here.";
 
+  /**
+   * #207: explains the "inferred" marker. Informational, not a warning — a 529
+   * the aggregator doesn't carry is the normal case, not a degraded result.
+   */
+  protected readonly savingsInferredFootnote =
+    'Rows marked inferred were matched from the money leaving your account — ' +
+    "the destination isn't synced.";
+
+  protected hasInferredContribution(contributions: SavingsContribution[]): boolean {
+    return contributions.some((c) => c.inferred === true);
+  }
+
   protected cadenceWord(frequency: RecurringFrequency): string {
     return CADENCE_WORDS[frequency] ?? frequency;
   }

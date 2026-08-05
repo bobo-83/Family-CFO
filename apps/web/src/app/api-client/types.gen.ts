@@ -1022,6 +1022,10 @@ export type SavingsContribution = {
     monthly_equivalent: Money;
     occurrences: number;
     last_seen: string;
+    /**
+     * "#207: true when only the outflow was visible and the destination was inferred from a learned route or the label — the arrival was never synced."
+     */
+    inferred?: boolean;
 };
 
 export type SavingsRate = {

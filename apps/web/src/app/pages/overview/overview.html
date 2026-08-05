@@ -360,7 +360,12 @@
               <ul class="overview__bills">
                 @for (contribution of contributions; track $index) {
                   <li class="overview__bill">
-                    <span class="overview__bill-name">{{ contribution.destination_name }}</span>
+                    <span class="overview__bill-name">
+                      {{ contribution.destination_name }}
+                      @if (contribution.inferred) {
+                        <span class="overview__inferred">inferred</span>
+                      }
+                    </span>
                     <span class="overview__bill-due">{{ contributionDetail(contribution) }}</span>
                   </li>
                 }
@@ -368,7 +373,12 @@
               @if (savingsMonthlyTotal(contributions); as total) {
                 <span class="overview__saving-total">About {{ formatMoney(total) }} a month</span>
               }
-              <span class="overview__hint">{{ savingsFootnote }}</span>
+              <span class="overview__hint">
+                {{ savingsFootnote }}
+                @if (hasInferredContribution(contributions)) {
+                  {{ savingsInferredFootnote }}
+                }
+              </span>
             </div>
           }
         }

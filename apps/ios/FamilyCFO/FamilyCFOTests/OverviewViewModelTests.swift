@@ -189,7 +189,8 @@ struct OverviewViewModelTests {
         amount: Int64,
         frequency: Components.Schemas.RecurringFrequency,
         monthly: Int64,
-        occurrences: Int
+        occurrences: Int,
+        inferred: Bool = false
     ) -> Components.Schemas.SavingsContribution {
         .init(
             destinationName: name,
@@ -198,7 +199,8 @@ struct OverviewViewModelTests {
             frequency: frequency,
             monthlyEquivalent: money(monthly),
             occurrences: occurrences,
-            lastSeen: "2026-07-01")
+            lastSeen: "2026-07-01",
+            inferred: inferred)
     }
 
     /// The only computation on this card. Cadences differ, so summing the raw
@@ -234,6 +236,33 @@ struct OverviewViewModelTests {
         #expect(OverviewView.cadenceWord(.biweekly) == "every two weeks")
         #expect(OverviewView.cadenceWord(.semimonthly) == "twice a month")
         #expect(OverviewView.cadenceWord(.semiannual) == "twice a year")
+    }
+
+    /// #207: the inferred caveat only appears when a row is actually inferred.
+    @Test func inferredFootnoteAppearsOnlyWhenARowIsInferred() {
+        let inferredCaveat =
+            "Rows marked inferred were matched from the money leaving your account — "
+            + "the destination isn't synced."
+        let payroll =
+            "Detected from transfers between your accounts. "
+            + "Payroll deductions like a 401(k) don't appear here."
+
+        let mixed = [
+            contribution(
+                "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+                occurrences: 4, inferred: true),
+            contribution(
+                "Rainy Day Savings", amount: 20_000, frequency: .monthly, monthly: 20_000,
+                occurrences: 6),
+        ]
+        #expect(OverviewView.savingsFootnote(mixed) == "\(payroll) \(inferredCaveat)")
+
+        let seenBothLegs = [
+            contribution(
+                "Rainy Day Savings", amount: 20_000, frequency: .monthly, monthly: 20_000,
+                occurrences: 6)
+        ]
+        #expect(OverviewView.savingsFootnote(seenBothLegs) == payroll)
     }
 }
 

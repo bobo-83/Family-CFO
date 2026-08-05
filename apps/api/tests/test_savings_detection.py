@@ -140,3 +140,67 @@ def test_advisor_tool_reports_contributions_with_a_coverage_note(demo_engine) ->
     assert detected["frequency"] == "monthly"
     assert detected["monthly_equivalent"]["amount_minor"] == 50_000
     assert "payroll" in payload["coverage_note"].lower()
+
+
+# --- #207: the destination account usually is not synced -------------------
+
+
+def _outflow(n: int, when: date, amount: int, label: str, src="acct-checking"):
+    """Only the money LEAVING — the arrival never appears (the normal case for
+    a 529 or retirement plan the aggregator doesn't carry)."""
+    return LedgerEntry(f"out-{n}", src, when, -amount, "USD", label)
+
+
+def test_detects_from_the_outflow_alone_when_the_label_names_the_account() -> None:
+    """The real-world case that broke 0.141.0: a monthly 529 contribution whose
+    arrival is never synced, but whose label names the account."""
+    entries = [
+        _outflow(i, TODAY - timedelta(days=30 * i), 50_000, "Transfer to College 529")
+        for i in range(4)
+    ]
+    found = detect_contributions(entries, ACCOUNTS, today=TODAY)
+
+    assert len(found) == 1
+    assert found[0].destination_name == "College 529"
+    assert found[0].amount_minor == 50_000
+    assert found[0].frequency == "monthly"
+    assert found[0].inferred is True  # no arrival was ever seen
+
+
+def test_a_single_matched_pair_teaches_the_route_for_later_outflows() -> None:
+    """One synced arrival is enough to learn where this standing transfer goes;
+    later months whose arrival never synced still count."""
+    entries = _transfer(99, TODAY - timedelta(days=90), 50_000)  # the one that paired
+    entries += [
+        _outflow(i, TODAY - timedelta(days=30 * i), 50_000, "ACH WITHDRAWAL 8842")
+        for i in range(3)
+    ]
+    found = detect_contributions(entries, ACCOUNTS, today=TODAY)
+
+    assert len(found) == 1
+    assert found[0].destination_name == "College 529"
+    assert found[0].occurrences == 4  # the paired one plus three attributed
+    assert found[0].inferred is False  # a real arrival anchors this route
+
+
+def test_rent_is_not_saving_however_regular() -> None:
+    """A recurring round-number outflow with no savings evidence is ignored —
+    the guard against 'anything monthly is saving'."""
+    entries = [
+        _outflow(i, TODAY - timedelta(days=30 * i), 250_000, "GREENFIELD PROPERTY MGMT")
+        for i in range(4)
+    ]
+    assert detect_contributions(entries, ACCOUNTS, today=TODAY) == []
+
+
+def test_a_known_bill_label_is_excluded_even_if_it_looks_like_savings() -> None:
+    """An outflow matching one of the household's bills is that bill, not a
+    contribution — even when the name resembles a savings account."""
+    entries = [
+        _outflow(i, TODAY - timedelta(days=30 * i), 50_000, "College 529 Loan Servicing")
+        for i in range(4)
+    ]
+    found = detect_contributions(
+        entries, ACCOUNTS, today=TODAY, excluded_labels=["College 529 Loan Servicing"]
+    )
+    assert found == []

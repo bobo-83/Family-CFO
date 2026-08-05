@@ -237,6 +237,19 @@
   text-align: right;
 }
 
+/* #207: informational marker on a row whose destination was never synced.
+   Deliberately neutral grey — this is not a warning. */
+.overview__inferred {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #eef0f3;
+  color: #5b6472;
+  vertical-align: middle;
+}
+
 /* #201: the normalised monthly run-rate, set apart from the rows it sums so it
    never reads as one more contribution. */
 .overview__saving-total {

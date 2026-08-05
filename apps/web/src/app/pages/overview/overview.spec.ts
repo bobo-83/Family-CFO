@@ -224,6 +224,106 @@ describe('Overview', () => {
     );
   });
 
+  // #207: the destination account was never synced, so only the outflow was seen.
+  it('marks inferred savings rows and explains the marker once (#207)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: [
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 4,
+            last_seen: '2026-07-01',
+            inferred: true,
+          },
+          {
+            destination_name: 'Rainy Day Savings',
+            destination_type: 'savings',
+            amount: { amount_minor: 20_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 20_000, currency: 'USD' },
+            occurrences: 6,
+            last_seen: '2026-07-02',
+            inferred: false,
+          },
+        ],
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const markers = host.querySelectorAll('.overview__inferred');
+    expect(markers.length).toBe(1);
+    expect(markers[0].textContent?.trim()).toBe('inferred');
+    // The marker sits with the destination it qualifies, not the amount.
+    expect(markers[0].closest('.overview__bill')?.textContent).toContain('College 529');
+    const text = host.textContent ?? '';
+    expect(text).toContain(
+      "Rows marked inferred were matched from the money leaving your account — the destination isn't synced.",
+    );
+    // The payroll footnote is unchanged.
+    expect(text).toContain(
+      "Detected from transfers between your accounts. Payroll deductions like a 401(k) don't appear here.",
+    );
+  });
+
+  it('shows no inferred marker or footnote when both legs were seen (#207)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: [
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 4,
+            last_seen: '2026-07-01',
+            inferred: false,
+          },
+          {
+            destination_name: 'Rainy Day Savings',
+            destination_type: 'savings',
+            amount: { amount_minor: 20_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 20_000, currency: 'USD' },
+            occurrences: 6,
+            last_seen: '2026-07-02',
+            inferred: false,
+          },
+        ],
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelectorAll('.overview__inferred').length).toBe(0);
+    expect(host.textContent).not.toContain('the destination isn’t synced');
+    expect(host.textContent).not.toContain("the destination isn't synced");
+    expect(host.textContent).toContain("What you're saving");
+  });
+
   it('hides the savings-contributions section when nothing was detected (#201)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

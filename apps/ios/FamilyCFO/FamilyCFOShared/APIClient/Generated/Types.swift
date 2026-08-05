@@ -6442,6 +6442,10 @@ public enum Components {
             public var occurrences: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SavingsContribution/last_seen`.
             public var lastSeen: Swift.String
+            /// "#207: true when only the outflow was visible and the destination was inferred from a learned route or the label — the arrival was never synced."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/inferred`.
+            public var inferred: Swift.Bool?
             /// Creates a new `SavingsContribution`.
             ///
             /// - Parameters:
@@ -6452,6 +6456,7 @@ public enum Components {
             ///   - monthlyEquivalent: The contribution normalised to a monthly run-rate, so cadences can be summed.
             ///   - occurrences:
             ///   - lastSeen:
+            ///   - inferred: "#207: true when only the outflow was visible and the destination was inferred from a learned route or the label — the arrival was never synced."
             public init(
                 destinationName: Swift.String,
                 destinationType: Swift.String,
@@ -6459,7 +6464,8 @@ public enum Components {
                 frequency: Components.Schemas.RecurringFrequency,
                 monthlyEquivalent: Components.Schemas.Money,
                 occurrences: Swift.Int,
-                lastSeen: Swift.String
+                lastSeen: Swift.String,
+                inferred: Swift.Bool? = nil
             ) {
                 self.destinationName = destinationName
                 self.destinationType = destinationType
@@ -6468,6 +6474,7 @@ public enum Components {
                 self.monthlyEquivalent = monthlyEquivalent
                 self.occurrences = occurrences
                 self.lastSeen = lastSeen
+                self.inferred = inferred
             }
             public enum CodingKeys: String, CodingKey {
                 case destinationName = "destination_name"
@@ -6477,6 +6484,7 @@ public enum Components {
                 case monthlyEquivalent = "monthly_equivalent"
                 case occurrences
                 case lastSeen = "last_seen"
+                case inferred
             }
         }
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.

@@ -243,6 +243,9 @@ class SavingsContribution(BaseModel):
     monthly_equivalent: Money
     occurrences: int
     last_seen: date
+    # #207: True when only the outflow was visible and the destination was
+    # inferred (the arrival was never synced) — the UI should say so.
+    inferred: bool = False
 
 
 BudgetStatus = Literal["under", "warning", "over"]

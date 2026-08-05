@@ -5616,6 +5616,13 @@ components:
         last_seen:
           type: string
           format: date
+        inferred:
+          description: >-
+            "#207: true when only the outflow was visible and the destination
+            was inferred from a learned route or the label — the arrival was
+            never synced."
+          type: boolean
+          default: false
     SavingsRate:
       type: object
       required:
