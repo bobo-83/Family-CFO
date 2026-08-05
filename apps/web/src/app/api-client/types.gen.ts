@@ -6078,6 +6078,10 @@ export type CreateBackupErrors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    429: ErrorResponse;
 };
 
 export type CreateBackupError = CreateBackupErrors[keyof CreateBackupErrors];

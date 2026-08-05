@@ -107,6 +107,12 @@ struct LiveBackupAPI: BackupAPI {
         case .created(let r): return try r.body.json
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
+        case .tooManyRequests(let response):
+            // The cooldown (#181): the server says how long to wait and that
+            // the data is already saved — show that, not a bare status code.
+            let message = (try? response.body.json.error.message)
+                ?? "A backup just ran — try again in a moment."
+            throw APIError.advisor(message)
         case .undocumented(let s, _): throw APIError.server(s)
         }
     }

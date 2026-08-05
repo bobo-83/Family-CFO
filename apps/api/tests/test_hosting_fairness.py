@@ -58,6 +58,10 @@ async def test_manual_backup_cooldown(demo_file_client, demo_file_token) -> None
     second = await demo_file_client.post("/api/v1/backups", headers=headers)
     assert second.status_code == 429
     assert "Retry-After" in second.headers
+    # The message must say how long to wait and reassure — clients show it
+    # verbatim (a bare status code is what the user saw before, #181 follow-up).
+    detail = second.json()["error"]["message"]
+    assert "s." in detail and "already saved" in detail
 
 
 @pytest.mark.anyio

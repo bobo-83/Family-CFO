@@ -7,6 +7,7 @@ import UIKit
 struct BackupSettingsView: View {
     @State var viewModel: BackupViewModel
     @State private var expandedDays: Set<String> = []
+    @State private var showingExportShare = false
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
     @State private var confirmReplaceRecoveryKey = false
@@ -350,13 +351,19 @@ struct BackupSettingsView: View {
         }
     }
 
-    /// "Export my data" (#189): the whole household as a portable zip, fetched
-    /// to a temp file. The ShareLink appears once the file is ready; a 423
-    /// (sealed household, locked) surfaces through the error alert, verbatim.
+    /// "Export my data" (#189): the whole household as a portable zip. ONE tap —
+    /// the share sheet presents itself as soon as the file is ready, rather
+    /// than making the user notice and tap a second row. A 423 (sealed
+    /// household, locked) surfaces through the error alert, verbatim.
     private var exportSection: some View {
         Section {
             Button {
-                Task { await viewModel.exportData() }
+                Task {
+                    await viewModel.exportData()
+                    if viewModel.exportedFileURL != nil {
+                        showingExportShare = true
+                    }
+                }
             } label: {
                 if viewModel.isExporting {
                     HStack { ProgressView(); Text("Preparing export…").padding(.leading, 8) }
@@ -365,9 +372,9 @@ struct BackupSettingsView: View {
                 }
             }
             .disabled(viewModel.isExporting)
-            if let url = viewModel.exportedFileURL {
-                ShareLink(item: url) {
-                    Label("Save or share export…", systemImage: "square.and.arrow.up")
+            .sheet(isPresented: $showingExportShare) {
+                if let url = viewModel.exportedFileURL {
+                    ShareSheet(items: [url])
                 }
             }
         } header: {

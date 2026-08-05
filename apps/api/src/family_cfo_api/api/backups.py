@@ -117,6 +117,7 @@ def _backup_retry_after(household_id: str) -> int | None:
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        429: {"description": "A backup ran moments ago (cooldown)", "model": ErrorResponse},
     },
     summary="Create an on-demand encrypted backup",
 )
@@ -131,7 +132,10 @@ async def create_backup(
     if retry_after is not None:
         raise HTTPException(
             status_code=429,
-            detail="A backup just ran — try again in a minute.",
+            detail=(
+                f"A backup just ran — the next one can start in {retry_after}s. "
+                "Your data is already saved."
+            ),
             headers={"Retry-After": str(retry_after)},
         )
     household = repository.get_household(engine, session.household_id)
