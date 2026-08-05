@@ -110,6 +110,7 @@ def run_due_backups(engine: Engine, settings: Settings, *, now: datetime | None 
             retention_count=settings.backup_retention_count,
             smb_target=smb_target_for(household),
             max_bytes=household.backup_max_bytes,
+            offbox_retention_days=settings.offbox_backup_retention_days,
         )
         backed_up += 1
     return backed_up
@@ -294,6 +295,7 @@ def run_backup_once(
     retention_count: int,
     smb_target: smb_backup.SmbTarget | None = None,
     max_bytes: int | None = None,
+    offbox_retention_days: int = 0,
 ) -> str:
     """Create one encrypted backup archive. Returns the backup_job id regardless of outcome.
 
@@ -381,6 +383,13 @@ def run_backup_once(
                 _enforce_size_cap_remote(smb_target, max_bytes)
             except Exception as exc:  # noqa: BLE001 — best-effort, never fatal
                 logger.warning("remote size-cap prune failed: %s", exc)
+    # #192: bound the off-box copies by AGE too, so a deleted household's
+    # ciphertext has a real erasure horizon. Independent of the size cap.
+    if smb_target is not None and offbox_retention_days > 0:
+        try:
+            _enforce_age_cap_remote(smb_target, offbox_retention_days)
+        except Exception as exc:  # noqa: BLE001 — best-effort, never fatal
+            logger.warning("remote age-cap prune failed: %s", exc)
     return job.id
 
 
@@ -410,7 +419,28 @@ def _enforce_size_cap_remote(smb_target: smb_backup.SmbTarget, max_bytes: int) -
             break
         smb_backup.delete(smb_target, item["filename"])
         total -= item["size_bytes"]
-        logger.info("remote backup size-cap pruned filename=%s", item["filename"])
+        logger.info("remote size-cap pruned filename=%s", item["filename"])
+
+
+def _enforce_age_cap_remote(
+    smb_target: smb_backup.SmbTarget, retention_days: int, *, now: float | None = None
+) -> int:
+    """#192: delete Synology backups older than retention_days — the bounded
+    erasure horizon for a deleted household. The newest archive is ALWAYS kept
+    (so a household that stops backing up still has one restorable copy).
+    Returns how many were deleted."""
+    import time
+
+    now = now if now is not None else time.time()
+    cutoff = now - retention_days * 86400
+    items = smb_backup.list_backups(smb_target)  # newest first
+    deleted = 0
+    for item in items[1:]:  # keep the single newest, whatever its age
+        if item["modified_at"] < cutoff:
+            smb_backup.delete(smb_target, item["filename"])
+            deleted += 1
+            logger.info("remote age-cap pruned filename=%s", item["filename"])
+    return deleted
 
 
 def _apply_retention(engine: Engine, backup_dir: str, retention_count: int) -> None:

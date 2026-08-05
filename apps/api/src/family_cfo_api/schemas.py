@@ -1583,6 +1583,9 @@ class HostedHousehold(BaseModel):
 
 class HostedHouseholdList(BaseModel):
     households: list[HostedHousehold]
+    # #192: off-box backup age limit (days; 0 = kept forever) so the delete
+    # confirmation can name the real erasure horizon.
+    offbox_backup_retention_days: int
 
 
 class HostedHouseholdCreateResponse(BaseModel):

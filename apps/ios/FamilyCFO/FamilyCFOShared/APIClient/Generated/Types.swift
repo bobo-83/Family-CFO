@@ -8651,15 +8651,25 @@ public enum Components {
         public struct HostedHouseholdList: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HostedHouseholdList/households`.
             public var households: [Components.Schemas.HostedHousehold]
+            /// #192: off-box backup age limit in days (0 = kept forever).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HostedHouseholdList/offbox_backup_retention_days`.
+            public var offboxBackupRetentionDays: Swift.Int
             /// Creates a new `HostedHouseholdList`.
             ///
             /// - Parameters:
             ///   - households:
-            public init(households: [Components.Schemas.HostedHousehold]) {
+            ///   - offboxBackupRetentionDays: #192: off-box backup age limit in days (0 = kept forever).
+            public init(
+                households: [Components.Schemas.HostedHousehold],
+                offboxBackupRetentionDays: Swift.Int
+            ) {
                 self.households = households
+                self.offboxBackupRetentionDays = offboxBackupRetentionDays
             }
             public enum CodingKeys: String, CodingKey {
                 case households
+                case offboxBackupRetentionDays = "offbox_backup_retention_days"
             }
         }
         /// - Remark: Generated from `#/components/schemas/HostedHouseholdCreateResponse`.

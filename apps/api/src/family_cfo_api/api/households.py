@@ -117,6 +117,7 @@ def _hosted_summary(engine, summary: dict, counts: dict, pending: set) -> Hosted
 async def list_hosted_households(
     session: repository.SessionContext = Depends(require_right(rights.SYSTEM_ADMIN)),
     engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
 ) -> HostedHouseholdList:
     counts = repository.household_member_counts(engine)
     pending = repository.households_with_pending_owner_invite(engine)
@@ -124,7 +125,8 @@ async def list_hosted_households(
         households=[
             _hosted_summary(engine, summary, counts, pending)
             for summary in repository.list_household_summaries(engine)
-        ]
+        ],
+        offbox_backup_retention_days=settings.offbox_backup_retention_days,
     )
 
 

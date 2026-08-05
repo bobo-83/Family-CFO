@@ -6752,11 +6752,15 @@ components:
       type: object
       required:
         - households
+        - offbox_backup_retention_days
       properties:
         households:
           type: array
           items:
             $ref: "#/components/schemas/HostedHousehold"
+        offbox_backup_retention_days:
+          description: "#192: off-box backup age limit in days (0 = kept forever)."
+          type: integer
     HostedHouseholdCreateResponse:
       type: object
       required:

@@ -60,8 +60,13 @@ struct HouseholdsView: View {
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: { _ in
-            Text(
-                "This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. Their data remains only in whole-box backups until those age out."
+            let days = viewModel.offboxRetentionDays
+            let horizon =
+                days > 0
+                ? "Their data remains only in encrypted backups, fully gone within \(days) days."
+                : "Their data remains in encrypted off-box backups until you prune them."
+            return Text(
+                "This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. " + horizon
             )
         }
     }

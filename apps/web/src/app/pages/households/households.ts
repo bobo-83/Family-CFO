@@ -31,6 +31,8 @@ export class Households {
   // #180: the whole page is operator territory — the server 403s non-admins.
   protected readonly canHost = () => this.auth.hasRight('system.admin');
 
+  protected readonly offboxRetentionDays = signal(0);
+
   protected readonly households = resource({
     loader: async () => {
       if (!this.canHost()) {
@@ -40,6 +42,7 @@ export class Households {
       if (error) {
         throw new Error(apiErrorMessage(error, 'Failed to load households.'));
       }
+      this.offboxRetentionDays.set(data.offbox_backup_retention_days);
       return data.households;
     },
   });
@@ -117,11 +120,17 @@ export class Households {
     if (this.deletingId()) {
       return;
     }
+    const days = this.offboxRetentionDays();
+    const horizon =
+      days > 0
+        ? `Their data remains only in encrypted backups, fully gone within ${days} days.`
+        : 'Their data remains in encrypted off-box backups until you prune them ' +
+          '(set an off-box retention limit to bound this).';
     if (
       !confirm(
         `Permanently delete ${household.name}? This removes the family's accounts, ` +
           'transactions, advisor history, documents, and logins. It cannot be undone. ' +
-          'Their data remains only in whole-box backups until those age out.',
+          horizon,
       )
     ) {
       return;

@@ -3,7 +3,7 @@ import Foundation
 /// The operator's hosted-household roster (#180, ADR 0025 parity with the
 /// dashboard's Households page). System admins only — the server 403s others.
 protocol HouseholdsAPI: Sendable {
-    func list() async throws -> [Components.Schemas.HostedHousehold]
+    func list() async throws -> Components.Schemas.HostedHouseholdList
     func create(
         displayName: String, baseCurrency: String, ownerEmail: String
     ) async throws -> Components.Schemas.HostedHouseholdCreateResponse
@@ -14,10 +14,10 @@ protocol HouseholdsAPI: Sendable {
 struct LiveHouseholdsAPI: HouseholdsAPI {
     let client: Client
 
-    func list() async throws -> [Components.Schemas.HostedHousehold] {
+    func list() async throws -> Components.Schemas.HostedHouseholdList {
         switch try await client.listHostedHouseholds(.init()) {
         case .ok(let response):
-            return try response.body.json.households
+            return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:

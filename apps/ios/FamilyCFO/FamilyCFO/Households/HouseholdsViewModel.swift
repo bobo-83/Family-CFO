@@ -24,6 +24,7 @@ final class HouseholdsViewModel {
     private let currentHouseholdID: String?
 
     private(set) var households: [Components.Schemas.HostedHousehold] = []
+    var offboxRetentionDays: Int = 0
     private(set) var isLoading = false
     private(set) var isCreating = false
     private(set) var isDeleting = false
@@ -40,7 +41,9 @@ final class HouseholdsViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            households = try await api.list()
+            let payload = try await api.list()
+            households = payload.households
+            offboxRetentionDays = payload.offboxBackupRetentionDays
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)

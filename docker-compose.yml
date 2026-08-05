@@ -24,6 +24,10 @@ x-api-env: &api-env
   # ADR 0072: wraps each household's data key; content columns are sealed
   # under it. Empty = per-household encryption off.
   FAMILY_CFO_MASTER_KEY: ${FAMILY_CFO_MASTER_KEY:-}
+  # #192: off-box backups older than this many days are pruned on each backup
+  # pass (0 = keep forever). The bounded erasure horizon after a household is
+  # deleted. On-box copies keep their count-based retention.
+  FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS: ${FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS:-0}
   FAMILY_CFO_LOG_LEVEL: ${FAMILY_CFO_LOG_LEVEL:-INFO}
   FAMILY_CFO_TLS_CERT_PATH: /etc/family-cfo/certs/tls.crt
   # AI runtime on by default; households inherit this until they save their own

@@ -46,6 +46,10 @@ class Settings:
     import_staging_dir: str = DEFAULT_IMPORT_STAGING_DIR
     backup_dir: str = DEFAULT_BACKUP_DIR
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
+    # #192: off-box (Synology) backups deleted when older than this many days —
+    # the erasure horizon for a deleted household. 0 = keep forever (the
+    # previous behavior); on-box copies keep their count-based retention.
+    offbox_backup_retention_days: int = 0
     # #181: per-household advisor fair-use cap (chat turns/hour). 0 = off —
     # the single-family default; arm when hosting multiple households.
     chat_hourly_limit: int = 0
@@ -135,6 +139,11 @@ class Settings:
             ),
             import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
             backup_dir=os.getenv("FAMILY_CFO_BACKUP_DIR", cls.backup_dir),
+            offbox_backup_retention_days=int(
+                os.getenv(
+                    "FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS", cls.offbox_backup_retention_days
+                )
+            ),
             chat_hourly_limit=int(os.getenv("FAMILY_CFO_CHAT_HOURLY_LIMIT", cls.chat_hourly_limit)),
             auth_session_retention_days=int(
                 os.getenv("FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS", cls.auth_session_retention_days)

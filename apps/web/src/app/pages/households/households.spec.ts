@@ -58,7 +58,7 @@ describe('Households', () => {
     const apiMock = {
       listHostedHouseholds: vi
         .fn()
-        .mockResolvedValue(response({ households: [CEDAR, BIRCH] })),
+        .mockResolvedValue(response({ households: [CEDAR, BIRCH], offbox_backup_retention_days: 0 })),
     };
     const fixture = await render(apiMock);
     const host = fixture.nativeElement as HTMLElement;
@@ -82,8 +82,8 @@ describe('Households', () => {
     const apiMock = {
       listHostedHouseholds: vi
         .fn()
-        .mockResolvedValueOnce(response({ households: [] }))
-        .mockResolvedValueOnce(response({ households: [CEDAR] })),
+        .mockResolvedValueOnce(response({ households: [], offbox_backup_retention_days: 0 }))
+        .mockResolvedValueOnce(response({ households: [CEDAR], offbox_backup_retention_days: 0 })),
       createHostedHousehold: vi.fn().mockResolvedValue(
         response({
           household: CEDAR,
@@ -122,7 +122,7 @@ describe('Households', () => {
     const detail =
       'That email already has an account on this box — invite them from their existing household instead.';
     const apiMock = {
-      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [] })),
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [], offbox_backup_retention_days: 0 })),
       createHostedHousehold: vi
         .fn()
         .mockResolvedValue(response(undefined, { error: { message: detail } })),
@@ -148,8 +148,8 @@ describe('Households', () => {
     const apiMock = {
       listHostedHouseholds: vi
         .fn()
-        .mockResolvedValueOnce(response({ households: [CEDAR, BIRCH] }))
-        .mockResolvedValueOnce(response({ households: [BIRCH] })),
+        .mockResolvedValueOnce(response({ households: [CEDAR, BIRCH], offbox_backup_retention_days: 0 }))
+        .mockResolvedValueOnce(response({ households: [BIRCH], offbox_backup_retention_days: 0 })),
       deleteHostedHousehold: vi.fn().mockResolvedValue(response(undefined)),
     };
     const fixture = await render(apiMock);
@@ -161,7 +161,8 @@ describe('Households', () => {
     expect(confirmSpy).toHaveBeenCalledWith(
       "Permanently delete Cedar family? This removes the family's accounts, " +
         'transactions, advisor history, documents, and logins. It cannot be undone. ' +
-        'Their data remains only in whole-box backups until those age out.',
+        'Their data remains in encrypted off-box backups until you prune them ' +
+        '(set an off-box retention limit to bound this).',
     );
     expect(apiMock.deleteHostedHousehold).not.toHaveBeenCalled();
 
@@ -178,7 +179,7 @@ describe('Households', () => {
 
   it('never offers Delete on the current household', async () => {
     const apiMock = {
-      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR, BIRCH] })),
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR, BIRCH], offbox_backup_retention_days: 0 })),
     };
     const fixture = await render(apiMock, 'owner', 'h-birch');
     const host = fixture.nativeElement as HTMLElement;
@@ -191,7 +192,7 @@ describe('Households', () => {
   it('surfaces the 409 detail verbatim when deleting your own household', async () => {
     const detail = "You can't delete the household you belong to.";
     const apiMock = {
-      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR] })),
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR], offbox_backup_retention_days: 0 })),
       deleteHostedHousehold: vi
         .fn()
         .mockResolvedValue(response(undefined, { error: { message: detail } })),
@@ -211,7 +212,7 @@ describe('Households', () => {
 
   it('hides the page content and never calls the API for a non-admin', async () => {
     const apiMock = {
-      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR] })),
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR], offbox_backup_retention_days: 0 })),
     };
     const fixture = await render(apiMock, 'adult');
     const host = fixture.nativeElement as HTMLElement;

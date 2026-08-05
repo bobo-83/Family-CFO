@@ -1550,6 +1550,10 @@ export type HostedHousehold = {
 
 export type HostedHouseholdList = {
     households: Array<HostedHousehold>;
+    /**
+     * #192: off-box backup age limit in days (0 = kept forever).
+     */
+    offbox_backup_retention_days: number;
 };
 
 export type HostedHouseholdCreateResponse = {

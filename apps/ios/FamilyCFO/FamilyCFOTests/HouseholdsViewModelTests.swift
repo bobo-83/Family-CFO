@@ -6,6 +6,7 @@ import Testing
 @MainActor
 final class MockHouseholdsAPI: HouseholdsAPI, @unchecked Sendable {
     var households: [Components.Schemas.HostedHousehold] = []
+    var offboxRetentionDays = 0
     var createError: Error?
     var createResponse: Components.Schemas.HostedHouseholdCreateResponse?
     var deleteError: Error?
@@ -13,10 +14,13 @@ final class MockHouseholdsAPI: HouseholdsAPI, @unchecked Sendable {
     private(set) var deleted: [String] = []
     private(set) var listCalls = 0
 
-    nonisolated func list() async throws -> [Components.Schemas.HostedHousehold] {
+    nonisolated func list() async throws -> Components.Schemas.HostedHouseholdList {
         try await MainActor.run {
             listCalls += 1
-            return households
+            return .init(
+                households: households,
+                offboxBackupRetentionDays: offboxRetentionDays
+            )
         }
     }
 
@@ -128,7 +132,7 @@ struct HouseholdsViewModelTests {
 
     @Test func aFailedLoadSurfacesAnError() async {
         struct FailingAPI: HouseholdsAPI {
-            func list() async throws -> [Components.Schemas.HostedHousehold] {
+            func list() async throws -> Components.Schemas.HostedHouseholdList {
                 throw APIError.server(403)
             }
             func create(
