@@ -181,6 +181,60 @@ struct OverviewViewModelTests {
         #expect(OverviewView.dueDescription(daysUntil: 1) == "Due tomorrow")
         #expect(OverviewView.dueDescription(daysUntil: 5) == "Due in 5 days")
     }
+
+    // MARK: - #201 detected savings contributions
+
+    private func contribution(
+        _ name: String,
+        amount: Int64,
+        frequency: Components.Schemas.RecurringFrequency,
+        monthly: Int64,
+        occurrences: Int
+    ) -> Components.Schemas.SavingsContribution {
+        .init(
+            destinationName: name,
+            destinationType: "529",
+            amount: money(amount),
+            frequency: frequency,
+            monthlyEquivalent: money(monthly),
+            occurrences: occurrences,
+            lastSeen: "2026-07-01")
+    }
+
+    /// The only computation on this card. Cadences differ, so summing the raw
+    /// amounts would count a $1,200 annual transfer as $1,200 a month — the
+    /// server's monthly_equivalent is the only summable figure.
+    @Test func monthlyTotalSumsTheNormalisedCadences() {
+        let contributions = [
+            contribution("College 529", amount: 50_000, frequency: .monthly, monthly: 50_000, occurrences: 4),
+            contribution("Brokerage", amount: 120_000, frequency: .quarterly, monthly: 40_000, occurrences: 3),
+            contribution("Rainy Day Savings", amount: 120_000, frequency: .annual, monthly: 10_000, occurrences: 1),
+        ]
+
+        let total = OverviewView.monthlyTotal(contributions)
+
+        #expect(total?.amountMinor == 100_000)
+        #expect(total?.currency == "USD")
+    }
+
+    /// Nothing detected means no card at all — never a $0 total.
+    @Test func noContributionsMeansNoTotal() {
+        #expect(OverviewView.monthlyTotal([]) == nil)
+    }
+
+    @Test func contributionRowsReadInPlainEnglish() {
+        #expect(
+            OverviewView.contributionDetail(
+                contribution("College 529", amount: 50_000, frequency: .monthly, monthly: 50_000, occurrences: 4))
+                == "$500.00 monthly · seen 4 times")
+        #expect(
+            OverviewView.contributionDetail(
+                contribution("Rainy Day Savings", amount: 120_000, frequency: .annual, monthly: 10_000, occurrences: 1))
+                == "$1,200.00 yearly · seen 1 time")
+        #expect(OverviewView.cadenceWord(.biweekly) == "every two weeks")
+        #expect(OverviewView.cadenceWord(.semimonthly) == "twice a month")
+        #expect(OverviewView.cadenceWord(.semiannual) == "twice a year")
+    }
 }
 
 @MainActor

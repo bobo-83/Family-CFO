@@ -164,6 +164,88 @@ describe('Overview', () => {
     expect(text).toContain('3 budgets');
   });
 
+  // #201: detected recurring saving, below the savings-rate line it qualifies.
+  it('renders detected savings contributions with a normalised monthly total', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: [
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 4,
+            last_seen: '2026-07-01',
+          },
+          {
+            destination_name: 'Fidelity Brokerage',
+            destination_type: 'brokerage',
+            amount: { amount_minor: 120_000, currency: 'USD' },
+            frequency: 'quarterly',
+            monthly_equivalent: { amount_minor: 40_000, currency: 'USD' },
+            occurrences: 3,
+            last_seen: '2026-06-15',
+          },
+          {
+            destination_name: 'Rainy Day Savings',
+            destination_type: 'savings',
+            amount: { amount_minor: 120_000, currency: 'USD' },
+            frequency: 'annual',
+            monthly_equivalent: { amount_minor: 10_000, currency: 'USD' },
+            occurrences: 1,
+            last_seen: '2026-01-04',
+          },
+        ],
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain("What you're saving");
+    expect(text).toContain('College 529');
+    expect(text).toContain('USD 500.00 monthly · seen 4 times');
+    expect(text).toContain('USD 1,200.00 quarterly · seen 3 times');
+    // Singular reads naturally, and "annual" is spoken as "yearly".
+    expect(text).toContain('USD 1,200.00 yearly · seen 1 time');
+    // 500 + 400 + 100 monthly-equivalent — never the raw 500 + 1200 + 1200.
+    expect(text).toContain('About USD 1,000.00 a month');
+    expect(text).toContain(
+      "Detected from transfers between your accounts. Payroll deductions like a 401(k) don't appear here.",
+    );
+  });
+
+  it('hides the savings-contributions section when nothing was detected (#201)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: [],
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).not.toContain("What you're saving");
+    expect(host.querySelector('.overview__saving-total')).toBeNull();
+  });
+
   it('links to the Bills page when there are no bills to measure against', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

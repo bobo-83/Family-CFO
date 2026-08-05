@@ -237,6 +237,15 @@
   text-align: right;
 }
 
+/* #201: the normalised monthly run-rate, set apart from the rows it sums so it
+   never reads as one more contribution. */
+.overview__saving-total {
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e5e7eb;
+  font-weight: 600;
+}
+
 // --- M112: cash outlook (ADR 0026) ---
 
 .outlook-card {

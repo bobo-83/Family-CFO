@@ -353,6 +353,26 @@
           </div>
         }
 
+        @if (context.savings_contributions; as contributions) {
+          @if (contributions.length > 0) {
+            <div class="overview__card overview__card--wide">
+              <span class="overview__label">What you're saving</span>
+              <ul class="overview__bills">
+                @for (contribution of contributions; track $index) {
+                  <li class="overview__bill">
+                    <span class="overview__bill-name">{{ contribution.destination_name }}</span>
+                    <span class="overview__bill-due">{{ contributionDetail(contribution) }}</span>
+                  </li>
+                }
+              </ul>
+              @if (savingsMonthlyTotal(contributions); as total) {
+                <span class="overview__saving-total">About {{ formatMoney(total) }} a month</span>
+              }
+              <span class="overview__hint">{{ savingsFootnote }}</span>
+            </div>
+          }
+        }
+
         @if (context.emergency_fund; as fund) {
           <div class="overview__card overview__card--wide">
             <span class="overview__label">

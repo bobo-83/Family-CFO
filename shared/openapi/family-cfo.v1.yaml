@@ -5314,6 +5314,11 @@ components:
         savings_rate:
           description: "M44: recurring income vs trailing-3-month average actual spending."
           $ref: "#/components/schemas/SavingsRate"
+        savings_contributions:
+          description: "#201: detected recurring saving (transfers only), largest first."
+          type: array
+          items:
+            $ref: "#/components/schemas/SavingsContribution"
         budget_summary:
           description: "M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist."
           $ref: "#/components/schemas/BudgetSummary"
@@ -5579,6 +5584,38 @@ components:
           type: string
         amount:
           $ref: "#/components/schemas/Money"
+    SavingsContribution:
+      type: object
+      description: >-
+        "#201: money the household regularly moves INTO a savings vehicle,
+        detected from transfers between their own accounts. TRANSFERS ONLY —
+        payroll deductions (401k, HSA from a paycheck) never touch the bank
+        feed, so this is never the household's total saving."
+      required:
+        - destination_name
+        - destination_type
+        - amount
+        - frequency
+        - monthly_equivalent
+        - occurrences
+        - last_seen
+      properties:
+        destination_name:
+          type: string
+        destination_type:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+        monthly_equivalent:
+          description: The contribution normalised to a monthly run-rate, so cadences can be summed.
+          $ref: "#/components/schemas/Money"
+        occurrences:
+          type: integer
+        last_seen:
+          type: string
+          format: date
     SavingsRate:
       type: object
       required:

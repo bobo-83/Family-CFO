@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import date, timedelta
 
@@ -40,6 +41,7 @@ from family_cfo_api.schemas import (
     RecoveryKey,
     RecoveryUnlockRequest,
     SafeToSpend,
+    SavingsContribution,
     SavingsRate,
     SealModeRequest,
     SpendingByCategory,
@@ -51,6 +53,8 @@ from family_cfo_api.schemas import (
     YearMonthSummary,
 )
 from family_cfo_api.schemas import Money as MoneySchema
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Household"])
 
@@ -426,6 +430,33 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         emergency_fund_items=emergency_fund_items,
         subscription_forecast_items=subscription_forecast_items,
     )
+
+
+def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsContribution]:
+    """#201: recurring transfers into savings vehicles. Best-effort — detection
+    must never break the Overview, so a failure yields an empty list."""
+    from family_cfo_api import savings_detection
+
+    try:
+        found = savings_detection.detect_for_household(engine, household_id)
+    except Exception:
+        logger.exception("savings detection failed household=%s", household_id)
+        return []
+    return [
+        SavingsContribution(
+            destination_name=c.destination_name,
+            destination_type=c.destination_type,
+            amount=MoneySchema(amount_minor=c.amount_minor, currency=c.currency),
+            frequency=c.frequency,
+            monthly_equivalent=MoneySchema(
+                amount_minor=savings_detection.monthly_equivalent_minor(c),
+                currency=c.currency,
+            ),
+            occurrences=c.occurrences,
+            last_seen=c.last_seen,
+        )
+        for c in found
+    ]
 
 
 def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
@@ -836,6 +867,7 @@ def _build_household_context(
         top_goal=_top_goal(engine, household.id),
         spending_insights=_spending_insights(engine, household.id, currency),
         savings_rate=_savings_rate(engine, household.id, currency),
+        savings_contributions=_savings_contributions(engine, household.id),
         budget_summary=_budget_summary(engine, household.id, currency),
         safe_to_spend=_safe_to_spend(engine, household.id, currency),
         spending_by_category=_spending_by_category(engine, household.id, currency),

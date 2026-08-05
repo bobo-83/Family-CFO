@@ -167,6 +167,9 @@ struct OverviewView: View {
                     if let savingsRate = context.savingsRate {
                         savingsRateCard(savingsRate)
                     }
+                    if let contributions = context.savingsContributions, !contributions.isEmpty {
+                        savingsContributionsCard(contributions)
+                    }
                     if let budgets = context.budgetSummary, budgets.envelopeCount > 0 {
                         budgetCard(budgets)
                     }
@@ -548,6 +551,73 @@ struct OverviewView: View {
         }
     }
 
+    /// #201: recurring transfers into savings vehicles, largest first. The
+    /// footnote is a correctness requirement, not decoration — payroll
+    /// deductions never reach the bank feed, so this is never the whole story.
+    @ViewBuilder
+    private func savingsContributionsCard(
+        _ contributions: [Components.Schemas.SavingsContribution]
+    ) -> some View {
+        Card("What you're saving", systemImage: "arrow.down.to.line") {
+            ForEach(Array(contributions.enumerated()), id: \.offset) { index, contribution in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(contribution.destinationName).font(.subheadline)
+                    Text(Self.contributionDetail(contribution))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if index != contributions.count - 1 {
+                    Divider()
+                }
+            }
+            if let total = Self.monthlyTotal(contributions) {
+                Divider()
+                Text("About \(total.formatted) a month")
+                    .font(.subheadline.weight(.semibold))
+            }
+            Text(
+                "Detected from transfers between your accounts. "
+                    + "Payroll deductions like a 401(k) don't appear here."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    static func contributionDetail(
+        _ contribution: Components.Schemas.SavingsContribution
+    ) -> String {
+        let times = contribution.occurrences == 1
+            ? "seen 1 time"
+            : "seen \(contribution.occurrences) times"
+        return "\(contribution.amount.formattedExact) "
+            + "\(cadenceWord(contribution.frequency)) · \(times)"
+    }
+
+    /// Enums are for machines; a row reads "$500 monthly".
+    static func cadenceWord(_ frequency: Components.Schemas.RecurringFrequency) -> String {
+        switch frequency {
+        case .weekly: return "weekly"
+        case .biweekly: return "every two weeks"
+        case .semimonthly: return "twice a month"
+        case .monthly: return "monthly"
+        case .quarterly: return "quarterly"
+        case .semiannual: return "twice a year"
+        case .annual: return "yearly"
+        }
+    }
+
+    /// Cadences differ, so only the server's monthly_equivalent can be summed —
+    /// adding the raw amounts would call a yearly $6,000 a monthly $6,000.
+    static func monthlyTotal(
+        _ contributions: [Components.Schemas.SavingsContribution]
+    ) -> Components.Schemas.Money? {
+        guard let first = contributions.first else { return nil }
+        return .init(
+            amountMinor: contributions.reduce(0) { $0 + $1.monthlyEquivalent.amountMinor },
+            currency: first.monthlyEquivalent.currency)
+    }
 
     /// M118: the summary card now opens the full envelope manager (parity with
     /// the dashboard's Budgets page).

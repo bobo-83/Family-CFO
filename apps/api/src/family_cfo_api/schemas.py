@@ -229,6 +229,22 @@ class SavingsRate(BaseModel):
     average_monthly_spending: Money
 
 
+class SavingsContribution(BaseModel):
+    """#201: money the household regularly moves INTO a savings vehicle,
+    detected from transfers between their own accounts.
+
+    Transfers only — payroll deductions (401k, HSA from a paycheck) never
+    touch the bank feed, so this is never the household's total saving."""
+
+    destination_name: str
+    destination_type: str
+    amount: Money
+    frequency: RecurringFrequency
+    monthly_equivalent: Money
+    occurrences: int
+    last_seen: date
+
+
 BudgetStatus = Literal["under", "warning", "over"]
 
 
@@ -377,6 +393,8 @@ class HouseholdContext(BaseModel):
     top_goal: GoalProgress | None = None
     spending_insights: SpendingInsights | None = None
     savings_rate: SavingsRate | None = None
+    # #201: detected recurring saving, newest-largest first. Transfers only.
+    savings_contributions: list[SavingsContribution] = Field(default_factory=list)
     budget_summary: BudgetSummary | None = None
     safe_to_spend: SafeToSpend | None = None
     spending_by_category: SpendingByCategory | None = None

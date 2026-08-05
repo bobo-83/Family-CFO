@@ -5764,6 +5764,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/savings_rate`.
             public var savingsRate: Components.Schemas.SavingsRate?
+            /// #201: detected recurring saving (transfers only), largest first.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/savings_contributions`.
+            public var savingsContributions: [Components.Schemas.SavingsContribution]?
             /// M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/budget_summary`.
@@ -5805,6 +5809,7 @@ public enum Components {
             ///   - topGoal: M41: the highest-priority savings goal with progress, when one exists.
             ///   - spendingInsights: M42: month-to-date spending vs the same period last month, plus top merchants.
             ///   - savingsRate: M44: recurring income vs trailing-3-month average actual spending.
+            ///   - savingsContributions: #201: detected recurring saving (transfers only), largest first.
             ///   - budgetSummary: M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
             ///   - safeToSpend: M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
             ///   - spendingByCategory: M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
@@ -5826,6 +5831,7 @@ public enum Components {
                 topGoal: Components.Schemas.GoalProgress? = nil,
                 spendingInsights: Components.Schemas.SpendingInsights? = nil,
                 savingsRate: Components.Schemas.SavingsRate? = nil,
+                savingsContributions: [Components.Schemas.SavingsContribution]? = nil,
                 budgetSummary: Components.Schemas.BudgetSummary? = nil,
                 safeToSpend: Components.Schemas.SafeToSpend? = nil,
                 spendingByCategory: Components.Schemas.SpendingByCategory? = nil,
@@ -5847,6 +5853,7 @@ public enum Components {
                 self.topGoal = topGoal
                 self.spendingInsights = spendingInsights
                 self.savingsRate = savingsRate
+                self.savingsContributions = savingsContributions
                 self.budgetSummary = budgetSummary
                 self.safeToSpend = safeToSpend
                 self.spendingByCategory = spendingByCategory
@@ -5869,6 +5876,7 @@ public enum Components {
                 case topGoal = "top_goal"
                 case spendingInsights = "spending_insights"
                 case savingsRate = "savings_rate"
+                case savingsContributions = "savings_contributions"
                 case budgetSummary = "budget_summary"
                 case safeToSpend = "safe_to_spend"
                 case spendingByCategory = "spending_by_category"
@@ -6412,6 +6420,63 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case name
                 case amount
+            }
+        }
+        /// "#201: money the household regularly moves INTO a savings vehicle, detected from transfers between their own accounts. TRANSFERS ONLY — payroll deductions (401k, HSA from a paycheck) never touch the bank feed, so this is never the household's total saving."
+        ///
+        /// - Remark: Generated from `#/components/schemas/SavingsContribution`.
+        public struct SavingsContribution: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/destination_name`.
+            public var destinationName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/destination_type`.
+            public var destinationType: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/frequency`.
+            public var frequency: Components.Schemas.RecurringFrequency
+            /// The contribution normalised to a monthly run-rate, so cadences can be summed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/monthly_equivalent`.
+            public var monthlyEquivalent: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/occurrences`.
+            public var occurrences: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/last_seen`.
+            public var lastSeen: Swift.String
+            /// Creates a new `SavingsContribution`.
+            ///
+            /// - Parameters:
+            ///   - destinationName:
+            ///   - destinationType:
+            ///   - amount:
+            ///   - frequency:
+            ///   - monthlyEquivalent: The contribution normalised to a monthly run-rate, so cadences can be summed.
+            ///   - occurrences:
+            ///   - lastSeen:
+            public init(
+                destinationName: Swift.String,
+                destinationType: Swift.String,
+                amount: Components.Schemas.Money,
+                frequency: Components.Schemas.RecurringFrequency,
+                monthlyEquivalent: Components.Schemas.Money,
+                occurrences: Swift.Int,
+                lastSeen: Swift.String
+            ) {
+                self.destinationName = destinationName
+                self.destinationType = destinationType
+                self.amount = amount
+                self.frequency = frequency
+                self.monthlyEquivalent = monthlyEquivalent
+                self.occurrences = occurrences
+                self.lastSeen = lastSeen
+            }
+            public enum CodingKeys: String, CodingKey {
+                case destinationName = "destination_name"
+                case destinationType = "destination_type"
+                case amount
+                case frequency
+                case monthlyEquivalent = "monthly_equivalent"
+                case occurrences
+                case lastSeen = "last_seen"
             }
         }
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.

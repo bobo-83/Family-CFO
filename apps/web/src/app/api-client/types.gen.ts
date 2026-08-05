@@ -807,6 +807,10 @@ export type HouseholdContext = {
      */
     savings_rate?: SavingsRate;
     /**
+     * #201: detected recurring saving (transfers only), largest first.
+     */
+    savings_contributions?: Array<SavingsContribution>;
+    /**
      * M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
      */
     budget_summary?: BudgetSummary;
@@ -1002,6 +1006,22 @@ export type LiquidAccountBalance = {
 export type NamedAmount = {
     name: string;
     amount: Money;
+};
+
+/**
+ * "#201: money the household regularly moves INTO a savings vehicle, detected from transfers between their own accounts. TRANSFERS ONLY — payroll deductions (401k, HSA from a paycheck) never touch the bank feed, so this is never the household's total saving."
+ */
+export type SavingsContribution = {
+    destination_name: string;
+    destination_type: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+    /**
+     * The contribution normalised to a monthly run-rate, so cadences can be summed.
+     */
+    monthly_equivalent: Money;
+    occurrences: number;
+    last_seen: string;
 };
 
 export type SavingsRate = {

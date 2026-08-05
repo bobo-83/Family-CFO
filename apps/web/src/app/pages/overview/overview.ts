@@ -12,6 +12,8 @@ import type {
   Money,
   NetWorthPoint,
   OutlookEvent as OutlookEventDto,
+  RecurringFrequency,
+  SavingsContribution,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -34,6 +36,17 @@ const CATEGORY_LABELS: Record<string, string> = {
   property: 'Property',
 };
 
+
+// #201: enums are for machines; a savings row reads "USD 500.00 monthly".
+const CADENCE_WORDS: Record<RecurringFrequency, string> = {
+  weekly: 'weekly',
+  biweekly: 'every two weeks',
+  semimonthly: 'twice a month',
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  semiannual: 'twice a year',
+  annual: 'yearly',
+};
 
 // M75: human labels for goal types (raw enums leaked into the UI).
 const GOAL_TYPE_LABELS: Record<string, string> = {
@@ -241,6 +254,42 @@ export class Overview {
   // M75: enums are for machines; people get labels.
   protected goalTypeLabel(type: string): string {
     return GOAL_TYPE_LABELS[type] ?? type;
+  }
+
+  // --- #201: detected recurring savings contributions ------------------------
+
+  /**
+   * Required honesty footnote, verbatim on both platforms: detection only sees
+   * transfers, so a 401(k) withheld before pay lands is invisible here.
+   */
+  protected readonly savingsFootnote =
+    'Detected from transfers between your accounts. ' +
+    "Payroll deductions like a 401(k) don't appear here.";
+
+  protected cadenceWord(frequency: RecurringFrequency): string {
+    return CADENCE_WORDS[frequency] ?? frequency;
+  }
+
+  /** "USD 500.00 monthly · seen 4 times" */
+  protected contributionDetail(contribution: SavingsContribution): string {
+    const times =
+      contribution.occurrences === 1 ? 'seen 1 time' : `seen ${contribution.occurrences} times`;
+    return `${formatMoney(contribution.amount)} ${this.cadenceWord(contribution.frequency)} · ${times}`;
+  }
+
+  /**
+   * Cadences differ, so only the server's monthly_equivalent can be summed —
+   * adding the raw amounts would call a yearly USD 1,200 a monthly USD 1,200.
+   * Null when nothing was detected: the section is hidden, never zeroed.
+   */
+  protected savingsMonthlyTotal(contributions: SavingsContribution[]): Money | null {
+    if (!contributions || contributions.length === 0) {
+      return null;
+    }
+    return {
+      amount_minor: contributions.reduce((sum, c) => sum + c.monthly_equivalent.amount_minor, 0),
+      currency: contributions[0].monthly_equivalent.currency,
+    };
   }
 
   protected absPercent(value: number): number {

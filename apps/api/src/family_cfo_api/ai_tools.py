@@ -1091,6 +1091,42 @@ def _get_spending_by_category(engine: Engine, household_id: str, currency: str, 
     }
 
 
+def _get_savings_contributions(
+    engine: Engine, household_id: str, currency: str, args: dict[str, Any]
+):
+    """#201: recurring transfers into savings vehicles (529, retirement, HSA,
+    brokerage, savings), detected from the ledger."""
+    from family_cfo_api import savings_detection
+
+    found = savings_detection.detect_for_household(engine, household_id)
+    total_monthly = sum(savings_detection.monthly_equivalent_minor(c) for c in found)
+    return {
+        "contributions": [
+            {
+                "destination": c.destination_name,
+                "destination_type": c.destination_type,
+                "amount": _schema_money_out(Money(c.amount_minor, c.currency)),
+                "frequency": c.frequency,
+                "monthly_equivalent": _schema_money_out(
+                    Money(savings_detection.monthly_equivalent_minor(c), c.currency)
+                ),
+                "times_seen": c.occurrences,
+                "last_seen": c.last_seen.isoformat(),
+            }
+            for c in found
+        ],
+        "total_monthly_equivalent": _schema_money_out(Money(total_monthly, currency)),
+        # The honesty requirement from #201: never let this read as "all the
+        # saving this family does".
+        "coverage_note": (
+            "Detected from account-to-account transfers only. Payroll deductions "
+            "(401k, HSA via paycheck) never appear in the bank feed — quote "
+            "get_income_and_tax's compensation profile for those, and never present "
+            "this figure as the household's total saving."
+        ),
+    }
+
+
 def _get_spending_insights(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     """M64: spending vs the same window the prior month + top merchants. Defaults
     to the current month; a `month` (YYYY-MM) arg compares that month to the one
@@ -1161,6 +1197,7 @@ _HANDLERS = {
     "get_bills": _get_bills,
     "get_budgets": _get_budgets,
     "get_spending_insights": _get_spending_insights,
+    "get_savings_contributions": _get_savings_contributions,
     "get_spending_by_category": _get_spending_by_category,
     "find_savings": _find_savings,
 }
@@ -1389,6 +1426,18 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "for a past month."
             ),
             parameters=_MONTH_PARAM,
+        ),
+        ToolSpec(
+            name="get_savings_contributions",
+            description=(
+                "Recurring money the household moves INTO savings vehicles (529, "
+                "retirement, HSA, brokerage, savings), detected from transfers between "
+                "their own accounts — e.g. $500 monthly from checking to a 529. Use for "
+                "'how much am I saving', 'am I saving enough', or when a savings habit is "
+                "relevant. Covers TRANSFERS ONLY: payroll deductions never appear here, so "
+                "never present the total as all the saving the family does."
+            ),
+            parameters={"type": "object", "properties": {}},
         ),
         ToolSpec(
             name="get_spending_insights",
