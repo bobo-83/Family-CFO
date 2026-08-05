@@ -204,3 +204,65 @@ def test_a_known_bill_label_is_excluded_even_if_it_looks_like_savings() -> None:
         entries, ACCOUNTS, today=TODAY, excluded_labels=["College 529 Loan Servicing"]
     )
     assert found == []
+
+
+# --- Destination-side reads: the inflow alone (#203) ---
+
+
+def test_recurring_inflow_detected_without_any_outflow() -> None:
+    """The debit was never synced; the 529 still shows $500 arriving monthly."""
+    entries = [
+        LedgerEntry(f"in-{i}", "acct-529", date(2026, 1 + i, 15), 50_000, "USD")
+        for i in range(6)
+    ]
+    accounts = [
+        SavingsAccount("acct-checking", "Checking", "checking"),
+        SavingsAccount("acct-529", "College 529", "529"),
+    ]
+    [candidate] = detect_contributions(entries, accounts, today=date(2026, 7, 1))
+    assert candidate.destination_account_id == "acct-529"
+    assert candidate.amount_minor == 50_000
+    assert candidate.frequency == "monthly"
+    assert candidate.source_account_id == ""  # funding side unknown
+    assert candidate.inferred is True
+
+
+def test_inflow_not_double_counted_when_the_pair_is_visible() -> None:
+    """A route already explains this account, so the inflow rule stays quiet."""
+    entries: list[LedgerEntry] = []
+    for i in range(4):
+        when = date(2026, 1 + i, 10)
+        entries.append(LedgerEntry(f"out-{i}", "acct-checking", when, -50_000, "USD"))
+        entries.append(LedgerEntry(f"in-{i}", "acct-529", when, 50_000, "USD"))
+    accounts = [
+        SavingsAccount("acct-checking", "Checking", "checking"),
+        SavingsAccount("acct-529", "College 529", "529"),
+    ]
+    candidates = detect_contributions(entries, accounts, today=date(2026, 5, 1))
+    assert len(candidates) == 1
+    assert candidates[0].source_account_id == "acct-checking"
+    assert candidates[0].inferred is False
+
+
+def test_interest_is_not_a_contribution() -> None:
+    """Money the account earned on itself was never set aside by the family."""
+    entries = [
+        LedgerEntry(
+            f"int-{i}", "acct-savings", date(2026, 1 + i, 28), 4_100, "USD",
+            label="Interest Paid",
+        )
+        for i in range(6)
+    ]
+    accounts = [SavingsAccount("acct-savings", "Ally Savings", "savings")]
+    assert detect_contributions(entries, accounts, today=date(2026, 7, 1)) == []
+
+
+def test_irregular_inflows_are_not_a_contribution() -> None:
+    """Windfalls arriving at no cadence are not a savings habit."""
+    entries = [
+        LedgerEntry("a", "acct-savings", date(2026, 1, 4), 120_000, "USD"),
+        LedgerEntry("b", "acct-savings", date(2026, 2, 27), 35_000, "USD"),
+        LedgerEntry("c", "acct-savings", date(2026, 6, 9), 480_000, "USD"),
+    ]
+    accounts = [SavingsAccount("acct-savings", "Ally Savings", "savings")]
+    assert detect_contributions(entries, accounts, today=date(2026, 7, 1)) == []

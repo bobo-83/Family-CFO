@@ -11,6 +11,12 @@ struct OverviewView: View {
     // M-yearly: the Overview flips between the month glance and the year trend.
     @State private var viewMode: ViewMode = .month
     @State private var yearlyModel: YearlyOverviewViewModel?
+    // #203: the declare-a-contribution sheet.
+    @State private var declaringSavings = false
+
+    /// #203: declaring, stopping and dismissing all take transactions.manage,
+    /// the same right the box requires — a viewer sees the rows, not the edits.
+    private var canManageSavings: Bool { model.rolePolicy.canCategorize }
 
     enum ViewMode: String, CaseIterable {
         case month = "Month"
@@ -129,6 +135,15 @@ struct OverviewView: View {
                     if viewModel.versionMismatch, let server = viewModel.serverVersion {
                         versionMismatchBanner(server: server)
                     }
+                    // A failed edit (#203's declare/stop/dismiss, a sync) has to
+                    // say so: the numbers below are still the last good load, so
+                    // nothing else on the page would look any different.
+                    if let errorMessage = viewModel.errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     if !viewModel.isCurrentMonth {
                         Text("Historical view of \(viewModel.monthLabel). “Right now” figures like safe-to-spend and upcoming bills only appear for the current month.")
                             .font(.caption)
@@ -167,8 +182,12 @@ struct OverviewView: View {
                     if let savingsRate = context.savingsRate {
                         savingsRateCard(savingsRate)
                     }
-                    if let contributions = context.savingsContributions, !contributions.isEmpty {
-                        savingsContributionsCard(contributions)
+                    // #203: the card shows even with nothing detected — a
+                    // household whose destination never syncs has no other way
+                    // to reach the declare action.
+                    if let contributions = context.savingsContributions,
+                        !contributions.isEmpty || viewModel.isCurrentMonth {
+                        savingsContributionsCard(contributions, viewModel)
                     }
                     if let budgets = context.budgetSummary, budgets.envelopeCount > 0 {
                         budgetCard(budgets)
@@ -194,6 +213,12 @@ struct OverviewView: View {
             .safeAreaInset(edge: .bottom) {
                 SyncStatusFooter(status: model.syncStatus)
                     .padding(.vertical, 6)
+            }
+            .sheet(isPresented: $declaringSavings) {
+                if let accounts = model.accounts {
+                    DeclareSavingsContributionSheet(
+                        viewModel: viewModel, accountsAPI: accounts, currency: context.currency)
+                }
             }
         } else {
             ProgressView()
@@ -554,29 +579,44 @@ struct OverviewView: View {
     /// #201: recurring transfers into savings vehicles, largest first. The
     /// footnote is a correctness requirement, not decoration — payroll
     /// deductions never reach the bank feed, so this is never the whole story.
+    /// #203 adds the household's own declarations, which need no detection.
     @ViewBuilder
     private func savingsContributionsCard(
-        _ contributions: [Components.Schemas.SavingsContribution]
+        _ contributions: [Components.Schemas.SavingsContribution],
+        _ viewModel: OverviewViewModel
     ) -> some View {
         Card("What you're saving", systemImage: "arrow.down.to.line") {
+            if contributions.isEmpty {
+                Text(
+                    "Nothing found in your transfers. If you're paying into something the app "
+                        + "can't see — a 529, a workplace plan — tell it here and every figure "
+                        + "will count it."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
             ForEach(Array(contributions.enumerated()), id: \.offset) { index, contribution in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(contribution.destinationName).font(.subheadline)
-                        // #207: informational, never a warning — an unsynced 529
-                        // is the normal case, not a lower-quality result.
-                        if contribution.inferred == true {
-                            Text("inferred")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.15), in: Capsule())
-                                .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(contribution.destinationName).font(.subheadline)
+                            // #207: informational, never a warning — an unsynced 529
+                            // is the normal case, not a lower-quality result.
+                            if contribution.inferred == true {
+                                contributionBadge("inferred")
+                            }
+                            if contribution.declared == true {
+                                contributionBadge("declared")
+                            }
                         }
+                        Text(Self.contributionDetail(contribution))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    Text(Self.contributionDetail(contribution))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if canManageSavings {
+                        contributionActions(contribution, viewModel)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if index != contributions.count - 1 {
@@ -588,33 +628,132 @@ struct OverviewView: View {
                 Text("About \(total.formatted) a month")
                     .font(.subheadline.weight(.semibold))
             }
-            Text(Self.savingsFootnote(contributions))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !contributions.isEmpty {
+                Text(Self.savingsFootnote(contributions))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if canManageSavings, model.accounts != nil {
+                declareButton(prominent: contributions.isEmpty)
+            }
         }
     }
 
-    /// The payroll caveat always; the inferred caveat only when a row carries it.
+    /// With nothing detected this is the whole point of the card, so it leads;
+    /// alongside detected rows it's a quiet addition to them.
+    @ViewBuilder
+    private func declareButton(prominent: Bool) -> some View {
+        let button = Button {
+            declaringSavings = true
+        } label: {
+            Label("Declare a contribution", systemImage: "plus.circle")
+                .font(.subheadline.weight(.medium))
+        }
+        if prominent {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.plain).foregroundStyle(.tint).padding(.top, 2)
+        }
+    }
+
+    private func contributionBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.15), in: Capsule())
+            .foregroundStyle(.secondary)
+    }
+
+    /// The card is a stack inside a ScrollView, not a List, so there is no swipe
+    /// to attach these to — a menu is the surrounding code's other idiom.
+    @ViewBuilder
+    private func contributionActions(
+        _ contribution: Components.Schemas.SavingsContribution,
+        _ viewModel: OverviewViewModel
+    ) -> some View {
+        if contribution.declared == true, let id = contribution.contributionId {
+            Menu {
+                Button(role: .destructive) {
+                    Task { await viewModel.stopTracking(contributionID: id) }
+                } label: {
+                    Label("Stop tracking", systemImage: "trash")
+                }
+            } label: {
+                contributionActionsLabel(contribution.destinationName)
+            }
+        } else if let route = Self.dismissableRoute(contribution) {
+            Menu {
+                Button(role: .destructive) {
+                    Task {
+                        await viewModel.dismissRoute(
+                            sourceAccountID: route.source,
+                            destinationAccountID: route.destination)
+                    }
+                } label: {
+                    Label("Not saving", systemImage: "xmark.circle")
+                }
+            } label: {
+                contributionActionsLabel(contribution.destinationName)
+            }
+        }
+    }
+
+    private func contributionActionsLabel(_ name: String) -> some View {
+        Image(systemName: "ellipsis.circle")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Actions for \(name)")
+    }
+
+    /// #203: a detected route can only be dismissed when BOTH of its accounts
+    /// are known — the server suppresses the pair, and half a pair names no
+    /// route. The source is empty when only the arrival was ever synced.
+    static func dismissableRoute(
+        _ contribution: Components.Schemas.SavingsContribution
+    ) -> (source: String, destination: String)? {
+        guard contribution.declared != true,
+            let source = contribution.sourceAccountId, !source.isEmpty,
+            let destination = contribution.destinationAccountId, !destination.isEmpty
+        else { return nil }
+        return (source, destination)
+    }
+
+    /// The payroll caveat always; the inferred and declared caveats only when a
+    /// row carries them.
     static func savingsFootnote(
         _ contributions: [Components.Schemas.SavingsContribution]
     ) -> String {
-        let payroll =
+        var footnote =
             "Detected from transfers between your accounts. "
             + "Payroll deductions like a 401(k) don't appear here."
-        guard contributions.contains(where: { $0.inferred == true }) else { return payroll }
-        return payroll
-            + " Rows marked inferred were matched from the money leaving your account — "
-            + "the destination isn't synced."
+        if contributions.contains(where: { $0.inferred == true }) {
+            footnote +=
+                " Rows marked inferred were matched from the money leaving your account — "
+                + "the destination isn't synced."
+        }
+        if contributions.contains(where: { $0.declared == true }) {
+            footnote +=
+                " Rows marked declared are your family's own word, counted whether or not "
+                + "either account syncs."
+        }
+        return footnote
     }
 
     static func contributionDetail(
         _ contribution: Components.Schemas.SavingsContribution
     ) -> String {
+        let cadence = "\(contribution.amount.formattedExact) "
+            + "\(cadenceWord(contribution.frequency))"
+        // A declared row was never seen in the ledger — that's the whole point
+        // of declaring it — so an occurrence count would read "seen 0 times".
+        guard contribution.declared != true else {
+            return cadence + " · declared by your family"
+        }
         let times = contribution.occurrences == 1
             ? "seen 1 time"
             : "seen \(contribution.occurrences) times"
-        return "\(contribution.amount.formattedExact) "
-            + "\(cadenceWord(contribution.frequency)) · \(times)"
+        return cadence + " · \(times)"
     }
 
     /// Enums are for machines; a row reads "$500 monthly".

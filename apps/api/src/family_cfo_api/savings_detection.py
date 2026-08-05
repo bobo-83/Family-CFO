@@ -91,6 +91,9 @@ class ContributionCandidate:
     # False when both legs were seen; True when only the outflow exists and the
     # destination came from a learned route or a name match (#207).
     inferred: bool = False
+    # #203: the household asserted this one; it is not a suggestion.
+    declared: bool = False
+    contribution_id: str | None = None
 
 
 def _paired_transfers(
@@ -234,6 +237,49 @@ def _attribute_unpaired_outflows(
     return attributed
 
 
+# Money that lands in a savings account without being a contribution: the
+# account earning on itself. Counting these as "saving" would inflate the
+# rate with money the household never set aside.
+_EARNINGS_KEYS = frozenset(
+    {
+        normalize_merchant(word)
+        for word in (
+            "interest", "interest paid", "dividend", "dividends",
+            "capital gain", "capital gains", "reinvestment", "reinvest",
+            "earnings", "return of capital",
+        )
+    }
+)
+
+
+def _recurring_inflows(
+    entries: list[LedgerEntry],
+    savings: dict[str, SavingsAccount],
+    pairs: list[tuple[LedgerEntry, LedgerEntry]],
+) -> dict[str, list[LedgerEntry]]:
+    """Deposits INTO a savings account, read from the destination side alone.
+
+    The cheapest read of "how much am I putting in": a steady amount landing
+    in the 529 every month is a contribution whether or not the matching
+    debit was ever synced. This needs no source account, so it catches the
+    case where the *funding* account is the one that doesn't sync — the
+    mirror image of #207.
+    """
+    already_paired = {inflow.transaction_id for _, inflow in pairs}
+    by_account: dict[str, list[LedgerEntry]] = {}
+    for entry in entries:
+        if entry.account_id not in savings:
+            continue
+        if entry.amount_minor < MIN_CONTRIBUTION_MINOR:
+            continue  # outflows and dust
+        if entry.transaction_id in already_paired:
+            continue
+        if entry.label and normalize_merchant(entry.label) in _EARNINGS_KEYS:
+            continue
+        by_account.setdefault(entry.account_id, []).append(entry)
+    return by_account
+
+
 def detect_contributions(
     entries: list[LedgerEntry],
     accounts: list[SavingsAccount],
@@ -318,6 +364,45 @@ def detect_contributions(
             )
         )
 
+    # The destination-side read: recurring arrivals with no visible debit.
+    # Only offered for accounts no route already explains, so a contribution
+    # is never counted twice.
+    explained = {destination for _, destination in by_route}
+    for account_id, inflows in _recurring_inflows(entries, savings, pairs).items():
+        if account_id in explained:
+            continue
+        amounts = [entry.amount_minor for entry in inflows]
+        typical = median(amounts)
+        consistent = [
+            entry
+            for entry, amount in zip(inflows, amounts, strict=True)
+            if abs(amount - typical) <= typical * AMOUNT_TOLERANCE
+        ]
+        if len(consistent) < 2:
+            continue
+        dates = sorted(entry.occurred_at for entry in consistent)
+        frequency = _classify_cadence(dates)
+        if frequency is None:
+            continue
+
+        destination = savings[account_id]
+        last_seen = dates[-1]
+        candidates.append(
+            ContributionCandidate(
+                source_account_id="",  # unknown: the debit was never synced
+                destination_account_id=account_id,
+                destination_name=destination.name,
+                destination_type=destination.account_type,
+                amount_minor=int(median([e.amount_minor for e in consistent])),
+                currency=consistent[0].currency,
+                frequency=frequency,
+                occurrences=len(consistent),
+                last_seen=last_seen,
+                next_expected=_next_due(last_seen, frequency),
+                inferred=True,  # the funding side is an assumption
+            )
+        )
+
     candidates.sort(key=lambda c: c.amount_minor, reverse=True)
     return candidates
 
@@ -376,6 +461,60 @@ def detect_for_household(
         for account_id, account_type in types.items()
         if account_type in repository.LIABILITY_ACCOUNT_TYPES and account_id in names
     ]
-    return detect_contributions(
+    detected = detect_contributions(
         entries, accounts, today=today, excluded_labels=excluded
     )
+
+    # #203: what the household has SAID beats what we inferred. A declared
+    # contribution replaces a detected one on the same route; a dismissed
+    # route disappears entirely.
+    declared = repository.list_savings_contributions(engine, household_id)
+    dismissed = repository.list_savings_dismissals(engine, household_id)
+    declared_routes = {
+        (record.source_account_id, record.destination_account_id) for record in declared
+    }
+
+    merged: list[ContributionCandidate] = [
+        candidate
+        for candidate in detected
+        if (candidate.source_account_id, candidate.destination_account_id)
+        not in declared_routes
+        and (candidate.source_account_id, candidate.destination_account_id)
+        not in dismissed
+    ]
+
+    for record in declared:
+        destination = next(
+            (a for a in accounts if a.account_id == record.destination_account_id), None
+        )
+        # A declared contribution is reported from the ledger where possible so
+        # occurrences/last_seen stay honest, but its amount and cadence are the
+        # user's assertion, not our inference.
+        seen = [
+            entry
+            for entry in entries
+            if entry.account_id == record.source_account_id
+            and entry.amount_minor < 0
+            and abs(-entry.amount_minor - record.amount_minor)
+            <= record.amount_minor * AMOUNT_TOLERANCE
+        ]
+        last_seen = max((e.occurred_at for e in seen), default=today)
+        merged.append(
+            ContributionCandidate(
+                source_account_id=record.source_account_id,
+                destination_account_id=record.destination_account_id,
+                destination_name=destination.name if destination else "Savings",
+                destination_type=destination.account_type if destination else "savings",
+                amount_minor=record.amount_minor,
+                currency=record.currency,
+                frequency=record.frequency,
+                occurrences=len(seen),
+                last_seen=last_seen,
+                next_expected=_next_due(last_seen, record.frequency),
+                inferred=False,  # asserted by the household, not inferred
+                declared=True,
+                contribution_id=record.id,
+            )
+        )
+    merged.sort(key=lambda c: c.amount_minor, reverse=True)
+    return merged

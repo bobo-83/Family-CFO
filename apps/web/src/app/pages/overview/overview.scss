@@ -259,6 +259,47 @@
   font-weight: 600;
 }
 
+/* #203: a declared row is a fact the household stated, so it reads as settled
+   rather than as another guess — solid accent tint against the grey markers. */
+.overview__declared {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  vertical-align: middle;
+}
+
+.overview__bill--declared {
+  border-left: 3px solid #6366f1;
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+}
+
+.overview__saving-action {
+  font-size: 0.75rem;
+}
+
+.overview__declare-open {
+  margin-top: 0.6rem;
+  align-self: flex-start;
+}
+
+.overview__declare {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+.overview__declare-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
 // --- M112: cash outlook (ADR 0026) ---
 
 .outlook-card {

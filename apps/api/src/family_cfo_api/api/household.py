@@ -3,7 +3,7 @@ import os
 from datetime import date, timedelta
 
 from family_cfo_financial_engine.money import Money
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import (
@@ -42,6 +42,8 @@ from family_cfo_api.schemas import (
     RecoveryUnlockRequest,
     SafeToSpend,
     SavingsContribution,
+    SavingsContributionCreateRequest,
+    SavingsContributionDismissRequest,
     SavingsRate,
     SealModeRequest,
     SpendingByCategory,
@@ -455,6 +457,10 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
             occurrences=c.occurrences,
             last_seen=c.last_seen,
             inferred=c.inferred,
+            declared=c.declared,
+            contribution_id=c.contribution_id,
+            source_account_id=c.source_account_id,
+            destination_account_id=c.destination_account_id or "",
         )
         for c in found
     ]
@@ -1191,3 +1197,158 @@ async def export_household(
         filename=household_export.export_filename(),
         background=BackgroundTask(os.unlink, out_path),
     )
+
+
+@router.post(
+    "/savings/contributions",
+    operation_id="declareSavingsContribution",
+    response_model=SavingsContribution,
+    status_code=201,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Account not found", "model": ErrorResponse},
+        423: {"description": "Sealed household is locked", "model": ErrorResponse},
+    },
+    summary="Declare a recurring savings contribution (#203)",
+)
+async def declare_savings_contribution(
+    payload: SavingsContributionCreateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> SavingsContribution:
+    from family_cfo_api import savings_detection
+
+    source = repository.get_account(engine, session.household_id, payload.source_account_id)
+    destination = repository.get_account(
+        engine, session.household_id, payload.destination_account_id
+    )
+    if source is None or destination is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    record = repository.create_savings_contribution(
+        engine,
+        session.household_id,
+        source_account_id=payload.source_account_id,
+        destination_account_id=payload.destination_account_id,
+        amount_minor=payload.amount.amount_minor,
+        currency=payload.amount.currency,
+        frequency=payload.frequency,
+        source="declared",
+    )
+    # Declaring a route un-dismisses it: the household changed its mind.
+    repository.undismiss_savings_route(
+        engine, session.household_id, payload.source_account_id, payload.destination_account_id
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "savings_contribution.created",
+        "savings_contribution",
+        record.id,
+        f"Tracking {destination.name} as a {payload.frequency} contribution",
+        undo_token=undo_actions.created("savings_contribution", record.id),
+    )
+    monthly = savings_detection.monthly_equivalent_minor
+    today = date.today()
+    return SavingsContribution(
+        destination_name=destination.name,
+        destination_type=destination.account_type,
+        amount=MoneySchema(amount_minor=record.amount_minor, currency=record.currency),
+        frequency=record.frequency,
+        monthly_equivalent=MoneySchema(
+            amount_minor=monthly(
+                savings_detection.ContributionCandidate(
+                    source_account_id=record.source_account_id,
+                    destination_account_id=record.destination_account_id,
+                    destination_name=destination.name,
+                    destination_type=destination.account_type,
+                    amount_minor=record.amount_minor,
+                    currency=record.currency,
+                    frequency=record.frequency,
+                    occurrences=0,
+                    last_seen=today,
+                    next_expected=today,
+                )
+            ),
+            currency=record.currency,
+        ),
+        occurrences=0,
+        last_seen=today,
+        declared=True,
+        contribution_id=record.id,
+        source_account_id=record.source_account_id,
+        destination_account_id=record.destination_account_id,
+    )
+
+
+@router.delete(
+    "/savings/contributions/{contribution_id}",
+    operation_id="deleteSavingsContribution",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Contribution not found", "model": ErrorResponse},
+    },
+    summary="Stop tracking a declared savings contribution",
+)
+async def delete_savings_contribution(
+    contribution_id: str,
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    record = repository.get_savings_contribution(
+        engine, session.household_id, contribution_id
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="Contribution not found")
+    repository.delete_savings_contribution(engine, session.household_id, contribution_id)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "savings_contribution.deleted",
+        "savings_contribution",
+        contribution_id,
+        "Stopped tracking a savings contribution",
+        undo_token=undo_actions.savings_contribution_deleted(record),
+    )
+    return Response(status_code=204)
+
+
+@router.post(
+    "/savings/contributions/dismiss",
+    operation_id="dismissSavingsContribution",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Tell the app a detected route is not saving",
+)
+async def dismiss_savings_contribution(
+    payload: SavingsContributionDismissRequest,
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    repository.dismiss_savings_route(
+        engine,
+        session.household_id,
+        payload.source_account_id,
+        payload.destination_account_id,
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "savings_contribution.dismissed",
+        "household",
+        session.household_id,
+        "Marked a detected transfer as not saving",
+        undo_token=undo_actions.savings_route_dismissed(
+            payload.source_account_id, payload.destination_account_id
+        ),
+    )
+    return Response(status_code=204)

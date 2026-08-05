@@ -471,6 +471,168 @@ def _touch_device_last_seen(engine: Engine, device_id: str) -> None:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class SavingsContributionRecord:
+    id: str
+    source_account_id: str
+    destination_account_id: str
+    amount_minor: int
+    currency: str
+    frequency: str
+    source: str  # "declared" | "detected"
+    label_key: str | None
+    created_at: datetime
+
+
+def _savings_contribution_from_row(row: Any) -> SavingsContributionRecord:
+    return SavingsContributionRecord(
+        id=row["id"],
+        source_account_id=row["source_account_id"],
+        destination_account_id=row["destination_account_id"],
+        amount_minor=row["amount_minor"],
+        currency=row["currency"],
+        frequency=row["frequency"],
+        source=row["source"],
+        label_key=row["label_key"],
+        created_at=row["created_at"],
+    )
+
+
+def list_savings_contributions(
+    engine: Engine, household_id: str
+) -> list[SavingsContributionRecord]:
+    query = (
+        select(models.savings_contributions)
+        .where(models.savings_contributions.c.household_id == household_id)
+        .order_by(models.savings_contributions.c.amount_minor.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_savings_contribution_from_row(row) for row in rows]
+
+
+def create_savings_contribution(
+    engine: Engine,
+    household_id: str,
+    *,
+    source_account_id: str,
+    destination_account_id: str,
+    amount_minor: int,
+    currency: str,
+    frequency: str,
+    source: str,
+    label_key: str | None = None,
+    contribution_id: str | None = None,
+) -> SavingsContributionRecord:
+    """contribution_id is honoured so undo of a delete recreates the same row."""
+    record_id = contribution_id or new_id()
+    now = utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            insert(models.savings_contributions).values(
+                id=record_id,
+                household_id=household_id,
+                source_account_id=source_account_id,
+                destination_account_id=destination_account_id,
+                amount_minor=amount_minor,
+                currency=currency,
+                frequency=frequency,
+                source=source,
+                label_key=label_key,
+                created_at=now,
+            )
+        )
+    return SavingsContributionRecord(
+        id=record_id,
+        source_account_id=source_account_id,
+        destination_account_id=destination_account_id,
+        amount_minor=amount_minor,
+        currency=currency,
+        frequency=frequency,
+        source=source,
+        label_key=label_key,
+        created_at=now,
+    )
+
+
+def get_savings_contribution(
+    engine: Engine, household_id: str, contribution_id: str
+) -> SavingsContributionRecord | None:
+    query = select(models.savings_contributions).where(
+        models.savings_contributions.c.household_id == household_id,
+        models.savings_contributions.c.id == contribution_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _savings_contribution_from_row(row) if row is not None else None
+
+
+def delete_savings_contribution(
+    engine: Engine, household_id: str, contribution_id: str
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.savings_contributions).where(
+                models.savings_contributions.c.household_id == household_id,
+                models.savings_contributions.c.id == contribution_id,
+            )
+        )
+    return result.rowcount > 0
+
+
+def dismiss_savings_route(
+    engine: Engine, household_id: str, source_account_id: str, destination_account_id: str
+) -> None:
+    """Record that this route is NOT saving, so detection stops offering it."""
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.savings_contribution_dismissals.c.id).where(
+                models.savings_contribution_dismissals.c.household_id == household_id,
+                models.savings_contribution_dismissals.c.source_account_id
+                == source_account_id,
+                models.savings_contribution_dismissals.c.destination_account_id
+                == destination_account_id,
+            )
+        ).first()
+        if existing is not None:
+            return
+        conn.execute(
+            insert(models.savings_contribution_dismissals).values(
+                id=new_id(),
+                household_id=household_id,
+                source_account_id=source_account_id,
+                destination_account_id=destination_account_id,
+                created_at=utcnow(),
+            )
+        )
+
+
+def list_savings_dismissals(
+    engine: Engine, household_id: str
+) -> set[tuple[str, str]]:
+    query = select(
+        models.savings_contribution_dismissals.c.source_account_id,
+        models.savings_contribution_dismissals.c.destination_account_id,
+    ).where(models.savings_contribution_dismissals.c.household_id == household_id)
+    with engine.connect() as conn:
+        return {(row[0], row[1]) for row in conn.execute(query).all()}
+
+
+def undismiss_savings_route(
+    engine: Engine, household_id: str, source_account_id: str, destination_account_id: str
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.savings_contribution_dismissals).where(
+                models.savings_contribution_dismissals.c.household_id == household_id,
+                models.savings_contribution_dismissals.c.source_account_id
+                == source_account_id,
+                models.savings_contribution_dismissals.c.destination_account_id
+                == destination_account_id,
+            )
+        )
+
+
 def prune_dead_auth_sessions(engine: Engine, *, older_than: datetime) -> int:
     """Delete sessions that are expired or revoked past the retention cutoff.
     Issue #48/#3: nothing pruned these before, so they grew without bound.

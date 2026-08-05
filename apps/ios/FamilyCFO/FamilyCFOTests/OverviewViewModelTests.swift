@@ -47,6 +47,38 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         try await MainActor.run { plan }
     }
 
+    /// #203 mutations. Kept separate from `error` so a test can fail the write
+    /// while the refresh that follows it would have succeeded.
+    var mutationError: Error?
+    private(set) var declared: [Components.Schemas.SavingsContributionCreateRequest] = []
+    private(set) var deletedContributionIDs: [String] = []
+    private(set) var dismissedRoutes: [(source: String, destination: String)] = []
+
+    nonisolated func declareSavingsContribution(
+        _ request: Components.Schemas.SavingsContributionCreateRequest
+    ) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            declared.append(request)
+        }
+    }
+
+    nonisolated func deleteSavingsContribution(id: String) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            deletedContributionIDs.append(id)
+        }
+    }
+
+    nonisolated func dismissSavingsContribution(
+        sourceAccountID: String, destinationAccountID: String
+    ) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            dismissedRoutes.append((source: sourceAccountID, destination: destinationAccountID))
+        }
+    }
+
     var monthlySpending: Components.Schemas.SpendingByCategory?
     nonisolated func spending(month: String?) async throws
         -> Components.Schemas.SpendingByCategory
@@ -190,7 +222,11 @@ struct OverviewViewModelTests {
         frequency: Components.Schemas.RecurringFrequency,
         monthly: Int64,
         occurrences: Int,
-        inferred: Bool = false
+        inferred: Bool = false,
+        declared: Bool = false,
+        contributionID: String? = nil,
+        sourceAccountID: String? = nil,
+        destinationAccountID: String? = nil
     ) -> Components.Schemas.SavingsContribution {
         .init(
             destinationName: name,
@@ -200,7 +236,11 @@ struct OverviewViewModelTests {
             monthlyEquivalent: money(monthly),
             occurrences: occurrences,
             lastSeen: "2026-07-01",
-            inferred: inferred)
+            inferred: inferred,
+            declared: declared,
+            contributionId: contributionID,
+            sourceAccountId: sourceAccountID,
+            destinationAccountId: destinationAccountID)
     }
 
     /// The only computation on this card. Cadences differ, so summing the raw
@@ -263,6 +303,131 @@ struct OverviewViewModelTests {
                 occurrences: 6)
         ]
         #expect(OverviewView.savingsFootnote(seenBothLegs) == payroll)
+    }
+
+    // MARK: - #203 declared savings contributions
+
+    private func declaration() -> Components.Schemas.SavingsContributionCreateRequest {
+        .init(
+            sourceAccountId: "acct-checking",
+            destinationAccountId: "acct-529",
+            amount: money(50_000),
+            frequency: .monthly)
+    }
+
+    /// The whole point of #203: the household states a contribution the ledger
+    /// can't show, and the Overview immediately reflects it.
+    @Test func declaringPostsTheContributionThenRefreshes() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        let posted = await viewModel.declareContribution(declaration())
+
+        #expect(posted)
+        #expect(api.declared.count == 1)
+        #expect(api.declared.first?.destinationAccountId == "acct-529")
+        #expect(api.declared.first?.amount.amountMinor == 50_000)
+        #expect(api.callCount == 1)  // reloaded the Overview after declaring
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test func stopTrackingDeletesTheDeclarationThenRefreshes() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.stopTracking(contributionID: "sc-1")
+
+        #expect(api.deletedContributionIDs == ["sc-1"])
+        #expect(api.callCount == 1)
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test func dismissingADetectedRouteSuppressesItThenRefreshes() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.dismissRoute(
+            sourceAccountID: "acct-checking", destinationAccountID: "acct-brokerage")
+
+        #expect(api.dismissedRoutes.count == 1)
+        #expect(api.dismissedRoutes.first?.source == "acct-checking")
+        #expect(api.dismissedRoutes.first?.destination == "acct-brokerage")
+        #expect(api.callCount == 1)
+    }
+
+    /// A refused write must say so and must NOT refresh — a silent reload would
+    /// look exactly like a success that didn't stick.
+    @Test func aRefusedDeclarationSurfacesTheErrorAndDoesNotRefresh() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        api.mutationError = APIError.server(423)
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        let posted = await viewModel.declareContribution(declaration())
+
+        #expect(!posted)
+        #expect(api.declared.isEmpty)
+        #expect(api.callCount == 0)
+        #expect(viewModel.errorMessage?.contains("sealed") == true)
+    }
+
+    @Test func aRefusedDeleteSurfacesTheError() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        api.mutationError = APIError.unauthorized
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.stopTracking(contributionID: "sc-1")
+
+        #expect(api.callCount == 0)
+        #expect(viewModel.errorMessage?.contains("pairing") == true)
+    }
+
+    /// Declared rows were never seen in the ledger, so an occurrence count would
+    /// read "seen 0 times".
+    @Test func declaredRowsSayWhoseWordTheyAre() {
+        let declared = contribution(
+            "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+            occurrences: 0, declared: true, contributionID: "sc-1")
+
+        #expect(
+            OverviewView.contributionDetail(declared)
+                == "$500.00 monthly · declared by your family")
+        #expect(
+            OverviewView.savingsFootnote([declared]).hasSuffix(
+                "Rows marked declared are your family's own word, counted whether or not "
+                    + "either account syncs."))
+    }
+
+    /// Dismissal suppresses a ROUTE, so it needs both of its accounts. A row
+    /// matched from one leg only names no route, and offers no action.
+    @Test func onlyDetectedRowsWithBothAccountsCanBeDismissed() {
+        let bothLegs = contribution(
+            "Rainy Day Savings", amount: 20_000, frequency: .monthly, monthly: 20_000,
+            occurrences: 6, sourceAccountID: "acct-checking",
+            destinationAccountID: "acct-savings")
+        #expect(OverviewView.dismissableRoute(bothLegs)?.source == "acct-checking")
+        #expect(OverviewView.dismissableRoute(bothLegs)?.destination == "acct-savings")
+
+        let arrivalOnly = contribution(
+            "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+            occurrences: 4, sourceAccountID: "", destinationAccountID: "acct-529")
+        #expect(OverviewView.dismissableRoute(arrivalOnly) == nil)
+
+        let olderServer = contribution(
+            "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+            occurrences: 4)
+        #expect(OverviewView.dismissableRoute(olderServer) == nil)
+
+        // A declaration is withdrawn by deleting it, never by dismissing a route.
+        let declaredRow = contribution(
+            "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+            occurrences: 0, declared: true, contributionID: "sc-1",
+            sourceAccountID: "acct-checking", destinationAccountID: "acct-529")
+        #expect(OverviewView.dismissableRoute(declaredRow) == nil)
     }
 }
 

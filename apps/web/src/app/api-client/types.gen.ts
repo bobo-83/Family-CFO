@@ -1026,6 +1026,40 @@ export type SavingsContribution = {
      * "#207: true when only the outflow was visible and the destination was inferred from a learned route or the label — the arrival was never synced."
      */
     inferred?: boolean;
+    /**
+     * "#203: true when the household declared or confirmed this contribution. Declared contributions are facts, not suggestions, and replace any detection on the same route."
+     */
+    declared?: boolean;
+    /**
+     * Present on declared contributions, so they can be removed.
+     */
+    contribution_id?: string | null;
+    /**
+     * The funding account. Empty when only the arrival was visible and the debit was never synced.
+     */
+    source_account_id?: string;
+    /**
+     * Needed, with the source, to dismiss a detected route.
+     */
+    destination_account_id?: string;
+};
+
+/**
+ * "#203: declare a recurring contribution the app cannot see. The common case is a destination account (a 529, a workplace plan) that never syncs, leaving no arrival for detection to find."
+ */
+export type SavingsContributionCreateRequest = {
+    source_account_id: string;
+    destination_account_id: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+};
+
+/**
+ * Tell the app a detected route is not saving.
+ */
+export type SavingsContributionDismissRequest = {
+    source_account_id: string;
+    destination_account_id: string;
 };
 
 export type SavingsRate = {
@@ -5837,6 +5871,107 @@ export type GenerateReportResponses = {
 };
 
 export type GenerateReportResponse = GenerateReportResponses[keyof GenerateReportResponses];
+
+export type DeclareSavingsContributionData = {
+    body: SavingsContributionCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/savings/contributions';
+};
+
+export type DeclareSavingsContributionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Account not found
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    423: ErrorResponse;
+};
+
+export type DeclareSavingsContributionError = DeclareSavingsContributionErrors[keyof DeclareSavingsContributionErrors];
+
+export type DeclareSavingsContributionResponses = {
+    /**
+     * Contribution recorded
+     */
+    201: SavingsContribution;
+};
+
+export type DeclareSavingsContributionResponse = DeclareSavingsContributionResponses[keyof DeclareSavingsContributionResponses];
+
+export type DeleteSavingsContributionData = {
+    body?: never;
+    path: {
+        contribution_id: string;
+    };
+    query?: never;
+    url: '/savings/contributions/{contribution_id}';
+};
+
+export type DeleteSavingsContributionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Contribution not found
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteSavingsContributionError = DeleteSavingsContributionErrors[keyof DeleteSavingsContributionErrors];
+
+export type DeleteSavingsContributionResponses = {
+    /**
+     * No longer tracked
+     */
+    204: void;
+};
+
+export type DeleteSavingsContributionResponse = DeleteSavingsContributionResponses[keyof DeleteSavingsContributionResponses];
+
+export type DismissSavingsContributionData = {
+    body: SavingsContributionDismissRequest;
+    path?: never;
+    query?: never;
+    url: '/savings/contributions/dismiss';
+};
+
+export type DismissSavingsContributionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type DismissSavingsContributionError = DismissSavingsContributionErrors[keyof DismissSavingsContributionErrors];
+
+export type DismissSavingsContributionResponses = {
+    /**
+     * Dismissed
+     */
+    204: void;
+};
+
+export type DismissSavingsContributionResponse = DismissSavingsContributionResponses[keyof DismissSavingsContributionResponses];
 
 export type ExportHouseholdData = {
     body?: never;

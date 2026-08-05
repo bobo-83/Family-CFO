@@ -103,6 +103,44 @@ final class OverviewViewModel {
         await load()
     }
 
+    /// #203: record a contribution the household knows about and the ledger
+    /// can't show. Answers whether it stuck so the sheet can keep what was typed
+    /// on screen when the server refuses, instead of dropping it.
+    func declareContribution(
+        _ request: Components.Schemas.SavingsContributionCreateRequest
+    ) async -> Bool {
+        do {
+            try await api.declareSavingsContribution(request)
+            await load()
+            return true
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+            return false
+        }
+    }
+
+    /// #203: the household's own row, withdrawn.
+    func stopTracking(contributionID: String) async {
+        do {
+            try await api.deleteSavingsContribution(id: contributionID)
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// #203: "that transfer isn't saving". Suppresses the route, not one row —
+    /// detection would otherwise re-derive it on the next load.
+    func dismissRoute(sourceAccountID: String, destinationAccountID: String) async {
+        do {
+            try await api.dismissSavingsContribution(
+                sourceAccountID: sourceAccountID, destinationAccountID: destinationAccountID)
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
     /// The slow path: fetch new statements from the banks, then recompute. Pull-to-
     /// refresh only recomputes what's stored; this is how new bank data arrives.
     func syncNow() async {

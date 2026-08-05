@@ -2942,6 +2942,87 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+  /savings/contributions:
+    post:
+      operationId: declareSavingsContribution
+      tags: [household]
+      summary: Declare a recurring savings contribution (#203)
+      description: >-
+        Records a contribution the household knows about but the ledger cannot
+        show. Declaring a route also clears any prior dismissal of it.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsContributionCreateRequest"
+      responses:
+        "201":
+          description: Contribution recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavingsContribution"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          $ref: "#/components/responses/Error"
+  /savings/contributions/{contribution_id}:
+    delete:
+      operationId: deleteSavingsContribution
+      tags: [household]
+      summary: Stop tracking a declared savings contribution
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contribution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No longer tracked
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          description: Contribution not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /savings/contributions/dismiss:
+    post:
+      operationId: dismissSavingsContribution
+      tags: [household]
+      summary: Tell the app a detected transfer is not saving
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsContributionDismissRequest"
+      responses:
+        "204":
+          description: Dismissed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
   /household/export:
     get:
       tags:
@@ -5623,6 +5704,57 @@ components:
             never synced."
           type: boolean
           default: false
+        declared:
+          description: >-
+            "#203: true when the household declared or confirmed this
+            contribution. Declared contributions are facts, not suggestions,
+            and replace any detection on the same route."
+          type: boolean
+          default: false
+        contribution_id:
+          description: Present on declared contributions, so they can be removed.
+          type: [string, "null"]
+        source_account_id:
+          description: >-
+            The funding account. Empty when only the arrival was visible and
+            the debit was never synced.
+          type: string
+          default: ""
+        destination_account_id:
+          description: Needed, with the source, to dismiss a detected route.
+          type: string
+          default: ""
+    SavingsContributionCreateRequest:
+      type: object
+      description: >-
+        "#203: declare a recurring contribution the app cannot see. The common
+        case is a destination account (a 529, a workplace plan) that never
+        syncs, leaving no arrival for detection to find."
+      required:
+        - source_account_id
+        - destination_account_id
+        - amount
+        - frequency
+      properties:
+        source_account_id:
+          type: string
+        destination_account_id:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+    SavingsContributionDismissRequest:
+      type: object
+      description: Tell the app a detected route is not saving.
+      required:
+        - source_account_id
+        - destination_account_id
+      properties:
+        source_account_id:
+          type: string
+        destination_account_id:
+          type: string
     SavingsRate:
       type: object
       required:

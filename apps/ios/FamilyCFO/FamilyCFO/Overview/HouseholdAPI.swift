@@ -30,6 +30,21 @@ protocol HouseholdAPI: Sendable {
     func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview
     /// (Re)generate the year's narrative + suggestions on the box.
     func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview
+    /// #203: state a contribution outright. Detection needs both legs in the
+    /// ledger, so a destination that never syncs (a 529, a workplace plan) can
+    /// never be found no matter how good the detector gets — the household has
+    /// to say so, and its word outranks any detection on the same route.
+    func declareSavingsContribution(
+        _ request: Components.Schemas.SavingsContributionCreateRequest
+    ) async throws
+    /// #203: stop tracking a contribution the household declared.
+    func deleteSavingsContribution(id: String) async throws
+    /// #203: a detected route that isn't saving. Keyed by the route rather than
+    /// a row id because detection re-derives its rows on every context load —
+    /// there is no stable id to delete.
+    func dismissSavingsContribution(
+        sourceAccountID: String, destinationAccountID: String
+    ) async throws
 }
 
 extension HouseholdAPI {
@@ -47,6 +62,19 @@ extension HouseholdAPI {
     }
     func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview {
         throw APIError.server(503)
+    }
+    func declareSavingsContribution(
+        _ request: Components.Schemas.SavingsContributionCreateRequest
+    ) async throws {
+        throw APIError.server(501)
+    }
+    func deleteSavingsContribution(id: String) async throws {
+        throw APIError.server(501)
+    }
+    func dismissSavingsContribution(
+        sourceAccountID: String, destinationAccountID: String
+    ) async throws {
+        throw APIError.server(501)
     }
 }
 
@@ -148,6 +176,58 @@ struct LiveHouseholdAPI: HouseholdAPI {
             let health = try? response.body.json
         else { return nil }
         return health.version
+    }
+
+    func declareSavingsContribution(
+        _ request: Components.Schemas.SavingsContributionCreateRequest
+    ) async throws {
+        switch try await client.declareSavingsContribution(.init(body: .json(request))) {
+        case .created:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        case .code423:
+            throw APIError.server(423)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func deleteSavingsContribution(id: String) async throws {
+        switch try await client.deleteSavingsContribution(
+            .init(path: .init(contributionId: id))
+        ) {
+        // A row already gone is the outcome the tap asked for.
+        case .noContent, .notFound:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func dismissSavingsContribution(
+        sourceAccountID: String, destinationAccountID: String
+    ) async throws {
+        let request = Components.Schemas.SavingsContributionDismissRequest(
+            sourceAccountId: sourceAccountID, destinationAccountId: destinationAccountID)
+        switch try await client.dismissSavingsContribution(.init(body: .json(request))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
     }
 
     func syncAll() async throws -> SyncTotals {

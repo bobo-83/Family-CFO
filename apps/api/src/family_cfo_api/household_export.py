@@ -30,6 +30,7 @@ _README = """Family CFO data export
 - bills.csv           recurring bills
 - income.csv          recurring income sources
 - goals.csv           savings goals
+- savings.csv         recurring savings contributions you declared
 - categories.csv      your category list
 - conversations.json  every advisor conversation, in order
 - memories.json       facts the advisor remembered
@@ -62,6 +63,7 @@ def build_export_zip(
     goals = repository.list_goals(engine, household_id)
     categories = repository.list_categories(engine, household_id)
     category_names = {c.id: c.name for c in categories}
+    contributions = repository.list_savings_contributions(engine, household_id)
     memories = repository.list_household_memories(engine, household_id)
     conversations = repository.list_all_household_conversations(engine, household_id)
 
@@ -129,6 +131,29 @@ def build_export_zip(
             ),
         )
         counts["goals"] = len(goals)
+
+        # Declared contributions are typed in by hand and exist nowhere else —
+        # losing them on export would lose work the family actually did.
+        bundle.writestr(
+            "savings.csv",
+            _csv_bytes(
+                ["source_account", "destination_account", "amount_minor", "currency",
+                 "frequency"],
+                [
+                    [
+                        account_names.get(c.source_account_id, c.source_account_id),
+                        account_names.get(
+                            c.destination_account_id, c.destination_account_id
+                        ),
+                        c.amount_minor,
+                        c.currency,
+                        c.frequency,
+                    ]
+                    for c in contributions
+                ],
+            ),
+        )
+        counts["savings_contributions"] = len(contributions)
 
         bundle.writestr(
             "categories.csv",
