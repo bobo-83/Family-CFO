@@ -124,7 +124,13 @@
             <div class="answer-stats">
               @for (row of usageData.households; track row.household_id) {
                 <div class="usage__row answer-stats__row">
-                  <span class="usage__name answer-stats__model">{{ row.name }}</span>
+                  <span class="usage__name answer-stats__model">
+                    {{ row.name }}
+                    <!-- #196: members present but no member key yet — can't be sealed. -->
+                    @if (row.member_key_ok === false) {
+                      <span class="usage__flag">member sign-in needed</span>
+                    }
+                  </span>
                   <span>
                     {{ row.chats_7d }} chat{{ row.chats_7d === 1 ? '' : 's' }} this week
                     ({{ row.chats_24h }} in the last 24 h) ·
@@ -138,6 +144,12 @@
                 </div>
               }
             </div>
+            @if (memberSignInNeeded()) {
+              <p class="usage__note">
+                Households marked "member sign-in needed" can't be sealed until a
+                member signs in with their password.
+              </p>
+            }
             <p class="usage__cap" [class.usage__cap--off]="usageData.chat_hourly_limit === 0">
               @if (usageData.chat_hourly_limit > 0) {
                 Fair-use cap: {{ usageData.chat_hourly_limit }} chats/hour per household

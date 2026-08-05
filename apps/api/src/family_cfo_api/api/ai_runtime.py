@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import ai_study, audit, repository, rights, undo_actions
+from family_cfo_api import ai_study, audit, household_crypto, repository, rights, undo_actions
 from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
@@ -748,6 +748,7 @@ async def get_ai_usage(
 ) -> AiUsageResponse:
     usage = repository.advisor_usage_by_household(engine)
     paths = repository.storage_paths_by_household(engine)
+    missing_keys = set(household_crypto.households_missing_member_wraps(engine))
     households = []
     for household_id in repository.list_households(engine):
         household = repository.get_household(engine, household_id)
@@ -773,6 +774,7 @@ async def get_ai_usage(
                 chats_7d=entry.get("chats_7d", 0),
                 median_answer_ms=entry.get("median_answer_ms"),
                 storage_bytes=storage,
+                member_key_ok=household_id not in missing_keys,
             )
         )
     households.sort(key=lambda h: h.chats_7d, reverse=True)

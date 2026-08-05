@@ -141,12 +141,24 @@ struct AIRuntimeView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        // #196: members present but no member key yet — can't be
+                        // sealed. Informational, so amber rather than an error red.
+                        if row.memberKeyOk == false {
+                            Text("member sign-in needed")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
             } header: {
                 Text("Household usage")
             } footer: {
-                Text(viewModel.fairUseCapLabel)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.fairUseCapLabel)
+                    if viewModel.anyHouseholdNeedsMemberSignIn {
+                        Text("Households marked \"member sign-in needed\" can't be sealed until a member signs in with their password.")
+                    }
+                }
             }
         }
     }

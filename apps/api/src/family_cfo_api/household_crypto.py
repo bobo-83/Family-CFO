@@ -611,6 +611,53 @@ def generate_recovery_key(engine: Engine, household_id: str) -> str | None:
     return secret
 
 
+def on_password_established(
+    engine: Engine, household_id: str, user_id: str, password: str
+) -> None:
+    """THE single seam every auth path funnels through when a plaintext password
+    is proven or set (#196). Today it mints the member wrap; a future key
+    responsibility tied to "the password just existed" belongs here too, so a new
+    login/set-password path can't silently skip half of it. Delegates to
+    ensure_member_wrap (which also unlocks a sealed household)."""
+    ensure_member_wrap(engine, household_id, user_id, password)
+
+
+def households_missing_member_wraps(engine: Engine) -> list[str]:
+    """#196 consistency check: households with at least one member but ZERO
+    member key wraps — they cannot be sealed until a member signs in (which
+    mints the wrap). Empty when encryption is off (nothing to check)."""
+    if not enabled():
+        return []
+    from sqlalchemy import func as _func
+
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        member_counts = {
+            row[0]: row[1]
+            for row in conn.execute(
+                select(
+                    models.household_memberships.c.household_id, _func.count()
+                ).group_by(models.household_memberships.c.household_id)
+            )
+        }
+        wrap_counts = {
+            row[0]: row[1]
+            for row in conn.execute(
+                select(
+                    models.household_key_wraps.c.household_id, _func.count()
+                )
+                .where(models.household_key_wraps.c.kind == "member")
+                .group_by(models.household_key_wraps.c.household_id)
+            )
+        }
+    return [
+        household_id
+        for household_id, members in member_counts.items()
+        if members > 0 and wrap_counts.get(household_id, 0) == 0
+    ]
+
+
 def wrap_status(engine: Engine, household_id: str) -> dict:
     """Which unwrap paths exist — the Phase 2 posture the UI reports."""
     from family_cfo_api import models

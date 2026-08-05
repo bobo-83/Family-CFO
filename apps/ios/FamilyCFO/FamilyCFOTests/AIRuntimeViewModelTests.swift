@@ -227,6 +227,28 @@ struct AIRuntimeViewModelTests {
         #expect(vm.errorMessage == nil)  // telemetry must never break the page
     }
 
+    @Test func memberKeyMissingFlagsTheFootnoteOnlyWhenAHouseholdNeedsSignIn() async {
+        let api = MockAIRuntimeAPI()
+        api.usageResult = .init(
+            households: [
+                .init(
+                    householdId: "hh-cedar", name: "Cedar family", chats24h: 5, chats7d: 12,
+                    medianAnswerMs: 8300, storageBytes: 1_200_000_000, memberKeyOk: true),
+                .init(
+                    householdId: "hh-birch", name: "Birch family", chats24h: 0, chats7d: 1,
+                    medianAnswerMs: nil, storageBytes: 340_000_000, memberKeyOk: false),
+            ],
+            chatHourlyLimit: 30)
+        let vm = AIRuntimeViewModel(api: api)
+        await vm.load()
+        #expect(vm.anyHouseholdNeedsMemberSignIn)
+
+        // All members signed in -> no footnote.
+        api.usageResult?.households[1].memberKeyOk = true
+        await vm.load()
+        #expect(!vm.anyHouseholdNeedsMemberSignIn)
+    }
+
     @Test func storageLabelUsesHumanMbAndGb() {
         #expect(AIRuntimeViewModel.storageLabel(bytes: 1_200_000_000) == "1.2 GB")
         #expect(AIRuntimeViewModel.storageLabel(bytes: 340_000_000) == "340 MB")

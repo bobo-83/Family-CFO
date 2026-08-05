@@ -1942,6 +1942,10 @@ export type HouseholdUsage = {
     chats_7d: number;
     median_answer_ms?: number | null;
     storage_bytes: number;
+    /**
+     * #196: false when the household has members but no member key yet (can't be sealed until a member signs in).
+     */
+    member_key_ok?: boolean;
 };
 
 export type AiUsageResponse = {

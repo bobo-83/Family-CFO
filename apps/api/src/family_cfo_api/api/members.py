@@ -87,7 +87,7 @@ async def create_member(
         role=repository.legacy_role_for(assigned),
         role_id=assigned.id,
     )
-    household_crypto.ensure_member_wrap(
+    household_crypto.on_password_established(
         engine, session.household_id, record.user_id, payload.password
     )
     audit.write_audit(

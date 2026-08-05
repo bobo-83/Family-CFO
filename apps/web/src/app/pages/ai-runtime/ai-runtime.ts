@@ -133,6 +133,11 @@ export class AiRuntime {
     return usage.households.length >= 2 || usage.chat_hourly_limit > 0;
   });
 
+  /** #196: any household with members but no member key yet — surfaces the footnote. */
+  protected readonly memberSignInNeeded = computed(() =>
+    (this.usage.value()?.households ?? []).some((row) => row.member_key_ok === false),
+  );
+
   /** "512 MB" / "1.4 GB" — decimal units. */
   protected formatStorage(bytes: number): string {
     if (bytes >= 1e9) {

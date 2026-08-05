@@ -146,6 +146,19 @@ def main() -> None:
             )
         if sessions or devices:
             logger.info("pruned auth state sessions=%s devices=%s", sessions, devices)
+        # #196: surface households that can't be sealed yet (members, no member
+        # key) so the operator knows to nudge a sign-in. Cheap; runs on the
+        # prune cadence.
+        from family_cfo_api import household_crypto
+
+        missing = household_crypto.households_missing_member_wraps(engine)
+        if missing:
+            logger.warning(
+                "%d household(s) have members but no member key (seal blocked "
+                "until a member signs in): %s",
+                len(missing),
+                ", ".join(missing),
+            )
 
     scheduler = Scheduler()
     scheduler.add_job(

@@ -272,6 +272,19 @@
   }
 }
 
+/* #196: informational (not error) marker — members present, no member key yet. */
+.usage__flag {
+  margin-left: 0.4rem;
+  color: var(--color-warning);
+  font-size: 0.74rem;
+}
+
+.usage__note {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
 /* --- Two-box cluster (ADR 0071) ---------------------------------------------- */
 /* (.cluster card chrome comes from the .now-serving group above.) */
 

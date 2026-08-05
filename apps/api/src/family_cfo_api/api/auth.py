@@ -83,7 +83,7 @@ async def create_auth_session(
     rate_limiter.reset(limit_keys)
     # ADR 0072 Phase 2: a proven password is the only moment a member wrap can
     # be minted/refreshed.
-    household_crypto.ensure_member_wrap(engine, household_id, user.id, payload.password)
+    household_crypto.on_password_established(engine, household_id, user.id, payload.password)
     audit.write_audit(
         engine, household_id, user.id, "auth.login", "user", user.id, "Signed in"
     )

@@ -828,6 +828,54 @@ describe('AiRuntime', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.usage')).toBeFalsy();
   });
 
+  it('flags a household that needs a member sign-in and adds the footnote (#196)', async () => {
+    apiMock.getAiUsage.mockResolvedValue(
+      response({
+        households: [
+          {
+            household_id: 'hh-cedar',
+            name: 'Cedar family',
+            chats_24h: 5,
+            chats_7d: 12,
+            median_answer_ms: 8300,
+            storage_bytes: 1_200_000_000,
+            member_key_ok: true,
+          },
+          {
+            household_id: 'hh-birch',
+            name: 'Birch family',
+            chats_24h: 0,
+            chats_7d: 1,
+            median_answer_ms: null,
+            storage_bytes: 340_000_000,
+            member_key_ok: false,
+          },
+        ],
+        chat_hourly_limit: 30,
+      }),
+    );
+    const fixture = await create();
+    const section = (fixture.nativeElement as HTMLElement).querySelector('.usage');
+    const flags = [...section!.querySelectorAll('.usage__flag')];
+    expect(flags.length).toBe(1); // only the household without a member key
+    expect(flags[0].textContent).toContain('member sign-in needed');
+    // The flag rides in the household's own row, not Cedar's.
+    const birchRow = [...section!.querySelectorAll('.usage__row')].find((row) =>
+      row.textContent!.includes('Birch family'),
+    );
+    expect(birchRow!.querySelector('.usage__flag')).toBeTruthy();
+    expect(section!.querySelector('.usage__note')?.textContent).toContain(
+      "can't be sealed until a member signs in",
+    );
+  });
+
+  it('shows no member-sign-in marker or footnote when every household is ok (#196)', async () => {
+    const fixture = await create(); // default mock: no member_key_ok false rows
+    const section = (fixture.nativeElement as HTMLElement).querySelector('.usage');
+    expect(section!.querySelector('.usage__flag')).toBeFalsy();
+    expect(section!.querySelector('.usage__note')).toBeFalsy();
+  });
+
   // --- Knowledge of your data (ADR 0040) -------------------------------------
 
   it('shows study coverage and insights to every member', async () => {

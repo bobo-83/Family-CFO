@@ -96,6 +96,11 @@ final class AIRuntimeViewModel {
             : "Fair-use cap: off"
     }
 
+    /// #196: any household with members but no member key yet — surfaces the footnote.
+    var anyHouseholdNeedsMemberSignIn: Bool {
+        usage?.households.contains { $0.memberKeyOk == false } ?? false
+    }
+
     /// "512 MB" / "1.4 GB" — decimal units, matching the web page.
     static func storageLabel(bytes: Int64) -> String {
         if bytes >= 1_000_000_000 {

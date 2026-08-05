@@ -10221,6 +10221,10 @@ public enum Components {
             public var medianAnswerMs: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/HouseholdUsage/storage_bytes`.
             public var storageBytes: Swift.Int64
+            /// #196: false when the household has members but no member key yet (can't be sealed until a member signs in).
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUsage/member_key_ok`.
+            public var memberKeyOk: Swift.Bool?
             /// Creates a new `HouseholdUsage`.
             ///
             /// - Parameters:
@@ -10230,13 +10234,15 @@ public enum Components {
             ///   - chats7d:
             ///   - medianAnswerMs:
             ///   - storageBytes:
+            ///   - memberKeyOk: #196: false when the household has members but no member key yet (can't be sealed until a member signs in).
             public init(
                 householdId: Swift.String,
                 name: Swift.String,
                 chats24h: Swift.Int,
                 chats7d: Swift.Int,
                 medianAnswerMs: Swift.Int? = nil,
-                storageBytes: Swift.Int64
+                storageBytes: Swift.Int64,
+                memberKeyOk: Swift.Bool? = nil
             ) {
                 self.householdId = householdId
                 self.name = name
@@ -10244,6 +10250,7 @@ public enum Components {
                 self.chats7d = chats7d
                 self.medianAnswerMs = medianAnswerMs
                 self.storageBytes = storageBytes
+                self.memberKeyOk = memberKeyOk
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -10252,6 +10259,7 @@ public enum Components {
                 case chats7d = "chats_7d"
                 case medianAnswerMs = "median_answer_ms"
                 case storageBytes = "storage_bytes"
+                case memberKeyOk = "member_key_ok"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiUsageResponse`.

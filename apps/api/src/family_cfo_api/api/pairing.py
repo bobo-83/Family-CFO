@@ -290,7 +290,7 @@ async def create_device_session_with_password(
     )
     # ADR 0072 Phase 2: mint the member wrap (password just proven) and the
     # device wrap (public key just registered).
-    household_crypto.ensure_member_wrap(engine, household_id, user.id, payload.password)
+    household_crypto.on_password_established(engine, household_id, user.id, payload.password)
     household_crypto.ensure_device_wrap(
         engine, household_id, credential.device_id, payload.device_public_key
     )

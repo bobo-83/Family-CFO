@@ -476,3 +476,24 @@ def test_amounts_are_sealed_and_aggregations_still_add_up(_master_key, demo_engi
     # Dedupe equality happens post-decrypt.
     assert repository.transaction_exists(demo_engine, hh, account.id, today, -7300) is True
     assert repository.transaction_exists(demo_engine, hh, account.id, today, -7301) is False
+
+
+def test_missing_member_wrap_detection(_master_key, demo_engine) -> None:
+    """#196: a household with members but no member key is flagged; one with a
+    key is not; encryption-off returns nothing."""
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+
+    # The demo household has members but nobody has signed in post-encryption.
+    assert hh in household_crypto.households_missing_member_wraps(demo_engine)
+
+    # Establishing a password (the auth seam) clears it.
+    household_crypto.on_password_established(demo_engine, hh, member.user_id, "pw")
+    assert hh not in household_crypto.households_missing_member_wraps(demo_engine)
+
+
+def test_missing_member_wrap_is_empty_when_encryption_off(demo_engine, monkeypatch) -> None:
+    monkeypatch.delenv("FAMILY_CFO_MASTER_KEY", raising=False)
+    household_crypto.reset_cache_for_tests()
+    get_settings.cache_clear()
+    assert household_crypto.households_missing_member_wraps(demo_engine) == []

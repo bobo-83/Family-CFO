@@ -1268,6 +1268,9 @@ class HouseholdUsage(BaseModel):
     chats_7d: int
     median_answer_ms: int | None = None
     storage_bytes: int
+    # #196: false when the household has members but no member key yet — it
+    # can't be sealed until a member signs in. Always true when encryption off.
+    member_key_ok: bool = True
 
 
 class AiUsageResponse(BaseModel):

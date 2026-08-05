@@ -7542,6 +7542,10 @@ components:
         storage_bytes:
           type: integer
           format: int64
+        member_key_ok:
+          description: "#196: false when the household has members but no member key yet (can't be sealed until a member signs in)."
+          type: boolean
+          default: true
     AiUsageResponse:
       type: object
       required:
