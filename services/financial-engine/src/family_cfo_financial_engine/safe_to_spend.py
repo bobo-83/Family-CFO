@@ -47,7 +47,7 @@ class SafeToSpendInputs:
     """What the household owes across all liability accounts, as a positive amount.
 
     Not subtracted -- a balance is not due this month -- but reported, because
-    "you have $6,765 to spend" alongside a silent $[redacted] of credit-card debt is
+    a safe-to-spend figure alongside a silent five-figure credit-card debt is
     a true sentence that misleads. The family has to see both numbers together.
     """
 

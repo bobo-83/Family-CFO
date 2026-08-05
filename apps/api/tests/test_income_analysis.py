@@ -174,7 +174,7 @@ async def test_settings_switch_filing_status_and_gross_treatment(
 async def test_paycheck_detected_inside_mixed_amount_transfer_label(
     demo_client, demo_token
 ) -> None:
-    """Biweekly ~$[redacted] deposits auto-detect even when big one-offs share the label."""
+    """Biweekly ~$2,512 deposits auto-detect even when big one-offs share the label."""
     headers = _headers(demo_token)
     checking = (
         await demo_client.post(
@@ -214,7 +214,7 @@ async def test_paycheck_detected_inside_mixed_amount_transfer_label(
     source = body["sources"][0]
     assert source["frequency"] == "biweekly"
     assert len(source["transactions"]) == 6
-    assert "[redacted]" in source["name"]  # disambiguated with the typical amount
+    assert "2,512" in source["name"]  # disambiguated with the typical amount
     # The one-offs stay offered, not silently absorbed.
     assert len(body["other_inflows"]) == 2
 
@@ -334,7 +334,7 @@ async def test_brokerage_income_deposit_counts_with_its_bank(demo_client, demo_t
             "account_id": brokerage,
             "occurred_at": (date.today() - timedelta(days=8)).isoformat(),
             "amount": {"amount_minor": 5_112_233, "currency": "USD"},
-            "merchant": "the employer Inc",
+            "merchant": "Initrode Inc",
             "category_id": income_cat,
         },
     )
@@ -358,7 +358,7 @@ async def test_liability_account_payment_is_never_income(demo_client, demo_token
         await demo_client.post(
             "/api/v1/accounts",
             headers=headers,
-            json={"name": "the automaker Lease", "type": "auto_loan", "currency": "USD"},
+            json={"name": "Auto Lease", "type": "auto_loan", "currency": "USD"},
         )
     ).json()["id"]
     income_cat = (

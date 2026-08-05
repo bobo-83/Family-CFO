@@ -9,7 +9,7 @@ Accepted. Extends ADR 0053 (Income category counts as income).
 ADR 0053 made an Income-categorized deposit count — but only got half the money.
 The detection query, `list_income_detection_transactions`, is scoped to
 **checking accounts** (`accounts.type == "checking"`). RSU and ESPP income lands
-in a **brokerage** (here: the employer vests sold into a Charles Schwab account), so
+in a **brokerage** (employer vests sold into a brokerage account), so
 those deposits never entered the pipeline at all, even filed under Income. On
 real data the household's annual income read **$[redacted]** when the true detected
 figure — with the brokerage RSU deposits — was **$[redacted]**.

@@ -74,7 +74,7 @@ def is_internal_transfer(
 
 
 # M65: adjacent sorted amounts more than this far apart start a new cluster —
-# a $[redacted] paycheck must not share a group with a $[redacted] one-off just
+# a $2,500-sized paycheck must not share a group with a $23,000 one-off just
 # because the bank labels both "Online Transfer".
 CLUSTER_GAP = 0.30
 

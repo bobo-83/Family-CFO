@@ -1382,8 +1382,8 @@ def compute_safe_to_spend(
     )
 
     # Every liability the household carries, as a positive amount. Not subtracted
-    # (a balance is not due this month) but reported: "$6,765 to spend" said
-    # beside a silent $[redacted] of card debt is true and still misleading.
+    # (a balance is not due this month) but reported: a safe-to-spend figure
+    # said beside a silent five-figure card debt is true and still misleading.
     total_debt = Money.zero(currency)
     for balance in balances:
         if (
@@ -1546,7 +1546,7 @@ def autocategorize_by_history(engine: Engine, household_id: str) -> int:
     from family_cfo_api.bill_detection import normalize_merchant
 
     # Newest-first, so a tie in the Counter resolves to the most recent choice.
-    # Key on (merchant, is_inflow) so an inflow category (a the employer RSU deposit
+    # Key on (merchant, is_inflow) so an inflow category (an employer RSU deposit
     # filed as Income) never leaks onto an outflow of the same merchant, and vice
     # versa — that cross-sign leak is what put "Income" in the spending breakdown.
     txns = repository.list_transactions(engine, household_id, limit=100_000)

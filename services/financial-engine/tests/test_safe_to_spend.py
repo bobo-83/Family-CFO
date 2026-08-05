@@ -19,8 +19,8 @@ def _inputs(**overrides) -> SafeToSpendInputs:
 
 
 def test_bills_and_debt_are_subtracted_not_just_the_emergency_fund() -> None:
-    """The reported bug: with $[redacted] liquid and a $[redacted] emergency fund, the
-    advisor called $[redacted] 'truly available' — ignoring every bill about to land
+    """The reported bug: with a liquid balance and a small emergency fund, the
+    advisor called the full remainder 'truly available' — ignoring every bill about to land
     and every minimum debt payment owed."""
     result = calculate_safe_to_spend(
         _inputs(
@@ -103,12 +103,12 @@ def test_mixed_currencies_are_refused_rather_than_silently_summed() -> None:
 
 def test_outstanding_debt_is_reported_even_though_it_is_not_subtracted() -> None:
     """A balance is not due this month, so it isn't subtracted — but "you have
-    $6,765 to spend" said beside a silent $[redacted] of card debt is a true sentence
+    to spend" said beside a silent card debt is a true sentence
     that misleads. Both numbers must reach the family."""
     result = calculate_safe_to_spend(_inputs(total_debt=Money(2_412_357, "USD")))
 
     assert result.outputs["total_debt"] == Money(2_412_357, "USD")
-    assert any("owes [redacted] USD" in w for w in result.warnings)
+    assert any("owes 24,123.57 USD" in w for w in result.warnings)
     assert any("never on its own" in w for w in result.warnings)
 
 
@@ -119,7 +119,7 @@ def test_the_unpayable_debt_warning_names_the_amount() -> None:
 
     warning = next(w for w in result.warnings if "UNDERSTATED" in w)
     assert "3 liability account(s)" in warning
-    assert "[redacted] USD" in warning
+    assert "24,123.57 USD" in warning
     assert "LOWER than shown" in warning
 
 

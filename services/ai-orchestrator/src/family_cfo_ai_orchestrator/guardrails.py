@@ -41,8 +41,8 @@ def known_values_from_report_facts(facts: ReportFacts) -> set[str]:
 # worth") — honest conversational arithmetic, not amounts a user would act on.
 _MATERIAL_THRESHOLD = 100.0
 _YEAR_RANGE = (1900, 2100)
-# Rounding a grounded figure to significant digits ("$[redacted]" → "about
-# $[redacted]" after a small subtraction, "$980,000") is honest reporting; a
+# Rounding a grounded figure to significant digits ("$123,456" → "about
+# $123,000", or "$120,000" after a small subtraction) is honest reporting; a
 # false accept here is bounded to a ≤1% error on a real figure.
 _RELATIVE_TOLERANCE = 0.01
 

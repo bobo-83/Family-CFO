@@ -9,13 +9,13 @@ Accepted. Refines ADR 0053/0054 (Income category counts as income).
 Counting Income-categorized deposits from any account (ADR 0054) surfaced two
 real-data problems:
 
-1. **Double-counting RSU.** An RSU vest sells in a brokerage (the employer → Charles
-   Schwab, $[redacted]) and the proceeds are then **transferred to checking** (Amex,
-   $[redacted]). Both legs were categorized Income, so both counted. The amounts
+1. **Double-counting RSU.** An RSU vest sells in a brokerage (employer plan →
+   brokerage) and the proceeds are then **transferred to checking**. Both legs
+   were categorized Income, so both counted. The amounts
    differ slightly (price movement / other cash), so the internal-transfer
    matcher — which excludes equal-and-opposite legs — didn't pair them, and the
    Income category overrode transfer exclusion anyway.
-2. **Lease payments counted as income.** A $[redacted] "PAYMENT" posted on a the automaker
+2. **Lease payments counted as income.** A "PAYMENT" posted on an
    `auto_loan` account was categorized Income and counted — but a positive posting
    on a loan/lease is a debt PAYMENT credit, never income.
 

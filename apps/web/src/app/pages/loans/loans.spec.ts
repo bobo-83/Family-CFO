@@ -191,7 +191,7 @@ describe('Loans', () => {
     cmp.startAdd();
     await cmp.onPaste(pasteEvent);
     expect(apiMock.scanLoanStatement).toHaveBeenCalledWith(expect.any(String), 'image/png');
-    expect(cmp.form.monthlyPayment).toBeCloseTo([redacted]);
+    expect(cmp.form.monthlyPayment).toBeCloseTo(412.85);
     expect(cmp.form.endMode).toBe('payments');
     expect(cmp.form.paymentsLeft).toBe(18);
     expect(cmp.form.type).toBe('auto_loan'); // is_lease flipped the default

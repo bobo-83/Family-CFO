@@ -134,7 +134,7 @@ struct AskCFOIntentTests {
         api.response = .init(
             conversationId: "c1",
             recommendation: .init(
-                id: "r1", answer: "You have **$[redacted]** safe to spend.",
+                id: "r1", answer: "You have **$4,321.09** safe to spend.",
                 assumptions: [], impacts: [], tradeoffs: [], alternatives: [],
                 confidence: 0.9, calculationRefs: [], warnings: []))
 
@@ -142,7 +142,7 @@ struct AskCFOIntentTests {
 
         #expect(api.sentMessages.first?.message == "How much can I spend?")
         // Markdown stripped, as Siri should hear it.
-        #expect(answer == "You have $[redacted] safe to spend.")
+        #expect(answer == "You have $4,321.09 safe to spend.")
     }
 
     @Test func anEmptyQuestionIsRejectedBeforeHittingTheServer() async {

@@ -6,21 +6,19 @@ Accepted.
 
 ## Context
 
-Asked for a budgeting plan, the advisor told a household their **take-home was
-~$[redacted]/month** — absurd against their **declared $[redacted]/yr gross**. Tracing it:
+Asked for a budgeting plan, the advisor told a household a **take-home a small
+fraction of their declared gross** — absurd on its face. Tracing it:
 
 - The advisor quoted `get_income_and_tax`'s `monthly_average_income`, which the
-  income analysis computes as **detected recurring deposits ÷ 12**
-  (`annual_income = $[redacted]`).
-- That undercounts badly here: income *detection* only recognizes regular-cadence
+  income analysis computes as **detected recurring deposits ÷ 12**.
+- That undercounts badly: income *detection* only recognizes regular-cadence
   deposits, so RSU/bonus/irregular pay is missed; the synced history is short (so
-  the ÷12 divides a few months of data by a full year); and **a large share of inflows
-  were miscategorized as "Transfers"** and excluded. Their *actual* categorized
-  income was several times the detected figure.
-- Yet the household had **declared a compensation profile** ($[redacted] gross), and
-  the tax estimate already computed **$[redacted] tax** on it — a real take-home of
-  **~$[redacted]/month** — which the advisor ignored in favor of the noisy deposit
-  average.
+  the ÷12 divides a few months of data by a full year); and a large share of
+  inflows were miscategorized as "Transfers" and excluded — their *actual*
+  categorized income over the window was several times the detected figure.
+- Yet the household had **declared a compensation profile**, and the tax
+  estimate already computed the tax on it — a real, much higher take-home —
+  which the advisor ignored in favor of the noisy deposit average.
 
 M73 already made the declared profile authoritative for the *tax* estimate; the
 income *figures* the advisor quoted hadn't caught up.

@@ -10,6 +10,11 @@
 # per line, in a gitignored .repo-hygiene-deny file — the local hook honours it.
 set -eu
 
+# Optional $1: a commit-message file (wired from .githooks/commit-msg). Tracked
+# files were always scanned, but a commit MESSAGE naming a live figure sailed
+# straight to a public remote — found the hard way on 2026-08-05.
+MSG_FILE="${1:-}"
+
 fail=0
 note() { printf 'repo-hygiene: %s\n' "$1" >&2; fail=1; }
 
@@ -49,6 +54,9 @@ if [ -f .repo-hygiene-deny ]; then
     case "$term" in \#*) continue ;; esac
     if git grep -nF "$term" -- . >/dev/null 2>&1; then
       note "denylisted identifier present: $(printf '%s' "$term" | cut -c1-4)…"
+    fi
+    if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && grep -qF "$term" "$MSG_FILE" 2>/dev/null; then
+      note "denylisted identifier in the COMMIT MESSAGE: $(printf '%s' "$term" | cut -c1-4)…"
     fi
   done < .repo-hygiene-deny
 fi

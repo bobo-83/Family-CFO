@@ -12,9 +12,9 @@ income"). A user categorizing a transaction as **Income** — via the Categorize
 screen, or the suspected-income "confirm as income" flow (ADR 0049), which
 recategorizes to the Income category — had **no effect** on the analysis.
 
-On real data this hid real money: a household filed **$[redacted] and $[redacted]** RSU
+On real data this hid real money: a household filed two five-figure RSU
 deposits (and others) under Income, but the analysis showed none of them —
-annual income read **$[redacted]**. Worse, these large deposits often have a matching
+annual income read a fraction of reality. Worse, these large deposits often have a matching
 outflow (a transfer into a brokerage leg), so the internal-transfer heuristic
 actively *excluded* them, and nothing let the user's category decision override
 that.

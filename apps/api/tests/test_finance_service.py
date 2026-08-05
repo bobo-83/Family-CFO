@@ -184,8 +184,8 @@ def test_safe_to_spend_flags_liabilities_with_no_recorded_minimum_payment(
 def test_safe_to_spend_reports_liabilities_that_have_no_minimum_payment(
     demo_engine: Engine,
 ) -> None:
-    """The user's real household carried $[redacted] across three credit cards, none
-    with a minimum payment recorded — so nothing was subtracted for debt and the
+    """A household can carry five figures across several credit cards with no
+    minimum payment recorded — so nothing was subtracted for debt and the
     advisor said nothing about it. Now the debt is reported and the shortfall
     named."""
     result, _ref = finance_service.compute_safe_to_spend(
@@ -342,7 +342,7 @@ def test_flag_skips_non_spending_categories_and_clears_stale_flags(
     for ext in ("RSU-1", "RSU-2"):
         repository.create_transaction_deduped(
             demo_engine, hh, account_id, date(2026, 6, 18), 1_023_459, "USD",
-            "the employer Inc", "THE EMPLOYER INC", "bank_sync", external_id=ext,
+            "Initrode Inc", "INITRODE INC", "bank_sync", external_id=ext,
         )
 
     # Flagged first (while uncategorized)...
@@ -351,7 +351,7 @@ def test_flag_skips_non_spending_categories_and_clears_stale_flags(
     ids = [
         t.id
         for t in repository.list_transactions(demo_engine, hh, limit=100_000)
-        if t.merchant == "the employer Inc"
+        if t.merchant == "Initrode Inc"
     ]
     repository.set_transactions_category(demo_engine, hh, ids, income.id)
 

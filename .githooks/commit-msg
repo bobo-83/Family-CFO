@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+# The deny list guards the message too — a live figure in a commit message is
+# published the moment the branch is pushed (ADR 0030).
+scripts/check-repo-hygiene.sh "$1" || exit 1
+
 scripts/validate-commit-message.sh "$1" || {
   printf '%s\n' "Run: git commit, then fill in the .gitmessage sections." >&2
   exit 1

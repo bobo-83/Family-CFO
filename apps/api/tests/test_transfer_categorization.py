@@ -235,13 +235,13 @@ def test_income_category_excluded_from_spending(demo_engine) -> None:
 
 
 def test_autocategorize_does_not_cross_signs(demo_engine) -> None:
-    """A merchant's inflow category must not be applied to its outflows: a the employer
-    RSU deposit filed as Income must not drag a the employer purchase into Income."""
+    """A merchant's inflow category must not be applied to its outflows: a Initrode
+    RSU deposit filed as Income must not drag a Initrode purchase into Income."""
     account_id = _account(demo_engine)
     income = repository.create_category(demo_engine, _HH, "Income")
 
-    _txn(demo_engine, account_id, 50_000, merchant="the employer Inc", category_id=income.id)  # inflow -> Income
-    outflow = _txn(demo_engine, account_id, -12_000, merchant="the employer Inc")  # uncategorized outflow
+    _txn(demo_engine, account_id, 50_000, merchant="Initrode Inc", category_id=income.id)  # inflow -> Income
+    outflow = _txn(demo_engine, account_id, -12_000, merchant="Initrode Inc")  # uncategorized outflow
 
     finance_service.autocategorize_by_history(demo_engine, _HH)
     txns = {t.id: t for t in repository.list_transactions(demo_engine, _HH, limit=1000)}
