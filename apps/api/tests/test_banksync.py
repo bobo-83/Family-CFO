@@ -291,3 +291,51 @@ def test_sync_creates_401k_as_retirement_and_never_retypes(demo_engine: Engine) 
         b for b in repository.list_account_balances(demo_engine, _HH) if b.name == "Acme 401k Plan"
     )
     assert account.account_type == "brokerage"
+
+
+def test_liability_balance_normalized_negative_on_sync(demo_engine: Engine) -> None:
+    """#194: a provider that reports a loan's balance as POSITIVE is stored
+    negative — owed money is always negative in this app's model."""
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "accounts": [
+                    {
+                        "id": "ext-car-loan",
+                        "name": "Car Loan",  # infers to auto_loan
+                        "currency": "USD",
+                        "balance": "24405.00",  # positive from the institution
+                        "transactions": [],
+                    }
+                ]
+            },
+        )
+
+    banksync.sync_connection(demo_engine, settings, connection, _connector(handler))
+
+    account = next(
+        a for a in repository.list_account_balances(demo_engine, _HH)
+        if a.name == "Car Loan"
+    )
+    assert account.account_type == "auto_loan"
+    assert account.balance_minor == -2_440_500  # flipped to negative
+
+
+def test_asset_balance_sign_is_left_alone(demo_engine: Engine) -> None:
+    """A positive checking balance must NOT be flipped."""
+    settings = _settings()
+    connection = _linked_connection(demo_engine, settings)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_accounts_payload())  # Everyday Checking, +1250.55
+
+    banksync.sync_connection(demo_engine, settings, connection, _connector(handler))
+    checking = next(
+        a for a in repository.list_account_balances(demo_engine, _HH)
+        if a.name == "Everyday Checking"
+    )
+    assert checking.balance_minor == 125_055  # positive, unchanged

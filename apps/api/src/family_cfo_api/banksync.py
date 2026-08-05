@@ -300,7 +300,19 @@ def sync_connection(
             institution=ext.institution,
         )
         if ext.balance_minor is not None:
-            repository.record_account_balance(engine, account_id, ext.balance_minor)
+            # #194: institutions are inconsistent about sign on liabilities —
+            # some report the outstanding balance as a plain positive number.
+            # Owed money is always negative in this app's model, so normalize
+            # by the account's ACTUAL stored type (respecting a manual retype).
+            balance_minor = ext.balance_minor
+            account = repository.get_account(engine, connection.household_id, account_id)
+            if (
+                account is not None
+                and account.account_type in repository.LIABILITY_ACCOUNT_TYPES
+                and balance_minor > 0
+            ):
+                balance_minor = -balance_minor
+            repository.record_account_balance(engine, account_id, balance_minor)
         for txn in ext.transactions:
             created = repository.create_transaction_deduped(
                 engine,
