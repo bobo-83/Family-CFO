@@ -66,6 +66,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /auth/session`.
     /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
     func getSessionInfo(_ input: Operations.GetSessionInfo.Input) async throws -> Operations.GetSessionInfo.Output
+    /// Delete a hosted household and everything it owns (irreversible)
+    ///
+    /// - Remark: HTTP `DELETE /households/hosted/{household_id}`.
+    /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)`.
+    func deleteHostedHousehold(_ input: Operations.DeleteHostedHousehold.Input) async throws -> Operations.DeleteHostedHousehold.Output
     /// Every household on this box (operator view)
     ///
     /// - Remark: HTTP `GET /households/hosted`.
@@ -614,6 +619,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /reports/generate`.
     /// - Remark: Generated from `#/paths//reports/generate/post(generateReport)`.
     func generateReport(_ input: Operations.GenerateReport.Input) async throws -> Operations.GenerateReport.Output
+    /// Export this household's data as a portable zip (#189)
+    ///
+    /// CSVs for the ledger, JSON for the advisor history, plus the original document and attachment files. Flows through the household's own key path — a sealed household that is locked cannot be exported (423).
+    ///
+    /// - Remark: HTTP `GET /household/export`.
+    /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)`.
+    func exportHousehold(_ input: Operations.ExportHousehold.Input) async throws -> Operations.ExportHousehold.Output
     /// Which unwrap paths exist for the household's data key (ADR 0072)
     ///
     /// - Remark: HTTP `GET /household/key-status`.
@@ -910,6 +922,19 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//auth/session/get(getSessionInfo)`.
     public func getSessionInfo(headers: Operations.GetSessionInfo.Input.Headers = .init()) async throws -> Operations.GetSessionInfo.Output {
         try await getSessionInfo(Operations.GetSessionInfo.Input(headers: headers))
+    }
+    /// Delete a hosted household and everything it owns (irreversible)
+    ///
+    /// - Remark: HTTP `DELETE /households/hosted/{household_id}`.
+    /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)`.
+    public func deleteHostedHousehold(
+        path: Operations.DeleteHostedHousehold.Input.Path,
+        headers: Operations.DeleteHostedHousehold.Input.Headers = .init()
+    ) async throws -> Operations.DeleteHostedHousehold.Output {
+        try await deleteHostedHousehold(Operations.DeleteHostedHousehold.Input(
+            path: path,
+            headers: headers
+        ))
     }
     /// Every household on this box (operator view)
     ///
@@ -2188,6 +2213,15 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Export this household's data as a portable zip (#189)
+    ///
+    /// CSVs for the ledger, JSON for the advisor history, plus the original document and attachment files. Flows through the household's own key path — a sealed household that is locked cannot be exported (423).
+    ///
+    /// - Remark: HTTP `GET /household/export`.
+    /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)`.
+    public func exportHousehold(headers: Operations.ExportHousehold.Input.Headers = .init()) async throws -> Operations.ExportHousehold.Output {
+        try await exportHousehold(Operations.ExportHousehold.Input(headers: headers))
     }
     /// Which unwrap paths exist for the household's data key (ADR 0072)
     ///
@@ -12406,6 +12440,210 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete a hosted household and everything it owns (irreversible)
+    ///
+    /// - Remark: HTTP `DELETE /households/hosted/{household_id}`.
+    /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)`.
+    public enum DeleteHostedHousehold {
+        public static let id: Swift.String = "deleteHostedHousehold"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/households/hosted/{household_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/households/hosted/{household_id}/DELETE/path/household_id`.
+                public var householdId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - householdId:
+                public init(householdId: Swift.String) {
+                    self.householdId = householdId
+                }
+            }
+            public var path: Operations.DeleteHostedHousehold.Input.Path
+            /// - Remark: Generated from `#/paths/households/hosted/{household_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteHostedHousehold.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteHostedHousehold.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteHostedHousehold.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteHostedHousehold.Input.Path,
+                headers: Operations.DeleteHostedHousehold.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Household removed
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteHostedHousehold.Output.NoContent)
+            /// Household removed
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteHostedHousehold.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//households/hosted/{household_id}/delete(deleteHostedHousehold)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -31267,6 +31505,193 @@ public enum Operations {
             }
             public static var allCases: [Self] {
                 [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Export this household's data as a portable zip (#189)
+    ///
+    /// CSVs for the ledger, JSON for the advisor history, plus the original document and attachment files. Flows through the household's own key path — a sealed household that is locked cannot be exported (423).
+    ///
+    /// - Remark: HTTP `GET /household/export`.
+    /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)`.
+    public enum ExportHousehold {
+        public static let id: Swift.String = "exportHousehold"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/household/export/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ExportHousehold.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ExportHousehold.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ExportHousehold.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.ExportHousehold.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/export/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/export/GET/responses/200/content/application\/zip`.
+                    case applicationZip(OpenAPIRuntime.HTTPBody)
+                    /// The associated value of the enum case if `self` is `.applicationZip`.
+                    ///
+                    /// - Throws: An error if `self` is not `.applicationZip`.
+                    /// - SeeAlso: `.applicationZip`.
+                    public var applicationZip: OpenAPIRuntime.HTTPBody {
+                        get throws {
+                            switch self {
+                            case let .applicationZip(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ExportHousehold.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ExportHousehold.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The export bundle
+            ///
+            /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ExportHousehold.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ExportHousehold.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)/responses/423`.
+            ///
+            /// HTTP response code: `423 code423`.
+            case code423(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.code423`.
+            ///
+            /// - Throws: An error if `self` is not `.code423`.
+            /// - SeeAlso: `.code423`.
+            public var code423: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .code423(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code423",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case applicationZip
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/zip":
+                    self = .applicationZip
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .applicationZip:
+                    return "application/zip"
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .applicationZip,
                     .json
                 ]
             }

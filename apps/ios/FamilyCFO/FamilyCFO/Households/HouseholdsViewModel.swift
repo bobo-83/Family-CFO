@@ -19,16 +19,21 @@ struct HouseholdInvite: Equatable {
 final class HouseholdsViewModel {
     private let api: HouseholdsAPI
     private let serverBaseURL: URL
+    /// The household the operator belongs to — it NEVER shows a Delete action
+    /// (#189); the server's 409 is only the backstop.
+    private let currentHouseholdID: String?
 
     private(set) var households: [Components.Schemas.HostedHousehold] = []
     private(set) var isLoading = false
     private(set) var isCreating = false
+    private(set) var isDeleting = false
     private(set) var invite: HouseholdInvite?
     var errorMessage: String?
 
-    init(api: HouseholdsAPI, serverBaseURL: URL) {
+    init(api: HouseholdsAPI, serverBaseURL: URL, currentHouseholdID: String? = nil) {
         self.api = api
         self.serverBaseURL = serverBaseURL
+        self.currentHouseholdID = currentHouseholdID
     }
 
     func load() async {
@@ -71,6 +76,28 @@ final class HouseholdsViewModel {
 
     func dismissInvite() {
         invite = nil
+    }
+
+    /// Whether a row may offer Delete — everything except the operator's own
+    /// household.
+    func canDelete(_ household: Components.Schemas.HostedHousehold) -> Bool {
+        household.id != currentHouseholdID
+    }
+
+    /// #189: permanently removes a hosted household; the view confirmed first.
+    /// On success the roster reloads; a 409/404 carries the server's human
+    /// message — shown verbatim.
+    func delete(_ household: Components.Schemas.HostedHousehold) async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await api.delete(householdID: household.id)
+            errorMessage = nil
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
     /// The dashboard's join link, built exactly like the Users page builds

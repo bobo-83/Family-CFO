@@ -21,10 +21,17 @@ const ADMIN_ONLY = [
 export function authMock(
   role: string,
   userId: string | null = 'current-user',
-): { role: () => string; userId: () => string | null; hasRight: (right: string) => boolean } {
+  householdId: string | null = 'current-household',
+): {
+  role: () => string;
+  userId: () => string | null;
+  householdId: () => string | null;
+  hasRight: (right: string) => boolean;
+} {
   return {
     role: () => role,
     userId: () => userId,
+    householdId: () => householdId,
     hasRight: (right: string): boolean => {
       if (role === 'owner') {
         return true;

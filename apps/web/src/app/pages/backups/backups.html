@@ -227,6 +227,24 @@
     </mat-card-content>
   </mat-card>
 
+  <mat-card appearance="outlined" class="backups-card">
+    <mat-card-content>
+    <h2>Your data</h2>
+    <p class="backups-note">
+      Download everything in this household — accounts, transactions, advisor history, and
+      documents — as a zip you can keep or take elsewhere.
+    </p>
+    <div class="backups-actions">
+      <button mat-stroked-button type="button" [disabled]="exporting()" (click)="exportData()">
+        {{ exporting() ? 'Preparing export…' : 'Export my data' }}
+      </button>
+    </div>
+    @if (exportError(); as message) {
+      <p class="backups-error" role="alert">{{ message }}</p>
+    }
+    </mat-card-content>
+  </mat-card>
+
   @if (remoteBackups().length) {
     <mat-card appearance="outlined" class="backups-card">
       <mat-card-content>

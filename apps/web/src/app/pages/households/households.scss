@@ -49,6 +49,16 @@
     padding: 0.6rem 0;
     border-top: 1px solid rgba(127, 127, 127, 0.15);
   }
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  &__delete {
+    color: #b3261e;
+    flex-shrink: 0;
+  }
   &__name {
     font-weight: 500;
     display: flex;

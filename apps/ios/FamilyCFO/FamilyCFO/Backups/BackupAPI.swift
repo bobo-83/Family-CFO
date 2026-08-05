@@ -39,6 +39,10 @@ protocol BackupAPI: Sendable {
     /// NEWER app, which the server refuses to restore (409). Best-effort: nil
     /// must never break the screen.
     func serverVersion() async -> String?
+    /// #189: everything in the household — accounts, transactions, advisor
+    /// history, documents — as a portable zip. A sealed household that is
+    /// locked answers 423 with a human message, shown verbatim.
+    func exportData() async throws -> Data
 }
 
 /// The editable backup settings. `password` is nil unless the user typed one this
@@ -260,6 +264,24 @@ struct LiveBackupAPI: BackupAPI {
             let health = try? response.body.json
         else { return nil }
         return health.version
+    }
+
+    func exportData() async throws -> Data {
+        switch try await client.exportHousehold(.init()) {
+        case .ok(let r):
+            // Whole-household zips stay modest (CSV + JSON + scanned files),
+            // but leave generous headroom for document-heavy families.
+            return try await Data(collecting: try r.body.applicationZip, upTo: 1024 * 1024 * 1024)
+        case .code423(let response):
+            // Sealed household, locked — the server's message says what to do.
+            if let message = try? response.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(423)
+        case .unauthorized: throw APIError.unauthorized
+        case .forbidden: throw APIError.server(403)
+        case .undocumented(let s, _): throw APIError.server(s)
+        }
     }
 
     private func nilIfBlank(_ s: String) -> String? {

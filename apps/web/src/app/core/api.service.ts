@@ -37,6 +37,7 @@ import {
   updateGoal,
   createHousehold,
   createHostedHousehold,
+  deleteHostedHousehold,
   listHostedHouseholds,
   type HostedHouseholdCreateRequest,
   createImport,
@@ -208,6 +209,37 @@ export class ApiService {
 
   createHostedHousehold(body: HostedHouseholdCreateRequest) {
     return createHostedHousehold({ body });
+  }
+
+  // #189: irreversible — the server 409s the operator's own household.
+  deleteHostedHousehold(householdId: string) {
+    return deleteHostedHousehold({ path: { household_id: householdId } });
+  }
+
+  /**
+   * #189: the household's data as a portable zip. Fetched directly (not via
+   * the generated client) because the response is a binary file — same
+   * pattern as synthesizeSpeechBuffer. A non-2xx (423 locked, 403) throws
+   * with the server's human message so callers can show it verbatim.
+   */
+  async downloadHouseholdExport(): Promise<{ blob: Blob; filename: string }> {
+    const token = getToken();
+    const response = await fetch('/api/v1/household/export', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      let message = 'Export failed.';
+      try {
+        const body = (await response.json()) as { error?: { message?: string } };
+        message = body?.error?.message ?? message;
+      } catch {
+        // Non-JSON error body — keep the fallback.
+      }
+      throw new Error(message);
+    }
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'family-cfo-export.zip';
+    return { blob: await response.blob(), filename };
   }
 
   // ADR 0072 Phase 2: household data-key posture + recovery key.

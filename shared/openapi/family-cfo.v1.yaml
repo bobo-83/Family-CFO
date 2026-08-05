@@ -231,6 +231,32 @@ paths:
                 $ref: "#/components/schemas/SessionInfo"
         "401":
           $ref: "#/components/responses/Error"
+  /households/hosted/{household_id}:
+    delete:
+      tags:
+        - Household
+      operationId: deleteHostedHousehold
+      summary: Delete a hosted household and everything it owns (irreversible)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: household_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Household removed
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
   /households/hosted:
     get:
       tags:
@@ -2915,6 +2941,29 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+  /household/export:
+    get:
+      tags:
+        - Household
+      operationId: exportHousehold
+      summary: "Export this household's data as a portable zip (#189)"
+      description: >-
+        CSVs for the ledger, JSON for the advisor history, plus the original
+        document and attachment files. Flows through the household's own key
+        path — a sealed household that is locked cannot be exported (423).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The export bundle
+          content:
+            application/zip: {}
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "423":
           $ref: "#/components/responses/Error"
   /household/key-status:
     get:

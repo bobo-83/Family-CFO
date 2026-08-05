@@ -64,22 +64,41 @@
       @if ((households.value() ?? []).length === 0) {
         <p class="page-empty">No households yet.</p>
       } @else {
+        @if (deleteError(); as message) {
+          <p class="page-error" role="alert">{{ message }}</p>
+        }
         <ul class="household-list">
           @for (household of households.value() ?? []; track household.id) {
             <li class="household-list__item">
-              <div class="household-list__name">
-                {{ household.name }}
-                @if (household.pending_owner_invite) {
-                  <span class="household-badge household-badge--pending">invite pending</span>
+              <div class="household-list__row">
+                <div>
+                  <div class="household-list__name">
+                    {{ household.name }}
+                    @if (household.pending_owner_invite) {
+                      <span class="household-badge household-badge--pending">invite pending</span>
+                    }
+                    @if (household.sealed) {
+                      <span class="household-badge household-badge--sealed">sealed</span>
+                    }
+                  </div>
+                  <div class="household-list__meta">
+                    {{ household.base_currency }}
+                    · {{ household.member_count }} {{ household.member_count === 1 ? 'member' : 'members' }}
+                    · created {{ household.created_at | date: 'MMM d, y' }}
+                  </div>
+                </div>
+                <!-- #189: never on the operator's own household. -->
+                @if (household.id !== currentHouseholdId()) {
+                  <button
+                    mat-button
+                    type="button"
+                    class="household-list__delete"
+                    [disabled]="deletingId() !== null"
+                    (click)="deleteHousehold(household)"
+                  >
+                    {{ deletingId() === household.id ? 'Deleting…' : 'Delete…' }}
+                  </button>
                 }
-                @if (household.sealed) {
-                  <span class="household-badge household-badge--sealed">sealed</span>
-                }
-              </div>
-              <div class="household-list__meta">
-                {{ household.base_currency }}
-                · {{ household.member_count }} {{ household.member_count === 1 ? 'member' : 'members' }}
-                · created {{ household.created_at | date: 'MMM d, y' }}
               </div>
             </li>
           }

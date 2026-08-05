@@ -34,18 +34,18 @@ const BIRCH = {
   sealed: true,
 };
 
-function configure(apiMock: Record<string, unknown>, role: string) {
+function configure(apiMock: Record<string, unknown>, role: string, householdId?: string) {
   TestBed.configureTestingModule({
     imports: [Households],
     providers: [
       { provide: ApiService, useValue: apiMock },
-      { provide: AuthService, useValue: authMock(role) },
+      { provide: AuthService, useValue: authMock(role, 'current-user', householdId) },
     ],
   });
 }
 
-async function render(apiMock: Record<string, unknown>, role = 'owner') {
-  configure(apiMock, role);
+async function render(apiMock: Record<string, unknown>, role = 'owner', householdId?: string) {
+  configure(apiMock, role, householdId);
   const fixture = TestBed.createComponent(Households);
   fixture.detectChanges();
   await fixture.whenStable();
@@ -140,6 +140,73 @@ describe('Households', () => {
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(detail);
     expect(component['inviteLink']()).toBeNull();
+  });
+
+  // --- Delete household (#189) ---
+
+  it('confirms, deletes, and reloads the roster', async () => {
+    const apiMock = {
+      listHostedHouseholds: vi
+        .fn()
+        .mockResolvedValueOnce(response({ households: [CEDAR, BIRCH] }))
+        .mockResolvedValueOnce(response({ households: [BIRCH] })),
+      deleteHostedHousehold: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await component['deleteHousehold'](CEDAR);
+    // The confirmation NAMES the household and states the consequences.
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Permanently delete Cedar family? This removes the family's accounts, " +
+        'transactions, advisor history, documents, and logins. It cannot be undone. ' +
+        'Their data remains only in whole-box backups until those age out.',
+    );
+    expect(apiMock.deleteHostedHousehold).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    await component['deleteHousehold'](CEDAR);
+    confirmSpy.mockRestore();
+
+    expect(apiMock.deleteHostedHousehold).toHaveBeenCalledWith('h-cedar');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(apiMock.listHostedHouseholds).toHaveBeenCalledTimes(2);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Cedar family');
+  });
+
+  it('never offers Delete on the current household', async () => {
+    const apiMock = {
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR, BIRCH] })),
+    };
+    const fixture = await render(apiMock, 'owner', 'h-birch');
+    const host = fixture.nativeElement as HTMLElement;
+
+    const deleteButtons = host.querySelectorAll('.household-list__delete');
+    expect(deleteButtons.length).toBe(1);
+    expect(deleteButtons[0].closest('li')?.textContent).toContain('Cedar family');
+  });
+
+  it('surfaces the 409 detail verbatim when deleting your own household', async () => {
+    const detail = "You can't delete the household you belong to.";
+    const apiMock = {
+      listHostedHouseholds: vi.fn().mockResolvedValue(response({ households: [CEDAR] })),
+      deleteHostedHousehold: vi
+        .fn()
+        .mockResolvedValue(response(undefined, { error: { message: detail } })),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await component['deleteHousehold'](CEDAR);
+    confirmSpy.mockRestore();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(detail);
+    // The roster is not reloaded on failure.
+    expect(apiMock.listHostedHouseholds).toHaveBeenCalledTimes(1);
   });
 
   it('hides the page content and never calls the API for a non-admin', async () => {

@@ -237,6 +237,36 @@ final class BackupViewModel {
         }
     }
 
+    // --- "Export my data" (#189) ---
+
+    private(set) var isExporting = false
+    /// The finished zip, saved to a temp file — the view offers the share
+    /// sheet from here. Cleared when a new export starts.
+    var exportedFileURL: URL?
+
+    /// Fetches the whole-household zip to a temp file for save-and-share. A
+    /// 423 (sealed household, locked) carries the server's human message —
+    /// shown verbatim through the error alert.
+    func exportData() async {
+        guard !isExporting else { return }
+        isExporting = true
+        exportedFileURL = nil
+        defer { isExporting = false }
+        do {
+            let data = try await api.exportData()
+            // Same name the server's Content-Disposition uses (the generated
+            // client doesn't surface undeclared headers).
+            let day = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("family-cfo-export-\(day).zip")
+            try data.write(to: url, options: .atomic)
+            exportedFileURL = url
+            errorMessage = nil
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
     func deleteLocal(_ backup: Components.Schemas.BackupJob) async {
         do {
             try await api.deleteLocal(id: backup.id)

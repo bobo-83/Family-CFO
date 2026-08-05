@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -3432,6 +3433,134 @@ def user_email_exists(engine: Engine, email: str) -> bool:
     return row is not None
 
 
+def delete_household_cascade(engine: Engine, household_id: str) -> dict[str, int]:
+    """#189: remove a household and everything it owns. Indirect children
+    (rows keyed by a parent id instead of household_id) go first; then every
+    household-keyed table in child-first order via the metadata graph; then
+    users left with no membership anywhere; then the household row.
+
+    Returns per-table delete counts. Files on disk are the CALLER's job —
+    collect paths before calling this."""
+    counts: dict[str, int] = {}
+    with engine.begin() as conn:
+        def _ids(query) -> list[str]:
+            return [row[0] for row in conn.execute(query).all()]
+
+        account_ids = _ids(
+            select(models.accounts.c.id).where(
+                models.accounts.c.household_id == household_id
+            )
+        )
+        conversation_ids = _ids(
+            select(models.conversations.c.id).where(
+                models.conversations.c.household_id == household_id
+            )
+        )
+        document_ids = _ids(
+            select(models.documents.c.id).where(
+                models.documents.c.household_id == household_id
+            )
+        )
+        import_ids = _ids(
+            select(models.imports.c.id).where(
+                models.imports.c.household_id == household_id
+            )
+        )
+        connection_ids = _ids(
+            select(models.institution_connections.c.id).where(
+                models.institution_connections.c.household_id == household_id
+            )
+        )
+        member_user_ids = _ids(
+            select(models.household_memberships.c.user_id).where(
+                models.household_memberships.c.household_id == household_id
+            )
+        )
+
+        indirect = [
+            (models.account_balances, models.account_balances.c.account_id, account_ids),
+            (
+                models.conversation_messages,
+                models.conversation_messages.c.conversation_id,
+                conversation_ids,
+            ),
+            (
+                models.document_extractions,
+                models.document_extractions.c.document_id,
+                document_ids,
+            ),
+            (models.import_files, models.import_files.c.import_id, import_ids),
+            (
+                models.connection_accounts,
+                models.connection_accounts.c.connection_id,
+                connection_ids,
+            ),
+        ]
+        for table, column, ids in indirect:
+            if ids:
+                result = conn.execute(delete(table).where(column.in_(ids)))
+                counts[table.name] = result.rowcount or 0
+
+        for table in reversed(models.metadata.sorted_tables):
+            if table.name == "households" or "household_id" not in table.c:
+                continue
+            result = conn.execute(
+                delete(table).where(table.c.household_id == household_id)
+            )
+            if result.rowcount:
+                counts[table.name] = counts.get(table.name, 0) + result.rowcount
+
+        # Users whose ONLY household this was: orphaned logins serve nothing
+        # and would squat their email forever. System admins are never
+        # deleted this way (they belong to another household by definition
+        # of not being deletable here — the endpoint refuses self-delete).
+        removed_users = 0
+        for user_id in member_user_ids:
+            remaining = conn.execute(
+                select(func.count()).select_from(models.household_memberships).where(
+                    models.household_memberships.c.user_id == user_id
+                )
+            ).scalar_one()
+            is_admin = conn.execute(
+                select(func.count()).select_from(models.system_admins).where(
+                    models.system_admins.c.user_id == user_id
+                )
+            ).scalar_one()
+            if remaining == 0 and not is_admin:
+                conn.execute(delete(models.users).where(models.users.c.id == user_id))
+                removed_users += 1
+        if removed_users:
+            counts["users"] = removed_users
+
+        conn.execute(
+            delete(models.households).where(models.households.c.id == household_id)
+        )
+        counts["households"] = 1
+    return counts
+
+
+def household_file_paths(engine: Engine, household_id: str) -> list[str]:
+    """Relative file paths (documents under documents/, attachments under
+    attachments/) a household owns — collected BEFORE cascade deletion."""
+    paths: list[str] = []
+    with engine.connect() as conn:
+        for row in conn.execute(
+            select(models.documents.c.storage_path).where(
+                models.documents.c.household_id == household_id
+            )
+        ):
+            if row[0]:
+                paths.append(os.path.join("documents", row[0]))
+        for row in conn.execute(
+            select(models.transactions.c.attachment_path).where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.attachment_path.is_not(None),
+            )
+        ):
+            paths.append(row[0])
+    return paths
+
+
 def create_hosted_household(
     engine: Engine, display_name: str, base_currency: str
 ) -> tuple[str, str]:
@@ -5012,6 +5141,31 @@ def list_all_conversation_ids(engine: Engine, household_id: str) -> list[str]:
             )
         ).all()
     return [row[0] for row in rows]
+
+
+def list_all_household_conversations(
+    engine: Engine, household_id: str
+) -> list[ConversationRecord]:
+    """#189 export: every conversation in the household, any member, oldest
+    first — the family's history belongs to the family."""
+    query = (
+        select(models.conversations)
+        .where(models.conversations.c.household_id == household_id)
+        .order_by(models.conversations.c.created_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        ConversationRecord(
+            id=row["id"],
+            household_id=row["household_id"],
+            created_by_user_id=row["created_by_user_id"],
+            title=row["title"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+        for row in rows
+    ]
 
 
 def list_conversations(engine: Engine, household_id: str, user_id: str) -> list[ConversationRecord]:

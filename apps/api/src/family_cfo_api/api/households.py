@@ -188,3 +188,59 @@ async def create_hosted_household(
         invite_token=invite_token,
         invite_expires_at=expires_at,
     )
+
+
+@router.delete(
+    "/households/hosted/{household_id}",
+    operation_id="deleteHostedHousehold",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Requires system administrator", "model": ErrorResponse},
+        404: {"description": "Household not found", "model": ErrorResponse},
+        409: {"description": "Cannot delete your own household", "model": ErrorResponse},
+    },
+    summary="Delete a hosted household and everything it owns (irreversible)",
+)
+async def delete_hosted_household(
+    household_id: str,
+    session: repository.SessionContext = Depends(require_right(rights.SYSTEM_ADMIN)),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+):
+    import os as _os
+
+    from fastapi import Response
+
+    if household_id == session.household_id:
+        raise HTTPException(
+            status_code=409,
+            detail="You can't delete the household you belong to.",
+        )
+    target = repository.get_household(engine, household_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    # Files first-collected, deleted after the rows are gone.
+    file_paths = repository.household_file_paths(engine, household_id)
+    counts = repository.delete_household_cascade(engine, household_id)
+    removed_files = 0
+    for rel in file_paths:  # already staging-relative (documents/… or attachments/…)
+        try:
+            _os.remove(_os.path.join(settings.import_staging_dir, rel))
+            removed_files += 1
+        except OSError:
+            continue
+    # The deleted household's audit trail died with it; the record of the
+    # DELETION belongs to the operator's own household.
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.hosted_deleted",
+        "household",
+        household_id,
+        f"Deleted hosted household \u201c{target.display_name}\u201d "
+        f"({sum(counts.values())} rows, {removed_files} files)",
+    )
+    return Response(status_code=204)

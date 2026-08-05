@@ -7,6 +7,9 @@ import UIKit
 struct HouseholdsView: View {
     @State var viewModel: HouseholdsViewModel
     @State private var creating = false
+    /// #189: the armed row — a delete only ever starts from its swipe action,
+    /// never a row tap, and always through this confirmation.
+    @State private var pendingDelete: Components.Schemas.HostedHousehold?
 
     var body: some View {
         List {
@@ -38,10 +41,29 @@ struct HouseholdsView: View {
         .alert(
             "Couldn't complete",
             isPresented: Binding(
-                // The sheet shows create errors itself; this alert covers loads.
+                // The sheet shows create errors itself; this alert covers
+                // loads and deletes (the 409/404 detail, verbatim).
                 get: { viewModel.errorMessage != nil && !creating },
                 set: { if !$0 { viewModel.errorMessage = nil } })
         ) { Button("OK", role: .cancel) {} } message: { Text(viewModel.errorMessage ?? "") }
+        .alert(
+            "Permanently delete \(pendingDelete?.name ?? "")?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }),
+            presenting: pendingDelete
+        ) { household in
+            Button("Delete household", role: .destructive) {
+                let target = household
+                pendingDelete = nil
+                Task { await viewModel.delete(target) }
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: { _ in
+            Text(
+                "This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. Their data remains only in whole-box backups until those age out."
+            )
+        }
     }
 
     private func householdRow(_ household: Components.Schemas.HostedHousehold) -> some View {
@@ -68,6 +90,16 @@ struct HouseholdsView: View {
             Text(Self.caption(for: household))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .swipeActions(edge: .trailing) {
+            // #189: never on the operator's own household. The swipe only ARMS
+            // the confirmation — nothing is deleted until it's confirmed.
+            if viewModel.canDelete(household) {
+                Button("Delete…") {
+                    pendingDelete = household
+                }
+                .tint(.red)
+            }
         }
     }
 

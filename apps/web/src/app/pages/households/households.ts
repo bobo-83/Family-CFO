@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import type { HostedHousehold } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -101,5 +102,39 @@ export class Households {
 
   protected dismissInviteLink(): void {
     this.inviteLink.set(null);
+  }
+
+  // --- Delete household (#189) ---
+
+  /** The operator's OWN household never shows a Delete action — the server's
+   * 409 is only the backstop. */
+  protected readonly currentHouseholdId = this.auth.householdId;
+
+  protected readonly deletingId = signal<string | null>(null);
+  protected readonly deleteError = signal<string | null>(null);
+
+  protected async deleteHousehold(household: HostedHousehold): Promise<void> {
+    if (this.deletingId()) {
+      return;
+    }
+    if (
+      !confirm(
+        `Permanently delete ${household.name}? This removes the family's accounts, ` +
+          'transactions, advisor history, documents, and logins. It cannot be undone. ' +
+          'Their data remains only in whole-box backups until those age out.',
+      )
+    ) {
+      return;
+    }
+    this.deletingId.set(household.id);
+    this.deleteError.set(null);
+    const { error } = await this.api.deleteHostedHousehold(household.id);
+    this.deletingId.set(null);
+    if (error) {
+      // 409 ("can't delete your own") and 404 carry human messages — verbatim.
+      this.deleteError.set(apiErrorMessage(error, 'Failed to delete the household.'));
+      return;
+    }
+    this.households.reload();
   }
 }

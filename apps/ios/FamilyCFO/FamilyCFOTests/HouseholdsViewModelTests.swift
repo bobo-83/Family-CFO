@@ -8,7 +8,9 @@ final class MockHouseholdsAPI: HouseholdsAPI, @unchecked Sendable {
     var households: [Components.Schemas.HostedHousehold] = []
     var createError: Error?
     var createResponse: Components.Schemas.HostedHouseholdCreateResponse?
+    var deleteError: Error?
     private(set) var created: [(displayName: String, baseCurrency: String, ownerEmail: String)] = []
+    private(set) var deleted: [String] = []
     private(set) var listCalls = 0
 
     nonisolated func list() async throws -> [Components.Schemas.HostedHousehold] {
@@ -26,6 +28,14 @@ final class MockHouseholdsAPI: HouseholdsAPI, @unchecked Sendable {
             created.append((displayName, baseCurrency, ownerEmail))
             guard let createResponse else { throw APIError.server(500) }
             return createResponse
+        }
+    }
+
+    nonisolated func delete(householdID: String) async throws {
+        try await MainActor.run {
+            if let deleteError { throw deleteError }
+            deleted.append(householdID)
+            households.removeAll { $0.id == householdID }
         }
     }
 }
@@ -126,6 +136,9 @@ struct HouseholdsViewModelTests {
             ) async throws -> Components.Schemas.HostedHouseholdCreateResponse {
                 throw APIError.server(403)
             }
+            func delete(householdID: String) async throws {
+                throw APIError.server(403)
+            }
         }
         let vm = HouseholdsViewModel(api: FailingAPI(), serverBaseURL: Self.serverBaseURL)
 
@@ -133,6 +146,52 @@ struct HouseholdsViewModelTests {
 
         #expect(vm.errorMessage != nil)
         #expect(vm.households.isEmpty)
+    }
+
+    // --- Delete household (#189) ---
+
+    @Test func deleteCallsTheAPIAndReloadsTheRoster() async {
+        let api = MockHouseholdsAPI()
+        api.households = [
+            Self.household("h-cedar", "Cedar family"),
+            Self.household("h-birch", "Birch family"),
+        ]
+        let vm = HouseholdsViewModel(
+            api: api, serverBaseURL: Self.serverBaseURL, currentHouseholdID: "h-birch")
+        await vm.load()
+
+        await vm.delete(Self.household("h-cedar", "Cedar family"))
+
+        #expect(api.deleted == ["h-cedar"])
+        #expect(api.listCalls == 2)  // initial load + the reload after the delete
+        #expect(vm.households.map(\.id) == ["h-birch"])
+        #expect(vm.errorMessage == nil)
+    }
+
+    @Test func theCurrentHouseholdNeverOffersDelete() async {
+        let api = MockHouseholdsAPI()
+        let vm = HouseholdsViewModel(
+            api: api, serverBaseURL: Self.serverBaseURL, currentHouseholdID: "h-birch")
+
+        #expect(!vm.canDelete(Self.household("h-birch", "Birch family")))
+        #expect(vm.canDelete(Self.household("h-cedar", "Cedar family")))
+    }
+
+    @Test func aDeleteConflictSurfacesTheServersMessageVerbatim() async {
+        let api = MockHouseholdsAPI()
+        api.households = [Self.household("h-birch", "Birch family")]
+        let detail = "You can't delete the household you belong to."
+        api.deleteError = APIError.conflict(detail)
+        let vm = HouseholdsViewModel(
+            api: api, serverBaseURL: Self.serverBaseURL, currentHouseholdID: "h-cedar")
+        await vm.load()
+
+        await vm.delete(Self.household("h-birch", "Birch family"))
+
+        #expect(vm.errorMessage == detail)
+        #expect(api.deleted.isEmpty)
+        #expect(api.listCalls == 1)  // no reload on failure
+        #expect(vm.households.map(\.id) == ["h-birch"])
     }
 
     @Test func dismissInviteClearsTheLink() async {

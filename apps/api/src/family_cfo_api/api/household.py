@@ -1,3 +1,4 @@
+import os
 from datetime import date, timedelta
 
 from family_cfo_financial_engine.money import Money
@@ -14,7 +15,8 @@ from family_cfo_api import (
 )
 from family_cfo_api import yearly_review as yearly_review_module
 from family_cfo_api.api.budgets import _month_window, budgets_with_progress
-from family_cfo_api.deps import get_current_session, get_engine, require_right
+from family_cfo_api.config import Settings
+from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     AssetCategoryTotal,
     BudgetSummary,
@@ -1105,3 +1107,54 @@ async def unlock_with_recovery_key(
         "Household unlocked with the recovery key",
     )
     return HouseholdKeyStatus(**household_crypto.wrap_status(engine, session.household_id))
+
+
+@router.get(
+    "/household/export",
+    operation_id="exportHousehold",
+    responses={
+        200: {
+            "description": "A zip of the household's data (CSV + JSON + files)",
+            "content": {"application/zip": {}},
+        },
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        423: {"description": "Sealed household is locked", "model": ErrorResponse},
+    },
+    summary="Export this household's data as a portable zip (#189)",
+)
+async def export_household(
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+):
+    import tempfile
+
+    from fastapi.responses import FileResponse
+
+    from family_cfo_api import household_export
+
+    # Not a context manager on purpose: the file must OUTLIVE this function —
+    # FileResponse streams it and the BackgroundTask below unlinks it after.
+    fd, out_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    counts = household_export.build_export_zip(
+        engine, settings, session.household_id, out_path
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "household.exported",
+        "household",
+        session.household_id,
+        f"Exported household data ({counts.get('transactions', 0)} transactions)",
+    )
+    from starlette.background import BackgroundTask
+
+    return FileResponse(
+        out_path,
+        media_type="application/zip",
+        filename=household_export.export_filename(),
+        background=BackgroundTask(os.unlink, out_path),
+    )

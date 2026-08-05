@@ -382,6 +382,68 @@ describe('Backups', () => {
     );
   });
 
+  // --- "Export my data" (#189) ---
+
+  it('downloads the export zip through the direct fetch path', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      downloadHouseholdExport: vi.fn().mockResolvedValue({
+        blob: new Blob(['zip-bytes'], { type: 'application/zip' }),
+        filename: 'family-cfo-export-2026-07-26.zip',
+      }),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Download everything in this household — accounts, transactions, advisor history, and documents — as a zip you can keep or take elsewhere.',
+    );
+
+    // jsdom has no createObjectURL — stub the browser download plumbing.
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    await fixture.componentInstance['exportData']();
+    fixture.detectChanges();
+
+    expect(apiMock.downloadHouseholdExport).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    expect(fixture.componentInstance['exportError']()).toBeNull();
+    clickSpy.mockRestore();
+  });
+
+  it('surfaces the 423 locked message inline when the export fails', async () => {
+    const detail = "This household's data is sealed and currently locked. Sign in to unlock it.";
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response({ frequency: 'daily' })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      downloadHouseholdExport: vi.fn().mockRejectedValue(new Error(detail)),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    await fixture.componentInstance['exportData']();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(detail);
+    expect(fixture.componentInstance['exporting']()).toBe(false);
+  });
+
   it('hides the recovery key blocks when encryption is off', async () => {
     const apiMock = {
       listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),

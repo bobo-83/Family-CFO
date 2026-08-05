@@ -120,6 +120,8 @@ UNDO_POLICY: dict[str, str] = {
     "household.seal_mode_changed": IRREVERSIBLE,  # reversible via the toggle, not via undo
     "household.recovery_key_used": IRREVERSIBLE,  # an unlock happened; nothing to reverse
     "household.hosted_created": IRREVERSIBLE,  # revoke the invite to abort; shells are inert
+    "household.hosted_deleted": IRREVERSIBLE,  # the point of the confirmation
+    "household.exported": IRREVERSIBLE,  # data left the box; can't be unshared
     "household.key_rotated": IRREVERSIBLE,  # key material replaced; nothing to restore
     "backup.config_updated": IRREVERSIBLE,  # holds credentials we never store for replay
     "backup_job": IRREVERSIBLE,  # a scheduled backup ran

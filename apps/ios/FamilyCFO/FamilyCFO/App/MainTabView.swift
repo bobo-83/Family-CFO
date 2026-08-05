@@ -277,7 +277,8 @@ struct SettingsView: View {
                         NavigationLink {
                             HouseholdsView(viewModel: HouseholdsViewModel(
                                 api: households,
-                                serverBaseURL: server.apiBaseURL))
+                                serverBaseURL: server.apiBaseURL,
+                                currentHouseholdID: server.householdID))
                         } label: {
                             Label("Households", systemImage: "building.2")
                         }

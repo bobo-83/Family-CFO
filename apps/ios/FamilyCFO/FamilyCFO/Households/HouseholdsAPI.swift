@@ -7,6 +7,8 @@ protocol HouseholdsAPI: Sendable {
     func create(
         displayName: String, baseCurrency: String, ownerEmail: String
     ) async throws -> Components.Schemas.HostedHouseholdCreateResponse
+    /// #189: irreversible — the server 409s the operator's own household.
+    func delete(householdID: String) async throws
 }
 
 struct LiveHouseholdsAPI: HouseholdsAPI {
@@ -44,6 +46,31 @@ struct LiveHouseholdsAPI: HouseholdsAPI {
             throw APIError.server(403)
         case .conflict(let error):
             // The server explains (the email already has an account) — verbatim.
+            if let message = try? error.body.json.error.message {
+                throw APIError.conflict(message)
+            }
+            throw APIError.server(409)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func delete(householdID: String) async throws {
+        switch try await client.deleteHostedHousehold(.init(path: .init(householdId: householdID))) {
+        case .noContent:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound(let error):
+            // "Household not found" — already deleted elsewhere; verbatim.
+            if let message = try? error.body.json.error.message {
+                throw APIError.advisor(message)
+            }
+            throw APIError.server(404)
+        case .conflict(let error):
+            // The server explains (can't delete your own household) — verbatim.
             if let message = try? error.body.json.error.message {
                 throw APIError.conflict(message)
             }

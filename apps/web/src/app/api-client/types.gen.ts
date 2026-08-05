@@ -2387,6 +2387,45 @@ export type GetSessionInfoResponses = {
 
 export type GetSessionInfoResponse = GetSessionInfoResponses[keyof GetSessionInfoResponses];
 
+export type DeleteHostedHouseholdData = {
+    body?: never;
+    path: {
+        household_id: string;
+    };
+    query?: never;
+    url: '/households/hosted/{household_id}';
+};
+
+export type DeleteHostedHouseholdErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+};
+
+export type DeleteHostedHouseholdError = DeleteHostedHouseholdErrors[keyof DeleteHostedHouseholdErrors];
+
+export type DeleteHostedHouseholdResponses = {
+    /**
+     * Household removed
+     */
+    204: void;
+};
+
+export type DeleteHostedHouseholdResponse = DeleteHostedHouseholdResponses[keyof DeleteHostedHouseholdResponses];
+
 export type ListHostedHouseholdsData = {
     body?: never;
     path?: never;
@@ -5766,6 +5805,39 @@ export type GenerateReportResponses = {
 };
 
 export type GenerateReportResponse = GenerateReportResponses[keyof GenerateReportResponses];
+
+export type ExportHouseholdData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/household/export';
+};
+
+export type ExportHouseholdErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    423: ErrorResponse;
+};
+
+export type ExportHouseholdError = ExportHouseholdErrors[keyof ExportHouseholdErrors];
+
+export type ExportHouseholdResponses = {
+    /**
+     * The export bundle
+     */
+    200: Blob | File;
+};
+
+export type ExportHouseholdResponse = ExportHouseholdResponses[keyof ExportHouseholdResponses];
 
 export type GetHouseholdKeyStatusData = {
     body?: never;

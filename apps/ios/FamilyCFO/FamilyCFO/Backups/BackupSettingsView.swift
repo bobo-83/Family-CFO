@@ -30,6 +30,7 @@ struct BackupSettingsView: View {
                 onBoxSection
             }
             restoreKeysSection
+            exportSection
             helpSection
         }
         .navigationTitle("Backups")
@@ -346,6 +347,35 @@ struct BackupSettingsView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.subheadline.weight(.semibold))
             Text(subtitle).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// "Export my data" (#189): the whole household as a portable zip, fetched
+    /// to a temp file. The ShareLink appears once the file is ready; a 423
+    /// (sealed household, locked) surfaces through the error alert, verbatim.
+    private var exportSection: some View {
+        Section {
+            Button {
+                Task { await viewModel.exportData() }
+            } label: {
+                if viewModel.isExporting {
+                    HStack { ProgressView(); Text("Preparing export…").padding(.leading, 8) }
+                } else {
+                    Label("Export my data", systemImage: "square.and.arrow.down")
+                }
+            }
+            .disabled(viewModel.isExporting)
+            if let url = viewModel.exportedFileURL {
+                ShareLink(item: url) {
+                    Label("Save or share export…", systemImage: "square.and.arrow.up")
+                }
+            }
+        } header: {
+            Text("Your data")
+        } footer: {
+            Text(
+                "Download everything in this household — accounts, transactions, advisor history, and documents — as a zip you can keep or take elsewhere."
+            )
         }
     }
 

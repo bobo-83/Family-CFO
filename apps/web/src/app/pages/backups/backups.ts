@@ -354,6 +354,32 @@ export class Backups implements OnInit {
     this.statusMessage.set('Household unlocked.');
   }
 
+  // --- "Export my data" (#189): the whole household as a portable zip ---
+  protected readonly exporting = signal(false);
+  protected readonly exportError = signal<string | null>(null);
+
+  /** Direct authed fetch (binary, not the typed client); on success a browser
+   * download is triggered. A 423 (sealed household, locked) carries the
+   * server's human message — shown inline, verbatim. */
+  protected async exportData(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    this.exportError.set(null);
+    try {
+      const { blob, filename } = await this.api.downloadHouseholdExport();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      this.exportError.set(error instanceof Error ? error.message : 'Export failed.');
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
   protected recoveryKeyCreatedLabel(iso: string | null | undefined): string {
     if (!iso) {
       return '';
