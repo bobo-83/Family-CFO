@@ -192,7 +192,7 @@ def _parse_iso_or_us_date(value: object) -> date | None:
 
 def _scan_number(value: object) -> float | None:
     """A number the model reported, whether as a JSON number or a string like
-    "5.5%" or "$[redacted]". Unparseable values become None — never a guess."""
+    "5.5%" or "$1,234.56". Unparseable values become None — never a guess."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):

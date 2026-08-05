@@ -31,7 +31,7 @@ def test_derive_rejects_nonsense() -> None:
 
 @pytest.fixture(autouse=True)
 def _fake_quote(monkeypatch):
-    """No network in tests: XYZ is always $3,500.00."""
+    """No network in tests: every ticker is always $3,500.00."""
     monkeypatch.setattr(rsu_service, "fetch_quote", lambda ticker, settings=None: (350_000, "test"))
 
 

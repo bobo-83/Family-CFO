@@ -11,8 +11,8 @@ The detection query, `list_income_detection_transactions`, is scoped to
 **checking accounts** (`accounts.type == "checking"`). RSU and ESPP income lands
 in a **brokerage** (employer vests sold into a brokerage account), so
 those deposits never entered the pipeline at all, even filed under Income. On
-real data the household's annual income read **$[redacted]** when the true detected
-figure — with the brokerage RSU deposits — was **$[redacted]**.
+real data the household's annual income read roughly half the true detected
+figure once the brokerage RSU deposits were included.
 
 Separately, the income-source evidence showed the account name but not the
 **bank**, so a deposit couldn't be recognized as "the brokerage RSU sale."

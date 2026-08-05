@@ -8,7 +8,7 @@ Accepted.
 
 The compensation profile modeled RSUs as a flat dollar figure per year with a
 vest cadence ("$100k/yr, quarterly"). The user's reality: a fixed number of
-XYZ units granted every two years, vesting quarterly, worth whatever the
+a fixed count of employer shares granted every two years, vesting quarterly, worth whatever the
 stock is worth. The flat figure can't answer "how many shares vest when," and
 its dollar value goes stale the moment the stock moves — which also weakens
 the RSU sell-by runway (ADR 0069) it feeds.

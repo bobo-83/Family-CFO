@@ -84,10 +84,10 @@ def test_scan_reads_the_next_payment_due_date() -> None:
 
 def test_scan_accepts_numbers_reported_as_strings() -> None:
     """The vision model sometimes returns a rate or amount as text ("5.5%",
-    "$[redacted]") — parse those too rather than dropping them."""
+    "$1,234.56") — parse those too rather than dropping them."""
     result = parse_loan_scan(
         '{"lender": "EduLoan Servicing", "monthly_payment": "81.53", '
-        '"payoff_balance": "$[redacted]", "apr": "5.5%", "is_lease": false}'
+        '"payoff_balance": "$1,234.56", "apr": "5.5%", "is_lease": false}'
     )
     assert result.monthly_payment_minor == 81_53
     assert result.balance_minor == 1_234_56
@@ -108,7 +108,7 @@ def test_text_statement_parse_reads_rate_payment_balance_due() -> None:
     from family_cfo_api.api.accounts import parse_loan_statement_text
 
     text = (
-        "Current Balance $[redacted]\n"
+        "Current Balance $1,234.56\n"
         "Regular Monthly Payment Amount $81.53\n"
         "Current Statement Due Date 8/7/2026\n"
         "Interest Rate is  2.375%\n"

@@ -374,7 +374,7 @@ describe('IncomeTax', () => {
             {
               id: 'g1',
               earner_id: 'e1',
-              ticker: 'XYZ',
+              ticker: 'XYZI',
               units: 800,
               grant_date: '2025-07-15',
               vest_years: 2,
@@ -393,7 +393,7 @@ describe('IncomeTax', () => {
           ],
           quotes: [
             {
-              ticker: 'XYZ',
+              ticker: 'XYZI',
               price: { amount_minor: 350_000, currency: 'USD' },
               as_of: '2026-07-25',
               source: 'stub',
@@ -415,7 +415,7 @@ describe('IncomeTax', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('RSU grants');
-    expect(host.textContent).toContain('800 XYZ');
+    expect(host.textContent).toContain('800 XYZI');
     expect(host.textContent).toContain('vests quarterly over 2 years');
     expect(host.textContent).toContain('USD 3,500.00'); // live quote
     expect(host.textContent).toContain('USD 1,400,000.00'); // derived annual
@@ -481,7 +481,7 @@ describe('IncomeTax', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('Suspected income');
-    expect(host.textContent).toContain('USD [redacted].00');
+    expect(host.textContent).toContain('USD 21,987.00');
 
     const confirm = Array.from(host.querySelectorAll('button')).find(
       (b) => b.textContent?.trim() === 'Confirm as income',

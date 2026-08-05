@@ -8,11 +8,10 @@ Accepted.
 
 Two advisor defects from one debt-plan answer (user reports, 2026-07-20):
 
-1. **It told the user to send $[redacted] to pay off a loan whose balance was
-   $[redacted].** The engine (`calculate_debt_payoff`) is correct — it caps each
+1. **It told the user to send nearly triple the balance to pay off a loan.** The engine (`calculate_debt_payoff`) is correct — it caps each
    payment at the remaining balance — but the model *ignored* it: it invented a
    "$10,000 extra payment," added it to the minimum, quoted the sum as the amount
-   to send, and fabricated an incoherent "22 months / a small interest" timeline.
+   to send, and fabricated an incoherent months-and-interest timeline.
    Nothing in the grounding rules stopped it from advising a payment larger than
    the debt.
 
