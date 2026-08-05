@@ -28,6 +28,11 @@ x-api-env: &api-env
   # pass (0 = keep forever). The bounded erasure horizon after a household is
   # deleted. On-box copies keep their count-based retention.
   FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS: ${FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS:-0}
+  # #181: per-household advisor fair-use cap (chat turns/hour; 0 = off).
+  FAMILY_CFO_CHAT_HOURLY_LIMIT: ${FAMILY_CFO_CHAT_HOURLY_LIMIT:-0}
+  # Issue #48/#3: dead-session and revoked-device pruning windows (0 disables).
+  FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS: ${FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS:-7}
+  FAMILY_CFO_REVOKED_DEVICE_RETENTION_DAYS: ${FAMILY_CFO_REVOKED_DEVICE_RETENTION_DAYS:-90}
   FAMILY_CFO_LOG_LEVEL: ${FAMILY_CFO_LOG_LEVEL:-INFO}
   FAMILY_CFO_TLS_CERT_PATH: /etc/family-cfo/certs/tls.crt
   # AI runtime on by default; households inherit this until they save their own
