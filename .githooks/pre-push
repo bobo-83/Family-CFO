@@ -1,0 +1,60 @@
+#!/bin/sh
+# Last line of defence before anything becomes public (ADR 0030).
+#
+# pre-commit guards the tree and commit-msg guards the message — but both can
+# be bypassed (--no-verify, rebases, commits made elsewhere), and a push is
+# the moment a mistake stops being local. So every OUTGOING commit is checked
+# again here: its diff content, its message, and its author/committer identity
+# are scanned against the same local deny list the other hooks use.
+#
+# Pattern-based only in this file; the literal values live in the gitignored
+# .repo-hygiene-deny (this script must never republish what it blocks).
+set -eu
+
+DENY=.repo-hygiene-deny
+ZERO=0000000000000000000000000000000000000000
+
+fail=0
+note() { printf 'pre-push: %s\n' "$1" >&2; fail=1; }
+
+# The full working-tree guard first — cheap, and catches anything staged but
+# uncommitted drifting alongside the push.
+scripts/check-repo-hygiene.sh || fail=1
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue  # deleting a remote ref pushes nothing
+  if [ "$remote_sha" = "$ZERO" ]; then
+    # New remote branch: check every commit not already on some remote ref.
+    range=$(git rev-list "$local_sha" --not --remotes 2>/dev/null || echo "$local_sha")
+  else
+    range=$(git rev-list "$remote_sha..$local_sha" 2>/dev/null || echo "$local_sha")
+  fi
+  [ -z "$range" ] && continue
+
+  for sha in $range; do
+    # Author/committer identity is deliberately NOT checked: commit signatures
+    # carrying the maintainer's name and email are standard git practice
+    # (maintainer's rule, 2026-08-06). Only what goes INTO the repo — diff
+    # content and the commit message — is guarded.
+    if [ -f "$DENY" ]; then
+      msg=$(git log -1 --format=%B "$sha")
+      diffc=$(git show --format= "$sha")
+      while IFS= read -r term; do
+        [ -z "$term" ] && continue
+        case "$term" in \#*) continue ;; esac
+        if printf '%s' "$msg" | grep -qF "$term"; then
+          note "denylisted identifier in MESSAGE of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
+        fi
+        if printf '%s' "$diffc" | grep -qF "$term"; then
+          note "denylisted identifier in DIFF of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
+        fi
+      done < "$DENY"
+    fi
+  done
+done
+
+if [ "$fail" -ne 0 ]; then
+  printf 'pre-push: BLOCKED — a commit about to leave this machine carries a personal identifier.\n' >&2
+  printf 'pre-push: fix the commit (rebase/amend) rather than bypassing; see docs/adr/0030-no-personal-identifiers.md\n' >&2
+  exit 1
+fi
