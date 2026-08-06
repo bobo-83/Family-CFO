@@ -30,7 +30,7 @@ def test_lease_without_payoff_estimates_balance_from_remaining_payments() -> Non
 
 
 def test_lease_derives_payments_left_from_maturity_date() -> None:
-    """The real the EV case: no payoff and no stated payment count, but the
+    """The real EV-lease case: no payoff and no stated payment count, but the
     statement date and maturity date give the months left."""
     result = parse_loan_scan(
         '{"lender": "Coyote Motors Finance", "monthly_payment": 412.85, '

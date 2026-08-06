@@ -160,7 +160,7 @@ struct BillsView: View {
         }
     }
 
-    /// "the amount due soon · the cash cash" — the bill-paying big picture (M111).
+    /// "$1,250 due soon · $4,800 cash" — the bill-paying big picture (M111).
     private func headline(_ timeline: Components.Schemas.PaymentTimelineResponse) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {

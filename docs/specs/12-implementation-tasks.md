@@ -932,7 +932,7 @@ User request (2026-07-11): "take a look at my checking accounts transactions and
 User feedback (2026-07-11, screenshot): the "Other deposits" rows show only a truncated label ("Online Transfer") — not enough to judge whether a deposit is real income. Every deposit row must expand to its full evidence: who sent it, the full bank description (which often names the source account, e.g. "Internal Transfer Credit: Savings -1234"), the receiving account, and the full date.
 
 - [x] Spec gate: `IncomeAnalysisTransaction` gains additive `merchant` (payer as the bank reported it), `description` (full untruncated bank memo), and `account_name` (the checking account the deposit landed in); the repository detection query joins the account name it already had in scope. UI: every deposit row — inside detected sources AND in Other deposits — becomes an expandable `<details>` whose panel lists Date, From/payer, Bank description, Deposited into, and Amount; the action buttons stay on the collapsed row and do not toggle expansion.
-- [x] Implement + tests (API returns the new fields; page expansion renders payer/description/account) + contract + generated client + deploy + live verify + commit. Verified: 355 api + 106 web tests pass; live rows now expand to e.g. payer "Internal Transfer Credit Savings", memo "Internal Transfer Credit: Savings -1234" (naming the source account), deposited into "Everyday Checking (1234)".
+- [x] Implement + tests (API returns the new fields; page expansion renders payer/description/account) + contract + generated client + deploy + live verify + commit. Verified: 355 api + 106 web tests pass; live rows now expand to e.g. payer "Internal Transfer Credit Savings", memo "Internal Transfer Credit: Savings -1234" (naming the source account), deposited into the receiving checking account.
 
 ## M63: Transfer Suppression, Reject Option, and Data-Coverage Warning
 
@@ -1063,7 +1063,7 @@ User request (2026-07-12): "I feel like you need to download the tax laws and cr
 
 ## M81: Massachusetts State Income Tax
 
-User report (2026-07-12): "my state is different and I had already specified my state. Why are you checking CA?" — CA was the only precisely modeled state (M65; the showcase demo household uses it), so the user's own MA setting has been returning the "not modeled yet — estimate is LOW" warning the whole time.
+User report (2026-07-12): the user reported that their own state — already specified in settings — was returning the "not modeled yet — estimate is LOW" warning, because CA was the only precisely modeled state (M65; the showcase demo household uses it).
 
 - [x] Spec gate: model MA in `tax_estimate.py`, parameters verified against DOR sources (2026 Form 2-ES / mass.gov): flat 5% on wages; personal exemption $4,400 single / $8,800 married-joint / $6,800 head-of-household; the up-to-$2,000-per-person FICA deduction (assumed maxed — true above ~$27k of wages per earner, noted); the 4% surtax on taxable income above the 2026 indexed threshold of $1,107,750. MA PFML payroll contributions are explicitly noted as unmodeled (like CA SDI). Notes cite the tax year; the yearly-update guide gains the MA sources.
 - [x] Implement + hand-computed tests + deploy + live verify on the user's household + commit.

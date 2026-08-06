@@ -8,8 +8,8 @@ finance). Shipped on iOS and the Angular dashboard together (ADR 0025).
 ## Context
 
 After the Bills redesign, the two screens contradicted each other: Bills said
-"the amount due in 14 days — covered" while the Overview's headline said
-"a negative figure free to spend right now." Both numbers were correct. Safe-to-spend
+"amount due in 14 days — covered" while the Overview's headline said
+a negative free-to-spend. Both numbers were correct. Safe-to-spend
 subtracts the emergency fund, a 30-day bill horizon, monthly debt payments, and
 the **full credit-card balances**, while counting **no incoming paychecks** — a
 worst-case solvency snapshot presented as a spending allowance. The user:

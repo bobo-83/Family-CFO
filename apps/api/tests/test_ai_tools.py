@@ -460,7 +460,7 @@ def test_household_context_carries_the_key_facts() -> None:
         earliest_month="2026-01",
         latest_month="2026-07",
     )
-    assert "Bo" in ctx
+    assert "Alex" in ctx
     assert "2 members" in ctx
     assert "USD" in ctx
     assert "2026-01" in ctx and "2026-07" in ctx
@@ -564,7 +564,7 @@ def test_get_debt_history_tool_shape(demo_engine: Engine) -> None:
 
 def test_money_args_are_dollars_and_legacy_minor_still_works() -> None:
     # ADR 0063: the model speaks dollars; it once read its own cents input
-    # back as dollars ("a figure 100x too large" for $11k).
+    # back as dollars, 100x the intended figure.
     from family_cfo_api.ai_tools import _money_arg
 
     minor, error = _money_arg({"price": 49.99}, "price", minimum=0)

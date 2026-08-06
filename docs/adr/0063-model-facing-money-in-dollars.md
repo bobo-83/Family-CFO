@@ -7,8 +7,8 @@ Status: Accepted
 
 Advisor tools took money arguments in minor units (cents): the model iterated
 `project_retirement` with `monthly_contribution_minor: 1100000` — correctly,
-a low-five-figure monthly sum reaches the 4% target at 60 — and then told the user to "save
-about **a figure 100x too large**" (user report 2026-07-22). The math was
+a low-five-figure monthly contribution reaches the 4% target at 60 — and then
+quoted a figure **100× too large** (user report 2026-07-22). The math was
 right; the verbalization read its own cents input as dollars. The grounding
 guardrail passed it because 1,100,000 genuinely appears in the tool trace —
 grounding checks provenance, not units.
