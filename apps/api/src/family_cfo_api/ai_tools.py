@@ -253,7 +253,7 @@ def _money_arg(
     """A money argument in DOLLARS (major units) -> minor-units int (ADR 0063).
 
     The model must never handle minor units: it read its own cents input back
-    as dollars ("save a figure 100x too large", user report 2026-07-22, when it
+    as dollars — quoting a figure 100x too large (user report 2026-07-22, when it
     meant $11k). The legacy f"{field}_minor" integer form is still accepted so
     an older cached tool schema cannot break a turn.
     """
@@ -1203,7 +1203,7 @@ _HANDLERS = {
 }
 
 # ADR 0063: the model speaks DOLLARS, never minor units — it once read its
-# own cents input back as dollars ("a figure 100x too large" for $11k).
+# own cents input back as dollars, 100x the intended figure.
 _MONEY_FIELD = {"type": "number", "description": "amount in dollars (major units), e.g. 11000 or 49.99"}
 _CURRENCY_FIELD = {
     "type": "string",

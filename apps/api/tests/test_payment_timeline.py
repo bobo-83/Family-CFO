@@ -47,10 +47,10 @@ def test_bill_paid_this_cycle_matches_the_actual_charge(demo_engine: Engine) -> 
     paid_on = TODAY - timedelta(days=5)
     next_due = add_months(paid_on, 1)
     repository.create_bill(
-        demo_engine, HH, name="Blue Fin Swim Academy", amount_minor=14_800,
+        demo_engine, HH, name="Blue Fin Swim Academy", amount_minor=13_900,
         currency="USD", frequency="monthly", next_due_date=next_due,
     )
-    _charge(demo_engine, checking, paid_on, -13_900, "GOLDFISH SWIM SCHOOL")
+    _charge(demo_engine, checking, paid_on, -13_900, "BLUE FIN SWIM ACADEMY")
 
     item = _items(demo_engine)["Blue Fin Swim Academy"]
     assert item.status == "paid"
@@ -229,7 +229,7 @@ def test_loan_without_a_matching_bill_is_still_shown(demo_engine: Engine) -> Non
     repository.record_account_balance(demo_engine, loan.id, -1_000_000)
     # A bill for a DIFFERENT creditor must not suppress this loan.
     repository.create_bill(
-        demo_engine, HH, name="Blue Fin Swim Academy", amount_minor=14_800,
+        demo_engine, HH, name="Blue Fin Swim Academy", amount_minor=13_900,
         currency="USD", frequency="monthly", next_due_date=TODAY + timedelta(days=6),
     )
 

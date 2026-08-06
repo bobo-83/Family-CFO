@@ -12,7 +12,7 @@ struct MarkdownSegmentTests {
         | Category | Current | Tied to Goal |
         |----------|---------|--------------|
         | Shopping | $1,234.56 | Builds fund |
-        | Tennis | $567.89 | Protected |
+        | Hobbies | $567.89 | Protected |
 
         Total: **$1,045**.
         """
@@ -32,7 +32,7 @@ struct MarkdownSegmentTests {
         #expect(table.headers == ["Category", "Current", "Tied to Goal"])
         #expect(table.rows.count == 2)
         #expect(table.rows[0] == ["Shopping", "$1,234.56", "Builds fund"])
-        #expect(table.rows[1] == ["Tennis", "$567.89", "Protected"])
+        #expect(table.rows[1] == ["Hobbies", "$567.89", "Protected"])
 
         guard case .markdown(let last) = segments[2] else {
             Issue.record("expected trailing prose"); return
