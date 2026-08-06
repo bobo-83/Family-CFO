@@ -56,6 +56,15 @@ placeholders. Concretely:
   tracked file. It is never committed, so it can't leak the values it protects.
   This is the only backstop for names, which the pattern checks cannot detect.
 - gitleaks (already in CI) covers keys/tokens.
+- **commit-msg hook** (2026-08-05): the deny list also scans the commit message
+  — a message publishes on push yet is invisible to every file-based check.
+- **pre-push hook** (2026-08-06): every *outgoing* commit's diff content and
+  message are re-checked against the deny list. This is the backstop for
+  `--no-verify`, rebases, and commits created outside the hooks: the push is
+  the moment a mistake stops being local. Author/committer identity is
+  deliberately **exempt** — commit signatures carrying the maintainer's name
+  and email are standard git practice, not a leak (maintainer's rule); the
+  deny list governs what goes *into* the repo, not who signs it.
 
 ## Invariant
 
