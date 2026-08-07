@@ -836,6 +836,53 @@ bill_payment_links = Table(
 )
 
 
+# #203: a savings contribution the household DECLARED (or confirmed from a
+# detected candidate). Declared ones work even when the destination account
+# never syncs — the common case for 529s and retirement plans.
+savings_contributions = Table(
+    "savings_contributions",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("source_account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    Column("destination_account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    Column("amount_minor", BigInteger, nullable=False),
+    _currency_column(),
+    Column("frequency", String(20), nullable=False),
+    # "declared" (the user asserted it) or "detected" (confirmed a candidate).
+    Column("source", String(20), nullable=False),
+    # The outflow's normalised label, when one was available — used to match
+    # future occurrences of a declared contribution.
+    Column("label_key", String(120), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("amount_minor > 0", name="ck_savings_contributions_amount_positive"),
+    CheckConstraint(
+        f"frequency in {_sql_in(RECURRING_FREQUENCIES)}",
+        name="ck_savings_contributions_frequency",
+    ),
+)
+
+
+# #203: a detected route the household said is NOT saving. Keeps a "no" stuck,
+# exactly as bill-suggestion dismissals do.
+savings_contribution_dismissals = Table(
+    "savings_contribution_dismissals",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("source_account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    Column("destination_account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index(
+        "uq_savings_dismissals_household_route",
+        "household_id",
+        "source_account_id",
+        "destination_account_id",
+        unique=True,
+    ),
+)
+
+
 bill_suggestion_dismissals = Table(
     "bill_suggestion_dismissals",
     metadata,

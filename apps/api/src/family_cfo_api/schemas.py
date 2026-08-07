@@ -246,6 +246,32 @@ class SavingsContribution(BaseModel):
     # #207: True when only the outflow was visible and the destination was
     # inferred (the arrival was never synced) — the UI should say so.
     inferred: bool = False
+    # #203: the household declared or confirmed this; it is a fact, not a
+    # suggestion, and carries an id so it can be removed.
+    declared: bool = False
+    contribution_id: str | None = None
+    # The route the money takes. Empty source means the funding side was never
+    # synced (#203, destination-side reads). Both are needed to dismiss a
+    # detected route as "not saving".
+    source_account_id: str = ""
+    destination_account_id: str = ""
+
+
+class SavingsContributionCreateRequest(BaseModel):
+    """#203: declare a recurring contribution the app cannot see — the common
+    case when the destination account (a 529, a retirement plan) never syncs."""
+
+    source_account_id: str
+    destination_account_id: str
+    amount: Money
+    frequency: RecurringFrequency
+
+
+class SavingsContributionDismissRequest(BaseModel):
+    """Tell the app a detected route is not saving, so it stops offering it."""
+
+    source_account_id: str
+    destination_account_id: str
 
 
 BudgetStatus = Literal["under", "warning", "over"]

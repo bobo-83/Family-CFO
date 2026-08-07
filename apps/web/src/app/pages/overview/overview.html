@@ -353,34 +353,138 @@
           </div>
         }
 
-        @if (context.savings_contributions; as contributions) {
-          @if (contributions.length > 0) {
-            <div class="overview__card overview__card--wide">
-              <span class="overview__label">What you're saving</span>
+        <!-- #203: the section survives an empty detection because a 529 that
+             never syncs leaves nothing to detect — the household states it. -->
+        @if (savingsRows(context); as contributions) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label">What you're saving</span>
+
+            @if (contributions.length > 0) {
               <ul class="overview__bills">
                 @for (contribution of contributions; track $index) {
-                  <li class="overview__bill">
+                  <li class="overview__bill" [class.overview__bill--declared]="contribution.declared">
                     <span class="overview__bill-name">
                       {{ contribution.destination_name }}
+                      @if (contribution.declared) {
+                        <span class="overview__declared">you told us</span>
+                      }
                       @if (contribution.inferred) {
                         <span class="overview__inferred">inferred</span>
                       }
                     </span>
                     <span class="overview__bill-due">{{ contributionDetail(contribution) }}</span>
+                    @if (canWrite()) {
+                      @if (contribution.declared) {
+                        <button
+                          mat-button
+                          type="button"
+                          class="overview__saving-action"
+                          [disabled]="savingsSubmitting()"
+                          (click)="stopTracking(contribution)"
+                        >
+                          Stop tracking
+                        </button>
+                      } @else if (canDismiss(contribution)) {
+                        <button
+                          mat-button
+                          type="button"
+                          class="overview__saving-action"
+                          [disabled]="savingsSubmitting()"
+                          (click)="dismissContribution(contribution)"
+                        >
+                          Not saving
+                        </button>
+                      }
+                    }
                   </li>
                 }
               </ul>
               @if (savingsMonthlyTotal(contributions); as total) {
                 <span class="overview__saving-total">About {{ formatMoney(total) }} a month</span>
               }
+            }
+
+            @if (canWrite() && !declaring()) {
+              <button
+                mat-stroked-button
+                type="button"
+                class="overview__declare-open"
+                (click)="startDeclaring()"
+              >
+                Add a contribution
+              </button>
+            }
+
+            @if (contributions.length === 0 && !declaring()) {
+              <span class="overview__hint">
+                Nothing detected. Money moved into an account we don't sync — a 529, a
+                workplace plan — never reaches the ledger, so tell us about it here.
+              </span>
+            }
+
+            @if (declaring()) {
+              <form class="overview__declare" [formGroup]="declareForm"
+                    (ngSubmit)="declareContribution(context.currency)">
+                @switch (accounts.status()) {
+                  @case ('loading') {
+                    <p>Loading accounts…</p>
+                  }
+                  @case ('error') {
+                    <p class="page-error" role="alert">{{ accounts.error() }}</p>
+                  }
+                  @default {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>From</mat-label>
+                      <mat-select formControlName="sourceAccountId">
+                        @for (account of accounts.value() ?? []; track account.id) {
+                          <mat-option [value]="account.id">{{ account.name }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>Into</mat-label>
+                      <mat-select formControlName="destinationAccountId">
+                        @for (account of accounts.value() ?? []; track account.id) {
+                          <mat-option [value]="account.id">{{ account.name }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  }
+                }
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ context.currency }} each time</mat-label>
+                  <input matInput type="number" step="0.01" min="0" formControlName="amount" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>How often</mat-label>
+                  <mat-select formControlName="frequency">
+                    @for (cadence of cadences; track cadence) {
+                      <mat-option [value]="cadence">{{ cadenceWord(cadence) }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <div class="overview__declare-actions">
+                  <button mat-flat-button type="submit" [disabled]="savingsSubmitting()">
+                    Save
+                  </button>
+                  <button mat-button type="button" (click)="cancelDeclaring()">Cancel</button>
+                </div>
+              </form>
+            }
+
+            @if (savingsError(); as message) {
+              <p class="page-error" role="alert">{{ message }}</p>
+            }
+
+            @if (contributions.length > 0) {
               <span class="overview__hint">
                 {{ savingsFootnote }}
                 @if (hasInferredContribution(contributions)) {
                   {{ savingsInferredFootnote }}
                 }
               </span>
-            </div>
-          }
+            }
+          </div>
         }
 
         @if (context.emergency_fund; as fund) {

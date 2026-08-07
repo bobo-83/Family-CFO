@@ -55,6 +55,7 @@ import {
   createMemory,
   createPairingSession,
   createTransaction,
+  declareSavingsContribution,
   deleteAccount,
   deleteConnection,
   deleteConversation,
@@ -65,9 +66,11 @@ import {
   deleteMember,
   deleteRole,
   deleteMemory,
+  deleteSavingsContribution,
   deleteTransaction,
   discardImport,
   dismissBillSuggestion,
+  dismissSavingsContribution,
   generateReport,
   getAiApplyStatus,
   getAiRuntimeConfig,
@@ -172,6 +175,8 @@ import {
   type RsuGrantCreateRequest,
   type RsuVestEventCreateRequest,
   type RsuVestEventUpdateRequest,
+  type SavingsContributionCreateRequest,
+  type SavingsContributionDismissRequest,
   type TransactionCreateRequest,
   type TransactionUpdateRequest,
 } from '../api-client';
@@ -335,6 +340,19 @@ export class ApiService {
 
   deleteAccount(accountId: string) {
     return deleteAccount({ path: { account_id: accountId } });
+  }
+
+  // --- #203: savings contributions the household states, not the detector ---
+  declareSavingsContribution(body: SavingsContributionCreateRequest) {
+    return declareSavingsContribution({ body });
+  }
+
+  deleteSavingsContribution(contributionId: string) {
+    return deleteSavingsContribution({ path: { contribution_id: contributionId } });
+  }
+
+  dismissSavingsContribution(body: SavingsContributionDismissRequest) {
+    return dismissSavingsContribution({ body });
   }
 
   recordAccountBalance(accountId: string, amountMinor: number, currency: string) {

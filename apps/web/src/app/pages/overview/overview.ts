@@ -1,14 +1,16 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, resource, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import type {
   YearlyOverview,
   CashOutlookResponse,
   EmergencyFundSummary,
+  HouseholdContext,
   Money,
   NetWorthPoint,
   OutlookEvent as OutlookEventDto,
@@ -65,9 +67,11 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
     DatePipe,
     DecimalPipe,
     FormsModule,
+    ReactiveFormsModule,
     RouterLink,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatButtonModule,
   ],
   templateUrl: './overview.html',
@@ -77,6 +81,7 @@ export class Overview {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly formBuilder = inject(FormBuilder);
 
   protected readonly canWrite = () => {
     return this.auth.hasRight('transactions.manage');
@@ -282,11 +287,18 @@ export class Overview {
     return CADENCE_WORDS[frequency] ?? frequency;
   }
 
-  /** "USD 500.00 monthly · seen 4 times" */
+  /**
+   * "USD 500.00 monthly · seen 4 times". A declared row carries no evidence
+   * count — it is a stated fact, so quoting occurrences would invent one.
+   */
   protected contributionDetail(contribution: SavingsContribution): string {
+    const cadence = `${formatMoney(contribution.amount)} ${this.cadenceWord(contribution.frequency)}`;
+    if (contribution.declared) {
+      return cadence;
+    }
     const times =
       contribution.occurrences === 1 ? 'seen 1 time' : `seen ${contribution.occurrences} times`;
-    return `${formatMoney(contribution.amount)} ${this.cadenceWord(contribution.frequency)} · ${times}`;
+    return `${cadence} · ${times}`;
   }
 
   /**
@@ -302,6 +314,135 @@ export class Overview {
       amount_minor: contributions.reduce((sum, c) => sum + c.monthly_equivalent.amount_minor, 0),
       currency: contributions[0].monthly_equivalent.currency,
     };
+  }
+
+  // --- #203: declaring what detection cannot see -----------------------------
+
+  /**
+   * Never null, unlike #201's hide-when-empty: zero detections is the ordinary
+   * outcome when the destination account never syncs, so the section stays and
+   * offers the declaration instead of disappearing.
+   */
+  protected savingsRows(context: HouseholdContext): SavingsContribution[] {
+    return context.savings_contributions ?? [];
+  }
+
+  protected readonly cadences = Object.keys(CADENCE_WORDS) as RecurringFrequency[];
+
+  protected readonly declaring = signal(false);
+  protected readonly savingsSubmitting = signal(false);
+  protected readonly savingsError = signal<string | null>(null);
+
+  /**
+   * The overview never otherwise needs the account list, so it is fetched only
+   * once the form opens — an idle params() keeps the first paint one call lighter.
+   */
+  protected readonly accounts = resource({
+    params: () => (this.declaring() ? true : undefined),
+    loader: async () => {
+      const { data, error } = await this.api.listAccounts();
+      if (error) {
+        throw new Error(apiErrorMessage(error, 'Failed to load accounts.'));
+      }
+      return data.accounts;
+    },
+  });
+
+  protected readonly declareForm = this.formBuilder.nonNullable.group({
+    sourceAccountId: ['', Validators.required],
+    destinationAccountId: ['', Validators.required],
+    amount: [0, [Validators.required, Validators.min(0.01)]],
+    frequency: ['monthly' as RecurringFrequency, Validators.required],
+  });
+
+  protected startDeclaring(): void {
+    this.savingsError.set(null);
+    this.declaring.set(true);
+  }
+
+  protected cancelDeclaring(): void {
+    this.declaring.set(false);
+    this.resetDeclareForm();
+  }
+
+  private resetDeclareForm(): void {
+    this.declareForm.reset({
+      sourceAccountId: '',
+      destinationAccountId: '',
+      amount: 0,
+      frequency: 'monthly',
+    });
+  }
+
+  protected async declareContribution(currency: string): Promise<void> {
+    if (this.declareForm.invalid || this.savingsSubmitting()) {
+      this.declareForm.markAllAsTouched();
+      return;
+    }
+    this.savingsSubmitting.set(true);
+    this.savingsError.set(null);
+    const { sourceAccountId, destinationAccountId, amount, frequency } =
+      this.declareForm.getRawValue();
+    const { error } = await this.api.declareSavingsContribution({
+      source_account_id: sourceAccountId,
+      destination_account_id: destinationAccountId,
+      amount: { amount_minor: Math.round(amount * 100), currency },
+      frequency,
+    });
+    this.savingsSubmitting.set(false);
+    if (error) {
+      this.savingsError.set(apiErrorMessage(error, 'Failed to save the contribution.'));
+      return;
+    }
+    this.declaring.set(false);
+    this.resetDeclareForm();
+    this.household.reload();
+  }
+
+  protected async stopTracking(contribution: SavingsContribution): Promise<void> {
+    const contributionId = contribution.contribution_id;
+    if (!contributionId || this.savingsSubmitting()) {
+      return;
+    }
+    this.savingsSubmitting.set(true);
+    this.savingsError.set(null);
+    const { error } = await this.api.deleteSavingsContribution(contributionId);
+    this.savingsSubmitting.set(false);
+    if (error) {
+      this.savingsError.set(apiErrorMessage(error, 'Failed to stop tracking that contribution.'));
+      return;
+    }
+    this.household.reload();
+  }
+
+  /**
+   * A route needs both ends to be dismissed. The source is empty when only the
+   * arrival synced, and there is nothing to name in that case.
+   */
+  protected canDismiss(contribution: SavingsContribution): boolean {
+    return (
+      !contribution.declared &&
+      !!contribution.source_account_id &&
+      !!contribution.destination_account_id
+    );
+  }
+
+  protected async dismissContribution(contribution: SavingsContribution): Promise<void> {
+    if (!this.canDismiss(contribution) || this.savingsSubmitting()) {
+      return;
+    }
+    this.savingsSubmitting.set(true);
+    this.savingsError.set(null);
+    const { error } = await this.api.dismissSavingsContribution({
+      source_account_id: contribution.source_account_id ?? '',
+      destination_account_id: contribution.destination_account_id ?? '',
+    });
+    this.savingsSubmitting.set(false);
+    if (error) {
+      this.savingsError.set(apiErrorMessage(error, 'Failed to dismiss that transfer.'));
+      return;
+    }
+    this.household.reload();
   }
 
   protected absPercent(value: number): number {

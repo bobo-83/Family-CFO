@@ -52,6 +52,9 @@ UNDO_POLICY: dict[str, str] = {
     "transaction.attachment_added": UNDOABLE,
     # bills
     "bill.created": UNDOABLE,
+    "savings_contribution.created": UNDOABLE,
+    "savings_contribution.deleted": UNDOABLE,
+    "savings_contribution.dismissed": UNDOABLE,
     "bill.payment_linked": UNDOABLE,
     "bill.payment_unlinked": UNDOABLE,
     "bill.updated": UNDOABLE,
@@ -350,6 +353,35 @@ def bill_payment_unlinked(link: repository.BillPaymentLinkRecord) -> str:
                 "transaction_id": link.transaction_id,
                 "due_date": _iso(link.due_date),
             },
+        }
+    )
+
+
+def savings_contribution_deleted(record) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "savings_contribution",
+            "data": {
+                "id": record.id,
+                "source_account_id": record.source_account_id,
+                "destination_account_id": record.destination_account_id,
+                "amount_minor": record.amount_minor,
+                "currency": record.currency,
+                "frequency": record.frequency,
+                "source": record.source,
+                "label_key": record.label_key,
+            },
+        }
+    )
+
+
+def savings_route_dismissed(source_account_id: str, destination_account_id: str) -> str:
+    return json.dumps(
+        {
+            "op": "undismiss_savings_route",
+            "source_account_id": source_account_id,
+            "destination_account_id": destination_account_id,
         }
     )
 
@@ -721,6 +753,8 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         repository.delete_bill(engine, household_id, entity_id)
     elif entity == "bill_credit":
         repository.delete_bill_credit(engine, household_id, entity_id)
+    elif entity == "savings_contribution":
+        repository.delete_savings_contribution(engine, household_id, entity_id)
     elif entity == "bill_payment_link":
         repository.delete_bill_payment_link(engine, household_id, entity_id)
     elif entity == "rsu_grant":
@@ -817,6 +851,15 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             annual_interest_rate=data.get("annual_interest_rate"),
             minimum_payment_minor=data.get("minimum_payment_minor"),
             maturity_date=_date(data.get("maturity_date")),
+        )
+    elif entity == "savings_contribution":
+        repository.create_savings_contribution(
+            engine, household_id,
+            source_account_id=data["source_account_id"],
+            destination_account_id=data["destination_account_id"],
+            amount_minor=data["amount_minor"], currency=data["currency"],
+            frequency=data["frequency"], source=data["source"],
+            label_key=data.get("label_key"), contribution_id=data.get("id"),
         )
     elif entity == "bill_payment_link":
         repository.create_bill_payment_link(

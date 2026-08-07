@@ -1119,10 +1119,13 @@ def _get_savings_contributions(
         # The honesty requirement from #201: never let this read as "all the
         # saving this family does".
         "coverage_note": (
-            "Detected from account-to-account transfers only. Payroll deductions "
-            "(401k, HSA via paycheck) never appear in the bank feed — quote "
-            "get_income_and_tax's compensation profile for those, and never present "
-            "this figure as the household's total saving."
+            "Detected from account-to-account transfers, plus any contribution the "
+            "household declared itself (declared=true — treat those as fact, not "
+            "inference). Payroll deductions (401k, HSA via paycheck) never appear in "
+            "the bank feed — quote get_income_and_tax's compensation profile for "
+            "those, and never present this figure as the household's total saving. "
+            "If a savings account the household clearly funds is missing here, the "
+            "right suggestion is that they declare it, not that they are not saving."
         ),
     }
 

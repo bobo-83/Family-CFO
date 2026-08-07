@@ -619,6 +619,23 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /reports/generate`.
     /// - Remark: Generated from `#/paths//reports/generate/post(generateReport)`.
     func generateReport(_ input: Operations.GenerateReport.Input) async throws -> Operations.GenerateReport.Output
+    /// Declare a recurring savings contribution (#203)
+    ///
+    /// Records a contribution the household knows about but the ledger cannot show. Declaring a route also clears any prior dismissal of it.
+    ///
+    /// - Remark: HTTP `POST /savings/contributions`.
+    /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)`.
+    func declareSavingsContribution(_ input: Operations.DeclareSavingsContribution.Input) async throws -> Operations.DeclareSavingsContribution.Output
+    /// Stop tracking a declared savings contribution
+    ///
+    /// - Remark: HTTP `DELETE /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)`.
+    func deleteSavingsContribution(_ input: Operations.DeleteSavingsContribution.Input) async throws -> Operations.DeleteSavingsContribution.Output
+    /// Tell the app a detected transfer is not saving
+    ///
+    /// - Remark: HTTP `POST /savings/contributions/dismiss`.
+    /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)`.
+    func dismissSavingsContribution(_ input: Operations.DismissSavingsContribution.Input) async throws -> Operations.DismissSavingsContribution.Output
     /// Export this household's data as a portable zip (#189)
     ///
     /// CSVs for the ledger, JSON for the advisor history, plus the original document and attachment files. Flows through the household's own key path — a sealed household that is locked cannot be exported (423).
@@ -2210,6 +2227,47 @@ extension APIProtocol {
         body: Operations.GenerateReport.Input.Body
     ) async throws -> Operations.GenerateReport.Output {
         try await generateReport(Operations.GenerateReport.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Declare a recurring savings contribution (#203)
+    ///
+    /// Records a contribution the household knows about but the ledger cannot show. Declaring a route also clears any prior dismissal of it.
+    ///
+    /// - Remark: HTTP `POST /savings/contributions`.
+    /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)`.
+    public func declareSavingsContribution(
+        headers: Operations.DeclareSavingsContribution.Input.Headers = .init(),
+        body: Operations.DeclareSavingsContribution.Input.Body
+    ) async throws -> Operations.DeclareSavingsContribution.Output {
+        try await declareSavingsContribution(Operations.DeclareSavingsContribution.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Stop tracking a declared savings contribution
+    ///
+    /// - Remark: HTTP `DELETE /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)`.
+    public func deleteSavingsContribution(
+        path: Operations.DeleteSavingsContribution.Input.Path,
+        headers: Operations.DeleteSavingsContribution.Input.Headers = .init()
+    ) async throws -> Operations.DeleteSavingsContribution.Output {
+        try await deleteSavingsContribution(Operations.DeleteSavingsContribution.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Tell the app a detected transfer is not saving
+    ///
+    /// - Remark: HTTP `POST /savings/contributions/dismiss`.
+    /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)`.
+    public func dismissSavingsContribution(
+        headers: Operations.DismissSavingsContribution.Input.Headers = .init(),
+        body: Operations.DismissSavingsContribution.Input.Body
+    ) async throws -> Operations.DismissSavingsContribution.Output {
+        try await dismissSavingsContribution(Operations.DismissSavingsContribution.Input(
             headers: headers,
             body: body
         ))
@@ -6446,6 +6504,22 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SavingsContribution/inferred`.
             public var inferred: Swift.Bool?
+            /// "#203: true when the household declared or confirmed this contribution. Declared contributions are facts, not suggestions, and replace any detection on the same route."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/declared`.
+            public var declared: Swift.Bool?
+            /// Present on declared contributions, so they can be removed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/contribution_id`.
+            public var contributionId: Swift.String?
+            /// The funding account. Empty when only the arrival was visible and the debit was never synced.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/source_account_id`.
+            public var sourceAccountId: Swift.String?
+            /// Needed, with the source, to dismiss a detected route.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/destination_account_id`.
+            public var destinationAccountId: Swift.String?
             /// Creates a new `SavingsContribution`.
             ///
             /// - Parameters:
@@ -6457,6 +6531,10 @@ public enum Components {
             ///   - occurrences:
             ///   - lastSeen:
             ///   - inferred: "#207: true when only the outflow was visible and the destination was inferred from a learned route or the label — the arrival was never synced."
+            ///   - declared: "#203: true when the household declared or confirmed this contribution. Declared contributions are facts, not suggestions, and replace any detection on the same route."
+            ///   - contributionId: Present on declared contributions, so they can be removed.
+            ///   - sourceAccountId: The funding account. Empty when only the arrival was visible and the debit was never synced.
+            ///   - destinationAccountId: Needed, with the source, to dismiss a detected route.
             public init(
                 destinationName: Swift.String,
                 destinationType: Swift.String,
@@ -6465,7 +6543,11 @@ public enum Components {
                 monthlyEquivalent: Components.Schemas.Money,
                 occurrences: Swift.Int,
                 lastSeen: Swift.String,
-                inferred: Swift.Bool? = nil
+                inferred: Swift.Bool? = nil,
+                declared: Swift.Bool? = nil,
+                contributionId: Swift.String? = nil,
+                sourceAccountId: Swift.String? = nil,
+                destinationAccountId: Swift.String? = nil
             ) {
                 self.destinationName = destinationName
                 self.destinationType = destinationType
@@ -6475,6 +6557,10 @@ public enum Components {
                 self.occurrences = occurrences
                 self.lastSeen = lastSeen
                 self.inferred = inferred
+                self.declared = declared
+                self.contributionId = contributionId
+                self.sourceAccountId = sourceAccountId
+                self.destinationAccountId = destinationAccountId
             }
             public enum CodingKeys: String, CodingKey {
                 case destinationName = "destination_name"
@@ -6485,6 +6571,72 @@ public enum Components {
                 case occurrences
                 case lastSeen = "last_seen"
                 case inferred
+                case declared
+                case contributionId = "contribution_id"
+                case sourceAccountId = "source_account_id"
+                case destinationAccountId = "destination_account_id"
+            }
+        }
+        /// "#203: declare a recurring contribution the app cannot see. The common case is a destination account (a 529, a workplace plan) that never syncs, leaving no arrival for detection to find."
+        ///
+        /// - Remark: Generated from `#/components/schemas/SavingsContributionCreateRequest`.
+        public struct SavingsContributionCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionCreateRequest/source_account_id`.
+            public var sourceAccountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionCreateRequest/destination_account_id`.
+            public var destinationAccountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionCreateRequest/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionCreateRequest/frequency`.
+            public var frequency: Components.Schemas.RecurringFrequency
+            /// Creates a new `SavingsContributionCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - sourceAccountId:
+            ///   - destinationAccountId:
+            ///   - amount:
+            ///   - frequency:
+            public init(
+                sourceAccountId: Swift.String,
+                destinationAccountId: Swift.String,
+                amount: Components.Schemas.Money,
+                frequency: Components.Schemas.RecurringFrequency
+            ) {
+                self.sourceAccountId = sourceAccountId
+                self.destinationAccountId = destinationAccountId
+                self.amount = amount
+                self.frequency = frequency
+            }
+            public enum CodingKeys: String, CodingKey {
+                case sourceAccountId = "source_account_id"
+                case destinationAccountId = "destination_account_id"
+                case amount
+                case frequency
+            }
+        }
+        /// Tell the app a detected route is not saving.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SavingsContributionDismissRequest`.
+        public struct SavingsContributionDismissRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionDismissRequest/source_account_id`.
+            public var sourceAccountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionDismissRequest/destination_account_id`.
+            public var destinationAccountId: Swift.String
+            /// Creates a new `SavingsContributionDismissRequest`.
+            ///
+            /// - Parameters:
+            ///   - sourceAccountId:
+            ///   - destinationAccountId:
+            public init(
+                sourceAccountId: Swift.String,
+                destinationAccountId: Swift.String
+            ) {
+                self.sourceAccountId = sourceAccountId
+                self.destinationAccountId = destinationAccountId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case sourceAccountId = "source_account_id"
+                case destinationAccountId = "destination_account_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.
@@ -31565,6 +31717,609 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Declare a recurring savings contribution (#203)
+    ///
+    /// Records a contribution the household knows about but the ledger cannot show. Declaring a route also clears any prior dismissal of it.
+    ///
+    /// - Remark: HTTP `POST /savings/contributions`.
+    /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)`.
+    public enum DeclareSavingsContribution {
+        public static let id: Swift.String = "declareSavingsContribution"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/savings/contributions/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeclareSavingsContribution.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeclareSavingsContribution.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeclareSavingsContribution.Input.Headers
+            /// - Remark: Generated from `#/paths/savings/contributions/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SavingsContributionCreateRequest)
+            }
+            public var body: Operations.DeclareSavingsContribution.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.DeclareSavingsContribution.Input.Headers = .init(),
+                body: Operations.DeclareSavingsContribution.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/savings/contributions/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.SavingsContribution)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SavingsContribution {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.DeclareSavingsContribution.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.DeclareSavingsContribution.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Contribution recorded
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.DeclareSavingsContribution.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.DeclareSavingsContribution.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/savings/contributions/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.DeclareSavingsContribution.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.DeclareSavingsContribution.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Account not found
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.DeclareSavingsContribution.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.DeclareSavingsContribution.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)/responses/423`.
+            ///
+            /// HTTP response code: `423 code423`.
+            case code423(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.code423`.
+            ///
+            /// - Throws: An error if `self` is not `.code423`.
+            /// - SeeAlso: `.code423`.
+            public var code423: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .code423(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code423",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Stop tracking a declared savings contribution
+    ///
+    /// - Remark: HTTP `DELETE /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)`.
+    public enum DeleteSavingsContribution {
+        public static let id: Swift.String = "deleteSavingsContribution"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/DELETE/path/contribution_id`.
+                public var contributionId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - contributionId:
+                public init(contributionId: Swift.String) {
+                    self.contributionId = contributionId
+                }
+            }
+            public var path: Operations.DeleteSavingsContribution.Input.Path
+            /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteSavingsContribution.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteSavingsContribution.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteSavingsContribution.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteSavingsContribution.Input.Path,
+                headers: Operations.DeleteSavingsContribution.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// No longer tracked
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteSavingsContribution.Output.NoContent)
+            /// No longer tracked
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteSavingsContribution.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.DeleteSavingsContribution.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.DeleteSavingsContribution.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Contribution not found
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/delete(deleteSavingsContribution)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.DeleteSavingsContribution.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.DeleteSavingsContribution.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Tell the app a detected transfer is not saving
+    ///
+    /// - Remark: HTTP `POST /savings/contributions/dismiss`.
+    /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)`.
+    public enum DismissSavingsContribution {
+        public static let id: Swift.String = "dismissSavingsContribution"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/savings/contributions/dismiss/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DismissSavingsContribution.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DismissSavingsContribution.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DismissSavingsContribution.Input.Headers
+            /// - Remark: Generated from `#/paths/savings/contributions/dismiss/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/dismiss/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.SavingsContributionDismissRequest)
+            }
+            public var body: Operations.DismissSavingsContribution.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.DismissSavingsContribution.Input.Headers = .init(),
+                body: Operations.DismissSavingsContribution.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Dismissed
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DismissSavingsContribution.Output.NoContent)
+            /// Dismissed
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DismissSavingsContribution.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/dismiss/post(dismissSavingsContribution)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

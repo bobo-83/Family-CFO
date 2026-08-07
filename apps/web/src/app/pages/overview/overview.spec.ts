@@ -21,6 +21,10 @@ describe('Overview', () => {
     updateHousehold: ReturnType<typeof vi.fn>;
     getCashOutlook: ReturnType<typeof vi.fn>;
     getSpendingPlan: ReturnType<typeof vi.fn>;
+    listAccounts: ReturnType<typeof vi.fn>;
+    declareSavingsContribution: ReturnType<typeof vi.fn>;
+    deleteSavingsContribution: ReturnType<typeof vi.fn>;
+    dismissSavingsContribution: ReturnType<typeof vi.fn>;
   };
 
   function configure(role = 'owner') {
@@ -42,6 +46,18 @@ describe('Overview', () => {
       // "no data" so existing tests render without the card.
       getCashOutlook: vi.fn().mockResolvedValue(response(null)),
       getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
+      // #203: only fetched once the declare form opens.
+      listAccounts: vi.fn().mockResolvedValue(
+        response({
+          accounts: [
+            { id: 'a1', name: 'Joint Checking', type: 'checking', balance: { amount_minor: 0, currency: 'USD' } },
+            { id: 'a2', name: 'College 529', type: '529', balance: { amount_minor: 0, currency: 'USD' } },
+          ],
+        }),
+      ),
+      declareSavingsContribution: vi.fn().mockResolvedValue(response({})),
+      deleteSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
+      dismissSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
     };
     configure();
   });
@@ -324,7 +340,12 @@ describe('Overview', () => {
     expect(host.textContent).toContain("What you're saving");
   });
 
-  it('hides the savings-contributions section when nothing was detected (#201)', async () => {
+  /**
+   * #203 replaces #201's hide-when-empty: two detector iterations found nothing
+   * when the destination account never syncs, so an empty section
+   * has to offer the declaration rather than vanish.
+   */
+  it('leads the empty savings section with the declare action (#203)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({
         household_id: 'h1',
@@ -342,7 +363,10 @@ describe('Overview', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).not.toContain("What you're saving");
+    expect(host.textContent).toContain("What you're saving");
+    expect(host.querySelector('.overview__declare-open')).toBeTruthy();
+    expect(host.textContent).toContain('Nothing detected.');
+    // Nothing was detected, so there is no run-rate to sum.
     expect(host.querySelector('.overview__saving-total')).toBeNull();
   });
 
@@ -715,5 +739,253 @@ describe('Overview', () => {
     expect(text).toContain('USD 3,213.00');
     expect(text).toContain('USD 214.20/day for the remaining 15 days');
     expect(text).toContain('USD 4,010.00 received');
+  });
+
+  // #203: a declaration outranks detection, and a detected route can be denied.
+  describe('declaring and dismissing savings contributions (#203)', () => {
+    function contextWith(contributions: unknown[]) {
+      return response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: contributions,
+      });
+    }
+
+    async function render() {
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('declares a contribution and reloads the overview', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextWith([]));
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      component['startDeclaring']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // The account list is only fetched once the form is open.
+      expect(apiMock.listAccounts).toHaveBeenCalled();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.overview__declare')).toBeTruthy();
+
+      component['declareForm'].setValue({
+        sourceAccountId: 'a1',
+        destinationAccountId: 'a2',
+        amount: 500,
+        frequency: 'monthly',
+      });
+      await component['declareContribution']('USD');
+      await fixture.whenStable();
+
+      expect(apiMock.declareSavingsContribution).toHaveBeenCalledWith({
+        source_account_id: 'a1',
+        destination_account_id: 'a2',
+        amount: { amount_minor: 50_000, currency: 'USD' },
+        frequency: 'monthly',
+      });
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('will not declare an incomplete contribution', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextWith([]));
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      component['startDeclaring']();
+      await component['declareContribution']('USD');
+
+      expect(apiMock.declareSavingsContribution).not.toHaveBeenCalled();
+    });
+
+    it('marks a declared row and stops tracking it on request', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 0,
+            last_seen: '2026-08-01',
+            declared: true,
+            contribution_id: 'sc1',
+            source_account_id: 'a1',
+            destination_account_id: 'a2',
+          },
+        ]),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__declared')?.textContent?.trim()).toBe('you told us');
+      // A declared row is a stated fact, so it never quotes an evidence count.
+      expect(host.textContent).toContain('USD 500.00 monthly');
+      expect(host.textContent).not.toContain('seen 0 times');
+
+      const action = host.querySelector('.overview__saving-action') as HTMLButtonElement;
+      expect(action.textContent?.trim()).toBe('Stop tracking');
+      action.click();
+      await fixture.whenStable();
+
+      expect(apiMock.deleteSavingsContribution).toHaveBeenCalledWith('sc1');
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('dismisses a detected route that is not saving', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          {
+            destination_name: 'Rainy Day Savings',
+            destination_type: 'savings',
+            amount: { amount_minor: 20_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 20_000, currency: 'USD' },
+            occurrences: 6,
+            last_seen: '2026-07-02',
+            source_account_id: 'a1',
+            destination_account_id: 'a3',
+          },
+        ]),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      const action = host.querySelector('.overview__saving-action') as HTMLButtonElement;
+      expect(action.textContent?.trim()).toBe('Not saving');
+      action.click();
+      await fixture.whenStable();
+
+      expect(apiMock.dismissSavingsContribution).toHaveBeenCalledWith({
+        source_account_id: 'a1',
+        destination_account_id: 'a3',
+      });
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    // Only the arrival synced, so there is no route to name in the request.
+    it('offers no dismissal when the funding side is unknown', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          {
+            destination_name: 'Rainy Day Savings',
+            destination_type: 'savings',
+            amount: { amount_minor: 20_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 20_000, currency: 'USD' },
+            occurrences: 6,
+            last_seen: '2026-07-02',
+            source_account_id: '',
+            destination_account_id: 'a3',
+          },
+        ]),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__saving-action')).toBeNull();
+    });
+
+    it('surfaces the server message when declaring fails', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextWith([]));
+      apiMock.declareSavingsContribution.mockResolvedValue(
+        response(undefined, { error: { message: 'That account cannot fund itself.' } }),
+      );
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      component['startDeclaring']();
+      component['declareForm'].setValue({
+        sourceAccountId: 'a1',
+        destinationAccountId: 'a1',
+        amount: 500,
+        frequency: 'monthly',
+      });
+      await component['declareContribution']('USD');
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        'That account cannot fund itself.',
+      );
+      // A failed declaration leaves the form open with the values intact.
+      expect(component['declaring']()).toBe(true);
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces the server message when stopping tracking fails', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 0,
+            last_seen: '2026-08-01',
+            declared: true,
+            contribution_id: 'sc1',
+          },
+        ]),
+      );
+      apiMock.deleteSavingsContribution.mockResolvedValue(
+        response(undefined, { error: { message: 'That contribution is already gone.' } }),
+      );
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      await component['stopTracking']({
+        destination_name: 'College 529',
+        destination_type: '529',
+        amount: { amount_minor: 50_000, currency: 'USD' },
+        frequency: 'monthly',
+        monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+        occurrences: 0,
+        last_seen: '2026-08-01',
+        declared: true,
+        contribution_id: 'sc1',
+      });
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        'That contribution is already gone.',
+      );
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides both actions from a viewer', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          {
+            destination_name: 'College 529',
+            destination_type: '529',
+            amount: { amount_minor: 50_000, currency: 'USD' },
+            frequency: 'monthly',
+            monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+            occurrences: 0,
+            last_seen: '2026-08-01',
+            declared: true,
+            contribution_id: 'sc1',
+            source_account_id: 'a1',
+            destination_account_id: 'a2',
+          },
+        ]),
+      );
+      TestBed.resetTestingModule();
+      configure('viewer');
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__saving-action')).toBeNull();
+      expect(host.querySelector('.overview__declare-open')).toBeNull();
+    });
   });
 });
