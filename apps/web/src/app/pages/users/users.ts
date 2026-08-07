@@ -54,7 +54,7 @@ export class Users {
       }
       const { data, error } = await this.api.listRoles();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load roles.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load roles.`));
       }
       return data.roles;
     },
@@ -64,7 +64,7 @@ export class Users {
     loader: async () => {
       const { data, error } = await this.api.listMembers();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load members.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load members.`));
       }
       return data.members;
     },
@@ -96,7 +96,7 @@ export class Users {
     });
     this.memberSubmitting.set(false);
     if (error) {
-      this.memberError.set(apiErrorMessage(error, 'Failed to add member.'));
+      this.memberError.set(apiErrorMessage(error, $localize`Failed to add member.`));
       return;
     }
     this.memberForm.reset({ email: '', password: '', displayName: '', roleId: '' });
@@ -115,11 +115,16 @@ export class Users {
       }
       const { data, error } = await this.api.listSystemAdmins();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load system administrators.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load system administrators.`));
       }
       return data.admins;
     },
   });
+
+  // The tooltip on a disabled Revoke button. It rides an interpolated [title]
+  // binding, so it is localized here rather than with i18n-title (which Angular
+  // would silently drop on a bound attribute).
+  protected readonly lastSystemAdminHint = $localize`:Tooltip|Why the last system administrator cannot be revoked:The box must keep at least one system administrator`;
 
   protected readonly sysAdminForm = this.formBuilder.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -138,7 +143,7 @@ export class Users {
     this.sysAdminSubmitting.set(false);
     if (error) {
       this.sysAdminError.set(
-        apiErrorMessage(error, 'Could not grant system administrator.'),
+        apiErrorMessage(error, $localize`Could not grant system administrator.`),
       );
       return;
     }
@@ -150,7 +155,7 @@ export class Users {
     this.sysAdminError.set(null);
     const { error } = await this.api.revokeSystemAdmin(userId);
     if (error) {
-      this.sysAdminError.set(apiErrorMessage(error, 'Could not revoke.'));
+      this.sysAdminError.set(apiErrorMessage(error, $localize`Could not revoke.`));
       return;
     }
     this.systemAdmins.reload();
@@ -166,7 +171,7 @@ export class Users {
       }
       const { data, error } = await this.api.listInvites();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load invitations.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load invitations.`));
       }
       return data.invites;
     },
@@ -199,7 +204,7 @@ export class Users {
     const { data, error } = await this.api.createInvite({ email, role_id: roleId });
     this.inviteSubmitting.set(false);
     if (error || !data) {
-      this.inviteError.set(apiErrorMessage(error, 'Failed to create the invite.'));
+      this.inviteError.set(apiErrorMessage(error, $localize`Failed to create the invite.`));
       return;
     }
     this.inviteForm.reset({ email: '', roleId: '' });
@@ -211,7 +216,7 @@ export class Users {
   protected async regenerateInvite(invite: Invite): Promise<void> {
     const { data, error } = await this.api.regenerateInviteToken(invite.id);
     if (error || !data) {
-      this.inviteError.set(apiErrorMessage(error, 'Failed to mint a new link.'));
+      this.inviteError.set(apiErrorMessage(error, $localize`Failed to mint a new link.`));
       return;
     }
     this.inviteLink.set({ email: data.invite.email, url: this.joinUrl(data.invite_token) });
@@ -222,7 +227,7 @@ export class Users {
   protected async revokeInvite(invite: Invite): Promise<void> {
     const { error } = await this.api.revokeInvite(invite.id);
     if (error) {
-      this.inviteError.set(apiErrorMessage(error, 'Failed to revoke the invite.'));
+      this.inviteError.set(apiErrorMessage(error, $localize`Failed to revoke the invite.`));
       return;
     }
     this.invites.reload();
@@ -244,19 +249,21 @@ export class Users {
   protected async changeRole(userId: string, roleId: string): Promise<void> {
     const { error } = await this.api.updateMemberRole(userId, { role_id: roleId });
     if (error) {
-      this.memberError.set(apiErrorMessage(error, 'Failed to change role.'));
+      this.memberError.set(apiErrorMessage(error, $localize`Failed to change role.`));
       return;
     }
     this.members.reload();
   }
 
   protected async removeMember(userId: string): Promise<void> {
-    if (!confirm('Remove this member? Their active sessions will be revoked.')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm shown before a household member is removed:Remove this member? Their active sessions will be revoked.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteMember(userId);
     if (error) {
-      this.memberError.set(apiErrorMessage(error, 'Failed to remove member.'));
+      this.memberError.set(apiErrorMessage(error, $localize`Failed to remove member.`));
       return;
     }
     this.members.reload();
@@ -266,7 +273,7 @@ export class Users {
     loader: async () => {
       const { data, error } = await this.api.listPairedDevices();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load paired devices.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load paired devices.`));
       }
       return data.devices;
     },
@@ -331,7 +338,7 @@ export class Users {
 
     if (error || !data) {
       this.pairingUserId.set(null);
-      this.pairingError.set(apiErrorMessage(error, 'Failed to create a pairing session.'));
+      this.pairingError.set(apiErrorMessage(error, $localize`Failed to create a pairing session.`));
       return;
     }
 
@@ -364,7 +371,7 @@ export class Users {
     this.revokingId.set(null);
 
     if (error) {
-      this.revokeError.set(apiErrorMessage(error, 'Failed to revoke device.'));
+      this.revokeError.set(apiErrorMessage(error, $localize`Failed to revoke device.`));
       return;
     }
 

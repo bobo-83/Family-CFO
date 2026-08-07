@@ -1,11 +1,23 @@
-<h1>Reports</h1>
+<h1 i18n="Page title|Generated household reports page">Reports</h1>
 
 @if (canGenerate()) {
   <div class="reports-actions">
-    <button mat-flat-button type="button" [disabled]="generating()" (click)="generate('weekly')">
+    <button
+      mat-flat-button
+      type="button"
+      [disabled]="generating()"
+      (click)="generate('weekly')"
+      i18n="Button|Generates a report covering the past week"
+    >
       Generate weekly report
     </button>
-    <button mat-stroked-button type="button" [disabled]="generating()" (click)="generate('monthly')">
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="generating()"
+      (click)="generate('monthly')"
+      i18n="Button|Generates a report covering the past month"
+    >
       Generate monthly report
     </button>
   </div>
@@ -13,11 +25,11 @@
     <p class="reports-error">{{ generateError() }}</p>
   }
 } @else {
-  <p class="reports-note">Only the household owner or an adult member can generate reports.</p>
+  <p class="reports-note" i18n="Permission notice|Shown instead of the generate buttons to members without the right">Only the household owner or an adult member can generate reports.</p>
 }
 
 @if (reports.isLoading()) {
-  <p>Loading reports…</p>
+  <p i18n="Loading placeholder|The list of generated reports is loading">Loading reports…</p>
 } @else if (reports.error()) {
   <p class="reports-error">{{ reports.error() }}</p>
 } @else {
@@ -25,13 +37,13 @@
     <mat-card appearance="outlined" class="report-card">
       <mat-card-content>
       <header>
-        <h2>{{ report.report_type | titlecase }} report</h2>
+        <h2 i18n="Report heading|Names the reporting cadence — renders as Weekly report or Monthly report">{{ reportTypeLabel(report.report_type) }} report</h2>
         <span>{{ report.period_start }} – {{ report.period_end }}</span>
       </header>
-      <p class="report-card__net">Net cash flow: {{ formatMoney(report.summary.net_cash_flow) }}</p>
+      <p class="report-card__net" i18n="Report figure|Money in minus money out over the report period">Net cash flow: {{ formatMoney(report.summary.net_cash_flow) }}</p>
       <p class="report-card__narrative">{{ report.explanation_text }}</p>
       @if (report.summary.wins?.length) {
-        <h3>Wins</h3>
+        <h3 i18n="Report section heading|Things that went well in the report period">Wins</h3>
         <ul>
           @for (win of report.summary.wins; track win) {
             <li>{{ win }}</li>
@@ -39,7 +51,7 @@
         </ul>
       }
       @if (report.summary.risks?.length) {
-        <h3>Risks</h3>
+        <h3 i18n="Report section heading|Things that could go wrong">Risks</h3>
         <ul>
           @for (risk of report.summary.risks; track risk) {
             <li>{{ risk }}</li>
@@ -47,7 +59,7 @@
         </ul>
       }
       @if (report.summary.unusual_spending?.length) {
-        <h3>Unusual spending</h3>
+        <h3 i18n="Report section heading|Spending that stands out from the usual pattern">Unusual spending</h3>
         <ul>
           @for (item of report.summary.unusual_spending; track item) {
             <li>{{ item }}</li>
@@ -55,7 +67,7 @@
         </ul>
       }
       @if (report.summary.recommended_actions?.length) {
-        <h3>Recommended actions</h3>
+        <h3 i18n="Report section heading|What the advisor suggests doing next">Recommended actions</h3>
         <ul>
           @for (action of report.summary.recommended_actions; track action) {
             <li>{{ action }}</li>
@@ -65,6 +77,6 @@
       </mat-card-content>
     </mat-card>
   } @empty {
-    <p>No reports generated yet.</p>
+    <p i18n="Empty state|No reports have been generated yet">No reports generated yet.</p>
   }
 }

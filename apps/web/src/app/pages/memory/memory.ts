@@ -46,7 +46,7 @@ export class Memory {
     const { data, error } = await this.api.listMemories();
     this.loading.set(false);
     if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, 'Failed to load memories.'));
+      this.loadError.set(apiErrorMessage(error, $localize`Failed to load memories.`));
       return;
     }
     this.memories.set(data.memories);
@@ -70,7 +70,7 @@ export class Memory {
     const { error } = await this.api.createMemory({ value: value.trim() });
     this.submitting.set(false);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to save the fact.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to save the fact.`));
       return;
     }
     this.form.reset({ value: '' });
@@ -78,12 +78,14 @@ export class Memory {
   }
 
   protected async forget(id: string): Promise<void> {
-    if (!confirm('Forget this fact? The advisor will no longer know it.')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm before a remembered fact is deleted:Forget this fact? The advisor will no longer know it.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteMemory(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete the memory.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete the memory.`));
       return;
     }
     await this.load();

@@ -1,14 +1,14 @@
-<h1>Users &amp; devices</h1>
-<p class="page-empty">
+<h1 i18n="Page title|Household members and the phones paired to them">Users &amp; devices</h1>
+<p class="page-empty" i18n="Page intro|Explains what the users page does; Family CFO is the product name and stays untranslated">
   Manage household members and the devices paired to them. Open a member to pair a
   phone — each member gets their own QR code to scan with the Family CFO iPhone app.
 </p>
 
-<h2>Household members</h2>
+<h2 i18n="Section heading|The roster of people in this household">Household members</h2>
 
 @switch (members.status()) {
   @case ('loading') {
-    <p>Loading…</p>
+    <p i18n="Loading placeholder">Loading…</p>
   }
   @case ('error') {
     <p class="page-error" role="alert">{{ members.error() }}</p>
@@ -44,7 +44,11 @@
                 [attr.aria-expanded]="isExpanded(member.user_id)"
                 (click)="toggleExpanded(member.user_id)"
               >
-                {{ isExpanded(member.user_id) ? 'Hide devices' : 'Devices' }}
+                @if (isExpanded(member.user_id)) {
+                  <ng-container i18n="Button|Collapses the member's device list">Hide devices</ng-container>
+                } @else {
+                  <ng-container i18n="Button|Expands the member's device list">Devices</ng-container>
+                }
               </button>
               @if (canManageMembers()) {
                 <button
@@ -52,6 +56,7 @@
                   type="button"
                   class="member-list__remove"
                   (click)="removeMember(member.user_id)"
+                  i18n="Button|Removes this member from the household"
                 >
                   Remove
                 </button>
@@ -63,7 +68,7 @@
             <div class="member-devices">
               @if (devicesForUser(member.user_id); as memberDevices) {
                 @if (memberDevices.length === 0) {
-                  <p class="page-empty">No devices paired yet.</p>
+                  <p class="page-empty" i18n="Empty state|This member has paired no phones">No devices paired yet.</p>
                 } @else {
                   <ul class="device-list">
                     @for (device of memberDevices; track device.id) {
@@ -71,14 +76,14 @@
                         <div>
                           <div class="device-list__name">{{ device.name }}</div>
                           <div class="device-list__meta">
-                            Paired {{ device.created_at | date: 'medium' }}
+                            <ng-container i18n="Device meta|When the device was paired">Paired {{ device.created_at | date: 'medium' }}</ng-container>
                             @if (device.last_seen_at) {
-                              · Last seen {{ device.last_seen_at | date: 'medium' }}
+                              <ng-container i18n="Device meta|Appended when the device has checked in at least once"> · Last seen {{ device.last_seen_at | date: 'medium' }}</ng-container>
                             }
                           </div>
                         </div>
                         @if (device.revoked_at) {
-                          <span class="device-list__revoked">Revoked</span>
+                          <span class="device-list__revoked" i18n="Device status|The device's pairing was revoked">Revoked</span>
                         } @else if (canRevokeDevices()) {
                           <button
                             mat-button
@@ -87,7 +92,11 @@
                             [disabled]="revokingId() === device.id"
                             (click)="revokeDevice(device.id)"
                           >
-                            {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
+                            @if (revokingId() === device.id) {
+                              <ng-container i18n="Button|Shown while the device pairing is being revoked">Revoking…</ng-container>
+                            } @else {
+                              <ng-container i18n="Button|Revokes this device's pairing">Revoke</ng-container>
+                            }
                           </button>
                         }
                       </li>
@@ -103,11 +112,19 @@
                     <img
                       [src]="session.qrImageDataUrl"
                       alt="Pairing QR code"
+                      i18n-alt="Image alternative text|The QR code a phone scans to pair"
                       width="240"
                       height="240"
                     />
-                    <p class="pairing-card__expiry">Expires {{ session.expiresAt | date: 'medium' }}</p>
-                    <button mat-stroked-button type="button" (click)="dismissPairing()">Done</button>
+                    <p class="pairing-card__expiry" i18n="Pairing session|When the pairing code stops working">Expires {{ session.expiresAt | date: 'medium' }}</p>
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      (click)="dismissPairing()"
+                      i18n="Button|Dismisses the pairing QR code"
+                    >
+                      Done
+                    </button>
                     </mat-card-content>
                   </mat-card>
                 }
@@ -119,16 +136,20 @@
                   [disabled]="pairingUserId() === member.user_id"
                   (click)="pairDeviceFor(member)"
                 >
-                  {{ pairingUserId() === member.user_id ? 'Creating session…' : 'Pair a device' }}
+                  @if (pairingUserId() === member.user_id) {
+                    <ng-container i18n="Button|Shown while the pairing session is being minted">Creating session…</ng-container>
+                  } @else {
+                    <ng-container i18n="Button|Mints a QR code that pairs a phone to this member">Pair a device</ng-container>
+                  }
                 </button>
               } @else {
-                <p class="page-empty">Only an admin can pair a device for another member.</p>
+                <p class="page-empty" i18n="Permission notice|Pairing on another member's behalf needs device management">Only an admin can pair a device for another member.</p>
               }
             </div>
           }
         </li>
       } @empty {
-        <li>No members.</li>
+        <li i18n="Empty state|The household roster came back empty">No members.</li>
       }
     </ul>
   }
@@ -143,8 +164,8 @@
 
 @if (canManageMembers()) {
 @if (canManageSystemAdmins()) {
-  <h2>System administrators</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Box-level operators, shared by every household">System administrators</h2>
+  <p class="page-hint" i18n="Section hint|What a system administrator controls and when a grant takes effect">
     Box-level operators (ADR 0065): they control machinery shared by EVERY
     household — like which AI model the server runs. Grants target existing
     users by email and take effect at their next sign-in. The roster always
@@ -166,7 +187,8 @@
                 type="button"
                 (click)="revokeSystemAdmin(admin.user_id)"
                 [disabled]="admins.length <= 1"
-                [title]="admins.length <= 1 ? 'The box must keep at least one system administrator' : ''"
+                [title]="admins.length <= 1 ? lastSystemAdminHint : ''"
+                i18n="Button|Removes this person's system administrator grant"
               >
                 Revoke
               </button>
@@ -175,13 +197,18 @@
         </ul>
       }
       <form class="member-form" [formGroup]="sysAdminForm" (ngSubmit)="grantSystemAdmin()">
-        <h3>Grant to an existing user</h3>
+        <h3 i18n="Form heading|Grants system administrator to somebody who already has an account">Grant to an existing user</h3>
         <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
+          <mat-label i18n="Form field label|Email address of the user being granted the right">Email</mat-label>
           <input matInput type="email" formControlName="email" />
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="sysAdminSubmitting()">
-          {{ sysAdminSubmitting() ? 'Granting…' : 'Grant system admin' }}
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="sysAdminSubmitting()"
+          i18n="System admin form submit button|Grants the right, showing progress while the request is in flight"
+        >
+          {sysAdminSubmitting(), select, true {Granting…} other {Grant system admin}}
         </button>
         @if (sysAdminError(); as message) {
           <p class="page-error" role="alert">{{ message }}</p>
@@ -191,8 +218,8 @@
   </mat-card>
 }
 
-  <h2>Invitations</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Pending and past invitations to join the household">Invitations</h2>
+  <p class="page-hint" i18n="Section hint|Explains that the box sends no email and the admin shares the link themselves">
     Invite a family member by email: you get a one-time link to send them
     yourself (from your own mail or messages app — this server never sends
     email). They open it, choose their own password, and join.
@@ -201,21 +228,26 @@
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
       <form class="member-form invite-form" [formGroup]="inviteForm" (ngSubmit)="sendInvite()">
-        <h3>Invite by email</h3>
+        <h3 i18n="Form heading|Creates an invitation for an email address">Invite by email</h3>
         <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
+          <mat-label i18n="Form field label|Email address the invitation is for">Email</mat-label>
           <input matInput type="email" formControlName="email" />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Role</mat-label>
+          <mat-label i18n="Form field label|Household role the invitee will get">Role</mat-label>
           <mat-select formControlName="roleId">
             @for (role of roles.value() ?? []; track role.id) {
               <mat-option [value]="role.id">{{ role.name }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="inviteSubmitting()">
-          {{ inviteSubmitting() ? 'Creating…' : 'Create invite link' }}
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="inviteSubmitting()"
+          i18n="Invite form submit button|Mints the one-time join link, showing progress while the request is in flight"
+        >
+          {inviteSubmitting(), select, true {Creating…} other {Create invite link}}
         </button>
         @if (inviteError(); as message) {
           <p class="page-error" role="alert">{{ message }}</p>
@@ -224,7 +256,7 @@
 
       @if (inviteLink(); as link) {
         <div class="invite-link" role="status">
-          <p class="invite-link__note">
+          <p class="invite-link__note" i18n="Invite link note|Warns that the link is shown once and expires">
             Send this link to <strong>{{ link.email }}</strong> — it's shown
             <strong>only once</strong> (use “New link” later if it's lost) and
             expires in 7 days.
@@ -232,9 +264,20 @@
           <code class="invite-link__url">{{ link.url }}</code>
           <div class="invite-link__actions">
             <button mat-flat-button type="button" (click)="copyInviteLink()">
-              {{ inviteLinkCopied() ? 'Copied ✓' : 'Copy link' }}
+              @if (inviteLinkCopied()) {
+                <ng-container i18n="Button|Confirms the invite link is on the clipboard">Copied ✓</ng-container>
+              } @else {
+                <ng-container i18n="Button|Copies the invite link to the clipboard">Copy link</ng-container>
+              }
             </button>
-            <button mat-button type="button" (click)="dismissInviteLink()">Done</button>
+            <button
+              mat-button
+              type="button"
+              (click)="dismissInviteLink()"
+              i18n="Button|Dismisses the one-time invite link"
+            >
+              Done
+            </button>
           </div>
         </div>
       }
@@ -248,29 +291,46 @@
                   <div class="invite-list__email">{{ invite.email }}</div>
                   <div class="invite-list__meta">
                     {{ invite.role_name || invite.role }}
-                    · invited {{ invite.created_at | date: 'MMM d' }}
+                    <ng-container i18n="Invitation meta|When the invitation was created"> · invited {{ invite.created_at | date: 'MMM d' }}</ng-container>
                     @if (invite.status === 'pending') {
-                      · expires {{ invite.expires_at | date: 'MMM d' }}
+                      <ng-container i18n="Invitation meta|When a still-pending invitation stops working"> · expires {{ invite.expires_at | date: 'MMM d' }}</ng-container>
                     }
                     @if (invite.accepted_at) {
-                      · joined {{ invite.accepted_at | date: 'MMM d' }}
+                      <ng-container i18n="Invitation meta|When the invitee joined the household"> · joined {{ invite.accepted_at | date: 'MMM d' }}</ng-container>
                     }
                   </div>
                 </div>
                 <div class="invite-list__actions">
                   <span class="invite-status invite-status--{{ invite.status }}">
-                    {{ invite.status === 'pending' ? 'Invite sent' :
-                       invite.status === 'accepted' ? 'Accepted' :
-                       invite.status === 'expired' ? 'Expired' : 'Revoked' }}
+                    @switch (invite.status) {
+                      @case ('pending') {
+                        <ng-container i18n="Invitation status|The link was minted and is waiting to be used">Invite sent</ng-container>
+                      }
+                      @case ('accepted') {
+                        <ng-container i18n="Invitation status|The invitee joined the household">Accepted</ng-container>
+                      }
+                      @case ('expired') {
+                        <ng-container i18n="Invitation status|The link passed its expiry unused">Expired</ng-container>
+                      }
+                      @default {
+                        <ng-container i18n="Invitation status|The link was revoked before it was used">Revoked</ng-container>
+                      }
+                    }
                   </span>
                   @if (invite.status !== 'accepted') {
-                    <button mat-button type="button" (click)="regenerateInvite(invite)">
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="regenerateInvite(invite)"
+                      i18n="Button|Mints a fresh one-time link for this invitation"
+                    >
                       New link
                     </button>
                   }
                   @if (invite.status === 'pending') {
                     <button mat-button type="button" class="invite-list__revoke"
-                            (click)="revokeInvite(invite)">
+                            (click)="revokeInvite(invite)"
+                            i18n="Button|Cancels this pending invitation">
                       Revoke
                     </button>
                   }
@@ -286,28 +346,35 @@
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form class="member-form" [formGroup]="memberForm" (ngSubmit)="addMember()">
-      <h3>Add a member directly (you set their password)</h3>
+      <h3 i18n="Form heading|Creates a member account without an invitation">Add a member directly (you set their password)</h3>
       <mat-form-field appearance="outline">
-        <mat-label>Email</mat-label>
+        <mat-label i18n="Form field label|Email address the new member signs in with">Email</mat-label>
         <input matInput type="email" formControlName="email" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Display name</mat-label>
+        <mat-label i18n="Form field label|Name shown for the new member">Display name</mat-label>
         <input matInput type="text" formControlName="displayName" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Password</mat-label>
+        <mat-label i18n="Form field label|Password the admin sets for the new member">Password</mat-label>
         <input matInput type="password" formControlName="password" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Role</mat-label>
+        <mat-label i18n="Form field label|Household role the new member gets">Role</mat-label>
         <mat-select formControlName="roleId">
           @for (role of roles.value() ?? []; track role.id) {
             <mat-option [value]="role.id">{{ role.name }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
-      <button mat-flat-button type="submit" [disabled]="memberSubmitting()">Add member</button>
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="memberSubmitting()"
+        i18n="Button|Creates the household member"
+      >
+        Add member
+      </button>
       @if (memberError(); as message) {
         <p class="page-error" role="alert">{{ message }}</p>
       }
@@ -315,26 +382,26 @@
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="page-empty">Only the household owner can manage members.</p>
+  <p class="page-empty" i18n="Permission notice|Shown instead of the member-management sections to members without the right">Only the household owner can manage members.</p>
 }
 
 @if (unassignedDevices(); as others) {
   @if (others.length > 0) {
-    <h2>Other devices</h2>
+    <h2 i18n="Section heading|Paired devices that belong to no current member">Other devices</h2>
     <ul class="device-list">
       @for (device of others; track device.id) {
         <li class="device-list__item">
           <div>
             <div class="device-list__name">{{ device.name }}</div>
             <div class="device-list__meta">
-              Paired {{ device.created_at | date: 'medium' }}
+              <ng-container i18n="Device meta|When the device was paired">Paired {{ device.created_at | date: 'medium' }}</ng-container>
               @if (device.last_seen_at) {
-                · Last seen {{ device.last_seen_at | date: 'medium' }}
+                <ng-container i18n="Device meta|Appended when the device has checked in at least once"> · Last seen {{ device.last_seen_at | date: 'medium' }}</ng-container>
               }
             </div>
           </div>
           @if (device.revoked_at) {
-            <span class="device-list__revoked">Revoked</span>
+            <span class="device-list__revoked" i18n="Device status|The device's pairing was revoked">Revoked</span>
           } @else if (canRevokeDevices()) {
             <button
               mat-button
@@ -343,7 +410,11 @@
               [disabled]="revokingId() === device.id"
               (click)="revokeDevice(device.id)"
             >
-              {{ revokingId() === device.id ? 'Revoking…' : 'Revoke' }}
+              @if (revokingId() === device.id) {
+                <ng-container i18n="Button|Shown while the device pairing is being revoked">Revoking…</ng-container>
+              } @else {
+                <ng-container i18n="Button|Revokes this device's pairing">Revoke</ng-container>
+              }
             </button>
           }
         </li>

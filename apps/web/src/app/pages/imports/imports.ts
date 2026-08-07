@@ -38,7 +38,7 @@ export class Imports {
     loader: async () => {
       const { data, error } = await this.api.listAccounts();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load accounts.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load accounts.`));
       }
       return data.accounts;
     },
@@ -48,7 +48,7 @@ export class Imports {
     loader: async () => {
       const { data, error } = await this.api.listImports();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load imports.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load imports.`));
       }
       return data.imports;
     },
@@ -74,7 +74,9 @@ export class Imports {
       return;
     }
     if (!this.selectedFile) {
-      this.submitError.set('Choose a file to import.');
+      this.submitError.set(
+        $localize`:Form error|No statement file was picked before uploading:Choose a file to import.`,
+      );
       return;
     }
 
@@ -88,14 +90,14 @@ export class Imports {
     });
     if (created.error || !created.data) {
       this.submitting.set(false);
-      this.submitError.set(apiErrorMessage(created.error, 'Failed to register import.'));
+      this.submitError.set(apiErrorMessage(created.error, $localize`Failed to register import.`));
       return;
     }
 
     const uploaded = await this.api.uploadImportFile(created.data.id, this.selectedFile);
     this.submitting.set(false);
     if (uploaded.error) {
-      this.submitError.set(apiErrorMessage(uploaded.error, 'Failed to upload file.'));
+      this.submitError.set(apiErrorMessage(uploaded.error, $localize`Failed to upload file.`));
       return;
     }
     this.selectedFile = null;
@@ -105,19 +107,21 @@ export class Imports {
   protected async apply(id: string): Promise<void> {
     const { error } = await this.api.applyImport(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to apply import.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to apply import.`));
       return;
     }
     this.imports.reload();
   }
 
   protected async discard(id: string): Promise<void> {
-    if (!confirm('Discard this import and delete its pending transactions?')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm before an import and its pending transactions are discarded:Discard this import and delete its pending transactions?`,
+      )) {
       return;
     }
     const { error } = await this.api.discardImport(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to discard import.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to discard import.`));
       return;
     }
     this.imports.reload();
@@ -129,7 +133,7 @@ export class Imports {
     loader: async () => {
       const { data, error } = await this.api.listConnections();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load linked institutions.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load linked institutions.`));
       }
       return data.connections;
     },
@@ -160,11 +164,13 @@ export class Imports {
     });
     this.linking.set(false);
     if (error) {
-      this.linkError.set(apiErrorMessage(error, 'Could not link the institution.'));
+      this.linkError.set(apiErrorMessage(error, $localize`Could not link the institution.`));
       return;
     }
     this.connectionForm.reset({ displayName: '', setupToken: '' });
-    this.syncMessage.set('Linked! The first sync started automatically — accounts appear shortly.');
+    this.syncMessage.set(
+      $localize`:Status|Confirms an institution was linked and the first sync is running:Linked! The first sync started automatically — accounts appear shortly.`,
+    );
     this.connections.reload();
     // The initial background sync usually lands within seconds; refresh once.
     setTimeout(() => {
@@ -182,11 +188,10 @@ export class Imports {
     const { data, error } = await this.api.syncConnection(connectionId);
     this.syncingId.set(null);
     if (error || !data) {
-      this.syncMessage.set(apiErrorMessage(error, 'Sync failed.'));
+      this.syncMessage.set(apiErrorMessage(error, $localize`Sync failed.`));
     } else {
       this.syncMessage.set(
-        `Synced ${data.accounts_synced} account(s): ${data.imported} new, ` +
-          `${data.duplicates_skipped} duplicate(s) skipped.`,
+        $localize`:Sync result|Outcome of a manual institution sync:Synced ${data.accounts_synced}:accounts: account(s): ${data.imported}:imported: new, ${data.duplicates_skipped}:duplicates: duplicate(s) skipped.`,
       );
     }
     this.connections.reload();
@@ -194,12 +199,14 @@ export class Imports {
   }
 
   protected async unlink(connectionId: string): Promise<void> {
-    if (!window.confirm('Unlink this institution? Imported transactions are kept.')) {
+    if (!window.confirm(
+        $localize`:Confirmation|Browser confirm before a bank connection is removed:Unlink this institution? Imported transactions are kept.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteConnection(connectionId);
     if (error) {
-      this.syncMessage.set(apiErrorMessage(error, 'Failed to unlink.'));
+      this.syncMessage.set(apiErrorMessage(error, $localize`Failed to unlink.`));
       return;
     }
     this.connections.reload();

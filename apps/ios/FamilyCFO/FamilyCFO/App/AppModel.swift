@@ -67,7 +67,16 @@ final class AppModel {
     /// Settings language picker (#10 phase 1). The speech paths read it per
     /// utterance to pick a matching voice; nothing fetches it on the speak
     /// path. Server default is "en".
-    var householdLanguage = "en"
+    /// #10: the household's language. Mirrored into UserDefaults on every set
+    /// so the API client's Accept-Language middleware — which runs off the main
+    /// actor and cannot touch this actor-isolated property — has a thread-safe
+    /// source. The mirror also means the FIRST request after launch already
+    /// carries the right language, before any context fetch returns.
+    var householdLanguage = "en" {
+        didSet { UserDefaults.standard.set(householdLanguage, forKey: Self.languageKey) }
+    }
+
+    nonisolated static let languageKey = "family-cfo.householdLanguage"
 
     var rolePolicy: RolePolicy {
         RolePolicy(role: credential?.role, rights: credential?.rights.map(Set.init))
@@ -90,7 +99,11 @@ final class AppModel {
             token: { token },
             // ADR 0072 Phase 3: lets a sealed household's 423 answer trigger
             // one device unwrap-and-unlock before the request is replayed.
-            devicePrivateKey: { KeychainStore.load(account: "device-private-key") }
+            devicePrivateKey: { KeychainStore.load(account: "device-private-key") },
+            // #10 phase 4: the API writes its own prose (error details) in this
+            // language. Read live from the cached household setting, so a
+            // mid-session change applies to the next request.
+            language: { UserDefaults.standard.string(forKey: AppModel.languageKey) }
         )
     }
 

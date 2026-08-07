@@ -1,16 +1,16 @@
-<h1>Categories</h1>
+<h1 i18n="Page title|Spending categories page">Categories</h1>
 
-<p class="page-hint">
+<p class="page-hint" i18n="Page intro|Explains what spending categories are for">
   Spending categories power budgets and the spending breakdown. Create the ones
   that fit your household, then assign them to transactions.
 </p>
 
 @if (loading()) {
-  <p>Loading…</p>
+  <p i18n="Loading placeholder">Loading…</p>
 } @else if (loadError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
 } @else if (categories().length === 0) {
-  <p class="page-empty">No categories yet.</p>
+  <p class="page-empty" i18n="Empty state|No spending categories have been created">No categories yet.</p>
 } @else {
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
@@ -25,6 +25,8 @@
               class="category-list__rename"
               (click)="rename(category)"
               aria-label="Rename category"
+              i18n="Button|Renames this spending category"
+              i18n-aria-label="Button accessible name|Renames this spending category"
             >
               Rename
             </button>
@@ -34,6 +36,8 @@
               class="category-list__delete"
               (click)="remove(category.id)"
               aria-label="Delete category"
+              i18n="Button|Deletes this spending category"
+              i18n-aria-label="Button accessible name|Deletes this spending category"
             >
               Delete
             </button>
@@ -48,21 +52,26 @@
 @if (canWrite()) {
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
-    <h2>Add a category</h2>
+    <h2 i18n="Section heading|Form that creates a new spending category">Add a category</h2>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="category-form">
       <mat-form-field appearance="outline">
-        <mat-label>Name</mat-label>
+        <mat-label i18n="Form field label|Name of the spending category">Name</mat-label>
         <input matInput type="text" formControlName="name" maxlength="80" />
       </mat-form-field>
       @if (submitError(); as message) {
         <p class="page-error" role="alert">{{ message }}</p>
       }
-      <button mat-flat-button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Saving…' : 'Add category' }}
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="submitting()"
+        i18n="Category form submit button|Creates the category, showing progress while the request is in flight"
+      >
+        {submitting(), select, true {Saving…} other {Add category}}
       </button>
     </form>
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="page-empty">Only the household owner or an adult member can manage categories.</p>
+  <p class="page-empty" i18n="Permission notice|Shown instead of the category form to members without the right">Only the household owner or an adult member can manage categories.</p>
 }

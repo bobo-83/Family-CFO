@@ -80,7 +80,7 @@ export class Budgets {
     ]);
     this.loading.set(false);
     if (budgets.error || !budgets.data) {
-      this.loadError.set(apiErrorMessage(budgets.error, 'Failed to load budgets.'));
+      this.loadError.set(apiErrorMessage(budgets.error, $localize`Failed to load budgets.`));
       return;
     }
     this.budgets.set(budgets.data.budgets);
@@ -109,7 +109,7 @@ export class Budgets {
     });
     this.submitting.set(false);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to create budget.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to create budget.`));
       return;
     }
     this.form.reset({ categoryId: '', limit: 0 });
@@ -126,19 +126,21 @@ export class Budgets {
       limit: { amount_minor: Math.round(value * 100), currency: budget.limit.currency },
     });
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to update the limit.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to update the limit.`));
       return;
     }
     await this.load();
   }
 
   protected async remove(id: string): Promise<void> {
-    if (!confirm('Delete this budget envelope?')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm before a budget envelope is deleted:Delete this budget envelope?`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteBudget(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete budget.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete budget.`));
       return;
     }
     await this.load();

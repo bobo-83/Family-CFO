@@ -1245,8 +1245,15 @@ async def export_household(
     # FileResponse streams it and the BackgroundTask below unlinks it after.
     fd, out_path = tempfile.mkstemp(suffix=".zip")
     os.close(fd)
+    household_record = repository.get_household(engine, session.household_id)
     counts = household_export.build_export_zip(
-        engine, settings, session.household_id, out_path
+        engine,
+        settings,
+        session.household_id,
+        out_path,
+        # The export is read long after the request, so it follows the
+        # household's own setting rather than the caller's header.
+        language=household_record.language if household_record else None,
     )
     audit.write_audit(
         engine,

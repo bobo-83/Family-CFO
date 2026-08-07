@@ -1,4 +1,3 @@
-import { TitleCasePipe } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -10,7 +9,7 @@ import { formatMoney } from '../../shared/format-money';
 
 @Component({
   selector: 'app-reports',
-  imports: [TitleCasePipe, MatCardModule, MatButtonModule],
+  imports: [MatCardModule, MatButtonModule],
   templateUrl: './reports.html',
   styleUrl: './reports.scss',
 })
@@ -19,6 +18,16 @@ export class Reports {
   private readonly auth = inject(AuthService);
 
   protected readonly formatMoney = formatMoney;
+
+  /** Human name for a report cadence — "Weekly report", "Monthly report". */
+  protected reportTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      weekly: $localize`:Report type|A report covering one week:Weekly`,
+      monthly: $localize`:Report type|A report covering one month:Monthly`,
+    };
+    return labels[type] ?? type;
+  }
+
   protected readonly canGenerate = computed(() => {
     return this.auth.hasRight('reports.manage');
   });
@@ -27,7 +36,7 @@ export class Reports {
     loader: async () => {
       const { data, error } = await this.api.listReports();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load reports.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load reports.`));
       }
       return data.reports;
     },
@@ -45,7 +54,7 @@ export class Reports {
     const { error } = await this.api.generateReport({ report_type: reportType });
     this.generating.set(false);
     if (error) {
-      this.generateError.set(apiErrorMessage(error, 'Failed to generate report.'));
+      this.generateError.set(apiErrorMessage(error, $localize`Failed to generate report.`));
       return;
     }
     this.reports.reload();

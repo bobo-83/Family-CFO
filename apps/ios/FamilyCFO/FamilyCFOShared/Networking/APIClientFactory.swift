@@ -22,6 +22,28 @@ struct BearerAuthMiddleware: ClientMiddleware {
     }
 }
 
+/// #10 phase 4: tells the API which language to write ITS OWN prose in (error
+/// details). Supplied as a closure because the household can change language
+/// mid-session and every later request must follow, without rebuilding the
+/// client.
+struct AcceptLanguageMiddleware: ClientMiddleware {
+    let language: @Sendable () -> String?
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        var request = request
+        if let language = language(), !language.isEmpty {
+            request.headerFields[.acceptLanguage] = language
+        }
+        return try await next(request, body, baseURL)
+    }
+}
+
 /// The API serializes datetimes with or without fractional seconds depending
 /// on sub-second precision, so decode both.
 struct LenientDateTranscoder: DateTranscoder {
@@ -50,7 +72,8 @@ enum APIClientFactory {
         baseURL: URL,
         pinnedCertificateSHA256: String?,
         token: (@Sendable () -> String?)? = nil,
-        devicePrivateKey: (@Sendable () -> Data?)? = nil
+        devicePrivateKey: (@Sendable () -> Data?)? = nil,
+        language: (@Sendable () -> String?)? = nil
     ) -> Client {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 180  // grounded answers can take a while on home hardware
@@ -67,6 +90,9 @@ enum APIClientFactory {
         }
         if let token {
             middlewares.append(BearerAuthMiddleware(token: token))
+        }
+        if let language {
+            middlewares.append(AcceptLanguageMiddleware(language: language))
         }
         return Client(
             serverURL: baseURL,

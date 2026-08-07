@@ -1,13 +1,13 @@
 <section class="chat">
   <header class="chat__header">
     <div>
-      <h1>Ask the Advisor</h1>
-      <p class="chat__sub">Ask open-ended questions like "Can I afford a $1,000 phone?"</p>
+      <h1 i18n="Page title|The conversational financial advisor">Ask the Advisor</h1>
+      <p class="chat__sub" i18n="Page intro|Sets expectations for the kind of question the advisor takes">Ask open-ended questions like "Can I afford a $1,000 phone?"</p>
     </div>
 
     <!-- AI model status banner -->
     @if (aiStatus.isLoading()) {
-      <div class="chat__status chat__status--loading">Checking AI status…</div>
+      <div class="chat__status chat__status--loading" i18n="Loading placeholder|The AI runtime status is being fetched">Checking AI status…</div>
     } @else if (aiStatus.value(); as status) {
       <div class="chat__status-group">
         <!-- Main chat model -->
@@ -19,13 +19,19 @@
         >
           <span class="chat__status-dot"></span>
           @if (status.enabled && status.ready) {
-            <span>Chat model: <strong>{{ status.served_model || status.model }}</strong></span>
+            <span i18n="AI status|Which chat model is currently serving answers">Chat model: <strong>{{ status.served_model || status.model }}</strong></span>
           } @else if (status.enabled && !status.ready) {
-            <span>Chat model loading… deterministic answers until ready</span>
+            <span i18n="AI status|The chat model is still warming up">Chat model loading… deterministic answers until ready</span>
           } @else {
-            <span>AI off — deterministic answers</span>
+            <span i18n="AI status|No chat model is enabled">AI off — deterministic answers</span>
           }
-          <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()" title="Re-check">
+          <button
+            type="button"
+            class="chat__status-refresh"
+            (click)="aiStatus.reload()"
+            title="Re-check"
+            i18n-title="Tooltip|Re-fetches the AI runtime status"
+          >
             ↻
           </button>
         </div>
@@ -38,26 +44,38 @@
         >
           <span class="chat__status-dot"></span>
           @if (status.vision_ready) {
-            <span>📷 Photos: <strong>{{ status.vision_model }}</strong></span>
+            <span i18n="AI status|Which vision model reads attached photos">📷 Photos: <strong>{{ status.vision_model }}</strong></span>
           } @else if (status.vision_enabled) {
-            <span>📷 Photo model loading…</span>
+            <span i18n="AI status|The vision model is still warming up">📷 Photo model loading…</span>
           } @else {
-            <span>📷 Photos off</span>
+            <span i18n="AI status|No vision model is enabled">📷 Photos off</span>
           }
         </div>
       </div>
     } @else {
       <div class="chat__status chat__status--off">
         <span class="chat__status-dot"></span>
-        <span>AI status unavailable</span>
-        <button type="button" class="chat__status-refresh" (click)="aiStatus.reload()">↻</button>
+        <span i18n="AI status|The runtime status could not be fetched">AI status unavailable</span>
+        <button
+          type="button"
+          class="chat__status-refresh"
+          (click)="aiStatus.reload()"
+          title="Re-check"
+          i18n-title="Tooltip|Re-fetches the AI runtime status"
+        >↻</button>
       </div>
     }
   </header>
 
   <div class="chat__body">
     <aside class="chat__history">
-      <button mat-stroked-button type="button" class="chat__new" (click)="startNewConversation()">+ New conversation</button>
+      <button
+        mat-stroked-button
+        type="button"
+        class="chat__new"
+        (click)="startNewConversation()"
+        i18n="Button|Clears the thread and starts a fresh conversation"
+      >+ New conversation</button>
       @if (conversations.value(); as list) {
         @for (conv of list; track conv.id) {
           <div class="chat__conv-item">
@@ -75,15 +93,16 @@
                 type="button"
                 class="chat__conv-delete"
                 (click)="deleteConversation(conv.id, $event)"
-                [attr.aria-label]="'Delete conversation ' + conv.title"
+                [attr.aria-label]="deleteConversationLabel(conv.title)"
                 title="Delete conversation"
+                i18n-title="Tooltip|Deletes this saved conversation"
               >
                 ✕
               </button>
             }
           </div>
         } @empty {
-          <p class="chat__history-empty">No past conversations yet.</p>
+          <p class="chat__history-empty" i18n="Empty state|No conversations have been saved yet">No past conversations yet.</p>
         }
       }
     </aside>
@@ -92,7 +111,7 @@
       <div class="chat__messages">
         @if (turns().length === 0) {
           <div class="chat__welcome">
-            <p>Try one of these:</p>
+            <p i18n="Welcome prompt|Introduces the list of example questions">Try one of these:</p>
             @for (prompt of examplePrompts; track prompt) {
               <button mat-stroked-button type="button" class="chat__example" (click)="usePrompt(prompt)">{{ prompt }}</button>
             }
@@ -103,7 +122,7 @@
           <div class="chat__turn" [class.chat__turn--user]="turn.role === 'user'">
             <div class="chat__bubble">
               @if (turn.hadImage) {
-                <span class="chat__photo-marker">📷 Photo attached</span>
+                <span class="chat__photo-marker" i18n="Turn marker|This question carried a photo">📷 Photo attached</span>
               }
               @if (turn.role === 'assistant') {
                 <div class="chat__answer chat__answer--md" [innerHTML]="turn.content | markdown"></div>
@@ -117,10 +136,14 @@
                   type="button"
                   class="chat__speak"
                   (click)="speak(turn.content, $index)"
-                  [attr.aria-label]="speaking() === $index ? 'Stop reading' : 'Read this answer aloud'"
-                  [title]="speaking() === $index ? 'Stop' : 'Read aloud'"
+                  [attr.aria-label]="speaking() === $index ? stopReadingLabel : readAloudLabel"
+                  [title]="speaking() === $index ? stopReadingTitle : readAloudTitle"
                 >
-                  {{ speaking() === $index ? '⏹ Stop' : '🔊 Read aloud' }}
+                  @if (speaking() === $index) {
+                    <ng-container i18n="Button|Stops reading the answer aloud">⏹ Stop</ng-container>
+                  } @else {
+                    <ng-container i18n="Button|Reads this answer aloud">🔊 Read aloud</ng-container>
+                  }
                 </button>
                 @if (turn.recommendation?.id || turn.recommendationId) {
                   <span class="chat__rate">
@@ -132,6 +155,8 @@
                       (click)="rate(turn, 'up')"
                       aria-label="This answer was helpful"
                       title="Helpful"
+                      i18n-aria-label="Button accessible name|Rates the answer up"
+                      i18n-title="Tooltip|Rates the answer up"
                     >👍</button>
                     <button
                       mat-button
@@ -141,9 +166,11 @@
                       (click)="rate(turn, 'down')"
                       aria-label="This answer missed something"
                       title="Missed something"
+                      i18n-aria-label="Button accessible name|Rates the answer down"
+                      i18n-title="Tooltip|Rates the answer down"
                     >👎</button>
                     @if (turn.rating && !turn.showNote) {
-                      <span class="chat__rate-thanks">Thanks — the advisor will learn from this.</span>
+                      <span class="chat__rate-thanks" i18n="Feedback acknowledgement|Shown once a rating has been recorded">Thanks — the advisor will learn from this.</span>
                     }
                   </span>
                   @if (turn.showNote) {
@@ -153,10 +180,16 @@
                         rows="2"
                         maxlength="500"
                         placeholder="What did it miss? (optional)"
+                        i18n-placeholder="Form field placeholder|Optional note explaining a thumbs-down"
                         [(ngModel)]="turn.noteDraft"
                         [ngModelOptions]="{ standalone: true }"
                       ></textarea>
-                      <button mat-button type="button" (click)="sendNote(turn)">Send note</button>
+                      <button
+                        mat-button
+                        type="button"
+                        (click)="sendNote(turn)"
+                        i18n="Button|Sends the written feedback note"
+                      >Send note</button>
                     </div>
                   }
                 }
@@ -168,14 +201,15 @@
                   [class.chat__confidence--high]="confidenceLabel(rec.confidence) === 'High'"
                   [class.chat__confidence--medium]="confidenceLabel(rec.confidence) === 'Medium'"
                   [class.chat__confidence--low]="confidenceLabel(rec.confidence) === 'Low'"
+                  i18n="Advisor confidence|How sure the advisor is, as a word and a percentage"
                 >
-                  Confidence: {{ confidenceLabel(rec.confidence) }} ({{ confidencePercent(rec.confidence) }}%)
+                  Confidence: {{ confidenceText(rec.confidence) }} ({{ confidencePercent(rec.confidence) }}%)
                 </div>
 
                 <details class="chat__details">
-                  <summary>How this was worked out</summary>
+                  <summary i18n="Disclosure heading|Opens the advisor's reasoning">How this was worked out</summary>
                   @if (rec.impacts.length) {
-                    <h4>Impacts</h4>
+                    <h4 i18n="Reasoning heading|What the decision would affect">Impacts</h4>
                     <ul>
                       @for (impact of rec.impacts; track impact.area) {
                         <li>
@@ -188,7 +222,7 @@
                     </ul>
                   }
                   @if (rec.assumptions.length) {
-                    <h4>Assumptions</h4>
+                    <h4 i18n="Reasoning heading|What the advisor took for granted">Assumptions</h4>
                     <ul>
                       @for (a of rec.assumptions; track a) {
                         <li>{{ a }}</li>
@@ -196,7 +230,7 @@
                     </ul>
                   }
                   @if (rec.tradeoffs.length) {
-                    <h4>Tradeoffs</h4>
+                    <h4 i18n="Reasoning heading|What is given up in exchange">Tradeoffs</h4>
                     <ul>
                       @for (t of rec.tradeoffs; track t) {
                         <li>{{ t }}</li>
@@ -204,7 +238,7 @@
                     </ul>
                   }
                   @if (rec.alternatives.length) {
-                    <h4>Alternatives</h4>
+                    <h4 i18n="Reasoning heading|Other options the advisor weighed">Alternatives</h4>
                     <ul>
                       @for (alt of rec.alternatives; track alt) {
                         <li>{{ alt }}</li>
@@ -212,24 +246,24 @@
                     </ul>
                   }
                   @if (rec.warnings?.length) {
-                    <h4 class="chat__warn">Warnings</h4>
+                    <h4 class="chat__warn" i18n="Reasoning heading|Risks the advisor flagged">Warnings</h4>
                     <ul>
                       @for (w of rec.warnings; track w) {
                         <li>{{ w }}</li>
                       }
                     </ul>
                   }
-                  <p class="chat__refs">Backed by {{ rec.calculation_refs.length }} calculation(s).</p>
+                  <p class="chat__refs" i18n="Reasoning footnote|How many calculations back the answer">{rec.calculation_refs.length, plural, =1 {Backed by 1 calculation.} other {Backed by {{ rec.calculation_refs.length }} calculations.}}</p>
                 </details>
 
                 <p class="chat__source">
                   @if (rec.answered_by) {
-                    🤖 Answered by <strong>{{ rec.answered_by }}</strong>
+                    <ng-container i18n="Answer provenance|Which model wrote the answer">🤖 Answered by <strong>{{ rec.answered_by }}</strong></ng-container>
                     @if (rec.photo_described_by) {
-                      · 📷 photo read by <strong>{{ rec.photo_described_by }}</strong>
+                      <ng-container i18n="Answer provenance|Appended when a vision model read an attached photo"> · 📷 photo read by <strong>{{ rec.photo_described_by }}</strong></ng-container>
                     }
                   } @else {
-                    🧮 Deterministic calculation — no AI model involved
+                    <ng-container i18n="Answer provenance|The answer came from arithmetic, with no model involved">🧮 Deterministic calculation — no AI model involved</ng-container>
                   }
                 </p>
               }
@@ -240,7 +274,11 @@
         @if (sending()) {
           <div class="chat__turn">
             <div class="chat__bubble chat__bubble--typing">
-              {{ progressDetail() || 'The advisor is thinking…' }}
+              @if (progressDetail(); as detail) {
+                {{ detail }}
+              } @else {
+                <ng-container i18n="Progress placeholder|Shown while the advisor composes an answer">The advisor is thinking…</ng-container>
+              }
             </div>
           </div>
         }
@@ -253,11 +291,21 @@
       @if (attachedImage(); as image) {
         <div class="chat__preview">
           @if (image.previewUrl; as previewUrl) {
-            <img [src]="previewUrl" alt="Attached photo preview" />
+            <img
+              [src]="previewUrl"
+              alt="Attached photo preview"
+              i18n-alt="Image alternative text|Thumbnail of the photo attached to the question"
+            />
           } @else {
             <span class="chat__preview-file">📄 {{ image.name }}</span>
           }
-          <button type="button" class="chat__preview-remove" (click)="removeImage()" aria-label="Remove photo">
+          <button
+            type="button"
+            class="chat__preview-remove"
+            (click)="removeImage()"
+            aria-label="Remove photo"
+            i18n-aria-label="Button accessible name|Detaches the attached photo"
+          >
             ✕
           </button>
         </div>
@@ -266,7 +314,13 @@
       @if (attachedFile(); as file) {
         <div class="chat__preview">
           <span class="chat__preview-file">📊 {{ file.name }}</span>
-          <button type="button" class="chat__preview-remove" (click)="removeFile()" aria-label="Remove file">
+          <button
+            type="button"
+            class="chat__preview-remove"
+            (click)="removeFile()"
+            aria-label="Remove file"
+            i18n-aria-label="Button accessible name|Detaches the attached data file"
+          >
             ✕
           </button>
         </div>
@@ -298,6 +352,8 @@
           (click)="fileInput.click()"
           aria-label="Attach a photo or take one"
           title="Attach a photo"
+          i18n-aria-label="Button accessible name|Attaches a photo to the question"
+          i18n-title="Tooltip|Attaches a photo to the question"
         >
           📷
         </button>
@@ -308,6 +364,8 @@
           (click)="dataInput.click()"
           aria-label="Attach a spreadsheet, CSV, or text file"
           title="Attach a spreadsheet, CSV, or text file"
+          i18n-aria-label="Button accessible name|Attaches a data file to the question"
+          i18n-title="Tooltip|Attaches a data file to the question"
         >
           📎
         </button>
@@ -317,23 +375,30 @@
             type="text"
             formControlName="message"
             placeholder="Ask about a purchase, your goals, retirement…"
+            i18n-placeholder="Form field placeholder|Hints at what the advisor can be asked"
             autocomplete="off"
           />
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="sending()">{{ sending() ? 'Sending…' : 'Send' }}</button>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="sending()"
+          i18n="Chat submit button|Sends the question, showing progress while it is in flight"
+        >{sending(), select, true {Sending…} other {Send}}</button>
       </form>
 
       <!-- Advisor disclaimer (ADR 0031, amended): shown by default, hideable
            per-device once read; kept in sync with the iOS client and
            DISCLAIMER.md. -->
       @if (showDisclaimer()) {
-        <p class="chat__disclaimer">
+        <p class="chat__disclaimer" i18n="Advisor disclaimer|Legal reminder that the advisor is educational only">
           Educational guidance from a local AI — not financial, tax, or legal advice.
           It can be wrong; verify before acting.
           <button
             type="button"
             class="chat__disclaimer-hide"
             title="Hide this reminder on this device"
+            i18n-title="Tooltip|Hides the advisor disclaimer on this device"
             (click)="hideDisclaimer()"
           >
             Hide

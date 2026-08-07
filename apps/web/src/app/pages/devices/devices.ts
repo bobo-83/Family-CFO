@@ -56,7 +56,7 @@ export class Devices {
     const { data, error } = await this.api.listPairedDevices();
     this.loading.set(false);
     if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, 'Failed to load paired devices.'));
+      this.loadError.set(apiErrorMessage(error, $localize`Failed to load paired devices.`));
       return;
     }
     this.devices.set(data.devices);
@@ -78,7 +78,7 @@ export class Devices {
     const { data, error } = await this.api.createPairingSession(this.pairFor() || undefined);
     this.busy.set(null);
     if (error || !data) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to create a pairing code.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to create a pairing code.`));
       return;
     }
     const svg = await QRCode.toString(data.qr_payload, { type: 'svg', margin: 1 });
@@ -105,7 +105,9 @@ export class Devices {
     } catch {
       // Clipboard API needs a secure context and can be denied; the payload is
       // shown in a selectable field regardless, so the user can select-and-copy.
-      this.actionError.set('Could not copy automatically — select the code below and copy it.');
+      this.actionError.set(
+        $localize`:Clipboard error|The browser refused the copy, so the user must select the payload manually:Could not copy automatically — select the code below and copy it.`,
+      );
     }
   }
 
@@ -118,7 +120,7 @@ export class Devices {
     const { error } = await this.api.revokePairedDevice(device.id);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to revoke the device.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to revoke the device.`));
       return;
     }
     await this.load();

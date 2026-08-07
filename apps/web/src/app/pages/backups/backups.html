@@ -1,4 +1,4 @@
-<h1>Backups</h1>
+<h1 i18n="Page title|Backup and restore settings">Backups</h1>
 
 @if (isOwner()) {
   @if (actionError()) {
@@ -10,59 +10,69 @@
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>Off-box backup — Synology (SMB)</h2>
-    <p class="backups-note">
+    <h2 i18n="Section heading|Copying backups off the box to a Synology NAS over SMB">Off-box backup — Synology (SMB)</h2>
+    <p class="backups-note" i18n="Section hint|What to set up on the Synology before the details below will work">
       Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the
       Synology, create a shared folder, give a user read/write, then enter the details below.
       Settings save as you change them. The password is encrypted on the box and never shown again.
     </p>
     <div class="backups-form">
       <mat-form-field appearance="outline">
-        <mat-label>Synology address</mat-label>
+        <mat-label i18n="Form field label|Hostname or IP address of the Synology">Synology address</mat-label>
         <input matInput type="text" [ngModel]="host()" (ngModelChange)="host.set($event)" (blur)="saveConfig()" placeholder="192.168.1.50" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Shared folder</mat-label>
+        <mat-label i18n="Form field label|SMB share the backups are written to">Shared folder</mat-label>
         <input matInput type="text" [ngModel]="share()" (ngModelChange)="share.set($event)" (blur)="saveConfig()" placeholder="family-cfo-backups" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Subfolder (optional)</mat-label>
+        <mat-label i18n="Form field label|Optional folder inside the SMB share">Subfolder (optional)</mat-label>
         <input matInput type="text" [ngModel]="folder()" (ngModelChange)="folder.set($event)" (blur)="saveConfig()" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Username</mat-label>
+        <mat-label i18n="Form field label|SMB account name used to upload backups">Username</mat-label>
         <input matInput type="text" [ngModel]="username()" (ngModelChange)="username.set($event)" (blur)="saveConfig()" placeholder="backup-user" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Password</mat-label>
+        <mat-label i18n="Form field label|SMB account password used to upload backups">Password</mat-label>
         <input matInput type="password" [ngModel]="password()" (ngModelChange)="password.set($event); onPasswordInput()" (blur)="saveConfig()"
-               [placeholder]="hasStoredPassword() ? 'saved — leave blank to keep' : ''" />
+               [placeholder]="passwordPlaceholder()" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Domain (optional)</mat-label>
+        <mat-label i18n="Form field label|Optional Windows/SMB domain">Domain (optional)</mat-label>
         <input matInput type="text" [ngModel]="domain()" (ngModelChange)="domain.set($event)" (blur)="saveConfig()" placeholder="WORKGROUP" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Schedule</mat-label>
+        <mat-label i18n="Form field label|How often backups run automatically">Schedule</mat-label>
         <mat-select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
-          <mat-option value="daily">Daily</mat-option>
-          <mat-option value="weekly">Weekly</mat-option>
-          <mat-option value="off">Off</mat-option>
+          <mat-option value="daily" i18n="Backup schedule|Back up once a day">Daily</mat-option>
+          <mat-option value="weekly" i18n="Backup schedule|Back up once a week">Weekly</mat-option>
+          <mat-option value="off" i18n="Backup schedule|Never back up automatically">Off</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Max total size (GB, 0 = no limit)</mat-label>
+        <mat-label i18n="Form field label|Cap on the space every backup may use together; GB is a unit symbol and stays untranslated">Max total size (GB, 0 = no limit)</mat-label>
         <input matInput type="number" min="0" step="0.5" [ngModel]="maxGB()" (ngModelChange)="maxGB.set($event)" (blur)="saveConfig()" />
       </mat-form-field>
     </div>
-    <p class="backups-note">When all backups combined exceed the limit, the oldest are deleted first.</p>
+    <p class="backups-note" i18n="Section hint|What happens when the size cap is reached">When all backups combined exceed the limit, the oldest are deleted first.</p>
     <div class="backups-actions">
-      <button mat-stroked-button type="button" [disabled]="!canTest() || checking()" (click)="testConnection()">
-        {{ checking() ? 'Testing…' : 'Test connection' }}
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="!canTest() || checking()"
+        (click)="testConnection()"
+        i18n="Button|Checks the Synology details, showing progress while the check runs"
+      >
+        {checking(), select, true {Testing…} other {Test connection}}
       </button>
       @if (checkResult(); as result) {
         <span [class.ok]="result.writable" [class.fail]="!result.writable">
-          {{ result.writable ? '✓ Connected' : '✗ ' + (result.reason ?? 'Failed') }}
+          @if (result.writable) {
+            <ng-container i18n="Connection check result|The Synology share is reachable and writable">✓ Connected</ng-container>
+          } @else {
+            <ng-container i18n="Connection check result|The Synology share could not be written to; the reason comes from the server">✗ {{ result.reason ?? connectionFailedLabel }}</ng-container>
+          }
         </span>
       }
     </div>
@@ -71,104 +81,128 @@
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>Status</h2>
+    <h2 i18n="Section heading|How the most recent backup went">Status</h2>
     @if (latest(); as job) {
       <p>
-        Last backup: {{ job.completed_at ?? '—' }} · {{ job.status }}
-        @if (job.remote_status === 'synced') { · <span class="ok">copied to Synology</span> }
+        <ng-container i18n="Backup status|When the last backup finished and how it ended">Last backup: {{ job.completed_at ?? '—' }} · {{ job.status }}</ng-container>
+        @if (job.remote_status === 'synced') { · <span class="ok" i18n="Backup status|The backup was also copied off-box to the Synology">copied to Synology</span> }
         @if (job.remote_status === 'failed') {
-          · <span class="fail">Synology copy failed{{ job.remote_error ? ': ' + job.remote_error : '' }}</span>
+          · <span class="fail" i18n="Backup status|The off-box copy to the Synology did not work; the reason comes from the server">Synology copy failed{{ job.remote_error ? ': ' + job.remote_error : '' }}</span>
         }
       </p>
     } @else {
-      <p class="backups-note">No backups yet.</p>
+      <p class="backups-note" i18n="Empty state|No backup has ever run">No backups yet.</p>
     }
     <div class="backups-actions">
-      <button mat-flat-button type="button" [disabled]="busy()" (click)="createBackup()">Back up now</button>
+      <button mat-flat-button type="button" [disabled]="busy()" (click)="createBackup()" i18n="Button|Runs a backup immediately">Back up now</button>
     </div>
     </mat-card-content>
   </mat-card>
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>Restore keys</h2>
-    <p class="backups-note">
+    <h2 i18n="Section heading|The two keys needed to restore onto new hardware">Restore keys</h2>
+    <p class="backups-note" i18n="Section hint|Both keys are needed together, so keep them together">
       Restoring onto a new box takes both keys — store them together in a password manager.
     </p>
 
-    <h3 class="backups-step">1 · Backup key</h3>
-    <p class="backups-note">Opens your backup files.</p>
+    <h3 class="backups-step" i18n="Step heading|First of the two restore keys">1 · Backup key</h3>
+    <p class="backups-note" i18n="Step hint|What the backup key unlocks">Opens your backup files.</p>
     @if (revealedKey(); as key) {
       <code class="backups-key">{{ key }}</code>
       <div class="backups-actions">
-        <button mat-stroked-button type="button" (click)="copyKey()">Copy key</button>
+        <button mat-stroked-button type="button" (click)="copyKey()" i18n="Button|Copies the backup key to the clipboard">Copy key</button>
       </div>
     } @else {
       <div class="backups-actions">
-        <button mat-stroked-button type="button" (click)="revealKey()">Reveal backup key</button>
+        <button mat-stroked-button type="button" (click)="revealKey()" i18n="Button|Shows the backup key on screen">Reveal backup key</button>
       </div>
     }
 
     @if (keyStatus(); as status) {
-      <h3 class="backups-step">2 · Recovery key</h3>
+      <h3 class="backups-step" i18n="Step heading|Second of the two restore keys">2 · Recovery key</h3>
       @if (!status.encryption_enabled) {
-        <p class="backups-note">Per-household encryption is off on this box.</p>
+        <p class="backups-note" i18n="Encryption state|This box does not encrypt content per household, so no recovery key exists">Per-household encryption is off on this box.</p>
       } @else {
-        <p class="backups-note">Unlocks the content inside — the spare for your passwords and phones.</p>
-        <p class="backups-caption">
+        <p class="backups-note" i18n="Step hint|What the recovery key unlocks">Unlocks the content inside — the spare for your passwords and phones.</p>
+        <p class="backups-caption" i18n="Encryption summary|How many member and device keys can open this household's content">
           Content encrypted per household ·
-          {{ status.member_wraps }} member key{{ status.member_wraps === 1 ? '' : 's' }},
-          {{ status.device_wraps }} device key{{ status.device_wraps === 1 ? '' : 's' }}
+          {status.member_wraps, plural, =1 {1 member key} other {{{ status.member_wraps }} member keys}},
+          {status.device_wraps, plural, =1 {1 device key} other {{{ status.device_wraps }} device keys}}
         </p>
         @if (generatedRecoveryKey(); as recoveryKey) {
-          <p class="backups-warning">
+          <p class="backups-warning" i18n="Recovery key warning|The freshly created key is shown once and must be stored now">
             This is the only time it will be shown. Store it somewhere safe — it is one of the keys
             that can unlock your household's data.
           </p>
           <code class="backups-key">{{ recoveryKey }}</code>
           <div class="backups-actions">
-            <button mat-stroked-button type="button" (click)="copyRecoveryKey()">Copy recovery key</button>
+            <button mat-stroked-button type="button" (click)="copyRecoveryKey()" i18n="Button|Copies the recovery key to the clipboard">Copy recovery key</button>
           </div>
         } @else if (status.has_recovery_key) {
-          <p class="backups-note">
-            Recovery key created{{ status.recovery_key_created_at ? ' ' + recoveryKeyCreatedLabel(status.recovery_key_created_at) : '' }}.
-          </p>
+          @if (status.recovery_key_created_at; as created) {
+            <p class="backups-note" i18n="Recovery key state|A recovery key exists and when it was made">
+              Recovery key created {{ recoveryKeyCreatedLabel(created) }}.
+            </p>
+          } @else {
+            <p class="backups-note" i18n="Recovery key state|A recovery key exists but the date it was made is unknown">
+              Recovery key created.
+            </p>
+          }
           <div class="backups-actions">
-            <button mat-stroked-button type="button" [disabled]="busy()" (click)="generateRecoveryKey()">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="generateRecoveryKey()"
+              i18n="Button|Creates a new recovery key and retires the old one"
+            >
               Replace recovery key…
             </button>
           </div>
         } @else {
-          <p class="backups-warning">
+          <p class="backups-warning" i18n="Recovery key warning|Nudge to create the missing recovery key">
             No recovery key yet. Without one, losing every password and paired phone loses the
             data. Create it and store it beside your backup key.
           </p>
           <div class="backups-actions">
-            <button mat-flat-button type="button" [disabled]="busy()" (click)="generateRecoveryKey()">
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="generateRecoveryKey()"
+              i18n="Button|Creates the household's first recovery key"
+            >
               Create recovery key
             </button>
           </div>
         }
 
         @if (status.mode; as mode) {
-          <h3 class="backups-step">Privacy mode</h3>
+          <h3 class="backups-step" i18n="Step heading|Whether the box keeps a spare of the household data key">Privacy mode</h3>
           @if (mode === 'sealed') {
-            <p class="backups-note">
+            <p class="backups-note" i18n="Privacy mode|What sealed mode means for the household">
               <strong>Sealed</strong> — Only your passwords, your phones, and your recovery key can
               open your data. After a restart, nothing is readable until someone signs in — and
               overnight work waits for you.
             </p>
             @if (status.unlocked === false) {
-              <p class="backups-caption">Locked — sign in again to unlock</p>
+              <p class="backups-caption" i18n="Lock state|The sealed household is locked until somebody signs in">Locked — sign in again to unlock</p>
               <ng-container [ngTemplateOutlet]="recoveryUnlock" />
             }
             <div class="backups-actions">
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setSealMode('convenient')">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="busy()"
+                (click)="setSealMode('convenient')"
+                i18n="Button|Leaves sealed mode and lets the box keep a spare data key again"
+              >
                 Switch back to convenient…
               </button>
             </div>
           } @else {
-            <p class="backups-note">
+            <p class="backups-note" i18n="Privacy mode|What convenient mode means for the household">
               <strong>Convenient</strong> — The box keeps a spare of your data key: overnight sync,
               snapshots, and idle study keep working. Your content is protected against stolen disks
               and backups — the box itself can still read it.
@@ -179,7 +213,13 @@
               <ng-container [ngTemplateOutlet]="recoveryUnlock" />
             }
             <div class="backups-actions">
-              <button mat-stroked-button type="button" [disabled]="busy()" (click)="setSealMode('sealed')">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="busy()"
+                (click)="setSealMode('sealed')"
+                i18n="Button|Switches the household into sealed mode"
+              >
                 Seal this household…
               </button>
             </div>
@@ -196,7 +236,7 @@
       @if (showRecoveryUnlock()) {
         <div class="backups-actions">
           <mat-form-field appearance="outline" class="backups-unlock-field">
-            <mat-label>Recovery key</mat-label>
+            <mat-label i18n="Form field label|The household's recovery key, pasted to unlock it">Recovery key</mat-label>
             <input
               matInput
               type="text"
@@ -212,13 +252,19 @@
             type="button"
             [disabled]="busy() || !recoveryUnlockInput().trim()"
             (click)="unlockWithRecoveryKey()"
+            i18n="Button|Unlocks the household with the recovery key entered"
           >
             Unlock
           </button>
         </div>
       } @else {
         <div class="backups-actions">
-          <button mat-stroked-button type="button" (click)="showRecoveryUnlock.set(true)">
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="showRecoveryUnlock.set(true)"
+            i18n="Button|Reveals the input that unlocks a locked household"
+          >
             Unlock with recovery key…
           </button>
         </div>
@@ -229,14 +275,20 @@
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>Your data</h2>
-    <p class="backups-note">
+    <h2 i18n="Section heading|Downloading the household's own data">Your data</h2>
+    <p class="backups-note" i18n="Section hint|What the export zip contains">
       Download everything in this household — accounts, transactions, advisor history, and
       documents — as a zip you can keep or take elsewhere.
     </p>
     <div class="backups-actions">
-      <button mat-stroked-button type="button" [disabled]="exporting()" (click)="exportData()">
-        {{ exporting() ? 'Preparing export…' : 'Export my data' }}
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="exporting()"
+        (click)="exportData()"
+        i18n="Button|Downloads the household export, showing progress while the zip is built"
+      >
+        {exporting(), select, true {Preparing export…} other {Export my data}}
       </button>
     </div>
     @if (exportError(); as message) {
@@ -248,16 +300,21 @@
   @if (remoteBackups().length) {
     <mat-card appearance="outlined" class="backups-card">
       <mat-card-content>
-      <h2>Restore from Synology</h2>
-      <p class="backups-note">Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</p>
+      <h2 i18n="Section heading|Restoring from a snapshot stored on the Synology">Restore from Synology</h2>
+      <p class="backups-note" i18n="Section hint|How the off-box snapshot list is arranged and what restoring does">Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</p>
       @for (group of remoteBackupDays(); track group.day; let first = $first) {
         <details class="backups-day" [open]="first">
           <summary>
             <strong>{{ group.label }}</strong>
-            <span class="backups-day__count">{{ group.backups.length }} backup{{ group.backups.length === 1 ? '' : 's' }}</span>
+            <span class="backups-day__count" i18n="Backup day summary|How many snapshots were taken on this day">{group.backups.length, plural, =1 {1 backup} other {{{ group.backups.length }} backups}}</span>
           </summary>
           <table class="backups-table">
-            <thead><tr><th>Time</th><th>Version</th><th>Size (bytes)</th><th></th></tr></thead>
+            <thead><tr>
+              <th i18n="Table column|Time of day the snapshot was taken">Time</th>
+              <th i18n="Table column|App version that made the snapshot">Version</th>
+              <th i18n="Table column|Snapshot file size; bytes is the unit">Size (bytes)</th>
+              <th></th>
+            </tr></thead>
             <tbody>
               @for (backup of group.backups; track backup.filename) {
                 <tr>
@@ -267,16 +324,16 @@
                       <span
                         class="backups-version"
                         [class.backups-version--newer]="isFromNewerVersion(version)"
-                        [title]="isFromNewerVersion(version) ? 'Made by a newer version — update first' : ''"
+                        [title]="versionTitle(version)"
                       >v{{ version }}</span>
                     } @else {
-                      <span class="backups-version-unknown">version unknown</span>
+                      <span class="backups-version-unknown" i18n="Backup version|The snapshot does not record which app version made it">version unknown</span>
                     }
                   </td>
                   <td>{{ backup.size_bytes }}</td>
                   <td>
-                    <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)">Restore</button>
-                    <button mat-button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)">Delete</button>
+                    <button mat-button type="button" [disabled]="busy()" (click)="restoreRemote(backup.filename)" i18n="Button|Restores the household from this off-box snapshot">Restore</button>
+                    <button mat-button type="button" [disabled]="busy()" (click)="deleteRemote(backup.filename)" i18n="Button|Deletes this snapshot from the Synology">Delete</button>
                   </td>
                 </tr>
               }
@@ -290,42 +347,54 @@
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2>On-box backups</h2>
+    <h2 i18n="Section heading|Backups kept on the box itself">On-box backups</h2>
     @if (backups.isLoading()) {
-      <p>Loading backups…</p>
+      <p i18n="Loading placeholder|While the on-box backup list is being fetched">Loading backups…</p>
     } @else if (backups.error()) {
       <p class="backups-error">{{ backups.error() }}</p>
     } @else {
       <table class="backups-table">
         <thead>
-          <tr><th>Created</th><th>Status</th><th>Version</th><th>Size (bytes)</th><th></th></tr>
+          <tr>
+            <th i18n="Table column|When the backup was made">Created</th>
+            <th i18n="Table column|How the backup ended">Status</th>
+            <th i18n="Table column|App version that made the backup">Version</th>
+            <th i18n="Table column|Backup file size; bytes is the unit">Size (bytes)</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           @for (backup of backups.value() ?? []; track backup.id) {
             <tr>
               <td>{{ backup.created_at }}</td>
-              <td>{{ backup.status }}{{ backup.pruned_at ? ' (pruned)' : '' }}</td>
+              <td>
+                @if (backup.pruned_at) {
+                  <ng-container i18n="Backup state|A finished backup whose file has since been pruned">{{ backup.status }} (pruned)</ng-container>
+                } @else {
+                  {{ backup.status }}
+                }
+              </td>
               <td>
                 @if (backup.app_version; as version) {
                   <span
                     class="backups-version"
                     [class.backups-version--newer]="isFromNewerVersion(version)"
-                    [title]="isFromNewerVersion(version) ? 'Made by a newer version — update first' : ''"
+                    [title]="versionTitle(version)"
                   >v{{ version }}</span>
                 } @else {
-                  <span class="backups-version-unknown">version unknown</span>
+                  <span class="backups-version-unknown" i18n="Backup version|The backup does not record which app version made it">version unknown</span>
                 }
               </td>
               <td>{{ backup.size_bytes ?? '—' }}</td>
               <td>
                 @if (backup.status === 'completed' && !backup.pruned_at) {
-                  <button mat-button type="button" [disabled]="busy()" (click)="restore(backup.id)">Restore</button>
+                  <button mat-button type="button" [disabled]="busy()" (click)="restore(backup.id)" i18n="Button|Restores the household from this on-box backup">Restore</button>
                 }
-                <button mat-button type="button" [disabled]="busy()" (click)="deleteLocal(backup.id)">Delete</button>
+                <button mat-button type="button" [disabled]="busy()" (click)="deleteLocal(backup.id)" i18n="Button|Deletes this on-box backup">Delete</button>
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="5">No backups yet.</td></tr>
+            <tr><td colspan="5" i18n="Empty state|No on-box backups exist">No backups yet.</td></tr>
           }
         </tbody>
       </table>
@@ -333,5 +402,5 @@
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="backups-note">Only the household owner can manage backups.</p>
+  <p class="backups-note" i18n="Permission notice|Shown to members who are not the household owner">Only the household owner can manage backups.</p>
 }
