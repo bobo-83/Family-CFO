@@ -128,3 +128,25 @@ def test_no_debt_means_no_debt_warning() -> None:
 
     assert not any("owes" in w for w in result.warnings)
     assert result.outputs["total_debt"] == Money.zero("USD")
+
+
+def test_committed_savings_is_informational_by_default() -> None:
+    """#5: a self-imposed savings transfer is reported, not subtracted, unless
+    the household opts to reserve it."""
+    result = calculate_safe_to_spend(_inputs(committed_savings=Money(50_000, "USD")))
+    assert result.outputs["committed_savings"] == Money(50_000, "USD")
+    baseline = calculate_safe_to_spend(_inputs())
+    assert result.outputs["safe_to_spend"] == baseline.outputs["safe_to_spend"]
+    assert result.outputs["committed_total"] == baseline.outputs["committed_total"]
+
+
+def test_committed_savings_reserved_when_the_household_asks() -> None:
+    result = calculate_safe_to_spend(
+        _inputs(committed_savings=Money(50_000, "USD"), reserve_savings=True)
+    )
+    baseline = calculate_safe_to_spend(_inputs())
+    assert (
+        result.outputs["safe_to_spend"]
+        == baseline.outputs["safe_to_spend"] - Money(50_000, "USD")
+    )
+    assert any("Committed savings" in a for a in result.assumptions)

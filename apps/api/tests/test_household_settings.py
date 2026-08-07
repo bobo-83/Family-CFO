@@ -20,3 +20,13 @@ async def test_language_round_trips_and_is_validated(demo_client, demo_token):
     )
     assert rejected.status_code == 422
     assert "supported" in rejected.json()["error"]["message"]
+
+
+@pytest.mark.anyio
+async def test_reserve_committed_savings_setting_round_trips(demo_client, demo_token):
+    """#5: the toggle persists and drives whether savings is subtracted."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    updated = await demo_client.patch(
+        "/api/v1/household", headers=headers, json={"reserve_committed_savings": True}
+    )
+    assert updated.status_code == 200, updated.text

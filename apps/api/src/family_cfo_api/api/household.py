@@ -406,6 +406,19 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
     ]
     card_payments = out.get("credit_card_payments")
     forecast = out.get("subscription_forecast")
+    savings = out.get("committed_savings")
+    _savings_total, savings_raw = finance_service.committed_savings_in_window(
+        engine, household_id, currency,
+        today=date.today(),
+        horizon_days=finance_service.SAFE_TO_SPEND_HORIZON_DAYS,
+    )
+    savings_items = [
+        NamedAmount(
+            name=f"{name} — due {due.strftime('%b %-d')}",
+            amount=MoneySchema(amount_minor=amount.amount_minor, currency=amount.currency),
+        )
+        for name, amount, due in savings_raw
+    ]
     return SafeToSpend(
         liquid_balance=money("liquid_balance"),
         emergency_fund_reserved=money("emergency_fund_reserved"),
@@ -432,6 +445,13 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         bill_items=bill_items,
         emergency_fund_items=emergency_fund_items,
         subscription_forecast_items=subscription_forecast_items,
+        committed_savings=(
+            MoneySchema(amount_minor=savings.amount_minor, currency=savings.currency)
+            if savings is not None and savings.amount_minor > 0
+            else None
+        ),
+        committed_savings_items=savings_items,
+        committed_savings_reserved=bool(out.get("committed_savings_reserved")),
     )
 
 
@@ -785,6 +805,7 @@ def _historical_context(
         display_name=household.display_name,
         currency=currency,
         language=household.language or "en",
+        reserve_committed_savings=household.reserve_committed_savings,
         net_worth=MoneySchema(amount_minor=net_worth_minor, currency=currency),
         # Required, non-nullable in the contract (the client decodes a plain Double,
         # so `null` would fail to decode and the whole month would silently fail to
@@ -854,6 +875,7 @@ def _build_household_context(
         display_name=household.display_name,
         currency=currency,
         language=household.language or "en",
+        reserve_committed_savings=household.reserve_committed_savings,
         net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
         emergency_fund_months=months,
         emergency_fund=_emergency_fund_summary(
@@ -983,6 +1005,12 @@ async def update_household(
             engine, session.household_id, payload.credit_cards_paid_in_full
         )
         changed.append(f"credit-cards-paid-in-full to {payload.credit_cards_paid_in_full}")
+
+    if payload.reserve_committed_savings is not None:
+        repository.set_reserve_committed_savings(
+            engine, session.household_id, payload.reserve_committed_savings
+        )
+        changed.append(f"reserve-committed-savings to {payload.reserve_committed_savings}")
 
     if payload.language is not None:
         # #10: bounded by the locales the box actually built — a language we

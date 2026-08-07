@@ -45,6 +45,10 @@ protocol HouseholdAPI: Sendable {
     /// #10: set the household's language (en, vi, lt) — household-wide, so the
     /// advisor answers everyone in it. The server 422s unsupported codes.
     func updateLanguage(_ language: String) async throws
+    /// #5: reserve committed savings like a bill (true) or show it beside Safe
+    /// to Spend without subtracting (false). Household-wide, gated on
+    /// household.settings.manage — the right the PATCH checks.
+    func updateReserveCommittedSavings(_ value: Bool) async throws
     /// #203: a detected route that isn't saving. Keyed by the route rather than
     /// a row id because detection re-derives its rows on every context load —
     /// there is no stable id to delete.
@@ -86,6 +90,9 @@ extension HouseholdAPI {
         throw APIError.server(501)
     }
     func updateLanguage(_ language: String) async throws {
+        throw APIError.server(501)
+    }
+    func updateReserveCommittedSavings(_ value: Bool) async throws {
         throw APIError.server(501)
     }
 }
@@ -283,6 +290,25 @@ struct LiveHouseholdAPI: HouseholdAPI {
             throw APIError.server(404)
         // A locale the box doesn't build; documented on the PATCH so the
         // client has a real case instead of an undocumented fall-through.
+        case .unprocessableContent:
+            throw APIError.server(422)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateReserveCommittedSavings(_ value: Bool) async throws {
+        let request = Components.Schemas.HouseholdUpdateRequest(reserveCommittedSavings: value)
+        switch try await client.updateHousehold(.init(body: .json(request))) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        // Documented on the PATCH; a real case beats an undocumented fall-through.
         case .unprocessableContent:
             throw APIError.server(422)
         case .undocumented(let status, _):

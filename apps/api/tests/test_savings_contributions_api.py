@@ -255,3 +255,49 @@ async def test_linking_to_a_missing_goal_is_rejected(demo_client, demo_token):
         json={"goal_id": "nope"},
     )
     assert rejected.status_code == 404
+
+
+async def _make_college_goal(demo_client, headers):
+    r = await demo_client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={
+            "name": "College",
+            "type": "college",
+            "target": {"amount_minor": 5_000_000, "currency": "USD"},
+        },
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+@pytest.mark.anyio
+async def test_committed_savings_shows_beside_safe_to_spend(demo_client, demo_token):
+    """#5: a declared monthly 529 contribution appears as committed savings on
+    the overview's safe-to-spend, informational by default (not subtracted)."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    checking = await _make_account(demo_client, headers, "Checking", "checking")
+    college = await _make_account(demo_client, headers, "529", "529")
+    await _declare(demo_client, headers, checking, college)
+
+    context = (await demo_client.get("/api/v1/household", headers=headers)).json()
+    s2s = context["safe_to_spend"]
+    assert s2s is not None
+    # Informational by default: an amount and a drill-down, NOT reserved.
+    assert s2s["committed_savings"]["amount_minor"] == 500_00
+    assert s2s["committed_savings_reserved"] is False
+    assert s2s["committed_savings_items"], "expected a labelled committed-savings line"
+    baseline_committed = s2s["committed_total"]["amount_minor"]
+
+    # Flip the household to reserve it: safe-to-spend shrinks by exactly $500.
+    await demo_client.patch(
+        "/api/v1/household", headers=headers, json={"reserve_committed_savings": True}
+    )
+    context = (await demo_client.get("/api/v1/household", headers=headers)).json()
+    s2s2 = context["safe_to_spend"]
+    assert s2s2["committed_savings_reserved"] is True
+    assert s2s2["committed_total"]["amount_minor"] == baseline_committed + 500_00
+    assert (
+        s2s2["safe_to_spend"]["amount_minor"]
+        == s2s["safe_to_spend"]["amount_minor"] - 500_00
+    )

@@ -193,6 +193,8 @@ struct SettingsView: View {
     // Held here so the loaded language survives Form re-renders (same reason
     // MainTabView owns its tab view models).
     @State private var languageModel: HouseholdLanguageViewModel?
+    // Held here for the same reason as languageModel — survives Form re-renders.
+    @State private var reserveModel: CommittedSavingsReserveViewModel?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
     // Per-device (deliberately NOT a household setting — it's about this
     // phone's speaker, battery, and taste): speak English answers in the
@@ -254,6 +256,33 @@ struct SettingsView: View {
                         }
                         if let error = languageModel?.errorMessage {
                             Text(error).foregroundStyle(.red)
+                        }
+                    }
+                }
+                if let reserveModel {
+                    Section {
+                        // #5: household-wide — reserving changes the shared
+                        // safe_to_spend computation, so only household.settings.manage
+                        // (the right the PATCH checks) may change it.
+                        if model.rolePolicy.canManageHouseholdSettings {
+                            Toggle(
+                                "Reserve committed savings",
+                                isOn: Binding(
+                                    get: { reserveModel.reserved },
+                                    set: { on in Task { await reserveModel.setReserved(on) } }
+                                )
+                            )
+                        } else {
+                            LabeledContent(
+                                "Reserve committed savings",
+                                value: reserveModel.reserved ? "On" : "Off")
+                        }
+                    } footer: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Off: shown beside Safe to Spend. On: subtracted like a bill.")
+                            if let error = reserveModel.errorMessage {
+                                Text(error).foregroundStyle(.red)
+                            }
                         }
                     }
                 }
@@ -391,6 +420,10 @@ struct SettingsView: View {
                 if languageModel == nil, let api = model.household {
                     languageModel = HouseholdLanguageViewModel(api: api)
                     await languageModel?.load()
+                }
+                if reserveModel == nil, let api = model.household {
+                    reserveModel = CommittedSavingsReserveViewModel(api: api)
+                    await reserveModel?.load()
                 }
             }
             // Centered alerts, not confirmationDialog: on this screen the

@@ -5402,6 +5402,10 @@ components:
             per locale, so this cannot be per-member."
           type: string
           default: en
+        reserve_committed_savings:
+          description: "#5: whether committed savings is reserved like a bill."
+          type: boolean
+          default: false
         currency:
           type: string
           example: USD
@@ -5676,6 +5680,20 @@ components:
             no account is tagged.
           allOf:
             - $ref: "#/components/schemas/ReadyToSellHoldings"
+        committed_savings:
+          description: >-
+            "#5: recurring savings the household committed to, due within the
+            horizon. When committed_savings_reserved is true it is subtracted
+            (inside committed_total); otherwise shown beside the figure."
+          allOf:
+            - $ref: "#/components/schemas/Money"
+        committed_savings_items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedAmount"
+        committed_savings_reserved:
+          type: boolean
+          default: false
     ReadyToSellHoldings:
       type: object
       required:
@@ -7098,6 +7116,13 @@ components:
             (en, vi, lt); anything else is rejected with 422."
           type:
             - string
+            - "null"
+        reserve_committed_savings:
+          description: >-
+            "#5: reserve committed savings like a bill (true) or show it beside
+            Safe to Spend without subtracting (false). Omit to leave unchanged."
+          type:
+            - boolean
             - "null"
     Member:
       type: object

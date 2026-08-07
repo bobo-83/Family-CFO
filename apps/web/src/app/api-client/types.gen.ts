@@ -771,6 +771,10 @@ export type HouseholdContext = {
      * "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
      */
     language?: string;
+    /**
+     * #5: whether committed savings is reserved like a bill.
+     */
+    reserve_committed_savings?: boolean;
     currency: string;
     net_worth: Money;
     emergency_fund_months: number;
@@ -988,6 +992,12 @@ export type SafeToSpend = {
      * The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
      */
     ready_to_sell?: ReadyToSellHoldings;
+    /**
+     * "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
+     */
+    committed_savings?: Money;
+    committed_savings_items?: Array<NamedAmount>;
+    committed_savings_reserved?: boolean;
 };
 
 export type ReadyToSellHoldings = {
@@ -1691,6 +1701,10 @@ export type HouseholdUpdateRequest = {
      * "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
      */
     language?: string | null;
+    /**
+     * "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
+     */
+    reserve_committed_savings?: boolean | null;
 };
 
 export type Member = {

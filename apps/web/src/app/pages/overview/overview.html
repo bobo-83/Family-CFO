@@ -152,6 +152,30 @@
             <p class="page-error" role="alert">{{ message }}</p>
           }
           <span class="overview__hint">{{ languageHint }}</span>
+
+          <!-- #5: reserve committed savings like a bill, or show it beside
+               Safe to Spend. Server enforces household.settings.manage. -->
+          @if (canManageSettings()) {
+            <mat-slide-toggle
+              class="overview__committed-toggle"
+              [checked]="committedReserveValue(context)"
+              [disabled]="savingCommittedReserve()"
+              (change)="toggleCommittedReserve($event.checked)"
+            >
+              Reserve committed savings
+            </mat-slide-toggle>
+          } @else {
+            <span class="overview__detail overview__committed-readonly">
+              Committed savings:
+              {{ committedReserveValue(context) ? 'reserved like a bill' : 'shown beside Safe to Spend' }}
+            </span>
+          }
+          @if (committedReserveError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
+          }
+          <span class="overview__hint">
+            Off: shown beside Safe to Spend. On: subtracted like a bill.
+          </span>
         </div>
 
         @if (outlook.value(); as cash) {
@@ -288,6 +312,9 @@
               − {{ formatMoney(sts.emergency_fund_reserved) }} emergency fund
               − {{ formatMoney(sts.bills_due) }} bills due
               − {{ formatMoney(sts.minimum_debt_payments) }} min. debt payments
+              @if (sts.committed_savings_reserved && sts.committed_savings; as committed) {
+                − {{ formatMoney(committed) }} committed savings
+              }
             </span>
             @if (sts.total_debt.amount_minor > 0) {
               <span class="overview__detail overview__value--negative">
@@ -312,6 +339,35 @@
                   }
                 </span>
               </div>
+            }
+            @if (sts.committed_savings; as committed) {
+              @if (sts.committed_savings_reserved) {
+                <!-- Reserved: already inside the number above — a committed line
+                     among bills and cards, with its drill-down. -->
+                @if (sts.committed_savings_items?.length) {
+                  <span class="overview__value-context overview__committed-items">
+                    Committed savings, reserved like a bill:
+                    @for (item of sts.committed_savings_items; track item.name) {
+                      {{ item.name }} ({{ formatMoney(item.amount) }}){{ $last ? '' : ' · ' }}
+                    }
+                  </span>
+                }
+              } @else {
+                <!-- Informational companion — never subtracted from the number above,
+                     exactly like the ready-to-sell line. -->
+                <div class="overview__committed-savings">
+                  <span class="overview__detail">
+                    🏦 Committed savings (shown, not subtracted):
+                    {{ formatMoney(committed) }}
+                  </span>
+                  <span class="overview__value-context">
+                    Not part of the number above.
+                    @for (item of sts.committed_savings_items; track item.name) {
+                      {{ item.name }} ({{ formatMoney(item.amount) }}){{ $last ? '' : ' · ' }}
+                    }
+                  </span>
+                </div>
+              }
             }
           </div>
         }

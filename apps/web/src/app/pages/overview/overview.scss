@@ -96,7 +96,8 @@
 
 /* Vested-RSU companion line on the stress-test card: separated so it never
    reads as part of the headline math. */
-.overview__ready-to-sell {
+.overview__ready-to-sell,
+.overview__committed-savings {
   margin-top: 0.35rem;
   padding-top: 0.5rem;
   border-top: 1px dashed #e5e7eb;
@@ -179,6 +180,11 @@
 .overview__language {
   margin-top: 0.5rem;
   width: 11rem;
+}
+
+/* #5: reserve-committed-savings toggle sits under the language control. */
+.overview__committed-toggle {
+  margin-top: 0.5rem;
 }
 
 /* M43: emergency-fund target editor */
