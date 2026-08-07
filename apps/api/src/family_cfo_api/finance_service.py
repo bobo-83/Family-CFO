@@ -1810,6 +1810,65 @@ def autofile_transfers(engine: Engine, household_id: str) -> int:
     return repository.set_transactions_category(engine, household_id, ids, transfer_category_id)
 
 
+def goal_funding(
+    engine: Engine,
+    household_id: str,
+    record,
+    *,
+    current_minor: int,
+    today: date | None = None,
+):
+    """#4: what is actually filling this goal — the linked contributions'
+    monthly run-rate and a completion date projected from it.
+
+    Returns (monthly_equivalent_minor, funded_by_records, projected_completion,
+    funding_status). Payroll deductions never reach the ledger (#201), so an
+    "unfunded" retirement goal may be funded invisibly — the CALLER words that
+    caveat; this function reports only what the ledger shows.
+    """
+    from family_cfo_api import savings_detection
+
+    today = today or date.today()
+    linked = [
+        c
+        for c in repository.list_savings_contributions(engine, household_id)
+        if c.goal_id == record.id
+    ]
+    monthly = 0
+    for c in linked:
+        candidate = savings_detection.ContributionCandidate(
+            source_account_id=c.source_account_id,
+            destination_account_id=c.destination_account_id,
+            destination_name="",
+            destination_type="",
+            amount_minor=c.amount_minor,
+            currency=c.currency,
+            frequency=c.frequency,
+            occurrences=0,
+            last_seen=today,
+            next_expected=today,
+        )
+        monthly += savings_detection.monthly_equivalent_minor(candidate)
+
+    remaining = max(0, record.target_minor - current_minor)
+    projected: date | None = None
+    if monthly > 0 and remaining > 0:
+        months = -(-remaining // monthly)  # ceil
+        projected = add_months(today, months)
+    elif remaining == 0:
+        projected = today
+
+    if monthly == 0:
+        status = "unfunded"
+    elif record.target_date is None:
+        status = "funded_no_date"
+    elif projected is not None and projected <= record.target_date:
+        status = "on_track"
+    else:
+        status = "behind"
+    return monthly, linked, projected, status
+
+
 def goal_current_minor(
     engine: Engine, household_id: str, goal: repository.GoalRecord
 ) -> int:

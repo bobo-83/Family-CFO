@@ -28,6 +28,46 @@
   margin-top: 0.35rem;
 }
 
+/* #4: the funding line. Status decides how loud it is. */
+.goal-list__funding {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+}
+
+.goal-list__funding--on_track {
+  color: #166534;
+}
+
+.goal-list__funding--behind {
+  color: #92400e;
+  font-weight: 600;
+}
+
+/* The loud insight: a goal nothing is filling should not read as fine print. */
+.goal-list__funding--unfunded {
+  color: #991b1b;
+  font-weight: 600;
+}
+
+/* Retirement's "unfunded" is a visibility caveat (payroll deductions never hit
+   the feed), so it stays informational, never alarming. */
+.goal-list__funding--payroll {
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+  font-weight: 400;
+}
+
+.goal-list__funding-sources {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+
+  li {
+    margin-top: 0.1rem;
+  }
+}
+
 .goal-list__contribution {
   display: flex;
   align-items: center;

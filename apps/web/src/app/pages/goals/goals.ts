@@ -1,15 +1,27 @@
-import { Component, inject, resource, signal } from '@angular/core';
+import { formatDate } from '@angular/common';
+import { Component, LOCALE_ID, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type { GoalType } from '../../api-client';
+import type { Goal, GoalFundingSource, GoalType, RecurringFrequency } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
+
+// #201's cadence words, so a funding row reads "College 529 · USD 500.00 monthly".
+const CADENCE_WORDS: Record<RecurringFrequency, string> = {
+  weekly: 'weekly',
+  biweekly: 'every two weeks',
+  semimonthly: 'twice a month',
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  semiannual: 'twice a year',
+  annual: 'yearly',
+};
 
 const GOAL_TYPES: GoalType[] = [
   'emergency_fund',
@@ -39,6 +51,7 @@ export class Goals {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly goalTypes = GOAL_TYPES;
 
@@ -70,6 +83,55 @@ export class Goals {
   });
 
   protected readonly formatMoney = formatMoney;
+
+  // --- #4: what the ledger shows filling each goal ---------------------------
+
+  /**
+   * One line per goal on where its money is (or isn't) coming from.
+   * "Unfunded" means no linked transfers, not no money — a 401(k) is withheld
+   * before pay ever lands in the feed, so retirement goals get the payroll
+   * caveat instead of the loud "nothing is funding this".
+   */
+  protected fundingLine(goal: Goal): string | null {
+    const funding = goal.funding;
+    if (!funding) {
+      return null;
+    }
+    const monthly = `${formatMoney(funding.monthly_equivalent)}/mo`;
+    switch (funding.status) {
+      case 'on_track': {
+        const projected = funding.projected_completion
+          ? ` · projected ${this.monthLabel(funding.projected_completion)}`
+          : '';
+        return `On track — ${monthly} going in${projected}`;
+      }
+      case 'behind': {
+        const target = goal.target_date ? ` by ${this.monthLabel(goal.target_date)}` : '';
+        const projected = funding.projected_completion
+          ? ` (projected ${this.monthLabel(funding.projected_completion)})`
+          : '';
+        return `Behind — ${monthly} won't reach the target${target}${projected}`;
+      }
+      case 'funded_no_date':
+        return `${monthly} going in`;
+      case 'unfunded':
+        return goal.type === 'retirement'
+          ? "No linked transfers — 401(k) payroll deductions don't appear here."
+          : 'Nothing is currently funding this goal';
+      default:
+        return null;
+    }
+  }
+
+  /** Compact "College 529 · USD 500.00 monthly" row under the funding line. */
+  protected fundingSourceLine(source: GoalFundingSource): string {
+    const cadence = CADENCE_WORDS[source.frequency] ?? source.frequency;
+    return `${source.destination_name} · ${formatMoney(source.amount)} ${cadence}`;
+  }
+
+  private monthLabel(date: string): string {
+    return formatDate(date, 'MMM y', this.locale);
+  }
 
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],

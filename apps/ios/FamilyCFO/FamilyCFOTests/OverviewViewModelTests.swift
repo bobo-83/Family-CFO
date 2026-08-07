@@ -79,6 +79,15 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         }
     }
 
+    // #4: goal links. A nil goalID is the unlink.
+    private(set) var links: [(id: String, goalID: String?)] = []
+    nonisolated func updateSavingsContribution(id: String, goalID: String?) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            links.append((id: id, goalID: goalID))
+        }
+    }
+
     // #10: household language PATCHes.
     private(set) var updatedLanguages: [String] = []
     nonisolated func updateLanguage(_ language: String) async throws {
@@ -103,19 +112,42 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
     }
 }
 
+/// #4: the Overview only ever asks the Goals API for the id→name map, and only
+/// lazily — the call count is the test's whole point.
+@MainActor
+final class MockGoalsAPI: GoalsAPI, @unchecked Sendable {
+    var result: [Components.Schemas.Goal] = []
+    private(set) var callCount = 0
+
+    nonisolated func goals() async throws -> [Components.Schemas.Goal] {
+        await MainActor.run {
+            callCount += 1
+            return result
+        }
+    }
+    nonisolated func createGoal(_ request: Components.Schemas.GoalCreateRequest) async throws {}
+    nonisolated func updateGoal(
+        id: String, _ request: Components.Schemas.GoalUpdateRequest
+    ) async throws {}
+    nonisolated func deleteGoal(id: String) async throws {}
+}
+
 @MainActor
 struct OverviewViewModelTests {
     private func money(_ minor: Int64) -> Components.Schemas.Money {
         .init(amountMinor: minor, currency: "USD")
     }
 
-    private func context() -> Components.Schemas.HouseholdContext {
+    private func context(
+        contributions: [Components.Schemas.SavingsContribution]? = nil
+    ) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1",
             displayName: "The Vus",
             currency: "USD",
             netWorth: money(1_234_500),
-            emergencyFundMonths: 4.5
+            emergencyFundMonths: 4.5,
+            savingsContributions: contributions
         )
     }
 
@@ -235,7 +267,9 @@ struct OverviewViewModelTests {
         declared: Bool = false,
         contributionID: String? = nil,
         sourceAccountID: String? = nil,
-        destinationAccountID: String? = nil
+        destinationAccountID: String? = nil,
+        goalID: String? = nil,
+        suggestedGoalID: String? = nil
     ) -> Components.Schemas.SavingsContribution {
         .init(
             destinationName: name,
@@ -249,7 +283,9 @@ struct OverviewViewModelTests {
             declared: declared,
             contributionId: contributionID,
             sourceAccountId: sourceAccountID,
-            destinationAccountId: destinationAccountID)
+            destinationAccountId: destinationAccountID,
+            goalId: goalID,
+            suggestedGoalId: suggestedGoalID)
     }
 
     /// The only computation on this card. Cadences differ, so summing the raw
@@ -437,6 +473,107 @@ struct OverviewViewModelTests {
             occurrences: 0, declared: true, contributionID: "sc-1",
             sourceAccountID: "acct-checking", destinationAccountID: "acct-529")
         #expect(OverviewView.dismissableRoute(declaredRow) == nil)
+    }
+
+    // MARK: - #4 goal funding links
+
+    private func goal(
+        _ id: String, name: String, type: Components.Schemas.GoalType = .college
+    ) -> Components.Schemas.Goal {
+        .init(
+            id: id, name: name, _type: type,
+            target: money(1_000_000), current: money(250_000), priority: 1)
+    }
+
+    /// Accepting the "Fund <goal>?" suggestion PATCHes the link, then reloads
+    /// so the row shows "funds <goal>" and the goal's funding line updates.
+    @Test func linkingAContributionPatchesTheGoalThenRefreshes() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.linkContribution(contributionID: "sc-1", goalID: "goal-college")
+
+        #expect(api.links.count == 1)
+        #expect(api.links.first?.id == "sc-1")
+        #expect(api.links.first?.goalID == "goal-college")
+        #expect(api.callCount == 1)  // reloaded the Overview after linking
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    /// Unlink is the same PATCH with a nil goal.
+    @Test func unlinkingPatchesANilGoalThenRefreshes() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.linkContribution(contributionID: "sc-1", goalID: nil)
+
+        #expect(api.links.count == 1)
+        #expect(api.links.first?.id == "sc-1")
+        #expect(api.links.first?.goalID == nil)
+        #expect(api.callCount == 1)
+    }
+
+    /// A refused link must say so and must NOT refresh — same contract as the
+    /// other contribution writes.
+    @Test func aRefusedLinkSurfacesTheErrorAndDoesNotRefresh() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        api.mutationError = APIError.unauthorized
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.linkContribution(contributionID: "sc-1", goalID: "goal-college")
+
+        #expect(api.callCount == 0)
+        #expect(viewModel.errorMessage?.contains("pairing") == true)
+    }
+
+    /// Goal names load lazily via one goals-list fetch — only when a loaded
+    /// contribution references a goal, and never per row.
+    @Test func goalNamesLoadOnceWhenAContributionReferencesAGoal() async {
+        let api = MockHouseholdAPI()
+        api.context = context(contributions: [
+            contribution(
+                "College 529", amount: 50_000, frequency: .monthly, monthly: 50_000,
+                occurrences: 0, declared: true, contributionID: "sc-1",
+                goalID: "goal-college"),
+            contribution(
+                "Vanguard", amount: 20_000, frequency: .monthly, monthly: 20_000,
+                occurrences: 0, declared: true, contributionID: "sc-2",
+                suggestedGoalID: "goal-retire"),
+        ])
+        let goalsAPI = MockGoalsAPI()
+        goalsAPI.result = [
+            goal("goal-college", name: "College fund"),
+            goal("goal-retire", name: "Retire at 60", type: .retirement),
+        ]
+        let viewModel = OverviewViewModel(
+            api: api, goalsAPI: goalsAPI, notifications: nil, snapshotStore: nil)
+
+        await viewModel.load()
+
+        #expect(goalsAPI.callCount == 1)
+        #expect(viewModel.goalNames["goal-college"] == "College fund")
+        #expect(viewModel.goalNames["goal-retire"] == "Retire at 60")
+    }
+
+    /// No referenced goal, no fetch — most households pay for nothing here.
+    @Test func goalNamesAreNotFetchedWhenNothingReferencesAGoal() async {
+        let api = MockHouseholdAPI()
+        api.context = context(contributions: [
+            contribution(
+                "Rainy Day Savings", amount: 20_000, frequency: .monthly, monthly: 20_000,
+                occurrences: 6)
+        ])
+        let goalsAPI = MockGoalsAPI()
+        let viewModel = OverviewViewModel(
+            api: api, goalsAPI: goalsAPI, notifications: nil, snapshotStore: nil)
+
+        await viewModel.load()
+
+        #expect(goalsAPI.callCount == 0)
+        #expect(viewModel.goalNames.isEmpty)
     }
 }
 

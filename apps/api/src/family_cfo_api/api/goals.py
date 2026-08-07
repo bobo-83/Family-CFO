@@ -7,12 +7,39 @@ from family_cfo_api.schemas import (
     ErrorResponse,
     Goal,
     GoalCreateRequest,
+    GoalFunding,
+    GoalFundingSource,
     GoalListResponse,
     GoalUpdateRequest,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
 router = APIRouter(tags=["Goals"])
+
+
+def _funding(
+    engine: Engine, household_id: str, record: repository.GoalRecord, current: int
+) -> GoalFunding:
+    monthly, linked, projected, status = finance_service.goal_funding(
+        engine, household_id, record, current_minor=current
+    )
+    # Names come from the account map, not the contribution row — sealed-mode
+    # decryption happens in the repository readers.
+    names = repository.account_name_map(engine, household_id)
+    return GoalFunding(
+        monthly_equivalent=MoneySchema(amount_minor=monthly, currency=record.currency),
+        funded_by=[
+            GoalFundingSource(
+                contribution_id=c.id,
+                destination_name=names.get(c.destination_account_id, "Savings"),
+                amount=MoneySchema(amount_minor=c.amount_minor, currency=c.currency),
+                frequency=c.frequency,
+            )
+            for c in linked
+        ],
+        projected_completion=projected,
+        status=status,
+    )
 
 
 def _to_goal_schema(engine: Engine, household_id: str, record: repository.GoalRecord) -> Goal:
@@ -31,6 +58,7 @@ def _to_goal_schema(engine: Engine, household_id: str, record: repository.GoalRe
             if record.monthly_contribution_minor is not None
             else None
         ),
+        funding=_funding(engine, household_id, record, current),
     )
 
 

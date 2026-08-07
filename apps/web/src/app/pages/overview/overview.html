@@ -395,30 +395,69 @@
                       @if (contribution.inferred) {
                         <span class="overview__inferred">inferred</span>
                       }
+                      <!-- #4: the goal this contribution funds. -->
+                      @if (goalName(contribution.goal_id); as linkedName) {
+                        <span class="overview__goal-link" title="funds {{ linkedName }}">
+                          → {{ linkedName }}
+                        </span>
+                        @if (canWrite()) {
+                          <button
+                            type="button"
+                            class="overview__goal-unlink"
+                            [disabled]="savingsSubmitting()"
+                            (click)="linkContributionToGoal(contribution, null)"
+                            aria-label="Unlink from {{ linkedName }}"
+                          >
+                            ×
+                          </button>
+                        }
+                      }
                     </span>
                     <span class="overview__bill-due">{{ contributionDetail(contribution) }}</span>
                     @if (canWrite()) {
-                      @if (contribution.declared) {
-                        <button
-                          mat-button
-                          type="button"
-                          class="overview__saving-action"
-                          [disabled]="savingsSubmitting()"
-                          (click)="stopTracking(contribution)"
-                        >
-                          Stop tracking
-                        </button>
-                      } @else if (canDismiss(contribution)) {
-                        <button
-                          mat-button
-                          type="button"
-                          class="overview__saving-action"
-                          [disabled]="savingsSubmitting()"
-                          (click)="dismissContribution(contribution)"
-                        >
-                          Not saving
-                        </button>
-                      }
+                      <span class="overview__saving-actions">
+                        <!-- #4: one-tap link when the destination type points at
+                             exactly one goal (529 -> college, ...). -->
+                        @if (!contribution.goal_id && contribution.contribution_id) {
+                          @if (goalName(contribution.suggested_goal_id); as suggestedName) {
+                            <button
+                              mat-stroked-button
+                              type="button"
+                              class="overview__goal-chip"
+                              [disabled]="savingsSubmitting()"
+                              (click)="
+                                linkContributionToGoal(
+                                  contribution,
+                                  contribution.suggested_goal_id ?? null
+                                )
+                              "
+                            >
+                              Fund {{ suggestedName }}?
+                            </button>
+                          }
+                        }
+                        @if (contribution.declared) {
+                          <button
+                            mat-button
+                            type="button"
+                            class="overview__saving-action"
+                            [disabled]="savingsSubmitting()"
+                            (click)="stopTracking(contribution)"
+                          >
+                            Stop tracking
+                          </button>
+                        } @else if (canDismiss(contribution)) {
+                          <button
+                            mat-button
+                            type="button"
+                            class="overview__saving-action"
+                            [disabled]="savingsSubmitting()"
+                            (click)="dismissContribution(contribution)"
+                          >
+                            Not saving
+                          </button>
+                        }
+                      </span>
                     }
                   </li>
                 }

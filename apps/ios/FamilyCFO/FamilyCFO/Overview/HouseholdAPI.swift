@@ -39,6 +39,9 @@ protocol HouseholdAPI: Sendable {
     ) async throws
     /// #203: stop tracking a contribution the household declared.
     func deleteSavingsContribution(id: String) async throws
+    /// #4: point a declared contribution at the goal it funds. A nil goal
+    /// unlinks — the contribution keeps counting, it just funds nothing named.
+    func updateSavingsContribution(id: String, goalID: String?) async throws
     /// #10: set the household's language (en, vi, lt) — household-wide, so the
     /// advisor answers everyone in it. The server 422s unsupported codes.
     func updateLanguage(_ language: String) async throws
@@ -72,6 +75,9 @@ extension HouseholdAPI {
         throw APIError.server(501)
     }
     func deleteSavingsContribution(id: String) async throws {
+        throw APIError.server(501)
+    }
+    func updateSavingsContribution(id: String, goalID: String?) async throws {
         throw APIError.server(501)
     }
     func dismissSavingsContribution(
@@ -223,6 +229,25 @@ struct LiveHouseholdAPI: HouseholdAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateSavingsContribution(id: String, goalID: String?) async throws {
+        let request = Components.Schemas.SavingsContributionUpdateRequest(goalId: goalID)
+        switch try await client.updateSavingsContribution(
+            .init(path: .init(contributionId: id), body: .json(request))
+        ) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        // The contribution or the goal — either way the link can't be made.
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

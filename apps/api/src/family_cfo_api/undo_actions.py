@@ -55,6 +55,8 @@ UNDO_POLICY: dict[str, str] = {
     "savings_contribution.created": UNDOABLE,
     "savings_contribution.deleted": UNDOABLE,
     "savings_contribution.dismissed": UNDOABLE,
+    "savings_contribution.linked": UNDOABLE,
+    "savings_contribution.unlinked": UNDOABLE,
     "bill.payment_linked": UNDOABLE,
     "bill.payment_unlinked": UNDOABLE,
     "bill.updated": UNDOABLE,
@@ -372,6 +374,17 @@ def savings_contribution_deleted(record) -> str:
                 "source": record.source,
                 "label_key": record.label_key,
             },
+        }
+    )
+
+
+def savings_contribution_link_changed(record) -> str:
+    """Undo restores the PREVIOUS goal link (which may be None)."""
+    return json.dumps(
+        {
+            "op": "relink_savings_contribution",
+            "contribution_id": record.id,
+            "goal_id": record.goal_id,
         }
     )
 
@@ -695,6 +708,25 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
         if not key:
             raise UndoError("this action can't be undone")
         repository.remove_bill_suggestion_dismissal(engine, household_id, key)
+        return
+
+    if op == "undismiss_savings_route":
+        # #203 latent fix: the token was written but never dispatched, so
+        # undoing a "not saving" dismissal errored. Found while adding #4.
+        source = token.get("source_account_id")
+        destination = token.get("destination_account_id")
+        if not source or not destination:
+            raise UndoError("this action can't be undone")
+        repository.undismiss_savings_route(engine, household_id, source, destination)
+        return
+
+    if op == "relink_savings_contribution":
+        contribution_id = token.get("contribution_id")
+        if not contribution_id:
+            raise UndoError("this action can't be undone")
+        repository.link_savings_contribution_to_goal(
+            engine, household_id, contribution_id, token.get("goal_id")
+        )
         return
 
     if op == "income_override":

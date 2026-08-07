@@ -25,6 +25,8 @@ describe('Overview', () => {
     declareSavingsContribution: ReturnType<typeof vi.fn>;
     deleteSavingsContribution: ReturnType<typeof vi.fn>;
     dismissSavingsContribution: ReturnType<typeof vi.fn>;
+    updateSavingsContribution: ReturnType<typeof vi.fn>;
+    listGoals: ReturnType<typeof vi.fn>;
   };
 
   function configure(role = 'owner') {
@@ -58,6 +60,23 @@ describe('Overview', () => {
       declareSavingsContribution: vi.fn().mockResolvedValue(response({})),
       deleteSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
       dismissSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
+      // #4: linking a contribution to the goal it funds.
+      updateSavingsContribution: vi.fn().mockResolvedValue(response({})),
+      // #4: only fetched once a row is linked or carries a suggestion.
+      listGoals: vi.fn().mockResolvedValue(
+        response({
+          goals: [
+            {
+              id: 'g-college',
+              name: 'College fund',
+              type: 'college',
+              target: { amount_minor: 2_000_000, currency: 'USD' },
+              current: { amount_minor: 500_000, currency: 'USD' },
+              priority: 1,
+            },
+          ],
+        }),
+      ),
     };
     configure();
   });
@@ -1055,6 +1074,130 @@ describe('Overview', () => {
       const host = fixture.nativeElement as HTMLElement;
       expect(host.querySelector('.overview__saving-action')).toBeNull();
       expect(host.querySelector('.overview__declare-open')).toBeNull();
+    });
+  });
+
+  // #4: contributions link to the goals they fund.
+  describe('goal funding links (#4)', () => {
+    function declaredRow(extra: Record<string, unknown>) {
+      return {
+        destination_name: 'College 529',
+        destination_type: '529',
+        amount: { amount_minor: 50_000, currency: 'USD' },
+        frequency: 'monthly',
+        monthly_equivalent: { amount_minor: 50_000, currency: 'USD' },
+        occurrences: 0,
+        last_seen: '2026-08-01',
+        declared: true,
+        contribution_id: 'sc1',
+        source_account_id: 'a1',
+        destination_account_id: 'a2',
+        ...extra,
+      };
+    }
+
+    function contextWith(contributions: unknown[]) {
+      return response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        savings_contributions: contributions,
+      });
+    }
+
+    async function render() {
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      // The goal-name lookup only starts once the context reveals a link or
+      // suggestion, so flush a second round for its resource.
+      await new Promise((resolve) => setTimeout(resolve));
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('offers a one-tap chip on a suggested row, links it, and reloads', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([declaredRow({ suggested_goal_id: 'g-college' })]),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      // The name came from the lazily fetched goals list.
+      expect(apiMock.listGoals).toHaveBeenCalled();
+      const chip = host.querySelector('.overview__goal-chip') as HTMLButtonElement;
+      expect(chip.textContent?.trim()).toBe('Fund College fund?');
+
+      chip.click();
+      await fixture.whenStable();
+
+      expect(apiMock.updateSavingsContribution).toHaveBeenCalledWith('sc1', 'g-college');
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('shows the linked goal on the row and unlinks it', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([declaredRow({ goal_id: 'g-college' })]),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+
+      const link = host.querySelector('.overview__goal-link');
+      expect(link?.textContent).toContain('→ College fund');
+      expect(link?.getAttribute('title')).toBe('funds College fund');
+      // A linked row offers no suggestion chip.
+      expect(host.querySelector('.overview__goal-chip')).toBeNull();
+
+      const unlink = host.querySelector('.overview__goal-unlink') as HTMLButtonElement;
+      expect(unlink.getAttribute('aria-label')).toBe('Unlink from College fund');
+      unlink.click();
+      await fixture.whenStable();
+
+      expect(apiMock.updateSavingsContribution).toHaveBeenCalledWith('sc1', null);
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('surfaces the server message when linking fails', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([declaredRow({ suggested_goal_id: 'g-college' })]),
+      );
+      apiMock.updateSavingsContribution.mockResolvedValue(
+        response(undefined, { error: { message: 'That goal is gone.' } }),
+      );
+
+      const fixture = await render();
+      (
+        (fixture.nativeElement as HTMLElement).querySelector(
+          '.overview__goal-chip',
+        ) as HTMLButtonElement
+      ).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('That goal is gone.');
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('still names the linked goal for a viewer, but offers no chip or unlink', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith([
+          declaredRow({ goal_id: 'g-college' }),
+          declaredRow({ contribution_id: 'sc2', suggested_goal_id: 'g-college' }),
+        ]),
+      );
+      TestBed.resetTestingModule();
+      configure('viewer');
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__goal-link')?.textContent).toContain('→ College fund');
+      expect(host.querySelector('.overview__goal-chip')).toBeNull();
+      expect(host.querySelector('.overview__goal-unlink')).toBeNull();
     });
   });
 });

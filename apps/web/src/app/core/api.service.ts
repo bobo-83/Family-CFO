@@ -71,6 +71,7 @@ import {
   discardImport,
   dismissBillSuggestion,
   dismissSavingsContribution,
+  updateSavingsContribution,
   generateReport,
   getAiApplyStatus,
   getAiRuntimeConfig,
@@ -353,6 +354,14 @@ export class ApiService {
 
   dismissSavingsContribution(body: SavingsContributionDismissRequest) {
     return dismissSavingsContribution({ body });
+  }
+
+  // #4: point a declared contribution at the goal it funds; null unlinks.
+  updateSavingsContribution(contributionId: string, goalId: string | null) {
+    return updateSavingsContribution({
+      path: { contribution_id: contributionId },
+      body: { goal_id: goalId },
+    });
   }
 
   recordAccountBalance(accountId: string, amountMinor: number, currency: string) {

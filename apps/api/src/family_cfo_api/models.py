@@ -859,6 +859,8 @@ savings_contributions = Table(
     # The outflow's normalised label, when one was available — used to match
     # future occurrences of a declared contribution.
     Column("label_key", String(120), nullable=True),
+    # #4: the goal this contribution funds (at most one; nullable = unlinked).
+    Column("goal_id", String(36), ForeignKey("goals.id"), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("amount_minor > 0", name="ck_savings_contributions_amount_positive"),
     CheckConstraint(

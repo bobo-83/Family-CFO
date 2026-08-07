@@ -94,6 +94,8 @@ class ContributionCandidate:
     # #203: the household asserted this one; it is not a suggestion.
     declared: bool = False
     contribution_id: str | None = None
+    # #4: the goal a declared contribution funds.
+    goal_id: str | None = None
 
 
 def _paired_transfers(
@@ -514,6 +516,7 @@ def detect_for_household(
                 inferred=False,  # asserted by the household, not inferred
                 declared=True,
                 contribution_id=record.id,
+                goal_id=record.goal_id,
             )
         )
     merged.sort(key=lambda c: c.amount_minor, reverse=True)

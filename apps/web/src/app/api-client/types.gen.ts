@@ -1046,6 +1046,14 @@ export type SavingsContribution = {
      * Needed, with the source, to dismiss a detected route.
      */
     destination_account_id?: string;
+    /**
+     * #4: the goal this contribution funds.
+     */
+    goal_id?: string | null;
+    /**
+     * "#4: for an unlinked declared contribution, the goal its destination type suggests (529 -> college, retirement -> retirement) when exactly one such goal exists."
+     */
+    suggested_goal_id?: string | null;
 };
 
 /**
@@ -1056,6 +1064,13 @@ export type SavingsContributionCreateRequest = {
     destination_account_id: string;
     amount: Money;
     frequency: RecurringFrequency;
+};
+
+/**
+ * "#4: point a declared contribution at the goal it funds. goal_id null unlinks."
+ */
+export type SavingsContributionUpdateRequest = {
+    goal_id?: string | null;
 };
 
 /**
@@ -1212,6 +1227,23 @@ export type Account = {
 
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'brokerage' | 'retirement' | 'hsa' | '529' | 'mortgage' | 'auto_loan' | 'student_loan' | '401k_loan' | 'real_estate' | 'other_asset' | 'other_liability';
 
+export type GoalFundingSource = {
+    contribution_id: string;
+    destination_name: string;
+    amount: Money;
+    frequency: RecurringFrequency;
+};
+
+export type GoalFunding = {
+    monthly_equivalent: Money;
+    funded_by: Array<GoalFundingSource>;
+    projected_completion?: string | null;
+    /**
+     * unfunded | funded_no_date | on_track | behind
+     */
+    status: string;
+};
+
 export type Goal = {
     id: string;
     name: string;
@@ -1224,6 +1256,10 @@ export type Goal = {
      * M118: planned monthly contribution, reserved by the spending plan.
      */
     monthly_contribution?: Money;
+    /**
+     * "#4: what the ledger shows filling this goal. Payroll deductions never appear in the feed, so status 'unfunded' means no linked transfers, not no money — retirement goals especially."
+     */
+    funding?: GoalFunding;
 };
 
 /**
@@ -5955,6 +5991,41 @@ export type DeleteSavingsContributionResponses = {
 };
 
 export type DeleteSavingsContributionResponse = DeleteSavingsContributionResponses[keyof DeleteSavingsContributionResponses];
+
+export type UpdateSavingsContributionData = {
+    body: SavingsContributionUpdateRequest;
+    path: {
+        contribution_id: string;
+    };
+    query?: never;
+    url: '/savings/contributions/{contribution_id}';
+};
+
+export type UpdateSavingsContributionErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Contribution or goal not found
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateSavingsContributionError = UpdateSavingsContributionErrors[keyof UpdateSavingsContributionErrors];
+
+export type UpdateSavingsContributionResponses = {
+    /**
+     * The updated contribution
+     */
+    200: SavingsContribution;
+};
+
+export type UpdateSavingsContributionResponse = UpdateSavingsContributionResponses[keyof UpdateSavingsContributionResponses];
 
 export type DismissSavingsContributionData = {
     body: SavingsContributionDismissRequest;

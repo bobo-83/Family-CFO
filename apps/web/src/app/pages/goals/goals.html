@@ -34,6 +34,24 @@
               <div class="goal-list__amounts">
                 {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
               </div>
+              <!-- #4: what the ledger shows filling this goal. -->
+              @if (goal.funding; as funding) {
+                <div
+                  class="goal-list__funding goal-list__funding--{{ funding.status }}"
+                  [class.goal-list__funding--payroll]="
+                    funding.status === 'unfunded' && goal.type === 'retirement'
+                  "
+                >
+                  {{ fundingLine(goal) }}
+                </div>
+                @if (funding.funded_by.length > 0) {
+                  <ul class="goal-list__funding-sources">
+                    @for (source of funding.funded_by; track source.contribution_id) {
+                      <li>{{ fundingSourceLine(source) }}</li>
+                    }
+                  </ul>
+                }
+              }
               <div class="goal-list__contribution">
                 @if (editingContributionId() === goal.id) {
                   <mat-form-field appearance="outline" subscriptSizing="dynamic">

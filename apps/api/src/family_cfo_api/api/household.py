@@ -44,6 +44,7 @@ from family_cfo_api.schemas import (
     SavingsContribution,
     SavingsContributionCreateRequest,
     SavingsContributionDismissRequest,
+    SavingsContributionUpdateRequest,
     SavingsRate,
     SealModeRequest,
     SpendingByCategory,
@@ -434,6 +435,21 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
     )
 
 
+# #4: destination type -> the goal type it plausibly funds. Only unambiguous
+# matches are suggested (exactly one goal of that type).
+_GOAL_TYPE_FOR_DESTINATION = {"529": "college", "retirement": "retirement"}
+
+
+def _suggested_goal(goals_by_type: dict[str, list], candidate) -> str | None:
+    if candidate.goal_id is not None:
+        return None
+    goal_type = _GOAL_TYPE_FOR_DESTINATION.get(candidate.destination_type)
+    if goal_type is None:
+        return None
+    matches = goals_by_type.get(goal_type, [])
+    return matches[0].id if len(matches) == 1 else None
+
+
 def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsContribution]:
     """#201: recurring transfers into savings vehicles. Best-effort — detection
     must never break the Overview, so a failure yields an empty list."""
@@ -444,6 +460,9 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
     except Exception:
         logger.exception("savings detection failed household=%s", household_id)
         return []
+    goals_by_type: dict[str, list] = {}
+    for goal in repository.list_goals(engine, household_id):
+        goals_by_type.setdefault(goal.goal_type, []).append(goal)
     return [
         SavingsContribution(
             destination_name=c.destination_name,
@@ -461,6 +480,8 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
             contribution_id=c.contribution_id,
             source_account_id=c.source_account_id,
             destination_account_id=c.destination_account_id or "",
+            goal_id=c.goal_id,
+            suggested_goal_id=_suggested_goal(goals_by_type, c) if c.declared else None,
         )
         for c in found
     ]
@@ -1295,6 +1316,85 @@ async def declare_savings_contribution(
         contribution_id=record.id,
         source_account_id=record.source_account_id,
         destination_account_id=record.destination_account_id,
+    )
+
+
+@router.patch(
+    "/savings/contributions/{contribution_id}",
+    operation_id="updateSavingsContribution",
+    response_model=SavingsContribution,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Contribution or goal not found", "model": ErrorResponse},
+    },
+    summary="Link a contribution to the goal it funds (#4)",
+)
+async def update_savings_contribution(
+    contribution_id: str,
+    payload: SavingsContributionUpdateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.TRANSACTIONS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> SavingsContribution:
+    record = repository.get_savings_contribution(engine, session.household_id, contribution_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Contribution not found")
+    goal_name: str | None = None
+    if payload.goal_id is not None:
+        goal = next(
+            (g for g in repository.list_goals(engine, session.household_id)
+             if g.id == payload.goal_id),
+            None,
+        )
+        if goal is None:
+            raise HTTPException(status_code=404, detail="Goal not found")
+        goal_name = goal.name
+    repository.link_savings_contribution_to_goal(
+        engine, session.household_id, contribution_id, payload.goal_id
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "savings_contribution.linked" if payload.goal_id else "savings_contribution.unlinked",
+        "savings_contribution",
+        contribution_id,
+        (f"Contribution now funds {goal_name}" if goal_name
+         else "Contribution no longer funds a goal"),
+        undo_token=undo_actions.savings_contribution_link_changed(record),
+    )
+    updated = repository.get_savings_contribution(engine, session.household_id, contribution_id)
+    names = repository.account_name_map(engine, session.household_id)
+    types = repository.account_type_map(engine, session.household_id)
+    from family_cfo_api import savings_detection as _sd
+
+    candidate = _sd.ContributionCandidate(
+        source_account_id=updated.source_account_id,
+        destination_account_id=updated.destination_account_id,
+        destination_name=names.get(updated.destination_account_id, "Savings"),
+        destination_type=types.get(updated.destination_account_id, "savings"),
+        amount_minor=updated.amount_minor,
+        currency=updated.currency,
+        frequency=updated.frequency,
+        occurrences=0,
+        last_seen=date.today(),
+        next_expected=date.today(),
+    )
+    return SavingsContribution(
+        destination_name=candidate.destination_name,
+        destination_type=candidate.destination_type,
+        amount=MoneySchema(amount_minor=updated.amount_minor, currency=updated.currency),
+        frequency=updated.frequency,
+        monthly_equivalent=MoneySchema(
+            amount_minor=_sd.monthly_equivalent_minor(candidate), currency=updated.currency
+        ),
+        occurrences=0,
+        last_seen=date.today(),
+        declared=True,
+        contribution_id=updated.id,
+        source_account_id=updated.source_account_id,
+        destination_account_id=updated.destination_account_id,
+        goal_id=updated.goal_id,
     )
 
 

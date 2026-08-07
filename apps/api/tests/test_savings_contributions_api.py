@@ -138,3 +138,120 @@ async def test_dismissing_a_route_is_accepted(demo_client, demo_token):
         json={"source_account_id": checking, "destination_account_id": college},
     )
     assert again.status_code == 204
+
+
+@pytest.mark.anyio
+async def test_linking_a_contribution_to_a_goal(demo_client, demo_token):
+    """#4: the link, its suggestion, the goal's funding line, and undo."""
+    auth_headers = {"Authorization": f"Bearer {demo_token}"}
+    checking = await _make_account(demo_client, auth_headers, "Checking", "checking")
+    college = await _make_account(demo_client, auth_headers, "College 529", "529")
+    goal = await demo_client.post(
+        "/api/v1/goals",
+        headers=auth_headers,
+        json={
+            "name": "College fund",
+            "type": "college",
+            "target": {"amount_minor": 5_000_000, "currency": "USD"},
+            "target_date": "2038-09-01",
+        },
+    )
+    assert goal.status_code == 201, goal.text
+    goal_id = goal.json()["id"]
+
+    contribution_id = (await _declare(demo_client, auth_headers, checking, college)).json()[
+        "contribution_id"
+    ]
+
+    # The 529 destination + a single college goal -> a one-tap suggestion.
+    context = await demo_client.get("/api/v1/household", headers=auth_headers)
+    mine = next(
+        c
+        for c in context.json()["savings_contributions"]
+        if c.get("contribution_id") == contribution_id
+    )
+    assert mine["suggested_goal_id"] == goal_id
+    assert mine["goal_id"] is None
+
+    linked = await demo_client.patch(
+        f"/api/v1/savings/contributions/{contribution_id}",
+        headers=auth_headers,
+        json={"goal_id": goal_id},
+    )
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["goal_id"] == goal_id
+
+    # The goal now reports its funding: $500/mo, on track for 2038.
+    goals = (await demo_client.get("/api/v1/goals", headers=auth_headers)).json()["goals"]
+    funded = next(g for g in goals if g["id"] == goal_id)
+    assert funded["funding"]["monthly_equivalent"]["amount_minor"] == 500_00
+    assert funded["funding"]["status"] == "on_track"
+    assert funded["funding"]["funded_by"][0]["contribution_id"] == contribution_id
+    assert funded["funding"]["projected_completion"] is not None
+
+    # A linked contribution stops being suggested.
+    context = await demo_client.get("/api/v1/household", headers=auth_headers)
+    mine = next(
+        c
+        for c in context.json()["savings_contributions"]
+        if c.get("contribution_id") == contribution_id
+    )
+    assert mine["goal_id"] == goal_id
+    assert mine["suggested_goal_id"] is None
+
+    # Undoing the link restores the previous (unlinked) state.
+    audit_rows = (await demo_client.get("/api/v1/audit", headers=auth_headers)).json()["events"]
+    event = next(a for a in audit_rows if a["action"] == "savings_contribution.linked")
+    undone = await demo_client.post(f"/api/v1/audit/{event['id']}/undo", headers=auth_headers)
+    assert undone.status_code in (200, 204), undone.text
+    goals = (await demo_client.get("/api/v1/goals", headers=auth_headers)).json()["goals"]
+    assert next(g for g in goals if g["id"] == goal_id)["funding"]["status"] == "unfunded"
+
+
+@pytest.mark.anyio
+async def test_unfunded_goal_says_so_and_dismiss_undo_works(demo_client, demo_token):
+    auth_headers = {"Authorization": f"Bearer {demo_token}"}
+    goal = await demo_client.post(
+        "/api/v1/goals",
+        headers=auth_headers,
+        json={
+            "name": "New roof",
+            "type": "renovation",
+            "target": {"amount_minor": 2_000_000, "currency": "USD"},
+        },
+    )
+    goal_id = goal.json()["id"]
+    goals = (await demo_client.get("/api/v1/goals", headers=auth_headers)).json()["goals"]
+    fresh = next(g for g in goals if g["id"] == goal_id)
+    assert fresh["funding"]["status"] == "unfunded"
+    assert fresh["funding"]["funded_by"] == []
+
+    # #203 latent fix: undoing a route dismissal must actually undismiss.
+    checking = await _make_account(demo_client, auth_headers, "C2", "checking")
+    college = await _make_account(demo_client, auth_headers, "5292", "529")
+    dismissed = await demo_client.post(
+        "/api/v1/savings/contributions/dismiss",
+        headers=auth_headers,
+        json={"source_account_id": checking, "destination_account_id": college},
+    )
+    assert dismissed.status_code == 204
+    audit_rows = (await demo_client.get("/api/v1/audit", headers=auth_headers)).json()["events"]
+    event = next(a for a in audit_rows if a["action"] == "savings_contribution.dismissed")
+    undone = await demo_client.post(f"/api/v1/audit/{event['id']}/undo", headers=auth_headers)
+    assert undone.status_code in (200, 204), undone.text
+
+
+@pytest.mark.anyio
+async def test_linking_to_a_missing_goal_is_rejected(demo_client, demo_token):
+    auth_headers = {"Authorization": f"Bearer {demo_token}"}
+    checking = await _make_account(demo_client, auth_headers, "C3", "checking")
+    college = await _make_account(demo_client, auth_headers, "5293", "529")
+    contribution_id = (await _declare(demo_client, auth_headers, checking, college)).json()[
+        "contribution_id"
+    ]
+    rejected = await demo_client.patch(
+        f"/api/v1/savings/contributions/{contribution_id}",
+        headers=auth_headers,
+        json={"goal_id": "nope"},
+    )
+    assert rejected.status_code == 404
