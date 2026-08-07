@@ -9,13 +9,20 @@ import SwiftUI
 @Observable
 final class ReadAloudController {
     private var synthesizer: SpeechSynthesizing?
+    /// The household's advisor language, read per utterance (#10 phase 1) —
+    /// the synthesizer is built once but the language can change in Settings.
+    private var language: @MainActor () -> String = { "en" }
     private(set) var speakingMessageID: String?
     private var task: Task<Void, Never>?
 
     /// Build the synthesizer once, from the paired box's audio API (Kokoro) with
     /// the system voice underneath — or the system voice alone when unpaired.
-    func configure(speechAudio: SpeechAudioAPI?) {
+    func configure(
+        speechAudio: SpeechAudioAPI?,
+        language: @escaping @MainActor () -> String = { "en" }
+    ) {
         guard synthesizer == nil else { return }
+        self.language = language
         synthesizer = SpeechSynthesizerFactory.make(speechAudio: speechAudio)
     }
 
@@ -31,8 +38,9 @@ final class ReadAloudController {
         stop()
         activateAudioSession()
         speakingMessageID = messageID
+        let language = language()
         task = Task { [weak self] in
-            await synthesizer.speak(SpokenReply.speakable(markdown))
+            await synthesizer.speak(SpokenReply.speakable(markdown), language: language)
             guard let self, self.speakingMessageID == messageID else { return }
             self.speakingMessageID = nil
         }

@@ -34,6 +34,10 @@ final class VoiceSessionViewModel: Identifiable {
     private let api: AdvisorAPI
     private let engine: SpeechEngine
     private let synthesizer: SpeechSynthesizing
+    /// The household's advisor language, read fresh per utterance (#10 phase 1):
+    /// the session can outlive a language change in Settings, so it is a
+    /// closure over live state (AppModel), not a value captured at init.
+    private let language: @MainActor () -> String
     private var listenTask: Task<Void, Never>?
     private var silenceTask: Task<Void, Never>?
     private var sendTask: Task<Void, Never>?
@@ -43,12 +47,14 @@ final class VoiceSessionViewModel: Identifiable {
         api: AdvisorAPI,
         conversationID: String? = nil,
         engine: SpeechEngine,
-        synthesizer: SpeechSynthesizing
+        synthesizer: SpeechSynthesizing,
+        language: @escaping @MainActor () -> String = { "en" }
     ) {
         self.api = api
         self.conversationID = conversationID
         self.engine = engine
         self.synthesizer = synthesizer
+        self.language = language
     }
 
     func begin() async {
@@ -183,16 +189,30 @@ final class VoiceSessionViewModel: Identifiable {
         lastAnswer = answer
         phase = .speaking
         let speakable = SpokenReply.speakable(answer)
+        let language = language()
         // An unspeakable answer must never be silent dead air — the user
         // has no screen open to notice (user report, 2026-07-21).
         await synthesizer.speak(
-            speakable.isEmpty
-                ? "Sorry, I couldn't come up with an answer to that. Try asking again."
-                : speakable)
+            speakable.isEmpty ? Self.noAnswerApology(language: language) : speakable,
+            language: language)
         // Hands-free: keep the conversation going unless interrupted or
         // ended (both of which change phase out from under us).
         if phase == .speaking {
             await startListening()
+        }
+    }
+
+    /// The canned "no answer" sentence in the household's language — an English
+    /// apology in a Vietnamese voice is the pronunciation bug inverted. A
+    /// hardcoded map until phase 3 moves user-facing strings to String Catalogs.
+    static func noAnswerApology(language: String) -> String {
+        switch language {
+        case "vi":
+            return "Xin lỗi, tôi chưa nghĩ ra câu trả lời. Bạn thử hỏi lại nhé."
+        case "lt":
+            return "Atsiprašau, nesugalvojau atsakymo. Pabandykite paklausti dar kartą."
+        default:
+            return "Sorry, I couldn't come up with an answer to that. Try asking again."
         }
     }
 

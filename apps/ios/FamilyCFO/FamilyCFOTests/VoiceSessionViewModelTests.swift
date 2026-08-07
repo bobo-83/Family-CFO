@@ -38,10 +38,13 @@ final class MockSpeechEngine: SpeechEngine {
 @MainActor
 final class MockSynthesizer: SpeechSynthesizing {
     private(set) var spoken: [String] = []
+    /// The language each utterance was spoken in (#10 phase 1).
+    private(set) var languages: [String?] = []
     private(set) var stopCount = 0
 
-    func speak(_ text: String) async {
+    func speak(_ text: String, language: String?) async {
         spoken.append(text)
+        languages.append(language)
     }
 
     func stopSpeaking() {
@@ -55,7 +58,7 @@ final class MockSynthesizer: SpeechSynthesizing {
 final class BlockingMockSynthesizer: SpeechSynthesizing {
     private var continuation: CheckedContinuation<Void, Never>?
 
-    func speak(_ text: String) async {
+    func speak(_ text: String, language: String?) async {
         await withCheckedContinuation { continuation = $0 }
     }
 
@@ -140,6 +143,48 @@ struct VoiceSessionViewModelTests {
 
         #expect(synth.spoken.count == 1)
         #expect(synth.spoken[0].contains("couldn't come up with an answer"))
+        #expect(model.phase == .listening)
+    }
+
+    /// #10 phase 1: answers are spoken in the household's language, read fresh
+    /// per utterance so a Settings change mid-session takes effect.
+    @Test func answersAreSpokenInTheHouseholdLanguage() async {
+        let api = MockAdvisorAPI()
+        api.response = groundedResponse("Jūsų santaupos auga.")
+        let engine = MockSpeechEngine()
+        let synth = MockSynthesizer()
+        let model = VoiceSessionViewModel(
+            api: api, conversationID: nil, engine: engine, synthesizer: synth,
+            language: { "lt" })
+
+        await model.begin()
+        engine.hear("kaip mano santaupos")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(synth.spoken == ["Jūsų santaupos auga."])
+        #expect(synth.languages == ["lt"])
+    }
+
+    /// The canned "no answer" apology must follow the household language too —
+    /// an English sentence read by a Vietnamese voice is the pronunciation bug
+    /// inverted.
+    @Test func unspeakableAnswerApologizesInTheHouseholdLanguage() async {
+        let api = MockAdvisorAPI()
+        api.response = groundedResponse("")
+        let engine = MockSpeechEngine()
+        let synth = MockSynthesizer()
+        let model = VoiceSessionViewModel(
+            api: api, conversationID: nil, engine: engine, synthesizer: synth,
+            language: { "vi" })
+
+        await model.begin()
+        engine.hear("tiền của tôi thế nào")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(synth.spoken == ["Xin lỗi, tôi chưa nghĩ ra câu trả lời. Bạn thử hỏi lại nhé."])
+        #expect(synth.languages == ["vi"])
         #expect(model.phase == .listening)
     }
 

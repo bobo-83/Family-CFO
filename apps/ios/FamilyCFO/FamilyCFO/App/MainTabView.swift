@@ -212,7 +212,15 @@ struct SettingsView: View {
                                 "Language",
                                 selection: Binding(
                                     get: { languageModel.language },
-                                    set: { code in Task { await languageModel.change(to: code) } }
+                                    set: { code in
+                                        Task {
+                                            await languageModel.change(to: code)
+                                            // Post-change (it rolls back on
+                                            // failure): the speech paths read
+                                            // this per utterance (#10 phase 1).
+                                            model.householdLanguage = languageModel.language
+                                        }
+                                    }
                                 )
                             ) {
                                 ForEach(HouseholdLanguageViewModel.options) { option in

@@ -173,8 +173,17 @@ final class FallbackSpeechSynthesizer: SpeechSynthesizing {
         self.fallback = fallback
     }
 
-    func speak(_ text: String) async {
+    func speak(_ text: String, language: String?) async {
         isStopped = false
+        // Kokoro is an English-only model — it reads Vietnamese or Lithuanian
+        // text with English phonetics (user report, 2026-07-26). Non-English
+        // goes straight to the system voice. Decided here, per utterance, NOT
+        // at construction: the synthesizer is built once at configure time
+        // while the household language can change at any moment in Settings.
+        guard language == nil || language == "en" else {
+            await fallback.speak(text, language: language)
+            return
+        }
         do {
             try await primary.speak(text)
         } catch is CancellationError {
@@ -182,10 +191,10 @@ final class FallbackSpeechSynthesizer: SpeechSynthesizing {
             // answer in the system voice.
         } catch let remaining as RemainingSpeech {
             guard !isStopped else { return }
-            await fallback.speak(remaining.text)
+            await fallback.speak(remaining.text, language: language)
         } catch {
             guard !isStopped else { return }
-            await fallback.speak(text)
+            await fallback.speak(text, language: language)
         }
     }
 

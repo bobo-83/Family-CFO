@@ -62,6 +62,13 @@ final class AppModel {
     /// whole month each time (M105).
     let monthTransactions = MonthTransactionsCache()
 
+    /// The household's advisor language ("en" | "vi" | "lt"), noted by the
+    /// screens that already fetch `HouseholdContext` — Overview's load and the
+    /// Settings language picker (#10 phase 1). The speech paths read it per
+    /// utterance to pick a matching voice; nothing fetches it on the speak
+    /// path. Server default is "en".
+    var householdLanguage = "en"
+
     var rolePolicy: RolePolicy {
         RolePolicy(role: credential?.role, rights: credential?.rights.map(Set.init))
     }

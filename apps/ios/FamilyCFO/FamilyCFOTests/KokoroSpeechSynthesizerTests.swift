@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 
@@ -37,9 +38,12 @@ final class StubChunkPlayer: AudioChunkPlaying {
 @MainActor
 final class RecordingSystemSynthesizer: SpeechSynthesizing {
     private(set) var spoken: [String] = []
+    /// The language each utterance was spoken in (#10 phase 1).
+    private(set) var languages: [String?] = []
 
-    func speak(_ text: String) async {
+    func speak(_ text: String, language: String?) async {
         spoken.append(text)
+        languages.append(language)
     }
 
     func stopSpeaking() {}
@@ -187,5 +191,56 @@ struct FallbackSpeechSynthesizerTests {
         synthesizer.stopSpeaking()
 
         #expect(primary.stopCount == 1)
+    }
+
+    /// Kokoro is an English-only model — a Vietnamese answer must never reach
+    /// it, or the user hears Vietnamese text in English phonetics (user
+    /// report, 2026-07-26). Per utterance, because the household language can
+    /// change while this synthesizer lives on.
+    @Test func nonEnglishBypassesTheNaturalVoiceEntirely() async {
+        let primary = StubThrowingSynthesizer()
+        let system = RecordingSystemSynthesizer()
+        let synthesizer = FallbackSpeechSynthesizer(primary: primary, fallback: system)
+
+        await synthesizer.speak("Giá trị tài sản ròng đang tăng.", language: "vi")
+
+        #expect(primary.spoken.isEmpty)
+        #expect(system.spoken == ["Giá trị tài sản ròng đang tăng."])
+        #expect(system.languages == ["vi"])
+    }
+
+    /// English answers keep today's path: the natural voice first.
+    @Test func englishStillPrefersTheNaturalVoice() async {
+        let primary = StubThrowingSynthesizer()
+        let system = RecordingSystemSynthesizer()
+        let synthesizer = FallbackSpeechSynthesizer(primary: primary, fallback: system)
+
+        await synthesizer.speak("Net worth is up.", language: "en")
+
+        #expect(primary.spoken == ["Net worth is up."])
+        #expect(system.spoken.isEmpty)
+    }
+}
+
+@MainActor
+struct SpeechSynthesizerVoiceSelectionTests {
+    /// vi/lt map to their voice locales; "en" (and nil) keep the device's own
+    /// locale — today's behavior, in the accent the user chose for the phone.
+    @Test func householdLanguageMapsToItsVoiceLocale() {
+        #expect(SpeechSynthesizerService.voiceLanguageCode(for: "vi") == "vi-VN")
+        #expect(SpeechSynthesizerService.voiceLanguageCode(for: "lt") == "lt-LT")
+        let device = AVSpeechSynthesisVoice.currentLanguageCode()
+        #expect(SpeechSynthesizerService.voiceLanguageCode(for: "en") == device)
+        #expect(SpeechSynthesizerService.voiceLanguageCode(for: nil) == device)
+    }
+
+    /// Whatever this host has installed, a device-language voice must never be
+    /// chosen while a matching Vietnamese voice exists.
+    @Test func bestVoicePrefersTheRequestedLanguageWhenInstalled() {
+        let hasVietnamese =
+            AVSpeechSynthesisVoice.speechVoices().contains { $0.language == "vi-VN" }
+            || AVSpeechSynthesisVoice(language: "vi-VN") != nil
+        guard hasVietnamese else { return }  // nothing to assert on this host
+        #expect(SpeechSynthesizerService.bestAvailableVoice(for: "vi")?.language == "vi-VN")
     }
 }
