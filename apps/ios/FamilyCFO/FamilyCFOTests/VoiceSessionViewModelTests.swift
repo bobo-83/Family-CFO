@@ -317,12 +317,11 @@ struct VoiceSessionViewModelTests {
         model.noiseEscapeGrace = .seconds(600)
 
         await model.begin()
-        // "Still talking" is pinned BEFORE the transcript arrives: on a
-        // starved CI runner the 40ms settle timers can fire inside the gap
-        // between hear() and this assignment, auto-sending early and failing
-        // the hold assertion (observed 2026-08-07 once NL model loading in
-        // parallel suites added CPU pressure).
-        engine.lastVoiceActivity = .now + .seconds(60)
+        // "Still talking" is pinned BEFORE the transcript arrives, and a full
+        // DAY into the future: the watcher compares instants, so no CI stall
+        // can overtake it. (A 60s marker did get overtaken — a starved runner
+        // stretched this test's own sleeps past a minute, 2026-08-07.)
+        engine.lastVoiceActivity = .now + .seconds(86_400)
         engine.hear("what about my social security can I rely on that when I ret")
         for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
         try? await Task.sleep(for: .milliseconds(250))
