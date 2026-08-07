@@ -60,6 +60,9 @@ struct RolePolicy: Equatable {
     /// Revoke paired devices — listing them takes only membership.
     var canManageDevices: Bool { has("devices.manage") }
     var canManageMembers: Bool { has("members.manage") }
+    /// #10: change household-wide settings (the language picker) — the same
+    /// right the server checks on PATCH /household.
+    var canManageHouseholdSettings: Bool { has("household.settings.manage") }
     var canManageAiRuntime: Bool { has("ai_runtime.manage") }
     /// ADR 0065: box-level roster management — granted only to system admins,
     /// injected into the session's rights by the server.

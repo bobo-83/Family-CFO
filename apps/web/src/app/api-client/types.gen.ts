@@ -2671,6 +2671,10 @@ export type UpdateHouseholdErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Unsupported language
+     */
+    422: ErrorResponse;
 };
 
 export type UpdateHouseholdError = UpdateHouseholdErrors[keyof UpdateHouseholdErrors];

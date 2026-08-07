@@ -512,6 +512,75 @@ describe('Overview', () => {
     ).toBeNull();
   });
 
+  // #10 phase 1: one language per household; the advisor answers in it.
+  describe('household language (#10)', () => {
+    function contextInEnglish() {
+      return response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        language: 'en',
+      });
+    }
+
+    async function render() {
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('changes the language and reloads the overview', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInEnglish());
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__language')).toBeTruthy();
+      expect(host.textContent).toContain(
+        'The advisor answers in this language. Screens follow in a later update.',
+      );
+
+      await fixture.componentInstance['changeLanguage']('vi');
+      await fixture.whenStable();
+
+      expect(apiMock.updateHousehold).toHaveBeenCalledWith({ language: 'vi' });
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('surfaces the server message and reverts when the change fails', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInEnglish());
+      apiMock.updateHousehold.mockResolvedValue(
+        response(undefined, { error: { message: 'Unsupported language; supported: en, vi, lt.' } }),
+      );
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      await component['changeLanguage']('vi');
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        'Unsupported language; supported: en, vi, lt.',
+      );
+      // The select falls back to the context value — the change never took.
+      expect(component['languageValue']({ language: 'en' } as never)).toBe('en');
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the language read-only for a viewer', async () => {
+      TestBed.resetTestingModule();
+      configure('viewer');
+      apiMock.getHouseholdContext.mockResolvedValue(contextInEnglish());
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__language')).toBeNull();
+      expect(host.querySelector('.overview__language-readonly')?.textContent).toContain('English');
+    });
+  });
+
   it('renders the cash outlook with the lowest point and day-by-day rows (M112)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

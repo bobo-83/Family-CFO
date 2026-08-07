@@ -937,6 +937,7 @@ async def get_spending_by_category(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Household not found", "model": ErrorResponse},
+        422: {"description": "Unsupported language", "model": ErrorResponse},
     },
     summary="Update household settings (M43: emergency-fund target)",
 )
