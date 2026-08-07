@@ -63,10 +63,18 @@ struct HouseholdsView: View {
             let days = viewModel.offboxRetentionDays
             let horizon =
                 days > 0
-                ? "Their data remains only in encrypted backups, fully gone within \(days) days."
-                : "Their data remains in encrypted off-box backups until you prune them."
+                ? String(
+                    localized:
+                        "Their data remains only in encrypted backups, fully gone within \(days) days."
+                )
+                : String(
+                    localized:
+                        "Their data remains in encrypted off-box backups until you prune them.")
             return Text(
-                "This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. " + horizon
+                String(
+                    localized:
+                        "This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. \(horizon)"
+                )
             )
         }
     }
@@ -74,7 +82,7 @@ struct HouseholdsView: View {
     private func householdRow(_ household: Components.Schemas.HostedHousehold) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text(household.name)
+                Text(verbatim: household.name)
                 if household.pendingOwnerInvite {
                     Text("invite pending")
                         .font(.caption2.weight(.semibold))
@@ -110,9 +118,11 @@ struct HouseholdsView: View {
 
     static func caption(for household: Components.Schemas.HostedHousehold) -> String {
         let members =
-            household.memberCount == 1 ? "1 member" : "\(household.memberCount) members"
+            household.memberCount == 1
+            ? String(localized: "1 member")
+            : String(localized: "\(household.memberCount) members")
         let created = household.createdAt.formatted(date: .abbreviated, time: .omitted)
-        return "\(household.baseCurrency) · \(members) · created \(created)"
+        return String(localized: "\(household.baseCurrency) · \(members) · created \(created)")
     }
 }
 
@@ -201,7 +211,7 @@ private struct CreateHouseholdSheet: View {
             )
             .font(.caption)
             .foregroundStyle(.orange)
-            Text(invite.joinURL.absoluteString)
+            Text(verbatim: invite.joinURL.absoluteString)
                 .font(.footnote.monospaced())
                 .textSelection(.enabled)
             Button {
@@ -214,7 +224,7 @@ private struct CreateHouseholdSheet: View {
                 Label("Share link…", systemImage: "square.and.arrow.up")
             }
         } header: {
-            Text(invite.householdName)
+            Text(verbatim: invite.householdName)
         } footer: {
             Text(
                 "Send it to \(invite.ownerEmail). It expires \(invite.expiresAt.formatted(date: .abbreviated, time: .omitted))."

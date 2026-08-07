@@ -68,7 +68,7 @@ struct CategorySpendingDetailView: View {
                             }
                         }
                     } header: {
-                        Text("\(items.count) transaction\(items.count == 1 ? "" : "s")")
+                        Text("\(items.count) transactions")
                     } footer: {
                         Text("Tap a transaction to move it to another category. Refunded purchases are grouped — expand to see the refund.")
                     }
@@ -80,7 +80,8 @@ struct CategorySpendingDetailView: View {
         .task { await load() }
         .sheet(item: $picking) { pick in
             CategoryPickerSheet(
-                title: pick.txn.merchant ?? pick.txn.description ?? "Transaction",
+                title: pick.txn.merchant ?? pick.txn.description
+                    ?? String(localized: "Transaction"),
                 categories: categories,
                 currentCategoryID: pick.txn.categoryId,
                 onSelect: { newID in Task { await move(pick.txn, to: newID) } },
@@ -122,7 +123,7 @@ struct CategorySpendingDetailView: View {
     private func row(_ txn: Components.Schemas.Transaction) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(txn.merchant ?? txn.description ?? "Transaction")
+                Text(verbatim: txn.merchant ?? txn.description ?? String(localized: "Transaction"))
                     .lineLimit(1)
                     .foregroundStyle(.primary)
                 if let note = txn.note, !note.isEmpty {
@@ -132,25 +133,25 @@ struct CategorySpendingDetailView: View {
                         .lineLimit(1)
                 }
                 if let flow = txn.accountFlow {
-                    Text(flow)
+                    Text(verbatim: flow)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 if let detail = txn.rawDetail {
-                    Text(detail)
+                    Text(verbatim: detail)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
-                Text(String(txn.occurredAt.prefix(10)))
+                Text(verbatim: String(txn.occurredAt.prefix(10)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             // A positive amount here is money coming back — a credit or refund
             // netting against this category. Green it so it reads as money in.
-            Text(txn.amount.formattedExact)
+            Text(verbatim: txn.amount.formattedExact)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(txn.amount.amountMinor > 0 ? Color.green : .primary)
         }
@@ -161,11 +162,14 @@ struct CategorySpendingDetailView: View {
     private func refundedRow(_ purchase: Components.Schemas.Transaction) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(purchase.merchant ?? purchase.description ?? "Transaction")
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
+                Text(
+                    verbatim: purchase.merchant ?? purchase.description
+                        ?? String(localized: "Transaction")
+                )
+                .lineLimit(1)
+                .foregroundStyle(.primary)
                 HStack(spacing: 6) {
-                    Text(String(purchase.occurredAt.prefix(10)))
+                    Text(verbatim: String(purchase.occurredAt.prefix(10)))
                     Text("Refunded")
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 6)
@@ -178,7 +182,7 @@ struct CategorySpendingDetailView: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(purchase.amount.formattedExact)
+            Text(verbatim: purchase.amount.formattedExact)
                 .font(.subheadline.weight(.medium))
                 .strikethrough()
                 .foregroundStyle(.secondary)

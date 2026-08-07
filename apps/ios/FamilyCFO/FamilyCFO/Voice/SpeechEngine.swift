@@ -33,11 +33,17 @@ enum SpeechEngineError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphoneUnavailable:
-            return "The microphone isn't available right now — another app may be using it, or a headset is mid-connect. Try again in a moment."
+            return String(
+                localized:
+                    "The microphone isn't available right now — another app may be using it, or a headset is mid-connect. Try again in a moment."
+            )
         case .onDeviceRecognitionUnavailable:
-            return "On-device speech recognition isn't available for this language on this phone — and Family CFO never sends audio off the device."
+            return String(
+                localized:
+                    "On-device speech recognition isn't available for this language on this phone — and Family CFO never sends audio off the device."
+            )
         case .modelNotReady:
-            return "The speech model is still downloading. Try again in a moment."
+            return String(localized: "The speech model is still downloading. Try again in a moment.")
         }
     }
 }

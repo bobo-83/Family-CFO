@@ -78,13 +78,15 @@ struct RolePolicy: Equatable {
     /// Operator-ish: any admin surface (drives the Settings admin sections).
     var isOperator: Bool { canViewActivity || canManageBackups || canManageMembers }
 
+    /// Shown in Settings ("Acting as") — the app's own words for each legacy
+    /// tier, not a server-supplied role name, so it is translated.
     var displayName: String {
         switch role {
-        case .owner: return "Admin"
-        case .adult: return "User"
-        case .viewer: return "Viewer"
-        case .child: return "Child"
-        case nil: return "Unknown"
+        case .owner: return String(localized: "Admin")
+        case .adult: return String(localized: "User")
+        case .viewer: return String(localized: "Viewer")
+        case .child: return String(localized: "Child")
+        case nil: return String(localized: "Unknown")
         }
     }
 }

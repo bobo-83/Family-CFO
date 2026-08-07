@@ -22,7 +22,7 @@ struct AIRuntimeModelDetailView: View {
             hubSection
             if let notes = info.notes, !notes.isEmpty {
                 Section("Notes") {
-                    Text(notes).font(.callout)
+                    Text(verbatim: notes).font(.callout)
                 }
             }
             actionSection
@@ -53,7 +53,7 @@ struct AIRuntimeModelDetailView: View {
     private var aboutSection: some View {
         Section("Model") {
             LabeledContent("Repository") {
-                Text(info.id).font(.caption.monospaced()).textSelection(.enabled)
+                Text(verbatim: info.id).font(.caption.monospaced()).textSelection(.enabled)
             }
             LabeledContent("Parameters", value: "\(Self.format(info.parametersB))B")
             LabeledContent("Estimated memory", value: "~\(Int(info.estMemoryGb)) GB")
@@ -126,7 +126,7 @@ struct AIRuntimeModelDetailView: View {
                     LabeledContent("License", value: license)
                 }
                 if let tags = detail.tags, !tags.isEmpty {
-                    Text(tags.joined(separator: " · "))
+                    Text(verbatim: tags.joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -168,9 +168,9 @@ struct AIRuntimeModelDetailView: View {
 
     private var roleLabel: String {
         switch info.role {
-        case .main: return "Advisor (text)"
-        case .vision: return "Photo describer"
-        case .both: return "Advisor + photos"
+        case .main: return String(localized: "Advisor (text)")
+        case .vision: return String(localized: "Photo describer")
+        case .both: return String(localized: "Advisor + photos")
         }
     }
 

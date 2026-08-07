@@ -84,19 +84,24 @@ final class BillsViewModel {
     }
 
     /// The timeline grouped for display (M111): Overdue → Due soon → No due date →
-    /// Paid this cycle → Upcoming. Empty groups are dropped.
-    var timelineSections: [(title: String, items: [Components.Schemas.PaymentTimelineItem])] {
+    /// Paid this cycle → Upcoming. Empty groups are dropped. The status rides along
+    /// so the view can key its footers off it rather than off the (translated) title.
+    var timelineSections: [(
+        status: Components.Schemas.PaymentTimelineItem.StatusPayload,
+        title: String,
+        items: [Components.Schemas.PaymentTimelineItem]
+    )] {
         guard let timeline else { return [] }
         let order: [(Components.Schemas.PaymentTimelineItem.StatusPayload, String)] = [
-            (.overdue, "Overdue"),
-            (.dueSoon, "Due soon"),
-            (.noDate, "No due date yet"),
-            (.paid, "Paid this cycle"),
-            (.upcoming, "Upcoming"),
+            (.overdue, String(localized: "Overdue")),
+            (.dueSoon, String(localized: "Due soon")),
+            (.noDate, String(localized: "No due date yet")),
+            (.paid, String(localized: "Paid this cycle")),
+            (.upcoming, String(localized: "Upcoming")),
         ]
         return order.compactMap { status, title in
             let items = timeline.items.filter { $0.status == status }
-            return items.isEmpty ? nil : (title: title, items: items)
+            return items.isEmpty ? nil : (status: status, title: title, items: items)
         }
     }
 
@@ -145,8 +150,14 @@ final class BillsViewModel {
 
     static func obligationFooter(for title: String) -> String {
         title == "Payroll-deducted"
-            ? "Managed on your accounts — shown here for the full picture. These come out of your paycheck, so safe-to-spend doesn't reserve them again."
-            : "Managed on your accounts — shown here so every recurring payment is in one place. Safe-to-spend already reserves these."
+            ? String(
+                localized:
+                    "Managed on your accounts — shown here for the full picture. These come out of your paycheck, so safe-to-spend doesn't reserve them again."
+            )
+            : String(
+                localized:
+                    "Managed on your accounts — shown here so every recurring payment is in one place. Safe-to-spend already reserves these."
+            )
     }
 
     /// Account obligations grouped into display sections (M106): Loans (mortgage +
@@ -187,8 +198,11 @@ final class BillsViewModel {
             // tell the user, so the propagation isn't invisible.
             syncResult =
                 alsoFiled > 0
-                ? "Filed \(bill.name) and \(alsoFiled) matching transaction\(alsoFiled == 1 ? "" : "s") under \(category.name)."
-                : "Filed \(bill.name) under \(category.name)."
+                ? String(
+                    localized:
+                        "Filed \(bill.name) and \(alsoFiled) matching transactions under \(category.name)."
+                )
+                : String(localized: "Filed \(bill.name) under \(category.name).")
             await load()
             errorMessage = nil
         } catch {
@@ -239,7 +253,7 @@ final class BillsViewModel {
     /// nil (and sets errorMessage) on failure so the user can still type by hand.
     func scanBill(_ image: UIImage) async -> Components.Schemas.BillScanResult? {
         guard let data = image.jpegData(compressionQuality: 0.9) else {
-            errorMessage = "That photo couldn't be processed."
+            errorMessage = String(localized: "That photo couldn't be processed.")
             return nil
         }
         return await scan { try AttachmentTranscoder.image(from: data, displayName: "Bill") }
@@ -309,8 +323,10 @@ final class BillsViewModel {
         creditMinor: Int64, currency: String, billName: String
     ) -> String {
         let amount = Components.Schemas.Money(amountMinor: creditMinor, currency: currency)
-        return
-            "Recorded a \(amount.formattedExact) credit on \(billName) — see Manage bills → Statement credits."
+        return String(
+            localized:
+                "Recorded a \(amount.formattedExact) credit on \(billName) — see Manage bills → Statement credits."
+        )
     }
 
     // MARK: "I already paid this" — link a bill to the charge that paid it
@@ -393,12 +409,20 @@ final class BillsViewModel {
     /// Human summary of a sync: what came in, and what the app filed so the user
     /// doesn't have to (M96 "say what you did").
     static func syncSummary(_ totals: SyncTotals) -> String {
-        guard totals.imported > 0 else { return "Already up to date." }
-        var message = "Imported \(totals.imported) new transaction\(totals.imported == 1 ? "" : "s")."
+        guard totals.imported > 0 else { return String(localized: "Already up to date.") }
+        var message = String(
+            localized:
+                "Imported \(totals.imported) new transactions.")
         var filed: [String] = []
-        if totals.autoCategorized > 0 { filed.append("categorized \(totals.autoCategorized)") }
-        if totals.transfersFiled > 0 { filed.append("filed \(totals.transfersFiled) as transfers") }
-        if !filed.isEmpty { message += " Auto-\(filed.joined(separator: ", ")) for you." }
+        if totals.autoCategorized > 0 {
+            filed.append(String(localized: "categorized \(totals.autoCategorized)"))
+        }
+        if totals.transfersFiled > 0 {
+            filed.append(String(localized: "filed \(totals.transfersFiled) as transfers"))
+        }
+        if !filed.isEmpty {
+            message += String(localized: " Auto-\(filed.joined(separator: ", ")) for you.")
+        }
         return message
     }
 

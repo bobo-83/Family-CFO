@@ -59,7 +59,7 @@ struct RsuGrantsSection: View {
     private func quoteRow(_ quote: Components.Schemas.StockQuote) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(quote.ticker) · \(quote.price.formattedExact)")
+                Text(verbatim: "\(quote.ticker) · \(quote.price.formattedExact)")
                     .font(.subheadline.weight(.medium))
                 Text("as of \(quote.asOf.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
@@ -80,9 +80,10 @@ struct RsuGrantsSection: View {
     private func grantRow(_ grant: Components.Schemas.RsuGrant) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(
-                "\(grant.units) \(grant.ticker) · vests \(grant.frequency.rawValue)"
-                    + " over \(grant.vestYears) year\(grant.vestYears == 1 ? "" : "s")"
-            )
+                verbatim: String(
+                    localized:
+                        "\(grant.units) \(grant.ticker) · vests \(grant.frequency.rawValue) over \(grant.vestYears) years"
+                ))
             Text("Granted \(String(grant.grantDate.prefix(10)))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -129,7 +130,8 @@ struct RsuVestScheduleView: View {
                     .foregroundStyle(.red)
             }
         }
-        .navigationTitle(grant.map { "\($0.units) \($0.ticker)" } ?? "Vest schedule")
+        .navigationTitle(
+            grant.map { "\($0.units) \($0.ticker)" } ?? String(localized: "Vest schedule"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -151,14 +153,14 @@ struct RsuVestScheduleView: View {
     private func eventRow(_ event: Components.Schemas.RsuVestEvent) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Self.vestDateText(event.vestDate))
-                Text("\(event.units) unit\(event.units == 1 ? "" : "s")")
+                Text(verbatim: Self.vestDateText(event.vestDate))
+                Text("\(event.units) units")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             if let value = event.value {
-                Text(value.formattedExact)
+                Text(verbatim: value.formattedExact)
                     .font(.subheadline.weight(.medium))
             }
         }
@@ -196,7 +198,7 @@ struct RsuGrantFormView: View {
                     Picker("Earner", selection: $earnerID) {
                         Text("Choose…").tag("")
                         ForEach(viewModel.earners, id: \.id) { earner in
-                            Text(earner.label).tag(earner.id)
+                            Text(verbatim: earner.label).tag(earner.id)
                         }
                     }
                     TextField("Ticker (e.g. XYZ)", text: $ticker)
@@ -207,7 +209,7 @@ struct RsuGrantFormView: View {
                     DatePicker("Grant date", selection: $grantDate, displayedComponents: .date)
                     Picker("Vests over", selection: $vestYears) {
                         ForEach(1...10, id: \.self) { years in
-                            Text("\(years) year\(years == 1 ? "" : "s")").tag(years)
+                            Text("\(years) years").tag(years)
                         }
                     }
                     Picker("Frequency", selection: $frequency) {

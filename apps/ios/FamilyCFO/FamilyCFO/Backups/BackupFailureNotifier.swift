@@ -30,12 +30,17 @@ struct BackupFailureNotifier {
         guard authorized else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Backup problem"
-        content.body =
-            backupFailed
-            ? "Last backup failed" + (latest.errorMessage.map { ": \($0)" } ?? ".")
-            : "Backup couldn't reach your Synology"
-                + (latest.remoteError.map { ": \($0)" } ?? ".")
+        content.title = String(localized: "Backup problem")
+        if backupFailed {
+            content.body =
+                latest.errorMessage.map { String(localized: "Last backup failed: \($0)") }
+                ?? String(localized: "Last backup failed.")
+        } else {
+            content.body =
+                latest.remoteError.map {
+                    String(localized: "Backup couldn't reach your Synology: \($0)")
+                } ?? String(localized: "Backup couldn't reach your Synology.")
+        }
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
         let request = UNNotificationRequest(

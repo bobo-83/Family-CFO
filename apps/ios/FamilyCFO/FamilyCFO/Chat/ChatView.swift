@@ -160,7 +160,7 @@ struct ChatView: View {
                         HStack {
                             ProgressView()
                             // ADR 0061: the streamed turn narrates itself.
-                            Text(viewModel.progressDetail ?? "Thinking with your numbers…")
+                            Text(verbatim: viewModel.progressDetail ?? String(localized: "Thinking with your numbers…"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .contentTransition(.opacity)
@@ -255,9 +255,10 @@ struct ChatView: View {
     /// has read it can hide it per-device in Settings. Kept in sync with the
     /// web client and DISCLAIMER.md.
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
-    static let disclaimer =
-        "Educational guidance from a local AI — not financial, tax, or legal "
-        + "advice. It can be wrong; verify before acting."
+    static let disclaimer = String(
+        localized:
+            "Educational guidance from a local AI — not financial, tax, or legal advice. It can be wrong; verify before acting."
+    )
 
     private var sendButton: some View {
         Button {
@@ -325,7 +326,7 @@ struct ChatView: View {
             switch contents {
             case .image(let image):
                 guard let data = image.jpegData(compressionQuality: 0.9) else {
-                    attachmentError = "That image couldn't be processed."
+                    attachmentError = String(localized: "That image couldn't be processed.")
                     return
                 }
                 do {
@@ -342,7 +343,8 @@ struct ChatView: View {
                     attachmentError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 }
             case .none:
-                attachmentError = "There's no image or PDF on your clipboard to paste."
+                attachmentError = String(
+                    localized: "There's no image or PDF on your clipboard to paste.")
             }
         }
     }
@@ -350,7 +352,7 @@ struct ChatView: View {
     private func attachPhoto(_ item: PhotosPickerItem) async {
         defer { photoSelection = nil }
         guard let data = try? await item.loadTransferable(type: Data.self) else {
-            attachmentError = "That photo couldn't be loaded."
+            attachmentError = String(localized: "That photo couldn't be loaded.")
             return
         }
         do {
@@ -362,7 +364,8 @@ struct ChatView: View {
     }
 
     private func attachPDF(_ result: Result<URL, Error>) {
-        attachPickedFile(result, unreadable: "That PDF couldn't be read.") { data, name in
+        attachPickedFile(result, unreadable: String(localized: "That PDF couldn't be read.")) {
+            data, name in
             try AttachmentTranscoder.pdf(from: data, displayName: name)
         }
     }
@@ -370,7 +373,8 @@ struct ChatView: View {
     /// CSV / spreadsheet / text (M85) — the server turns it into a bounded
     /// grounded preview, so the answer cites real headers and sums.
     private func attachDataFile(_ result: Result<URL, Error>) {
-        attachPickedFile(result, unreadable: "That file couldn't be read.") { data, name in
+        attachPickedFile(result, unreadable: String(localized: "That file couldn't be read.")) {
+            data, name in
             try AttachmentTranscoder.dataFile(from: data, displayName: name)
         }
     }
@@ -421,8 +425,10 @@ struct ChatView: View {
         dictationEngine = engine
         Task {
             guard await engine.requestPermission() else {
-                attachmentError =
-                    "Allow microphone and speech recognition in Settings to dictate. Audio never leaves this phone."
+                attachmentError = String(
+                    localized:
+                        "Allow microphone and speech recognition in Settings to dictate. Audio never leaves this phone."
+                )
                 return
             }
             do {
@@ -434,7 +440,8 @@ struct ChatView: View {
                 }
             } catch {
                 attachmentError =
-                    (error as? LocalizedError)?.errorDescription ?? "Couldn't start dictation."
+                    (error as? LocalizedError)?.errorDescription
+                    ?? String(localized: "Couldn't start dictation.")
             }
             isDictating = false
         }
@@ -446,7 +453,7 @@ struct ChatView: View {
 
     private func attachCameraImage(_ image: UIImage) {
         guard let data = image.jpegData(compressionQuality: 0.9) else {
-            attachmentError = "That photo couldn't be processed."
+            attachmentError = String(localized: "That photo couldn't be processed.")
             return
         }
         do {
@@ -470,7 +477,7 @@ struct ChatView: View {
                 let attachment = try? AttachmentTranscoder.image(
                     from: data, displayName: "Receipt")
             else {
-                attachmentError = "That photo couldn't be processed."
+                attachmentError = String(localized: "That photo couldn't be processed.")
                 return
             }
             fallback = attachment

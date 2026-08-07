@@ -92,8 +92,8 @@ final class AIRuntimeViewModel {
     var fairUseCapLabel: String {
         guard let usage else { return "" }
         return usage.chatHourlyLimit > 0
-            ? "Fair-use cap: \(usage.chatHourlyLimit) chats/hour per household"
-            : "Fair-use cap: off"
+            ? String(localized: "Fair-use cap: \(usage.chatHourlyLimit) chats/hour per household")
+            : String(localized: "Fair-use cap: off")
     }
 
     /// #196: any household with members but no member key yet — surfaces the footnote.
@@ -104,9 +104,10 @@ final class AIRuntimeViewModel {
     /// "512 MB" / "1.4 GB" — decimal units, matching the web page.
     static func storageLabel(bytes: Int64) -> String {
         if bytes >= 1_000_000_000 {
-            return String(format: "%.1f GB", Double(bytes) / 1_000_000_000)
+            let gigabytes = String(format: "%.1f", Double(bytes) / 1_000_000_000)
+            return String(localized: "\(gigabytes) GB")
         }
-        return "\(Int((Double(bytes) / 1_000_000).rounded())) MB"
+        return String(localized: "\(Int((Double(bytes) / 1_000_000).rounded())) MB")
     }
 
     // MARK: - Two-box cluster (ADR 0071)
@@ -220,24 +221,29 @@ final class AIRuntimeViewModel {
         guard let applyState else { return nil }
         switch applyState.state {
         case .running:
-            return "Swapping models — downloading and restarting the AI. This can take several minutes; you can leave this screen."
+            return String(
+                localized:
+                    "Swapping models — downloading and restarting the AI. This can take several minutes; you can leave this screen."
+            )
         case .succeeded:
-            return "Model swap finished. The AI may take a few more minutes to finish loading."
+            return String(
+                localized:
+                    "Model swap finished. The AI may take a few more minutes to finish loading.")
         case .failed:
-            let tail = (applyState.logTail ?? "").suffix(200)
-            return "Model swap failed. \(tail)"
+            let tail = String((applyState.logTail ?? "").suffix(200))
+            return String(localized: "Model swap failed. \(tail)")
         default:
             return nil
         }
     }
 
     var statusLine: String {
-        guard let status else { return "Checking…" }
+        guard let status else { return String(localized: "Checking…") }
         if status.ready, let served = status.servedModel {
-            return "Answering with \(served)"
+            return String(localized: "Answering with \(served)")
         }
         if let phase = status.loadingDetail, !phase.isEmpty {
-            return "Loading — \(phase)"
+            return String(localized: "Loading — \(phase)")
         }
         return status.detail
     }

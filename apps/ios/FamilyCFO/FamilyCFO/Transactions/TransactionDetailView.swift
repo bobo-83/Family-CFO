@@ -70,17 +70,17 @@ struct TransactionDetailView: View {
     private var headerSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.title).font(.headline)
+                Text(verbatim: viewModel.title).font(.headline)
                 HStack {
-                    Text(viewModel.transaction.amount.formattedExact)
+                    Text(verbatim: viewModel.transaction.amount.formattedExact)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(amountColor)
                     Spacer()
-                    Text(String(viewModel.transaction.occurredAt.prefix(10)))
+                    Text(verbatim: String(viewModel.transaction.occurredAt.prefix(10)))
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 if let source = sourceLine {
-                    Text(source).font(.caption).foregroundStyle(.secondary)
+                    Text(verbatim: source).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(.vertical, 2)
@@ -95,7 +95,7 @@ struct TransactionDetailView: View {
                 HStack {
                     Image(systemName: CategoryVisuals.icon(for: viewModel.categoryName ?? ""))
                         .foregroundStyle(.secondary).frame(width: 24)
-                    Text(viewModel.categoryName ?? "Uncategorized")
+                    Text(verbatim: viewModel.categoryName ?? String(localized: "Uncategorized"))
                         .foregroundStyle(viewModel.categoryName == nil ? .secondary : .primary)
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
@@ -153,8 +153,10 @@ struct TransactionDetailView: View {
             // Each source is its own row so their tap targets never overlap.
             // Resolve the label on the main actor before the picker's closure so a
             // plain String (Sendable) is captured, not the actor-isolated property.
-            let libraryLabel = viewModel.hasAttachment
-                ? "Replace from library" : "Choose from library"
+            let libraryLabel =
+                viewModel.hasAttachment
+                ? String(localized: "Replace from library")
+                : String(localized: "Choose from library")
             PhotosPicker(selection: $photoItem, matching: .images) {
                 Label(libraryLabel, systemImage: "photo.on.rectangle")
             }
@@ -199,10 +201,12 @@ struct TransactionDetailView: View {
             case .image(let image):
                 Task { await vm.uploadAttachment(image) }
             case .pdf:
-                vm.errorMessage =
-                    "That's a PDF — attachments here are photos. Take a screenshot of it and paste that instead."
+                vm.errorMessage = String(
+                    localized:
+                        "That's a PDF — attachments here are photos. Take a screenshot of it and paste that instead."
+                )
             case .none:
-                vm.errorMessage = "There's no image on your clipboard to paste."
+                vm.errorMessage = String(localized: "There's no image on your clipboard to paste.")
             }
         }
     }

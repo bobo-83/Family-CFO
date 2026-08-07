@@ -96,14 +96,14 @@ struct AIRuntimeView: View {
             Section {
                 ForEach(stats, id: \.model) { stat in
                     HStack(alignment: .firstTextBaseline) {
-                        Text(stat.model)
+                        Text(verbatim: stat.model)
                             .font(.subheadline)
                             .lineLimit(1)
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(Self.answerTimeLabel(ms: stat.medianMs))
                                 .font(.subheadline.weight(.semibold))
-                            Text("\(stat.samples) answer\(stat.samples == 1 ? "" : "s")")
+                            Text("\(stat.samples) answers")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -133,7 +133,7 @@ struct AIRuntimeView: View {
                             Text(AIRuntimeViewModel.storageLabel(bytes: row.storageBytes))
                                 .font(.subheadline.weight(.semibold))
                         }
-                        Text("\(row.chats7d) chat\(row.chats7d == 1 ? "" : "s") this week (\(row.chats24h) in the last 24 h)")
+                        Text("\(row.chats7d) chats this week (\(row.chats24h) in the last 24 h)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         if let median = row.medianAnswerMs {
@@ -166,10 +166,15 @@ struct AIRuntimeView: View {
     /// "8.3s" under a minute, "1m 24s" above.
     static func answerTimeLabel(ms: Int) -> String {
         let seconds = Double(ms) / 1000
-        if seconds < 60 { return String(format: "%.1fs", seconds) }
+        if seconds < 60 {
+            let value = String(format: "%.1f", seconds)
+            return String(localized: "\(value)s")
+        }
         let total = Int(seconds.rounded())
+        let minutes = total / 60
         let rest = total % 60
-        return rest == 0 ? "\(total / 60)m" : "\(total / 60)m \(rest)s"
+        return rest == 0
+            ? String(localized: "\(minutes)m") : String(localized: "\(minutes)m \(rest)s")
     }
 
     @ViewBuilder private var hardwareSection: some View {
@@ -268,16 +273,19 @@ struct AIRuntimeView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(info.label).font(.subheadline).lineLimit(1)
+                    Text(verbatim: info.label).font(.subheadline).lineLimit(1)
                     HStack(spacing: 6) {
-                        Text("\(Self.format(info.parametersB))B · ~\(Int(info.estMemoryGb)) GB")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            verbatim:
+                                "\(Self.format(info.parametersB))B · ~\(Int(info.estMemoryGb)) GB"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                         if info.supportsVision {
-                            Text("vision").font(.caption2).foregroundStyle(.blue)
+                            Text(verbatim: "vision").font(.caption2).foregroundStyle(.blue)
                         }
                         if info.gated {
-                            Text("gated").font(.caption2).foregroundStyle(.orange)
+                            Text(verbatim: "gated").font(.caption2).foregroundStyle(.orange)
                         }
                     }
                     fitBadge(
@@ -302,11 +310,19 @@ struct AIRuntimeView: View {
     ) -> some View {
         switch fit {
         case .fits:
-            badge(isCurrent ? "Running" : (cluster ? "Fits across both boxes" : "Fits this box"), .green)
+            badge(
+                isCurrent
+                    ? String(localized: "Running")
+                    : (cluster
+                        ? String(localized: "Fits across both boxes")
+                        : String(localized: "Fits this box")), .green)
         case .tight:
-            badge("Tight fit", .orange)
+            badge(String(localized: "Tight fit"), .orange)
         case .tooBig:
-            badge(cluster ? "Too big even for both boxes" : "Too big for this box", .red)
+            badge(
+                cluster
+                    ? String(localized: "Too big even for both boxes")
+                    : String(localized: "Too big for this box"), .red)
         case .unknown:
             EmptyView()
         }

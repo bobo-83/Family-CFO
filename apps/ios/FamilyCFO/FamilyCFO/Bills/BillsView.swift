@@ -95,9 +95,9 @@ struct BillsView: View {
                 } header: {
                     Text(section.title)
                 } footer: {
-                    if section.title == "Paid this cycle" {
+                    if section.status == .paid {
                         Text("Matched to the actual charge — tap to see the amount that settled it.")
-                    } else if section.title == "No due date yet" {
+                    } else if section.status == .noDate {
                         Text("We haven't seen a payment on this account yet, so we can't infer its due day.")
                     } else if section.items.contains(where: Self.canMarkPaid) {
                         Text("Already paid a bill? Swipe its row right to pick the charge that paid it.")
@@ -165,14 +165,14 @@ struct BillsView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(timeline.dueTotal.formattedExact)
+                    Text(verbatim: timeline.dueTotal.formattedExact)
                         .font(.system(.title, design: .rounded).weight(.semibold))
                     Text("due in the next \(timeline.windowDays) days")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(timeline.liquidBalance.formattedExact)
+                    Text(verbatim: timeline.liquidBalance.formattedExact)
                         .font(.system(.title3, design: .rounded).weight(.medium))
                         .foregroundStyle(.secondary)
                     Text("cash on hand")
@@ -200,14 +200,14 @@ struct BillsView: View {
                 .foregroundStyle(item.status == .overdue ? Color.red : Color.secondary)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name).lineLimit(1)
+                Text(verbatim: item.name).lineLimit(1)
                 Text(Self.statusLine(item))
                     .font(.caption)
                     .foregroundStyle(item.status == .overdue ? Color.red : Color.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(item.amount.formattedExact)
+                Text(verbatim: item.amount.formattedExact)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(item.status == .paid ? Color.secondary : Color.primary)
                 if item.status == .paid {
@@ -284,23 +284,27 @@ struct BillsView: View {
             if let paid = item.paidWith {
                 // "linked by you" marks a receipt the user pointed at, as
                 // opposed to one the auto-matcher found.
-                return "Paid \(shortDate(paid.occurredAt)) · \(paid.amount.formattedExact)"
-                    + (item.dueDate.map { " · next \(shortDate($0))" } ?? "")
-                    + (paid.source == .linked ? " · linked by you" : "")
+                return String(
+                    localized: "Paid \(shortDate(paid.occurredAt)) · \(paid.amount.formattedExact)")
+                    + (item.dueDate.map { String(localized: " · next \(shortDate($0))") } ?? "")
+                    + (paid.source == .linked ? String(localized: " · linked by you") : "")
             }
-            return "Paid"
+            return String(localized: "Paid")
         case .overdue:
-            return "Was due \(shortDate(item.dueDate ?? "")) · no payment seen"
+            return String(localized: "Was due \(shortDate(item.dueDate ?? "")) · no payment seen")
         case .dueSoon, .upcoming:
             let due = item.dueDate.map(shortDate) ?? "—"
             switch item.daysUntil {
-            case .some(0): return "Due today"
-            case .some(1): return "Due tomorrow"
-            case .some(let days) where days > 1 && days <= 14: return "Due \(due) · in \(days) days"
-            default: return "Due \(due)"
+            case .some(0): return String(localized: "Due today")
+            case .some(1): return String(localized: "Due tomorrow")
+            case .some(let days) where days > 1 && days <= 14:
+                return String(localized: "Due \(due) · in \(days) days")
+            default: return String(localized: "Due \(due)")
             }
         case .noDate:
-            return item.kind == .creditCard ? "Current balance · due date unknown" : "Due date unknown"
+            return item.kind == .creditCard
+                ? String(localized: "Current balance · due date unknown")
+                : String(localized: "Due date unknown")
         }
     }
 
@@ -316,13 +320,15 @@ struct BillsView: View {
     private func suggestionRow(_ suggestion: Components.Schemas.BillSuggestion) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(suggestion.name).lineLimit(1)
+                Text(verbatim: suggestion.name).lineLimit(1)
                 Spacer()
-                Text(suggestion.amount.formattedExact).font(.subheadline.weight(.medium))
+                Text(verbatim: suggestion.amount.formattedExact).font(.subheadline.weight(.medium))
             }
             Text(
-                "\(Self.frequencyText(suggestion.frequency)) · seen \(suggestion.occurrences)× · "
-                    + "next \(String(suggestion.nextDueDate.prefix(10)))"
+                String(
+                    localized:
+                        "\(Self.frequencyText(suggestion.frequency)) · seen \(suggestion.occurrences)× · next \(String(suggestion.nextDueDate.prefix(10)))"
+                )
             )
             .font(.caption).foregroundStyle(.secondary)
         }
@@ -340,13 +346,13 @@ struct BillsView: View {
     private func depositRow(_ deposit: Components.Schemas.IncomeAnalysisTransaction) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(deposit.merchant ?? deposit.name).lineLimit(1)
+                Text(verbatim: deposit.merchant ?? deposit.name).lineLimit(1)
                 Spacer()
-                Text(deposit.amount.formattedExact)
+                Text(verbatim: deposit.amount.formattedExact)
                     .font(.subheadline.weight(.medium)).foregroundStyle(.green)
             }
             Text(
-                String(deposit.occurredAt.prefix(10))
+                verbatim: String(deposit.occurredAt.prefix(10))
                     + (deposit.accountName.map { " · \($0)" } ?? "")
             )
             .font(.caption).foregroundStyle(.secondary)
@@ -362,8 +368,18 @@ struct BillsView: View {
         }
     }
 
+    /// The picker/row label for how often a bill repeats. Spelled out per case
+    /// rather than derived from `rawValue`, so it can be translated.
     static func frequencyText(_ frequency: Components.Schemas.RecurringFrequency) -> String {
-        frequency.rawValue.capitalized
+        switch frequency {
+        case .weekly: return String(localized: "Weekly")
+        case .biweekly: return String(localized: "Biweekly")
+        case .semimonthly: return String(localized: "Semimonthly")
+        case .monthly: return String(localized: "Monthly")
+        case .quarterly: return String(localized: "Quarterly")
+        case .semiannual: return String(localized: "Semiannual")
+        case .annual: return String(localized: "Annual")
+        }
     }
 }
 
@@ -411,7 +427,9 @@ struct ManageBillsView: View {
                         obligationRow(obligation)
                     }
                 } header: {
-                    Text(section.title)
+                    // A category name (the user's own words) or an obligation
+                    // section title — never a literal to translate here.
+                    Text(verbatim: section.title)
                 } footer: {
                     if let footer = section.obligationFooter {
                         Text(footer)
@@ -425,16 +443,16 @@ struct ManageBillsView: View {
                     ForEach(credits.bills, id: \.billId) { group in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text(group.name).lineLimit(1)
+                                Text(verbatim: group.name).lineLimit(1)
                                 Spacer()
-                                Text(group.total.formattedExact)
+                                Text(verbatim: group.total.formattedExact)
                                     .font(.subheadline.weight(.medium))
                             }
                             ForEach(group.credits, id: \.id) { credit in
                                 HStack {
-                                    Text(String(credit.statementDate.prefix(10)))
+                                    Text(verbatim: String(credit.statementDate.prefix(10)))
                                     Spacer()
-                                    Text(credit.amount.formattedExact)
+                                    Text(verbatim: credit.amount.formattedExact)
                                 }
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -444,7 +462,8 @@ struct ManageBillsView: View {
                 } header: {
                     Text("Statement credits")
                 } footer: {
-                    Text(Self.creditTotalsLine(credits))
+                    // Years, months, and amounts only — no words to translate.
+                    Text(verbatim: Self.creditTotalsLine(credits))
                 }
             }
         }
@@ -467,17 +486,19 @@ struct ManageBillsView: View {
             let group = viewModel.credits?.bills.first(where: { $0.billId == bill.id }),
             group.total.amountMinor > 0
         else { return nil }
-        return "\(group.total.formattedExact) in credits"
+        return String(localized: "\(group.total.formattedExact) in credits")
     }
 
     private func billRow(_ bill: Components.Schemas.Bill) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(bill.name).lineLimit(1)
+                Text(verbatim: bill.name).lineLimit(1)
                 Text(
                     ([
                         BillsView.frequencyText(bill.frequency)
-                            + (bill.nextDueDate.map { " · next \(String($0.prefix(10)))" } ?? ""),
+                            + (bill.nextDueDate.map {
+                                String(localized: " · next \(String($0.prefix(10)))")
+                            } ?? ""),
                         creditsText(bill),
                     ]
                     .compactMap { $0 })
@@ -486,7 +507,7 @@ struct ManageBillsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(bill.amount.formattedExact).font(.subheadline.weight(.medium))
+            Text(verbatim: bill.amount.formattedExact).font(.subheadline.weight(.medium))
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
@@ -496,9 +517,9 @@ struct ManageBillsView: View {
     private func obligationRow(_ obligation: Components.Schemas.AccountObligation) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(obligation.name).lineLimit(1)
+                Text(verbatim: obligation.name).lineLimit(1)
                 Spacer()
-                Text(obligation.amount.formattedExact)
+                Text(verbatim: obligation.amount.formattedExact)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(obligation.reserved ? .primary : .secondary)
             }
@@ -512,7 +533,8 @@ struct ManageBillsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text(obligation.note)
+            // Server-composed explainer for this obligation — data, not a literal.
+            Text(verbatim: obligation.note)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -610,7 +632,7 @@ struct BillFormView: View {
                     }
                     .disabled(scanning)
                     if let scanNote {
-                        Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: scanNote).font(.caption).foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text(
@@ -632,7 +654,7 @@ struct BillFormView: View {
                     Picker("Category", selection: $categoryID) {
                         Text("None").tag("")
                         ForEach(viewModel.categories, id: \.id) { c in
-                            Text(c.name).tag(c.id)
+                            Text(verbatim: c.name).tag(c.id)
                         }
                     }
                 }
@@ -681,7 +703,7 @@ struct BillFormView: View {
             case .pdf(let data):
                 handleScan { await viewModel.scanBill(fileData: data, isPDF: true) }
             case .none:
-                scanNote = "There's no image or PDF on your clipboard to paste."
+                scanNote = String(localized: "There's no image or PDF on your clipboard to paste.")
             }
         }
     }

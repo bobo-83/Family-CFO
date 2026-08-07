@@ -46,9 +46,12 @@ struct DeclareSavingsContributionSheet: View {
                     }
                 } else if eligible.count < 2 {
                     Text(
-                        "You need both accounts on file first. Add the destination by hand on "
-                            + "the Accounts tab — an account that never syncs (a 529, a workplace "
-                            + "plan) can still be tracked."
+                        String(
+                            localized: """
+                                You need both accounts on file first. Add the destination by \
+                                hand on the Accounts tab — an account that never syncs (a 529, \
+                                a workplace plan) can still be tracked.
+                                """)
                     )
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -56,20 +59,23 @@ struct DeclareSavingsContributionSheet: View {
                     Section {
                         Picker("From", selection: $sourceID) {
                             ForEach(eligible) { account in
-                                Text(account.name).tag(Optional(account.id))
+                                Text(verbatim: account.name).tag(Optional(account.id))
                             }
                         }
                         Picker("To", selection: $destinationID) {
                             ForEach(eligible) { account in
-                                Text(account.name).tag(Optional(account.id))
+                                Text(verbatim: account.name).tag(Optional(account.id))
                             }
                         }
                     } header: {
                         Text("The transfer")
                     } footer: {
                         Text(
-                            "Where the money leaves from, and the savings vehicle it lands in. "
-                                + "Neither side has to sync."
+                            String(
+                                localized: """
+                                    Where the money leaves from, and the savings vehicle it \
+                                    lands in. Neither side has to sync.
+                                    """)
                         )
                     }
                     Section {
@@ -84,8 +90,11 @@ struct DeclareSavingsContributionSheet: View {
                         Text("How much")
                     } footer: {
                         Text(
-                            "Counted at its monthly run-rate in what you're saving, and reserved "
-                                + "by \"Left to spend this month\"."
+                            String(
+                                localized: """
+                                    Counted at its monthly run-rate in what you're saving, and \
+                                    reserved by "Left to spend this month".
+                                    """)
                         )
                     }
                 }

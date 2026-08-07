@@ -9,7 +9,9 @@ struct AppLockView: View {
         VStack(spacing: 20) {
             Image(systemName: "faceid")
                 .font(.system(size: 56))
-            Text(model.server?.householdName ?? "Family CFO")
+            // The household name is data; the product name is deliberately
+            // never translated — so this whole line stays out of the catalog.
+            Text(verbatim: model.server?.householdName ?? "Family CFO")
                 .font(.title2.bold())
             Button("Unlock") {
                 Task { await model.unlock() }

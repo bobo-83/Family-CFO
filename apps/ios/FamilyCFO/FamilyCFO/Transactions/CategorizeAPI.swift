@@ -154,7 +154,8 @@ enum CategorizeError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .categoryExists(let name):
-            return "A category named “\(name)” already exists — pick it from the list."
+            return String(
+                localized: "A category named “\(name)” already exists — pick it from the list.")
         }
     }
 }

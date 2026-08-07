@@ -47,7 +47,7 @@ final class LoginViewModel {
 
     func checkServer() async {
         guard let baseURL = Self.normalizedBaseURL(serverAddress) else {
-            step = .failed("Enter the server address, e.g. 192.168.1.10:8443")
+            step = .failed(String(localized: "Enter the server address, e.g. 192.168.1.10:8443"))
             return
         }
         step = .checkingServer
@@ -58,13 +58,17 @@ final class LoginViewModel {
         do {
             let (_, response) = try await session.data(from: baseURL.appending(path: "health"))
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                step = .failed("That address answered, but not like a Family CFO server.")
+                step = .failed(
+                    String(localized: "That address answered, but not like a Family CFO server."))
                 return
             }
             step = .confirmServer(baseURL: baseURL, fingerprint: capture.capturedSHA256Hex)
         } catch {
             step = .failed(
-                "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
+                String(
+                    localized:
+                        "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
+                )
             )
         }
     }
@@ -124,12 +128,13 @@ final class LoginViewModel {
             case .unauthorized:
                 password = ""
                 step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
-                signInError = "Wrong email or password."
+                signInError = String(localized: "Wrong email or password.")
             case .tooManyRequests:
                 step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
-                signInError = "Too many attempts — wait a minute and try again."
+                signInError = String(localized: "Too many attempts — wait a minute and try again.")
             case .undocumented(let status, _):
-                step = .failed("The server answered with an unexpected status (\(status)).")
+                step = .failed(
+                    String(localized: "The server answered with an unexpected status (\(status))."))
             }
         } catch {
             step = .failed(
@@ -141,7 +146,9 @@ final class LoginViewModel {
 
     /// "ab12cd34…" — first 8 hex chars, enough for a human to compare.
     static func shortFingerprint(_ fingerprint: String?) -> String {
-        guard let fingerprint, fingerprint.count >= 8 else { return "none (CA-signed)" }
+        guard let fingerprint, fingerprint.count >= 8 else {
+            return String(localized: "none (CA-signed)")
+        }
         return String(fingerprint.prefix(8)) + "…"
     }
 }

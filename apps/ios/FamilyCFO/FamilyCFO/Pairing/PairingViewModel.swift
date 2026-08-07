@@ -22,16 +22,25 @@ final class PairingViewModel {
         do {
             let payload = try PairingPayload.parse(raw)
             if let expiresAt = payload.expiresAt, expiresAt < .now {
-                step = .failed("This pairing code has expired. Generate a fresh one on the dashboard's Devices page.")
+                step = .failed(
+                    String(
+                        localized:
+                            "This pairing code has expired. Generate a fresh one on the dashboard's Devices page."
+                    ))
                 return
             }
             step = .confirming(payload)
         } catch PairingPayload.ParseError.wrongType, PairingPayload.ParseError.notJSON {
-            step = .failed("That doesn't look like a Family CFO pairing code.")
+            step = .failed(String(localized: "That doesn't look like a Family CFO pairing code."))
         } catch PairingPayload.ParseError.unsupportedVersion(let version) {
-            step = .failed("This pairing code is version \(version); the app understands version \(PairingPayload.supportedVersion). Update the app.")
+            step = .failed(
+                String(
+                    localized:
+                        "This pairing code is version \(version); the app understands version \(PairingPayload.supportedVersion). Update the app."
+                ))
         } catch {
-            step = .failed("The pairing code is incomplete: \(error)")
+            step = .failed(
+                String(localized: "The pairing code is incomplete: \(String(describing: error))"))
         }
     }
 
@@ -84,9 +93,14 @@ final class PairingViewModel {
                     )
                 )
             case .badRequest:
-                step = .failed("The pairing code was already used or has expired. Generate a fresh one on the dashboard.")
+                step = .failed(
+                    String(
+                        localized:
+                            "The pairing code was already used or has expired. Generate a fresh one on the dashboard."
+                    ))
             case .undocumented(let status, _):
-                step = .failed("The server answered with an unexpected status (\(status)).")
+                step = .failed(
+                    String(localized: "The server answered with an unexpected status (\(status))."))
             }
         } catch {
             step = .failed(Self.describeTransportFailure(error, pinned: payload.certificateSHA256 != nil))
@@ -96,11 +110,20 @@ final class PairingViewModel {
     static func describeTransportFailure(_ error: Error, pinned: Bool) -> String {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled && pinned {
-            return "The server's certificate does not match the fingerprint in the pairing code. If the certificate was rotated, generate a new pairing QR."
+            return String(
+                localized:
+                    "The server's certificate does not match the fingerprint in the pairing code. If the certificate was rotated, generate a new pairing QR."
+            )
         }
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorServerCertificateUntrusted {
-            return "The server uses a self-signed certificate but the pairing code carried no fingerprint to pin. Check the server's FAMILY_CFO_TLS_CERT_PATH."
+            return String(
+                localized:
+                    "The server uses a self-signed certificate but the pairing code carried no fingerprint to pin. Check the server's FAMILY_CFO_TLS_CERT_PATH."
+            )
         }
-        return "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
+        return String(
+            localized:
+                "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
+        )
     }
 }

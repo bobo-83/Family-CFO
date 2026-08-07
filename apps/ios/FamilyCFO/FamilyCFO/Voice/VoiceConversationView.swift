@@ -23,7 +23,7 @@ struct VoiceConversationView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     if !viewModel.transcript.isEmpty {
-                        Text(viewModel.transcript)
+                        Text(verbatim: viewModel.transcript)
                             .font(.title3)
                             .multilineTextAlignment(.center)
                     } else if let answer = viewModel.lastAnswer {
@@ -73,12 +73,13 @@ struct VoiceConversationView: View {
 
     private var statusLine: String {
         switch viewModel.phase {
-        case .idle: return "Starting…"
-        case .listening: return "Listening — just talk"
-        case .thinking: return viewModel.thinkingDetail ?? "Thinking with your numbers…"
-        case .speaking: return "Tap the circle to interrupt"
-        case .denied: return "Microphone access needed"
-        case .failed: return "Something went wrong"
+        case .idle: return String(localized: "Starting…")
+        case .listening: return String(localized: "Listening — just talk")
+        case .thinking:
+            return viewModel.thinkingDetail ?? String(localized: "Thinking with your numbers…")
+        case .speaking: return String(localized: "Tap the circle to interrupt")
+        case .denied: return String(localized: "Microphone access needed")
+        case .failed: return String(localized: "Something went wrong")
         }
     }
 

@@ -38,7 +38,8 @@ final class SyncStatusModel {
         guard let date = lastSyncedAt else { return nil }
         let elapsed = RelativeDateTimeFormatter()
         elapsed.unitsStyle = .full
-        return "Last synced " + elapsed.localizedString(for: date, relativeTo: Date())
+        let ago = elapsed.localizedString(for: date, relativeTo: Date())
+        return String(localized: "Last synced \(ago)")
     }
 
     private func persist() {

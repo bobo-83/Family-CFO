@@ -39,7 +39,7 @@ struct AdvisorKnowledgeView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("\(status.coveragePercent)%")
+                            Text(verbatim: "\(status.coveragePercent)%")
                                 .font(.title2.bold())
                             Spacer()
                             if let last = status.lastStudiedAt {
@@ -72,7 +72,7 @@ struct AdvisorKnowledgeView: View {
             if !status.insights.isEmpty {
                 Section {
                     ForEach(status.insights, id: \.key) { insight in
-                        Text(insight.value)
+                        Text(verbatim: insight.value)
                             .font(.callout)
                     }
                 } header: {

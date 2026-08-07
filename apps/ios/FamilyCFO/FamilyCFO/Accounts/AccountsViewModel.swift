@@ -23,11 +23,18 @@ final class AccountsViewModel {
 
     /// Accounts bucketed into the sections the tab shows, in display order.
     var groups: [Group] {
+        // The `id` is the stable key; the title is only ever shown.
         let order: [(String, String, Set<Components.Schemas.AccountType>)] = [
-            ("cash", "Cash", [.checking, .savings]),
-            ("investments", "Investments", [.brokerage, .retirement, .hsa, ._529]),
-            ("cards", "Credit cards", [.creditCard]),
-            ("loans", "Loans", [.mortgage, .autoLoan, .studentLoan, ._401kLoan, .otherLiability]),
+            ("cash", String(localized: "Cash"), [.checking, .savings]),
+            (
+                "investments", String(localized: "Investments"),
+                [.brokerage, .retirement, .hsa, ._529]
+            ),
+            ("cards", String(localized: "Credit cards"), [.creditCard]),
+            (
+                "loans", String(localized: "Loans"),
+                [.mortgage, .autoLoan, .studentLoan, ._401kLoan, .otherLiability]
+            ),
         ]
         var used = Set<String>()
         var result: [Group] = []
@@ -37,7 +44,9 @@ final class AccountsViewModel {
             if !members.isEmpty { result.append(Group(id: id, title: title, accounts: members)) }
         }
         let rest = accounts.filter { !used.contains($0.id) }
-        if !rest.isEmpty { result.append(Group(id: "other", title: "Other", accounts: rest)) }
+        if !rest.isEmpty {
+            result.append(Group(id: "other", title: String(localized: "Other"), accounts: rest))
+        }
         return result
     }
 
@@ -115,7 +124,7 @@ final class AccountsViewModel {
     // prefills from the result; nothing is saved until the user taps Save).
     func scanStatement(_ image: UIImage) async -> Components.Schemas.AccountScanResult? {
         guard let data = image.jpegData(compressionQuality: 0.9) else {
-            errorMessage = "That photo couldn't be processed."
+            errorMessage = String(localized: "That photo couldn't be processed.")
             return nil
         }
         return await scan { try AttachmentTranscoder.image(from: data, displayName: "Statement") }

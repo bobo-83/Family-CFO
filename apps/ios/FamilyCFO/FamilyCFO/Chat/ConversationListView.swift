@@ -93,7 +93,7 @@ struct ConversationListView: View {
                 ForEach(viewModel.conversations, id: \.id) { conversation in
                     NavigationLink(value: conversation.id) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(conversation.title)
+                            Text(verbatim: conversation.title)
                                 .lineLimit(2)
                             Text(conversation.updatedAt, style: .relative)
                                 .font(.caption)

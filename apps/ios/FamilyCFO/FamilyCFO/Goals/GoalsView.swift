@@ -72,7 +72,7 @@ struct GoalsView: View {
     private func goalRow(_ goal: Components.Schemas.Goal) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(goal.name).lineLimit(1)
+                Text(verbatim: goal.name).lineLimit(1)
                 Spacer()
                 Text("\(goal.current.formatted) of \(goal.target.formatted)")
                     .font(.subheadline.weight(.medium))
@@ -111,22 +111,27 @@ struct GoalsView: View {
     /// the bank feed), so the line must not read like a problem.
     static func fundingLine(_ goal: Components.Schemas.Goal) -> String? {
         guard let funding = goal.funding else { return nil }
-        let monthly = "\(funding.monthlyEquivalent.formattedExact)/mo going in"
+        let monthly = String(
+            localized: "\(funding.monthlyEquivalent.formattedExact)/mo going in")
         switch funding.status {
         case "on_track":
-            guard let date = funding.projectedCompletion else { return "On track — \(monthly)" }
-            return "On track — \(monthly) · projected \(mediumDate(date))"
+            guard let date = funding.projectedCompletion else {
+                return String(localized: "On track — \(monthly)")
+            }
+            return String(localized: "On track — \(monthly) · projected \(mediumDate(date))")
         case "behind":
             guard let date = funding.projectedCompletion else {
-                return "Behind — projected after the target"
+                return String(localized: "Behind — projected after the target")
             }
-            return "Behind — projected \(mediumDate(date)), after the target"
+            return String(localized: "Behind — projected \(mediumDate(date)), after the target")
         case "funded_no_date":
             return monthly
         case "unfunded":
             return goal._type == .retirement
-                ? "No linked transfers — 401(k) payroll deductions don't appear here."
-                : "Nothing is currently funding this goal"
+                ? String(
+                    localized:
+                        "No linked transfers — 401(k) payroll deductions don't appear here.")
+                : String(localized: "Nothing is currently funding this goal")
         default:
             return nil
         }
@@ -143,13 +148,13 @@ struct GoalsView: View {
 
     static func typeLabel(_ type: Components.Schemas.GoalType) -> String {
         switch type {
-        case .emergencyFund: return "Emergency fund"
-        case .vacation: return "Vacation"
-        case .retirement: return "Retirement"
-        case .college: return "College"
-        case .vehicle: return "Vehicle"
-        case .renovation: return "Renovation"
-        case .other: return "Other"
+        case .emergencyFund: return String(localized: "Emergency fund")
+        case .vacation: return String(localized: "Vacation")
+        case .retirement: return String(localized: "Retirement")
+        case .college: return String(localized: "College")
+        case .vehicle: return String(localized: "Vehicle")
+        case .renovation: return String(localized: "Renovation")
+        case .other: return String(localized: "Other")
         }
     }
 }
@@ -206,7 +211,13 @@ private struct GoalFormSheet: View {
                         .keyboardType(.decimalPad)
                     Picker("Priority", selection: $priority) {
                         ForEach(1...5, id: \.self) { p in
-                            Text(p == 1 ? "1 — highest" : "\(p)").tag(p)
+                            // The top rank is prose (translate it); the rest are
+                            // just numbers (verbatim, out of the catalog).
+                            if p == 1 {
+                                Text("1 — highest").tag(p)
+                            } else {
+                                Text(verbatim: "\(p)").tag(p)
+                            }
                         }
                     }
                 }

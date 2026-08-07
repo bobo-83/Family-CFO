@@ -10,14 +10,20 @@ struct CashOutlookDetailView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(outlook.lowestBalance.formatted)
+                    Text(verbatim: outlook.lowestBalance.formatted)
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                         .foregroundStyle(
                             outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
                     Text(
                         outlook.lowestDate.map {
-                            "lowest point, \(BillsView.shortDate($0)) — over the next \(outlook.horizonDays) days"
-                        } ?? "nothing expected in the next \(outlook.horizonDays) days"
+                            String(
+                                localized:
+                                    "lowest point, \(BillsView.shortDate($0)) — over the next \(outlook.horizonDays) days"
+                            )
+                        }
+                            ?? String(
+                                localized:
+                                    "nothing expected in the next \(outlook.horizonDays) days")
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -27,18 +33,18 @@ struct CashOutlookDetailView: View {
 
             Section {
                 LabeledContent("Cash today") {
-                    Text(outlook.startingCash.formatted).monospacedDigit()
+                    Text(verbatim: outlook.startingCash.formatted).monospacedDigit()
                 }
                 LabeledContent("Expected paychecks") {
-                    Text("+" + outlook.expectedIncome.formatted)
+                    Text(verbatim: "+" + outlook.expectedIncome.formatted)
                         .monospacedDigit().foregroundStyle(.green)
                 }
                 LabeledContent("Payments due") {
-                    Text("−" + outlook.obligations.formatted)
+                    Text(verbatim: "−" + outlook.obligations.formatted)
                         .monospacedDigit().foregroundStyle(.secondary)
                 }
                 LabeledContent {
-                    Text(outlook.endingCash.formatted)
+                    Text(verbatim: outlook.endingCash.formatted)
                         .font(.headline).monospacedDigit()
                         .foregroundStyle(
                             outlook.endingCash.amountMinor >= 0 ? Color.primary : .red)
@@ -53,21 +59,21 @@ struct CashOutlookDetailView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(row.event.name).lineLimit(1)
-                            Text(BillsView.shortDate(row.event.occurredOn))
+                            Text(verbatim: row.event.name).lineLimit(1)
+                            Text(verbatim: BillsView.shortDate(row.event.occurredOn))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(
-                                (row.event.amount.amountMinor >= 0 ? "+" : "")
+                                verbatim: (row.event.amount.amountMinor >= 0 ? "+" : "")
                                     + row.event.amount.formattedExact
                             )
                             .font(.subheadline.weight(.medium))
                             .monospacedDigit()
                             .foregroundStyle(
                                 row.event.amount.amountMinor >= 0 ? .green : .primary)
-                            Text(row.balance.formattedExact)
+                            Text(verbatim: row.balance.formattedExact)
                                 .font(.caption)
                                 .monospacedDigit()
                                 .foregroundStyle(
@@ -79,10 +85,13 @@ struct CashOutlookDetailView: View {
                 Text("Day by day")
             } footer: {
                 Text(
-                    "Paydays come from your recurring deposits; payments from the Bills "
-                        + "timeline. Card amounts are today's balances — charges you make "
-                        + "between now and the due date aren't known yet, so the real "
-                        + "figure may be higher."
+                    String(
+                        localized: """
+                            Paydays come from your recurring deposits; payments from the Bills \
+                            timeline. Card amounts are today's balances — charges you make \
+                            between now and the due date aren't known yet, so the real \
+                            figure may be higher.
+                            """)
                 )
             }
         }

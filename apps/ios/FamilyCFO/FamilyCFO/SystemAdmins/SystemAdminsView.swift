@@ -16,8 +16,8 @@ struct SystemAdminsView: View {
                 }
                 ForEach(viewModel.admins, id: \.userId) { admin in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(admin.displayName).font(.body)
-                        Text(admin.email).font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: admin.displayName).font(.body)
+                        Text(verbatim: admin.email).font(.caption).foregroundStyle(.secondary)
                     }
                     .swipeActions {
                         if viewModel.canRevoke {

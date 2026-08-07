@@ -99,12 +99,13 @@ struct SharedInboxAttachView: View {
     private func transactionRow(_ txn: Components.Schemas.Transaction) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(txn.merchant ?? txn.description ?? "Transaction").lineLimit(1)
-                Text(String(txn.occurredAt.prefix(10)))
+                Text(verbatim: txn.merchant ?? txn.description ?? String(localized: "Transaction"))
+                    .lineLimit(1)
+                Text(verbatim: String(txn.occurredAt.prefix(10)))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(txn.amount.formattedExact)
+            Text(verbatim: txn.amount.formattedExact)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(txn.amount.amountMinor > 0 ? Color.green : .primary)
         }
