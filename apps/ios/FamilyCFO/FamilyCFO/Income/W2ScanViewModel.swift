@@ -45,7 +45,7 @@ final class W2ScanViewModel {
     func scan(_ image: UIImage) async {
         guard !isScanning else { return }
         guard let data = image.jpegData(compressionQuality: 0.9) else {
-            errorMessage = "That photo couldn't be processed."
+            errorMessage = String(localized: "That photo couldn't be processed.")
             return
         }
         isScanning = true

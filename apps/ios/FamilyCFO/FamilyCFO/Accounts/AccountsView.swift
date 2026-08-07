@@ -99,9 +99,9 @@ struct AccountsView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(account.name).foregroundStyle(.primary).lineLimit(1)
+                    Text(verbatim: account.name).foregroundStyle(.primary).lineLimit(1)
                     if let institution = account.institution, !institution.isEmpty {
-                        Text(institution).font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: institution).font(.caption).foregroundStyle(.secondary)
                     }
                     if designation != .none, let reserved = account.emergencyFundReserved {
                         Label("Emergency fund · \(reserved.formatted)", systemImage: "shield.fill")
@@ -115,7 +115,7 @@ struct AccountsView: View {
                     }
                 }
                 Spacer()
-                Text(account.balance.formatted)
+                Text(verbatim: account.balance.formatted)
                     .font(.body.weight(.medium))
                 if canManage {
                     Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
@@ -142,12 +142,20 @@ private struct AccountDetailSheet: View {
 
     /// Human names for the picker, asset kinds first, then liabilities.
     static let typeLabels: [(Components.Schemas.AccountType, String)] = [
-        (.checking, "Checking"), (.savings, "Savings"), (.brokerage, "Brokerage"),
-        (.retirement, "Retirement"), (.hsa, "HSA"), (._529, "529"),
-        (.realEstate, "Real estate"), (.otherAsset, "Other asset"),
-        (.creditCard, "Credit card"), (.mortgage, "Mortgage"), (.autoLoan, "Auto loan"),
-        (.studentLoan, "Student loan"), (._401kLoan, "401(k) loan"),
-        (.otherLiability, "Loan / other liability"),
+        (.checking, String(localized: "Checking")),
+        (.savings, String(localized: "Savings")),
+        (.brokerage, String(localized: "Brokerage")),
+        (.retirement, String(localized: "Retirement")),
+        (.hsa, String(localized: "HSA")),
+        (._529, "529"),  // the US plan's number — the same in every language
+        (.realEstate, String(localized: "Real estate")),
+        (.otherAsset, String(localized: "Other asset")),
+        (.creditCard, String(localized: "Credit card")),
+        (.mortgage, String(localized: "Mortgage")),
+        (.autoLoan, String(localized: "Auto loan")),
+        (.studentLoan, String(localized: "Student loan")),
+        (._401kLoan, String(localized: "401(k) loan")),
+        (.otherLiability, String(localized: "Loan / other liability")),
     ]
 
     private enum Mode: Hashable { case none, whole, amount }
@@ -204,12 +212,12 @@ private struct AccountDetailSheet: View {
                 }
                 if canDesignate {
                     Section {
-                        modeRow("Not emergency fund", .none)
-                        modeRow("Whole balance", .whole)
-                        modeRow("A set amount", .amount)
+                        modeRow(String(localized: "Not emergency fund"), .none)
+                        modeRow(String(localized: "Whole balance"), .whole)
+                        modeRow(String(localized: "A set amount"), .amount)
                         if mode == .amount {
                             HStack {
-                                Text(account.balance.currency).foregroundStyle(.secondary)
+                                Text(verbatim: account.balance.currency).foregroundStyle(.secondary)
                                 TextField("Amount", value: $amount, format: .number.precision(.fractionLength(0...2)))
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
@@ -257,7 +265,7 @@ private struct AccountDetailSheet: View {
             mode = value
         } label: {
             HStack {
-                Text(title).foregroundStyle(.primary)
+                Text(verbatim: title).foregroundStyle(.primary)
                 Spacer()
                 if mode == value {
                     Image(systemName: "checkmark").foregroundStyle(.tint).fontWeight(.semibold)
@@ -324,7 +332,7 @@ private struct AddAccountSheet: View {
                     }
                     .disabled(scanning)
                     if let scanNote {
-                        Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: scanNote).font(.caption).foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text("Photograph, upload, or paste an HSA/savings/brokerage statement and the on-box vision model fills in what it can read. Confirm every value before saving.")
@@ -341,7 +349,7 @@ private struct AddAccountSheet: View {
                 }
                 Section {
                     HStack {
-                        Text("$")
+                        Text(verbatim: "$")
                         TextField("0.00", value: $amount, format: .number.precision(.fractionLength(0...2)))
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
@@ -396,7 +404,7 @@ private struct AddAccountSheet: View {
             case .pdf(let data):
                 handleScan { await onScanFile(data, true) }
             case .none:
-                scanNote = "There's no image or PDF on your clipboard to paste."
+                scanNote = String(localized: "There's no image or PDF on your clipboard to paste.")
             }
         }
     }
@@ -426,15 +434,15 @@ private struct AddAccountSheet: View {
 
     static func label(_ type: Components.Schemas.AccountType) -> String {
         switch type {
-        case .checking: return "Checking"
-        case .savings: return "Savings"
-        case .hsa: return "HSA"
-        case .brokerage: return "Brokerage / investment"
-        case .retirement: return "Retirement"
-        case ._529: return "529 college savings"
-        case .realEstate: return "Real estate"
-        case .otherAsset: return "Other asset"
-        default: return "Account"
+        case .checking: return String(localized: "Checking")
+        case .savings: return String(localized: "Savings")
+        case .hsa: return String(localized: "HSA")
+        case .brokerage: return String(localized: "Brokerage / investment")
+        case .retirement: return String(localized: "Retirement")
+        case ._529: return String(localized: "529 college savings")
+        case .realEstate: return String(localized: "Real estate")
+        case .otherAsset: return String(localized: "Other asset")
+        default: return String(localized: "Account")
         }
     }
 }

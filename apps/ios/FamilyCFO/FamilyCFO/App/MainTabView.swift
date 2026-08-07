@@ -233,7 +233,8 @@ struct SettingsView: View {
                                 )
                             ) {
                                 ForEach(HouseholdLanguageViewModel.options) { option in
-                                    Text(option.name).tag(option.code)
+                                    // A language's own name is never translated.
+                                    Text(verbatim: option.name).tag(option.code)
                                 }
                             }
                         } else {
@@ -275,7 +276,8 @@ struct SettingsView: View {
                         } else {
                             LabeledContent(
                                 "Reserve committed savings",
-                                value: reserveModel.reserved ? "On" : "Off")
+                                value: reserveModel.reserved
+                                    ? String(localized: "On") : String(localized: "Off"))
                         }
                     } footer: {
                         VStack(alignment: .leading, spacing: 4) {
@@ -294,7 +296,7 @@ struct SettingsView: View {
                     if let fingerprint = model.server?.certificateSHA256 {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Pinned certificate")
-                            Text(fingerprint)
+                            Text(verbatim: fingerprint)
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                         }

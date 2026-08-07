@@ -11,7 +11,7 @@ struct SafeToSpendDetailView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(safeToSpend.safeToSpend.formatted)
+                    Text(verbatim: safeToSpend.safeToSpend.formatted)
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                         .foregroundStyle(safeToSpend.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
                     // M112 (ADR 0026): named for what it is — the zero-income
@@ -78,18 +78,25 @@ struct SafeToSpendDetailView: View {
             if let cards = committedCards {
                 Section("Credit cards") {
                     Text(
-                        "You pay your cards in full, so their whole \(cards.formatted) balance "
-                            + "is counted as committed above — money about to leave your cash, "
-                            + "not long-term debt."
+                        String(
+                            localized: """
+                                You pay your cards in full, so their whole \(cards.formatted) \
+                                balance is counted as committed above — money about to leave \
+                                your cash, not long-term debt.
+                                """)
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     Label {
                         Text(
-                            "Your bank doesn't send the statement due date, so we count the full "
-                                + "current balance — including recent charges that aren't due yet. "
-                                + "That's deliberate: it keeps this figure conservative, so it "
-                                + "never tells you more is free than really is."
+                            String(
+                                localized: """
+                                    Your bank doesn't send the statement due date, so we count \
+                                    the full current balance — including recent charges that \
+                                    aren't due yet. That's deliberate: it keeps this figure \
+                                    conservative, so it never tells you more is free than \
+                                    really is.
+                                    """)
                         )
                     } icon: {
                         Image(systemName: "info.circle")
@@ -104,16 +111,18 @@ struct SafeToSpendDetailView: View {
             if let ready = safeToSpend.readyToSell?.value1 {
                 Section {
                     LabeledContent {
-                        Text(ready.value.formatted)
+                        Text(verbatim: ready.value.formatted)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Vested RSUs, ready to sell")
                             Text(
-                                "About \(ready.saleNoticeBusinessDays) business "
-                                    + "\(ready.saleNoticeBusinessDays == 1 ? "day" : "days") "
-                                    + "to become cash"
+                                String(
+                                    localized: """
+                                        About \(ready.saleNoticeBusinessDays) business days \
+                                        to become cash
+                                        """)
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -121,7 +130,7 @@ struct SafeToSpendDetailView: View {
                     }
                     ForEach(ready.accounts, id: \.name) { holding in
                         LabeledContent(holding.name) {
-                            Text(holding.amount.formatted)
+                            Text(verbatim: holding.amount.formatted)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         }
@@ -131,8 +140,11 @@ struct SafeToSpendDetailView: View {
                     Text("Ready to sell")
                 } footer: {
                     Text(
-                        "Vested company stock you could sell for cash — shown beside "
-                            + "Safe to Spend, never added to it."
+                        String(
+                            localized: """
+                                Vested company stock you could sell for cash — shown beside \
+                                Safe to Spend, never added to it.
+                                """)
                     )
                 }
             }
@@ -142,7 +154,7 @@ struct SafeToSpendDetailView: View {
             if case .informational(let amount, let items) = committedSavings {
                 Section {
                     LabeledContent {
-                        Text(amount.formatted)
+                        Text(verbatim: amount.formatted)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     } label: {
@@ -155,7 +167,7 @@ struct SafeToSpendDetailView: View {
                     }
                     ForEach(items, id: \.name) { item in
                         LabeledContent(item.name) {
-                            Text(item.amount.formatted)
+                            Text(verbatim: item.amount.formatted)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         }
@@ -165,9 +177,12 @@ struct SafeToSpendDetailView: View {
                     Text("Committed savings")
                 } footer: {
                     Text(
-                        "Savings you've committed to, due soon — shown beside Safe "
-                            + "to Spend, never subtracted from it. Turn on \"Reserve "
-                            + "committed savings\" in Settings to set it aside like a bill."
+                        String(
+                            localized: """
+                                Savings you've committed to, due soon — shown beside Safe \
+                                to Spend, never subtracted from it. Turn on "Reserve \
+                                committed savings" in Settings to set it aside like a bill.
+                                """)
                     )
                 }
             }
@@ -184,13 +199,16 @@ struct SafeToSpendDetailView: View {
 
             Section {
                 Text(
-                    "This is a deliberate worst case: your liquid cash minus everything "
-                        + "already spoken for — the emergency fund, bills coming due, debt "
-                        + "payments, and your full card balances — counting no incoming "
-                        + "paychecks at all. A negative number here doesn't mean you can't "
-                        + "pay your bills; the Cash outlook on the Overview answers that, "
-                        + "with income counted. This number is the cushion you'd have if "
-                        + "everything went wrong at once."
+                    String(
+                        localized: """
+                            This is a deliberate worst case: your liquid cash minus everything \
+                            already spoken for — the emergency fund, bills coming due, debt \
+                            payments, and your full card balances — counting no incoming \
+                            paychecks at all. A negative number here doesn't mean you can't \
+                            pay your bills; the Cash outlook on the Overview answers that, \
+                            with income counted. This number is the cushion you'd have if \
+                            everything went wrong at once.
+                            """)
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -228,7 +246,8 @@ struct SafeToSpendDetailView: View {
     /// when there's nothing to break down.
     @ViewBuilder
     private func expandable(
-        _ label: String, _ money: Components.Schemas.Money, sign: Sign, note: String,
+        _ label: LocalizedStringKey, _ money: Components.Schemas.Money, sign: Sign,
+        note: LocalizedStringKey,
         items: [(String, Components.Schemas.Money)]
     ) -> some View {
         if items.isEmpty {
@@ -237,7 +256,8 @@ struct SafeToSpendDetailView: View {
             DisclosureGroup {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     LabeledContent(item.0) {
-                        Text(item.1.formatted).foregroundStyle(.secondary).monospacedDigit()
+                        Text(verbatim: item.1.formatted).foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                     .font(.subheadline)
                 }
@@ -254,10 +274,11 @@ struct SafeToSpendDetailView: View {
     private enum Sign { case plus, minus }
 
     private func componentRow(
-        _ label: String, _ money: Components.Schemas.Money, sign: Sign, note: String
+        _ label: LocalizedStringKey, _ money: Components.Schemas.Money, sign: Sign,
+        note: LocalizedStringKey
     ) -> some View {
         LabeledContent {
-            Text((sign == .plus ? "" : "−") + money.formatted)
+            Text(verbatim: (sign == .plus ? "" : "−") + money.formatted)
                 .monospacedDigit()
                 .foregroundStyle(sign == .plus ? Color.primary : .secondary)
         } label: {
@@ -268,9 +289,11 @@ struct SafeToSpendDetailView: View {
         }
     }
 
-    private func totalRow(_ label: String, _ money: Components.Schemas.Money) -> some View {
+    private func totalRow(
+        _ label: LocalizedStringKey, _ money: Components.Schemas.Money
+    ) -> some View {
         LabeledContent {
-            Text(money.formatted)
+            Text(verbatim: money.formatted)
                 .font(.headline)
                 .monospacedDigit()
                 .foregroundStyle(money.amountMinor >= 0 ? Color.primary : .red)
@@ -281,10 +304,10 @@ struct SafeToSpendDetailView: View {
 
     private static func due(_ bill: Components.Schemas.UpcomingBill) -> String {
         switch bill.daysUntil {
-        case ..<0: return "overdue"
-        case 0: return "due today"
-        case 1: return "due tomorrow"
-        default: return "due in \(bill.daysUntil) days"
+        case ..<0: return String(localized: "overdue")
+        case 0: return String(localized: "due today")
+        case 1: return String(localized: "due tomorrow")
+        default: return String(localized: "due in \(bill.daysUntil) days")
         }
     }
 }

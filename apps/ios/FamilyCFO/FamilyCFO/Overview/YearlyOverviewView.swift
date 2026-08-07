@@ -50,7 +50,7 @@ struct YearlyOverviewView: View {
                 Image(systemName: "chevron.left")
             }
             Spacer()
-            Text(String(viewModel.year)).font(.headline)
+            Text(verbatim: String(viewModel.year)).font(.headline)
             Spacer()
             Button {
                 Task { await viewModel.step(1) }
@@ -126,7 +126,7 @@ struct YearlyOverviewView: View {
     private func selectedMonthCard(_ month: Components.Schemas.YearMonthSummary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(Self.longLabel(month.month)).font(.subheadline.weight(.semibold))
+                Text(verbatim: Self.longLabel(month.month)).font(.subheadline.weight(.semibold))
                 Spacer()
                 Button("Open month") { onSelectMonth(month.month) }
                     .font(.caption)
@@ -177,10 +177,12 @@ struct YearlyOverviewView: View {
         }
     }
 
-    private func totalCell(_ label: String, _ value: String, _ color: Color) -> some View {
+    private func totalCell(
+        _ label: LocalizedStringKey, _ value: String, _ color: Color
+    ) -> some View {
         VStack(spacing: 2) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.callout.weight(.semibold)).foregroundStyle(color)
+            Text(verbatim: value).font(.callout.weight(.semibold)).foregroundStyle(color)
         }
         .frame(maxWidth: .infinity)
     }
@@ -197,7 +199,8 @@ struct YearlyOverviewView: View {
                         ProgressView()
                     } else {
                         Label(
-                            overview.review == nil ? "Write it" : "Refresh",
+                            overview.review == nil
+                                ? String(localized: "Write it") : String(localized: "Refresh"),
                             systemImage: "sparkles"
                         )
                         .font(.caption)
@@ -207,7 +210,7 @@ struct YearlyOverviewView: View {
                 .disabled(viewModel.isGenerating)
             }
             if let review = overview.review {
-                Text(review.summary).font(.callout)
+                Text(verbatim: review.summary).font(.callout)
                 if !review.suggestions.isEmpty {
                     Text("Could be better").font(.caption.weight(.semibold)).padding(.top, 2)
                     ForEach(review.suggestions, id: \.self) { suggestion in
@@ -239,9 +242,10 @@ struct YearlyOverviewView: View {
                 Text("Where it went").font(.subheadline.weight(.semibold))
                 ForEach(overview.topCategories, id: \.name) { entry in
                     HStack {
-                        Text(entry.name).font(.callout)
+                        Text(verbatim: entry.name).font(.callout)
                         Spacer()
-                        Text(entry.amount.formatted).font(.callout).foregroundStyle(.secondary)
+                        Text(verbatim: entry.amount.formatted).font(.callout)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

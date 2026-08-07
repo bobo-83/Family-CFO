@@ -33,9 +33,11 @@ struct LiveSystemAdminsAPI: SystemAdminsAPI {
         case .forbidden:
             throw APIError.server(403)
         case .notFound:
-            throw APIError.advisor("No user with that email — invite them to the household first.")
+            throw APIError.advisor(
+                String(
+                    localized: "No user with that email — invite them to the household first."))
         case .conflict:
-            throw APIError.advisor("They are already a system administrator.")
+            throw APIError.advisor(String(localized: "They are already a system administrator."))
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -53,7 +55,8 @@ struct LiveSystemAdminsAPI: SystemAdminsAPI {
             // Already off the roster — the caller wanted them off.
             return
         case .conflict:
-            throw APIError.advisor("The box must keep at least one system administrator.")
+            throw APIError.advisor(
+                String(localized: "The box must keep at least one system administrator."))
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

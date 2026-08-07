@@ -16,7 +16,7 @@ enum BiometricGate {
         do {
             return try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
-                localizedReason: "Unlock your household finances"
+                localizedReason: String(localized: "Unlock your household finances")
             )
         } catch {
             return false

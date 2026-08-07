@@ -112,7 +112,7 @@ private struct TableCards: View {
                     ForEach(Array(table.headers.enumerated()), id: \.offset) { index, label in
                         if index >= 1, index < row.count, !row[index].isEmpty {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text(label)
+                                Text(verbatim: label)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer(minLength: 8)

@@ -72,7 +72,7 @@ struct BudgetsView: View {
         }
         .sheet(isPresented: $addingBudget) {
             BudgetFormSheet(
-                title: "New budget",
+                title: String(localized: "New budget"),
                 categories: viewModel.unbudgetedCategories,
                 initialLimit: nil
             ) { categoryID, limitMinor in
@@ -94,7 +94,7 @@ struct BudgetsView: View {
     private func budgetRow(_ budget: Components.Schemas.Budget) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(budget.categoryName).lineLimit(1)
+                Text(verbatim: budget.categoryName).lineLimit(1)
                 Spacer()
                 Text("\(budget.spent.formattedExact) of \(budget.limit.formattedExact)")
                     .font(.subheadline.weight(.medium))
@@ -120,11 +120,14 @@ struct BudgetsView: View {
     static func statusLine(_ budget: Components.Schemas.Budget) -> String {
         switch budget.status {
         case .over:
-            return "Over by \(Components.Schemas.Money(amountMinor: -budget.remaining.amountMinor, currency: budget.remaining.currency).formattedExact)"
+            let over = Components.Schemas.Money(
+                amountMinor: -budget.remaining.amountMinor, currency: budget.remaining.currency)
+            return String(localized: "Over by \(over.formattedExact)")
         case .warning:
-            return "\(budget.remaining.formattedExact) left · \(budget.percentUsed)% used"
+            return String(
+                localized: "\(budget.remaining.formattedExact) left · \(budget.percentUsed)% used")
         case .under:
-            return "\(budget.remaining.formattedExact) left this month"
+            return String(localized: "\(budget.remaining.formattedExact) left this month")
         }
     }
 }
@@ -148,7 +151,7 @@ private struct BudgetFormSheet: View {
                     Picker("Category", selection: $categoryID) {
                         Text("Choose…").tag("")
                         ForEach(categories, id: \.id) { category in
-                            Text(category.name).tag(category.id)
+                            Text(verbatim: category.name).tag(category.id)
                         }
                     }
                 }

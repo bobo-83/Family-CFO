@@ -112,7 +112,7 @@ final class VoiceSessionViewModel: Identifiable {
         } catch {
             phase = .failed(
                 (error as? LocalizedError)?.errorDescription
-                    ?? "Couldn't start listening.")
+                    ?? String(localized: "Couldn't start listening."))
         }
     }
 

@@ -45,15 +45,21 @@ struct ReviewView: View {
                         }
                         suspectedIncomeSection()
                         reviewList(
-                            "Transfers", systemImage: "arrow.left.arrow.right",
+                            String(localized: "Transfers"), systemImage: "arrow.left.arrow.right",
                             count: viewModel.transfers.count, groups: viewModel.transferGroups,
                             highlightMoneyIn: false,
-                            note: "Money moved between your own accounts (or card payments), grouped by amount — the two legs of a transfer sit together. Tap one to recategorize if it's really spending or income.")
+                            note: String(
+                                localized:
+                                    "Money moved between your own accounts (or card payments), grouped by amount — the two legs of a transfer sit together. Tap one to recategorize if it's really spending or income."
+                            ))
                         reviewList(
-                            "Credits & refunds", systemImage: "arrow.uturn.left",
+                            String(localized: "Credits & refunds"), systemImage: "arrow.uturn.left",
                             count: viewModel.credits.count, groups: viewModel.creditGroups,
                             highlightMoneyIn: true,
-                            note: "Money back — statement credits and refunds. Tap one to file it under the category it offsets (e.g. a Resy credit → Dining).")
+                            note: String(
+                                localized:
+                                    "Money back — statement credits and refunds. Tap one to file it under the category it offsets (e.g. a Resy credit → Dining)."
+                            ))
                     }
                 }
             }
@@ -92,7 +98,7 @@ struct ReviewView: View {
             .task { await viewModel.load() }
             .sheet(item: $recategorizing) { txn in
                 CategoryPickerSheet(
-                    title: txn.merchant ?? txn.description ?? "Transaction",
+                    title: txn.merchant ?? txn.description ?? String(localized: "Transaction"),
                     categories: viewModel.categories,
                     currentCategoryID: txn.categoryId,
                     onSelect: { newID in
@@ -103,7 +109,8 @@ struct ReviewView: View {
             }
             .sheet(item: $recategorizingGroup) { group in
                 CategoryPickerSheet(
-                    title: "\(group.count) × \(group.sample.merchant ?? "transactions")",
+                    title:
+                        "\(group.count) × \(group.sample.merchant ?? String(localized: "transactions"))",
                     categories: viewModel.categories,
                     currentCategoryID: group.sample.categoryId,
                     onSelect: { newID in
@@ -158,17 +165,19 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(txn.merchant ?? txn.description ?? "Deposit").lineLimit(1)
+                    Text(verbatim: txn.merchant ?? txn.description ?? String(localized: "Deposit"))
+                        .lineLimit(1)
                         .font(.subheadline.weight(.medium))
                     if let source = sourceLine(txn) {
-                        Text(source).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(verbatim: source).font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    Text(String(txn.occurredAt.prefix(10)))
+                    Text(verbatim: String(txn.occurredAt.prefix(10)))
                         .font(.caption2).foregroundStyle(.secondary)
-                    badge("Suspected income", .green)
+                    badge(String(localized: "Suspected income"), .green)
                 }
                 Spacer()
-                Text(txn.amount.formattedExact)
+                Text(verbatim: txn.amount.formattedExact)
                     .font(.headline)
                     .foregroundStyle(Color.green)
             }
@@ -209,12 +218,15 @@ struct ReviewView: View {
             }
         } header: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(group.sample.merchant ?? group.sample.description ?? "Transaction")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .textCase(nil)
+                Text(
+                    verbatim: group.sample.merchant ?? group.sample.description
+                        ?? String(localized: "Transaction")
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .textCase(nil)
                 if let source = sourceLine(group.sample) {
-                    Text(source)
+                    Text(verbatim: source)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textCase(nil)
@@ -222,9 +234,15 @@ struct ReviewView: View {
             }
         } footer: {
             Text(
-                "\(group.count) identical charges of \(group.sample.amount.formattedExact) on \(String(group.sample.occurredAt.prefix(10)))"
+                verbatim: String(
+                    localized:
+                        "\(group.count) identical charges of \(group.sample.amount.formattedExact) on \(String(group.sample.occurredAt.prefix(10)))"
+                )
                     + (group.hasDisputed
-                        ? ". Disputing tracks it here — contact your bank to actually dispute it."
+                        ? String(
+                            localized:
+                                ". Disputing tracks it here — contact your bank to actually dispute it."
+                        )
                         : ".")
             )
         }
@@ -232,7 +250,8 @@ struct ReviewView: View {
 
     /// A collapsible section (Transfers, Credits). Same-amount transactions are
     /// grouped into a nested expandable row to save vertical space; a lone one is
-    /// shown directly. Tapping a transaction recategorizes it.
+    /// shown directly. Tapping a transaction recategorizes it. `title` and `note`
+    /// are already localized by the caller.
     @ViewBuilder private func reviewList(
         _ title: String, systemImage: String, count: Int,
         groups: [ReviewViewModel.AmountGroup], highlightMoneyIn: Bool, note: String
@@ -283,10 +302,14 @@ struct ReviewView: View {
         let money = Components.Schemas.Money(
             amountMinor: group.absAmount, currency: group.sample.amount.currency)
         return HStack {
-            Text(group.sample.merchant ?? group.sample.description ?? "Transfer").lineLimit(1)
-            Text("· \(group.count)").foregroundStyle(.secondary)
+            Text(
+                verbatim: group.sample.merchant ?? group.sample.description
+                    ?? String(localized: "Transfer")
+            )
+            .lineLimit(1)
+            Text(verbatim: "· \(group.count)").foregroundStyle(.secondary)
             Spacer()
-            Text(money.formattedExact).font(.subheadline.weight(.medium))
+            Text(verbatim: money.formattedExact).font(.subheadline.weight(.medium))
         }
     }
 
@@ -295,22 +318,24 @@ struct ReviewView: View {
     ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(txn.merchant ?? txn.description ?? "Transaction").lineLimit(1)
+                Text(verbatim: txn.merchant ?? txn.description ?? String(localized: "Transaction"))
+                    .lineLimit(1)
                     .foregroundStyle(.primary)
                 if let note = txn.note, !note.isEmpty {
                     Label(note, systemImage: "note.text")
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if let source = sourceLine(txn) {
-                    Text(source).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(verbatim: source).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if let category = txn.category {
-                    Text(category).font(.caption2).foregroundStyle(.tertiary)
+                    Text(verbatim: category).font(.caption2).foregroundStyle(.tertiary)
                 }
-                Text(String(txn.occurredAt.prefix(10))).font(.caption2).foregroundStyle(.secondary)
+                Text(verbatim: String(txn.occurredAt.prefix(10)))
+                    .font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(txn.amount.formattedExact)
+            Text(verbatim: txn.amount.formattedExact)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(highlightMoneyIn && txn.amount.amountMinor > 0 ? Color.green : .primary)
             Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
@@ -321,14 +346,14 @@ struct ReviewView: View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    Text(txn.amount.formattedExact)
+                    Text(verbatim: txn.amount.formattedExact)
                         .font(.body.weight(.medium))
-                    Text(String(txn.occurredAt.prefix(10)))
+                    Text(verbatim: String(txn.occurredAt.prefix(10)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if let detail = txn.rawDetail {
-                    Text(detail).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                    Text(verbatim: detail).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 HStack(spacing: 8) {
                     stateBadge(txn.duplicateState)
@@ -374,14 +399,15 @@ struct ReviewView: View {
     ) -> some View {
         switch state {
         case .disputed:
-            badge("Disputed", .red)
+            badge(String(localized: "Disputed"), .red)
         default:
-            badge("Possible duplicate", .orange)
+            badge(String(localized: "Possible duplicate"), .orange)
         }
     }
 
+    /// `text` is already localized by the caller — displayed as given.
     private func badge(_ text: String, _ color: Color) -> some View {
-        Text(text)
+        Text(verbatim: text)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

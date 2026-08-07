@@ -21,6 +21,14 @@ struct OverviewView: View {
     enum ViewMode: String, CaseIterable {
         case month = "Month"
         case year = "Year"
+
+        /// The raw value is the stable key; this is what the picker shows.
+        var label: String {
+            switch self {
+            case .month: return String(localized: "Month")
+            case .year: return String(localized: "Year")
+            }
+        }
     }
 
     var body: some View {
@@ -83,7 +91,7 @@ struct OverviewView: View {
                 if viewModel.isLoading {
                     ProgressView()
                 }
-                Text(viewModel.monthLabel).font(.headline)
+                Text(verbatim: viewModel.monthLabel).font(.headline)
             }
             Spacer()
             Button {
@@ -115,7 +123,7 @@ struct OverviewView: View {
                 VStack(spacing: 16) {
                     Picker("View", selection: $viewMode) {
                         ForEach(ViewMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode.label).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -236,8 +244,11 @@ struct OverviewView: View {
             )
             .font(.subheadline.weight(.semibold))
             Text(
-                "Versions differ, so screens may not match the server. "
-                    + "Install the update from your box's OTA page."
+                String(
+                    localized: """
+                        Versions differ, so screens may not match the server. \
+                        Install the update from your box's OTA page.
+                        """)
             )
             .font(.caption)
             if let base = model.server?.apiBaseURL,
@@ -276,8 +287,10 @@ struct OverviewView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.red)
                     Text(
-                        "cash runs short \(BillsView.shortDate(shortDay))"
-                            + (outlook.shortfall.map { " — raise at least \($0.value1.formatted)" } ?? "")
+                        String(localized: "cash runs short \(BillsView.shortDate(shortDay))")
+                            + (outlook.shortfall.map {
+                                String(localized: " — raise at least \($0.value1.formatted)")
+                            } ?? "")
                     )
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.orange)
@@ -296,21 +309,31 @@ struct OverviewView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.green)
                 }
-                Text(outlook.lowestBalance.formatted)
+                Text(verbatim: outlook.lowestBalance.formatted)
                     .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     .foregroundStyle(outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
                 Text(
                     outlook.lowestDate.map {
-                        "lowest your cash reaches in the next \(outlook.horizonDays) days"
+                        String(
+                            localized:
+                                "lowest your cash reaches in the next \(outlook.horizonDays) days")
                             + " · \(BillsView.shortDate($0))"
-                    } ?? "no payments or paydays expected in the next \(outlook.horizonDays) days"
+                    }
+                        ?? String(
+                            localized:
+                                "no payments or paydays expected in the next \(outlook.horizonDays) days"
+                        )
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 Text(
-                    "\(outlook.startingCash.formatted) cash + \(outlook.expectedIncome.formatted) "
-                        + "expected paychecks − \(outlook.obligations.formatted) payments "
-                        + "= \(outlook.endingCash.formatted)"
+                    String(
+                        localized: """
+                            \(outlook.startingCash.formatted) cash + \
+                            \(outlook.expectedIncome.formatted) expected paychecks − \
+                            \(outlook.obligations.formatted) payments \
+                            = \(outlook.endingCash.formatted)
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -329,11 +352,11 @@ struct OverviewView: View {
     /// The runway verb, with the shortfall translated into shares when the
     /// outlook knows them (M-rsu-grants): "Sell RSUs (≈ 12 XYZ) by …".
     static func runwayHeadline(_ outlook: Components.Schemas.CashOutlookResponse) -> String {
-        if outlook.runwayAction == .moveCash { return "Free up cash by " }
+        if outlook.runwayAction == .moveCash { return String(localized: "Free up cash by ") }
         if let units = outlook.sellUnits, let ticker = outlook.sellTicker {
-            return "Sell RSUs (≈ \(units) \(ticker)) by "
+            return String(localized: "Sell RSUs (≈ \(units) \(ticker)) by ")
         }
-        return "Sell RSUs by "
+        return String(localized: "Sell RSUs by ")
     }
 
     /// M113 (ADR 0027): left to spend this month — expected income minus what's
@@ -341,20 +364,26 @@ struct OverviewView: View {
     /// cash outlook's cash-timing view.
     private func spendingPlanCard(_ plan: Components.Schemas.SpendingPlanResponse) -> some View {
         Card("Left to spend this month", systemImage: "chart.pie") {
-            Text(plan.leftToSpend.formatted)
+            Text(verbatim: plan.leftToSpend.formatted)
                 .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                 .foregroundStyle(plan.leftToSpend.amountMinor >= 0 ? Color.primary : .red)
             if plan.leftToSpend.amountMinor >= 0 {
                 Text(
-                    "about \(plan.perDay.formatted)/day for the remaining "
-                        + "\(plan.daysRemaining) day\(plan.daysRemaining == 1 ? "" : "s")"
+                    String(
+                        localized: """
+                            about \(plan.perDay.formatted)/day for the remaining \
+                            \(plan.daysRemaining) days
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
                 Text(
-                    "this month's spending has outrun this month's income — "
-                        + "the gap is drawing on cash you already had"
+                    String(
+                        localized: """
+                            this month's spending has outrun this month's income — \
+                            the gap is drawing on cash you already had
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.orange)
@@ -372,12 +401,15 @@ struct OverviewView: View {
         let income = plan.expectedIncome.formatted
         let received = plan.incomeReceived.formatted
         let toCome = plan.incomeProjected.formatted
-        parts.append("\(income) expected income (\(received) received + \(toCome) to come)")
-        parts.append("\(plan.spent.formatted) spent")
-        parts.append("\(plan.billsRemaining.formatted) bills still due")
-        parts.append("\(plan.accountObligations.formatted) loan & lease payments")
+        parts.append(
+            String(localized: "\(income) expected income (\(received) received + \(toCome) to come)")
+        )
+        parts.append(String(localized: "\(plan.spent.formatted) spent"))
+        parts.append(String(localized: "\(plan.billsRemaining.formatted) bills still due"))
+        parts.append(
+            String(localized: "\(plan.accountObligations.formatted) loan & lease payments"))
         if plan.plannedSavings.amountMinor > 0 {
-            parts.append("\(plan.plannedSavings.formatted) planned savings")
+            parts.append(String(localized: "\(plan.plannedSavings.formatted) planned savings"))
         }
         return parts.joined(separator: " − ")
     }
@@ -393,21 +425,30 @@ struct OverviewView: View {
             SafeToSpendDetailView(safeToSpend: sts, upcomingBills: upcomingBills)
         } label: {
             Card("Stress test", systemImage: "shield.lefthalf.filled") {
-                Text(sts.safeToSpend.formatted)
+                Text(verbatim: sts.safeToSpend.formatted)
                     .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                     .foregroundStyle(sts.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
                 Text(
-                    "If every commitment were called today — full card balances, all "
-                        + "bills, the emergency fund held back — with no paycheck counted. "
-                        + "Deliberately worst-case; the cash outlook above counts income."
+                    String(
+                        localized: """
+                            If every commitment were called today — full card balances, all \
+                            bills, the emergency fund held back — with no paycheck counted. \
+                            Deliberately worst-case; the cash outlook above counts income.
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 Text(
-                    "\(sts.liquidBalance.formatted) liquid − \(sts.emergencyFundReserved.formatted) "
-                        + "emergency fund − \(sts.billsDue.formatted) bills − "
-                        + "\(sts.minimumDebtPayments.formatted) min. debt"
-                        + ((sts.creditCardPayments?.value1).map { " − \($0.formatted) cards" } ?? "")
+                    String(
+                        localized: """
+                            \(sts.liquidBalance.formatted) liquid − \
+                            \(sts.emergencyFundReserved.formatted) emergency fund − \
+                            \(sts.billsDue.formatted) bills − \
+                            \(sts.minimumDebtPayments.formatted) min. debt
+                            """)
+                        + ((sts.creditCardPayments?.value1).map {
+                            String(localized: " − \($0.formatted) cards")
+                        } ?? "")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -426,10 +467,12 @@ struct OverviewView: View {
                     Divider()
                     Label {
                         Text(
-                            "Ready to sell: \(ready.value.formatted) in vested RSUs — about "
-                                + "\(ready.saleNoticeBusinessDays) business "
-                                + "\(ready.saleNoticeBusinessDays == 1 ? "day" : "days") "
-                                + "to become cash"
+                            String(
+                                localized: """
+                                    Ready to sell: \(ready.value.formatted) in vested RSUs — \
+                                    about \(ready.saleNoticeBusinessDays) business days \
+                                    to become cash
+                                    """)
                         )
                     } icon: {
                         Image(systemName: "chart.line.uptrend.xyaxis")
@@ -451,7 +494,7 @@ struct OverviewView: View {
 
     private func netWorthCard(_ context: Components.Schemas.HouseholdContext) -> some View {
         Card("Net worth", systemImage: "chart.line.uptrend.xyaxis") {
-            Text(context.netWorth.formatted)
+            Text(verbatim: context.netWorth.formatted)
                 .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                 .contentTransition(.numericText())
             if let history = context.netWorthHistory, history.count >= 2 {
@@ -501,7 +544,7 @@ struct OverviewView: View {
     ) -> some View {
         Card("Emergency fund", systemImage: "umbrella") {
             HStack(alignment: .firstTextBaseline) {
-                Text(fund.reserved.formatted)
+                Text(verbatim: fund.reserved.formatted)
                     .font(.title2.weight(.semibold))
                 Spacer()
                 Text(fund.statusLabel)
@@ -517,8 +560,11 @@ struct OverviewView: View {
             }
             if let months = fund.months {
                 Text(
-                    "\(months.formatted(.number.precision(.fractionLength(1)))) of "
-                        + "\(fund.targetMonthsRecommended.formatted(.number.precision(.fractionLength(0)))) months' expenses"
+                    String(
+                        localized: """
+                            \(months.formatted(.number.precision(.fractionLength(1)))) of \
+                            \(fund.targetMonthsRecommended.formatted(.number.precision(.fractionLength(0)))) months' expenses
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -563,15 +609,18 @@ struct OverviewView: View {
     private func savingsRateCard(_ rate: Components.Schemas.SavingsRate) -> some View {
         Card("Savings rate", systemImage: "banknote") {
             if let percent = rate.percent {
-                Text("\(percent)%")
+                Text(verbatim: "\(percent)%")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(percent >= 0 ? Color.green : .red)
             } else {
-                Text("—").font(.title2.weight(.semibold))
+                Text(verbatim: "—").font(.title2.weight(.semibold))
             }
             Text(
-                "\(rate.monthlyIncome.formatted) income vs "
-                    + "\(rate.averageMonthlySpending.formatted) average spending"
+                String(
+                    localized: """
+                        \(rate.monthlyIncome.formatted) income vs \
+                        \(rate.averageMonthlySpending.formatted) average spending
+                        """)
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -601,13 +650,13 @@ struct OverviewView: View {
     static func savingsBreakdown(_ rate: Components.Schemas.SavingsRate) -> String? {
         var parts: [String] = []
         if let transfers = rate.transfers {
-            parts.append("\(transfers.formatted) transfers")
+            parts.append(String(localized: "\(transfers.formatted) transfers"))
         }
         if let payroll = rate.payrollDeductions {
-            parts.append("\(payroll.formatted) payroll")
+            parts.append(String(localized: "\(payroll.formatted) payroll"))
         }
         if let residual = rate.residual {
-            parts.append("\(residual.formatted) residual")
+            parts.append(String(localized: "\(residual.formatted) residual"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -618,8 +667,11 @@ struct OverviewView: View {
     /// no note. Points at the Income screen, where the earner form takes it.
     static func payrollNote(_ rate: Components.Schemas.SavingsRate) -> String? {
         guard rate.payrollProfilePresent == false else { return nil }
-        return "401(k)/HSA payroll saving isn't counted yet, so this rate may "
-            + "understate. Add each earner's annual amounts on the Income screen."
+        return String(
+            localized: """
+                401(k)/HSA payroll saving isn't counted yet, so this rate may \
+                understate. Add each earner's annual amounts on the Income screen.
+                """)
     }
 
     /// #201: recurring transfers into savings vehicles, largest first. The
@@ -634,9 +686,12 @@ struct OverviewView: View {
         Card("What you're saving", systemImage: "arrow.down.to.line") {
             if contributions.isEmpty {
                 Text(
-                    "Nothing found in your transfers. If you're paying into something the app "
-                        + "can't see — a 529, a workplace plan — tell it here and every figure "
-                        + "will count it."
+                    String(
+                        localized: """
+                            Nothing found in your transfers. If you're paying into something \
+                            the app can't see — a 529, a workplace plan — tell it here and \
+                            every figure will count it.
+                            """)
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -645,7 +700,7 @@ struct OverviewView: View {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(contribution.destinationName).font(.subheadline)
+                            Text(verbatim: contribution.destinationName).font(.subheadline)
                             // #207: informational, never a warning — an unsynced 529
                             // is the normal case, not a lower-quality result.
                             if contribution.inferred == true {
@@ -662,7 +717,9 @@ struct OverviewView: View {
                         // destination type points at exactly one goal, the
                         // one-tap offer to link them.
                         if let goalID = contribution.goalId {
-                            Text("funds \(viewModel.goalNames[goalID] ?? "a goal")")
+                            let goalName =
+                                viewModel.goalNames[goalID] ?? String(localized: "a goal")
+                            Text("funds \(goalName)")
                                 .font(.caption)
                                 .foregroundStyle(.tint)
                         } else if canManageSavings,
@@ -725,7 +782,7 @@ struct OverviewView: View {
         }
     }
 
-    private func contributionBadge(_ text: String) -> some View {
+    private func contributionBadge(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.caption2)
             .padding(.horizontal, 6)
@@ -804,18 +861,26 @@ struct OverviewView: View {
     static func savingsFootnote(
         _ contributions: [Components.Schemas.SavingsContribution]
     ) -> String {
-        var footnote =
-            "Detected from transfers between your accounts. "
-            + "Payroll deductions like a 401(k) don't appear here."
+        var footnote = String(
+            localized: """
+                Detected from transfers between your accounts. \
+                Payroll deductions like a 401(k) don't appear here.
+                """)
         if contributions.contains(where: { $0.inferred == true }) {
-            footnote +=
-                " Rows marked inferred were matched from the money leaving your account — "
-                + "the destination isn't synced."
+            footnote += " "
+            footnote += String(
+                localized: """
+                    Rows marked inferred were matched from the money leaving your account — \
+                    the destination isn't synced.
+                    """)
         }
         if contributions.contains(where: { $0.declared == true }) {
-            footnote +=
-                " Rows marked declared are your family's own word, counted whether or not "
-                + "either account syncs."
+            footnote += " "
+            footnote += String(
+                localized: """
+                    Rows marked declared are your family's own word, counted whether or not \
+                    either account syncs.
+                    """)
         }
         return footnote
     }
@@ -828,24 +893,24 @@ struct OverviewView: View {
         // A declared row was never seen in the ledger — that's the whole point
         // of declaring it — so an occurrence count would read "seen 0 times".
         guard contribution.declared != true else {
-            return cadence + " · declared by your family"
+            return cadence + String(localized: " · declared by your family")
         }
         let times = contribution.occurrences == 1
-            ? "seen 1 time"
-            : "seen \(contribution.occurrences) times"
+            ? String(localized: "seen 1 time")
+            : String(localized: "seen \(contribution.occurrences) times")
         return cadence + " · \(times)"
     }
 
     /// Enums are for machines; a row reads "$500 monthly".
     static func cadenceWord(_ frequency: Components.Schemas.RecurringFrequency) -> String {
         switch frequency {
-        case .weekly: return "weekly"
-        case .biweekly: return "every two weeks"
-        case .semimonthly: return "twice a month"
-        case .monthly: return "monthly"
-        case .quarterly: return "quarterly"
-        case .semiannual: return "twice a year"
-        case .annual: return "yearly"
+        case .weekly: return String(localized: "weekly")
+        case .biweekly: return String(localized: "every two weeks")
+        case .semimonthly: return String(localized: "twice a month")
+        case .monthly: return String(localized: "monthly")
+        case .quarterly: return String(localized: "quarterly")
+        case .semiannual: return String(localized: "twice a year")
+        case .annual: return String(localized: "yearly")
         }
     }
 
@@ -902,7 +967,7 @@ struct OverviewView: View {
     @ViewBuilder
     private func goalCard(_ goal: Components.Schemas.GoalProgress) -> some View {
         let card = Card("Top goal", systemImage: "target") {
-            Text(goal.name).font(.headline)
+            Text(verbatim: goal.name).font(.headline)
             ProgressView(value: Double(goal.percentComplete), total: 100)
             Text("\(goal.current.formatted) of \(goal.target.formatted) · \(goal.percentComplete)%")
                 .font(.caption)
@@ -934,13 +999,13 @@ struct OverviewView: View {
             ForEach(bills, id: \.id) { bill in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(bill.name).font(.subheadline)
+                        Text(verbatim: bill.name).font(.subheadline)
                         Text(Self.dueDescription(daysUntil: bill.daysUntil))
                             .font(.caption)
                             .foregroundStyle(bill.daysUntil <= 3 ? Color.orange : .secondary)
                     }
                     Spacer()
-                    Text(bill.amount.formattedExact)
+                    Text(verbatim: bill.amount.formattedExact)
                         .font(.subheadline.weight(.medium))
                 }
                 if bill.id != bills.last?.id {
@@ -952,16 +1017,16 @@ struct OverviewView: View {
 
     static func dueDescription(daysUntil: Int) -> String {
         switch daysUntil {
-        case ..<0: return "Overdue"
-        case 0: return "Due today"
-        case 1: return "Due tomorrow"
-        default: return "Due in \(daysUntil) days"
+        case ..<0: return String(localized: "Overdue")
+        case 0: return String(localized: "Due today")
+        case 1: return String(localized: "Due tomorrow")
+        default: return String(localized: "Due in \(daysUntil) days")
         }
     }
 
-    private func stat(_ label: String, _ value: String, tint: Color) -> some View {
+    private func stat(_ label: LocalizedStringKey, _ value: String, tint: Color) -> some View {
         VStack(spacing: 2) {
-            Text(value)
+            Text(verbatim: value)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(tint)
             Text(label)
@@ -986,11 +1051,11 @@ extension Components.Schemas.EmergencyFundSummary {
 /// A titled card. Every Overview section is one, so the screen reads as a stack
 /// of equals rather than a hierarchy the data doesn't have.
 struct Card<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
     @ViewBuilder let content: Content
 
-    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+    init(_ title: LocalizedStringKey, systemImage: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.systemImage = systemImage
         self.content = content()

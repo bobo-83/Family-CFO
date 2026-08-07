@@ -122,10 +122,17 @@ struct BackupSettingsView: View {
 
     private var connectionSection: some View {
         Section {
-            field("Synology address", text: $viewModel.host, placeholder: "192.168.1.50", keyboard: .URL)
-            field("Shared folder", text: $viewModel.share, placeholder: "family-cfo-backups")
-            field("Subfolder (optional)", text: $viewModel.folder, placeholder: "")
-            field("Username", text: $viewModel.username, placeholder: "backup-user")
+            field(
+                String(localized: "Synology address"), text: $viewModel.host,
+                placeholder: "192.168.1.50", keyboard: .URL)
+            field(
+                String(localized: "Shared folder"), text: $viewModel.share,
+                placeholder: "family-cfo-backups")
+            field(
+                String(localized: "Subfolder (optional)"), text: $viewModel.folder, placeholder: "")
+            field(
+                String(localized: "Username"), text: $viewModel.username,
+                placeholder: "backup-user")
             SecureField("Password", text: $viewModel.password)
                 .textContentType(.password)
                 .onChange(of: viewModel.password) { viewModel.passwordChanged() }
@@ -152,7 +159,8 @@ struct BackupSettingsView: View {
                 }
             }
             if let reason = viewModel.checkResult?.reason {
-                Text(reason).font(.caption).foregroundStyle(.red)
+                // The server's own words for why the check failed.
+                Text(verbatim: reason).font(.caption).foregroundStyle(.red)
             }
         } header: {
             Text("Synology (SMB)")
@@ -179,7 +187,7 @@ struct BackupSettingsView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 90)
                     .onSubmit { Task { await viewModel.save() } }
-                Text("GB").foregroundStyle(.secondary)
+                Text(verbatim: "GB").foregroundStyle(.secondary)
             }
         } header: {
             Text("Schedule")
@@ -195,14 +203,16 @@ struct BackupSettingsView: View {
     /// ONCE, right after minting, and can never be retrieved again.
     private var restoreKeysSection: some View {
         Section {
-            stepTitle("1 · Backup key", subtitle: "Opens your backup files.")
+            stepTitle(
+                String(localized: "1 · Backup key"),
+                subtitle: String(localized: "Opens your backup files."))
             if let key = viewModel.revealedKey {
-                Text(key)
+                Text(verbatim: key)
                     .font(.footnote.monospaced())
                     .textSelection(.enabled)
                 Button {
                     UIPasteboard.general.string = key
-                    viewModel.statusMessage = "Backup key copied."
+                    viewModel.statusMessage = String(localized: "Backup key copied.")
                 } label: {
                     Label("Copy key", systemImage: "doc.on.doc")
                 }
@@ -216,17 +226,19 @@ struct BackupSettingsView: View {
             if let status = viewModel.keyStatus {
                 if !status.encryptionEnabled {
                     stepTitle(
-                        "2 · Recovery key",
-                        subtitle: "Per-household encryption is off on this box.")
+                        String(localized: "2 · Recovery key"),
+                        subtitle: String(localized: "Per-household encryption is off on this box."))
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
                         stepTitle(
-                            "2 · Recovery key",
-                            subtitle:
-                                "Unlocks the content inside — the spare for your passwords and phones."
+                            String(localized: "2 · Recovery key"),
+                            subtitle: String(
+                                localized:
+                                    "Unlocks the content inside — the spare for your passwords and phones."
+                            )
                         )
                         Text(
-                            "Content encrypted per household · \(status.memberWraps) member key\(status.memberWraps == 1 ? "" : "s"), \(status.deviceWraps) device key\(status.deviceWraps == 1 ? "" : "s")"
+                            "Content encrypted per household · \(status.memberWraps) member keys, \(status.deviceWraps) device keys"
                         )
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -238,12 +250,12 @@ struct BackupSettingsView: View {
                         )
                         .font(.caption)
                         .foregroundStyle(.orange)
-                        Text(key)
+                        Text(verbatim: key)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                         Button {
                             UIPasteboard.general.string = key
-                            viewModel.statusMessage = "Recovery key copied."
+                            viewModel.statusMessage = String(localized: "Recovery key copied.")
                         } label: {
                             Label("Copy recovery key", systemImage: "doc.on.doc")
                         }
@@ -344,6 +356,7 @@ struct BackupSettingsView: View {
     }
 
     /// A numbered step heading + its one-line purpose, as a single Form row.
+    /// Both strings are already localized by the caller (`String(localized:)`).
     private func stepTitle(_ title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.subheadline.weight(.semibold))
@@ -433,9 +446,9 @@ struct BackupSettingsView: View {
                     }
                 } label: {
                     HStack {
-                        Text(group.day)
+                        Text(verbatim: group.day)
                         Spacer()
-                        Text("\(group.backups.count) backup\(group.backups.count == 1 ? "" : "s")")
+                        Text("\(group.backups.count) backups")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -469,9 +482,12 @@ struct BackupSettingsView: View {
     private func remoteBackupRow(_ backup: Components.Schemas.RemoteBackup) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Self.timeLabel(backup.modifiedAt)).foregroundStyle(.primary)
-                Text(ByteCountFormatter.string(fromByteCount: backup.sizeBytes, countStyle: .file))
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(verbatim: Self.timeLabel(backup.modifiedAt)).foregroundStyle(.primary)
+                Text(
+                    verbatim: ByteCountFormatter.string(
+                        fromByteCount: backup.sizeBytes, countStyle: .file)
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 versionLabel(backup.appVersion)
             }
             Spacer()
@@ -518,7 +534,7 @@ struct BackupSettingsView: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.orange)
             } else {
-                Text("v\(appVersion)")
+                Text(verbatim: "v\(appVersion)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -534,12 +550,19 @@ struct BackupSettingsView: View {
             ForEach(viewModel.localBackups, id: \.id) { backup in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(backup.completedAt?.formatted(date: .abbreviated, time: .shortened)
-                            ?? backup.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .foregroundStyle(.primary)
+                        Text(
+                            verbatim: backup.completedAt?.formatted(
+                                date: .abbreviated, time: .shortened)
+                                ?? backup.createdAt.formatted(
+                                    date: .abbreviated, time: .shortened)
+                        )
+                        .foregroundStyle(.primary)
                         if let size = backup.sizeBytes {
-                            Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                                .font(.caption).foregroundStyle(.secondary)
+                            Text(
+                                verbatim: ByteCountFormatter.string(
+                                    fromByteCount: size, countStyle: .file)
+                            )
+                            .font(.caption).foregroundStyle(.secondary)
                         }
                         versionLabel(backup.appVersion)
                     }
@@ -575,10 +598,25 @@ struct BackupSettingsView: View {
         Section {
             DisclosureGroup("Set up the Synology (one time)") {
                 VStack(alignment: .leading, spacing: 10) {
-                    step(1, "Control Panel → File Services → SMB → enable it.")
-                    step(2, "Control Panel → Shared Folder → create one, e.g. “family-cfo-backups”.")
-                    step(3, "Control Panel → User → give a user (or a dedicated backup user) read/write on that folder.")
-                    step(4, "Back here: enter the Synology's IP, that folder name, the username and password, then tap Test connection.")
+                    step(1, String(localized: "Control Panel → File Services → SMB → enable it."))
+                    step(
+                        2,
+                        String(
+                            localized:
+                                "Control Panel → Shared Folder → create one, e.g. “family-cfo-backups”."
+                        ))
+                    step(
+                        3,
+                        String(
+                            localized:
+                                "Control Panel → User → give a user (or a dedicated backup user) read/write on that folder."
+                        ))
+                    step(
+                        4,
+                        String(
+                            localized:
+                                "Back here: enter the Synology's IP, that folder name, the username and password, then tap Test connection."
+                        ))
                 }
                 .font(.caption).padding(.vertical, 4)
             }
@@ -587,6 +625,8 @@ struct BackupSettingsView: View {
         }
     }
 
+    /// `title` is already localized by the caller; `placeholder` is a literal
+    /// example (an address, a share name) that deliberately stays as typed.
     private func field(
         _ title: String, text: Binding<String>, placeholder: String,
         keyboard: UIKeyboardType = .default
@@ -603,9 +643,10 @@ struct BackupSettingsView: View {
         }
     }
 
+    /// `text` is already localized by the caller (`String(localized:)`).
     private func step(_ n: Int, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text("\(n).").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            Text(verbatim: "\(n).").font(.caption.weight(.bold)).foregroundStyle(.secondary)
             Text(text).textSelection(.enabled)
         }
     }

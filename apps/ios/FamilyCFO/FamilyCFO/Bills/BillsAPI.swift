@@ -82,7 +82,7 @@ extension BillsAPI {
     func deleteCategory(id: String) async throws {}
     func paymentTimeline() async throws -> Components.Schemas.PaymentTimelineResponse? { nil }
     func scanBill(_ attachment: ChatAttachment) async throws -> Components.Schemas.BillScanResult {
-        Components.Schemas.BillScanResult(note: "Scanning is not available.")
+        Components.Schemas.BillScanResult(note: String(localized: "Scanning is not available."))
     }
     func updateBill(
         id: String,

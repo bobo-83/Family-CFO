@@ -44,7 +44,7 @@ struct W2ScanView: View {
 
             if let note = viewModel.scanNote {
                 Section("What the scan read") {
-                    Text(note)
+                    Text(verbatim: note)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -56,13 +56,16 @@ struct W2ScanView: View {
             }
 
             Section("W-2 actuals") {
-                moneyField("Box 1 — wages", value: $viewModel.form.wages)
-                moneyField("Box 2 — federal withheld", value: $viewModel.form.withheld)
+                moneyField(String(localized: "Box 1 — wages"), value: $viewModel.form.wages)
+                moneyField(
+                    String(localized: "Box 2 — federal withheld"), value: $viewModel.form.withheld)
             }
 
             Section {
-                moneyField("Annual 401(k)/pre-tax retirement", value: $viewModel.form.retirementAnnual)
-                moneyField("Annual HSA", value: $viewModel.form.hsaAnnual)
+                moneyField(
+                    String(localized: "Annual 401(k)/pre-tax retirement"),
+                    value: $viewModel.form.retirementAnnual)
+                moneyField(String(localized: "Annual HSA"), value: $viewModel.form.hsaAnnual)
             } header: {
                 Text("Pre-tax saving")
             } footer: {
@@ -132,7 +135,8 @@ struct W2ScanView: View {
             case .pdf(let data):
                 Task { await vm.scan(pdfData: data) }
             case .none:
-                vm.errorMessage = "There's no image or PDF on your clipboard to paste."
+                vm.errorMessage = String(
+                    localized: "There's no image or PDF on your clipboard to paste.")
             }
         }
     }
@@ -146,6 +150,7 @@ struct W2ScanView: View {
         .keyboardType(.numberPad)
     }
 
+    /// `title` is already localized by the caller.
     private func moneyField(_ title: String, value: Binding<Decimal?>) -> some View {
         TextField(title, value: value, format: .currency(code: "USD"))
             .keyboardType(.decimalPad)

@@ -50,11 +50,19 @@ enum BillNotificationPlanner {
                 ?? now
             var components = calendar.dateComponents([.year, .month, .day], from: fire)
             components.hour = 9
-            let dueText = bill.daysUntil <= 0 ? "is due today" : "is due in \(bill.daysUntil) day\(bill.daysUntil == 1 ? "" : "s")"
+            let dueText: String
+            if bill.daysUntil <= 0 {
+                dueText = String(localized: "is due today")
+            } else if bill.daysUntil == 1 {
+                dueText = String(localized: "is due in 1 day")
+            } else {
+                dueText = String(localized: "is due in \(bill.daysUntil) days")
+            }
             return BillReminder(
                 id: id(for: bill),
-                title: "Upcoming bill",
-                body: "\(bill.name) (\(bill.amount.formattedExact)) \(dueText).",
+                title: String(localized: "Upcoming bill"),
+                body: String(
+                    localized: "\(bill.name) (\(bill.amount.formattedExact)) \(dueText)."),
                 fireDate: components
             )
         }

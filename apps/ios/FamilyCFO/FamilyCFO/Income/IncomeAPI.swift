@@ -48,13 +48,19 @@ enum IncomeAPIError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedScanFile:
-            return "That file can't be scanned — use a photo or a PDF of the W-2."
+            return String(localized: "That file can't be scanned — use a photo or a PDF of the W-2.")
         case .forbidden:
-            return "Only an owner or adult can add an income earner."
+            return String(localized: "Only an owner or adult can add an income earner.")
         case .unreadableScan:
-            return "Couldn't read a W-2 from that image. Try a straighter, better-lit photo of the whole form."
+            return String(
+                localized:
+                    "Couldn't read a W-2 from that image. Try a straighter, better-lit photo of the whole form."
+            )
         case .visionModelUnavailable:
-            return "The box's vision model isn't running, so it can't read the form. You can still type the figures in below."
+            return String(
+                localized:
+                    "The box's vision model isn't running, so it can't read the form. You can still type the figures in below."
+            )
         }
     }
 }

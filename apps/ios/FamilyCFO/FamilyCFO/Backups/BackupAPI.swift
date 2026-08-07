@@ -111,7 +111,7 @@ struct LiveBackupAPI: BackupAPI {
             // The cooldown (#181): the server says how long to wait and that
             // the data is already saved — show that, not a bare status code.
             let message = (try? response.body.json.error.message)
-                ?? "A backup just ran — try again in a moment."
+                ?? String(localized: "A backup just ran — try again in a moment.")
             throw APIError.advisor(message)
         case .undocumented(let s, _): throw APIError.server(s)
         }
@@ -302,9 +302,12 @@ enum BackupError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notFoundOnShare: return "That backup is no longer on the share."
+        case .notFoundOnShare: return String(localized: "That backup is no longer on the share.")
         case .restoreFailed:
-            return "Couldn't restore from that backup — check the connection and that the file is intact."
+            return String(
+                localized:
+                    "Couldn't restore from that backup — check the connection and that the file is intact."
+            )
         }
     }
 }

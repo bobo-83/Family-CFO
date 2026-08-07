@@ -56,7 +56,8 @@ final class BackupViewModel {
     var latestSummary: String? {
         guard let latest else { return nil }
         if latest.status == .failed {
-            return "Last backup failed" + (latest.errorMessage.map { ": \($0)" } ?? ".")
+            return latest.errorMessage.map { String(localized: "Last backup failed: \($0)") }
+                ?? String(localized: "Last backup failed.")
         }
         var parts: [String] = []
         if let when = latest.completedAt {
@@ -65,13 +66,14 @@ final class BackupViewModel {
         if let size = latest.sizeBytes {
             parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
         }
-        return parts.isEmpty ? "Completed" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Completed") : parts.joined(separator: " · ")
     }
 
     var remoteWarning: String? {
         guard let latest, !host.isEmpty else { return nil }
         if latest.remoteStatus == "failed" {
-            return "Last copy to Synology failed" + (latest.remoteError.map { ": \($0)" } ?? ".")
+            return latest.remoteError.map { String(localized: "Last copy to Synology failed: \($0)") }
+                ?? String(localized: "Last copy to Synology failed.")
         }
         return nil
     }
@@ -137,7 +139,7 @@ final class BackupViewModel {
         defer { isRestoring = false }
         do {
             try await api.restoreLocal(id: backup.id)
-            statusMessage = "Restored. Reopen the app to see restored data."
+            statusMessage = String(localized: "Restored. Reopen the app to see restored data.")
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -175,7 +177,7 @@ final class BackupViewModel {
         defer { isBackingUp = false }
         do {
             latest = try await api.backupNow()
-            statusMessage = "Backup complete."
+            statusMessage = String(localized: "Backup complete.")
             errorMessage = nil
             await loadBackups()
         } catch {
@@ -230,7 +232,7 @@ final class BackupViewModel {
         guard !trimmed.isEmpty else { return }
         do {
             keyStatus = try await api.unlockWithRecoveryKey(trimmed)
-            statusMessage = "Household unlocked."
+            statusMessage = String(localized: "Household unlocked.")
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)
@@ -290,7 +292,9 @@ final class BackupViewModel {
         defer { isRestoring = false }
         do {
             try await api.restoreRemote(filename: backup.filename)
-            statusMessage = "Restored from \(backup.filename). Reopen the app to see restored data."
+            statusMessage = String(
+                localized:
+                    "Restored from \(backup.filename). Reopen the app to see restored data.")
             errorMessage = nil
         } catch {
             errorMessage = ChatViewModel.describe(error)

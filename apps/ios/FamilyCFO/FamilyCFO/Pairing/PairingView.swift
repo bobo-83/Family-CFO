@@ -85,7 +85,7 @@ struct PairingView: View {
                 if let fingerprint = payload.certificateSHA256 {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Certificate fingerprint")
-                        Text(fingerprint)
+                        Text(verbatim: fingerprint)
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
                     }

@@ -43,7 +43,9 @@ final class TransactionDetailViewModel {
     var hasAttachment: Bool { transaction.hasAttachment ?? false }
     var categoryName: String? { transaction.category }
 
-    var title: String { transaction.merchant ?? transaction.description ?? "Transaction" }
+    var title: String {
+        transaction.merchant ?? transaction.description ?? String(localized: "Transaction")
+    }
 
     func load() async {
         do {
@@ -122,7 +124,7 @@ final class TransactionDetailViewModel {
 
     func uploadAttachment(_ image: UIImage) async {
         guard let data = image.jpegData(compressionQuality: 0.8) else {
-            errorMessage = "Couldn't read that photo."
+            errorMessage = String(localized: "Couldn't read that photo.")
             return
         }
         isUploading = true

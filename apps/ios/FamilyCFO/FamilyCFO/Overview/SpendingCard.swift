@@ -31,7 +31,7 @@ struct SpendingCard: View {
                 HStack {
                     Text("Total spent").font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
-                    Text(monthTotal.formatted).font(.headline)
+                    Text(verbatim: monthTotal.formatted).font(.headline)
                 }
                 .padding(.bottom, 2)
                 Divider()
@@ -60,10 +60,10 @@ struct SpendingCard: View {
             } label: {
                 VStack(spacing: 3) {
                     HStack {
-                        Text(entry.categoryName).font(.subheadline).lineLimit(1)
+                        Text(verbatim: entry.categoryName).font(.subheadline).lineLimit(1)
                             .foregroundStyle(.primary)
                         Spacer()
-                        Text(entry.amount.formatted)
+                        Text(verbatim: entry.amount.formatted)
                             .font(.subheadline.weight(.medium)).foregroundStyle(.primary)
                         Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
                     }
@@ -89,7 +89,7 @@ struct SpendingCard: View {
             NavigationLink {
                 CategorySpendingDetailView(
                     categoryID: nil,
-                    categoryName: "Uncategorized",
+                    categoryName: String(localized: "Uncategorized"),
                     month: spending.month,
                     monthLabel: spending.monthLabel,
                     currency: spending.uncategorized.currency,
@@ -101,7 +101,7 @@ struct SpendingCard: View {
                     HStack {
                         Text("Uncategorized").font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Text(spending.uncategorized.formatted)
+                        Text(verbatim: spending.uncategorized.formatted)
                             .font(.caption.weight(.medium)).foregroundStyle(.secondary)
                         Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
                     }

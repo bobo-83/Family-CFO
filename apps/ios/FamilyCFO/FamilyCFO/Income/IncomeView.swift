@@ -74,9 +74,9 @@ struct IncomeView: View {
                             }
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(source.name)
+                                Text(verbatim: source.name)
                                 Text(
-                                    "\(source.totalAmount.formatted) · \(source.transactions.count) deposit\(source.transactions.count == 1 ? "" : "s") · \(source.frequency)"
+                                    "\(source.totalAmount.formatted) · \(source.transactions.count) deposits · \(source.frequency)"
                                 )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -89,7 +89,7 @@ struct IncomeView: View {
             Section {
                 ForEach(viewModel.earners, id: \.id) { earner in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(earner.label)
+                        Text(verbatim: earner.label)
                         Text("Base \(earner.baseSalary.formatted)/yr")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -140,14 +140,18 @@ struct IncomeView: View {
     ) -> some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 4) {
-                detailLine("Date", String(txn.occurredAt.prefix(10)))
-                detailLine("From / payer", txn.merchant ?? txn.name)
-                if let bank = txn.institution, !bank.isEmpty { detailLine("Bank", bank) }
-                if let account = txn.accountName, !account.isEmpty {
-                    detailLine("Account", account)
+                detailLine(String(localized: "Date"), String(txn.occurredAt.prefix(10)))
+                detailLine(String(localized: "From / payer"), txn.merchant ?? txn.name)
+                if let bank = txn.institution, !bank.isEmpty {
+                    detailLine(String(localized: "Bank"), bank)
                 }
-                if let memo = txn.description, !memo.isEmpty { detailLine("Bank memo", memo) }
-                detailLine("Amount", txn.amount.formatted)
+                if let account = txn.accountName, !account.isEmpty {
+                    detailLine(String(localized: "Account"), account)
+                }
+                if let memo = txn.description, !memo.isEmpty {
+                    detailLine(String(localized: "Bank memo"), memo)
+                }
+                detailLine(String(localized: "Amount"), txn.amount.formatted)
                 Button {
                     recategorizing = txn
                 } label: {
@@ -161,13 +165,13 @@ struct IncomeView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(txn.name).font(.subheadline).lineLimit(1)
-                    Text(String(txn.occurredAt.prefix(10)))
+                    Text(verbatim: txn.name).font(.subheadline).lineLimit(1)
+                    Text(verbatim: String(txn.occurredAt.prefix(10)))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(txn.amount.formatted)
+                Text(verbatim: txn.amount.formatted)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.green)
             }
@@ -180,21 +184,22 @@ struct IncomeView: View {
     static func preTaxSavingNote(_ earner: Components.Schemas.IncomeEarner) -> String? {
         var parts: [String] = []
         if let retirement = earner.retirementContributionAnnual {
-            parts.append("401(k) \(retirement.formatted)/yr")
+            parts.append(String(localized: "401(k) \(retirement.formatted)/yr"))
         }
         if let hsa = earner.hsaContributionAnnual {
-            parts.append("HSA \(hsa.formatted)/yr")
+            parts.append(String(localized: "HSA \(hsa.formatted)/yr"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// `label` is already localized by the caller; `value` is data from the API.
     private func detailLine(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text(label)
+            Text(verbatim: label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 96, alignment: .leading)
-            Text(value)
+            Text(verbatim: value)
                 .font(.caption)
                 .textSelection(.enabled)
             Spacer(minLength: 0)

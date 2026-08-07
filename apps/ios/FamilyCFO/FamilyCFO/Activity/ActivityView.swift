@@ -51,11 +51,11 @@ struct ActivityView: View {
     @ViewBuilder private func row(_ event: Components.Schemas.AuditEvent) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.summary)
+                Text(verbatim: event.summary)
                     .font(.subheadline)
                     .foregroundStyle(event.revertedAt == nil ? .primary : .secondary)
                     .strikethrough(event.revertedAt != nil)
-                Text(event.createdAt.formatted(date: .abbreviated, time: .shortened))
+                Text(verbatim: event.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

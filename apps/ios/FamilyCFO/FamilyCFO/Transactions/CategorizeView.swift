@@ -190,7 +190,8 @@ struct CategorizeView: View {
             // Swipe reveals "Categorize"; tapping it opens the searchable picker.
             .sheet(item: $picking) { target in
                 CategoryPickerSheet(
-                    title: target.txn.merchant ?? target.txn.description ?? "Transaction",
+                    title: target.txn.merchant ?? target.txn.description
+                        ?? String(localized: "Transaction"),
                     categories: viewModel.categories,
                     currentCategoryID: target.txn.categoryId,
                     onSelect: { newID in
@@ -218,7 +219,7 @@ struct CategorizeView: View {
         HStack(spacing: 12) {
             Image(systemName: CategoryVisuals.icon(for: category.name))
                 .foregroundStyle(.secondary).frame(width: 24)
-            Text(category.name)
+            Text(verbatim: category.name)
             Spacer()
         }
         .contentShape(Rectangle())
@@ -272,8 +273,11 @@ struct CategorizeView: View {
     private func row(_ transaction: Components.Schemas.Transaction) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(transaction.merchant ?? transaction.description ?? "Transaction")
-                    .lineLimit(2)
+                Text(
+                    verbatim: transaction.merchant ?? transaction.description
+                        ?? String(localized: "Transaction")
+                )
+                .lineLimit(2)
                 if let note = transaction.note, !note.isEmpty {
                     Label(note, systemImage: "note.text")
                         .font(.caption)
@@ -281,18 +285,18 @@ struct CategorizeView: View {
                         .lineLimit(1)
                 }
                 if let flow = transaction.accountFlow {
-                    Text(flow)
+                    Text(verbatim: flow)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 if let detail = transaction.rawDetail {
-                    Text(detail)
+                    Text(verbatim: detail)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
-                Text(Self.dateText(transaction.occurredAt))
+                Text(verbatim: Self.dateText(transaction.occurredAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if transaction.suspectedIncome == true {
@@ -307,7 +311,7 @@ struct CategorizeView: View {
                 }
             }
             Spacer()
-            Text(transaction.amount.formattedExact)
+            Text(verbatim: transaction.amount.formattedExact)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(transaction.amount.amountMinor < 0 ? .primary : Color.green)
         }
@@ -337,9 +341,10 @@ struct CategorizeView: View {
     /// Names the batch so a bulk assignment isn't a silent surprise.
     private func undoText(_ action: CategorizeViewModel.Action) -> String {
         if action.count > 1 {
-            return "Set \(action.count) “\(action.merchant)” to \(action.categoryName)"
+            return String(
+                localized: "Set \(action.count) “\(action.merchant)” to \(action.categoryName)")
         }
-        return "Set to \(action.categoryName)"
+        return String(localized: "Set to \(action.categoryName)")
     }
 
     /// The contract sends an ISO date string; show it lightly rather than parse

@@ -76,18 +76,21 @@ struct MarkPaidSheet: View {
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(transaction.merchant ?? transaction.description ?? "Charge")
-                        .lineLimit(1)
-                        .foregroundStyle(.primary)
                     Text(
-                        BillsView.shortDate(transaction.occurredAt)
+                        verbatim: transaction.merchant ?? transaction.description
+                            ?? String(localized: "Charge")
+                    )
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+                    Text(
+                        verbatim: BillsView.shortDate(transaction.occurredAt)
                             + (transaction.accountName.map { " · \($0)" } ?? "")
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(transaction.amount.formattedExact)
+                Text(verbatim: transaction.amount.formattedExact)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
             }

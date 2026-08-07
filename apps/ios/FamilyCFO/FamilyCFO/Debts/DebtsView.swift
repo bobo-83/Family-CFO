@@ -111,7 +111,7 @@ struct DebtsView: View {
     private func row(_ loan: Components.Schemas.Account) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(loan.name).font(.body).foregroundStyle(.primary)
+                Text(verbatim: loan.name).font(.body).foregroundStyle(.primary)
                 HStack(spacing: 6) {
                     Text(loan._type.loanLabel)
                     if let payment = loan.minimumPayment, payment.amountMinor > 0 {
@@ -126,9 +126,14 @@ struct DebtsView: View {
                 .foregroundStyle(.secondary)
                 if let matures = LoanDate.label(loan.maturityDate) {
                     let left = LoanDate.monthsLeft(loan.maturityDate)
-                    Text("Matures \(matures)" + (left.map { " · \($0) payment\($0 == 1 ? "" : "s") left" } ?? ""))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    Text(
+                        String(localized: "Matures \(matures)")
+                            + (left.map {
+                                String(localized: " · \($0) payments left")
+                            } ?? "")
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 }
                 if loan._type == ._401kLoan {
                     Label("Payroll-deducted — not in safe-to-spend", systemImage: "building.columns")
@@ -137,7 +142,7 @@ struct DebtsView: View {
                 }
             }
             Spacer()
-            Text(money(max(0, -loan.balance.amountMinor)))
+            Text(verbatim: money(max(0, -loan.balance.amountMinor)))
                 .font(.body.weight(.medium))
                 .foregroundStyle(.primary)
             Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
@@ -176,6 +181,15 @@ private struct LoanFormSheet: View {
     enum EndEntryMode: String, CaseIterable {
         case date = "End date"
         case payments = "Payments left"
+
+        /// The segmented control's label — the same words as the raw value, but
+        /// spelled out here so they can be translated (the raw value can't be).
+        var label: String {
+            switch self {
+            case .date: return String(localized: "End date")
+            case .payments: return String(localized: "Payments left")
+            }
+        }
     }
     @State private var saving = false
     @State private var scanning = false
@@ -247,7 +261,7 @@ private struct LoanFormSheet: View {
                     }
                     .disabled(scanning)
                     if let scanNote {
-                        Text(scanNote).font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: scanNote).font(.caption).foregroundStyle(.secondary)
                     }
                 } footer: {
                     Text("Photograph, upload, or paste your loan or lease statement (PDF or image) and the on-box vision model fills in what it can read. Confirm every value before saving.")
@@ -265,17 +279,17 @@ private struct LoanFormSheet: View {
                     }
                 }
                 Section("Balance you still owe") {
-                    amountField("Amount owed (0 if paid off)", value: $balanceOwed)
+                    amountField(String(localized: "Amount owed (0 if paid off)"), value: $balanceOwed)
                 }
                 Section("Monthly payment") {
-                    amountField("Payment per month", value: $monthlyPayment)
+                    amountField(String(localized: "Payment per month"), value: $monthlyPayment)
                 }
                 Section {
                     Toggle("Has an end", isOn: $hasMaturity.animation())
                     if hasMaturity {
                         Picker("Enter as", selection: $endEntryMode.animation()) {
                             ForEach(EndEntryMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.label).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -287,7 +301,7 @@ private struct LoanFormSheet: View {
                                 displayedComponents: .date
                             )
                             if let left = LoanDate.monthsLeft(LoanDate.iso(from: maturityDate)) {
-                                Text("\(left) payment\(left == 1 ? "" : "s") left")
+                                Text("\(left) payments left")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -298,14 +312,13 @@ private struct LoanFormSheet: View {
                             )
                             .keyboardType(.numberPad)
                             if let left = paymentsLeft, left > 0 {
-                                Text(
-                                    "ends around "
-                                        + (LoanDate.label(
-                                            LoanDate.iso(from: LoanDate.dateAfter(payments: left)))
-                                            ?? "—")
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                let ends =
+                                    LoanDate.label(
+                                        LoanDate.iso(from: LoanDate.dateAfter(payments: left)))
+                                    ?? "—"
+                                Text("ends around \(ends)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -412,7 +425,7 @@ private struct LoanFormSheet: View {
             case .pdf(let data):
                 handleScan { await onScanFile(data, true) }
             case .none:
-                scanNote = "There's no image or PDF on your clipboard to paste."
+                scanNote = String(localized: "There's no image or PDF on your clipboard to paste.")
             }
         }
     }
@@ -454,7 +467,7 @@ private struct LoanFormSheet: View {
 
     private func amountField(_ label: String, value: Binding<Double>) -> some View {
         HStack {
-            Text(currencySymbol).foregroundStyle(.secondary)
+            Text(verbatim: currencySymbol).foregroundStyle(.secondary)
             TextField(label, value: value, format: .number.precision(.fractionLength(0...2)))
                 .keyboardType(.decimalPad)
         }

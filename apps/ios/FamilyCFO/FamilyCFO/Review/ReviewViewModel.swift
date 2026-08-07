@@ -114,14 +114,17 @@ final class ReviewViewModel {
     /// Recategorize one transfer/credit, remembering its prior category.
     func recategorize(_ txn: Components.Schemas.Transaction, to categoryID: String) async {
         await recategorizeMany(
-            [txn], to: categoryID, label: txn.merchant ?? txn.description ?? "transaction")
+            [txn], to: categoryID,
+            label: txn.merchant ?? txn.description ?? String(localized: "transaction"))
     }
 
     /// Recategorize a whole group at once (e.g. all seven $300 Zelle transfers).
     func recategorizeGroup(_ group: AmountGroup, to categoryID: String) async {
         await recategorizeMany(
             group.transactions, to: categoryID,
-            label: "\(group.count) × \(group.sample.merchant ?? group.sample.description ?? "transaction")")
+            label:
+                "\(group.count) × \(group.sample.merchant ?? group.sample.description ?? String(localized: "transaction"))"
+        )
     }
 
     private func recategorizeMany(
@@ -152,7 +155,8 @@ final class ReviewViewModel {
             }
         }
         await recategorizeMany(
-            [txn], to: incomeID, label: txn.merchant ?? txn.description ?? "income")
+            [txn], to: incomeID,
+            label: txn.merchant ?? txn.description ?? String(localized: "income"))
     }
 
     /// ADR 0049: keep it as a transfer — record an exclude override so it's never

@@ -211,7 +211,8 @@ final class OverviewViewModel {
         guard let date = context?.lastSyncedAt else { return nil }
         let elapsed = RelativeDateTimeFormatter()
         elapsed.unitsStyle = .full
-        return "Last synced " + elapsed.localizedString(for: date, relativeTo: Date())
+        let ago = elapsed.localizedString(for: date, relativeTo: Date())
+        return String(localized: "Last synced \(ago)")
     }
 }
 
@@ -220,11 +221,11 @@ final class OverviewViewModel {
 extension Components.Schemas.EmergencyFundSummary {
     var statusLabel: String {
         switch status {
-        case .noBills: return "Add bills to size your fund"
-        case .noFund: return "Not started"
-        case .gettingStarted: return "Getting started"
-        case .onTrack: return "On track"
-        case .fullyFunded: return "Fully funded"
+        case .noBills: return String(localized: "Add bills to size your fund")
+        case .noFund: return String(localized: "Not started")
+        case .gettingStarted: return String(localized: "Getting started")
+        case .onTrack: return String(localized: "On track")
+        case .fullyFunded: return String(localized: "Fully funded")
         }
     }
 

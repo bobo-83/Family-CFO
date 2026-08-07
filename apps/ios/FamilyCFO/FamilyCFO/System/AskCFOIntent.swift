@@ -33,9 +33,11 @@ enum AskCFO {
         var errorDescription: String? {
             switch self {
             case .notPaired:
-                return "Pair this phone with your household's box first, in the Family CFO app."
+                return String(
+                    localized:
+                        "Pair this phone with your household's box first, in the Family CFO app.")
             case .emptyQuestion:
-                return "I didn't catch a question."
+                return String(localized: "I didn't catch a question.")
             }
         }
     }

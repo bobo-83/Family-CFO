@@ -18,13 +18,19 @@ enum AttachmentTranscoder {
         var errorDescription: String? {
             switch self {
             case .undecodableImage:
-                return "That image couldn't be read."
+                return String(localized: "That image couldn't be read.")
             case .cannotEncodeUnderCap:
-                return "That image is too large to send, even after compression."
+                return String(localized: "That image is too large to send, even after compression.")
             case .pdfTooLarge(let bytes):
-                return "That PDF is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
+                return String(
+                    localized:
+                        "That PDF is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
+                )
             case .dataFileTooLarge(let bytes):
-                return "That file is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
+                return String(
+                    localized:
+                        "That file is \(bytes / 1_000_000) MB — the server accepts up to \(maxRawBytes / 1_000_000) MB."
+                )
             }
         }
     }

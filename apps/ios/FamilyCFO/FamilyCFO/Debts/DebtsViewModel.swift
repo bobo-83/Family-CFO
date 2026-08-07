@@ -65,7 +65,7 @@ final class DebtsViewModel {
     /// errorMessage) on failure, so the user can still type the numbers by hand.
     func scanStatement(_ image: UIImage) async -> Components.Schemas.LoanScanResult? {
         guard let data = image.jpegData(compressionQuality: 0.9) else {
-            errorMessage = "That photo couldn't be processed."
+            errorMessage = String(localized: "That photo couldn't be processed.")
             return nil
         }
         return await scan { try AttachmentTranscoder.image(from: data, displayName: "Statement") }
@@ -165,12 +165,12 @@ extension Components.Schemas.AccountType {
     /// Human label for the loan-type picker and rows.
     var loanLabel: String {
         switch self {
-        case .mortgage: return "Mortgage"
-        case .autoLoan: return "Auto loan"
-        case .studentLoan: return "Student loan"
-        case ._401kLoan: return "401(k) loan"
-        case .otherLiability: return "Other loan"
-        default: return "Loan"
+        case .mortgage: return String(localized: "Mortgage")
+        case .autoLoan: return String(localized: "Auto loan")
+        case .studentLoan: return String(localized: "Student loan")
+        case ._401kLoan: return String(localized: "401(k) loan")
+        case .otherLiability: return String(localized: "Other loan")
+        default: return String(localized: "Loan")
         }
     }
 }

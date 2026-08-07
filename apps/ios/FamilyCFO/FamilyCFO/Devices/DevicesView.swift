@@ -60,7 +60,7 @@ struct DevicesView: View {
     private func deviceRow(_ device: Components.Schemas.PairedDevice) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text(device.name)
+                Text(verbatim: device.name)
                 if viewModel.isCurrentDevice(device) {
                     Text("This device")
                         .font(.caption2.weight(.semibold))
@@ -96,8 +96,11 @@ struct DevicesView: View {
     }
 
     static func caption(for device: Components.Schemas.PairedDevice) -> String {
-        let paired = "Paired \(device.createdAt.formatted(date: .abbreviated, time: .omitted))"
-        guard let lastSeen = device.lastSeenAt else { return "\(paired) · never used" }
-        return "\(paired) · last seen \(lastSeen.formatted(.relative(presentation: .named)))"
+        let when = device.createdAt.formatted(date: .abbreviated, time: .omitted)
+        guard let lastSeen = device.lastSeenAt else {
+            return String(localized: "Paired \(when) · never used")
+        }
+        let seen = lastSeen.formatted(.relative(presentation: .named))
+        return String(localized: "Paired \(when) · last seen \(seen)")
     }
 }

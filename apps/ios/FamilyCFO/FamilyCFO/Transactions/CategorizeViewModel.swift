@@ -118,7 +118,8 @@ final class CategorizeViewModel {
             lastAction = Action(
                 items: succeeded.sorted { $0.index < $1.index },
                 categoryName: category.name,
-                merchant: transaction.merchant ?? transaction.description ?? "transactions")
+                merchant: transaction.merchant ?? transaction.description
+                    ?? String(localized: "transactions"))
         }
     }
 

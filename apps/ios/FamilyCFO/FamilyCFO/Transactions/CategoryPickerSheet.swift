@@ -125,7 +125,7 @@ struct CategoryPickerSheet: View {
         }
         .presentationDetents([.medium, .large])
         .confirmationDialog(
-            pendingDelete.map { "Delete “\($0.name)”?" } ?? "",
+            pendingDelete.map { String(localized: "Delete “\($0.name)”?") } ?? "",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }),
@@ -165,7 +165,7 @@ struct CategoryPickerSheet: View {
                     Image(systemName: CategoryVisuals.icon(for: category.name))
                         .font(.title3)
                         .frame(width: 28)
-                    Text(category.name)
+                    Text(verbatim: category.name)
                         .font(.body.weight(.semibold))
                     Spacer()
                     if category.id == currentCategoryID {
@@ -200,7 +200,7 @@ struct CategoryPickerSheet: View {
                 Image(systemName: CategoryVisuals.icon(for: category.name))
                     .font(.title3)
                     .foregroundStyle(selected ? Color.accentColor : .secondary)
-                Text(category.name)
+                Text(verbatim: category.name)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(2)
                     .minimumScaleFactor(0.75)

@@ -37,7 +37,7 @@ final class SharedInboxViewModel {
         attachingItemID = item.id
         defer { attachingItemID = nil }
         guard let data = try? Data(contentsOf: item.imageURL) else {
-            errorMessage = "Couldn't read the shared photo."
+            errorMessage = String(localized: "Couldn't read the shared photo.")
             return
         }
         do {

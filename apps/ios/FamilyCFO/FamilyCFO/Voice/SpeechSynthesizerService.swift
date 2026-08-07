@@ -99,18 +99,21 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
         let base = String(target.prefix(2))
         guard let voice = bestAvailableVoice(for: householdLanguage),
               voice.language == target || voice.language.hasPrefix(base) else {
-            let name = householdLanguage == "vi" ? "Vietnamese" : "Lithuanian"
-            return "No \(name) voice is installed on this iPhone — speech will "
-                + "use the English voice. Download one in Settings → "
-                + "Accessibility → Read & Speak → Voices."
+            let name =
+                householdLanguage == "vi"
+                ? String(localized: "Vietnamese") : String(localized: "Lithuanian")
+            return String(
+                localized:
+                    "No \(name) voice is installed on this iPhone — speech will use the English voice. Download one in Settings → Accessibility → Read & Speak → Voices."
+            )
         }
-        let tier =
+        let tier: String =
             switch voice.quality {
-            case .premium: " (Premium)"
-            case .enhanced: " (Enhanced)"
+            case .premium: String(localized: " (Premium)")
+            case .enhanced: String(localized: " (Enhanced)")
             default: ""
             }
-        return "Speech voice: \(voice.name)\(tier)."
+        return String(localized: "Speech voice: \(voice.name)\(tier).")
     }
 
     func stopSpeaking() {
