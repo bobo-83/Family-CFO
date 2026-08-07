@@ -482,6 +482,7 @@ def _chat_turn(
         member_count=len(repository.list_members(engine, household.id)),
         earliest_month=earliest_month,
         latest_month=latest_month,
+        language=household.language,
     )
 
     if on_event is not None:

@@ -5354,6 +5354,13 @@ components:
           format: uuid
         display_name:
           type: string
+        language:
+          description: >-
+            "#10: the household's display/answer language (en, vi, lt). One
+            language per household — compile-time web i18n serves one build
+            per locale, so this cannot be per-member."
+          type: string
+          default: en
         currency:
           type: string
           example: USD
@@ -6992,6 +6999,13 @@ components:
           description: "M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged."
           type:
             - boolean
+            - "null"
+        language:
+          description: >-
+            "#10: set the household language. Must be a locale the box builds
+            (en, vi, lt); anything else is rejected with 422."
+          type:
+            - string
             - "null"
     Member:
       type: object
