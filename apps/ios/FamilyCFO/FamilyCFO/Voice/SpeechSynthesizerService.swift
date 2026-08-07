@@ -77,9 +77,17 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
             default: return 1
             }
         }
+        // Prefix match: a voice can register under a variant of the region
+        // code ("lt" vs "lt-LT"); the base language is what matters. Exact
+        // locale still wins at equal quality so an en-US phone doesn't drift
+        // to a premium en-GB accent.
+        let base = String(language.prefix(2))
         let best = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language == language }
-            .max { rank($0.quality) < rank($1.quality) }
+            .filter { $0.language == language || $0.language.hasPrefix(base) }
+            .max {
+                (rank($0.quality), $0.language == language ? 1 : 0)
+                    < (rank($1.quality), $1.language == language ? 1 : 0)
+            }
         return best ?? AVSpeechSynthesisVoice(language: language)
     }
 

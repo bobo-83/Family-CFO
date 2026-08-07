@@ -17,6 +17,15 @@ import NaturalLanguage
 /// English nor Vietnamese — Lithuanian reads to the model as its Slavic,
 /// Baltic, or Finnic neighbors — is Lithuanian here.
 enum UtteranceLanguage {
+    /// First use of NLLanguageRecognizer loads its model (~hundreds of ms on
+    /// device, worse on starved CI). Called once from app start on a
+    /// background task so the first read-aloud never pays it.
+    static func warmUp() {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString("warm up")
+        _ = recognizer.languageHypotheses(withMaximum: 1)
+    }
+
     /// Below this the recognizer is guessing, not recognizing. Short strings
     /// and bare numbers carry no language of their own, and a mostly-English
     /// answer citing a diacritic-heavy merchant name ("Phở Hà Nội") can pull

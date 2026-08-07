@@ -313,14 +313,14 @@ struct VoiceSessionViewModelTests {
         )
 
         await model.begin()
+        // "Still talking" is pinned BEFORE the transcript arrives: on a
+        // starved CI runner the 40ms settle timers can fire inside the gap
+        // between hear() and this assignment, auto-sending early and failing
+        // the hold assertion (observed 2026-08-07 once NL model loading in
+        // parallel suites added CPU pressure).
+        engine.lastVoiceActivity = .now + .seconds(60)
         engine.hear("what about my social security can I rely on that when I ret")
         for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
-
-        // The transcript stalls, but the microphone keeps hearing the user.
-        // A far-future instant means "still talking" no matter how long the
-        // CI runner stalls this test between watcher ticks — refreshing
-        // `.now` in a sleep loop was flaky under load.
-        engine.lastVoiceActivity = .now + .seconds(60)
         try? await Task.sleep(for: .milliseconds(250))
         #expect(api.sentMessages.isEmpty)
 

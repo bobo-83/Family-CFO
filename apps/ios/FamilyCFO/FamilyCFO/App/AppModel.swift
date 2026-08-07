@@ -280,6 +280,9 @@ final class AppModel {
     /// LiveHouseholdAPI's onContext; failure keeps the "en" default. Never
     /// called on the speak path.
     private func seedHouseholdLanguage() {
+        // Piggyback: warm the NL model here, off the speak path, so the first
+        // read-aloud never pays the recognizer's model load.
+        Task.detached(priority: .utility) { UtteranceLanguage.warmUp() }
         Task { _ = try? await household?.context(month: nil) }
     }
 
