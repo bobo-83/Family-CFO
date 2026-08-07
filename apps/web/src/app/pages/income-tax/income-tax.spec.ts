@@ -267,6 +267,79 @@ describe('IncomeTax', () => {
     expect(apiMock.createIncomeEarner).not.toHaveBeenCalled();
   });
 
+  it('submits annual 401(k) and HSA saving with the earner (#6)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi
+        .fn()
+        .mockResolvedValueOnce(response(analysis()))
+        .mockResolvedValueOnce(response(analysis())),
+      createIncomeEarner: vi.fn().mockResolvedValue(response({ id: 'e1' })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // The two pre-tax saving inputs are present on the earner form.
+    expect(host.querySelector('input[name=earnerRetirement]')).toBeTruthy();
+    expect(host.querySelector('input[name=earnerHsa]')).toBeTruthy();
+
+    const cmp = fixture.componentInstance as unknown as {
+      earnerForm: { label: string; retirementAnnual: number | null; hsaAnnual: number | null };
+      addEarner(): Promise<void>;
+    };
+    cmp.earnerForm.label = 'Alex';
+    cmp.earnerForm.retirementAnnual = 23_000;
+    cmp.earnerForm.hsaAnnual = 4_150;
+    await cmp.addEarner();
+
+    expect(apiMock.createIncomeEarner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: 'Alex',
+        retirement_contribution_annual_minor: 2_300_000,
+        hsa_contribution_annual_minor: 415_000,
+      }),
+    );
+  });
+
+  it('shows declared 401(k) and HSA saving on the earner list (#6)', async () => {
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(
+        response(
+          analysis({
+            profile: {
+              earners: [
+                {
+                  id: 'e1',
+                  label: 'Alex',
+                  base_salary: { amount_minor: 20_000_000, currency: 'USD' },
+                  rsu_annual: { amount_minor: 0, currency: 'USD' },
+                  retirement_contribution_annual: { amount_minor: 2_300_000, currency: 'USD' },
+                  hsa_contribution_annual: { amount_minor: 415_000, currency: 'USD' },
+                },
+              ],
+              expected_annual_gross: { amount_minor: 20_000_000, currency: 'USD' },
+              expected_events: [],
+            },
+          }),
+        ),
+      ),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('401(k) USD 23,000.00/yr');
+    expect(host.textContent).toContain('HSA USD 4,150.00/yr');
+  });
+
   it('pastes a copied W2 into the same scan path (M114, ADR 0028)', async () => {
     const apiMock = {
       getIncomeAnalysis: vi.fn().mockResolvedValue(response(analysis())),

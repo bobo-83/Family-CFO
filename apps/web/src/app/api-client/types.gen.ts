@@ -516,6 +516,8 @@ export type IncomeEarner = {
     w2_year?: number;
     w2_wages?: Money;
     w2_withheld?: Money;
+    retirement_contribution_annual?: Money;
+    hsa_contribution_annual?: Money;
 };
 
 export type ExpectedIncomeEvent = {
@@ -605,6 +607,8 @@ export type IncomeEarnerCreateRequest = {
     w2_year?: number;
     w2_wages_minor?: number;
     w2_withheld_minor?: number;
+    retirement_contribution_annual_minor?: number;
+    hsa_contribution_annual_minor?: number;
 };
 
 export type W2ScanRequest = {
@@ -1096,8 +1100,36 @@ export type SavingsRate = {
      * (income - avg spending) / income, %; null when income is 0; may be negative.
      */
     percent?: number | null;
+    /**
+     * Take-home (deposit-based) monthly income.
+     */
     monthly_income: Money;
     average_monthly_spending: Money;
+    /**
+     * #6: take-home + payroll deductions — the rate's denominator.
+     */
+    gross_income?: Money;
+    /**
+     * #6: declared savings transfers, monthly.
+     */
+    transfers?: Money;
+    /**
+     * #6: pre-tax 401(k)/HSA saved, monthly.
+     */
+    payroll_deductions?: Money;
+    /**
+     * #6: take-home minus spending minus transfers — unspent, unmoved.
+     */
+    residual?: Money;
+    /**
+     * #6: transfers + payroll + residual.
+     */
+    total_saved?: Money;
+    /**
+     * "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
+     */
+    payroll_profile_present?: boolean;
+    declared_transfers_present?: boolean;
 };
 
 export type SpendingInsights = {

@@ -4656,6 +4656,10 @@ public enum Components {
             public var w2Wages: Components.Schemas.Money?
             /// - Remark: Generated from `#/components/schemas/IncomeEarner/w2_withheld`.
             public var w2Withheld: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/IncomeEarner/retirement_contribution_annual`.
+            public var retirementContributionAnnual: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/IncomeEarner/hsa_contribution_annual`.
+            public var hsaContributionAnnual: Components.Schemas.Money?
             /// Creates a new `IncomeEarner`.
             ///
             /// - Parameters:
@@ -4670,6 +4674,8 @@ public enum Components {
             ///   - w2Year:
             ///   - w2Wages:
             ///   - w2Withheld:
+            ///   - retirementContributionAnnual:
+            ///   - hsaContributionAnnual:
             public init(
                 id: Swift.String,
                 label: Swift.String,
@@ -4681,7 +4687,9 @@ public enum Components {
                 bonusMonth: Swift.Int? = nil,
                 w2Year: Swift.Int? = nil,
                 w2Wages: Components.Schemas.Money? = nil,
-                w2Withheld: Components.Schemas.Money? = nil
+                w2Withheld: Components.Schemas.Money? = nil,
+                retirementContributionAnnual: Components.Schemas.Money? = nil,
+                hsaContributionAnnual: Components.Schemas.Money? = nil
             ) {
                 self.id = id
                 self.label = label
@@ -4694,6 +4702,8 @@ public enum Components {
                 self.w2Year = w2Year
                 self.w2Wages = w2Wages
                 self.w2Withheld = w2Withheld
+                self.retirementContributionAnnual = retirementContributionAnnual
+                self.hsaContributionAnnual = hsaContributionAnnual
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -4707,6 +4717,8 @@ public enum Components {
                 case w2Year = "w2_year"
                 case w2Wages = "w2_wages"
                 case w2Withheld = "w2_withheld"
+                case retirementContributionAnnual = "retirement_contribution_annual"
+                case hsaContributionAnnual = "hsa_contribution_annual"
             }
         }
         /// - Remark: Generated from `#/components/schemas/ExpectedIncomeEvent`.
@@ -5076,6 +5088,10 @@ public enum Components {
             public var w2WagesMinor: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/IncomeEarnerCreateRequest/w2_withheld_minor`.
             public var w2WithheldMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/IncomeEarnerCreateRequest/retirement_contribution_annual_minor`.
+            public var retirementContributionAnnualMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/IncomeEarnerCreateRequest/hsa_contribution_annual_minor`.
+            public var hsaContributionAnnualMinor: Swift.Int?
             /// Creates a new `IncomeEarnerCreateRequest`.
             ///
             /// - Parameters:
@@ -5089,6 +5105,8 @@ public enum Components {
             ///   - w2Year:
             ///   - w2WagesMinor:
             ///   - w2WithheldMinor:
+            ///   - retirementContributionAnnualMinor:
+            ///   - hsaContributionAnnualMinor:
             public init(
                 label: Swift.String,
                 baseSalaryMinor: Swift.Int? = nil,
@@ -5099,7 +5117,9 @@ public enum Components {
                 bonusMonth: Swift.Int? = nil,
                 w2Year: Swift.Int? = nil,
                 w2WagesMinor: Swift.Int? = nil,
-                w2WithheldMinor: Swift.Int? = nil
+                w2WithheldMinor: Swift.Int? = nil,
+                retirementContributionAnnualMinor: Swift.Int? = nil,
+                hsaContributionAnnualMinor: Swift.Int? = nil
             ) {
                 self.label = label
                 self.baseSalaryMinor = baseSalaryMinor
@@ -5111,6 +5131,8 @@ public enum Components {
                 self.w2Year = w2Year
                 self.w2WagesMinor = w2WagesMinor
                 self.w2WithheldMinor = w2WithheldMinor
+                self.retirementContributionAnnualMinor = retirementContributionAnnualMinor
+                self.hsaContributionAnnualMinor = hsaContributionAnnualMinor
             }
             public enum CodingKeys: String, CodingKey {
                 case label
@@ -5123,6 +5145,8 @@ public enum Components {
                 case w2Year = "w2_year"
                 case w2WagesMinor = "w2_wages_minor"
                 case w2WithheldMinor = "w2_withheld_minor"
+                case retirementContributionAnnualMinor = "retirement_contribution_annual_minor"
+                case hsaContributionAnnualMinor = "hsa_contribution_annual_minor"
             }
         }
         /// - Remark: Generated from `#/components/schemas/W2ScanRequest`.
@@ -6754,29 +6778,85 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SavingsRate/percent`.
             public var percent: Swift.Int?
+            /// Take-home (deposit-based) monthly income.
+            ///
             /// - Remark: Generated from `#/components/schemas/SavingsRate/monthly_income`.
             public var monthlyIncome: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/SavingsRate/average_monthly_spending`.
             public var averageMonthlySpending: Components.Schemas.Money
+            /// #6: take-home + payroll deductions — the rate's denominator.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/gross_income`.
+            public var grossIncome: Components.Schemas.Money?
+            /// #6: declared savings transfers, monthly.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/transfers`.
+            public var transfers: Components.Schemas.Money?
+            /// #6: pre-tax 401(k)/HSA saved, monthly.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/payroll_deductions`.
+            public var payrollDeductions: Components.Schemas.Money?
+            /// #6: take-home minus spending minus transfers — unspent, unmoved.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/residual`.
+            public var residual: Components.Schemas.Money?
+            /// #6: transfers + payroll + residual.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/total_saved`.
+            public var totalSaved: Components.Schemas.Money?
+            /// "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/payroll_profile_present`.
+            public var payrollProfilePresent: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/declared_transfers_present`.
+            public var declaredTransfersPresent: Swift.Bool?
             /// Creates a new `SavingsRate`.
             ///
             /// - Parameters:
             ///   - percent: (income - avg spending) / income, %; null when income is 0; may be negative.
-            ///   - monthlyIncome:
+            ///   - monthlyIncome: Take-home (deposit-based) monthly income.
             ///   - averageMonthlySpending:
+            ///   - grossIncome: #6: take-home + payroll deductions — the rate's denominator.
+            ///   - transfers: #6: declared savings transfers, monthly.
+            ///   - payrollDeductions: #6: pre-tax 401(k)/HSA saved, monthly.
+            ///   - residual: #6: take-home minus spending minus transfers — unspent, unmoved.
+            ///   - totalSaved: #6: transfers + payroll + residual.
+            ///   - payrollProfilePresent: "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
+            ///   - declaredTransfersPresent:
             public init(
                 percent: Swift.Int? = nil,
                 monthlyIncome: Components.Schemas.Money,
-                averageMonthlySpending: Components.Schemas.Money
+                averageMonthlySpending: Components.Schemas.Money,
+                grossIncome: Components.Schemas.Money? = nil,
+                transfers: Components.Schemas.Money? = nil,
+                payrollDeductions: Components.Schemas.Money? = nil,
+                residual: Components.Schemas.Money? = nil,
+                totalSaved: Components.Schemas.Money? = nil,
+                payrollProfilePresent: Swift.Bool? = nil,
+                declaredTransfersPresent: Swift.Bool? = nil
             ) {
                 self.percent = percent
                 self.monthlyIncome = monthlyIncome
                 self.averageMonthlySpending = averageMonthlySpending
+                self.grossIncome = grossIncome
+                self.transfers = transfers
+                self.payrollDeductions = payrollDeductions
+                self.residual = residual
+                self.totalSaved = totalSaved
+                self.payrollProfilePresent = payrollProfilePresent
+                self.declaredTransfersPresent = declaredTransfersPresent
             }
             public enum CodingKeys: String, CodingKey {
                 case percent
                 case monthlyIncome = "monthly_income"
                 case averageMonthlySpending = "average_monthly_spending"
+                case grossIncome = "gross_income"
+                case transfers
+                case payrollDeductions = "payroll_deductions"
+                case residual
+                case totalSaved = "total_saved"
+                case payrollProfilePresent = "payroll_profile_present"
+                case declaredTransfersPresent = "declared_transfers_present"
             }
         }
         /// - Remark: Generated from `#/components/schemas/SpendingInsights`.

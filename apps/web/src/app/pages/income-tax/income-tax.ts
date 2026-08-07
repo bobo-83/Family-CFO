@@ -218,6 +218,8 @@ export class IncomeTax {
     w2Year: number | null;
     w2Wages: number | null;
     w2Withheld: number | null;
+    retirementAnnual: number | null;
+    hsaAnnual: number | null;
   } = this.emptyEarnerForm();
   protected readonly scanNote = signal<string | null>(null);
   protected readonly scanning = signal(false);
@@ -234,6 +236,8 @@ export class IncomeTax {
       w2Year: null,
       w2Wages: null,
       w2Withheld: null,
+      retirementAnnual: null,
+      hsaAnnual: null,
     };
   }
 
@@ -255,6 +259,12 @@ export class IncomeTax {
       ...(f.w2Year ? { w2_year: f.w2Year } : {}),
       ...(f.w2Wages ? { w2_wages_minor: Math.round(f.w2Wages * 100) } : {}),
       ...(f.w2Withheld ? { w2_withheld_minor: Math.round(f.w2Withheld * 100) } : {}),
+      // #6: pre-tax saving the deposit ledger never sees — feeds the observed
+      // savings rate so payroll 401(k)/HSA is counted, not invisible.
+      ...(f.retirementAnnual
+        ? { retirement_contribution_annual_minor: Math.round(f.retirementAnnual * 100) }
+        : {}),
+      ...(f.hsaAnnual ? { hsa_contribution_annual_minor: Math.round(f.hsaAnnual * 100) } : {}),
     };
     const { error } = await this.api.createIncomeEarner(body);
     this.busy.set(null);

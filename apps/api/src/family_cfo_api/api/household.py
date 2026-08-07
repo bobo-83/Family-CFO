@@ -204,22 +204,26 @@ def _spending_insights(
 def _savings_rate(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> SavingsRate:
-    """M44: recurring income vs trailing-3-complete-month average actual spending."""
-    today = today or date.today()
-    this_month_start = today.replace(day=1)
-    # The last 3 complete calendar months (exclude the current partial month).
-    window_start = finance_service.add_months(this_month_start, -3)
-    window_end = this_month_start - timedelta(days=1)
+    """#6: observed saving — declared transfers + pre-tax payroll deductions +
+    the unspent residual, combined without double-counting."""
+    r = finance_service.observed_savings_rate(engine, household_id, currency, today=today)
 
-    income = finance_service.monthly_income_total(engine, household_id, currency).amount_minor
-    spending_3mo = repository.sum_spending(engine, household_id, window_start, window_end, currency)
-    avg_spending = round(spending_3mo / 3)
+    def money(minor: int) -> MoneySchema:
+        return MoneySchema(amount_minor=minor, currency=currency)
 
-    percent = None if income <= 0 else round((income - avg_spending) / income * 100)
     return SavingsRate(
-        percent=percent,
-        monthly_income=MoneySchema(amount_minor=income, currency=currency),
-        average_monthly_spending=MoneySchema(amount_minor=avg_spending, currency=currency),
+        percent=r.percent,
+        # M44 fields kept: monthly_income is take-home, so the old residual
+        # view (income - spending) still reconciles.
+        monthly_income=money(r.take_home_monthly_minor),
+        average_monthly_spending=money(r.spending_monthly_minor),
+        gross_income=money(r.gross_monthly_minor),
+        transfers=money(r.transfers_monthly_minor),
+        payroll_deductions=money(r.payroll_monthly_minor),
+        residual=money(r.residual_monthly_minor),
+        total_saved=money(r.total_saved_monthly_minor),
+        payroll_profile_present=r.has_payroll_profile,
+        declared_transfers_present=r.has_declared_transfers,
     )
 
 

@@ -145,6 +145,13 @@ describe('Overview', () => {
           percent: 65,
           monthly_income: { amount_minor: 600_000, currency: 'USD' },
           average_monthly_spending: { amount_minor: 210_000, currency: 'USD' },
+          gross_income: { amount_minor: 850_000, currency: 'USD' },
+          transfers: { amount_minor: 50_000, currency: 'USD' },
+          payroll_deductions: { amount_minor: 250_000, currency: 'USD' },
+          residual: { amount_minor: 30_000, currency: 'USD' },
+          total_saved: { amount_minor: 330_000, currency: 'USD' },
+          payroll_profile_present: true,
+          declared_transfers_present: true,
         },
         budget_summary: {
           envelope_count: 3,
@@ -192,11 +199,90 @@ describe('Overview', () => {
     expect(text).toContain('USD 450.00');
     expect(text).toContain('50% vs last month');
     expect(text).toContain('Whole Foods');
-    // Savings rate on the cash-flow card.
-    expect(text).toContain('Savings rate 65%');
+    // #6: savings rate on the cash-flow card, as observed saving from three
+    // sources with the total saved and each non-zero component.
+    expect(text).toContain('Saving 65%');
+    expect(text).toContain('USD 3,300.00/mo saved');
+    expect(text).toContain('USD 500.00 transfers');
+    expect(text).toContain('USD 2,500.00 payroll (401k/HSA)');
+    expect(text).toContain('USD 300.00 residual');
     // Budget summary: over-budget count leads.
     expect(text).toContain('1 over budget');
     expect(text).toContain('3 budgets');
+  });
+
+  // #6: the observed savings rate — three sources, and an honest note when
+  // pre-tax payroll saving is undeclared and so invisible to the rate.
+  describe('observed savings rate (#6)', () => {
+    function contextWithSavingsRate(rate: Record<string, unknown>) {
+      return response({
+        household_id: 'h1',
+        display_name: 'The Demo Family',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        monthly_cash_flow: {
+          income: { amount_minor: 600_000, currency: 'USD' },
+          spending: { amount_minor: 210_000, currency: 'USD' },
+          net: { amount_minor: 390_000, currency: 'USD' },
+        },
+        savings_rate: rate,
+      });
+    }
+
+    it('shows the payroll-absent note when payroll_profile_present is false', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWithSavingsRate({
+          percent: 40,
+          monthly_income: { amount_minor: 600_000, currency: 'USD' },
+          average_monthly_spending: { amount_minor: 210_000, currency: 'USD' },
+          transfers: { amount_minor: 50_000, currency: 'USD' },
+          payroll_deductions: { amount_minor: 0, currency: 'USD' },
+          residual: { amount_minor: 30_000, currency: 'USD' },
+          total_saved: { amount_minor: 80_000, currency: 'USD' },
+          payroll_profile_present: false,
+          declared_transfers_present: true,
+        }),
+      );
+
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const note = host.querySelector('.overview__savings-note');
+      expect(note).toBeTruthy();
+      expect(note?.textContent).toContain('Payroll 401(k)/HSA not declared');
+      // The zero payroll component is dropped from the breakdown.
+      expect(host.textContent).toContain('USD 500.00 transfers');
+      expect(host.textContent).not.toContain('payroll (401k/HSA)');
+    });
+
+    it('hides the payroll-absent note when payroll_profile_present is true', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWithSavingsRate({
+          percent: 65,
+          monthly_income: { amount_minor: 600_000, currency: 'USD' },
+          average_monthly_spending: { amount_minor: 210_000, currency: 'USD' },
+          transfers: { amount_minor: 50_000, currency: 'USD' },
+          payroll_deductions: { amount_minor: 250_000, currency: 'USD' },
+          residual: { amount_minor: 30_000, currency: 'USD' },
+          total_saved: { amount_minor: 330_000, currency: 'USD' },
+          payroll_profile_present: true,
+          declared_transfers_present: true,
+        }),
+      );
+
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__savings-note')).toBeNull();
+      expect(host.textContent).toContain('USD 2,500.00 payroll (401k/HSA)');
+    });
   });
 
   // #201: detected recurring saving, below the savings-rate line it qualifies.

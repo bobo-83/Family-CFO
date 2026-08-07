@@ -94,6 +94,24 @@
   color: #5b6472;
 }
 
+/* #6: the observed-saving breakdown reads as its own line under the rate, and
+   the payroll-absent honesty note stands apart in a cautionary tone. */
+.overview__savings-rate {
+  font-weight: 600;
+}
+
+.overview__savings-breakdown {
+  display: block;
+}
+
+.overview__savings-note {
+  color: #92400e;
+
+  a {
+    color: inherit;
+  }
+}
+
 /* Vested-RSU companion line on the stress-test card: separated so it never
    reads as part of the headline math. */
 .overview__ready-to-sell,

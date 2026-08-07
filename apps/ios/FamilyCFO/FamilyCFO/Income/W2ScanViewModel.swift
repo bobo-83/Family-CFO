@@ -16,6 +16,11 @@ final class W2ScanViewModel {
         var year: Int?
         var wages: Decimal?
         var withheld: Decimal?
+        // #6: pre-tax saving that never reaches the bank feed, so the savings
+        // rate can count it instead of understating. Not on a W-2 box the scan
+        // fills — typed in by hand.
+        var retirementAnnual: Decimal?
+        var hsaAnnual: Decimal?
     }
 
     private(set) var isScanning = false
@@ -90,7 +95,9 @@ final class W2ScanViewModel {
             label: form.label.trimmingCharacters(in: .whitespacesAndNewlines),
             w2Year: form.year,
             w2WagesMinor: form.wages.map(Self.minorUnits),
-            w2WithheldMinor: form.withheld.map(Self.minorUnits)
+            w2WithheldMinor: form.withheld.map(Self.minorUnits),
+            retirementContributionAnnualMinor: form.retirementAnnual.map(Self.minorUnits),
+            hsaContributionAnnualMinor: form.hsaAnnual.map(Self.minorUnits)
         )
         do {
             try await api.createEarner(request)

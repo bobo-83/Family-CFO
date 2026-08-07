@@ -575,7 +575,51 @@ struct OverviewView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            // #6: the observed saving, split across the three sources it came
+            // from — transfers you made, payroll deductions, and what simply
+            // stayed unspent — so the headline isn't a single opaque number.
+            if let breakdown = Self.savingsBreakdown(rate) {
+                Text(breakdown)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            // #6 honesty: with no 401(k)/HSA figure declared, payroll saving is
+            // invisible and the rate understates — say so, and point at the fix.
+            if let note = Self.payrollNote(rate) {
+                Label(note, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
+    }
+
+    /// #6: the three observed saving sources, largest concept first — declared
+    /// transfers, pre-tax payroll deductions, and the residual that just went
+    /// unspent — as "$500 transfers · $2,500 payroll · $300 residual". A source
+    /// the server didn't send (older box, feature off) is simply omitted; nil
+    /// when none are present, so the caller can skip the line entirely.
+    static func savingsBreakdown(_ rate: Components.Schemas.SavingsRate) -> String? {
+        var parts: [String] = []
+        if let transfers = rate.transfers {
+            parts.append("\(transfers.formatted) transfers")
+        }
+        if let payroll = rate.payrollDeductions {
+            parts.append("\(payroll.formatted) payroll")
+        }
+        if let residual = rate.residual {
+            parts.append("\(residual.formatted) residual")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// #6: the understatement caveat, shown only when the box tells us no
+    /// payroll profile is on file (`payroll_profile_present == false`). A nil or
+    /// true value means the payroll figure is either counted or unknowable, so
+    /// no note. Points at the Income screen, where the earner form takes it.
+    static func payrollNote(_ rate: Components.Schemas.SavingsRate) -> String? {
+        guard rate.payrollProfilePresent == false else { return nil }
+        return "401(k)/HSA payroll saving isn't counted yet, so this rate may "
+            + "understate. Add each earner's annual amounts on the Income screen."
     }
 
     /// #201: recurring transfers into savings vehicles, largest first. The

@@ -222,11 +222,28 @@ class MerchantSpend(BaseModel):
 
 
 class SavingsRate(BaseModel):
-    """M44: recurring income vs trailing-3-month average actual spending."""
+    """#6: saving as what the household actually does, combining three
+    non-overlapping sources — declared transfers, pre-tax payroll deductions,
+    and the unspent residual. percent is total_saved / gross income.
+
+    monthly_income and average_monthly_spending are kept (M44) so the old
+    residual view still reconciles; the breakdown fields are additive."""
 
     percent: int | None = None
     monthly_income: Money
     average_monthly_spending: Money
+    # #6 breakdown — each a monthly figure. total_saved = transfers + payroll +
+    # residual; gross_income = take-home + payroll.
+    gross_income: Money | None = None
+    transfers: Money | None = None
+    payroll_deductions: Money | None = None
+    residual: Money | None = None
+    total_saved: Money | None = None
+    # Honesty: which sources the figure actually covers. When
+    # payroll_profile_present is false, payroll saving is invisible and the
+    # rate understates — the UI must say so.
+    payroll_profile_present: bool = False
+    declared_transfers_present: bool = False
 
 
 class SavingsContribution(BaseModel):
@@ -885,6 +902,9 @@ class IncomeEarner(BaseModel):
     w2_year: int | None = None
     w2_wages: Money | None = None
     w2_withheld: Money | None = None
+    # #6: annual pre-tax payroll deductions the household saves.
+    retirement_contribution_annual: Money | None = None
+    hsa_contribution_annual: Money | None = None
 
 
 class ExpectedIncomeEvent(BaseModel):
@@ -969,6 +989,9 @@ class IncomeEarnerCreateRequest(BaseModel):
     w2_year: int | None = Field(default=None, ge=1990, le=2100)
     w2_wages_minor: int | None = Field(default=None, ge=0)
     w2_withheld_minor: int | None = Field(default=None, ge=0)
+    # #6: annual pre-tax payroll deductions (401k/403b employee deferral + HSA).
+    retirement_contribution_annual_minor: int = Field(default=0, ge=0)
+    hsa_contribution_annual_minor: int = Field(default=0, ge=0)
 
 
 # M77: PDFs are accepted here (rasterized server-side) but not in chat images.
