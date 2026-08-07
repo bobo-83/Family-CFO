@@ -482,6 +482,8 @@ class SavingsContributionRecord:
     source: str  # "declared" | "detected"
     label_key: str | None
     created_at: datetime
+    # #4: the goal this contribution funds; None = unlinked.
+    goal_id: str | None = None
 
 
 def _savings_contribution_from_row(row: Any) -> SavingsContributionRecord:
@@ -495,6 +497,7 @@ def _savings_contribution_from_row(row: Any) -> SavingsContributionRecord:
         source=row["source"],
         label_key=row["label_key"],
         created_at=row["created_at"],
+        goal_id=row["goal_id"],
     )
 
 
@@ -522,6 +525,7 @@ def create_savings_contribution(
     frequency: str,
     source: str,
     label_key: str | None = None,
+    goal_id: str | None = None,
     contribution_id: str | None = None,
 ) -> SavingsContributionRecord:
     """contribution_id is honoured so undo of a delete recreates the same row."""
@@ -539,6 +543,7 @@ def create_savings_contribution(
                 frequency=frequency,
                 source=source,
                 label_key=label_key,
+                goal_id=goal_id,
                 created_at=now,
             )
         )
@@ -552,7 +557,23 @@ def create_savings_contribution(
         source=source,
         label_key=label_key,
         created_at=now,
+        goal_id=goal_id,
     )
+
+
+def link_savings_contribution_to_goal(
+    engine: Engine, household_id: str, contribution_id: str, goal_id: str | None
+) -> None:
+    """#4: point a contribution at the goal it funds (None unlinks)."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.savings_contributions)
+            .where(
+                models.savings_contributions.c.household_id == household_id,
+                models.savings_contributions.c.id == contribution_id,
+            )
+            .values(goal_id=goal_id)
+        )
 
 
 def get_savings_contribution(

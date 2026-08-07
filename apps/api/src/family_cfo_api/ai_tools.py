@@ -1126,6 +1126,13 @@ def _get_savings_contributions(
                 ),
                 "times_seen": c.occurrences,
                 "last_seen": c.last_seen.isoformat(),
+                # #4: the goal this contribution funds, by name, so the model
+                # can say "your 529 transfer is filling the College fund".
+                "funds_goal": next(
+                    (g.name for g in repository.list_goals(engine, household_id)
+                     if g.id == c.goal_id),
+                    None,
+                ) if c.goal_id else None,
             }
             for c in found
         ],

@@ -93,8 +93,52 @@ struct GoalsView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            // #4: what the ledger actually shows filling this goal — the
+            // declared plan above is intent; this line is evidence.
+            if let line = Self.fundingLine(goal) {
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(goal.funding?.status == "behind" ? Color.orange : .secondary)
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    /// #4: one sentence on what's funding the goal, from the server's linked
+    /// contributions. Statuses are the server's; an unknown one shows nothing
+    /// rather than guessing. "Unfunded" means no linked transfers — for a
+    /// retirement goal that's the normal case (payroll deductions never reach
+    /// the bank feed), so the line must not read like a problem.
+    static func fundingLine(_ goal: Components.Schemas.Goal) -> String? {
+        guard let funding = goal.funding else { return nil }
+        let monthly = "\(funding.monthlyEquivalent.formattedExact)/mo going in"
+        switch funding.status {
+        case "on_track":
+            guard let date = funding.projectedCompletion else { return "On track — \(monthly)" }
+            return "On track — \(monthly) · projected \(mediumDate(date))"
+        case "behind":
+            guard let date = funding.projectedCompletion else {
+                return "Behind — projected after the target"
+            }
+            return "Behind — projected \(mediumDate(date)), after the target"
+        case "funded_no_date":
+            return monthly
+        case "unfunded":
+            return goal._type == .retirement
+                ? "No linked transfers — 401(k) payroll deductions don't appear here."
+                : "Nothing is currently funding this goal"
+        default:
+            return nil
+        }
+    }
+
+    /// "Mar 15, 2027" — a projection needs its year, unlike a bill due date.
+    static func mediumDate(_ iso: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: String(iso.prefix(10))) else { return iso }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
     static func typeLabel(_ type: Components.Schemas.GoalType) -> String {

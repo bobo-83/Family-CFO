@@ -626,6 +626,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /savings/contributions`.
     /// - Remark: Generated from `#/paths//savings/contributions/post(declareSavingsContribution)`.
     func declareSavingsContribution(_ input: Operations.DeclareSavingsContribution.Input) async throws -> Operations.DeclareSavingsContribution.Output
+    /// Link a contribution to the goal it funds (#4)
+    ///
+    /// - Remark: HTTP `PATCH /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)`.
+    func updateSavingsContribution(_ input: Operations.UpdateSavingsContribution.Input) async throws -> Operations.UpdateSavingsContribution.Output
     /// Stop tracking a declared savings contribution
     ///
     /// - Remark: HTTP `DELETE /savings/contributions/{contribution_id}`.
@@ -2242,6 +2247,21 @@ extension APIProtocol {
         body: Operations.DeclareSavingsContribution.Input.Body
     ) async throws -> Operations.DeclareSavingsContribution.Output {
         try await declareSavingsContribution(Operations.DeclareSavingsContribution.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Link a contribution to the goal it funds (#4)
+    ///
+    /// - Remark: HTTP `PATCH /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)`.
+    public func updateSavingsContribution(
+        path: Operations.UpdateSavingsContribution.Input.Path,
+        headers: Operations.UpdateSavingsContribution.Input.Headers = .init(),
+        body: Operations.UpdateSavingsContribution.Input.Body
+    ) async throws -> Operations.UpdateSavingsContribution.Output {
+        try await updateSavingsContribution(Operations.UpdateSavingsContribution.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -6528,6 +6548,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SavingsContribution/destination_account_id`.
             public var destinationAccountId: Swift.String?
+            /// #4: the goal this contribution funds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/goal_id`.
+            public var goalId: Swift.String?
+            /// "#4: for an unlinked declared contribution, the goal its destination type suggests (529 -> college, retirement -> retirement) when exactly one such goal exists."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SavingsContribution/suggested_goal_id`.
+            public var suggestedGoalId: Swift.String?
             /// Creates a new `SavingsContribution`.
             ///
             /// - Parameters:
@@ -6543,6 +6571,8 @@ public enum Components {
             ///   - contributionId: Present on declared contributions, so they can be removed.
             ///   - sourceAccountId: The funding account. Empty when only the arrival was visible and the debit was never synced.
             ///   - destinationAccountId: Needed, with the source, to dismiss a detected route.
+            ///   - goalId: #4: the goal this contribution funds.
+            ///   - suggestedGoalId: "#4: for an unlinked declared contribution, the goal its destination type suggests (529 -> college, retirement -> retirement) when exactly one such goal exists."
             public init(
                 destinationName: Swift.String,
                 destinationType: Swift.String,
@@ -6555,7 +6585,9 @@ public enum Components {
                 declared: Swift.Bool? = nil,
                 contributionId: Swift.String? = nil,
                 sourceAccountId: Swift.String? = nil,
-                destinationAccountId: Swift.String? = nil
+                destinationAccountId: Swift.String? = nil,
+                goalId: Swift.String? = nil,
+                suggestedGoalId: Swift.String? = nil
             ) {
                 self.destinationName = destinationName
                 self.destinationType = destinationType
@@ -6569,6 +6601,8 @@ public enum Components {
                 self.contributionId = contributionId
                 self.sourceAccountId = sourceAccountId
                 self.destinationAccountId = destinationAccountId
+                self.goalId = goalId
+                self.suggestedGoalId = suggestedGoalId
             }
             public enum CodingKeys: String, CodingKey {
                 case destinationName = "destination_name"
@@ -6583,6 +6617,8 @@ public enum Components {
                 case contributionId = "contribution_id"
                 case sourceAccountId = "source_account_id"
                 case destinationAccountId = "destination_account_id"
+                case goalId = "goal_id"
+                case suggestedGoalId = "suggested_goal_id"
             }
         }
         /// "#203: declare a recurring contribution the app cannot see. The common case is a destination account (a 529, a workplace plan) that never syncs, leaving no arrival for detection to find."
@@ -6620,6 +6656,23 @@ public enum Components {
                 case destinationAccountId = "destination_account_id"
                 case amount
                 case frequency
+            }
+        }
+        /// "#4: point a declared contribution at the goal it funds. goal_id null unlinks."
+        ///
+        /// - Remark: Generated from `#/components/schemas/SavingsContributionUpdateRequest`.
+        public struct SavingsContributionUpdateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionUpdateRequest/goal_id`.
+            public var goalId: Swift.String?
+            /// Creates a new `SavingsContributionUpdateRequest`.
+            ///
+            /// - Parameters:
+            ///   - goalId:
+            public init(goalId: Swift.String? = nil) {
+                self.goalId = goalId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case goalId = "goal_id"
             }
         }
         /// Tell the app a detected route is not saving.
@@ -7189,6 +7242,78 @@ public enum Components {
             case otherAsset = "other_asset"
             case otherLiability = "other_liability"
         }
+        /// - Remark: Generated from `#/components/schemas/GoalFundingSource`.
+        public struct GoalFundingSource: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GoalFundingSource/contribution_id`.
+            public var contributionId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GoalFundingSource/destination_name`.
+            public var destinationName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GoalFundingSource/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/GoalFundingSource/frequency`.
+            public var frequency: Components.Schemas.RecurringFrequency
+            /// Creates a new `GoalFundingSource`.
+            ///
+            /// - Parameters:
+            ///   - contributionId:
+            ///   - destinationName:
+            ///   - amount:
+            ///   - frequency:
+            public init(
+                contributionId: Swift.String,
+                destinationName: Swift.String,
+                amount: Components.Schemas.Money,
+                frequency: Components.Schemas.RecurringFrequency
+            ) {
+                self.contributionId = contributionId
+                self.destinationName = destinationName
+                self.amount = amount
+                self.frequency = frequency
+            }
+            public enum CodingKeys: String, CodingKey {
+                case contributionId = "contribution_id"
+                case destinationName = "destination_name"
+                case amount
+                case frequency
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/GoalFunding`.
+        public struct GoalFunding: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GoalFunding/monthly_equivalent`.
+            public var monthlyEquivalent: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/GoalFunding/funded_by`.
+            public var fundedBy: [Components.Schemas.GoalFundingSource]
+            /// - Remark: Generated from `#/components/schemas/GoalFunding/projected_completion`.
+            public var projectedCompletion: Swift.String?
+            /// unfunded | funded_no_date | on_track | behind
+            ///
+            /// - Remark: Generated from `#/components/schemas/GoalFunding/status`.
+            public var status: Swift.String
+            /// Creates a new `GoalFunding`.
+            ///
+            /// - Parameters:
+            ///   - monthlyEquivalent:
+            ///   - fundedBy:
+            ///   - projectedCompletion:
+            ///   - status: unfunded | funded_no_date | on_track | behind
+            public init(
+                monthlyEquivalent: Components.Schemas.Money,
+                fundedBy: [Components.Schemas.GoalFundingSource],
+                projectedCompletion: Swift.String? = nil,
+                status: Swift.String
+            ) {
+                self.monthlyEquivalent = monthlyEquivalent
+                self.fundedBy = fundedBy
+                self.projectedCompletion = projectedCompletion
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case monthlyEquivalent = "monthly_equivalent"
+                case fundedBy = "funded_by"
+                case projectedCompletion = "projected_completion"
+                case status
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Goal`.
         public struct Goal: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Goal/id`.
@@ -7209,6 +7334,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Goal/monthly_contribution`.
             public var monthlyContribution: Components.Schemas.Money?
+            /// "#4: what the ledger shows filling this goal. Payroll deductions never appear in the feed, so status 'unfunded' means no linked transfers, not no money — retirement goals especially."
+            ///
+            /// - Remark: Generated from `#/components/schemas/Goal/funding`.
+            public var funding: Components.Schemas.GoalFunding?
             /// Creates a new `Goal`.
             ///
             /// - Parameters:
@@ -7220,6 +7349,7 @@ public enum Components {
             ///   - targetDate:
             ///   - priority:
             ///   - monthlyContribution: M118: planned monthly contribution, reserved by the spending plan.
+            ///   - funding: "#4: what the ledger shows filling this goal. Payroll deductions never appear in the feed, so status 'unfunded' means no linked transfers, not no money — retirement goals especially."
             public init(
                 id: Swift.String,
                 name: Swift.String,
@@ -7228,7 +7358,8 @@ public enum Components {
                 current: Components.Schemas.Money,
                 targetDate: Swift.String? = nil,
                 priority: Swift.Int,
-                monthlyContribution: Components.Schemas.Money? = nil
+                monthlyContribution: Components.Schemas.Money? = nil,
+                funding: Components.Schemas.GoalFunding? = nil
             ) {
                 self.id = id
                 self.name = name
@@ -7238,6 +7369,7 @@ public enum Components {
                 self.targetDate = targetDate
                 self.priority = priority
                 self.monthlyContribution = monthlyContribution
+                self.funding = funding
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -7248,6 +7380,7 @@ public enum Components {
                 case targetDate = "target_date"
                 case priority
                 case monthlyContribution = "monthly_contribution"
+                case funding
             }
         }
         /// M118: update a goal's declared fields. Sending monthly_contribution null clears the plan; omitting it leaves it unchanged.
@@ -32027,6 +32160,240 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "code423",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Link a contribution to the goal it funds (#4)
+    ///
+    /// - Remark: HTTP `PATCH /savings/contributions/{contribution_id}`.
+    /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)`.
+    public enum UpdateSavingsContribution {
+        public static let id: Swift.String = "updateSavingsContribution"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/path/contribution_id`.
+                public var contributionId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - contributionId:
+                public init(contributionId: Swift.String) {
+                    self.contributionId = contributionId
+                }
+            }
+            public var path: Operations.UpdateSavingsContribution.Input.Path
+            /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateSavingsContribution.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.UpdateSavingsContribution.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.UpdateSavingsContribution.Input.Headers
+            /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/requestBody/content/application\/json`.
+                case json(Components.Schemas.SavingsContributionUpdateRequest)
+            }
+            public var body: Operations.UpdateSavingsContribution.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.UpdateSavingsContribution.Input.Path,
+                headers: Operations.UpdateSavingsContribution.Input.Headers = .init(),
+                body: Operations.UpdateSavingsContribution.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.SavingsContribution)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SavingsContribution {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateSavingsContribution.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateSavingsContribution.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The updated contribution
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.UpdateSavingsContribution.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.UpdateSavingsContribution.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/savings/contributions/{contribution_id}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateSavingsContribution.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateSavingsContribution.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Contribution or goal not found
+            ///
+            /// - Remark: Generated from `#/paths//savings/contributions/{contribution_id}/patch(updateSavingsContribution)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.UpdateSavingsContribution.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.UpdateSavingsContribution.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

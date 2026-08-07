@@ -14,6 +14,10 @@ final class OverviewViewModel {
     private(set) var plan: Components.Schemas.SpendingPlanResponse?
     /// The box running version (M120) - nil until fetched or unreachable.
     private(set) var serverVersion: String?
+    /// #4: goal names by id, for savings rows that fund (or could fund) one.
+    /// Filled lazily — one goals-list fetch when a loaded contribution
+    /// references a goal, never a per-row lookup.
+    private(set) var goalNames: [String: String] = [:]
     private(set) var isLoading = false
     private(set) var isSyncing = false
     private(set) var selectedMonth = MonthKey.current()
@@ -30,16 +34,21 @@ final class OverviewViewModel {
     }
 
     private let api: HouseholdAPI
+    /// #4: only for naming the goals savings contributions reference; nil
+    /// (an unpaired preview, an older mock) just leaves the names off.
+    private let goalsAPI: GoalsAPI?
     private let notifications: BillNotificationScheduler?
     private let snapshotStore: OverviewSnapshotStore?
 
     init(
         api: HouseholdAPI,
+        goalsAPI: GoalsAPI? = nil,
         notifications: BillNotificationScheduler? = BillNotificationScheduler(
             scheduler: SystemNotificationScheduler()),
         snapshotStore: OverviewSnapshotStore? = OverviewSnapshotStore()
     ) {
         self.api = api
+        self.goalsAPI = goalsAPI
         self.notifications = notifications
         self.snapshotStore = snapshotStore
     }
@@ -66,6 +75,7 @@ final class OverviewViewModel {
             outlook = loadedOutlook
             plan = loadedPlan
             errorMessage = nil
+            await resolveGoalNames()
             // Reminders and the widget snapshot are "now" concepts — only refresh
             // them from the live current month, never from a historical one.
             if onCurrent {
@@ -127,6 +137,31 @@ final class OverviewViewModel {
         } catch {
             errorMessage = ChatViewModel.describe(error)
         }
+    }
+
+    /// #4: point a declared contribution at the goal it funds — or at nil,
+    /// which unlinks. The refresh brings back both the row's new link and the
+    /// goal's funding line elsewhere.
+    func linkContribution(contributionID: String, goalID: String?) async {
+        do {
+            try await api.updateSavingsContribution(id: contributionID, goalID: goalID)
+            await load()
+        } catch {
+            errorMessage = ChatViewModel.describe(error)
+        }
+    }
+
+    /// #4: fetch goal names once per load, and only when a contribution
+    /// actually references a goal. Best-effort — the names decorate the
+    /// savings card, so their absence must never break the Overview.
+    private func resolveGoalNames() async {
+        let referenced = (context?.savingsContributions ?? [])
+            .flatMap { [$0.goalId, $0.suggestedGoalId] }
+            .compactMap { $0 }
+        guard !referenced.isEmpty, let goalsAPI else { return }
+        guard let goals = try? await goalsAPI.goals() else { return }
+        goalNames = Dictionary(
+            goals.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// #203: "that transfer isn't saving". Suppresses the route, not one row —

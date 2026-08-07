@@ -40,7 +40,7 @@ struct OverviewView: View {
         }
         .task {
             if viewModel == nil, let api = model.household {
-                viewModel = OverviewViewModel(api: api)
+                viewModel = OverviewViewModel(api: api, goalsAPI: model.goalsAPI)
             }
             if yearlyModel == nil, let api = model.household {
                 yearlyModel = YearlyOverviewViewModel(api: api)
@@ -614,6 +614,29 @@ struct OverviewView: View {
                         Text(Self.contributionDetail(contribution))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        // #4: the goal this money fills — or, when the
+                        // destination type points at exactly one goal, the
+                        // one-tap offer to link them.
+                        if let goalID = contribution.goalId {
+                            Text("funds \(viewModel.goalNames[goalID] ?? "a goal")")
+                                .font(.caption)
+                                .foregroundStyle(.tint)
+                        } else if canManageSavings,
+                            let id = contribution.contributionId,
+                            let suggested = contribution.suggestedGoalId,
+                            let name = viewModel.goalNames[suggested] {
+                            Button {
+                                Task {
+                                    await viewModel.linkContribution(
+                                        contributionID: id, goalID: suggested)
+                                }
+                            } label: {
+                                Text("Fund \(name)?")
+                                    .font(.caption.weight(.medium))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.tint)
+                        }
                     }
                     Spacer(minLength: 0)
                     if canManageSavings {
@@ -676,6 +699,17 @@ struct OverviewView: View {
     ) -> some View {
         if contribution.declared == true, let id = contribution.contributionId {
             Menu {
+                // #4: linked rows can be unlinked; the row keeps counting, it
+                // just stops filling that goal's funding line.
+                if contribution.goalId != nil {
+                    Button {
+                        Task {
+                            await viewModel.linkContribution(contributionID: id, goalID: nil)
+                        }
+                    } label: {
+                        Label("Unlink goal", systemImage: "minus.circle")
+                    }
+                }
                 Button(role: .destructive) {
                     Task { await viewModel.stopTracking(contributionID: id) }
                 } label: {

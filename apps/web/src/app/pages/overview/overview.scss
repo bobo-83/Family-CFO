@@ -288,6 +288,41 @@
   font-size: 0.75rem;
 }
 
+/* #4: goal links. The note sits with the destination it qualifies; the actions
+   share one grid cell so a suggestion chip never wraps the row. */
+.overview__goal-link {
+  margin-left: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #3730a3;
+}
+
+.overview__goal-unlink {
+  margin-left: 0.1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  color: #5b6472;
+
+  &:hover {
+    background: #eef0f3;
+  }
+}
+
+.overview__saving-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.overview__goal-chip {
+  font-size: 0.75rem;
+}
+
 .overview__declare-open {
   margin-top: 0.6rem;
   align-self: flex-start;

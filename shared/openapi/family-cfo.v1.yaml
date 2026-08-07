@@ -2984,6 +2984,41 @@ paths:
         "423":
           $ref: "#/components/responses/Error"
   /savings/contributions/{contribution_id}:
+    patch:
+      operationId: updateSavingsContribution
+      tags: [household]
+      summary: Link a contribution to the goal it funds (#4)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contribution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsContributionUpdateRequest"
+      responses:
+        "200":
+          description: The updated contribution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavingsContribution"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          description: Contribution or goal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteSavingsContribution
       tags: [household]
@@ -5737,6 +5772,15 @@ components:
           description: Needed, with the source, to dismiss a detected route.
           type: string
           default: ""
+        goal_id:
+          description: "#4: the goal this contribution funds."
+          type: [string, "null"]
+        suggested_goal_id:
+          description: >-
+            "#4: for an unlinked declared contribution, the goal its
+            destination type suggests (529 -> college, retirement ->
+            retirement) when exactly one such goal exists."
+          type: [string, "null"]
     SavingsContributionCreateRequest:
       type: object
       description: >-
@@ -5757,6 +5801,14 @@ components:
           $ref: "#/components/schemas/Money"
         frequency:
           $ref: "#/components/schemas/RecurringFrequency"
+    SavingsContributionUpdateRequest:
+      type: object
+      description: >-
+        "#4: point a declared contribution at the goal it funds. goal_id null
+        unlinks."
+      properties:
+        goal_id:
+          type: [string, "null"]
     SavingsContributionDismissRequest:
       type: object
       description: Tell the app a detected route is not saving.
@@ -6036,6 +6088,34 @@ components:
         - real_estate
         - other_asset
         - other_liability
+    GoalFundingSource:
+      type: object
+      required: [contribution_id, destination_name, amount, frequency]
+      properties:
+        contribution_id:
+          type: string
+        destination_name:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        frequency:
+          $ref: "#/components/schemas/RecurringFrequency"
+    GoalFunding:
+      type: object
+      required: [monthly_equivalent, funded_by, status]
+      properties:
+        monthly_equivalent:
+          $ref: "#/components/schemas/Money"
+        funded_by:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFundingSource"
+        projected_completion:
+          type: [string, "null"]
+          format: date
+        status:
+          description: unfunded | funded_no_date | on_track | behind
+          type: string
     Goal:
       type: object
       required:
@@ -6067,6 +6147,12 @@ components:
         monthly_contribution:
           description: "M118: planned monthly contribution, reserved by the spending plan."
           $ref: "#/components/schemas/Money"
+        funding:
+          description: >-
+            "#4: what the ledger shows filling this goal. Payroll deductions
+            never appear in the feed, so status 'unfunded' means no linked
+            transfers, not no money — retirement goals especially."
+          $ref: "#/components/schemas/GoalFunding"
     GoalUpdateRequest:
       type: object
       description: >-

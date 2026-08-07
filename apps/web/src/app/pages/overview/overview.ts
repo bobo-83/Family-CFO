@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, resource, signal } from '@angular/core';
+import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -445,6 +445,59 @@ export class Overview {
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(apiErrorMessage(error, 'Failed to dismiss that transfer.'));
+      return;
+    }
+    this.household.reload();
+  }
+
+  // --- #4: linking contributions to the goals they fund ----------------------
+
+  /** Goal names only matter once a row is linked or carries a suggestion. */
+  private readonly needsGoalNames = computed(() => {
+    const rows = this.household.value()?.savings_contributions ?? [];
+    return rows.some((c) => c.goal_id || c.suggested_goal_id);
+  });
+
+  /**
+   * The context exposes goal ids only (top_goal aside), so names are fetched
+   * lazily via the goals list — and only when there is a link or suggestion
+   * to label. An error degrades to no labels, never a broken overview.
+   */
+  protected readonly goalNames = resource({
+    params: () => (this.needsGoalNames() ? true : undefined),
+    loader: async () => {
+      const { data, error } = await this.api.listGoals();
+      if (error || !data) {
+        return {} as Record<string, string>;
+      }
+      return Object.fromEntries(data.goals.map((goal) => [goal.id, goal.name]));
+    },
+  });
+
+  protected goalName(goalId: string | null | undefined): string | null {
+    if (!goalId) {
+      return null;
+    }
+    return this.goalNames.value()?.[goalId] ?? null;
+  }
+
+  /** One PATCH does both directions: a goal id links, null unlinks. */
+  protected async linkContributionToGoal(
+    contribution: SavingsContribution,
+    goalId: string | null,
+  ): Promise<void> {
+    const contributionId = contribution.contribution_id;
+    if (!contributionId || this.savingsSubmitting()) {
+      return;
+    }
+    this.savingsSubmitting.set(true);
+    this.savingsError.set(null);
+    const { error } = await this.api.updateSavingsContribution(contributionId, goalId);
+    this.savingsSubmitting.set(false);
+    if (error) {
+      this.savingsError.set(
+        apiErrorMessage(error, goalId ? 'Failed to link the goal.' : 'Failed to unlink the goal.'),
+      );
       return;
     }
     this.household.reload();

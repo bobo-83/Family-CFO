@@ -255,6 +255,11 @@ class SavingsContribution(BaseModel):
     # detected route as "not saving".
     source_account_id: str = ""
     destination_account_id: str = ""
+    # #4: the goal this contribution funds, and — for unlinked declared
+    # contributions — the goal the destination's type suggests, offered for
+    # one-tap confirmation.
+    goal_id: str | None = None
+    suggested_goal_id: str | None = None
 
 
 class SavingsContributionCreateRequest(BaseModel):
@@ -265,6 +270,14 @@ class SavingsContributionCreateRequest(BaseModel):
     destination_account_id: str
     amount: Money
     frequency: RecurringFrequency
+
+
+class SavingsContributionUpdateRequest(BaseModel):
+    """#4: point a declared contribution at the goal it funds.
+
+    goal_id null unlinks; the field must be PRESENT to change anything."""
+
+    goal_id: str | None = None
 
 
 class SavingsContributionDismissRequest(BaseModel):
@@ -533,6 +546,27 @@ class IncomeSource(BaseModel):
     frequency: RecurringFrequency
 
 
+class GoalFundingSource(BaseModel):
+    """#4: one linked contribution, as a goal sees it."""
+
+    contribution_id: str
+    destination_name: str
+    amount: Money
+    frequency: RecurringFrequency
+
+
+class GoalFunding(BaseModel):
+    """#4: what the ledger shows filling a goal. Payroll deductions never
+    appear (#201), so "unfunded" means "no linked transfers", not "no money" —
+    retirement goals especially. UIs must word it that way."""
+
+    monthly_equivalent: Money
+    funded_by: list[GoalFundingSource] = Field(default_factory=list)
+    projected_completion: date | None = None
+    # unfunded | funded_no_date | on_track | behind
+    status: str
+
+
 class Goal(BaseModel):
     id: str
     name: str
@@ -543,6 +577,8 @@ class Goal(BaseModel):
     priority: int = Field(ge=1, le=5)
     # M118: planned monthly contribution — reserved by the spending plan.
     monthly_contribution: Money | None = None
+    # #4: observed funding from linked contributions.
+    funding: GoalFunding | None = None
 
 
 class GoalUpdateRequest(BaseModel):
