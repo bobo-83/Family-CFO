@@ -4,24 +4,24 @@
       <mat-card-title>Family CFO</mat-card-title>
     </mat-card-header>
     <mat-card-content>
-      <p class="login__subtitle">
+      <p class="login__subtitle" i18n="Login page|Sign-in intro; the link starts household creation">
         Sign in to your self-hosted household instance, or
         <a routerLink="/signup">create a new household</a> if this is a fresh setup.
       </p>
 
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="login__form">
         <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
+          <mat-label i18n="Form field label|Email address">Email</mat-label>
           <input matInput type="email" formControlName="email" autocomplete="username" />
           @if (form.controls.email.hasError('required')) {
-            <mat-error>Email is required.</mat-error>
+            <mat-error i18n="Validation message">Email is required.</mat-error>
           } @else if (form.controls.email.hasError('email')) {
-            <mat-error>Enter a valid email address.</mat-error>
+            <mat-error i18n="Validation message">Enter a valid email address.</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Password</mat-label>
+          <mat-label i18n="Form field label|Account password">Password</mat-label>
           <input
             matInput
             type="password"
@@ -29,7 +29,7 @@
             autocomplete="current-password"
           />
           @if (form.controls.password.invalid) {
-            <mat-error>Password must be at least 8 characters.</mat-error>
+            <mat-error i18n="Validation message">Password must be at least 8 characters.</mat-error>
           }
         </mat-form-field>
 
@@ -37,8 +37,14 @@
           <p class="login__error-banner" role="alert">{{ message }}</p>
         }
 
-        <button mat-flat-button type="submit" class="login__submit" [disabled]="submitting()">
-          {{ submitting() ? 'Signing in…' : 'Sign in' }}
+        <button
+          mat-flat-button
+          type="submit"
+          class="login__submit"
+          [disabled]="submitting()"
+          i18n="Login submit button|Signs in, showing progress while the request is in flight"
+        >
+          {submitting(), select, true {Signing in…} other {Sign in}}
         </button>
       </form>
     </mat-card-content>

@@ -25,42 +25,42 @@ import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 
 const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
-  no_bills: 'Add bills to measure',
-  no_fund: 'Not started',
-  getting_started: 'Getting started',
-  on_track: 'On track',
-  fully_funded: 'Fully funded',
+  no_bills: $localize`:Emergency fund status|No bills recorded so coverage cannot be measured:Add bills to measure`,
+  no_fund: $localize`:Emergency fund status|Nothing set aside yet:Not started`,
+  getting_started: $localize`:Emergency fund status|Some months of cover saved:Getting started`,
+  on_track: $localize`:Emergency fund status|Close to the target months of cover:On track`,
+  fully_funded: $localize`:Emergency fund status|Target months of cover reached:Fully funded`,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  liquid: 'Cash',
-  investments: 'Investments',
-  retirement: 'Retirement',
-  education: 'Education',
-  property: 'Property',
+  liquid: $localize`:Asset category|Cash and current accounts:Cash`,
+  investments: $localize`:Asset category|Brokerage and investment accounts:Investments`,
+  retirement: $localize`:Asset category|Retirement accounts such as a 401(k):Retirement`,
+  education: $localize`:Asset category|Education savings such as a 529:Education`,
+  property: $localize`:Asset category|Real estate and other property:Property`,
 };
 
 
 // #201: enums are for machines; a savings row reads "USD 500.00 monthly".
 const CADENCE_WORDS: Record<RecurringFrequency, string> = {
-  weekly: 'weekly',
-  biweekly: 'every two weeks',
-  semimonthly: 'twice a month',
-  monthly: 'monthly',
-  quarterly: 'quarterly',
-  semiannual: 'twice a year',
-  annual: 'yearly',
+  weekly: $localize`:Savings cadence|Happens once a week:weekly`,
+  biweekly: $localize`:Savings cadence|Happens once every two weeks:every two weeks`,
+  semimonthly: $localize`:Savings cadence|Happens twice a month:twice a month`,
+  monthly: $localize`:Savings cadence|Happens once a month:monthly`,
+  quarterly: $localize`:Savings cadence|Happens once every three months:quarterly`,
+  semiannual: $localize`:Savings cadence|Happens twice a year:twice a year`,
+  annual: $localize`:Savings cadence|Happens once a year:yearly`,
 };
 
 // M75: human labels for goal types (raw enums leaked into the UI).
 const GOAL_TYPE_LABELS: Record<string, string> = {
-  emergency_fund: 'Emergency fund',
-  vacation: 'Vacation',
-  retirement: 'Retirement',
-  college: 'College',
-  vehicle: 'Vehicle',
-  renovation: 'Renovation',
-  other: 'Other',
+  emergency_fund: $localize`:Goal type|Saving for an emergency fund:Emergency fund`,
+  vacation: $localize`:Goal type|Saving for a holiday:Vacation`,
+  retirement: $localize`:Goal type|Saving for retirement:Retirement`,
+  college: $localize`:Goal type|Saving for college tuition:College`,
+  vehicle: $localize`:Goal type|Saving for a car or other vehicle:Vehicle`,
+  renovation: $localize`:Goal type|Saving for home renovation:Renovation`,
+  other: $localize`:Goal type|Any other kind of savings goal:Other`,
 };
 
 @Component({
@@ -126,7 +126,9 @@ export class Overview {
     const { data, error } = await this.api.getYearlyOverview(year);
     this.yearLoading.set(false);
     if (error || !data) {
-      this.yearError.set(apiErrorMessage(error, 'Failed to load the year.'));
+      this.yearError.set(
+        apiErrorMessage(error, $localize`:Error message|The yearly overview could not be loaded:Failed to load the year.`),
+      );
       return;
     }
     this.yearData.set(data);
@@ -146,7 +148,9 @@ export class Overview {
     const { data, error } = await this.api.generateYearlyReview(this.yearData()?.year);
     this.yearGenerating.set(false);
     if (error || !data) {
-      this.yearError.set(apiErrorMessage(error, 'Could not write the year review.'));
+      this.yearError.set(
+        apiErrorMessage(error, $localize`:Error message|The AI written year review could not be generated:Could not write the year review.`),
+      );
       return;
     }
     const overview = this.yearData();
@@ -170,7 +174,20 @@ export class Overview {
 
   protected yearMonthLabel(month: string): string {
     const index = Number(month.slice(5, 7)) - 1;
-    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][index] ?? month;
+    return [
+      $localize`:Month abbreviation|Short name for January:Jan`,
+      $localize`:Month abbreviation|Short name for February:Feb`,
+      $localize`:Month abbreviation|Short name for March:Mar`,
+      $localize`:Month abbreviation|Short name for April:Apr`,
+      $localize`:Month abbreviation|Short name for May:May`,
+      $localize`:Month abbreviation|Short name for June:Jun`,
+      $localize`:Month abbreviation|Short name for July:Jul`,
+      $localize`:Month abbreviation|Short name for August:Aug`,
+      $localize`:Month abbreviation|Short name for September:Sep`,
+      $localize`:Month abbreviation|Short name for October:Oct`,
+      $localize`:Month abbreviation|Short name for November:Nov`,
+      $localize`:Month abbreviation|Short name for December:Dec`,
+    ][index] ?? month;
   }
 
   protected yearFocused() {
@@ -181,7 +198,20 @@ export class Overview {
 
   protected yearMonthLongLabel(month: string): string {
     const index = Number(month.slice(5, 7)) - 1;
-    const name = ['January','February','March','April','May','June','July','August','September','October','November','December'][index];
+    const name = [
+      $localize`:Month name|Full name of the first month:January`,
+      $localize`:Month name|Full name of the second month:February`,
+      $localize`:Month name|Full name of the third month:March`,
+      $localize`:Month name|Full name of the fourth month:April`,
+      $localize`:Month name|Full name of the fifth month:May`,
+      $localize`:Month name|Full name of the sixth month:June`,
+      $localize`:Month name|Full name of the seventh month:July`,
+      $localize`:Month name|Full name of the eighth month:August`,
+      $localize`:Month name|Full name of the ninth month:September`,
+      $localize`:Month name|Full name of the tenth month:October`,
+      $localize`:Month name|Full name of the eleventh month:November`,
+      $localize`:Month name|Full name of the twelfth month:December`,
+    ][index];
     return name ? `${name} ${month.slice(0, 4)}` : month;
   }
 
@@ -193,8 +223,8 @@ export class Overview {
     const label = this.yearMonthLongLabel(month);
     const ask =
       kind === 'income'
-        ? `What made up my income in ${label}? List where the money came from.`
-        : `What made up my spending in ${label}? Break it down by category and biggest merchants.`;
+        ? $localize`:Advisor question|Prefilled question about a month's income:What made up my income in ${label}:month:? List where the money came from.`
+        : $localize`:Advisor question|Prefilled question about a month's spending:What made up my spending in ${label}:month:? Break it down by category and biggest merchants.`;
     void this.router.navigate(['/chat'], { queryParams: { ask } });
   }
 
@@ -202,7 +232,9 @@ export class Overview {
     loader: async () => {
       const { data, error } = await this.api.getHouseholdContext();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load household overview.'));
+        throw new Error(
+          apiErrorMessage(error, $localize`:Error message|The overview page data could not be loaded:Failed to load household overview.`),
+        );
       }
       return data;
     },
@@ -249,11 +281,11 @@ export class Overview {
    */
   protected runwayActionLabel(cash: CashOutlookResponse): string {
     if (cash.runway_action === 'move_cash') {
-      return 'Free up cash';
+      return $localize`:Cash outlook action|Move money from savings into the current account:Free up cash`;
     }
     return cash.sell_units && cash.sell_ticker
-      ? `Sell RSUs (≈ ${cash.sell_units} ${cash.sell_ticker})`
-      : 'Sell RSUs';
+      ? $localize`:Cash outlook action|Sell vested stock, with the share count and ticker:Sell RSUs (≈ ${cash.sell_units}:units: ${cash.sell_ticker}:ticker:)`
+      : $localize`:Cash outlook action|Sell vested stock to cover the shortfall:Sell RSUs`;
   }
 
   protected efStatusLabel(fund: EmergencyFundSummary): string {
@@ -275,17 +307,13 @@ export class Overview {
    * Required honesty footnote, verbatim on both platforms: detection only sees
    * transfers, so a 401(k) withheld before pay lands is invisible here.
    */
-  protected readonly savingsFootnote =
-    'Detected from transfers between your accounts. ' +
-    "Payroll deductions like a 401(k) don't appear here.";
+  protected readonly savingsFootnote = $localize`:Savings section footnote|Only transfers between accounts are detected, payroll deductions are not:Detected from transfers between your accounts. Payroll deductions like a 401(k) don't appear here.`;
 
   /**
    * #207: explains the "inferred" marker. Informational, not a warning — a 529
    * the aggregator doesn't carry is the normal case, not a degraded result.
    */
-  protected readonly savingsInferredFootnote =
-    'Rows marked inferred were matched from the money leaving your account — ' +
-    "the destination isn't synced.";
+  protected readonly savingsInferredFootnote = $localize`:Savings section footnote|Explains the inferred marker on a savings row:Rows marked inferred were matched from the money leaving your account — the destination isn't synced.`;
 
   protected hasInferredContribution(contributions: SavingsContribution[]): boolean {
     return contributions.some((c) => c.inferred === true);
@@ -305,7 +333,9 @@ export class Overview {
       return cadence;
     }
     const times =
-      contribution.occurrences === 1 ? 'seen 1 time' : `seen ${contribution.occurrences} times`;
+      contribution.occurrences === 1
+        ? $localize`:Savings row evidence|The transfer was detected exactly once:seen 1 time`
+        : $localize`:Savings row evidence|How many times the transfer was detected:seen ${contribution.occurrences}:count: times`;
     return `${cadence} · ${times}`;
   }
 
@@ -333,13 +363,22 @@ export class Overview {
   protected savingsSources(rate: SavingsRate): { label: string; amount: Money }[] {
     const sources: { label: string; amount: Money }[] = [];
     if (rate.transfers && rate.transfers.amount_minor !== 0) {
-      sources.push({ label: 'transfers', amount: rate.transfers });
+      sources.push({
+        label: $localize`:Savings rate source|Money saved by moving it between accounts:transfers`,
+        amount: rate.transfers,
+      });
     }
     if (rate.payroll_deductions && rate.payroll_deductions.amount_minor !== 0) {
-      sources.push({ label: 'payroll (401k/HSA)', amount: rate.payroll_deductions });
+      sources.push({
+        label: $localize`:Savings rate source|Money saved before pay lands, such as a 401k or HSA:payroll (401k/HSA)`,
+        amount: rate.payroll_deductions,
+      });
     }
     if (rate.residual && rate.residual.amount_minor !== 0) {
-      sources.push({ label: 'residual', amount: rate.residual });
+      sources.push({
+        label: $localize`:Savings rate source|Take-home pay left unspent and unmoved:residual`,
+        amount: rate.residual,
+      });
     }
     return sources;
   }
@@ -370,7 +409,9 @@ export class Overview {
     loader: async () => {
       const { data, error } = await this.api.listAccounts();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load accounts.'));
+        throw new Error(
+          apiErrorMessage(error, $localize`:Error message|The account list could not be loaded:Failed to load accounts.`),
+        );
       }
       return data.accounts;
     },
@@ -419,7 +460,9 @@ export class Overview {
     });
     this.savingsSubmitting.set(false);
     if (error) {
-      this.savingsError.set(apiErrorMessage(error, 'Failed to save the contribution.'));
+      this.savingsError.set(
+        apiErrorMessage(error, $localize`:Error message|A declared savings contribution could not be saved:Failed to save the contribution.`),
+      );
       return;
     }
     this.declaring.set(false);
@@ -437,7 +480,9 @@ export class Overview {
     const { error } = await this.api.deleteSavingsContribution(contributionId);
     this.savingsSubmitting.set(false);
     if (error) {
-      this.savingsError.set(apiErrorMessage(error, 'Failed to stop tracking that contribution.'));
+      this.savingsError.set(
+        apiErrorMessage(error, $localize`:Error message|A tracked savings contribution could not be removed:Failed to stop tracking that contribution.`),
+      );
       return;
     }
     this.household.reload();
@@ -467,7 +512,9 @@ export class Overview {
     });
     this.savingsSubmitting.set(false);
     if (error) {
-      this.savingsError.set(apiErrorMessage(error, 'Failed to dismiss that transfer.'));
+      this.savingsError.set(
+        apiErrorMessage(error, $localize`:Error message|A detected transfer could not be dismissed:Failed to dismiss that transfer.`),
+      );
       return;
     }
     this.household.reload();
@@ -497,6 +544,15 @@ export class Overview {
     },
   });
 
+  /**
+   * #10 phase 2: an interpolated `aria-label` cannot carry `i18n-aria-label` —
+   * Angular applies translated attributes as DOM properties, which would leave
+   * the button with no accessible name — so the label is built here instead.
+   */
+  protected unlinkGoalLabel(goalName: string): string {
+    return $localize`:Savings row goal link|Screen-reader name for the button that unlinks a goal from a savings contribution:Unlink from ${goalName}:goal:`;
+  }
+
   protected goalName(goalId: string | null | undefined): string | null {
     if (!goalId) {
       return null;
@@ -519,7 +575,12 @@ export class Overview {
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(
-        apiErrorMessage(error, goalId ? 'Failed to link the goal.' : 'Failed to unlink the goal.'),
+        apiErrorMessage(
+          error,
+          goalId
+            ? $localize`:Error message|A savings contribution could not be linked to a goal:Failed to link the goal.`
+            : $localize`:Error message|A savings contribution could not be unlinked from a goal:Failed to unlink the goal.`,
+        ),
       );
       return;
     }
@@ -559,8 +620,7 @@ export class Overview {
     { value: 'lt', label: 'Lietuvių' },
   ] as const;
 
-  protected readonly languageHint =
-    'The advisor answers in this language. Screens follow in a later update.';
+  protected readonly languageHint = $localize`:Household language hint|Explains what the language setting changes:The advisor answers in this language. Screens follow in a later update.`;
 
   /** Optimistic pick shown while saving; null means "use the context value". */
   protected readonly languageInput = signal<string | null>(null);
@@ -588,7 +648,9 @@ export class Overview {
     this.savingLanguage.set(false);
     if (error) {
       // The server 422s an unsupported value; show its message and revert.
-      this.languageError.set(apiErrorMessage(error, 'Failed to change the language.'));
+      this.languageError.set(
+        apiErrorMessage(error, $localize`:Error message|The household answer language could not be changed:Failed to change the language.`),
+      );
       this.languageInput.set(previous);
       return;
     }
@@ -625,7 +687,7 @@ export class Overview {
     this.savingCommittedReserve.set(false);
     if (error) {
       this.committedReserveError.set(
-        apiErrorMessage(error, 'Failed to update committed savings.'),
+        apiErrorMessage(error, $localize`:Error message|The committed savings setting could not be saved:Failed to update committed savings.`),
       );
       this.committedReserveInput.set(previous);
       return;
@@ -635,12 +697,12 @@ export class Overview {
 
   protected dueLabel(daysUntil: number): string {
     if (daysUntil <= 0) {
-      return 'Due today';
+      return $localize`:Bill due label|The bill is due today:Due today`;
     }
     if (daysUntil === 1) {
-      return 'Due tomorrow';
+      return $localize`:Bill due label|The bill is due tomorrow:Due tomorrow`;
     }
-    return `Due in ${daysUntil} days`;
+    return $localize`:Bill due label|How many days until the bill is due:Due in ${daysUntil}:days: days`;
   }
 
   /**

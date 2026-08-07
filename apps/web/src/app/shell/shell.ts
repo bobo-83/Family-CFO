@@ -46,41 +46,107 @@ export class Shell {
     {
       label: null,
       items: [
-        { path: '/overview', label: 'Overview' },
-        { path: '/chat', label: 'Advisor', right: 'advisor.use' },
+        {
+          path: '/overview',
+          label: $localize`:Sidebar nav item|Link to the household overview page:Overview`,
+        },
+        {
+          path: '/chat',
+          label: $localize`:Sidebar nav item|Link to the AI advisor chat page:Advisor`,
+          right: 'advisor.use',
+        },
       ],
     },
     {
-      label: 'Money',
+      label: $localize`:Sidebar nav group|Heading over the money pages:Money`,
       items: [
-        { path: '/accounts', label: 'Accounts' },
-        { path: '/transactions', label: 'Transactions' },
-        { path: '/bills', label: 'Bills' },
-        { path: '/loans', label: 'Debts & loans' },
-        { path: '/income-tax', label: 'Income & tax' },
-        { path: '/budgets', label: 'Budgets' },
-        { path: '/categories', label: 'Categories' },
-        { path: '/goals', label: 'Goals' },
+        {
+          path: '/accounts',
+          label: $localize`:Sidebar nav item|Link to the bank and asset accounts page:Accounts`,
+        },
+        {
+          path: '/transactions',
+          label: $localize`:Sidebar nav item|Link to the transactions ledger page:Transactions`,
+        },
+        {
+          path: '/bills',
+          label: $localize`:Sidebar nav item|Link to the recurring bills page:Bills`,
+        },
+        {
+          path: '/loans',
+          label: $localize`:Sidebar nav item|Link to the debts and loans page:Debts & loans`,
+        },
+        {
+          path: '/income-tax',
+          label: $localize`:Sidebar nav item|Link to the income and tax page:Income & tax`,
+        },
+        {
+          path: '/budgets',
+          label: $localize`:Sidebar nav item|Link to the budget envelopes page:Budgets`,
+        },
+        {
+          path: '/categories',
+          label: $localize`:Sidebar nav item|Link to the spending categories page:Categories`,
+        },
+        {
+          path: '/goals',
+          label: $localize`:Sidebar nav item|Link to the savings goals page:Goals`,
+        },
       ],
     },
     {
-      label: 'AI',
+      label: $localize`:Sidebar nav group|Heading over the AI advisor pages:AI`,
       items: [
-        { path: '/memory', label: 'Advisor memory', right: 'advisor.manage' },
-        { path: '/ai-runtime', label: 'AI runtime', right: 'ai_runtime.manage' },
+        {
+          path: '/memory',
+          label: $localize`:Sidebar nav item|Link to what the advisor remembers:Advisor memory`,
+          right: 'advisor.manage',
+        },
+        {
+          path: '/ai-runtime',
+          label: $localize`:Sidebar nav item|Link to the AI model runtime settings:AI runtime`,
+          right: 'ai_runtime.manage',
+        },
       ],
     },
     {
-      label: 'Admin',
+      label: $localize`:Sidebar nav group|Heading over the administration pages:Admin`,
       items: [
-        { path: '/imports', label: 'Imports', right: 'imports.manage' },
-        { path: '/reports', label: 'Reports', right: 'reports.manage' },
-        { path: '/backups', label: 'Backups', right: 'backups.manage' },
-        { path: '/users', label: 'Users', right: 'members.manage' },
-        { path: '/roles', label: 'Roles', right: 'roles.manage' },
-        { path: '/devices', label: 'Devices' },
+        {
+          path: '/imports',
+          label: $localize`:Sidebar nav item|Link to the statement imports page:Imports`,
+          right: 'imports.manage',
+        },
+        {
+          path: '/reports',
+          label: $localize`:Sidebar nav item|Link to the reports page:Reports`,
+          right: 'reports.manage',
+        },
+        {
+          path: '/backups',
+          label: $localize`:Sidebar nav item|Link to the backups page:Backups`,
+          right: 'backups.manage',
+        },
+        {
+          path: '/users',
+          label: $localize`:Sidebar nav item|Link to the household members page:Users`,
+          right: 'members.manage',
+        },
+        {
+          path: '/roles',
+          label: $localize`:Sidebar nav item|Link to the roles and rights page:Roles`,
+          right: 'roles.manage',
+        },
+        {
+          path: '/devices',
+          label: $localize`:Sidebar nav item|Link to the paired devices page:Devices`,
+        },
         // #180: operator hosting — only system admins ever see this.
-        { path: '/households', label: 'Households', right: 'system.admin' },
+        {
+          path: '/households',
+          label: $localize`:Sidebar nav item|Link to the hosted households page:Households`,
+          right: 'system.admin',
+        },
       ],
     },
   ];

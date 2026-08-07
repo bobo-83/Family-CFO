@@ -1,1682 +1,2592 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="vi" datatype="plaintext" original="ng2.template">
+  <file source-language="en" datatype="plaintext" original="ng2.template">
     <body>
       <trans-unit id="9140273881970816309" datatype="html">
         <source>Goals</source>
-        <target state="translated">Mục tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">1,4</context>
+        </context-group>
         <note priority="1" from="description">Savings goals page</note>
         <note priority="1" from="meaning">Page title</note>
       </trans-unit>
       <trans-unit id="2369742814572661392" datatype="html">
         <source>Loading…</source>
-        <target state="translated">Đang tải…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">5,8</context>
+        </context-group>
         <note priority="1" from="description">Loading placeholder</note>
       </trans-unit>
       <trans-unit id="4265124813922326466" datatype="html">
         <source>No goals yet.</source>
-        <target state="translated">Chưa có mục tiêu nào.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">13,16</context>
+        </context-group>
         <note priority="1" from="description">No savings goals have been created</note>
         <note priority="1" from="meaning">Empty state</note>
       </trans-unit>
       <trans-unit id="2932403995729316213" datatype="html">
         <source>Delete goal</source>
-        <target state="translated">Xóa mục tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">27,28</context>
+        </context-group>
         <note priority="1" from="description">Deletes this savings goal</note>
         <note priority="1" from="meaning">Button accessible name</note>
       </trans-unit>
       <trans-unit id="1959486318083221364" datatype="html">
         <source> Delete </source>
-        <target state="translated"> Xóa </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">31,32</context>
+        </context-group>
         <note priority="1" from="description">Deletes this savings goal</note>
         <note priority="1" from="meaning">Button</note>
       </trans-unit>
       <trans-unit id="8509475972323472194" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> trên <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">37,38</context>
+        </context-group>
         <note priority="1" from="description">Saved amount out of the goal target</note>
         <note priority="1" from="meaning">Goal progress</note>
       </trans-unit>
       <trans-unit id="2336493757534376295" datatype="html">
         <source>USD / month</source>
-        <target state="translated">USD / tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">60,64</context>
+        </context-group>
         <note priority="1" from="description">Planned contribution per month; USD is an ISO currency code and stays untranslated</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="5101383200570327613" datatype="html">
         <source> Save </source>
-        <target state="translated"> Lưu </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">78,80</context>
+        </context-group>
         <note priority="1" from="description">Saves the edited monthly contribution</note>
         <note priority="1" from="meaning">Button</note>
       </trans-unit>
       <trans-unit id="2522161747776883325" datatype="html">
         <source> Cancel </source>
-        <target state="translated"> Hủy </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">87,89</context>
+        </context-group>
         <note priority="1" from="description">Abandons the monthly contribution edit</note>
         <note priority="1" from="meaning">Button</note>
       </trans-unit>
       <trans-unit id="1089577409933976633" datatype="html">
         <source>saving <x id="INTERPOLATION" equiv-text="{{ formatMoney(contribution) }}"/>/month</source>
-        <target state="translated">tiết kiệm <x id="INTERPOLATION" equiv-text="{{ formatMoney(contribution) }}"/>/tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">91,92</context>
+        </context-group>
         <note priority="1" from="description">Declared monthly savings plan for this goal</note>
         <note priority="1" from="meaning">Goal contribution</note>
       </trans-unit>
       <trans-unit id="1253479922073983397" datatype="html">
         <source>no monthly savings plan</source>
-        <target state="translated">chưa có kế hoạch tiết kiệm hằng tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">93,95</context>
+        </context-group>
         <note priority="1" from="description">No monthly savings plan declared for this goal</note>
         <note priority="1" from="meaning">Goal contribution</note>
       </trans-unit>
       <trans-unit id="8615162588795134378" datatype="html">
         <source> Edit </source>
-        <target state="translated"> Sửa </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">103,105</context>
+        </context-group>
         <note priority="1" from="description">Starts editing the monthly contribution</note>
         <note priority="1" from="meaning">Button</note>
       </trans-unit>
       <trans-unit id="546797376268283512" datatype="html">
         <source>Add a goal</source>
-        <target state="translated">Thêm mục tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">120,121</context>
+        </context-group>
         <note priority="1" from="description">Form that creates a new savings goal</note>
         <note priority="1" from="meaning">Section heading</note>
       </trans-unit>
       <trans-unit id="6248608881629325204" datatype="html">
         <source>Name</source>
-        <target state="translated">Tên</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">123,124</context>
+        </context-group>
         <note priority="1" from="description">Name of the savings goal</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="5643539859814866769" datatype="html">
         <source>Type</source>
-        <target state="translated">Loại</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">128,130</context>
+        </context-group>
         <note priority="1" from="description">Kind of savings goal (emergency fund, vacation, …)</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="97945871587580672" datatype="html">
         <source>Target amount (USD)</source>
-        <target state="translated">Số tiền mục tiêu (USD)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">137,139</context>
+        </context-group>
         <note priority="1" from="description">Amount the goal is aiming for; USD is an ISO currency code and stays untranslated</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="7709115550361769480" datatype="html">
         <source>Priority (1 = highest)</source>
-        <target state="translated">Mức ưu tiên (1 = cao nhất)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">142,143</context>
+        </context-group>
         <note priority="1" from="description">Goal priority, 1 through 5</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="5236215855772872039" datatype="html">
         <source>Planned monthly contribution (USD, optional)</source>
-        <target state="translated">Khoản đóng góp hằng tháng dự kiến (USD, không bắt buộc)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">147,148</context>
+        </context-group>
         <note priority="1" from="description">Optional monthly savings plan; USD is an ISO currency code and stays untranslated</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="1760708847427196639" datatype="html">
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Saving…} other {Add goal}}" xid="675798765791329305"/> </source>
-        <target state="translated"> <x id="ICU" equiv-text="{submitting(), select, true {Saving…} other {Add goal}}" xid="675798765791329305"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">161,163</context>
+        </context-group>
         <note priority="1" from="description">Creates the goal, showing progress while the request is in flight</note>
         <note priority="1" from="meaning">Goal form submit button</note>
       </trans-unit>
       <trans-unit id="675798765791329305" datatype="html">
         <source>{VAR_SELECT, select, true {Saving…} other {Add goal}}</source>
-        <target state="translated">{VAR_SELECT, select, true {Đang lưu…} other {Thêm mục tiêu}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">161,162</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="6780788728412966283" datatype="html">
         <source>Only the household owner or an adult member can add goals.</source>
-        <target state="translated">Chỉ chủ hộ hoặc thành viên là người lớn mới có thể thêm mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
+          <context context-type="linenumber">167,169</context>
+        </context-group>
         <note priority="1" from="description">Shown instead of the create-goal form to members without the right</note>
         <note priority="1" from="meaning">Permission notice</note>
       </trans-unit>
       <trans-unit id="2611963283425689438" datatype="html">
         <source>weekly</source>
-        <target state="translated">hằng tuần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">17</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="1153651466402655780" datatype="html">
         <source>every two weeks</source>
-        <target state="translated">hai tuần một lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">18</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="8286079899140318045" datatype="html">
         <source>twice a month</source>
-        <target state="translated">hai lần mỗi tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">19</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="5109481468427357157" datatype="html">
         <source>monthly</source>
-        <target state="translated">hằng tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">20</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="7826429409887572994" datatype="html">
         <source>quarterly</source>
-        <target state="translated">hằng quý</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">21</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="2158060476581389180" datatype="html">
         <source>twice a year</source>
-        <target state="translated">hai lần mỗi năm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">22</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="3538160467710205519" datatype="html">
         <source>yearly</source>
-        <target state="translated">hằng năm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">23</context>
+        </context-group>
         <note priority="1" from="description">How often a contribution repeats</note>
         <note priority="1" from="meaning">Funding cadence</note>
       </trans-unit>
       <trans-unit id="699857777224939772" datatype="html">
         <source>Emergency fund</source>
-        <target state="translated">Quỹ khẩn cấp</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">61</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">57</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="236576982323975438" datatype="html">
         <source>Vacation</source>
-        <target state="translated">Du lịch</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">62</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">58</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="3873591218119777761" datatype="html">
         <source>Retirement</source>
-        <target state="translated">Nghỉ hưu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">63</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">59</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="2356892921642927749" datatype="html">
         <source>College</source>
-        <target state="translated">Học đại học</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">64</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">60</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="4597995900139550392" datatype="html">
         <source>Vehicle</source>
-        <target state="translated">Xe cộ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">65</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">61</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="946942330622614425" datatype="html">
         <source>Renovation</source>
-        <target state="translated">Sửa nhà</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">66</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">62</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="7719416234834274745" datatype="html">
         <source>Other</source>
-        <target state="translated">Khác</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">67</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">63</context>
+        </context-group>
         <note priority="1" from="description">Savings goal category</note>
         <note priority="1" from="meaning">Goal type</note>
       </trans-unit>
       <trans-unit id="7202178005841980841" datatype="html">
         <source>Failed to load goals.</source>
-        <target state="translated">Không tải được danh sách mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">79</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5286100286329699442" datatype="html">
         <source><x id="amount" equiv-text="formatMoney(funding.monthly_equivalent)"/>/mo</source>
-        <target state="translated"><x id="amount" equiv-text="formatMoney(funding.monthly_equivalent)"/>/tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">100</context>
+        </context-group>
         <note priority="1" from="description">Money going into a goal each month, e.g. &quot;USD 500.00/mo&quot;</note>
         <note priority="1" from="meaning">Funding rate</note>
       </trans-unit>
       <trans-unit id="5644063794298806344" datatype="html">
         <source> · projected <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/></source>
-        <target state="translated"> · dự kiến <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">104</context>
+        </context-group>
         <note priority="1" from="description">Appended when a completion month is projected</note>
         <note priority="1" from="meaning">Funding line fragment</note>
       </trans-unit>
       <trans-unit id="6230928449176896354" datatype="html">
         <source>On track — <x id="rate" equiv-text="monthly"/> going in<x id="projected" equiv-text="projected"/></source>
-        <target state="translated">Đúng tiến độ — <x id="rate" equiv-text="monthly"/> đang được nạp vào<x id="projected" equiv-text="projected"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">106</context>
+        </context-group>
         <note priority="1" from="description">The goal is on track</note>
         <note priority="1" from="meaning">Goal funding status</note>
       </trans-unit>
       <trans-unit id="1752982178364877367" datatype="html">
         <source> by <x id="month" equiv-text="this.monthLabel(goal.target_date)"/></source>
-        <target state="translated"> trước <x id="month" equiv-text="this.monthLabel(goal.target_date)"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">110</context>
+        </context-group>
         <note priority="1" from="description">Appended when the goal has a target date</note>
         <note priority="1" from="meaning">Funding line fragment</note>
       </trans-unit>
       <trans-unit id="6214441299987004116" datatype="html">
         <source> (projected <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/>)</source>
-        <target state="translated"> (dự kiến <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/>)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">113</context>
+        </context-group>
         <note priority="1" from="description">Appended in parentheses when a completion month is projected</note>
         <note priority="1" from="meaning">Funding line fragment</note>
       </trans-unit>
       <trans-unit id="324949656580614300" datatype="html">
         <source>Behind — <x id="rate" equiv-text="monthly"/> won&apos;t reach the target<x id="targetDate" equiv-text="target"/><x id="projected" equiv-text="projected"/></source>
-        <target state="translated">Chậm tiến độ — <x id="rate" equiv-text="monthly"/> sẽ không đạt mục tiêu<x id="targetDate" equiv-text="target"/><x id="projected" equiv-text="projected"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">115</context>
+        </context-group>
         <note priority="1" from="description">The current rate will not reach the target</note>
         <note priority="1" from="meaning">Goal funding status</note>
       </trans-unit>
       <trans-unit id="4001882907836180254" datatype="html">
         <source><x id="rate" equiv-text="monthly"/> going in</source>
-        <target state="translated"><x id="rate" equiv-text="monthly"/> đang được nạp vào</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">118</context>
+        </context-group>
         <note priority="1" from="description">Money is going in but no completion month is projected</note>
         <note priority="1" from="meaning">Goal funding status</note>
       </trans-unit>
       <trans-unit id="8435042124171738958" datatype="html">
         <source>No linked transfers — 401(k) payroll deductions don&apos;t appear here.</source>
-        <target state="translated">Chưa liên kết khoản chuyển nào — khoản trừ lương 401(k) không hiện ở đây.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">121</context>
+        </context-group>
         <note priority="1" from="description">Retirement goals are fed by payroll deductions the ledger never sees</note>
         <note priority="1" from="meaning">Goal funding status</note>
       </trans-unit>
       <trans-unit id="420109387829658716" datatype="html">
         <source>Nothing is currently funding this goal</source>
-        <target state="translated">Hiện chưa có khoản nào nạp vào mục tiêu này</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">122</context>
+        </context-group>
         <note priority="1" from="description">No linked transfers feed this goal</note>
         <note priority="1" from="meaning">Goal funding status</note>
       </trans-unit>
       <trans-unit id="4387592975579918673" datatype="html">
         <source><x id="destination" equiv-text="source.destination_name"/> · <x id="amount" equiv-text="formatMoney(source.amount)"/> <x id="cadence" equiv-text="cadence"/></source>
-        <target state="translated"><x id="destination" equiv-text="source.destination_name"/> · <x id="amount" equiv-text="formatMoney(source.amount)"/> <x id="cadence" equiv-text="cadence"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">131</context>
+        </context-group>
         <note priority="1" from="description">One contribution feeding a goal, e.g. &quot;College 529 · USD 500.00 monthly&quot;</note>
         <note priority="1" from="meaning">Goal funding source</note>
       </trans-unit>
       <trans-unit id="1624235949099791190" datatype="html">
         <source>Delete the goal &quot;<x id="name" equiv-text="name"/>&quot;?</source>
-        <target state="translated">Xóa mục tiêu &quot;<x id="name" equiv-text="name"/>&quot;?</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">153</context>
+        </context-group>
         <note priority="1" from="description">Browser confirm before a goal is deleted</note>
         <note priority="1" from="meaning">Confirmation</note>
       </trans-unit>
       <trans-unit id="3498936182515668304" datatype="html">
         <source>Failed to delete the goal.</source>
-        <target state="translated">Không xóa được mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">158</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="506168561046419034" datatype="html">
         <source>Failed to save the contribution.</source>
-        <target state="translated">Không lưu được khoản đóng góp.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">188</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="7202213779900375087" datatype="html">
         <source>Failed to create goal.</source>
-        <target state="translated">Không tạo được mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/goals/goals.ts</context>
+          <context context-type="linenumber">226</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="3750381822278489140" datatype="html">
         <source>Checking your invitation…</source>
-        <target state="translated">Đang kiểm tra lời mời của bạn…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">8,10</context>
+        </context-group>
         <note priority="1" from="description">Shown while the invite link is being verified</note>
         <note priority="1" from="meaning">Invite page</note>
       </trans-unit>
       <trans-unit id="3139466467303009211" datatype="html">
         <source> You&apos;ve been invited to join <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ invite.household_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_BLOCK_IF" equiv-text="@if (invite.role_name) {"/> as <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ invite.role_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/> — set up your account for <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ invite.email }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/>. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span class=&quot;join__expiry&quot;&gt;"/>Invitation valid until <x id="INTERPOLATION_3" equiv-text="{{ invite.expires_at | date: &apos;MMM d, y&apos; }}"/>.<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></source>
-        <target state="translated"> Bạn được mời tham gia <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ invite.household_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_BLOCK_IF" equiv-text="@if (invite.role_name) {"/> với vai trò <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ invite.role_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/> — hãy thiết lập tài khoản cho <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ invite.email }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/>. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span class=&quot;join__expiry&quot;&gt;"/>Lời mời có hiệu lực đến <x id="INTERPOLATION_3" equiv-text="{{ invite.expires_at | date: &apos;MMM d, y&apos; }}"/>.<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">16,24</context>
+        </context-group>
         <note priority="1" from="description">Who invited the visitor, to which household and role, and how long the link lasts</note>
         <note priority="1" from="meaning">Invite page</note>
       </trans-unit>
       <trans-unit id="4749276270222806682" datatype="html">
         <source>Your name</source>
-        <target state="translated">Tên của bạn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">26,27</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">30,31</context>
+        </context-group>
         <note priority="1" from="description">Display name of the person joining</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="4968369344159400023" datatype="html">
         <source>Your name is required.</source>
-        <target state="translated">Vui lòng nhập tên của bạn.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">29,31</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="1223159629530516956" datatype="html">
         <source>Choose a password</source>
-        <target state="translated">Chọn mật khẩu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">34,37</context>
+        </context-group>
         <note priority="1" from="description">Password the invitee picks</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="5906359199564086241" datatype="html">
         <source>Password must be at least 8 characters.</source>
-        <target state="translated">Mật khẩu phải có ít nhất 8 ký tự.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">42,44</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">32,34</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">54,56</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="1748978789267724802" datatype="html">
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Joining…} other {Join the household}}" xid="2870591351420269015"/> </source>
-        <target state="translated"> <x id="ICU" equiv-text="{submitting(), select, true {Joining…} other {Join the household}}" xid="2870591351420269015"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">57,59</context>
+        </context-group>
         <note priority="1" from="description">Accepts the invitation, showing progress while the request is in flight</note>
         <note priority="1" from="meaning">Invite submit button</note>
       </trans-unit>
       <trans-unit id="2870591351420269015" datatype="html">
         <source>{VAR_SELECT, select, true {Joining…} other {Join the household}}</source>
-        <target state="translated">{VAR_SELECT, select, true {Đang tham gia…} other {Tham gia hộ gia đình}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">57,58</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="4381321671747267012" datatype="html">
         <source>This invite link is incomplete — ask for a new one.</source>
-        <target state="translated">Liên kết mời này chưa đầy đủ — hãy xin một liên kết mới.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.ts</context>
+          <context context-type="linenumber">59</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="1967095384444997041" datatype="html">
         <source>This invite link is invalid or expired — ask for a new one.</source>
-        <target state="translated">Liên kết mời này không hợp lệ hoặc đã hết hạn — hãy xin một liên kết mới.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.ts</context>
+          <context context-type="linenumber">66</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5082522811197004994" datatype="html">
         <source>Could not join — the link may have expired. Ask for a new one.</source>
-        <target state="translated">Không tham gia được — liên kết có thể đã hết hạn. Hãy xin một liên kết mới.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.ts</context>
+          <context context-type="linenumber">89</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="8970269124361727564" datatype="html">
         <source> Sign in to your self-hosted household instance, or <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/signup&quot;&gt;"/>create a new household<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> if this is a fresh setup. </source>
-        <target state="translated"> Đăng nhập vào bản cài đặt hộ gia đình của bạn, hoặc <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/signup&quot;&gt;"/>tạo hộ gia đình mới<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> nếu đây là lần thiết lập đầu tiên. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">8,12</context>
+        </context-group>
         <note priority="1" from="description">Sign-in intro; the link starts household creation</note>
         <note priority="1" from="meaning">Login page</note>
       </trans-unit>
       <trans-unit id="7103412595944854458" datatype="html">
         <source>Email</source>
-        <target state="translated">Email</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">14,15</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">38,39</context>
+        </context-group>
         <note priority="1" from="description">Email address</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="8602814243662345124" datatype="html">
         <source>Email is required.</source>
-        <target state="translated">Vui lòng nhập email.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">17,18</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="2112768397949905814" datatype="html">
         <source>Enter a valid email address.</source>
-        <target state="translated">Nhập địa chỉ email hợp lệ.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">19,21</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">41,43</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="428746941066781988" datatype="html">
         <source>Password</source>
-        <target state="translated">Mật khẩu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">24,26</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">46,48</context>
+        </context-group>
         <note priority="1" from="description">Account password</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="1872917179096110500" datatype="html">
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Signing in…} other {Sign in}}" xid="1656161040494514078"/> </source>
-        <target state="translated"> <x id="ICU" equiv-text="{submitting(), select, true {Signing in…} other {Sign in}}" xid="1656161040494514078"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">47,49</context>
+        </context-group>
         <note priority="1" from="description">Signs in, showing progress while the request is in flight</note>
         <note priority="1" from="meaning">Login submit button</note>
       </trans-unit>
       <trans-unit id="1656161040494514078" datatype="html">
         <source>{VAR_SELECT, select, true {Signing in…} other {Sign in}}</source>
-        <target state="translated">{VAR_SELECT, select, true {Đang đăng nhập…} other {Đăng nhập}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">47,48</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="612058855560391284" datatype="html">
         <source>Login failed.</source>
-        <target state="translated">Đăng nhập thất bại.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">54</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5451291544726809480" datatype="html">
         <source>Overview</source>
-        <target state="translated">Tổng quan</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">1,6</context>
+        </context-group>
         <note priority="1" from="description">Heading of the household overview page</note>
         <note priority="1" from="meaning">Overview page title</note>
       </trans-unit>
       <trans-unit id="7856702981317211162" datatype="html">
         <source>View mode</source>
-        <target state="translated">Chế độ xem</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">7,12</context>
+        </context-group>
         <note priority="1" from="description">Screen-reader name for the month or year switch</note>
         <note priority="1" from="meaning">Overview mode switch</note>
       </trans-unit>
       <trans-unit id="2502809452033588947" datatype="html">
         <source> Month </source>
-        <target state="translated"> Tháng </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">16,21</context>
+        </context-group>
         <note priority="1" from="description">Shows the current month&apos;s figures</note>
         <note priority="1" from="meaning">Overview mode switch</note>
       </trans-unit>
       <trans-unit id="7069140429695837692" datatype="html">
         <source> Year </source>
-        <target state="translated"> Năm </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">25,30</context>
+        </context-group>
         <note priority="1" from="description">Shows the whole year&apos;s figures</note>
         <note priority="1" from="meaning">Overview mode switch</note>
       </trans-unit>
       <trans-unit id="2779769495761370454" datatype="html">
         <source>Loading the year…</source>
-        <target state="translated">Đang tải dữ liệu năm…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">41,43</context>
+        </context-group>
         <note priority="1" from="description">Shown while the year&apos;s figures are fetched</note>
         <note priority="1" from="meaning">Year mode loading</note>
       </trans-unit>
       <trans-unit id="7812067104639796495" datatype="html">
         <source>No transactions recorded in <x id="INTERPOLATION" equiv-text="{{ year.year }}"/>.</source>
-        <target state="translated">Không có giao dịch nào trong năm <x id="INTERPOLATION" equiv-text="{{ year.year }}"/>.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">44,45</context>
+        </context-group>
         <note priority="1" from="description">No transactions exist for the chosen year</note>
         <note priority="1" from="meaning">Year mode empty state</note>
       </trans-unit>
       <trans-unit id="7660964294946348691" datatype="html">
         <source>Monthly income and spending</source>
-        <target state="translated">Thu nhập và chi tiêu theo tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">50,54</context>
+        </context-group>
         <note priority="1" from="description">Screen-reader name for the monthly income and spending bar chart</note>
         <note priority="1" from="meaning">Year chart</note>
       </trans-unit>
       <trans-unit id="4092492150401251149" datatype="html">
         <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ yearMonthLabel(focus.month) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> · in <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(focus.income) }}"/> · out <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(focus.spending) }}"/> · kept <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(focus.net) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (focus.net_worth_eom; as networth) {"/> · net worth <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(networth) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ yearMonthLabel(focus.month) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> · vào <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(focus.income) }}"/> · ra <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(focus.spending) }}"/> · giữ lại <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(focus.net) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (focus.net_worth_eom; as networth) {"/> · giá trị ròng <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(networth) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">70,78</context>
+        </context-group>
         <note priority="1" from="description">Figures for the month tapped in the chart</note>
         <note priority="1" from="meaning">Year chart focus</note>
       </trans-unit>
       <trans-unit id="2417090209925027361" datatype="html">
         <source> ✨ Explain income </source>
-        <target state="translated"> ✨ Giải thích thu nhập </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">87,90</context>
+        </context-group>
         <note priority="1" from="description">Asks the advisor to break down that month&apos;s income</note>
         <note priority="1" from="meaning">Year chart action</note>
       </trans-unit>
       <trans-unit id="8528533921097594876" datatype="html">
         <source> ✨ Explain spending </source>
-        <target state="translated"> ✨ Giải thích chi tiêu </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">95,100</context>
+        </context-group>
         <note priority="1" from="description">Asks the advisor to break down that month&apos;s spending</note>
         <note priority="1" from="meaning">Year chart action</note>
       </trans-unit>
       <trans-unit id="5494814814369607890" datatype="html">
         <source>In <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_income) }}"/></source>
-        <target state="translated">Vào <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_income) }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">101,102</context>
+        </context-group>
         <note priority="1" from="description">Money that came in over the whole year</note>
         <note priority="1" from="meaning">Year totals</note>
       </trans-unit>
       <trans-unit id="1588968273511812908" datatype="html">
         <source>Out <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_spending) }}"/></source>
-        <target state="translated">Ra <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_spending) }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">102,103</context>
+        </context-group>
         <note priority="1" from="description">Money that went out over the whole year</note>
         <note priority="1" from="meaning">Year totals</note>
       </trans-unit>
       <trans-unit id="7960445092989707639" datatype="html">
         <source>Kept <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_net) }}"/></source>
-        <target state="translated">Giữ lại <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_net) }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">103,104</context>
+        </context-group>
         <note priority="1" from="description">Money left over across the whole year</note>
         <note priority="1" from="meaning">Year totals</note>
       </trans-unit>
       <trans-unit id="809102465374779887" datatype="html">
         <source>The year so far</source>
-        <target state="translated">Năm nay đến giờ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">107,108</context>
+        </context-group>
         <note priority="1" from="description">AI written summary of the year to date</note>
         <note priority="1" from="meaning">Year review card header</note>
       </trans-unit>
       <trans-unit id="70555204772199302" datatype="html">
         <source>Writing…</source>
-        <target state="translated">Đang viết…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">110,112</context>
+        </context-group>
         <note priority="1" from="description">Shown while the advisor writes the review</note>
         <note priority="1" from="meaning">Year review action</note>
       </trans-unit>
       <trans-unit id="8005372466662832802" datatype="html">
         <source>Refresh</source>
-        <target state="translated">Làm mới</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">112,114</context>
+        </context-group>
         <note priority="1" from="description">Writes the review again from the latest figures</note>
         <note priority="1" from="meaning">Year review action</note>
       </trans-unit>
       <trans-unit id="6242915582957450388" datatype="html">
         <source>✨ Write it</source>
-        <target state="translated">✨ Viết ngay</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">114,118</context>
+        </context-group>
         <note priority="1" from="description">Asks the advisor to write the year review</note>
         <note priority="1" from="meaning">Year review action</note>
       </trans-unit>
       <trans-unit id="8333938153153693414" datatype="html">
         <source>🤖 Written by <x id="INTERPOLATION" equiv-text="{{ review.model }}"/>, from this year&apos;s real figures.</source>
-        <target state="translated">🤖 Do <x id="INTERPOLATION" equiv-text="{{ review.model }}"/> viết, dựa trên số liệu thực của năm nay.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">129,130</context>
+        </context-group>
         <note priority="1" from="description">Names the AI model that wrote the review</note>
         <note priority="1" from="meaning">Year review byline</note>
       </trans-unit>
       <trans-unit id="4739795967083283900" datatype="html">
         <source>🧮 Computed summary — enable the AI runtime for a narrative.</source>
-        <target state="translated">🧮 Tóm tắt tự động — bật bộ máy AI để có bản diễn giải.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">131,135</context>
+        </context-group>
         <note priority="1" from="description">The review was computed, not written by an AI model</note>
         <note priority="1" from="meaning">Year review byline</note>
       </trans-unit>
       <trans-unit id="8964086287735403330" datatype="html">
         <source>Ask the advisor to sum up the year and suggest improvements.</source>
-        <target state="translated">Nhờ cố vấn tổng kết cả năm và gợi ý cách cải thiện.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">135,139</context>
+        </context-group>
         <note priority="1" from="description">Invites the member to generate the review</note>
         <note priority="1" from="meaning">Year review empty state</note>
       </trans-unit>
       <trans-unit id="3011645463166651690" datatype="html">
         <source>Where it went</source>
-        <target state="translated">Tiền đã đi đâu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">140,142</context>
+        </context-group>
         <note priority="1" from="description">Top spending categories of the year</note>
         <note priority="1" from="meaning">Year categories card header</note>
       </trans-unit>
       <trans-unit id="7225048881354596598" datatype="html">
         <source>Loading…</source>
-        <target state="translated">Đang tải…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">158,161</context>
+        </context-group>
         <note priority="1" from="description">Shown while the overview data is fetched</note>
         <note priority="1" from="meaning">Overview loading</note>
       </trans-unit>
       <trans-unit id="2544865375529451444" datatype="html">
         <source>Household</source>
-        <target state="translated">Hộ gia đình</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">167,168</context>
+        </context-group>
         <note priority="1" from="description">The family this app tracks</note>
         <note priority="1" from="meaning">Household card header</note>
       </trans-unit>
       <trans-unit id="766801710560429856" datatype="html">
         <source>Language</source>
-        <target state="translated">Ngôn ngữ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">173,175</context>
+        </context-group>
         <note priority="1" from="description">Label of the answer-language picker</note>
         <note priority="1" from="meaning">Household language field</note>
       </trans-unit>
       <trans-unit id="1533113739282024196" datatype="html">
         <source> Language: <x id="INTERPOLATION" equiv-text="{{ languageLabel(context) }}"/> </source>
-        <target state="translated"> Ngôn ngữ: <x id="INTERPOLATION" equiv-text="{{ languageLabel(context) }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">189,190</context>
+        </context-group>
         <note priority="1" from="description">Shows the answer language to members who cannot change it. The language&apos;s own name is never translated.</note>
         <note priority="1" from="meaning">Household language readonly</note>
       </trans-unit>
       <trans-unit id="17587862592594449" datatype="html">
         <source> Reserve committed savings </source>
-        <target state="translated"> Giữ riêng khoản tiết kiệm đã cam kết </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">207,210</context>
+        </context-group>
         <note priority="1" from="description">Subtracts committed savings from Safe to Spend like a bill</note>
         <note priority="1" from="meaning">Committed savings toggle</note>
       </trans-unit>
       <trans-unit id="6321628755416145142" datatype="html">
         <source>Committed savings:</source>
-        <target state="translated">Tiết kiệm đã cam kết:</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">211,213</context>
+        </context-group>
         <note priority="1" from="description">Labels the committed savings setting for members who cannot change it</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
       </trans-unit>
       <trans-unit id="2538420350309834351" datatype="html">
         <source>reserved like a bill</source>
-        <target state="translated">giữ riêng như một hóa đơn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">213,215</context>
+        </context-group>
         <note priority="1" from="description">The setting is on, savings are subtracted like a bill</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
       </trans-unit>
       <trans-unit id="7428747711204569824" datatype="html">
         <source>shown beside Safe to Spend</source>
-        <target state="translated">hiển thị cạnh An toàn để chi tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">215,219</context>
+        </context-group>
         <note priority="1" from="description">The setting is off, savings are only displayed</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
       </trans-unit>
       <trans-unit id="1299524352570982011" datatype="html">
         <source> Off: shown beside Safe to Spend. On: subtracted like a bill. </source>
-        <target state="translated"> Tắt: hiển thị cạnh An toàn để chi tiêu. Bật: trừ ra như một hóa đơn. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">223,228</context>
+        </context-group>
         <note priority="1" from="description">Explains both positions of the committed savings switch</note>
         <note priority="1" from="meaning">Committed savings hint</note>
       </trans-unit>
       <trans-unit id="7438168377894516553" datatype="html">
         <source>Cash outlook</source>
-        <target state="translated">Triển vọng tiền mặt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">229,231</context>
+        </context-group>
         <note priority="1" from="description">Projection of cash over the next 30 days</note>
         <note priority="1" from="meaning">Cash outlook card header</note>
       </trans-unit>
       <trans-unit id="5583679488209695313" datatype="html">
         <source> ⚠ <x id="INTERPOLATION" equiv-text="{{ runwayActionLabel(cash) }}"/> by <x id="INTERPOLATION_1" equiv-text="{{ sellBy | date: &apos;EEE, MMM d&apos; }}"/> </source>
-        <target state="translated"> ⚠ <x id="INTERPOLATION" equiv-text="{{ runwayActionLabel(cash) }}"/> trước <x id="INTERPOLATION_1" equiv-text="{{ sellBy | date: &apos;EEE, MMM d&apos; }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">243,245</context>
+        </context-group>
         <note priority="1" from="description">The date by which a sale or transfer must start to avoid a shortfall</note>
         <note priority="1" from="meaning">Cash outlook headline</note>
       </trans-unit>
       <trans-unit id="2034030605068872112" datatype="html">
         <source> cash runs short <x id="INTERPOLATION" equiv-text="{{ cash.first_shortfall_date | date: &apos;MMM d&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (cash.shortfall; as gap) {"/> — raise at least <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(gap) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"> tiền mặt sẽ hụt vào <x id="INTERPOLATION" equiv-text="{{ cash.first_shortfall_date | date: &apos;MMM d&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (cash.shortfall; as gap) {"/> — cần lo ít nhất <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(gap) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">247,251</context>
+        </context-group>
         <note priority="1" from="description">When cash runs out and how much must be raised</note>
         <note priority="1" from="meaning">Cash outlook headline detail</note>
       </trans-unit>
       <trans-unit id="658523525242505217" datatype="html">
         <source> ⚠ Your cash runs short over the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
-        <target state="translated"> ⚠ Tiền mặt của bạn sẽ hụt trong <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> ngày tới </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">254,255</context>
+        </context-group>
         <note priority="1" from="description">The projected balance goes negative within the horizon</note>
         <note priority="1" from="meaning">Cash outlook verdict</note>
       </trans-unit>
       <trans-unit id="6828113098470934022" datatype="html">
         <source> ✓ Cash covers everything due in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
-        <target state="translated"> ✓ Tiền mặt đủ trả mọi khoản đến hạn trong <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> ngày tới </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">258,259</context>
+        </context-group>
         <note priority="1" from="description">The projected balance stays positive over the horizon</note>
         <note priority="1" from="meaning">Cash outlook verdict</note>
       </trans-unit>
       <trans-unit id="4618696446284918222" datatype="html">
         <source>lowest your cash reaches in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days · <x id="INTERPOLATION_1" equiv-text="{{ cash.lowest_date | date: &apos;MMM d&apos; }}"/></source>
-        <target state="translated">mức tiền mặt thấp nhất trong <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> ngày tới · <x id="INTERPOLATION_1" equiv-text="{{ cash.lowest_date | date: &apos;MMM d&apos; }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">269,271</context>
+        </context-group>
         <note priority="1" from="description">Explains the lowest projected balance and its date</note>
         <note priority="1" from="meaning">Cash outlook context</note>
       </trans-unit>
       <trans-unit id="764861409261871468" datatype="html">
         <source>no payments or paydays expected in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days</source>
-        <target state="translated">không có khoản chi hay ngày lương nào trong <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> ngày tới</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">272,273</context>
+        </context-group>
         <note priority="1" from="description">Nothing is scheduled inside the horizon</note>
         <note priority="1" from="meaning">Cash outlook context</note>
       </trans-unit>
       <trans-unit id="577214443944956053" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cash.starting_cash) }}"/> cash + <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cash.expected_income) }}"/> expected paychecks − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(cash.obligations) }}"/> payments = <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(cash.ending_cash) }}"/> </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cash.starting_cash) }}"/> tiền mặt + <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cash.expected_income) }}"/> lương dự kiến − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(cash.obligations) }}"/> khoản chi = <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(cash.ending_cash) }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">276,280</context>
+        </context-group>
         <note priority="1" from="description">How the projected ending cash is worked out</note>
         <note priority="1" from="meaning">Cash outlook math</note>
       </trans-unit>
       <trans-unit id="8958430955220731720" datatype="html">
         <source>Day by day</source>
-        <target state="translated">Theo từng ngày</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">283,285</context>
+        </context-group>
         <note priority="1" from="description">Opens the day-by-day projection table</note>
         <note priority="1" from="meaning">Cash outlook drill-down</note>
       </trans-unit>
       <trans-unit id="4721382427248234532" datatype="html">
         <source> Paydays come from your recurring deposits; payments from the Bills timeline. Card amounts are today&apos;s balances — the real figure may be higher by the due date. </source>
-        <target state="translated"> Ngày lương lấy từ các khoản nạp định kỳ; khoản chi lấy từ dòng thời gian Hóa đơn. Số tiền thẻ là số dư hôm nay — con số thực tế đến ngày đáo hạn có thể cao hơn. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">306,310</context>
+        </context-group>
         <note priority="1" from="description">Says where the projected paydays and payments come from</note>
         <note priority="1" from="meaning">Cash outlook footnote</note>
       </trans-unit>
       <trans-unit id="3393476593669883693" datatype="html">
         <source>Left to spend this month</source>
-        <target state="translated">Còn để chi tiêu tháng này</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">317,320</context>
+        </context-group>
         <note priority="1" from="description">What is still free to spend this month</note>
         <note priority="1" from="meaning">Spending plan card header</note>
       </trans-unit>
       <trans-unit id="9120241605547351030" datatype="html">
         <source>about <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.per_day) }}"/>/day for the remaining <x id="ICU" equiv-text="{month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}" xid="1035153266238401995"/></source>
-        <target state="translated">khoảng <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.per_day) }}"/>/ngày cho <x id="ICU" equiv-text="{month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}" xid="1035153266238401995"/> còn lại</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">326,328</context>
+        </context-group>
         <note priority="1" from="description">Daily allowance for the rest of the month</note>
         <note priority="1" from="meaning">Spending plan context</note>
       </trans-unit>
       <trans-unit id="3927918797092127748" datatype="html">
         <source>{VAR_PLURAL, plural, =1 {1 day} other {<x id="INTERPOLATION"/> days}}</source>
-        <target state="translated">{VAR_PLURAL, plural, =1 {1 ngày} other {<x id="INTERPOLATION"/> ngày}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">327</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="1010426685925880468" datatype="html">
         <source>this month&apos;s spending has outrun this month&apos;s income — the gap is drawing on cash you already had</source>
-        <target state="translated">chi tiêu tháng này đã vượt thu nhập tháng này — phần chênh đang lấy từ tiền bạn có sẵn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">329,333</context>
+        </context-group>
         <note priority="1" from="description">Spending has exceeded this month&apos;s income</note>
         <note priority="1" from="meaning">Spending plan context</note>
       </trans-unit>
       <trans-unit id="8412547873037430733" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.expected_income) }}"/> expected income (<x id="INTERPOLATION_1" equiv-text="{{ formatMoney(month.income_received) }}"/> received + <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(month.income_projected) }}"/> to come) − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(month.spent) }}"/> spent − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(month.bills_remaining) }}"/> bills still due − <x id="INTERPOLATION_5" equiv-text="{{ formatMoney(month.account_obligations) }}"/> loan &amp; lease payments <x id="START_BLOCK_IF" equiv-text="@if (month.planned_savings.amount_minor &gt; 0) {"/> − <x id="INTERPOLATION_6" equiv-text="{{ formatMoney(month.planned_savings) }}"/> planned savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.expected_income) }}"/> thu nhập dự kiến (<x id="INTERPOLATION_1" equiv-text="{{ formatMoney(month.income_received) }}"/> đã nhận + <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(month.income_projected) }}"/> sắp tới) − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(month.spent) }}"/> đã chi − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(month.bills_remaining) }}"/> hóa đơn còn phải trả − <x id="INTERPOLATION_5" equiv-text="{{ formatMoney(month.account_obligations) }}"/> trả nợ vay và thuê mua <x id="START_BLOCK_IF" equiv-text="@if (month.planned_savings.amount_minor &gt; 0) {"/> − <x id="INTERPOLATION_6" equiv-text="{{ formatMoney(month.planned_savings) }}"/> tiết kiệm dự kiến <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">334,343</context>
+        </context-group>
         <note priority="1" from="description">How the money left to spend this month is worked out</note>
         <note priority="1" from="meaning">Spending plan math</note>
       </trans-unit>
       <trans-unit id="2560736849140002506" datatype="html">
         <source>Stress test</source>
-        <target state="translated">Kiểm tra sức chịu đựng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">349,351</context>
+        </context-group>
         <note priority="1" from="description">Worst-case cash left if every commitment were called today</note>
         <note priority="1" from="meaning">Stress test card header</note>
       </trans-unit>
       <trans-unit id="880064029110466575" datatype="html">
         <source> If every commitment were called today — full card balances, all bills, the emergency fund held back — with no paycheck counted. Deliberately worst-case; the cash outlook counts income. </source>
-        <target state="translated"> Nếu mọi cam kết đều bị đòi ngay hôm nay — toàn bộ dư nợ thẻ, tất cả hóa đơn, quỹ khẩn cấp giữ lại — và không tính lương. Đây là kịch bản xấu nhất có chủ ý; triển vọng tiền mặt thì có tính thu nhập. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">352,356</context>
+        </context-group>
         <note priority="1" from="description">Says what the worst-case figure assumes</note>
         <note priority="1" from="meaning">Stress test explanation</note>
       </trans-unit>
       <trans-unit id="4419024194148436607" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.liquid_balance) }}"/> liquid − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(sts.emergency_fund_reserved) }}"/> emergency fund − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(sts.bills_due) }}"/> bills due − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(sts.minimum_debt_payments) }}"/> min. debt payments <x id="START_BLOCK_IF" equiv-text="@if (sts.committed_savings_reserved &amp;&amp; sts.committed_savings; as committed) {"/> − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(committed) }}"/> committed savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.liquid_balance) }}"/> tiền linh hoạt − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(sts.emergency_fund_reserved) }}"/> quỹ khẩn cấp − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(sts.bills_due) }}"/> hóa đơn đến hạn − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(sts.minimum_debt_payments) }}"/> trả nợ tối thiểu <x id="START_BLOCK_IF" equiv-text="@if (sts.committed_savings_reserved &amp;&amp; sts.committed_savings; as committed) {"/> − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(committed) }}"/> tiết kiệm đã cam kết <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">357,364</context>
+        </context-group>
         <note priority="1" from="description">How the worst-case figure is worked out</note>
         <note priority="1" from="meaning">Stress test math</note>
       </trans-unit>
       <trans-unit id="8270454184417214154" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.total_debt) }}"/> total debt </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.total_debt) }}"/> tổng nợ </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">367,368</context>
+        </context-group>
         <note priority="1" from="description">Everything the household owes</note>
         <note priority="1" from="meaning">Stress test detail</note>
       </trans-unit>
       <trans-unit id="5788606571206407789" datatype="html">
         <source> 📈 Ready to sell: <x id="INTERPOLATION" equiv-text="{{ formatMoney(rsu.value) }}"/> in vested RSUs — about <x id="ICU" equiv-text="{rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}}" xid="8995566437640065214"/> to become cash </source>
-        <target state="translated"> 📈 Sẵn sàng để bán: <x id="INTERPOLATION" equiv-text="{{ formatMoney(rsu.value) }}"/> cổ phiếu RSU đã trao — khoảng <x id="ICU" equiv-text="{rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}}" xid="8995566437640065214"/> để chuyển thành tiền mặt </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">377,380</context>
+        </context-group>
         <note priority="1" from="description">Vested stock that could be turned into cash, and how long that takes</note>
         <note priority="1" from="meaning">Ready to sell line</note>
       </trans-unit>
       <trans-unit id="7013476404833925824" datatype="html">
         <source>{VAR_PLURAL, plural, =1 {1 business day} other {<x id="INTERPOLATION"/> business days}}</source>
-        <target state="translated">{VAR_PLURAL, plural, =1 {1 ngày làm việc} other {<x id="INTERPOLATION"/> ngày làm việc}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">378</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="6888849955209487751" datatype="html">
         <source>Not part of the number above.</source>
-        <target state="translated">Không nằm trong con số phía trên.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">381,383</context>
+        </context-group>
         <note priority="1" from="description">The vested stock is not inside the stress-test figure</note>
         <note priority="1" from="meaning">Ready to sell footnote</note>
       </trans-unit>
       <trans-unit id="4896706982922294108" datatype="html">
         <source>Committed savings, reserved like a bill:</source>
-        <target state="translated">Tiết kiệm đã cam kết, giữ riêng như một hóa đơn:</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">394,395</context>
+        </context-group>
         <note priority="1" from="description">Lists the savings that are subtracted like a bill</note>
         <note priority="1" from="meaning">Committed savings drill-down</note>
       </trans-unit>
       <trans-unit id="1629269610522610966" datatype="html">
         <source> 🏦 Committed savings (shown, not subtracted): <x id="INTERPOLATION" equiv-text="{{ formatMoney(committed) }}"/> </source>
-        <target state="translated"> 🏦 Tiết kiệm đã cam kết (chỉ hiển thị, không trừ): <x id="INTERPOLATION" equiv-text="{{ formatMoney(committed) }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">405,407</context>
+        </context-group>
         <note priority="1" from="description">Savings shown beside the stress-test figure but not subtracted from it</note>
         <note priority="1" from="meaning">Committed savings line</note>
       </trans-unit>
       <trans-unit id="3073556417882128698" datatype="html">
         <source>Not part of the number above.</source>
-        <target state="translated">Không nằm trong con số phía trên.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">409,411</context>
+        </context-group>
         <note priority="1" from="description">The committed savings are not inside the stress-test figure</note>
         <note priority="1" from="meaning">Committed savings footnote</note>
       </trans-unit>
       <trans-unit id="538235519716086317" datatype="html">
         <source>Net worth</source>
-        <target state="translated">Giá trị ròng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">421,422</context>
+        </context-group>
         <note priority="1" from="description">Everything owned minus everything owed</note>
         <note priority="1" from="meaning">Net worth card header</note>
       </trans-unit>
       <trans-unit id="5288808369993599992" datatype="html">
         <source>Net worth trend</source>
-        <target state="translated">Xu hướng giá trị ròng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">431,434</context>
+        </context-group>
         <note priority="1" from="description">Screen-reader name for the net worth trend line</note>
         <note priority="1" from="meaning">Net worth sparkline</note>
       </trans-unit>
       <trans-unit id="2493413337525735231" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ change.amount_minor &gt;= 0 ? &apos;▲&apos; : &apos;▼&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(change) }}"/> over <x id="INTERPOLATION_2" equiv-text="{{ history.length }}"/> snapshots </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ change.amount_minor &gt;= 0 ? &apos;▲&apos; : &apos;▼&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(change) }}"/> qua <x id="INTERPOLATION_2" equiv-text="{{ history.length }}"/> lần ghi nhận </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">442,444</context>
+        </context-group>
         <note priority="1" from="description">How much net worth moved across the recorded snapshots</note>
         <note priority="1" from="meaning">Net worth change</note>
       </trans-unit>
       <trans-unit id="8336881701302599372" datatype="html">
         <source>Monthly cash flow</source>
-        <target state="translated">Dòng tiền hằng tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">452,455</context>
+        </context-group>
         <note priority="1" from="description">Money in against money out this month</note>
         <note priority="1" from="meaning">Cash flow card header</note>
       </trans-unit>
       <trans-unit id="4160278561754228505" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cashFlow.income) }}"/> in − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cashFlow.spending) }}"/> spent </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cashFlow.income) }}"/> vào − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cashFlow.spending) }}"/> đã chi </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">461,462</context>
+        </context-group>
         <note priority="1" from="description">Income minus spending for the month</note>
         <note priority="1" from="meaning">Cash flow math</note>
       </trans-unit>
       <trans-unit id="8406651146823655159" datatype="html">
         <source>No income sources recorded yet.</source>
-        <target state="translated">Chưa ghi nhận nguồn thu nhập nào.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">464,467</context>
+        </context-group>
         <note priority="1" from="description">No income has been recorded for the household</note>
         <note priority="1" from="meaning">Cash flow empty state</note>
       </trans-unit>
       <trans-unit id="6077481426496353288" datatype="html">
         <source> Saving <x id="INTERPOLATION" equiv-text="{{ savings.percent }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (savings.total_saved; as saved) {"/> — <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(saved) }}"/>/mo saved <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"> Đang tiết kiệm <x id="INTERPOLATION" equiv-text="{{ savings.percent }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (savings.total_saved; as saved) {"/> — để dành <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(saved) }}"/>/tháng <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">477,481</context>
+        </context-group>
         <note priority="1" from="description">Share of income the household saves, and the monthly amount</note>
         <note priority="1" from="meaning">Savings rate</note>
       </trans-unit>
       <trans-unit id="6062121945317070013" datatype="html">
         <source> · <x id="INTERPOLATION" equiv-text="{{ formatMoney(savings.average_monthly_spending) }}"/>/mo avg spend (last 3 mo) </source>
-        <target state="translated"> · chi trung bình <x id="INTERPOLATION" equiv-text="{{ formatMoney(savings.average_monthly_spending) }}"/>/tháng (3 tháng gần đây) </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">492,493</context>
+        </context-group>
         <note priority="1" from="description">Average monthly spending over the last three months</note>
         <note priority="1" from="meaning">Savings rate context</note>
       </trans-unit>
       <trans-unit id="3793301877275415421" datatype="html">
         <source> Payroll 401(k)/HSA not declared — add it on the <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/income-tax&quot;&gt;"/>Income page<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> for a complete rate; the rate may understate your saving. </source>
-        <target state="translated"> Chưa khai khoản trừ lương 401(k)/HSA — hãy thêm ở <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/income-tax&quot;&gt;"/>trang Thu nhập<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> để có tỷ lệ đầy đủ; tỷ lệ hiện tại có thể thấp hơn thực tế. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">496,498</context>
+        </context-group>
         <note priority="1" from="description">Pre-tax payroll saving is missing so the rate is understated</note>
         <note priority="1" from="meaning">Savings rate warning</note>
       </trans-unit>
       <trans-unit id="4208215273031674551" datatype="html">
         <source>What you&apos;re saving</source>
-        <target state="translated">Bạn đang tiết kiệm những gì</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">510,513</context>
+        </context-group>
         <note priority="1" from="description">Recurring money the household puts aside</note>
         <note priority="1" from="meaning">Savings card header</note>
       </trans-unit>
       <trans-unit id="7439049042124615606" datatype="html">
         <source>you told us</source>
-        <target state="translated">bạn tự khai</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">519,521</context>
+        </context-group>
         <note priority="1" from="description">The household stated this contribution itself</note>
         <note priority="1" from="meaning">Savings row marker</note>
       </trans-unit>
       <trans-unit id="2777068592051500047" datatype="html">
         <source>inferred</source>
-        <target state="translated">suy đoán</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">522,524</context>
+        </context-group>
         <note priority="1" from="description">Matched from the money leaving the account only</note>
         <note priority="1" from="meaning">Savings row marker</note>
       </trans-unit>
       <trans-unit id="883164558169047066" datatype="html">
         <source>funds <x id="INTERPOLATION" equiv-text="{{ linkedName }}"/></source>
-        <target state="translated">nạp cho <x id="INTERPOLATION" equiv-text="{{ linkedName }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">529,530</context>
+        </context-group>
         <note priority="1" from="description">Tooltip naming the goal this contribution funds</note>
         <note priority="1" from="meaning">Savings row goal link</note>
       </trans-unit>
       <trans-unit id="5942842591481733961" datatype="html">
         <source> Fund <x id="INTERPOLATION" equiv-text="{{ suggestedName }}"/>? </source>
-        <target state="translated"> Nạp cho <x id="INTERPOLATION" equiv-text="{{ suggestedName }}"/>? </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">566,567</context>
+        </context-group>
         <note priority="1" from="description">Offers to link this contribution to the matching goal</note>
         <note priority="1" from="meaning">Savings row suggestion</note>
       </trans-unit>
       <trans-unit id="1224551173462932012" datatype="html">
         <source> Stop tracking </source>
-        <target state="translated"> Ngừng theo dõi </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">579,581</context>
+        </context-group>
         <note priority="1" from="description">Forgets a contribution the household declared</note>
         <note priority="1" from="meaning">Savings row action</note>
       </trans-unit>
       <trans-unit id="3408374312472299617" datatype="html">
         <source> Not saving </source>
-        <target state="translated"> Không phải tiết kiệm </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">590,592</context>
+        </context-group>
         <note priority="1" from="description">Says a detected transfer is not saving after all</note>
         <note priority="1" from="meaning">Savings row action</note>
       </trans-unit>
       <trans-unit id="6050488296179257523" datatype="html">
         <source>About <x id="INTERPOLATION" equiv-text="{{ formatMoney(total) }}"/> a month</source>
-        <target state="translated">Khoảng <x id="INTERPOLATION" equiv-text="{{ formatMoney(total) }}"/> mỗi tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">599,600</context>
+        </context-group>
         <note priority="1" from="description">Everything the household saves each month</note>
         <note priority="1" from="meaning">Savings total</note>
       </trans-unit>
       <trans-unit id="3047795199928707005" datatype="html">
         <source> Add a contribution </source>
-        <target state="translated"> Thêm khoản đóng góp </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">611,615</context>
+        </context-group>
         <note priority="1" from="description">Opens the form for declaring a savings transfer</note>
         <note priority="1" from="meaning">Savings action</note>
       </trans-unit>
       <trans-unit id="7713293652013384174" datatype="html">
         <source> Nothing detected. Money moved into an account we don&apos;t sync — a 529, a workplace plan — never reaches the ledger, so tell us about it here. </source>
-        <target state="translated"> Không phát hiện khoản nào. Tiền chuyển vào tài khoản mà chúng tôi không đồng bộ — một quỹ 529, một kế hoạch hưu trí ở công ty — sẽ không bao giờ vào sổ, nên hãy khai ở đây. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">617,622</context>
+        </context-group>
         <note priority="1" from="description">Explains why no savings were detected and invites a declaration</note>
         <note priority="1" from="meaning">Savings empty state</note>
       </trans-unit>
       <trans-unit id="6714969922874790103" datatype="html">
         <source>Loading accounts…</source>
-        <target state="translated">Đang tải tài khoản…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">627,630</context>
+        </context-group>
         <note priority="1" from="description">Shown while the account list is fetched</note>
         <note priority="1" from="meaning">Savings form loading</note>
       </trans-unit>
       <trans-unit id="2854383242485944470" datatype="html">
         <source>From</source>
-        <target state="translated">Từ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">634,635</context>
+        </context-group>
         <note priority="1" from="description">The account the money leaves</note>
         <note priority="1" from="meaning">Savings form field</note>
       </trans-unit>
       <trans-unit id="8907506899612937121" datatype="html">
         <source>Into</source>
-        <target state="translated">Vào</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">642,643</context>
+        </context-group>
         <note priority="1" from="description">The account the money arrives in</note>
         <note priority="1" from="meaning">Savings form field</note>
       </trans-unit>
       <trans-unit id="7967049448364453782" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> each time</source>
-        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> mỗi lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">652,653</context>
+        </context-group>
         <note priority="1" from="description">How much moves on each transfer, in the household currency</note>
         <note priority="1" from="meaning">Savings form field</note>
       </trans-unit>
       <trans-unit id="2094223732915281526" datatype="html">
         <source>How often</source>
-        <target state="translated">Bao lâu một lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">656,657</context>
+        </context-group>
         <note priority="1" from="description">How often the transfer repeats</note>
         <note priority="1" from="meaning">Savings form field</note>
       </trans-unit>
       <trans-unit id="2861960702171032218" datatype="html">
         <source> Save </source>
-        <target state="translated"> Lưu </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">670,672</context>
+        </context-group>
         <note priority="1" from="description">Submits the declared contribution</note>
         <note priority="1" from="meaning">Savings form action</note>
       </trans-unit>
       <trans-unit id="282739249377587930" datatype="html">
         <source> Cancel </source>
-        <target state="translated"> Hủy </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">678,680</context>
+        </context-group>
         <note priority="1" from="description">Closes the form without saving</note>
         <note priority="1" from="meaning">Savings form action</note>
       </trans-unit>
       <trans-unit id="7501768263743254107" datatype="html">
         <source>Emergency fund</source>
-        <target state="translated">Quỹ khẩn cấp</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">702,703</context>
+        </context-group>
         <note priority="1" from="description">Cash held back for emergencies</note>
         <note priority="1" from="meaning">Emergency fund card header</note>
       </trans-unit>
       <trans-unit id="8173515361240444901" datatype="html">
         <source><x id="INTERPOLATION" equiv-text="{{ fund.months | number: &apos;1.1-1&apos; }}"/> months</source>
-        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ fund.months | number: &apos;1.1-1&apos; }}"/> tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">709,710</context>
+        </context-group>
         <note priority="1" from="description">How many months of expenses the fund covers</note>
         <note priority="1" from="meaning">Emergency fund cover</note>
       </trans-unit>
       <trans-unit id="3734266149687638822" datatype="html">
         <source>of <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> recommended</source>
-        <target state="translated">trên <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> tháng khuyến nghị</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">710,711</context>
+        </context-group>
         <note priority="1" from="description">The recommended number of months of cover</note>
         <note priority="1" from="meaning">Emergency fund cover</note>
       </trans-unit>
       <trans-unit id="4701424439367098791" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(fund.reserved) }}"/> set aside <x id="START_BLOCK_IF" equiv-text="@if (fund.using_designations) {"/> (designated accounts) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> (all cash — <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/accounts&quot;&gt;"/>designate accounts<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to be precise) <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · expenses <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(fund.monthly_expenses) }}"/>/month </source>
-        <target state="translated"> đã để riêng <x id="INTERPOLATION" equiv-text="{{ formatMoney(fund.reserved) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (fund.using_designations) {"/> (các tài khoản được chỉ định) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> (toàn bộ tiền mặt — <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/accounts&quot;&gt;"/>chỉ định tài khoản<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> để chính xác hơn) <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · chi tiêu <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(fund.monthly_expenses) }}"/>/tháng </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">713,720</context>
+        </context-group>
         <note priority="1" from="description">What is set aside, where it was counted, and monthly expenses</note>
         <note priority="1" from="meaning">Emergency fund detail</note>
       </trans-unit>
       <trans-unit id="3822378556402807587" datatype="html">
         <source> Your goal: <x id="INTERPOLATION" equiv-text="{{ formatMoney(goalTarget) }}"/> </source>
-        <target state="translated"> Mục tiêu của bạn: <x id="INTERPOLATION" equiv-text="{{ formatMoney(goalTarget) }}"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">723,724</context>
+        </context-group>
         <note priority="1" from="description">The household&apos;s own target for the fund</note>
         <note priority="1" from="meaning">Emergency fund detail</note>
       </trans-unit>
       <trans-unit id="8014166645219871985" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(gap) }}"/> more to reach the <x id="INTERPOLATION_1" equiv-text="{{ fund.target_months_recommended }}"/>-month goal </source>
-        <target state="translated"> Cần thêm <x id="INTERPOLATION" equiv-text="{{ formatMoney(gap) }}"/> để đạt mục tiêu <x id="INTERPOLATION_1" equiv-text="{{ fund.target_months_recommended }}"/> tháng </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">729,731</context>
+        </context-group>
         <note priority="1" from="description">How much more is needed to reach the recommended months of cover</note>
         <note priority="1" from="meaning">Emergency fund gap</note>
       </trans-unit>
       <trans-unit id="3771637344083863907" datatype="html">
         <source> ✓ Target met </source>
-        <target state="translated"> ✓ Đã đạt mục tiêu </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">734,737</context>
+        </context-group>
         <note priority="1" from="description">The recommended months of cover are reached</note>
         <note priority="1" from="meaning">Emergency fund gap</note>
       </trans-unit>
       <trans-unit id="4082654148703252691" datatype="html">
         <source><x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Add your recurring bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> so coverage can be measured against your <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/>-month target. </source>
-        <target state="translated"><x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Thêm các hóa đơn định kỳ<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> để đo mức bao phủ so với mục tiêu <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> tháng của bạn. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">741,743</context>
+        </context-group>
         <note priority="1" from="description">Bills are needed before months of cover can be worked out</note>
         <note priority="1" from="meaning">Emergency fund empty state</note>
       </trans-unit>
       <trans-unit id="2810600121652470576" datatype="html">
         <source>Target months</source>
-        <target state="translated">Số tháng mục tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">750,753</context>
+        </context-group>
         <note priority="1" from="description">How many months of expenses the fund should cover</note>
         <note priority="1" from="meaning">Emergency fund target field</note>
       </trans-unit>
       <trans-unit id="8290129569072690511" datatype="html">
         <source>Saving…</source>
-        <target state="translated">Đang lưu…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">762,764</context>
+        </context-group>
         <note priority="1" from="description">Shown while the new target is saved</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
       </trans-unit>
       <trans-unit id="3975486299232080026" datatype="html">
         <source>Save</source>
-        <target state="translated">Lưu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">764,767</context>
+        </context-group>
         <note priority="1" from="description">Stores the new target months</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
       </trans-unit>
       <trans-unit id="1098787070725983498" datatype="html">
         <source> Cancel </source>
-        <target state="translated"> Hủy </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">774,776</context>
+        </context-group>
         <note priority="1" from="description">Leaves the target unchanged</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
       </trans-unit>
       <trans-unit id="1726675835500815318" datatype="html">
         <source> Adjust target (<x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> months) </source>
-        <target state="translated"> Chỉnh mục tiêu (<x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> tháng) </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">784,785</context>
+        </context-group>
         <note priority="1" from="description">Opens the editor for the months of cover target</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
       </trans-unit>
       <trans-unit id="5281683573172981194" datatype="html">
         <source>Assets</source>
-        <target state="translated">Tài sản</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">794,796</context>
+        </context-group>
         <note priority="1" from="description">Everything the household owns, by category</note>
         <note priority="1" from="meaning">Assets card header</note>
       </trans-unit>
       <trans-unit id="5216922900910366103" datatype="html">
         <source>Total debt</source>
-        <target state="translated">Tổng nợ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">808,810</context>
+        </context-group>
         <note priority="1" from="description">Everything the household owes</note>
         <note priority="1" from="meaning">Debt card header</note>
       </trans-unit>
       <trans-unit id="6439574015697758589" datatype="html">
         <source>Top goal</source>
-        <target state="translated">Mục tiêu hàng đầu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">819,821</context>
+        </context-group>
         <note priority="1" from="description">The savings goal closest to being reached</note>
         <note priority="1" from="meaning">Top goal card header</note>
       </trans-unit>
       <trans-unit id="5886388169542734743" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> · <x id="INTERPOLATION_2" equiv-text="{{ goal.percent_complete }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (goal.target_date) {"/> · by <x id="INTERPOLATION_3" equiv-text="{{ goal.target_date | date: &apos;MMM y&apos; }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> trên <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> · <x id="INTERPOLATION_2" equiv-text="{{ goal.percent_complete }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (goal.target_date) {"/> · trước <x id="INTERPOLATION_3" equiv-text="{{ goal.target_date | date: &apos;MMM y&apos; }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">833,838</context>
+        </context-group>
         <note priority="1" from="description">How much is saved against the target, and the target date</note>
         <note priority="1" from="meaning">Top goal progress</note>
       </trans-unit>
       <trans-unit id="1518032545593432997" datatype="html">
         <source> No goals yet. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/goals&quot;&gt;"/>Set a savings goal<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to track progress. </source>
-        <target state="translated"> Chưa có mục tiêu nào. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/goals&quot;&gt;"/>Đặt một mục tiêu tiết kiệm<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> để theo dõi tiến độ. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">841,842</context>
+        </context-group>
         <note priority="1" from="description">No savings goal has been created yet</note>
         <note priority="1" from="meaning">Top goal empty state</note>
       </trans-unit>
       <trans-unit id="5870173905586702070" datatype="html">
         <source>Spending this month</source>
-        <target state="translated">Chi tiêu tháng này</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">849,850</context>
+        </context-group>
         <note priority="1" from="description">What the household has spent so far this month</note>
         <note priority="1" from="meaning">Spending card header</note>
       </trans-unit>
       <trans-unit id="6255227778577297777" datatype="html">
         <source>vs same period last month</source>
-        <target state="translated">so với cùng kỳ tháng trước</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">850,852</context>
+        </context-group>
         <note priority="1" from="description">The comparison is against the same days of last month</note>
         <note priority="1" from="meaning">Spending card header note</note>
       </trans-unit>
       <trans-unit id="6634803099511064810" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ spending.change_percent &gt; 0 ? &apos;▲&apos; : spending.change_percent &lt; 0 ? &apos;▼&apos; : &apos;&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ absPercent(spending.change_percent) }}"/>% vs last month (<x id="INTERPOLATION_2" equiv-text="{{ formatMoney(spending.last_month) }}"/>) </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ spending.change_percent &gt; 0 ? &apos;▲&apos; : spending.change_percent &lt; 0 ? &apos;▼&apos; : &apos;&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ absPercent(spending.change_percent) }}"/>% so với tháng trước (<x id="INTERPOLATION_2" equiv-text="{{ formatMoney(spending.last_month) }}"/>) </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">860,863</context>
+        </context-group>
         <note priority="1" from="description">How this month&apos;s spending compares with the same period last month</note>
         <note priority="1" from="meaning">Spending change</note>
       </trans-unit>
       <trans-unit id="3779162589117020559" datatype="html">
         <source>No spending in the same period last month.</source>
-        <target state="translated">Không có chi tiêu nào trong cùng kỳ tháng trước.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">865,867</context>
+        </context-group>
         <note priority="1" from="description">There is nothing to compare against last month</note>
         <note priority="1" from="meaning">Spending change empty state</note>
       </trans-unit>
       <trans-unit id="4074819199686985022" datatype="html">
         <source>Budgets</source>
-        <target state="translated">Ngân sách</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">882,884</context>
+        </context-group>
         <note priority="1" from="description">Spending envelopes and how they are doing</note>
         <note priority="1" from="meaning">Budgets card header</note>
       </trans-unit>
       <trans-unit id="8914865839300889181" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ budgets.over_count }}"/> over budget </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ budgets.over_count }}"/> vượt ngân sách </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">885,886</context>
+        </context-group>
         <note priority="1" from="description">How many envelopes have been overspent</note>
         <note priority="1" from="meaning">Budget verdict</note>
       </trans-unit>
       <trans-unit id="6839977428781184968" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ budgets.warning_count }}"/> almost at the limit </source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ budgets.warning_count }}"/> sắp chạm hạn mức </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">889,890</context>
+        </context-group>
         <note priority="1" from="description">How many envelopes are close to their limit</note>
         <note priority="1" from="meaning">Budget verdict</note>
       </trans-unit>
       <trans-unit id="828014810296537783" datatype="html">
         <source>All on track</source>
-        <target state="translated">Tất cả đúng kế hoạch</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">892,894</context>
+        </context-group>
         <note priority="1" from="description">No envelope is over or near its limit</note>
         <note priority="1" from="meaning">Budget verdict</note>
       </trans-unit>
       <trans-unit id="8721395394153605932" datatype="html">
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(budgets.total_spent) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(budgets.total_budgeted) }}"/> across <x id="INTERPOLATION_2" equiv-text="{{ budgets.envelope_count }}"/> budgets · <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/budgets&quot;&gt;"/>manage<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
-        <target state="translated"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(budgets.total_spent) }}"/> trên <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(budgets.total_budgeted) }}"/> ở <x id="INTERPOLATION_2" equiv-text="{{ budgets.envelope_count }}"/> ngân sách · <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/budgets&quot;&gt;"/>quản lý<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">895,899</context>
+        </context-group>
         <note priority="1" from="description">Spent against budgeted across all envelopes</note>
         <note priority="1" from="meaning">Budget detail</note>
       </trans-unit>
       <trans-unit id="1753886710135682080" datatype="html">
         <source>Upcoming bills</source>
-        <target state="translated">Hóa đơn sắp tới</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">905,906</context>
+        </context-group>
         <note priority="1" from="description">Bills falling due soon</note>
         <note priority="1" from="meaning">Bills card header</note>
       </trans-unit>
       <trans-unit id="7478557027820950349" datatype="html">
         <source>next 14 days</source>
-        <target state="translated">14 ngày tới</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">906,908</context>
+        </context-group>
         <note priority="1" from="description">The window the listed bills fall in</note>
         <note priority="1" from="meaning">Bills card header note</note>
       </trans-unit>
       <trans-unit id="7393321363044795012" datatype="html">
         <source> Nothing due in the next two weeks. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Manage bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
-        <target state="translated"> Không có khoản nào đến hạn trong hai tuần tới. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Quản lý hóa đơn<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">925,927</context>
+        </context-group>
         <note priority="1" from="description">No bill falls due inside the window</note>
         <note priority="1" from="meaning">Bills empty state</note>
       </trans-unit>
       <trans-unit id="2752553130250927114" datatype="html">
         <source>Add bills to measure</source>
-        <target state="translated">Thêm hóa đơn để đo</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">28</context>
+        </context-group>
         <note priority="1" from="description">No bills recorded so coverage cannot be measured</note>
         <note priority="1" from="meaning">Emergency fund status</note>
       </trans-unit>
       <trans-unit id="5374494745456292800" datatype="html">
         <source>Not started</source>
-        <target state="translated">Chưa bắt đầu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">29</context>
+        </context-group>
         <note priority="1" from="description">Nothing set aside yet</note>
         <note priority="1" from="meaning">Emergency fund status</note>
       </trans-unit>
       <trans-unit id="1512618514773945540" datatype="html">
         <source>Getting started</source>
-        <target state="translated">Mới bắt đầu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">30</context>
+        </context-group>
         <note priority="1" from="description">Some months of cover saved</note>
         <note priority="1" from="meaning">Emergency fund status</note>
       </trans-unit>
       <trans-unit id="1766250238065571403" datatype="html">
         <source>On track</source>
-        <target state="translated">Đúng tiến độ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">31</context>
+        </context-group>
         <note priority="1" from="description">Close to the target months of cover</note>
         <note priority="1" from="meaning">Emergency fund status</note>
       </trans-unit>
       <trans-unit id="2339049683788483426" datatype="html">
         <source>Fully funded</source>
-        <target state="translated">Đã đủ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">32</context>
+        </context-group>
         <note priority="1" from="description">Target months of cover reached</note>
         <note priority="1" from="meaning">Emergency fund status</note>
       </trans-unit>
       <trans-unit id="8479163722589453202" datatype="html">
         <source>Cash</source>
-        <target state="translated">Tiền mặt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">36</context>
+        </context-group>
         <note priority="1" from="description">Cash and current accounts</note>
         <note priority="1" from="meaning">Asset category</note>
       </trans-unit>
       <trans-unit id="1142186865539384148" datatype="html">
         <source>Investments</source>
-        <target state="translated">Đầu tư</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">37</context>
+        </context-group>
         <note priority="1" from="description">Brokerage and investment accounts</note>
         <note priority="1" from="meaning">Asset category</note>
       </trans-unit>
       <trans-unit id="1998203468412982538" datatype="html">
         <source>Retirement</source>
-        <target state="translated">Hưu trí</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
         <note priority="1" from="description">Retirement accounts such as a 401(k)</note>
         <note priority="1" from="meaning">Asset category</note>
       </trans-unit>
       <trans-unit id="4497626795055006111" datatype="html">
         <source>Education</source>
-        <target state="translated">Giáo dục</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">39</context>
+        </context-group>
         <note priority="1" from="description">Education savings such as a 529</note>
         <note priority="1" from="meaning">Asset category</note>
       </trans-unit>
       <trans-unit id="5265084091472066623" datatype="html">
         <source>Property</source>
-        <target state="translated">Bất động sản</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">40</context>
+        </context-group>
         <note priority="1" from="description">Real estate and other property</note>
         <note priority="1" from="meaning">Asset category</note>
       </trans-unit>
       <trans-unit id="3689844634598806992" datatype="html">
         <source>weekly</source>
-        <target state="translated">hằng tuần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">46</context>
+        </context-group>
         <note priority="1" from="description">Happens once a week</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="2231532817575773334" datatype="html">
         <source>every two weeks</source>
-        <target state="translated">hai tuần một lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">47</context>
+        </context-group>
         <note priority="1" from="description">Happens once every two weeks</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="140589213458659791" datatype="html">
         <source>twice a month</source>
-        <target state="translated">hai lần mỗi tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">48</context>
+        </context-group>
         <note priority="1" from="description">Happens twice a month</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="6187362819600474711" datatype="html">
         <source>monthly</source>
-        <target state="translated">hằng tháng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">49</context>
+        </context-group>
         <note priority="1" from="description">Happens once a month</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="8904310761060690548" datatype="html">
         <source>quarterly</source>
-        <target state="translated">hằng quý</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">50</context>
+        </context-group>
         <note priority="1" from="description">Happens once every three months</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="3235941827754506734" datatype="html">
         <source>twice a year</source>
-        <target state="translated">hai lần mỗi năm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">51</context>
+        </context-group>
         <note priority="1" from="description">Happens twice a year</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="4616041818883323073" datatype="html">
         <source>yearly</source>
-        <target state="translated">hằng năm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">52</context>
+        </context-group>
         <note priority="1" from="description">Happens once a year</note>
         <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="1342174294043670760" datatype="html">
         <source>Failed to load the year.</source>
-        <target state="translated">Không tải được dữ liệu năm.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">130</context>
+        </context-group>
         <note priority="1" from="description">The yearly overview could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="985403508094866089" datatype="html">
         <source>Could not write the year review.</source>
-        <target state="translated">Không viết được bản tổng kết năm.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">152</context>
+        </context-group>
         <note priority="1" from="description">The AI written year review could not be generated</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="3218378110452603663" datatype="html">
         <source>Jan</source>
-        <target state="translated">Th1</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">178</context>
+        </context-group>
         <note priority="1" from="description">Short name for January</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="7082336985868037554" datatype="html">
         <source>Feb</source>
-        <target state="translated">Th2</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">179</context>
+        </context-group>
         <note priority="1" from="description">Short name for February</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="904538870339525557" datatype="html">
         <source>Mar</source>
-        <target state="translated">Th3</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">180</context>
+        </context-group>
         <note priority="1" from="description">Short name for March</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="8264908294023790112" datatype="html">
         <source>Apr</source>
-        <target state="translated">Th4</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">181</context>
+        </context-group>
         <note priority="1" from="description">Short name for April</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="4966268357058485132" datatype="html">
         <source>May</source>
-        <target state="translated">Th5</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">182</context>
+        </context-group>
         <note priority="1" from="description">Short name for May</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="1477195481879050160" datatype="html">
         <source>Jun</source>
-        <target state="translated">Th6</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">183</context>
+        </context-group>
         <note priority="1" from="description">Short name for June</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="6579980807320240416" datatype="html">
         <source>Jul</source>
-        <target state="translated">Th7</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">184</context>
+        </context-group>
         <note priority="1" from="description">Short name for July</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="8547404332167345046" datatype="html">
         <source>Aug</source>
-        <target state="translated">Th8</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">185</context>
+        </context-group>
         <note priority="1" from="description">Short name for August</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="5958445105323375966" datatype="html">
         <source>Sep</source>
-        <target state="translated">Th9</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">186</context>
+        </context-group>
         <note priority="1" from="description">Short name for September</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="442392210385353004" datatype="html">
         <source>Oct</source>
-        <target state="translated">Th10</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">187</context>
+        </context-group>
         <note priority="1" from="description">Short name for October</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="4565405034620400906" datatype="html">
         <source>Nov</source>
-        <target state="translated">Th11</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">188</context>
+        </context-group>
         <note priority="1" from="description">Short name for November</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="3582042130024097595" datatype="html">
         <source>Dec</source>
-        <target state="translated">Th12</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">189</context>
+        </context-group>
         <note priority="1" from="description">Short name for December</note>
         <note priority="1" from="meaning">Month abbreviation</note>
       </trans-unit>
       <trans-unit id="1525972315254129499" datatype="html">
         <source>January</source>
-        <target state="translated">Tháng 1</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">202</context>
+        </context-group>
         <note priority="1" from="description">Full name of the first month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="6982933307044735549" datatype="html">
         <source>February</source>
-        <target state="translated">Tháng 2</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">203</context>
+        </context-group>
         <note priority="1" from="description">Full name of the second month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="312822281723543917" datatype="html">
         <source>March</source>
-        <target state="translated">Tháng 3</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">204</context>
+        </context-group>
         <note priority="1" from="description">Full name of the third month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="6540699673137803103" datatype="html">
         <source>April</source>
-        <target state="translated">Tháng 4</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">205</context>
+        </context-group>
         <note priority="1" from="description">Full name of the fourth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="1414298393030354810" datatype="html">
         <source>May</source>
-        <target state="translated">Tháng 5</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">206</context>
+        </context-group>
         <note priority="1" from="description">Full name of the fifth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="2585508153965780830" datatype="html">
         <source>June</source>
-        <target state="translated">Tháng 6</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">207</context>
+        </context-group>
         <note priority="1" from="description">Full name of the sixth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="2649140081700062696" datatype="html">
         <source>July</source>
-        <target state="translated">Tháng 7</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">208</context>
+        </context-group>
         <note priority="1" from="description">Full name of the seventh month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="1667523007516483366" datatype="html">
         <source>August</source>
-        <target state="translated">Tháng 8</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">209</context>
+        </context-group>
         <note priority="1" from="description">Full name of the eighth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="5443529199807918423" datatype="html">
         <source>September</source>
-        <target state="translated">Tháng 9</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">210</context>
+        </context-group>
         <note priority="1" from="description">Full name of the ninth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="5904622476913527350" datatype="html">
         <source>October</source>
-        <target state="translated">Tháng 10</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">211</context>
+        </context-group>
         <note priority="1" from="description">Full name of the tenth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="5141612503871226671" datatype="html">
         <source>November</source>
-        <target state="translated">Tháng 11</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">212</context>
+        </context-group>
         <note priority="1" from="description">Full name of the eleventh month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="3170039165229690347" datatype="html">
         <source>December</source>
-        <target state="translated">Tháng 12</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">213</context>
+        </context-group>
         <note priority="1" from="description">Full name of the twelfth month</note>
         <note priority="1" from="meaning">Month name</note>
       </trans-unit>
       <trans-unit id="1231855066292789383" datatype="html">
         <source>What made up my income in <x id="month" equiv-text="label"/>? List where the money came from.</source>
-        <target state="translated">Thu nhập của tôi trong <x id="month" equiv-text="label"/> gồm những gì? Liệt kê nguồn tiền đến từ đâu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">226</context>
+        </context-group>
         <note priority="1" from="description">Prefilled question about a month&apos;s income</note>
         <note priority="1" from="meaning">Advisor question</note>
       </trans-unit>
       <trans-unit id="4115806666668359122" datatype="html">
         <source>What made up my spending in <x id="month" equiv-text="label"/>? Break it down by category and biggest merchants.</source>
-        <target state="translated">Chi tiêu của tôi trong <x id="month" equiv-text="label"/> gồm những gì? Phân tích theo danh mục và những nơi tiêu nhiều nhất.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">227</context>
+        </context-group>
         <note priority="1" from="description">Prefilled question about a month&apos;s spending</note>
         <note priority="1" from="meaning">Advisor question</note>
       </trans-unit>
       <trans-unit id="1583565472603741038" datatype="html">
         <source>Failed to load household overview.</source>
-        <target state="translated">Không tải được tổng quan hộ gia đình.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">236</context>
+        </context-group>
         <note priority="1" from="description">The overview page data could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="3325153729964333956" datatype="html">
         <source>Free up cash</source>
-        <target state="translated">Giải phóng tiền mặt</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">284</context>
+        </context-group>
         <note priority="1" from="description">Move money from savings into the current account</note>
         <note priority="1" from="meaning">Cash outlook action</note>
       </trans-unit>
       <trans-unit id="1545849134647331250" datatype="html">
         <source>Sell RSUs (≈ <x id="units" equiv-text="cash.sell_units"/> <x id="ticker" equiv-text="cash.sell_ticker"/>)</source>
-        <target state="translated">Bán RSU (≈ <x id="units" equiv-text="cash.sell_units"/> <x id="ticker" equiv-text="cash.sell_ticker"/>)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">287</context>
+        </context-group>
         <note priority="1" from="description">Sell vested stock, with the share count and ticker</note>
         <note priority="1" from="meaning">Cash outlook action</note>
       </trans-unit>
       <trans-unit id="2450425082723697336" datatype="html">
         <source>Sell RSUs</source>
-        <target state="translated">Bán RSU</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">288</context>
+        </context-group>
         <note priority="1" from="description">Sell vested stock to cover the shortfall</note>
         <note priority="1" from="meaning">Cash outlook action</note>
       </trans-unit>
       <trans-unit id="5658704226226700784" datatype="html">
         <source>Detected from transfers between your accounts. Payroll deductions like a 401(k) don&apos;t appear here.</source>
-        <target state="translated">Phát hiện từ các khoản chuyển giữa tài khoản của bạn. Khoản trừ lương như 401(k) không hiện ở đây.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">310</context>
+        </context-group>
         <note priority="1" from="description">Only transfers between accounts are detected, payroll deductions are not</note>
         <note priority="1" from="meaning">Savings section footnote</note>
       </trans-unit>
       <trans-unit id="4935190100642110675" datatype="html">
         <source>Rows marked inferred were matched from the money leaving your account — the destination isn&apos;t synced.</source>
-        <target state="translated">Các dòng ghi suy đoán được khớp từ tiền rời khỏi tài khoản của bạn — nơi nhận không được đồng bộ.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">316</context>
+        </context-group>
         <note priority="1" from="description">Explains the inferred marker on a savings row</note>
         <note priority="1" from="meaning">Savings section footnote</note>
       </trans-unit>
       <trans-unit id="4233774476917293110" datatype="html">
         <source>seen 1 time</source>
-        <target state="translated">thấy 1 lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">337</context>
+        </context-group>
         <note priority="1" from="description">The transfer was detected exactly once</note>
         <note priority="1" from="meaning">Savings row evidence</note>
       </trans-unit>
       <trans-unit id="2724351217621774119" datatype="html">
         <source>seen <x id="count" equiv-text="contribution.occurrences"/> times</source>
-        <target state="translated">thấy <x id="count" equiv-text="contribution.occurrences"/> lần</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">338</context>
+        </context-group>
         <note priority="1" from="description">How many times the transfer was detected</note>
         <note priority="1" from="meaning">Savings row evidence</note>
       </trans-unit>
       <trans-unit id="5115507115704643507" datatype="html">
         <source>transfers</source>
-        <target state="translated">chuyển khoản</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">367</context>
+        </context-group>
         <note priority="1" from="description">Money saved by moving it between accounts</note>
         <note priority="1" from="meaning">Savings rate source</note>
       </trans-unit>
       <trans-unit id="2543153139016236360" datatype="html">
         <source>payroll (401k/HSA)</source>
-        <target state="translated">trừ lương (401k/HSA)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">373</context>
+        </context-group>
         <note priority="1" from="description">Money saved before pay lands, such as a 401k or HSA</note>
         <note priority="1" from="meaning">Savings rate source</note>
       </trans-unit>
       <trans-unit id="4347621288357729643" datatype="html">
         <source>residual</source>
-        <target state="translated">còn lại</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">379</context>
+        </context-group>
         <note priority="1" from="description">Take-home pay left unspent and unmoved</note>
         <note priority="1" from="meaning">Savings rate source</note>
       </trans-unit>
       <trans-unit id="8726929144391706440" datatype="html">
         <source>Failed to load accounts.</source>
-        <target state="translated">Không tải được danh sách tài khoản.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">413</context>
+        </context-group>
         <note priority="1" from="description">The account list could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="8816176351807426107" datatype="html">
         <source>Failed to save the contribution.</source>
-        <target state="translated">Không lưu được khoản đóng góp.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">464</context>
+        </context-group>
         <note priority="1" from="description">A declared savings contribution could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="567541523790327569" datatype="html">
         <source>Failed to stop tracking that contribution.</source>
-        <target state="translated">Không ngừng theo dõi được khoản đóng góp đó.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">484</context>
+        </context-group>
         <note priority="1" from="description">A tracked savings contribution could not be removed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="8976305485125934343" datatype="html">
         <source>Failed to dismiss that transfer.</source>
-        <target state="translated">Không bỏ qua được khoản chuyển đó.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">516</context>
+        </context-group>
         <note priority="1" from="description">A detected transfer could not be dismissed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="4134537866347734474" datatype="html">
         <source>Unlink from <x id="goal" equiv-text="goalName"/></source>
-        <target state="translated">Bỏ liên kết với <x id="goal" equiv-text="goalName"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">553</context>
+        </context-group>
         <note priority="1" from="description">Screen-reader name for the button that unlinks a goal from a savings contribution</note>
         <note priority="1" from="meaning">Savings row goal link</note>
       </trans-unit>
       <trans-unit id="6668246090764032954" datatype="html">
         <source>Failed to link the goal.</source>
-        <target state="translated">Không liên kết được mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">581</context>
+        </context-group>
         <note priority="1" from="description">A savings contribution could not be linked to a goal</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="4083313136335638233" datatype="html">
         <source>Failed to unlink the goal.</source>
-        <target state="translated">Không bỏ liên kết được mục tiêu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">582</context>
+        </context-group>
         <note priority="1" from="description">A savings contribution could not be unlinked from a goal</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="4740807031415301074" datatype="html">
         <source>The advisor answers in this language. Screens follow in a later update.</source>
-        <target state="translated">Cố vấn sẽ trả lời bằng ngôn ngữ này. Giao diện sẽ được dịch trong bản cập nhật sau.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">623</context>
+        </context-group>
         <note priority="1" from="description">Explains what the language setting changes</note>
         <note priority="1" from="meaning">Household language hint</note>
       </trans-unit>
       <trans-unit id="6377404529219534786" datatype="html">
         <source>Failed to change the language.</source>
-        <target state="translated">Không đổi được ngôn ngữ.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">652</context>
+        </context-group>
         <note priority="1" from="description">The household answer language could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="4775040489516936770" datatype="html">
         <source>Failed to update committed savings.</source>
-        <target state="translated">Không cập nhật được tiết kiệm đã cam kết.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">690</context>
+        </context-group>
         <note priority="1" from="description">The committed savings setting could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="118337957472521540" datatype="html">
         <source>Due today</source>
-        <target state="translated">Đến hạn hôm nay</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">700</context>
+        </context-group>
         <note priority="1" from="description">The bill is due today</note>
         <note priority="1" from="meaning">Bill due label</note>
       </trans-unit>
       <trans-unit id="3939291514880993764" datatype="html">
         <source>Due tomorrow</source>
-        <target state="translated">Đến hạn ngày mai</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">703</context>
+        </context-group>
         <note priority="1" from="description">The bill is due tomorrow</note>
         <note priority="1" from="meaning">Bill due label</note>
       </trans-unit>
       <trans-unit id="8976679241326331814" datatype="html">
         <source>Due in <x id="days" equiv-text="daysUntil"/> days</source>
-        <target state="translated">Đến hạn sau <x id="days" equiv-text="daysUntil"/> ngày</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
+          <context context-type="linenumber">705</context>
+        </context-group>
         <note priority="1" from="description">How many days until the bill is due</note>
         <note priority="1" from="meaning">Bill due label</note>
       </trans-unit>
       <trans-unit id="7190155879231897653" datatype="html">
         <source>Create your household</source>
-        <target state="translated">Tạo hộ gia đình của bạn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">4,5</context>
+        </context-group>
         <note priority="1" from="description">Signup page title</note>
       </trans-unit>
       <trans-unit id="4367375257055245171" datatype="html">
         <source> Set up the first owner account for this self-hosted instance. You can add family members afterwards from the Users page. </source>
-        <target state="translated"> Thiết lập tài khoản chủ hộ đầu tiên cho bản cài đặt này. Bạn có thể thêm thành viên gia đình sau ở trang Người dùng. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">8,12</context>
+        </context-group>
         <note priority="1" from="description">Intro above the first-owner form</note>
         <note priority="1" from="meaning">Signup page</note>
       </trans-unit>
       <trans-unit id="6748111778398706174" datatype="html">
         <source>Household name</source>
-        <target state="translated">Tên hộ gia đình</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">14,15</context>
+        </context-group>
         <note priority="1" from="description">Name of the household</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="6472263309393543878" datatype="html">
         <source>Enter a household name.</source>
-        <target state="translated">Nhập tên hộ gia đình.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">17,19</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="7911833271180750870" datatype="html">
         <source>Base currency</source>
-        <target state="translated">Tiền tệ cơ sở</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">22,23</context>
+        </context-group>
         <note priority="1" from="description">Currency the household reports in</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="938313679066722192" datatype="html">
         <source>Use a 3-letter currency code (e.g. USD).</source>
-        <target state="translated">Dùng mã tiền tệ 3 chữ cái (ví dụ USD).</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">25,29</context>
+        </context-group>
         <note priority="1" from="description">USD is an ISO currency code and stays untranslated</note>
         <note priority="1" from="meaning">Validation message</note>
       </trans-unit>
       <trans-unit id="7546235570022150987" datatype="html">
         <source>Enter your name.</source>
-        <target state="translated">Nhập tên của bạn.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">33,35</context>
+        </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="1357220306373799170" datatype="html">
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Creating…} other {Create household}}" xid="4279301481893814462"/> </source>
-        <target state="translated"> <x id="ICU" equiv-text="{submitting(), select, true {Creating…} other {Create household}}" xid="4279301481893814462"/> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">69,71</context>
+        </context-group>
         <note priority="1" from="description">Creates the household, showing progress while the request is in flight</note>
         <note priority="1" from="meaning">Signup submit button</note>
       </trans-unit>
       <trans-unit id="4279301481893814462" datatype="html">
         <source>{VAR_SELECT, select, true {Creating…} other {Create household}}</source>
-        <target state="translated">{VAR_SELECT, select, true {Đang tạo…} other {Tạo hộ gia đình}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">69,70</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="8465131035995881968" datatype="html">
         <source>Already have an account? <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/login&quot;&gt;"/>Sign in<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
-        <target state="translated">Đã có tài khoản? <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/login&quot;&gt;"/>Đăng nhập<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">73,74</context>
+        </context-group>
         <note priority="1" from="description">Footer link back to sign-in</note>
         <note priority="1" from="meaning">Signup page</note>
       </trans-unit>
       <trans-unit id="2604576946445293556" datatype="html">
         <source>Could not create the household.</source>
-        <target state="translated">Không tạo được hộ gia đình.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.ts</context>
+          <context context-type="linenumber">60</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5097631479765742714" datatype="html">
         <source>Toggle navigation menu</source>
-        <target state="translated">Bật tắt menu điều hướng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">9,12</context>
+        </context-group>
         <note priority="1" from="description">Screen-reader name for the hamburger button that opens the sidebar</note>
         <note priority="1" from="meaning">Mobile menu button</note>
       </trans-unit>
       <trans-unit id="2970937143191694315" datatype="html">
         <source>System Health ↗</source>
-        <target state="translated">Tình trạng hệ thống ↗</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">46,50</context>
+        </context-group>
         <note priority="1" from="description">Link out to the Grafana ops dashboards</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="5884013396313108367" datatype="html">
         <source>The monorepo version this box runs (ADR 0029)</source>
-        <target state="translated">Phiên bản monorepo mà máy này đang chạy (ADR 0029)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">57,63</context>
+        </context-group>
         <note priority="1" from="description">Tooltip explaining the version number in the footer</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
       </trans-unit>
       <trans-unit id="3397655456296716868" datatype="html">
         <source> Log out </source>
-        <target state="translated"> Đăng xuất </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">68,73</context>
+        </context-group>
         <note priority="1" from="description">Button that signs the member out</note>
         <note priority="1" from="meaning">Sidebar footer action</note>
       </trans-unit>
       <trans-unit id="5536025403430922915" datatype="html">
         <source>Overview</source>
-        <target state="translated">Tổng quan</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">51</context>
+        </context-group>
         <note priority="1" from="description">Link to the household overview page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="2945060004455022907" datatype="html">
         <source>Advisor</source>
-        <target state="translated">Cố vấn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">55</context>
+        </context-group>
         <note priority="1" from="description">Link to the AI advisor chat page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="3632654317044316116" datatype="html">
         <source>Money</source>
-        <target state="translated">Tiền bạc</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">61</context>
+        </context-group>
         <note priority="1" from="description">Heading over the money pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
       </trans-unit>
       <trans-unit id="1116278345387114173" datatype="html">
         <source>Accounts</source>
-        <target state="translated">Tài khoản</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">65</context>
+        </context-group>
         <note priority="1" from="description">Link to the bank and asset accounts page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="5529762237496341867" datatype="html">
         <source>Transactions</source>
-        <target state="translated">Giao dịch</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">69</context>
+        </context-group>
         <note priority="1" from="description">Link to the transactions ledger page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="7768035538909295247" datatype="html">
         <source>Bills</source>
-        <target state="translated">Hóa đơn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">73</context>
+        </context-group>
         <note priority="1" from="description">Link to the recurring bills page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="5650195000427358626" datatype="html">
         <source>Debts &amp; loans</source>
-        <target state="translated">Nợ và khoản vay</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">77</context>
+        </context-group>
         <note priority="1" from="description">Link to the debts and loans page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="464611396501170901" datatype="html">
         <source>Income &amp; tax</source>
-        <target state="translated">Thu nhập và thuế</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">81</context>
+        </context-group>
         <note priority="1" from="description">Link to the income and tax page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="673703669989405255" datatype="html">
         <source>Budgets</source>
-        <target state="translated">Ngân sách</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">85</context>
+        </context-group>
         <note priority="1" from="description">Link to the budget envelopes page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="4111012196467815477" datatype="html">
         <source>Categories</source>
-        <target state="translated">Danh mục</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">89</context>
+        </context-group>
         <note priority="1" from="description">Link to the spending categories page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="8513724183304428158" datatype="html">
         <source>Goals</source>
-        <target state="translated">Mục tiêu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">93</context>
+        </context-group>
         <note priority="1" from="description">Link to the savings goals page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="772555493210304050" datatype="html">
         <source>AI</source>
-        <target state="translated">AI</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">98</context>
+        </context-group>
         <note priority="1" from="description">Heading over the AI advisor pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
       </trans-unit>
       <trans-unit id="4499359415267334852" datatype="html">
         <source>Advisor memory</source>
-        <target state="translated">Bộ nhớ cố vấn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">102</context>
+        </context-group>
         <note priority="1" from="description">Link to what the advisor remembers</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="2986184013783663173" datatype="html">
         <source>AI runtime</source>
-        <target state="translated">Bộ máy AI</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">107</context>
+        </context-group>
         <note priority="1" from="description">Link to the AI model runtime settings</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="3885296197045458410" datatype="html">
         <source>Admin</source>
-        <target state="translated">Quản trị</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">113</context>
+        </context-group>
         <note priority="1" from="description">Heading over the administration pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
       </trans-unit>
       <trans-unit id="6298866472441753559" datatype="html">
         <source>Imports</source>
-        <target state="translated">Nhập dữ liệu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">117</context>
+        </context-group>
         <note priority="1" from="description">Link to the statement imports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="4044023947285686169" datatype="html">
         <source>Reports</source>
-        <target state="translated">Báo cáo</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">122</context>
+        </context-group>
         <note priority="1" from="description">Link to the reports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="3064553406273200304" datatype="html">
         <source>Backups</source>
-        <target state="translated">Sao lưu</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">127</context>
+        </context-group>
         <note priority="1" from="description">Link to the backups page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="194353691148671609" datatype="html">
         <source>Users</source>
-        <target state="translated">Người dùng</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">132</context>
+        </context-group>
         <note priority="1" from="description">Link to the household members page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="1898593214395640687" datatype="html">
         <source>Roles</source>
-        <target state="translated">Vai trò</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">137</context>
+        </context-group>
         <note priority="1" from="description">Link to the roles and rights page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="7744865580926941272" datatype="html">
         <source>Devices</source>
-        <target state="translated">Thiết bị</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">142</context>
+        </context-group>
         <note priority="1" from="description">Link to the paired devices page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
       <trans-unit id="6415460226917499402" datatype="html">
         <source>Households</source>
-        <target state="translated">Hộ gia đình</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">147</context>
+        </context-group>
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>

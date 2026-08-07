@@ -1,10 +1,27 @@
-<h1>Overview</h1>
+<h1 i18n="Overview page title|Heading of the household overview page">Overview</h1>
 
-<div class="overview__mode" role="group" aria-label="View mode">
-  <button mat-stroked-button type="button" [class.overview__mode--on]="!yearMode()" (click)="toggleYearMode(false)">
+<div
+  class="overview__mode"
+  role="group"
+  i18n-aria-label="Overview mode switch|Screen-reader name for the month or year switch"
+  aria-label="View mode"
+>
+  <button
+    mat-stroked-button
+    type="button"
+    [class.overview__mode--on]="!yearMode()"
+    (click)="toggleYearMode(false)"
+    i18n="Overview mode switch|Shows the current month's figures"
+  >
     Month
   </button>
-  <button mat-stroked-button type="button" [class.overview__mode--on]="yearMode()" (click)="toggleYearMode(true)">
+  <button
+    mat-stroked-button
+    type="button"
+    [class.overview__mode--on]="yearMode()"
+    (click)="toggleYearMode(true)"
+    i18n="Overview mode switch|Shows the whole year's figures"
+  >
     Year
   </button>
 </div>
@@ -21,12 +38,17 @@
       <p class="page-error" role="alert">{{ message }}</p>
     }
     @if (yearLoading()) {
-      <p>Loading the year…</p>
+      <p i18n="Year mode loading|Shown while the year's figures are fetched">Loading the year…</p>
     } @else if (yearData(); as year) {
       @if (year.months.length === 0) {
-        <p class="page-empty">No transactions recorded in {{ year.year }}.</p>
+        <p class="page-empty" i18n="Year mode empty state|No transactions exist for the chosen year">No transactions recorded in {{ year.year }}.</p>
       } @else {
-        <div class="yearly__chart" role="img" aria-label="Monthly income and spending">
+        <div
+          class="yearly__chart"
+          role="img"
+          i18n-aria-label="Year chart|Screen-reader name for the monthly income and spending bar chart"
+          aria-label="Monthly income and spending"
+        >
           @for (m of year.months; track m.month) {
             <button
               type="button"
@@ -44,7 +66,7 @@
           }
         </div>
         @if (yearFocused(); as focus) {
-          <div class="yearly__focus">
+          <div class="yearly__focus" i18n="Year chart focus|Figures for the month tapped in the chart">
             <strong>{{ yearMonthLabel(focus.month) }}</strong>
             · in {{ formatMoney(focus.income) }}
             · out {{ formatMoney(focus.spending) }}
@@ -56,25 +78,41 @@
           @if (canChat()) {
             <!-- ADR 0068: the advisor explains what made the tapped bar up. -->
             <div class="yearly__focus-actions">
-              <button mat-stroked-button type="button" (click)="askAboutMonth(focus.month, 'income')">
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="askAboutMonth(focus.month, 'income')"
+                i18n="Year chart action|Asks the advisor to break down that month's income"
+              >
                 ✨ Explain income
               </button>
-              <button mat-stroked-button type="button" (click)="askAboutMonth(focus.month, 'spending')">
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="askAboutMonth(focus.month, 'spending')"
+                i18n="Year chart action|Asks the advisor to break down that month's spending"
+              >
                 ✨ Explain spending
               </button>
             </div>
           }
         }
         <div class="yearly__totals">
-          <span>In {{ formatMoney(year.total_income) }}</span>
-          <span>Out {{ formatMoney(year.total_spending) }}</span>
-          <span>Kept {{ formatMoney(year.total_net) }}</span>
+          <span i18n="Year totals|Money that came in over the whole year">In {{ formatMoney(year.total_income) }}</span>
+          <span i18n="Year totals|Money that went out over the whole year">Out {{ formatMoney(year.total_spending) }}</span>
+          <span i18n="Year totals|Money left over across the whole year">Kept {{ formatMoney(year.total_net) }}</span>
         </div>
         <div class="overview__card overview__card--wide yearly__review">
           <div class="yearly__review-head">
-            <span class="overview__label">The year so far</span>
+            <span class="overview__label" i18n="Year review card header|AI written summary of the year to date">The year so far</span>
             <button mat-stroked-button type="button" (click)="generateYearReview()" [disabled]="yearGenerating()">
-              {{ yearGenerating() ? 'Writing…' : (year.review ? 'Refresh' : '✨ Write it') }}
+              @if (yearGenerating()) {
+                <ng-container i18n="Year review action|Shown while the advisor writes the review">Writing…</ng-container>
+              } @else if (year.review) {
+                <ng-container i18n="Year review action|Writes the review again from the latest figures">Refresh</ng-container>
+              } @else {
+                <ng-container i18n="Year review action|Asks the advisor to write the year review">✨ Write it</ng-container>
+              }
             </button>
           </div>
           @if (year.review; as review) {
@@ -88,18 +126,18 @@
             }
             <p class="yearly__byline">
               @if (review.model) {
-                🤖 Written by {{ review.model }}, from this year's real figures.
+                <ng-container i18n="Year review byline|Names the AI model that wrote the review">🤖 Written by {{ review.model }}, from this year's real figures.</ng-container>
               } @else {
-                🧮 Computed summary — enable the AI runtime for a narrative.
+                <ng-container i18n="Year review byline|The review was computed, not written by an AI model">🧮 Computed summary — enable the AI runtime for a narrative.</ng-container>
               }
             </p>
           } @else {
-            <p class="page-hint">Ask the advisor to sum up the year and suggest improvements.</p>
+            <p class="page-hint" i18n="Year review empty state|Invites the member to generate the review">Ask the advisor to sum up the year and suggest improvements.</p>
           }
         </div>
         @if (year.top_categories.length) {
           <div class="overview__card overview__card--wide">
-            <span class="overview__label">Where it went</span>
+            <span class="overview__label" i18n="Year categories card header|Top spending categories of the year">Where it went</span>
             <ul class="yearly__categories">
               @for (entry of year.top_categories; track entry.name) {
                 <li>
@@ -117,7 +155,7 @@
 
 @switch (household.status()) {
   @case ('loading') {
-    <p>Loading…</p>
+    <p i18n="Overview loading|Shown while the overview data is fetched">Loading…</p>
   }
   @case ('error') {
     <p class="page-error" role="alert">{{ household.error() }}</p>
@@ -126,13 +164,13 @@
     @if (household.value(); as context) {
       <div class="overview__cards">
         <div class="overview__card">
-          <span class="overview__label">Household</span>
+          <span class="overview__label" i18n="Household card header|The family this app tracks">Household</span>
           <span class="overview__value">{{ context.display_name }}</span>
 
           <!-- #10 phase 1: one language per household; the advisor answers in it. -->
           @if (canManageSettings()) {
             <mat-form-field appearance="outline" class="overview__language" subscriptSizing="dynamic">
-              <mat-label>Language</mat-label>
+              <mat-label i18n="Household language field|Label of the answer-language picker">Language</mat-label>
               <mat-select
                 [value]="languageValue(context)"
                 [disabled]="savingLanguage()"
@@ -144,7 +182,10 @@
               </mat-select>
             </mat-form-field>
           } @else {
-            <span class="overview__detail overview__language-readonly">
+            <span
+              class="overview__detail overview__language-readonly"
+              i18n="Household language readonly|Shows the answer language to members who cannot change it. The language's own name is never translated."
+            >
               Language: {{ languageLabel(context) }}
             </span>
           }
@@ -161,26 +202,31 @@
               [checked]="committedReserveValue(context)"
               [disabled]="savingCommittedReserve()"
               (change)="toggleCommittedReserve($event.checked)"
+              i18n="Committed savings toggle|Subtracts committed savings from Safe to Spend like a bill"
             >
               Reserve committed savings
             </mat-slide-toggle>
           } @else {
             <span class="overview__detail overview__committed-readonly">
-              Committed savings:
-              {{ committedReserveValue(context) ? 'reserved like a bill' : 'shown beside Safe to Spend' }}
+              <ng-container i18n="Committed savings readonly|Labels the committed savings setting for members who cannot change it">Committed savings:</ng-container>
+              @if (committedReserveValue(context)) {
+                <ng-container i18n="Committed savings readonly|The setting is on, savings are subtracted like a bill">reserved like a bill</ng-container>
+              } @else {
+                <ng-container i18n="Committed savings readonly|The setting is off, savings are only displayed">shown beside Safe to Spend</ng-container>
+              }
             </span>
           }
           @if (committedReserveError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
           }
-          <span class="overview__hint">
+          <span class="overview__hint" i18n="Committed savings hint|Explains both positions of the committed savings switch">
             Off: shown beside Safe to Spend. On: subtracted like a bill.
           </span>
         </div>
 
         @if (outlook.value(); as cash) {
           <div class="overview__card overview__card--wide outlook-card">
-            <span class="overview__label">Cash outlook</span>
+            <span class="overview__label" i18n="Cash outlook card header|Projection of cash over the next 30 days">Cash outlook</span>
             <!--
               The verdict tracks the 30-day projection itself (its lowest point),
               NOT a 14-day due-vs-cash check. The old headline used `due_soon`
@@ -193,22 +239,22 @@
             <!-- ADR 0069: the sell-by headline leads — when must an RSU sale
                  start (4 business days' notice) to cover the first shortfall. -->
             @if (cash.sell_by_date; as sellBy) {
-              <span class="overview__value overview__value--negative">
+              <span class="overview__value overview__value--negative" i18n="Cash outlook headline|The date by which a sale or transfer must start to avoid a shortfall">
                 ⚠ {{ runwayActionLabel(cash) }} by
                 {{ sellBy | date: 'EEE, MMM d' }}
               </span>
-              <span class="overview__detail overview__value--negative">
+              <span class="overview__detail overview__value--negative" i18n="Cash outlook headline detail|When cash runs out and how much must be raised">
                 cash runs short {{ cash.first_shortfall_date | date: 'MMM d' }}
                 @if (cash.shortfall; as gap) {
                   — raise at least {{ formatMoney(gap) }}
                 }
               </span>
             } @else if (cash.lowest_balance.amount_minor < 0) {
-              <span class="overview__detail overview__value--negative">
+              <span class="overview__detail overview__value--negative" i18n="Cash outlook verdict|The projected balance goes negative within the horizon">
                 ⚠ Your cash runs short over the next {{ cash.horizon_days }} days
               </span>
             } @else {
-              <span class="overview__detail overview__value--positive">
+              <span class="overview__detail overview__value--positive" i18n="Cash outlook verdict|The projected balance stays positive over the horizon">
                 ✓ Cash covers everything due in the next {{ cash.horizon_days }} days
               </span>
             }
@@ -220,13 +266,13 @@
             </span>
             <span class="overview__value-context">
               @if (cash.lowest_date) {
-                lowest your cash reaches in the next {{ cash.horizon_days }} days ·
-                {{ cash.lowest_date | date: 'MMM d' }}
+                <ng-container i18n="Cash outlook context|Explains the lowest projected balance and its date">lowest your cash reaches in the next {{ cash.horizon_days }} days ·
+                {{ cash.lowest_date | date: 'MMM d' }}</ng-container>
               } @else {
-                no payments or paydays expected in the next {{ cash.horizon_days }} days
+                <ng-container i18n="Cash outlook context|Nothing is scheduled inside the horizon">no payments or paydays expected in the next {{ cash.horizon_days }} days</ng-container>
               }
             </span>
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Cash outlook math|How the projected ending cash is worked out">
               {{ formatMoney(cash.starting_cash) }} cash +
               {{ formatMoney(cash.expected_income) }} expected paychecks −
               {{ formatMoney(cash.obligations) }} payments =
@@ -234,7 +280,7 @@
             </span>
             @if (outlookRows().length > 0) {
               <details class="outlook-card__details">
-                <summary>Day by day</summary>
+                <summary i18n="Cash outlook drill-down|Opens the day-by-day projection table">Day by day</summary>
                 <table class="outlook-card__table">
                   @for (row of outlookRows(); track $index) {
                     <tr>
@@ -256,7 +302,7 @@
                     </tr>
                   }
                 </table>
-                <p class="overview__hint">
+                <p class="overview__hint" i18n="Cash outlook footnote|Says where the projected paydays and payments come from">
                   Paydays come from your recurring deposits; payments from the Bills
                   timeline. Card amounts are today's balances — the real figure may be
                   higher by the due date.
@@ -268,7 +314,7 @@
 
         @if (plan.value(); as month) {
           <div class="overview__card overview__card--wide plan-card">
-            <span class="overview__label">Left to spend this month</span>
+            <span class="overview__label" i18n="Spending plan card header|What is still free to spend this month">Left to spend this month</span>
             <span
               class="overview__value"
               [class.overview__value--negative]="month.left_to_spend.amount_minor < 0"
@@ -277,14 +323,14 @@
             </span>
             <span class="overview__value-context">
               @if (month.left_to_spend.amount_minor >= 0) {
-                about {{ formatMoney(month.per_day) }}/day for the remaining
-                {{ month.days_remaining }} day{{ month.days_remaining === 1 ? '' : 's' }}
+                <ng-container i18n="Spending plan context|Daily allowance for the rest of the month">about {{ formatMoney(month.per_day) }}/day for the remaining
+                {month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}</ng-container>
               } @else {
-                this month's spending has outrun this month's income — the gap is
-                drawing on cash you already had
+                <ng-container i18n="Spending plan context|Spending has exceeded this month's income">this month's spending has outrun this month's income — the gap is
+                drawing on cash you already had</ng-container>
               }
             </span>
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Spending plan math|How the money left to spend this month is worked out">
               {{ formatMoney(month.expected_income) }} expected income
               ({{ formatMoney(month.income_received) }} received +
               {{ formatMoney(month.income_projected) }} to come)
@@ -300,14 +346,14 @@
 
         @if (context.safe_to_spend; as sts) {
           <div class="overview__card overview__card--wide">
-            <span class="overview__label">Stress test</span>
+            <span class="overview__label" i18n="Stress test card header|Worst-case cash left if every commitment were called today">Stress test</span>
             <span class="overview__value">{{ formatMoney(sts.safe_to_spend) }}</span>
-            <span class="overview__value-context">
+            <span class="overview__value-context" i18n="Stress test explanation|Says what the worst-case figure assumes">
               If every commitment were called today — full card balances, all bills, the
               emergency fund held back — with no paycheck counted. Deliberately
               worst-case; the cash outlook counts income.
             </span>
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Stress test math|How the worst-case figure is worked out">
               {{ formatMoney(sts.liquid_balance) }} liquid
               − {{ formatMoney(sts.emergency_fund_reserved) }} emergency fund
               − {{ formatMoney(sts.bills_due) }} bills due
@@ -317,7 +363,7 @@
               }
             </span>
             @if (sts.total_debt.amount_minor > 0) {
-              <span class="overview__detail overview__value--negative">
+              <span class="overview__detail overview__value--negative" i18n="Stress test detail|Everything the household owes">
                 {{ formatMoney(sts.total_debt) }} total debt
               </span>
             }
@@ -327,13 +373,12 @@
             @if (sts.ready_to_sell; as rsu) {
               <!-- Informational companion — never added to the stress-test number. -->
               <div class="overview__ready-to-sell">
-                <span class="overview__detail">
+                <span class="overview__detail" i18n="Ready to sell line|Vested stock that could be turned into cash, and how long that takes">
                   📈 Ready to sell: {{ formatMoney(rsu.value) }} in vested RSUs —
-                  about {{ rsu.sale_notice_business_days }} business
-                  day{{ rsu.sale_notice_business_days === 1 ? '' : 's' }} to become cash
+                  about {rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}} to become cash
                 </span>
                 <span class="overview__value-context">
-                  Not part of the number above.
+                  <ng-container i18n="Ready to sell footnote|The vested stock is not inside the stress-test figure">Not part of the number above.</ng-container>
                   @for (holding of rsu.accounts; track holding.name) {
                     {{ holding.name }} ({{ formatMoney(holding.amount) }}){{ $last ? '' : ' · ' }}
                   }
@@ -346,7 +391,7 @@
                      among bills and cards, with its drill-down. -->
                 @if (sts.committed_savings_items?.length) {
                   <span class="overview__value-context overview__committed-items">
-                    Committed savings, reserved like a bill:
+                    <ng-container i18n="Committed savings drill-down|Lists the savings that are subtracted like a bill">Committed savings, reserved like a bill:</ng-container>
                     @for (item of sts.committed_savings_items; track item.name) {
                       {{ item.name }} ({{ formatMoney(item.amount) }}){{ $last ? '' : ' · ' }}
                     }
@@ -356,12 +401,12 @@
                 <!-- Informational companion — never subtracted from the number above,
                      exactly like the ready-to-sell line. -->
                 <div class="overview__committed-savings">
-                  <span class="overview__detail">
+                  <span class="overview__detail" i18n="Committed savings line|Savings shown beside the stress-test figure but not subtracted from it">
                     🏦 Committed savings (shown, not subtracted):
                     {{ formatMoney(committed) }}
                   </span>
                   <span class="overview__value-context">
-                    Not part of the number above.
+                    <ng-container i18n="Committed savings footnote|The committed savings are not inside the stress-test figure">Not part of the number above.</ng-container>
                     @for (item of sts.committed_savings_items; track item.name) {
                       {{ item.name }} ({{ formatMoney(item.amount) }}){{ $last ? '' : ' · ' }}
                     }
@@ -373,7 +418,7 @@
         }
 
         <div class="overview__card">
-          <span class="overview__label">Net worth</span>
+          <span class="overview__label" i18n="Net worth card header|Everything owned minus everything owed">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
           @if (context.net_worth_history; as history) {
             @if (sparklinePoints(history); as points) {
@@ -382,6 +427,7 @@
                 viewBox="0 0 100 28"
                 preserveAspectRatio="none"
                 role="img"
+                i18n-aria-label="Net worth sparkline|Screen-reader name for the net worth trend line"
                 aria-label="Net worth trend"
               >
                 <polyline [attr.points]="points" />
@@ -391,6 +437,7 @@
                   class="overview__detail"
                   [class.overview__value--positive]="change.amount_minor > 0"
                   [class.overview__value--negative]="change.amount_minor < 0"
+                  i18n="Net worth change|How much net worth moved across the recorded snapshots"
                 >
                   {{ change.amount_minor >= 0 ? '▲' : '▼' }}
                   {{ formatMoney(change) }} over {{ history.length }} snapshots
@@ -402,7 +449,7 @@
 
         @if (context.monthly_cash_flow; as cashFlow) {
           <div class="overview__card">
-            <span class="overview__label">Monthly cash flow</span>
+            <span class="overview__label" i18n="Cash flow card header|Money in against money out this month">Monthly cash flow</span>
             <span
               class="overview__value"
               [class.overview__value--negative]="cashFlow.net.amount_minor < 0"
@@ -410,11 +457,11 @@
             >
               {{ formatMoney(cashFlow.net) }}
             </span>
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Cash flow math|Income minus spending for the month">
               {{ formatMoney(cashFlow.income) }} in − {{ formatMoney(cashFlow.spending) }} spent
             </span>
             @if (cashFlow.income.amount_minor === 0) {
-              <span class="overview__hint">No income sources recorded yet.</span>
+              <span class="overview__hint" i18n="Cash flow empty state|No income has been recorded for the household">No income sources recorded yet.</span>
             }
             @if (context.savings_rate; as savings) {
               @if (savings.percent !== null && savings.percent !== undefined) {
@@ -425,6 +472,7 @@
                   class="overview__detail overview__savings-rate"
                   [class.overview__value--positive]="savings.percent > 0"
                   [class.overview__value--negative]="savings.percent < 0"
+                  i18n="Savings rate|Share of income the household saves, and the monthly amount"
                 >
                   Saving {{ savings.percent }}%
                   @if (savings.total_saved; as saved) {
@@ -440,11 +488,11 @@
                     </span>
                   }
                 }
-                <span class="overview__value-context">
+                <span class="overview__value-context" i18n="Savings rate context|Average monthly spending over the last three months">
                   · {{ formatMoney(savings.average_monthly_spending) }}/mo avg spend (last 3 mo)
                 </span>
                 @if (savings.payroll_profile_present === false) {
-                  <span class="overview__hint overview__savings-note">
+                  <span class="overview__hint overview__savings-note" i18n="Savings rate warning|Pre-tax payroll saving is missing so the rate is understated">
                     Payroll 401(k)/HSA not declared — add it on the
                     <a routerLink="/income-tax">Income page</a> for a complete rate;
                     the rate may understate your saving.
@@ -459,7 +507,7 @@
              never syncs leaves nothing to detect — the household states it. -->
         @if (savingsRows(context); as contributions) {
           <div class="overview__card overview__card--wide">
-            <span class="overview__label">What you're saving</span>
+            <span class="overview__label" i18n="Savings card header|Recurring money the household puts aside">What you're saving</span>
 
             @if (contributions.length > 0) {
               <ul class="overview__bills">
@@ -468,14 +516,18 @@
                     <span class="overview__bill-name">
                       {{ contribution.destination_name }}
                       @if (contribution.declared) {
-                        <span class="overview__declared">you told us</span>
+                        <span class="overview__declared" i18n="Savings row marker|The household stated this contribution itself">you told us</span>
                       }
                       @if (contribution.inferred) {
-                        <span class="overview__inferred">inferred</span>
+                        <span class="overview__inferred" i18n="Savings row marker|Matched from the money leaving the account only">inferred</span>
                       }
                       <!-- #4: the goal this contribution funds. -->
                       @if (goalName(contribution.goal_id); as linkedName) {
-                        <span class="overview__goal-link" title="funds {{ linkedName }}">
+                        <span
+                          class="overview__goal-link"
+                          i18n-title="Savings row goal link|Tooltip naming the goal this contribution funds"
+                          title="funds {{ linkedName }}"
+                        >
                           → {{ linkedName }}
                         </span>
                         @if (canWrite()) {
@@ -484,7 +536,7 @@
                             class="overview__goal-unlink"
                             [disabled]="savingsSubmitting()"
                             (click)="linkContributionToGoal(contribution, null)"
-                            aria-label="Unlink from {{ linkedName }}"
+                            [attr.aria-label]="unlinkGoalLabel(linkedName)"
                           >
                             ×
                           </button>
@@ -509,6 +561,7 @@
                                   contribution.suggested_goal_id ?? null
                                 )
                               "
+                              i18n="Savings row suggestion|Offers to link this contribution to the matching goal"
                             >
                               Fund {{ suggestedName }}?
                             </button>
@@ -521,6 +574,7 @@
                             class="overview__saving-action"
                             [disabled]="savingsSubmitting()"
                             (click)="stopTracking(contribution)"
+                            i18n="Savings row action|Forgets a contribution the household declared"
                           >
                             Stop tracking
                           </button>
@@ -531,6 +585,7 @@
                             class="overview__saving-action"
                             [disabled]="savingsSubmitting()"
                             (click)="dismissContribution(contribution)"
+                            i18n="Savings row action|Says a detected transfer is not saving after all"
                           >
                             Not saving
                           </button>
@@ -541,7 +596,7 @@
                 }
               </ul>
               @if (savingsMonthlyTotal(contributions); as total) {
-                <span class="overview__saving-total">About {{ formatMoney(total) }} a month</span>
+                <span class="overview__saving-total" i18n="Savings total|Everything the household saves each month">About {{ formatMoney(total) }} a month</span>
               }
             }
 
@@ -551,13 +606,14 @@
                 type="button"
                 class="overview__declare-open"
                 (click)="startDeclaring()"
+                i18n="Savings action|Opens the form for declaring a savings transfer"
               >
                 Add a contribution
               </button>
             }
 
             @if (contributions.length === 0 && !declaring()) {
-              <span class="overview__hint">
+              <span class="overview__hint" i18n="Savings empty state|Explains why no savings were detected and invites a declaration">
                 Nothing detected. Money moved into an account we don't sync — a 529, a
                 workplace plan — never reaches the ledger, so tell us about it here.
               </span>
@@ -568,14 +624,14 @@
                     (ngSubmit)="declareContribution(context.currency)">
                 @switch (accounts.status()) {
                   @case ('loading') {
-                    <p>Loading accounts…</p>
+                    <p i18n="Savings form loading|Shown while the account list is fetched">Loading accounts…</p>
                   }
                   @case ('error') {
                     <p class="page-error" role="alert">{{ accounts.error() }}</p>
                   }
                   @default {
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                      <mat-label>From</mat-label>
+                      <mat-label i18n="Savings form field|The account the money leaves">From</mat-label>
                       <mat-select formControlName="sourceAccountId">
                         @for (account of accounts.value() ?? []; track account.id) {
                           <mat-option [value]="account.id">{{ account.name }}</mat-option>
@@ -583,7 +639,7 @@
                       </mat-select>
                     </mat-form-field>
                     <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                      <mat-label>Into</mat-label>
+                      <mat-label i18n="Savings form field|The account the money arrives in">Into</mat-label>
                       <mat-select formControlName="destinationAccountId">
                         @for (account of accounts.value() ?? []; track account.id) {
                           <mat-option [value]="account.id">{{ account.name }}</mat-option>
@@ -593,11 +649,11 @@
                   }
                 }
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>{{ context.currency }} each time</mat-label>
+                  <mat-label i18n="Savings form field|How much moves on each transfer, in the household currency">{{ context.currency }} each time</mat-label>
                   <input matInput type="number" step="0.01" min="0" formControlName="amount" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>How often</mat-label>
+                  <mat-label i18n="Savings form field|How often the transfer repeats">How often</mat-label>
                   <mat-select formControlName="frequency">
                     @for (cadence of cadences; track cadence) {
                       <mat-option [value]="cadence">{{ cadenceWord(cadence) }}</mat-option>
@@ -605,10 +661,22 @@
                   </mat-select>
                 </mat-form-field>
                 <div class="overview__declare-actions">
-                  <button mat-flat-button type="submit" [disabled]="savingsSubmitting()">
+                  <button
+                    mat-flat-button
+                    type="submit"
+                    [disabled]="savingsSubmitting()"
+                    i18n="Savings form action|Submits the declared contribution"
+                  >
                     Save
                   </button>
-                  <button mat-button type="button" (click)="cancelDeclaring()">Cancel</button>
+                  <button
+                    mat-button
+                    type="button"
+                    (click)="cancelDeclaring()"
+                    i18n="Savings form action|Closes the form without saving"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </form>
             }
@@ -631,17 +699,17 @@
         @if (context.emergency_fund; as fund) {
           <div class="overview__card overview__card--wide">
             <span class="overview__label">
-              Emergency fund
+              <ng-container i18n="Emergency fund card header|Cash held back for emergencies">Emergency fund</ng-container>
               <span class="overview__status overview__status--{{ fund.status }}">
                 {{ efStatusLabel(fund) }}
               </span>
             </span>
             @if (fund.months !== null && fund.months !== undefined) {
               <span class="overview__value">
-                {{ fund.months | number: '1.1-1' }} months
-                <span class="overview__value-context">of {{ fund.target_months_recommended }} recommended</span>
+                <ng-container i18n="Emergency fund cover|How many months of expenses the fund covers">{{ fund.months | number: '1.1-1' }} months</ng-container>
+                <span class="overview__value-context" i18n="Emergency fund cover|The recommended number of months of cover">of {{ fund.target_months_recommended }} recommended</span>
               </span>
-              <span class="overview__detail">
+              <span class="overview__detail" i18n="Emergency fund detail|What is set aside, where it was counted, and monthly expenses">
                 {{ formatMoney(fund.reserved) }} set aside
                 @if (fund.using_designations) {
                   (designated accounts)
@@ -651,25 +719,25 @@
                 · expenses {{ formatMoney(fund.monthly_expenses) }}/month
               </span>
               @if (fund.goal_target; as goalTarget) {
-                <div class="overview__detail">
+                <div class="overview__detail" i18n="Emergency fund detail|The household's own target for the fund">
                   Your goal: {{ formatMoney(goalTarget) }}
                 </div>
               }
               @if (fund.gap_to_recommended; as gap) {
                 @if (gap.amount_minor > 0) {
-                  <span class="overview__detail overview__detail--action">
+                  <span class="overview__detail overview__detail--action" i18n="Emergency fund gap|How much more is needed to reach the recommended months of cover">
                     {{ formatMoney(gap) }} more to reach the
                     {{ fund.target_months_recommended }}-month goal
                   </span>
                 } @else {
-                  <span class="overview__detail overview__detail--good">
+                  <span class="overview__detail overview__detail--good" i18n="Emergency fund gap|The recommended months of cover are reached">
                     ✓ Target met
                   </span>
                 }
               }
             } @else {
               <span class="overview__value">—</span>
-              <span class="overview__hint">
+              <span class="overview__hint" i18n="Emergency fund empty state|Bills are needed before months of cover can be worked out">
                 <a routerLink="/bills">Add your recurring bills</a> so coverage can be measured
                 against your {{ fund.target_months_recommended }}-month target.
               </span>
@@ -679,7 +747,7 @@
               <div class="overview__target-editor">
                 @if (editingTarget()) {
                   <mat-form-field appearance="outline" class="overview__target-label" subscriptSizing="dynamic">
-                    <mat-label>Target months</mat-label>
+                    <mat-label i18n="Emergency fund target field|How many months of expenses the fund should cover">Target months</mat-label>
                     <input
                       matInput
                       type="number"
@@ -690,9 +758,19 @@
                     />
                   </mat-form-field>
                   <button mat-flat-button type="button" (click)="saveTarget()" [disabled]="savingTarget()">
-                    {{ savingTarget() ? 'Saving…' : 'Save' }}
+                    @if (savingTarget()) {
+                      <ng-container i18n="Emergency fund target action|Shown while the new target is saved">Saving…</ng-container>
+                    } @else {
+                      <ng-container i18n="Emergency fund target action|Stores the new target months">Save</ng-container>
+                    }
                   </button>
-                  <button mat-button type="button" class="overview__target-cancel" (click)="editingTarget.set(false)">
+                  <button
+                    mat-button
+                    type="button"
+                    class="overview__target-cancel"
+                    (click)="editingTarget.set(false)"
+                    i18n="Emergency fund target action|Leaves the target unchanged"
+                  >
                     Cancel
                   </button>
                 } @else {
@@ -701,6 +779,7 @@
                     type="button"
                     class="overview__target-edit"
                     (click)="startEditTarget(fund.target_months_recommended)"
+                    i18n="Emergency fund target action|Opens the editor for the months of cover target"
                   >
                     Adjust target ({{ fund.target_months_recommended }} months)
                   </button>
@@ -712,7 +791,7 @@
 
         @if (context.asset_breakdown && context.asset_breakdown.length > 0) {
           <div class="overview__card">
-            <span class="overview__label">Assets</span>
+            <span class="overview__label" i18n="Assets card header|Everything the household owns, by category">Assets</span>
             <ul class="overview__breakdown">
               @for (entry of context.asset_breakdown; track entry.category) {
                 <li>
@@ -726,7 +805,7 @@
 
         @if (context.total_debt; as debt) {
           <div class="overview__card">
-            <span class="overview__label">Total debt</span>
+            <span class="overview__label" i18n="Debt card header|Everything the household owes">Total debt</span>
             <span
               class="overview__value"
               [class.overview__value--negative]="debt.amount_minor > 0"
@@ -737,7 +816,7 @@
         }
 
         <div class="overview__card">
-          <span class="overview__label">Top goal</span>
+          <span class="overview__label" i18n="Top goal card header|The savings goal closest to being reached">Top goal</span>
           @if (context.top_goal; as goal) {
             <span class="overview__value overview__value--goal">{{ goal.name }}</span>
             <span class="overview__detail">{{ goalTypeLabel(goal.type) }}</span>
@@ -750,7 +829,7 @@
             >
               <div class="overview__progress-fill" [style.width.%]="goal.percent_complete"></div>
             </div>
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Top goal progress|How much is saved against the target, and the target date">
               {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
               · {{ goal.percent_complete }}%
               @if (goal.target_date) {
@@ -758,7 +837,7 @@
               }
             </span>
           } @else {
-            <span class="overview__hint">
+            <span class="overview__hint" i18n="Top goal empty state|No savings goal has been created yet">
               No goals yet. <a routerLink="/goals">Set a savings goal</a> to track progress.
             </span>
           }
@@ -767,8 +846,8 @@
         @if (context.spending_insights; as spending) {
           <div class="overview__card overview__card--wide">
             <span class="overview__label">
-              Spending this month
-              <span class="overview__value-context">vs same period last month</span>
+              <ng-container i18n="Spending card header|What the household has spent so far this month">Spending this month</ng-container>
+              <span class="overview__value-context" i18n="Spending card header note|The comparison is against the same days of last month">vs same period last month</span>
             </span>
             <span class="overview__value">{{ formatMoney(spending.this_month) }}</span>
             @if (spending.change_percent !== null && spending.change_percent !== undefined) {
@@ -776,13 +855,14 @@
                 class="overview__detail"
                 [class.overview__value--negative]="spending.change_percent > 0"
                 [class.overview__value--positive]="spending.change_percent < 0"
+                i18n="Spending change|How this month's spending compares with the same period last month"
               >
                 {{ spending.change_percent > 0 ? '▲' : spending.change_percent < 0 ? '▼' : '' }}
                 {{ absPercent(spending.change_percent) }}% vs last month
                 ({{ formatMoney(spending.last_month) }})
               </span>
             } @else {
-              <span class="overview__detail">No spending in the same period last month.</span>
+              <span class="overview__detail" i18n="Spending change empty state|There is nothing to compare against last month">No spending in the same period last month.</span>
             }
             @if (spending.top_merchants && spending.top_merchants.length > 0) {
               <ul class="overview__breakdown overview__breakdown--merchants">
@@ -799,19 +879,19 @@
 
         @if (context.budget_summary; as budgets) {
           <div class="overview__card">
-            <span class="overview__label">Budgets</span>
+            <span class="overview__label" i18n="Budgets card header|Spending envelopes and how they are doing">Budgets</span>
             @if (budgets.over_count > 0) {
-              <span class="overview__value overview__value--negative">
+              <span class="overview__value overview__value--negative" i18n="Budget verdict|How many envelopes have been overspent">
                 {{ budgets.over_count }} over budget
               </span>
             } @else if (budgets.warning_count > 0) {
-              <span class="overview__value overview__value--warning">
+              <span class="overview__value overview__value--warning" i18n="Budget verdict|How many envelopes are close to their limit">
                 {{ budgets.warning_count }} almost at the limit
               </span>
             } @else {
-              <span class="overview__value overview__value--positive">All on track</span>
+              <span class="overview__value overview__value--positive" i18n="Budget verdict|No envelope is over or near its limit">All on track</span>
             }
-            <span class="overview__detail">
+            <span class="overview__detail" i18n="Budget detail|Spent against budgeted across all envelopes">
               {{ formatMoney(budgets.total_spent) }} of
               {{ formatMoney(budgets.total_budgeted) }} across
               {{ budgets.envelope_count }} budgets ·
@@ -822,8 +902,8 @@
 
         <div class="overview__card overview__card--wide">
           <span class="overview__label">
-            Upcoming bills
-            <span class="overview__value-context">next 14 days</span>
+            <ng-container i18n="Bills card header|Bills falling due soon">Upcoming bills</ng-container>
+            <span class="overview__value-context" i18n="Bills card header note|The window the listed bills fall in">next 14 days</span>
           </span>
           @if (context.upcoming_bills && context.upcoming_bills.length > 0) {
             <ul class="overview__bills">
@@ -841,7 +921,7 @@
               }
             </ul>
           } @else {
-            <span class="overview__hint">
+            <span class="overview__hint" i18n="Bills empty state|No bill falls due inside the window">
               Nothing due in the next two weeks.
               <a routerLink="/bills">Manage bills</a>
             </span>

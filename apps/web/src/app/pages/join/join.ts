@@ -56,14 +56,14 @@ export class Join {
   private async load(): Promise<void> {
     if (!this.token) {
       this.loading.set(false);
-      this.loadError.set('This invite link is incomplete — ask for a new one.');
+      this.loadError.set($localize`This invite link is incomplete — ask for a new one.`);
       return;
     }
     const { data, error } = await this.api.previewInvite(this.token);
     this.loading.set(false);
     if (error || !data) {
       this.loadError.set(
-        apiErrorMessage(error, 'This invite link is invalid or expired — ask for a new one.'),
+        apiErrorMessage(error, $localize`This invite link is invalid or expired — ask for a new one.`),
       );
       return;
     }
@@ -86,7 +86,7 @@ export class Join {
     this.submitting.set(false);
     if (error || !data) {
       this.submitError.set(
-        apiErrorMessage(error, 'Could not join — the link may have expired. Ask for a new one.'),
+        apiErrorMessage(error, $localize`Could not join — the link may have expired. Ask for a new one.`),
       );
       return;
     }
