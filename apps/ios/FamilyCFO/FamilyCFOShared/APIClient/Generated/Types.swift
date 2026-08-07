@@ -5804,6 +5804,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/language`.
             public var language: Swift.String?
+            /// #5: whether committed savings is reserved like a bill.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/reserve_committed_savings`.
+            public var reserveCommittedSavings: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/currency`.
             public var currency: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/net_worth`.
@@ -5880,6 +5884,7 @@ public enum Components {
             ///   - householdId:
             ///   - displayName:
             ///   - language: "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
+            ///   - reserveCommittedSavings: #5: whether committed savings is reserved like a bill.
             ///   - currency:
             ///   - netWorth:
             ///   - emergencyFundMonths:
@@ -5903,6 +5908,7 @@ public enum Components {
                 householdId: Swift.String,
                 displayName: Swift.String,
                 language: Swift.String? = nil,
+                reserveCommittedSavings: Swift.Bool? = nil,
                 currency: Swift.String,
                 netWorth: Components.Schemas.Money,
                 emergencyFundMonths: Swift.Double,
@@ -5926,6 +5932,7 @@ public enum Components {
                 self.householdId = householdId
                 self.displayName = displayName
                 self.language = language
+                self.reserveCommittedSavings = reserveCommittedSavings
                 self.currency = currency
                 self.netWorth = netWorth
                 self.emergencyFundMonths = emergencyFundMonths
@@ -5950,6 +5957,7 @@ public enum Components {
                 case householdId = "household_id"
                 case displayName = "display_name"
                 case language
+                case reserveCommittedSavings = "reserve_committed_savings"
                 case currency
                 case netWorth = "net_worth"
                 case emergencyFundMonths = "emergency_fund_months"
@@ -6352,6 +6360,34 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell`.
             public var readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload?
+            /// "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings`.
+            public struct CommittedSavingsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings/value1`.
+                public var value1: Components.Schemas.Money
+                /// Creates a new `CommittedSavingsPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                public init(value1: Components.Schemas.Money) {
+                    self.value1 = value1
+                }
+                public init(from decoder: any Decoder) throws {
+                    self.value1 = try .init(from: decoder)
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try self.value1.encode(to: encoder)
+                }
+            }
+            /// "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
+            ///
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings`.
+            public var committedSavings: Components.Schemas.SafeToSpend.CommittedSavingsPayload?
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings_items`.
+            public var committedSavingsItems: [Components.Schemas.NamedAmount]?
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings_reserved`.
+            public var committedSavingsReserved: Swift.Bool?
             /// Creates a new `SafeToSpend`.
             ///
             /// - Parameters:
@@ -6372,6 +6408,9 @@ public enum Components {
             ///   - emergencyFundItems: M98: the accounts and how much of each is reserved as emergency fund.
             ///   - subscriptionForecastItems: M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
             ///   - readyToSell: The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
+            ///   - committedSavings: "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
+            ///   - committedSavingsItems:
+            ///   - committedSavingsReserved:
             public init(
                 liquidBalance: Components.Schemas.Money,
                 emergencyFundReserved: Components.Schemas.Money,
@@ -6389,7 +6428,10 @@ public enum Components {
                 billItems: [Components.Schemas.NamedAmount]? = nil,
                 emergencyFundItems: [Components.Schemas.NamedAmount]? = nil,
                 subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil,
-                readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload? = nil
+                readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload? = nil,
+                committedSavings: Components.Schemas.SafeToSpend.CommittedSavingsPayload? = nil,
+                committedSavingsItems: [Components.Schemas.NamedAmount]? = nil,
+                committedSavingsReserved: Swift.Bool? = nil
             ) {
                 self.liquidBalance = liquidBalance
                 self.emergencyFundReserved = emergencyFundReserved
@@ -6408,6 +6450,9 @@ public enum Components {
                 self.emergencyFundItems = emergencyFundItems
                 self.subscriptionForecastItems = subscriptionForecastItems
                 self.readyToSell = readyToSell
+                self.committedSavings = committedSavings
+                self.committedSavingsItems = committedSavingsItems
+                self.committedSavingsReserved = committedSavingsReserved
             }
             public enum CodingKeys: String, CodingKey {
                 case liquidBalance = "liquid_balance"
@@ -6427,6 +6472,9 @@ public enum Components {
                 case emergencyFundItems = "emergency_fund_items"
                 case subscriptionForecastItems = "subscription_forecast_items"
                 case readyToSell = "ready_to_sell"
+                case committedSavings = "committed_savings"
+                case committedSavingsItems = "committed_savings_items"
+                case committedSavingsReserved = "committed_savings_reserved"
             }
         }
         /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings`.
@@ -9130,6 +9178,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/language`.
             public var language: Swift.String?
+            /// "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/reserve_committed_savings`.
+            public var reserveCommittedSavings: Swift.Bool?
             /// Creates a new `HouseholdUpdateRequest`.
             ///
             /// - Parameters:
@@ -9137,22 +9189,26 @@ public enum Components {
             ///   - clearEmergencyFundTarget: Reset the emergency-fund target to the default (6 months).
             ///   - creditCardsPaidInFull: M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
             ///   - language: "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
+            ///   - reserveCommittedSavings: "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
             public init(
                 emergencyFundTargetMonths: Swift.Double? = nil,
                 clearEmergencyFundTarget: Swift.Bool? = nil,
                 creditCardsPaidInFull: Swift.Bool? = nil,
-                language: Swift.String? = nil
+                language: Swift.String? = nil,
+                reserveCommittedSavings: Swift.Bool? = nil
             ) {
                 self.emergencyFundTargetMonths = emergencyFundTargetMonths
                 self.clearEmergencyFundTarget = clearEmergencyFundTarget
                 self.creditCardsPaidInFull = creditCardsPaidInFull
                 self.language = language
+                self.reserveCommittedSavings = reserveCommittedSavings
             }
             public enum CodingKeys: String, CodingKey {
                 case emergencyFundTargetMonths = "emergency_fund_target_months"
                 case clearEmergencyFundTarget = "clear_emergency_fund_target"
                 case creditCardsPaidInFull = "credit_cards_paid_in_full"
                 case language
+                case reserveCommittedSavings = "reserve_committed_savings"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Member`.

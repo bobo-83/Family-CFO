@@ -105,6 +105,9 @@ households = Table(
     # M96: when true, safe-to-spend treats full credit-card balances as committed
     # (paid in full monthly), not just recorded minimum payments. Null = false.
     Column("credit_cards_paid_in_full", Boolean, nullable=True),
+    # #5: when true, safe-to-spend reserves committed savings like a bill; null
+    # = false = show it beside the figure without subtracting.
+    Column("reserve_committed_savings", Boolean, nullable=True),
     # #10: BCP-47 language for every surface the household reads — the web build
     # served, the advisor's answers, and (phase 4) API-owned strings. Household-
     # level by design: compile-time i18n ships one web build per locale, so

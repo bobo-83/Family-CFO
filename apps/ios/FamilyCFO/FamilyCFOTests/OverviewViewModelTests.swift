@@ -97,6 +97,15 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         }
     }
 
+    // #5: reserve-committed-savings PATCHes.
+    private(set) var reserveUpdates: [Bool] = []
+    nonisolated func updateReserveCommittedSavings(_ value: Bool) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            reserveUpdates.append(value)
+        }
+    }
+
     var monthlySpending: Components.Schemas.SpendingByCategory?
     nonisolated func spending(month: String?) async throws
         -> Components.Schemas.SpendingByCategory

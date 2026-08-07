@@ -402,6 +402,23 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
     ]
     if held:
         payload["vested_rsus_ready_to_sell_not_cash"] = held
+    # #5: committed savings due in the window. When the household reserves it,
+    # it is already inside safe_to_spend; when not, it is context the advisor
+    # may mention ("$500 is due to your 529 in 6 days") but must NOT deduct.
+    savings = result.outputs.get("committed_savings")
+    if savings is not None and not savings.is_zero():
+        reserved = bool(result.outputs.get("committed_savings_reserved"))
+        payload["committed_savings"] = {
+            "amount": _money_out(savings),
+            "reserved_in_safe_to_spend": reserved,
+            "note": (
+                "Already subtracted from safe_to_spend at the household's request."
+                if reserved
+                else "A self-imposed savings transfer — mention it as committed, but "
+                "it is NOT subtracted from safe_to_spend (the household can skip it "
+                "in a tight month)."
+            ),
+        }
     return payload
 
 

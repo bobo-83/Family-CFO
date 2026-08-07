@@ -57,6 +57,17 @@ class SafeToSpendInputs:
     unmodeled_debt_total: Money | None = None
     """What those unrecorded liabilities owe, so the warning can name a number."""
 
+    committed_savings: Money | None = None
+    """A recurring savings contribution (#4/#203) whose next occurrence falls
+    within `horizon_days` — money the household has committed to setting aside.
+    Unlike a bill it is SELF-imposed and skippable, so by default it is reported
+    beside the figure, not subtracted (see `reserve_savings`)."""
+
+    reserve_savings: bool = False
+    """When true, committed_savings is treated like a bill and subtracted from
+    safe-to-spend; when false (default) it is reported informationally, like
+    total_debt. The household chooses (#5)."""
+
 
 def _plain(money: Money) -> str:
     """A bare amount for warning text (the API formats display strings)."""
@@ -79,6 +90,9 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
     subscription_forecast = inputs.subscription_forecast or Money.zero(currency)
     if subscription_forecast.currency != currency:
         raise CurrencyMismatchError(currency, subscription_forecast.currency)
+    committed_savings = inputs.committed_savings or Money.zero(currency)
+    if committed_savings.currency != currency:
+        raise CurrencyMismatchError(currency, committed_savings.currency)
     committed = (
         inputs.emergency_fund_reserved
         + inputs.bills_due
@@ -86,6 +100,10 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
         + card_payments
         + subscription_forecast
     )
+    # A savings transfer is a choice, not an obligation: reserve it only when
+    # the household asked us to (#5). Otherwise it stays out of the headline.
+    if inputs.reserve_savings:
+        committed += committed_savings
     safe_to_spend = inputs.liquid_balance - committed
 
     warnings: list[str] = []
@@ -142,7 +160,12 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
             f"Minimum debt payments due within {inputs.horizon_days} days are already committed.",
             "Income expected during the window is NOT counted — this is what is safe to "
             "spend from money already in the bank.",
-        ],
+        ]
+        + (
+            ["Committed savings due in this window are reserved, at the household's request."]
+            if inputs.reserve_savings and not committed_savings.is_zero()
+            else []
+        ),
         outputs={
             "liquid_balance": inputs.liquid_balance,
             "emergency_fund_reserved": inputs.emergency_fund_reserved,
@@ -153,6 +176,7 @@ def calculate_safe_to_spend(inputs: SafeToSpendInputs) -> CalculationResult:
             "committed_total": committed,
             "safe_to_spend": safe_to_spend,
             "total_debt": inputs.total_debt or Money.zero(currency),
+            "committed_savings": committed_savings,
         },
         warnings=warnings,
     )

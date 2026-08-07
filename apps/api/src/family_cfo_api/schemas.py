@@ -414,6 +414,13 @@ class SafeToSpend(BaseModel):
     # Vested RSUs one sale from cash (the accounts the user tagged) —
     # informational only, never part of safe_to_spend.
     ready_to_sell: ReadyToSellHoldings | None = None
+    # #5: recurring savings the household committed to, due within the horizon.
+    # committed_savings_reserved says whether it was SUBTRACTED (the household's
+    # choice) or is shown beside the figure. Amount and drill-down are always
+    # present; when reserved it is also inside committed_total.
+    committed_savings: Money | None = None
+    committed_savings_items: list[NamedAmount] = Field(default_factory=list)
+    committed_savings_reserved: bool = False
     # M109: the recurring subscriptions behind subscription_forecast — the next
     # charge and its amount, so the drill-down explains the reserved total.
     subscription_forecast_items: list[NamedAmount] = Field(default_factory=list)
@@ -425,6 +432,9 @@ class HouseholdContext(BaseModel):
     currency: str
     # #10: the household's display/answer language; "en" when never set.
     language: str = "en"
+    # #5: whether committed savings is reserved like a bill (the toggle's
+    # authoritative source, present even when there is no safe-to-spend yet).
+    reserve_committed_savings: bool = False
     net_worth: Money
     emergency_fund_months: float | None
     # M38: enriched overview summary (additive).
@@ -1704,6 +1714,9 @@ class HouseholdUpdateRequest(BaseModel):
     # #10: household display/answer language ("en", "vi", "lt"). None leaves it
     # unchanged; validation happens in the endpoint against the supported set.
     language: str | None = None
+    # #5: reserve committed savings like a bill (True) vs show it beside the
+    # figure (False). None leaves it unchanged.
+    reserve_committed_savings: bool | None = None
 
 
 class Member(BaseModel):

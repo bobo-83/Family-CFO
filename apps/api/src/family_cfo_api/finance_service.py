@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -406,6 +407,8 @@ def compute_emergency_fund_with_ref(
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 
+
+logger = logging.getLogger(__name__)
 
 SAFE_TO_SPEND_HORIZON_DAYS = 30
 
@@ -1340,6 +1343,52 @@ def subscription_forecast(
     return items, total
 
 
+def committed_savings_in_window(
+    engine, household_id: str, currency: str, *, today: date, horizon_days: int
+):
+    """#5: DECLARED savings contributions whose next occurrence lands within the
+    horizon — money the household has committed to setting aside. Detected-only
+    candidates are excluded: only what the family confirmed counts as committed
+    (the #203 durability rule). Returns (total, items) where each item is
+    (name, amount, next_date)."""
+    from family_cfo_api import savings_detection
+
+    try:
+        found = savings_detection.detect_for_household(engine, household_id, today=today)
+    except Exception:
+        logger.exception("committed-savings detection failed household=%s", household_id)
+        return Money.zero(currency), []
+
+    horizon = today + timedelta(days=horizon_days)
+    # Cadences that fire at least once inside a ~monthly horizon. A declared
+    # contribution with no synced arrivals (the common 529 case, #201) has no
+    # anchor day, so its projected next_expected sits a full period out — for
+    # these we count one occurrence as due, since a monthly-or-more-frequent
+    # commitment definitely lands within the window.
+    at_least_monthly = {"weekly", "biweekly", "semimonthly", "monthly"}
+    total = Money.zero(currency)
+    items: list[tuple[str, Money, date]] = []
+    for c in found:
+        # Only the household's own word counts as committed (#203 durability).
+        if not c.declared or c.currency != currency:
+            continue
+        anchored = c.occurrences > 0
+        if anchored:
+            in_window = c.next_expected is not None and c.next_expected <= horizon
+        else:
+            in_window = c.frequency in at_least_monthly
+        if not in_window:
+            continue
+        amount = Money(c.amount_minor, c.currency)
+        total += amount
+        # Show the projected date when anchored; otherwise the horizon end, so
+        # the label reads honestly ("expected within the window").
+        due = c.next_expected if anchored and c.next_expected else horizon
+        items.append((c.destination_name, amount, due))
+    items.sort(key=lambda it: it[2])
+    return total, items
+
+
 def compute_safe_to_spend(
     engine: Engine,
     household_id: str,
@@ -1464,6 +1513,14 @@ def compute_safe_to_spend(
         unmodeled += 1
         unmodeled_total += Money(-balance.balance_minor, balance.currency)
 
+    # #5: committed savings due in this window — reserved only if the household
+    # asked; otherwise the caller surfaces it beside the figure.
+    resolved_today = today or date.today()
+    committed_savings_total, _ = committed_savings_in_window(
+        engine, household_id, currency, today=resolved_today, horizon_days=horizon_days
+    )
+    reserve_savings = bool(household is not None and household.reserve_committed_savings)
+
     result = calculate_safe_to_spend(
         SafeToSpendInputs(
             liquid_balance=liquid_balance,
@@ -1476,8 +1533,14 @@ def compute_safe_to_spend(
             total_debt=total_debt,
             unmodeled_debt_count=unmodeled,
             unmodeled_debt_total=unmodeled_total,
+            committed_savings=committed_savings_total,
+            reserve_savings=reserve_savings,
         )
     )
+    # committed_savings itself is a Money output (serializes cleanly for the
+    # advisor). The drill-down items carry dates, so they stay OUT of outputs
+    # and the API layer recomputes them via committed_savings_in_window.
+    result.outputs["committed_savings_reserved"] = reserve_savings
     calculation_id = _persist(engine, household_id, result)
     return result, calculation_id
 

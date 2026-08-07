@@ -600,6 +600,146 @@ describe('Overview', () => {
     });
   });
 
+  // #5: committed savings — shown beside Safe to Spend, or reserved like a bill.
+  describe('committed savings (#5)', () => {
+    function contextWith(safeToSpendExtra: Record<string, unknown>) {
+      return response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        language: 'en',
+        safe_to_spend: {
+          safe_to_spend: { amount_minor: 120_000, currency: 'USD' },
+          liquid_balance: { amount_minor: 500_000, currency: 'USD' },
+          emergency_fund_reserved: { amount_minor: 200_000, currency: 'USD' },
+          bills_due: { amount_minor: 100_000, currency: 'USD' },
+          minimum_debt_payments: { amount_minor: 80_000, currency: 'USD' },
+          total_debt: { amount_minor: 0, currency: 'USD' },
+          warnings: [],
+          ...safeToSpendExtra,
+        },
+      });
+    }
+
+    async function render() {
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('shows the informational line, not subtracted, when not reserved', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith({
+          committed_savings: { amount_minor: 50_000, currency: 'USD' },
+          committed_savings_items: [
+            { name: 'College 529 — due Aug 12', amount: { amount_minor: 50_000, currency: 'USD' } },
+          ],
+          committed_savings_reserved: false,
+        }),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      const text = host.textContent ?? '';
+      expect(host.querySelector('.overview__committed-savings')).toBeTruthy();
+      expect(text).toContain('Committed savings (shown, not subtracted): USD 500.00');
+      expect(text).toContain('College 529 — due Aug 12');
+      expect(text).toContain('Not part of the number above.');
+      // Never part of the headline math: the stress-test figure is unchanged
+      // and the formula line omits the term.
+      expect(text).toContain('USD 1,200.00');
+      const formula = Array.from(host.querySelectorAll('.overview__detail')).find((el) =>
+        el.textContent?.includes('liquid'),
+      );
+      expect(formula?.textContent).not.toContain('committed savings');
+    });
+
+    it('renders committed savings as a reserved line when reserved', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith({
+          committed_savings: { amount_minor: 50_000, currency: 'USD' },
+          committed_savings_items: [
+            { name: 'College 529 — due Aug 12', amount: { amount_minor: 50_000, currency: 'USD' } },
+          ],
+          committed_savings_reserved: true,
+        }),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      const text = host.textContent ?? '';
+      // No informational companion block when reserved.
+      expect(host.querySelector('.overview__committed-savings')).toBeNull();
+      // Subtracted in the headline formula, and named in the drill-down.
+      const formula = Array.from(host.querySelectorAll('.overview__detail')).find((el) =>
+        el.textContent?.includes('liquid'),
+      );
+      expect(formula?.textContent).toContain('− USD 500.00 committed savings');
+      expect(text).toContain('Committed savings, reserved like a bill:');
+      expect(text).toContain('College 529 — due Aug 12');
+    });
+
+    it('toggles the reservation on and reloads', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith({ committed_savings_reserved: false }),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__committed-toggle')).toBeTruthy();
+
+      await fixture.componentInstance['toggleCommittedReserve'](true);
+      await fixture.whenStable();
+
+      expect(apiMock.updateHousehold).toHaveBeenCalledWith({ reserve_committed_savings: true });
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('surfaces the server message and reverts when the toggle fails', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith({ committed_savings_reserved: false }),
+      );
+      apiMock.updateHousehold.mockResolvedValue(
+        response(undefined, { error: { message: 'Cannot reserve committed savings right now.' } }),
+      );
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      await component['toggleCommittedReserve'](true);
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        'Cannot reserve committed savings right now.',
+      );
+      // Reverted: the value falls back to the context's (off).
+      expect(
+        component['committedReserveValue']({
+          safe_to_spend: { committed_savings_reserved: false },
+        } as never),
+      ).toBe(false);
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the reservation read-only for a viewer', async () => {
+      TestBed.resetTestingModule();
+      configure('viewer');
+      apiMock.getHouseholdContext.mockResolvedValue(
+        contextWith({ committed_savings_reserved: true }),
+      );
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__committed-toggle')).toBeNull();
+      expect(host.querySelector('.overview__committed-readonly')?.textContent).toContain(
+        'reserved like a bill',
+      );
+    });
+  });
+
   it('renders the cash outlook with the lowest point and day-by-day rows (M112)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

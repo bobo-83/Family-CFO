@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { Router, RouterLink } from '@angular/router';
 import type {
   YearlyOverview,
@@ -72,6 +73,7 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatSlideToggleModule,
     MatButtonModule,
   ],
   templateUrl: './overview.html',
@@ -567,6 +569,44 @@ export class Overview {
       // The server 422s an unsupported value; show its message and revert.
       this.languageError.set(apiErrorMessage(error, 'Failed to change the language.'));
       this.languageInput.set(previous);
+      return;
+    }
+    this.household.reload();
+  }
+
+  // --- #5: reserve committed savings like a bill -----------------------------
+  // The server enforces household.settings.manage on updateHousehold, exactly
+  // like #10's language selector.
+
+  /** Optimistic pick shown while saving; null means "use the context value". */
+  protected readonly committedReserveInput = signal<boolean | null>(null);
+  protected readonly savingCommittedReserve = signal(false);
+  protected readonly committedReserveError = signal<string | null>(null);
+
+  /**
+   * The setting's state is read back from safe_to_spend.committed_savings_reserved
+   * (the only place the context carries it). Defaults to off — shown beside
+   * Safe to Spend, not subtracted.
+   */
+  protected committedReserveValue(context: HouseholdContext): boolean {
+    return this.committedReserveInput() ?? context.safe_to_spend?.committed_savings_reserved ?? false;
+  }
+
+  protected async toggleCommittedReserve(reserve: boolean): Promise<void> {
+    if (this.savingCommittedReserve()) {
+      return;
+    }
+    const previous = this.committedReserveInput();
+    this.committedReserveInput.set(reserve);
+    this.savingCommittedReserve.set(true);
+    this.committedReserveError.set(null);
+    const { error } = await this.api.updateHousehold({ reserve_committed_savings: reserve });
+    this.savingCommittedReserve.set(false);
+    if (error) {
+      this.committedReserveError.set(
+        apiErrorMessage(error, 'Failed to update committed savings.'),
+      );
+      this.committedReserveInput.set(previous);
       return;
     }
     this.household.reload();

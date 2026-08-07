@@ -58,6 +58,15 @@ struct SafeToSpendDetailView: View {
                         items: (safeToSpend.subscriptionForecastItems ?? []).map { ($0.name, $0.amount) }
                     )
                 }
+                // #5: when reserved, the committed contribution is inside
+                // committed_total, so it belongs among the subtracted rows.
+                if case .reserved(let amount, let items) = committedSavings {
+                    expandable(
+                        "Committed savings", amount, sign: .minus,
+                        note: "Reserved like a bill",
+                        items: items.map { ($0.name, $0.amount) }
+                    )
+                }
                 Divider()
                 totalRow("Safe to spend", safeToSpend.safeToSpend)
             } header: {
@@ -128,6 +137,41 @@ struct SafeToSpendDetailView: View {
                 }
             }
 
+            // #5: reserved off — the committed contribution is shown beside the
+            // number, never subtracted, exactly like the ready-to-sell line.
+            if case .informational(let amount, let items) = committedSavings {
+                Section {
+                    LabeledContent {
+                        Text(amount.formatted)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Committed savings")
+                            Text("Shown, not subtracted")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(items, id: \.name) { item in
+                        LabeledContent(item.name) {
+                            Text(item.amount.formatted)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .font(.subheadline)
+                    }
+                } header: {
+                    Text("Committed savings")
+                } footer: {
+                    Text(
+                        "Savings you've committed to, due soon — shown beside Safe "
+                            + "to Spend, never subtracted from it. Turn on \"Reserve "
+                            + "committed savings\" in Settings to set it aside like a bill."
+                    )
+                }
+            }
+
             if !safeToSpend.warnings.isEmpty {
                 Section("Heads up") {
                     ForEach(safeToSpend.warnings, id: \.self) { warning in
@@ -172,6 +216,12 @@ struct SafeToSpendDetailView: View {
             return nil
         }
         return subs
+    }
+
+    /// #5: whether committed savings shows informationally beside the number or
+    /// subtracted among the committed rows — the server's `..._reserved` flag.
+    private var committedSavings: CommittedSavingsPresentation {
+        .init(safeToSpend)
     }
 
     /// A calculation row that expands to show the items behind it, or a plain row
@@ -235,6 +285,33 @@ struct SafeToSpendDetailView: View {
         case 0: return "due today"
         case 1: return "due tomorrow"
         default: return "due in \(bill.daysUntil) days"
+        }
+    }
+}
+
+/// #5: how committed savings should appear in the Safe-to-spend breakdown.
+/// A pure decision over the server's fields, so the informational-vs-reserved
+/// split is unit-testable without a view. The server sends `committed_savings`
+/// only when there's something due in the 30-day horizon; `..._reserved` says
+/// whether it was subtracted from the figure.
+enum CommittedSavingsPresentation: Equatable {
+    /// Nothing committed within the horizon — render nothing.
+    case none
+    /// Reserved off: shown beside Safe to Spend, not subtracted from it.
+    case informational(amount: Components.Schemas.Money, items: [Components.Schemas.NamedAmount])
+    /// Reserved on: subtracted like a bill, listed among the committed rows.
+    case reserved(amount: Components.Schemas.Money, items: [Components.Schemas.NamedAmount])
+
+    init(_ safeToSpend: Components.Schemas.SafeToSpend) {
+        guard let amount = safeToSpend.committedSavings?.value1, amount.amountMinor > 0 else {
+            self = .none
+            return
+        }
+        let items = safeToSpend.committedSavingsItems ?? []
+        if safeToSpend.committedSavingsReserved == true {
+            self = .reserved(amount: amount, items: items)
+        } else {
+            self = .informational(amount: amount, items: items)
         }
     }
 }
