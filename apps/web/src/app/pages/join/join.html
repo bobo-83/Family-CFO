@@ -5,11 +5,14 @@
     </mat-card-header>
     <mat-card-content>
       @if (loading()) {
-        <p class="join__subtitle">Checking your invitation…</p>
+        <p class="join__subtitle" i18n="Invite page|Shown while the invite link is being verified">Checking your invitation…</p>
       } @else if (loadError(); as message) {
         <p class="join__error-banner" role="alert">{{ message }}</p>
       } @else if (preview(); as invite) {
-        <p class="join__subtitle">
+        <p
+          class="join__subtitle"
+          i18n="Invite page|Who invited the visitor, to which household and role, and how long the link lasts"
+        >
           You've been invited to join <strong>{{ invite.household_name }}</strong>
           @if (invite.role_name) {
             as <strong>{{ invite.role_name }}</strong>
@@ -20,15 +23,15 @@
 
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="join__form">
           <mat-form-field appearance="outline">
-            <mat-label>Your name</mat-label>
+            <mat-label i18n="Form field label|Display name of the person joining">Your name</mat-label>
             <input matInput type="text" formControlName="displayName" autocomplete="name" />
             @if (form.controls.displayName.hasError('required')) {
-              <mat-error>Your name is required.</mat-error>
+              <mat-error i18n="Validation message">Your name is required.</mat-error>
             }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Choose a password</mat-label>
+            <mat-label i18n="Form field label|Password the invitee picks">Choose a password</mat-label>
             <input
               matInput
               type="password"
@@ -36,7 +39,7 @@
               autocomplete="new-password"
             />
             @if (form.controls.password.invalid) {
-              <mat-error>Password must be at least 8 characters.</mat-error>
+              <mat-error i18n="Validation message">Password must be at least 8 characters.</mat-error>
             }
           </mat-form-field>
 
@@ -44,8 +47,14 @@
             <p class="join__error-banner" role="alert">{{ message }}</p>
           }
 
-          <button mat-flat-button type="submit" class="join__submit" [disabled]="submitting()">
-            {{ submitting() ? 'Joining…' : 'Join the household' }}
+          <button
+            mat-flat-button
+            type="submit"
+            class="join__submit"
+            [disabled]="submitting()"
+            i18n="Invite submit button|Accepts the invitation, showing progress while the request is in flight"
+          >
+            {submitting(), select, true {Joining…} other {Join the household}}
           </button>
         </form>
       }

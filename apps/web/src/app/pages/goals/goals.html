@@ -1,8 +1,8 @@
-<h1>Goals</h1>
+<h1 i18n="Page title|Savings goals page">Goals</h1>
 
 @switch (goals.status()) {
   @case ('loading') {
-    <p>Loading…</p>
+    <p i18n="Loading placeholder">Loading…</p>
   }
   @case ('error') {
     <p class="page-error" role="alert">{{ goals.error() }}</p>
@@ -10,7 +10,7 @@
   @default {
     @if (goals.value(); as goalList) {
       @if (goalList.length === 0) {
-        <p class="page-empty">No goals yet.</p>
+        <p class="page-empty" i18n="Empty state|No savings goals have been created">No goals yet.</p>
       } @else {
         <div class="goal-list">
           @for (goal of goalList; track goal.id) {
@@ -25,13 +25,15 @@
                     class="goal-list__cancel"
                     (click)="removeGoal(goal.id, goal.name)"
                     aria-label="Delete goal"
+                    i18n="Button|Deletes this savings goal"
+                    i18n-aria-label="Button accessible name|Deletes this savings goal"
                   >
                     Delete
                   </button>
                 }
               </div>
               <div class="goal-list__type">{{ goalTypeLabel(goal.type) }}</div>
-              <div class="goal-list__amounts">
+              <div class="goal-list__amounts" i18n="Goal progress|Saved amount out of the goal target">
                 {{ formatMoney(goal.current) }} of {{ formatMoney(goal.target) }}
               </div>
               <!-- #4: what the ledger shows filling this goal. -->
@@ -55,7 +57,7 @@
               <div class="goal-list__contribution">
                 @if (editingContributionId() === goal.id) {
                   <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <mat-label>USD / month</mat-label>
+                    <mat-label i18n="Form field label|Planned contribution per month; USD is an ISO currency code and stays untranslated">USD / month</mat-label>
                     <input
                       matInput
                       type="number"
@@ -71,6 +73,7 @@
                     class="goal-list__save"
                     [disabled]="savingContribution()"
                     (click)="saveContribution(goal.id)"
+                    i18n="Button|Saves the edited monthly contribution"
                   >
                     Save
                   </button>
@@ -79,14 +82,15 @@
                     type="button"
                     class="goal-list__cancel"
                     (click)="editingContributionId.set(null)"
+                    i18n="Button|Abandons the monthly contribution edit"
                   >
                     Cancel
                   </button>
                 } @else {
                   @if (goal.monthly_contribution; as contribution) {
-                    saving {{ formatMoney(contribution) }}/month
+                    <ng-container i18n="Goal contribution|Declared monthly savings plan for this goal">saving {{ formatMoney(contribution) }}/month</ng-container>
                   } @else {
-                    no monthly savings plan
+                    <ng-container i18n="Goal contribution|No monthly savings plan declared for this goal">no monthly savings plan</ng-container>
                   }
                   @if (canCreateGoals()) {
                     <button
@@ -94,6 +98,7 @@
                       type="button"
                       class="goal-list__save"
                       (click)="startEditContribution(goal.id, goal.monthly_contribution?.amount_minor ?? null)"
+                      i18n="Button|Starts editing the monthly contribution"
                     >
                       Edit
                     </button>
@@ -112,15 +117,15 @@
 @if (canCreateGoals()) {
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
-    <h2>Add a goal</h2>
+    <h2 i18n="Section heading|Form that creates a new savings goal">Add a goal</h2>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="goal-form">
       <mat-form-field appearance="outline">
-        <mat-label>Name</mat-label>
+        <mat-label i18n="Form field label|Name of the savings goal">Name</mat-label>
         <input matInput type="text" formControlName="name" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Type</mat-label>
+        <mat-label i18n="Form field label|Kind of savings goal (emergency fund, vacation, …)">Type</mat-label>
         <mat-select formControlName="type">
           @for (type of goalTypes; track type) {
             <mat-option [value]="type">{{ goalTypeLabel(type) }}</mat-option>
@@ -129,17 +134,17 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Target amount (USD)</mat-label>
+        <mat-label i18n="Form field label|Amount the goal is aiming for; USD is an ISO currency code and stays untranslated">Target amount (USD)</mat-label>
         <input matInput type="number" step="0.01" min="0.01" formControlName="targetAmount" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Priority (1 = highest)</mat-label>
+        <mat-label i18n="Form field label|Goal priority, 1 through 5">Priority (1 = highest)</mat-label>
         <input matInput type="number" step="1" min="1" max="5" formControlName="priority" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Planned monthly contribution (USD, optional)</mat-label>
+        <mat-label i18n="Form field label|Optional monthly savings plan; USD is an ISO currency code and stays untranslated">Planned monthly contribution (USD, optional)</mat-label>
         <input matInput type="number" step="0.01" min="0" formControlName="monthlyContribution" />
       </mat-form-field>
 
@@ -147,12 +152,17 @@
         <p class="page-error" role="alert">{{ message }}</p>
       }
 
-      <button mat-flat-button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Saving…' : 'Add goal' }}
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="submitting()"
+        i18n="Goal form submit button|Creates the goal, showing progress while the request is in flight"
+      >
+        {submitting(), select, true {Saving…} other {Add goal}}
       </button>
     </form>
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="page-empty">Only the household owner or an adult member can add goals.</p>
+  <p class="page-empty" i18n="Permission notice|Shown instead of the create-goal form to members without the right">Only the household owner or an adult member can add goals.</p>
 }

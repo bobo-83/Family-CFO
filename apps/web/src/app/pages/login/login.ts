@@ -51,7 +51,7 @@ export class Login {
     this.submitting.set(false);
 
     if (!result.ok) {
-      this.errorMessage.set(result.errorMessage ?? 'Login failed.');
+      this.errorMessage.set(result.errorMessage ?? $localize`Login failed.`);
       return;
     }
 

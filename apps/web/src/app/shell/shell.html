@@ -5,6 +5,7 @@
       type="button"
       class="shell__menu-button"
       (click)="toggleMenu()"
+      i18n-aria-label="Mobile menu button|Screen-reader name for the hamburger button that opens the sidebar"
       aria-label="Toggle navigation menu"
       [attr.aria-expanded]="menuOpen()"
     >
@@ -36,7 +37,12 @@
         }
       }
       <!-- Grafana ops dashboards, served by nginx under the same origin. -->
-      <a href="/grafana/" target="_blank" rel="noopener" class="shell__nav-link"
+      <a
+        href="/grafana/"
+        target="_blank"
+        rel="noopener"
+        class="shell__nav-link"
+        i18n="Sidebar nav item|Link out to the Grafana ops dashboards"
         >System Health ↗</a
       >
     </nav>
@@ -45,11 +51,22 @@
         <span class="shell__role">{{ currentRole }}</span>
       }
       @if (serverVersion(); as version) {
-        <span class="shell__version" title="The monorepo version this box runs (ADR 0029)">
+        <span
+          class="shell__version"
+          i18n-title="Sidebar version badge|Tooltip explaining the version number in the footer"
+          title="The monorepo version this box runs (ADR 0029)"
+        >
           v{{ version }}
         </span>
       }
-      <button type="button" class="shell__logout" (click)="logout()">Log out</button>
+      <button
+        type="button"
+        class="shell__logout"
+        (click)="logout()"
+        i18n="Sidebar footer action|Button that signs the member out"
+      >
+        Log out
+      </button>
     </div>
   </aside>
 

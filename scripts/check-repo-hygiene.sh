@@ -52,7 +52,18 @@ if [ -f .repo-hygiene-deny ]; then
   while IFS= read -r term; do
     [ -z "$term" ] && continue
     case "$term" in \#*) continue ;; esac
-    if git grep -nF "$term" -- . >/dev/null 2>&1; then
+    # A purely numeric term must not match INSIDE a longer number: a five-digit
+    # amount otherwise trips on a generated line-number reference that merely
+    # contains it. Bound it by non-digits — a guard that cries wolf is a guard
+    # people learn to ignore. (No literal example here: this file must never
+    # contain the values it guards.)
+    if printf '%s' "$term" | grep -qE '^[0-9][0-9.,_]*$'; then
+      escaped=$(printf '%s' "$term" | sed 's/[.]/\\./g')
+      pattern="(^|[^0-9.,_])${escaped}([^0-9.,_]|$)"
+      if git grep -nE "$pattern" -- . >/dev/null 2>&1; then
+        note "denylisted identifier present: $(printf '%s' "$term" | cut -c1-4)…"
+      fi
+    elif git grep -nF "$term" -- . >/dev/null 2>&1; then
       note "denylisted identifier present: $(printf '%s' "$term" | cut -c1-4)…"
     fi
     if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && grep -qF "$term" "$MSG_FILE" 2>/dev/null; then

@@ -2,9 +2,1684 @@
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en" target-language="lt" datatype="plaintext" original="ng2.template">
     <body>
-      <!-- #10 phase 2 fills this: run 'npm run extract-i18n', merge new units
-           here, translate. Machine-translated units are marked
-           state="needs-review-translation" until a speaker reviews them. -->
+      <trans-unit id="9140273881970816309" datatype="html">
+        <source>Goals</source>
+        <target state="needs-review-translation">Tikslai</target>
+        <note priority="1" from="description">Savings goals page</note>
+        <note priority="1" from="meaning">Page title</note>
+      </trans-unit>
+      <trans-unit id="2369742814572661392" datatype="html">
+        <source>Loading…</source>
+        <target state="needs-review-translation">Įkeliama…</target>
+        <note priority="1" from="description">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="4265124813922326466" datatype="html">
+        <source>No goals yet.</source>
+        <target state="needs-review-translation">Tikslų kol kas nėra.</target>
+        <note priority="1" from="description">No savings goals have been created</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="2932403995729316213" datatype="html">
+        <source>Delete goal</source>
+        <target state="needs-review-translation">Ištrinti tikslą</target>
+        <note priority="1" from="description">Deletes this savings goal</note>
+        <note priority="1" from="meaning">Button accessible name</note>
+      </trans-unit>
+      <trans-unit id="1959486318083221364" datatype="html">
+        <source> Delete </source>
+        <target state="needs-review-translation"> Ištrinti </target>
+        <note priority="1" from="description">Deletes this savings goal</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8509475972323472194" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> iš <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> </target>
+        <note priority="1" from="description">Saved amount out of the goal target</note>
+        <note priority="1" from="meaning">Goal progress</note>
+      </trans-unit>
+      <trans-unit id="2336493757534376295" datatype="html">
+        <source>USD / month</source>
+        <target state="needs-review-translation">USD / mėn.</target>
+        <note priority="1" from="description">Planned contribution per month; USD is an ISO currency code and stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5101383200570327613" datatype="html">
+        <source> Save </source>
+        <target state="needs-review-translation"> Išsaugoti </target>
+        <note priority="1" from="description">Saves the edited monthly contribution</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="2522161747776883325" datatype="html">
+        <source> Cancel </source>
+        <target state="needs-review-translation"> Atšaukti </target>
+        <note priority="1" from="description">Abandons the monthly contribution edit</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="1089577409933976633" datatype="html">
+        <source>saving <x id="INTERPOLATION" equiv-text="{{ formatMoney(contribution) }}"/>/month</source>
+        <target state="needs-review-translation">kaupiama <x id="INTERPOLATION" equiv-text="{{ formatMoney(contribution) }}"/>/mėn.</target>
+        <note priority="1" from="description">Declared monthly savings plan for this goal</note>
+        <note priority="1" from="meaning">Goal contribution</note>
+      </trans-unit>
+      <trans-unit id="1253479922073983397" datatype="html">
+        <source>no monthly savings plan</source>
+        <target state="needs-review-translation">mėnesinio kaupimo plano nėra</target>
+        <note priority="1" from="description">No monthly savings plan declared for this goal</note>
+        <note priority="1" from="meaning">Goal contribution</note>
+      </trans-unit>
+      <trans-unit id="8615162588795134378" datatype="html">
+        <source> Edit </source>
+        <target state="needs-review-translation"> Keisti </target>
+        <note priority="1" from="description">Starts editing the monthly contribution</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="546797376268283512" datatype="html">
+        <source>Add a goal</source>
+        <target state="needs-review-translation">Pridėti tikslą</target>
+        <note priority="1" from="description">Form that creates a new savings goal</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="6248608881629325204" datatype="html">
+        <source>Name</source>
+        <target state="needs-review-translation">Pavadinimas</target>
+        <note priority="1" from="description">Name of the savings goal</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5643539859814866769" datatype="html">
+        <source>Type</source>
+        <target state="needs-review-translation">Tipas</target>
+        <note priority="1" from="description">Kind of savings goal (emergency fund, vacation, …)</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="97945871587580672" datatype="html">
+        <source>Target amount (USD)</source>
+        <target state="needs-review-translation">Tikslo suma (USD)</target>
+        <note priority="1" from="description">Amount the goal is aiming for; USD is an ISO currency code and stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="7709115550361769480" datatype="html">
+        <source>Priority (1 = highest)</source>
+        <target state="needs-review-translation">Prioritetas (1 = aukščiausias)</target>
+        <note priority="1" from="description">Goal priority, 1 through 5</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5236215855772872039" datatype="html">
+        <source>Planned monthly contribution (USD, optional)</source>
+        <target state="needs-review-translation">Planuojamas mėnesio įnašas (USD, nebūtina)</target>
+        <note priority="1" from="description">Optional monthly savings plan; USD is an ISO currency code and stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="1760708847427196639" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Saving…} other {Add goal}}" xid="675798765791329305"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{submitting(), select, true {Saving…} other {Add goal}}" xid="675798765791329305"/> </target>
+        <note priority="1" from="description">Creates the goal, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Goal form submit button</note>
+      </trans-unit>
+      <trans-unit id="675798765791329305" datatype="html">
+        <source>{VAR_SELECT, select, true {Saving…} other {Add goal}}</source>
+        <target state="needs-review-translation">{VAR_SELECT, select, true {Išsaugoma…} other {Pridėti tikslą}}</target>
+      </trans-unit>
+      <trans-unit id="6780788728412966283" datatype="html">
+        <source>Only the household owner or an adult member can add goals.</source>
+        <target state="needs-review-translation">Tikslus pridėti gali tik namų ūkio savininkas arba suaugęs narys.</target>
+        <note priority="1" from="description">Shown instead of the create-goal form to members without the right</note>
+        <note priority="1" from="meaning">Permission notice</note>
+      </trans-unit>
+      <trans-unit id="2611963283425689438" datatype="html">
+        <source>weekly</source>
+        <target state="needs-review-translation">kas savaitę</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="1153651466402655780" datatype="html">
+        <source>every two weeks</source>
+        <target state="needs-review-translation">kas dvi savaites</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="8286079899140318045" datatype="html">
+        <source>twice a month</source>
+        <target state="needs-review-translation">du kartus per mėnesį</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="5109481468427357157" datatype="html">
+        <source>monthly</source>
+        <target state="needs-review-translation">kas mėnesį</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="7826429409887572994" datatype="html">
+        <source>quarterly</source>
+        <target state="needs-review-translation">kas ketvirtį</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="2158060476581389180" datatype="html">
+        <source>twice a year</source>
+        <target state="needs-review-translation">du kartus per metus</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="3538160467710205519" datatype="html">
+        <source>yearly</source>
+        <target state="needs-review-translation">kas metus</target>
+        <note priority="1" from="description">How often a contribution repeats</note>
+        <note priority="1" from="meaning">Funding cadence</note>
+      </trans-unit>
+      <trans-unit id="699857777224939772" datatype="html">
+        <source>Emergency fund</source>
+        <target state="needs-review-translation">Rezervo fondas</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="236576982323975438" datatype="html">
+        <source>Vacation</source>
+        <target state="needs-review-translation">Atostogos</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="3873591218119777761" datatype="html">
+        <source>Retirement</source>
+        <target state="needs-review-translation">Pensija</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="2356892921642927749" datatype="html">
+        <source>College</source>
+        <target state="needs-review-translation">Studijos</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="4597995900139550392" datatype="html">
+        <source>Vehicle</source>
+        <target state="needs-review-translation">Automobilis</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="946942330622614425" datatype="html">
+        <source>Renovation</source>
+        <target state="needs-review-translation">Remontas</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="7719416234834274745" datatype="html">
+        <source>Other</source>
+        <target state="needs-review-translation">Kita</target>
+        <note priority="1" from="description">Savings goal category</note>
+        <note priority="1" from="meaning">Goal type</note>
+      </trans-unit>
+      <trans-unit id="7202178005841980841" datatype="html">
+        <source>Failed to load goals.</source>
+        <target state="needs-review-translation">Nepavyko įkelti tikslų.</target>
+      </trans-unit>
+      <trans-unit id="5286100286329699442" datatype="html">
+        <source><x id="amount" equiv-text="formatMoney(funding.monthly_equivalent)"/>/mo</source>
+        <target state="needs-review-translation"><x id="amount" equiv-text="formatMoney(funding.monthly_equivalent)"/>/mėn.</target>
+        <note priority="1" from="description">Money going into a goal each month, e.g. &quot;USD 500.00/mo&quot;</note>
+        <note priority="1" from="meaning">Funding rate</note>
+      </trans-unit>
+      <trans-unit id="5644063794298806344" datatype="html">
+        <source> · projected <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/></source>
+        <target state="needs-review-translation"> · prognozė <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/></target>
+        <note priority="1" from="description">Appended when a completion month is projected</note>
+        <note priority="1" from="meaning">Funding line fragment</note>
+      </trans-unit>
+      <trans-unit id="6230928449176896354" datatype="html">
+        <source>On track — <x id="rate" equiv-text="monthly"/> going in<x id="projected" equiv-text="projected"/></source>
+        <target state="needs-review-translation">Pagal planą — įnešama <x id="rate" equiv-text="monthly"/><x id="projected" equiv-text="projected"/></target>
+        <note priority="1" from="description">The goal is on track</note>
+        <note priority="1" from="meaning">Goal funding status</note>
+      </trans-unit>
+      <trans-unit id="1752982178364877367" datatype="html">
+        <source> by <x id="month" equiv-text="this.monthLabel(goal.target_date)"/></source>
+        <target state="needs-review-translation"> iki <x id="month" equiv-text="this.monthLabel(goal.target_date)"/></target>
+        <note priority="1" from="description">Appended when the goal has a target date</note>
+        <note priority="1" from="meaning">Funding line fragment</note>
+      </trans-unit>
+      <trans-unit id="6214441299987004116" datatype="html">
+        <source> (projected <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/>)</source>
+        <target state="needs-review-translation"> (prognozė <x id="month" equiv-text="this.monthLabel(funding.projected_completion)"/>)</target>
+        <note priority="1" from="description">Appended in parentheses when a completion month is projected</note>
+        <note priority="1" from="meaning">Funding line fragment</note>
+      </trans-unit>
+      <trans-unit id="324949656580614300" datatype="html">
+        <source>Behind — <x id="rate" equiv-text="monthly"/> won&apos;t reach the target<x id="targetDate" equiv-text="target"/><x id="projected" equiv-text="projected"/></source>
+        <target state="needs-review-translation">Atsiliekama — <x id="rate" equiv-text="monthly"/> tikslo nepasieks<x id="targetDate" equiv-text="target"/><x id="projected" equiv-text="projected"/></target>
+        <note priority="1" from="description">The current rate will not reach the target</note>
+        <note priority="1" from="meaning">Goal funding status</note>
+      </trans-unit>
+      <trans-unit id="4001882907836180254" datatype="html">
+        <source><x id="rate" equiv-text="monthly"/> going in</source>
+        <target state="needs-review-translation">įnešama <x id="rate" equiv-text="monthly"/></target>
+        <note priority="1" from="description">Money is going in but no completion month is projected</note>
+        <note priority="1" from="meaning">Goal funding status</note>
+      </trans-unit>
+      <trans-unit id="8435042124171738958" datatype="html">
+        <source>No linked transfers — 401(k) payroll deductions don&apos;t appear here.</source>
+        <target state="needs-review-translation">Susietų pervedimų nėra — 401(k) atskaitymai iš atlyginimo čia nematomi.</target>
+        <note priority="1" from="description">Retirement goals are fed by payroll deductions the ledger never sees</note>
+        <note priority="1" from="meaning">Goal funding status</note>
+      </trans-unit>
+      <trans-unit id="420109387829658716" datatype="html">
+        <source>Nothing is currently funding this goal</source>
+        <target state="needs-review-translation">Šio tikslo šiuo metu niekas nefinansuoja</target>
+        <note priority="1" from="description">No linked transfers feed this goal</note>
+        <note priority="1" from="meaning">Goal funding status</note>
+      </trans-unit>
+      <trans-unit id="4387592975579918673" datatype="html">
+        <source><x id="destination" equiv-text="source.destination_name"/> · <x id="amount" equiv-text="formatMoney(source.amount)"/> <x id="cadence" equiv-text="cadence"/></source>
+        <target state="needs-review-translation"><x id="destination" equiv-text="source.destination_name"/> · <x id="amount" equiv-text="formatMoney(source.amount)"/> <x id="cadence" equiv-text="cadence"/></target>
+        <note priority="1" from="description">One contribution feeding a goal, e.g. &quot;College 529 · USD 500.00 monthly&quot;</note>
+        <note priority="1" from="meaning">Goal funding source</note>
+      </trans-unit>
+      <trans-unit id="1624235949099791190" datatype="html">
+        <source>Delete the goal &quot;<x id="name" equiv-text="name"/>&quot;?</source>
+        <target state="needs-review-translation">Ištrinti tikslą „<x id="name" equiv-text="name"/>“?</target>
+        <note priority="1" from="description">Browser confirm before a goal is deleted</note>
+        <note priority="1" from="meaning">Confirmation</note>
+      </trans-unit>
+      <trans-unit id="3498936182515668304" datatype="html">
+        <source>Failed to delete the goal.</source>
+        <target state="needs-review-translation">Nepavyko ištrinti tikslo.</target>
+      </trans-unit>
+      <trans-unit id="506168561046419034" datatype="html">
+        <source>Failed to save the contribution.</source>
+        <target state="needs-review-translation">Nepavyko išsaugoti įnašo.</target>
+      </trans-unit>
+      <trans-unit id="7202213779900375087" datatype="html">
+        <source>Failed to create goal.</source>
+        <target state="needs-review-translation">Nepavyko sukurti tikslo.</target>
+      </trans-unit>
+      <trans-unit id="3750381822278489140" datatype="html">
+        <source>Checking your invitation…</source>
+        <target state="needs-review-translation">Tikrinamas jūsų kvietimas…</target>
+        <note priority="1" from="description">Shown while the invite link is being verified</note>
+        <note priority="1" from="meaning">Invite page</note>
+      </trans-unit>
+      <trans-unit id="3139466467303009211" datatype="html">
+        <source> You&apos;ve been invited to join <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ invite.household_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_BLOCK_IF" equiv-text="@if (invite.role_name) {"/> as <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ invite.role_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/> — set up your account for <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ invite.email }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/>. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span class=&quot;join__expiry&quot;&gt;"/>Invitation valid until <x id="INTERPOLATION_3" equiv-text="{{ invite.expires_at | date: &apos;MMM d, y&apos; }}"/>.<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></source>
+        <target state="needs-review-translation"> Jus pakvietė prisijungti prie namų ūkio <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ invite.household_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="START_BLOCK_IF" equiv-text="@if (invite.role_name) {"/> kaip <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ invite.role_name }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/> — susikurkite paskyrą adresui <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ invite.email }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/>. <x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span class=&quot;join__expiry&quot;&gt;"/>Kvietimas galioja iki <x id="INTERPOLATION_3" equiv-text="{{ invite.expires_at | date: &apos;MMM d, y&apos; }}"/>.<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/></target>
+        <note priority="1" from="description">Who invited the visitor, to which household and role, and how long the link lasts</note>
+        <note priority="1" from="meaning">Invite page</note>
+      </trans-unit>
+      <trans-unit id="4749276270222806682" datatype="html">
+        <source>Your name</source>
+        <target state="needs-review-translation">Jūsų vardas</target>
+        <note priority="1" from="description">Display name of the person joining</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="4968369344159400023" datatype="html">
+        <source>Your name is required.</source>
+        <target state="needs-review-translation">Vardas privalomas.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="1223159629530516956" datatype="html">
+        <source>Choose a password</source>
+        <target state="needs-review-translation">Sugalvokite slaptažodį</target>
+        <note priority="1" from="description">Password the invitee picks</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5906359199564086241" datatype="html">
+        <source>Password must be at least 8 characters.</source>
+        <target state="needs-review-translation">Slaptažodį turi sudaryti bent 8 simboliai.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="1748978789267724802" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Joining…} other {Join the household}}" xid="2870591351420269015"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{submitting(), select, true {Joining…} other {Join the household}}" xid="2870591351420269015"/> </target>
+        <note priority="1" from="description">Accepts the invitation, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Invite submit button</note>
+      </trans-unit>
+      <trans-unit id="2870591351420269015" datatype="html">
+        <source>{VAR_SELECT, select, true {Joining…} other {Join the household}}</source>
+        <target state="needs-review-translation">{VAR_SELECT, select, true {Jungiamasi…} other {Prisijungti prie namų ūkio}}</target>
+      </trans-unit>
+      <trans-unit id="4381321671747267012" datatype="html">
+        <source>This invite link is incomplete — ask for a new one.</source>
+        <target state="needs-review-translation">Ši kvietimo nuoroda neišsami — paprašykite naujos.</target>
+      </trans-unit>
+      <trans-unit id="1967095384444997041" datatype="html">
+        <source>This invite link is invalid or expired — ask for a new one.</source>
+        <target state="needs-review-translation">Ši kvietimo nuoroda negalioja arba nebegalioja — paprašykite naujos.</target>
+      </trans-unit>
+      <trans-unit id="5082522811197004994" datatype="html">
+        <source>Could not join — the link may have expired. Ask for a new one.</source>
+        <target state="needs-review-translation">Prisijungti nepavyko — nuoroda galbūt nebegalioja. Paprašykite naujos.</target>
+      </trans-unit>
+      <trans-unit id="8970269124361727564" datatype="html">
+        <source> Sign in to your self-hosted household instance, or <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/signup&quot;&gt;"/>create a new household<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> if this is a fresh setup. </source>
+        <target state="needs-review-translation"> Prisijunkite prie savo namų ūkio serverio arba <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/signup&quot;&gt;"/>sukurkite naują namų ūkį<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, jei tai visiškai naujas diegimas. </target>
+        <note priority="1" from="description">Sign-in intro; the link starts household creation</note>
+        <note priority="1" from="meaning">Login page</note>
+      </trans-unit>
+      <trans-unit id="7103412595944854458" datatype="html">
+        <source>Email</source>
+        <target state="needs-review-translation">El. paštas</target>
+        <note priority="1" from="description">Email address</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="8602814243662345124" datatype="html">
+        <source>Email is required.</source>
+        <target state="needs-review-translation">El. paštas privalomas.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="2112768397949905814" datatype="html">
+        <source>Enter a valid email address.</source>
+        <target state="needs-review-translation">Įveskite galiojantį el. pašto adresą.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="428746941066781988" datatype="html">
+        <source>Password</source>
+        <target state="needs-review-translation">Slaptažodis</target>
+        <note priority="1" from="description">Account password</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="1872917179096110500" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Signing in…} other {Sign in}}" xid="1656161040494514078"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{submitting(), select, true {Signing in…} other {Sign in}}" xid="1656161040494514078"/> </target>
+        <note priority="1" from="description">Signs in, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Login submit button</note>
+      </trans-unit>
+      <trans-unit id="1656161040494514078" datatype="html">
+        <source>{VAR_SELECT, select, true {Signing in…} other {Sign in}}</source>
+        <target state="needs-review-translation">{VAR_SELECT, select, true {Jungiamasi…} other {Prisijungti}}</target>
+      </trans-unit>
+      <trans-unit id="612058855560391284" datatype="html">
+        <source>Login failed.</source>
+        <target state="needs-review-translation">Prisijungti nepavyko.</target>
+      </trans-unit>
+      <trans-unit id="5451291544726809480" datatype="html">
+        <source>Overview</source>
+        <target state="needs-review-translation">Apžvalga</target>
+        <note priority="1" from="description">Heading of the household overview page</note>
+        <note priority="1" from="meaning">Overview page title</note>
+      </trans-unit>
+      <trans-unit id="7856702981317211162" datatype="html">
+        <source>View mode</source>
+        <target state="needs-review-translation">Rodinys</target>
+        <note priority="1" from="description">Screen-reader name for the month or year switch</note>
+        <note priority="1" from="meaning">Overview mode switch</note>
+      </trans-unit>
+      <trans-unit id="2502809452033588947" datatype="html">
+        <source> Month </source>
+        <target state="needs-review-translation"> Mėnuo </target>
+        <note priority="1" from="description">Shows the current month&apos;s figures</note>
+        <note priority="1" from="meaning">Overview mode switch</note>
+      </trans-unit>
+      <trans-unit id="7069140429695837692" datatype="html">
+        <source> Year </source>
+        <target state="needs-review-translation"> Metai </target>
+        <note priority="1" from="description">Shows the whole year&apos;s figures</note>
+        <note priority="1" from="meaning">Overview mode switch</note>
+      </trans-unit>
+      <trans-unit id="2779769495761370454" datatype="html">
+        <source>Loading the year…</source>
+        <target state="needs-review-translation">Įkeliami metų duomenys…</target>
+        <note priority="1" from="description">Shown while the year&apos;s figures are fetched</note>
+        <note priority="1" from="meaning">Year mode loading</note>
+      </trans-unit>
+      <trans-unit id="7812067104639796495" datatype="html">
+        <source>No transactions recorded in <x id="INTERPOLATION" equiv-text="{{ year.year }}"/>.</source>
+        <target state="needs-review-translation"><x id="INTERPOLATION" equiv-text="{{ year.year }}"/> m. operacijų neužfiksuota.</target>
+        <note priority="1" from="description">No transactions exist for the chosen year</note>
+        <note priority="1" from="meaning">Year mode empty state</note>
+      </trans-unit>
+      <trans-unit id="7660964294946348691" datatype="html">
+        <source>Monthly income and spending</source>
+        <target state="needs-review-translation">Mėnesio pajamos ir išlaidos</target>
+        <note priority="1" from="description">Screen-reader name for the monthly income and spending bar chart</note>
+        <note priority="1" from="meaning">Year chart</note>
+      </trans-unit>
+      <trans-unit id="4092492150401251149" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ yearMonthLabel(focus.month) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> · in <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(focus.income) }}"/> · out <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(focus.spending) }}"/> · kept <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(focus.net) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (focus.net_worth_eom; as networth) {"/> · net worth <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(networth) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ yearMonthLabel(focus.month) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> · gauta <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(focus.income) }}"/> · išleista <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(focus.spending) }}"/> · liko <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(focus.net) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (focus.net_worth_eom; as networth) {"/> · grynoji vertė <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(networth) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">Figures for the month tapped in the chart</note>
+        <note priority="1" from="meaning">Year chart focus</note>
+      </trans-unit>
+      <trans-unit id="2417090209925027361" datatype="html">
+        <source> ✨ Explain income </source>
+        <target state="needs-review-translation"> ✨ Paaiškinti pajamas </target>
+        <note priority="1" from="description">Asks the advisor to break down that month&apos;s income</note>
+        <note priority="1" from="meaning">Year chart action</note>
+      </trans-unit>
+      <trans-unit id="8528533921097594876" datatype="html">
+        <source> ✨ Explain spending </source>
+        <target state="needs-review-translation"> ✨ Paaiškinti išlaidas </target>
+        <note priority="1" from="description">Asks the advisor to break down that month&apos;s spending</note>
+        <note priority="1" from="meaning">Year chart action</note>
+      </trans-unit>
+      <trans-unit id="5494814814369607890" datatype="html">
+        <source>In <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_income) }}"/></source>
+        <target state="needs-review-translation">Gauta <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_income) }}"/></target>
+        <note priority="1" from="description">Money that came in over the whole year</note>
+        <note priority="1" from="meaning">Year totals</note>
+      </trans-unit>
+      <trans-unit id="1588968273511812908" datatype="html">
+        <source>Out <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_spending) }}"/></source>
+        <target state="needs-review-translation">Išleista <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_spending) }}"/></target>
+        <note priority="1" from="description">Money that went out over the whole year</note>
+        <note priority="1" from="meaning">Year totals</note>
+      </trans-unit>
+      <trans-unit id="7960445092989707639" datatype="html">
+        <source>Kept <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_net) }}"/></source>
+        <target state="needs-review-translation">Liko <x id="INTERPOLATION" equiv-text="{{ formatMoney(year.total_net) }}"/></target>
+        <note priority="1" from="description">Money left over across the whole year</note>
+        <note priority="1" from="meaning">Year totals</note>
+      </trans-unit>
+      <trans-unit id="809102465374779887" datatype="html">
+        <source>The year so far</source>
+        <target state="needs-review-translation">Metai iki šiol</target>
+        <note priority="1" from="description">AI written summary of the year to date</note>
+        <note priority="1" from="meaning">Year review card header</note>
+      </trans-unit>
+      <trans-unit id="70555204772199302" datatype="html">
+        <source>Writing…</source>
+        <target state="needs-review-translation">Rašoma…</target>
+        <note priority="1" from="description">Shown while the advisor writes the review</note>
+        <note priority="1" from="meaning">Year review action</note>
+      </trans-unit>
+      <trans-unit id="8005372466662832802" datatype="html">
+        <source>Refresh</source>
+        <target state="needs-review-translation">Atnaujinti</target>
+        <note priority="1" from="description">Writes the review again from the latest figures</note>
+        <note priority="1" from="meaning">Year review action</note>
+      </trans-unit>
+      <trans-unit id="6242915582957450388" datatype="html">
+        <source>✨ Write it</source>
+        <target state="needs-review-translation">✨ Parašyti</target>
+        <note priority="1" from="description">Asks the advisor to write the year review</note>
+        <note priority="1" from="meaning">Year review action</note>
+      </trans-unit>
+      <trans-unit id="8333938153153693414" datatype="html">
+        <source>🤖 Written by <x id="INTERPOLATION" equiv-text="{{ review.model }}"/>, from this year&apos;s real figures.</source>
+        <target state="needs-review-translation">🤖 Parašė <x id="INTERPOLATION" equiv-text="{{ review.model }}"/> pagal tikrus šių metų skaičius.</target>
+        <note priority="1" from="description">Names the AI model that wrote the review</note>
+        <note priority="1" from="meaning">Year review byline</note>
+      </trans-unit>
+      <trans-unit id="4739795967083283900" datatype="html">
+        <source>🧮 Computed summary — enable the AI runtime for a narrative.</source>
+        <target state="needs-review-translation">🧮 Apskaičiuota santrauka — įjunkite DI variklį, kad gautumėte aprašymą.</target>
+        <note priority="1" from="description">The review was computed, not written by an AI model</note>
+        <note priority="1" from="meaning">Year review byline</note>
+      </trans-unit>
+      <trans-unit id="8964086287735403330" datatype="html">
+        <source>Ask the advisor to sum up the year and suggest improvements.</source>
+        <target state="needs-review-translation">Paprašykite patarėjo apibendrinti metus ir pasiūlyti, ką pagerinti.</target>
+        <note priority="1" from="description">Invites the member to generate the review</note>
+        <note priority="1" from="meaning">Year review empty state</note>
+      </trans-unit>
+      <trans-unit id="3011645463166651690" datatype="html">
+        <source>Where it went</source>
+        <target state="needs-review-translation">Kur išleista</target>
+        <note priority="1" from="description">Top spending categories of the year</note>
+        <note priority="1" from="meaning">Year categories card header</note>
+      </trans-unit>
+      <trans-unit id="7225048881354596598" datatype="html">
+        <source>Loading…</source>
+        <target state="needs-review-translation">Įkeliama…</target>
+        <note priority="1" from="description">Shown while the overview data is fetched</note>
+        <note priority="1" from="meaning">Overview loading</note>
+      </trans-unit>
+      <trans-unit id="2544865375529451444" datatype="html">
+        <source>Household</source>
+        <target state="needs-review-translation">Namų ūkis</target>
+        <note priority="1" from="description">The family this app tracks</note>
+        <note priority="1" from="meaning">Household card header</note>
+      </trans-unit>
+      <trans-unit id="766801710560429856" datatype="html">
+        <source>Language</source>
+        <target state="needs-review-translation">Kalba</target>
+        <note priority="1" from="description">Label of the answer-language picker</note>
+        <note priority="1" from="meaning">Household language field</note>
+      </trans-unit>
+      <trans-unit id="1533113739282024196" datatype="html">
+        <source> Language: <x id="INTERPOLATION" equiv-text="{{ languageLabel(context) }}"/> </source>
+        <target state="needs-review-translation"> Kalba: <x id="INTERPOLATION" equiv-text="{{ languageLabel(context) }}"/> </target>
+        <note priority="1" from="description">Shows the answer language to members who cannot change it. The language&apos;s own name is never translated.</note>
+        <note priority="1" from="meaning">Household language readonly</note>
+      </trans-unit>
+      <trans-unit id="17587862592594449" datatype="html">
+        <source> Reserve committed savings </source>
+        <target state="needs-review-translation"> Rezervuoti įsipareigotas santaupas </target>
+        <note priority="1" from="description">Subtracts committed savings from Safe to Spend like a bill</note>
+        <note priority="1" from="meaning">Committed savings toggle</note>
+      </trans-unit>
+      <trans-unit id="6321628755416145142" datatype="html">
+        <source>Committed savings:</source>
+        <target state="needs-review-translation">Įsipareigotos santaupos:</target>
+        <note priority="1" from="description">Labels the committed savings setting for members who cannot change it</note>
+        <note priority="1" from="meaning">Committed savings readonly</note>
+      </trans-unit>
+      <trans-unit id="2538420350309834351" datatype="html">
+        <source>reserved like a bill</source>
+        <target state="needs-review-translation">rezervuojama kaip sąskaita</target>
+        <note priority="1" from="description">The setting is on, savings are subtracted like a bill</note>
+        <note priority="1" from="meaning">Committed savings readonly</note>
+      </trans-unit>
+      <trans-unit id="7428747711204569824" datatype="html">
+        <source>shown beside Safe to Spend</source>
+        <target state="needs-review-translation">rodoma šalia „Saugu išleisti“</target>
+        <note priority="1" from="description">The setting is off, savings are only displayed</note>
+        <note priority="1" from="meaning">Committed savings readonly</note>
+      </trans-unit>
+      <trans-unit id="1299524352570982011" datatype="html">
+        <source> Off: shown beside Safe to Spend. On: subtracted like a bill. </source>
+        <target state="needs-review-translation"> Išjungta: rodoma šalia „Saugu išleisti“. Įjungta: atimama kaip sąskaita. </target>
+        <note priority="1" from="description">Explains both positions of the committed savings switch</note>
+        <note priority="1" from="meaning">Committed savings hint</note>
+      </trans-unit>
+      <trans-unit id="7438168377894516553" datatype="html">
+        <source>Cash outlook</source>
+        <target state="needs-review-translation">Pinigų prognozė</target>
+        <note priority="1" from="description">Projection of cash over the next 30 days</note>
+        <note priority="1" from="meaning">Cash outlook card header</note>
+      </trans-unit>
+      <trans-unit id="5583679488209695313" datatype="html">
+        <source> ⚠ <x id="INTERPOLATION" equiv-text="{{ runwayActionLabel(cash) }}"/> by <x id="INTERPOLATION_1" equiv-text="{{ sellBy | date: &apos;EEE, MMM d&apos; }}"/> </source>
+        <target state="needs-review-translation"> ⚠ <x id="INTERPOLATION" equiv-text="{{ runwayActionLabel(cash) }}"/> iki <x id="INTERPOLATION_1" equiv-text="{{ sellBy | date: &apos;EEE, MMM d&apos; }}"/> </target>
+        <note priority="1" from="description">The date by which a sale or transfer must start to avoid a shortfall</note>
+        <note priority="1" from="meaning">Cash outlook headline</note>
+      </trans-unit>
+      <trans-unit id="2034030605068872112" datatype="html">
+        <source> cash runs short <x id="INTERPOLATION" equiv-text="{{ cash.first_shortfall_date | date: &apos;MMM d&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (cash.shortfall; as gap) {"/> — raise at least <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(gap) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"> pinigų pritrūks <x id="INTERPOLATION" equiv-text="{{ cash.first_shortfall_date | date: &apos;MMM d&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (cash.shortfall; as gap) {"/> — reikia surinkti bent <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(gap) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">When cash runs out and how much must be raised</note>
+        <note priority="1" from="meaning">Cash outlook headline detail</note>
+      </trans-unit>
+      <trans-unit id="658523525242505217" datatype="html">
+        <source> ⚠ Your cash runs short over the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
+        <target state="needs-review-translation"> ⚠ Per artimiausias <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> d. pinigų pritrūks </target>
+        <note priority="1" from="description">The projected balance goes negative within the horizon</note>
+        <note priority="1" from="meaning">Cash outlook verdict</note>
+      </trans-unit>
+      <trans-unit id="6828113098470934022" datatype="html">
+        <source> ✓ Cash covers everything due in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
+        <target state="needs-review-translation"> ✓ Pinigų užtenka viskam, ką reikia mokėti per artimiausias <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> d. </target>
+        <note priority="1" from="description">The projected balance stays positive over the horizon</note>
+        <note priority="1" from="meaning">Cash outlook verdict</note>
+      </trans-unit>
+      <trans-unit id="4618696446284918222" datatype="html">
+        <source>lowest your cash reaches in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days · <x id="INTERPOLATION_1" equiv-text="{{ cash.lowest_date | date: &apos;MMM d&apos; }}"/></source>
+        <target state="needs-review-translation">žemiausias pinigų likutis per artimiausias <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> d. · <x id="INTERPOLATION_1" equiv-text="{{ cash.lowest_date | date: &apos;MMM d&apos; }}"/></target>
+        <note priority="1" from="description">Explains the lowest projected balance and its date</note>
+        <note priority="1" from="meaning">Cash outlook context</note>
+      </trans-unit>
+      <trans-unit id="764861409261871468" datatype="html">
+        <source>no payments or paydays expected in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days</source>
+        <target state="needs-review-translation">per artimiausias <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> d. mokėjimų ar įplaukų nenumatoma</target>
+        <note priority="1" from="description">Nothing is scheduled inside the horizon</note>
+        <note priority="1" from="meaning">Cash outlook context</note>
+      </trans-unit>
+      <trans-unit id="577214443944956053" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cash.starting_cash) }}"/> cash + <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cash.expected_income) }}"/> expected paychecks − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(cash.obligations) }}"/> payments = <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(cash.ending_cash) }}"/> </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cash.starting_cash) }}"/> pinigų + <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cash.expected_income) }}"/> laukiamų įplaukų − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(cash.obligations) }}"/> mokėjimų = <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(cash.ending_cash) }}"/> </target>
+        <note priority="1" from="description">How the projected ending cash is worked out</note>
+        <note priority="1" from="meaning">Cash outlook math</note>
+      </trans-unit>
+      <trans-unit id="8958430955220731720" datatype="html">
+        <source>Day by day</source>
+        <target state="needs-review-translation">Diena po dienos</target>
+        <note priority="1" from="description">Opens the day-by-day projection table</note>
+        <note priority="1" from="meaning">Cash outlook drill-down</note>
+      </trans-unit>
+      <trans-unit id="4721382427248234532" datatype="html">
+        <source> Paydays come from your recurring deposits; payments from the Bills timeline. Card amounts are today&apos;s balances — the real figure may be higher by the due date. </source>
+        <target state="needs-review-translation"> Įplaukų dienos imamos iš pasikartojančių pajamų, mokėjimai — iš sąskaitų tvarkaraščio. Kortelių sumos yra šiandienos likučiai — iki termino tikroji suma gali būti didesnė. </target>
+        <note priority="1" from="description">Says where the projected paydays and payments come from</note>
+        <note priority="1" from="meaning">Cash outlook footnote</note>
+      </trans-unit>
+      <trans-unit id="3393476593669883693" datatype="html">
+        <source>Left to spend this month</source>
+        <target state="needs-review-translation">Liko išleisti šį mėnesį</target>
+        <note priority="1" from="description">What is still free to spend this month</note>
+        <note priority="1" from="meaning">Spending plan card header</note>
+      </trans-unit>
+      <trans-unit id="9120241605547351030" datatype="html">
+        <source>about <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.per_day) }}"/>/day for the remaining <x id="ICU" equiv-text="{month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}" xid="1035153266238401995"/></source>
+        <target state="needs-review-translation">apie <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.per_day) }}"/>/d. — liko <x id="ICU" equiv-text="{month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}" xid="1035153266238401995"/></target>
+        <note priority="1" from="description">Daily allowance for the rest of the month</note>
+        <note priority="1" from="meaning">Spending plan context</note>
+      </trans-unit>
+      <trans-unit id="3927918797092127748" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {1 day} other {<x id="INTERPOLATION"/> days}}</source>
+        <target state="needs-review-translation">{VAR_PLURAL, plural, =1 {1 diena} one {<x id="INTERPOLATION"/> diena} few {<x id="INTERPOLATION"/> dienos} other {<x id="INTERPOLATION"/> dienų}}</target>
+      </trans-unit>
+      <trans-unit id="1010426685925880468" datatype="html">
+        <source>this month&apos;s spending has outrun this month&apos;s income — the gap is drawing on cash you already had</source>
+        <target state="needs-review-translation">šio mėnesio išlaidos viršijo šio mėnesio pajamas — skirtumas dengiamas anksčiau sukauptais pinigais</target>
+        <note priority="1" from="description">Spending has exceeded this month&apos;s income</note>
+        <note priority="1" from="meaning">Spending plan context</note>
+      </trans-unit>
+      <trans-unit id="8412547873037430733" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.expected_income) }}"/> expected income (<x id="INTERPOLATION_1" equiv-text="{{ formatMoney(month.income_received) }}"/> received + <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(month.income_projected) }}"/> to come) − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(month.spent) }}"/> spent − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(month.bills_remaining) }}"/> bills still due − <x id="INTERPOLATION_5" equiv-text="{{ formatMoney(month.account_obligations) }}"/> loan &amp; lease payments <x id="START_BLOCK_IF" equiv-text="@if (month.planned_savings.amount_minor &gt; 0) {"/> − <x id="INTERPOLATION_6" equiv-text="{{ formatMoney(month.planned_savings) }}"/> planned savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.expected_income) }}"/> laukiamų pajamų (<x id="INTERPOLATION_1" equiv-text="{{ formatMoney(month.income_received) }}"/> jau gauta + <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(month.income_projected) }}"/> dar bus) − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(month.spent) }}"/> išleista − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(month.bills_remaining) }}"/> neapmokėtų sąskaitų − <x id="INTERPOLATION_5" equiv-text="{{ formatMoney(month.account_obligations) }}"/> paskolų ir lizingo įmokų <x id="START_BLOCK_IF" equiv-text="@if (month.planned_savings.amount_minor &gt; 0) {"/> − <x id="INTERPOLATION_6" equiv-text="{{ formatMoney(month.planned_savings) }}"/> planuojamų santaupų <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">How the money left to spend this month is worked out</note>
+        <note priority="1" from="meaning">Spending plan math</note>
+      </trans-unit>
+      <trans-unit id="2560736849140002506" datatype="html">
+        <source>Stress test</source>
+        <target state="needs-review-translation">Blogiausio atvejo testas</target>
+        <note priority="1" from="description">Worst-case cash left if every commitment were called today</note>
+        <note priority="1" from="meaning">Stress test card header</note>
+      </trans-unit>
+      <trans-unit id="880064029110466575" datatype="html">
+        <source> If every commitment were called today — full card balances, all bills, the emergency fund held back — with no paycheck counted. Deliberately worst-case; the cash outlook counts income. </source>
+        <target state="needs-review-translation"> Jei visi įsipareigojimai būtų pareikalauti šiandien — visi kortelių likučiai, visos sąskaitos, atidėtas rezervo fondas — ir neįskaičiuojant atlyginimo. Tyčia blogiausias atvejis; pinigų prognozė pajamas įskaičiuoja. </target>
+        <note priority="1" from="description">Says what the worst-case figure assumes</note>
+        <note priority="1" from="meaning">Stress test explanation</note>
+      </trans-unit>
+      <trans-unit id="4419024194148436607" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.liquid_balance) }}"/> liquid − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(sts.emergency_fund_reserved) }}"/> emergency fund − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(sts.bills_due) }}"/> bills due − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(sts.minimum_debt_payments) }}"/> min. debt payments <x id="START_BLOCK_IF" equiv-text="@if (sts.committed_savings_reserved &amp;&amp; sts.committed_savings; as committed) {"/> − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(committed) }}"/> committed savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.liquid_balance) }}"/> likvidžių lėšų − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(sts.emergency_fund_reserved) }}"/> rezervo fondas − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(sts.bills_due) }}"/> mokėtinų sąskaitų − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(sts.minimum_debt_payments) }}"/> min. skolų įmokų <x id="START_BLOCK_IF" equiv-text="@if (sts.committed_savings_reserved &amp;&amp; sts.committed_savings; as committed) {"/> − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(committed) }}"/> įsipareigotų santaupų <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">How the worst-case figure is worked out</note>
+        <note priority="1" from="meaning">Stress test math</note>
+      </trans-unit>
+      <trans-unit id="8270454184417214154" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.total_debt) }}"/> total debt </source>
+        <target state="needs-review-translation"> iš viso skolų: <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.total_debt) }}"/> </target>
+        <note priority="1" from="description">Everything the household owes</note>
+        <note priority="1" from="meaning">Stress test detail</note>
+      </trans-unit>
+      <trans-unit id="5788606571206407789" datatype="html">
+        <source> 📈 Ready to sell: <x id="INTERPOLATION" equiv-text="{{ formatMoney(rsu.value) }}"/> in vested RSUs — about <x id="ICU" equiv-text="{rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}}" xid="8995566437640065214"/> to become cash </source>
+        <target state="needs-review-translation"> 📈 Galima parduoti: <x id="INTERPOLATION" equiv-text="{{ formatMoney(rsu.value) }}"/> suteiktų RSU — pinigais taps maždaug per <x id="ICU" equiv-text="{rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}}" xid="8995566437640065214"/> </target>
+        <note priority="1" from="description">Vested stock that could be turned into cash, and how long that takes</note>
+        <note priority="1" from="meaning">Ready to sell line</note>
+      </trans-unit>
+      <trans-unit id="7013476404833925824" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {1 business day} other {<x id="INTERPOLATION"/> business days}}</source>
+        <target state="needs-review-translation">{VAR_PLURAL, plural, =1 {1 darbo dieną} one {<x id="INTERPOLATION"/> darbo dieną} few {<x id="INTERPOLATION"/> darbo dienas} other {<x id="INTERPOLATION"/> darbo dienų}}</target>
+      </trans-unit>
+      <trans-unit id="6888849955209487751" datatype="html">
+        <source>Not part of the number above.</source>
+        <target state="needs-review-translation">Į aukščiau esantį skaičių neįskaičiuota.</target>
+        <note priority="1" from="description">The vested stock is not inside the stress-test figure</note>
+        <note priority="1" from="meaning">Ready to sell footnote</note>
+      </trans-unit>
+      <trans-unit id="4896706982922294108" datatype="html">
+        <source>Committed savings, reserved like a bill:</source>
+        <target state="needs-review-translation">Įsipareigotos santaupos, rezervuotos kaip sąskaita:</target>
+        <note priority="1" from="description">Lists the savings that are subtracted like a bill</note>
+        <note priority="1" from="meaning">Committed savings drill-down</note>
+      </trans-unit>
+      <trans-unit id="1629269610522610966" datatype="html">
+        <source> 🏦 Committed savings (shown, not subtracted): <x id="INTERPOLATION" equiv-text="{{ formatMoney(committed) }}"/> </source>
+        <target state="needs-review-translation"> 🏦 Įsipareigotos santaupos (rodomos, neatimamos): <x id="INTERPOLATION" equiv-text="{{ formatMoney(committed) }}"/> </target>
+        <note priority="1" from="description">Savings shown beside the stress-test figure but not subtracted from it</note>
+        <note priority="1" from="meaning">Committed savings line</note>
+      </trans-unit>
+      <trans-unit id="3073556417882128698" datatype="html">
+        <source>Not part of the number above.</source>
+        <target state="needs-review-translation">Į aukščiau esantį skaičių neįskaičiuota.</target>
+        <note priority="1" from="description">The committed savings are not inside the stress-test figure</note>
+        <note priority="1" from="meaning">Committed savings footnote</note>
+      </trans-unit>
+      <trans-unit id="538235519716086317" datatype="html">
+        <source>Net worth</source>
+        <target state="needs-review-translation">Grynoji vertė</target>
+        <note priority="1" from="description">Everything owned minus everything owed</note>
+        <note priority="1" from="meaning">Net worth card header</note>
+      </trans-unit>
+      <trans-unit id="5288808369993599992" datatype="html">
+        <source>Net worth trend</source>
+        <target state="needs-review-translation">Grynosios vertės kitimas</target>
+        <note priority="1" from="description">Screen-reader name for the net worth trend line</note>
+        <note priority="1" from="meaning">Net worth sparkline</note>
+      </trans-unit>
+      <trans-unit id="2493413337525735231" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ change.amount_minor &gt;= 0 ? &apos;▲&apos; : &apos;▼&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(change) }}"/> over <x id="INTERPOLATION_2" equiv-text="{{ history.length }}"/> snapshots </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ change.amount_minor &gt;= 0 ? &apos;▲&apos; : &apos;▼&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(change) }}"/> per <x id="INTERPOLATION_2" equiv-text="{{ history.length }}"/> įrašus </target>
+        <note priority="1" from="description">How much net worth moved across the recorded snapshots</note>
+        <note priority="1" from="meaning">Net worth change</note>
+      </trans-unit>
+      <trans-unit id="8336881701302599372" datatype="html">
+        <source>Monthly cash flow</source>
+        <target state="needs-review-translation">Mėnesio pinigų srautas</target>
+        <note priority="1" from="description">Money in against money out this month</note>
+        <note priority="1" from="meaning">Cash flow card header</note>
+      </trans-unit>
+      <trans-unit id="4160278561754228505" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cashFlow.income) }}"/> in − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cashFlow.spending) }}"/> spent </source>
+        <target state="needs-review-translation"> gauta <x id="INTERPOLATION" equiv-text="{{ formatMoney(cashFlow.income) }}"/> − išleista <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cashFlow.spending) }}"/> </target>
+        <note priority="1" from="description">Income minus spending for the month</note>
+        <note priority="1" from="meaning">Cash flow math</note>
+      </trans-unit>
+      <trans-unit id="8406651146823655159" datatype="html">
+        <source>No income sources recorded yet.</source>
+        <target state="needs-review-translation">Pajamų šaltinių dar neužfiksuota.</target>
+        <note priority="1" from="description">No income has been recorded for the household</note>
+        <note priority="1" from="meaning">Cash flow empty state</note>
+      </trans-unit>
+      <trans-unit id="6077481426496353288" datatype="html">
+        <source> Saving <x id="INTERPOLATION" equiv-text="{{ savings.percent }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (savings.total_saved; as saved) {"/> — <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(saved) }}"/>/mo saved <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"> Kaupiama <x id="INTERPOLATION" equiv-text="{{ savings.percent }}"/> % <x id="START_BLOCK_IF" equiv-text="@if (savings.total_saved; as saved) {"/> — <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(saved) }}"/>/mėn. <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">Share of income the household saves, and the monthly amount</note>
+        <note priority="1" from="meaning">Savings rate</note>
+      </trans-unit>
+      <trans-unit id="6062121945317070013" datatype="html">
+        <source> · <x id="INTERPOLATION" equiv-text="{{ formatMoney(savings.average_monthly_spending) }}"/>/mo avg spend (last 3 mo) </source>
+        <target state="needs-review-translation"> · vid. išlaidos <x id="INTERPOLATION" equiv-text="{{ formatMoney(savings.average_monthly_spending) }}"/>/mėn. (per 3 mėn.) </target>
+        <note priority="1" from="description">Average monthly spending over the last three months</note>
+        <note priority="1" from="meaning">Savings rate context</note>
+      </trans-unit>
+      <trans-unit id="3793301877275415421" datatype="html">
+        <source> Payroll 401(k)/HSA not declared — add it on the <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/income-tax&quot;&gt;"/>Income page<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> for a complete rate; the rate may understate your saving. </source>
+        <target state="needs-review-translation"> 401(k)/HSA atskaitymai iš atlyginimo nenurodyti — nurodykite juos <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/income-tax&quot;&gt;"/>Pajamų puslapyje<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, kad rodiklis būtų tikslus; dabar jis gali rodyti mažiau, nei iš tikrųjų kaupiate. </target>
+        <note priority="1" from="description">Pre-tax payroll saving is missing so the rate is understated</note>
+        <note priority="1" from="meaning">Savings rate warning</note>
+      </trans-unit>
+      <trans-unit id="4208215273031674551" datatype="html">
+        <source>What you&apos;re saving</source>
+        <target state="needs-review-translation">Ką kaupiate</target>
+        <note priority="1" from="description">Recurring money the household puts aside</note>
+        <note priority="1" from="meaning">Savings card header</note>
+      </trans-unit>
+      <trans-unit id="7439049042124615606" datatype="html">
+        <source>you told us</source>
+        <target state="needs-review-translation">jūsų nurodyta</target>
+        <note priority="1" from="description">The household stated this contribution itself</note>
+        <note priority="1" from="meaning">Savings row marker</note>
+      </trans-unit>
+      <trans-unit id="2777068592051500047" datatype="html">
+        <source>inferred</source>
+        <target state="needs-review-translation">numanoma</target>
+        <note priority="1" from="description">Matched from the money leaving the account only</note>
+        <note priority="1" from="meaning">Savings row marker</note>
+      </trans-unit>
+      <trans-unit id="883164558169047066" datatype="html">
+        <source>funds <x id="INTERPOLATION" equiv-text="{{ linkedName }}"/></source>
+        <target state="needs-review-translation">finansuoja <x id="INTERPOLATION" equiv-text="{{ linkedName }}"/></target>
+        <note priority="1" from="description">Tooltip naming the goal this contribution funds</note>
+        <note priority="1" from="meaning">Savings row goal link</note>
+      </trans-unit>
+      <trans-unit id="5942842591481733961" datatype="html">
+        <source> Fund <x id="INTERPOLATION" equiv-text="{{ suggestedName }}"/>? </source>
+        <target state="needs-review-translation"> Finansuoti <x id="INTERPOLATION" equiv-text="{{ suggestedName }}"/>? </target>
+        <note priority="1" from="description">Offers to link this contribution to the matching goal</note>
+        <note priority="1" from="meaning">Savings row suggestion</note>
+      </trans-unit>
+      <trans-unit id="1224551173462932012" datatype="html">
+        <source> Stop tracking </source>
+        <target state="needs-review-translation"> Nebesekti </target>
+        <note priority="1" from="description">Forgets a contribution the household declared</note>
+        <note priority="1" from="meaning">Savings row action</note>
+      </trans-unit>
+      <trans-unit id="3408374312472299617" datatype="html">
+        <source> Not saving </source>
+        <target state="needs-review-translation"> Ne santaupos </target>
+        <note priority="1" from="description">Says a detected transfer is not saving after all</note>
+        <note priority="1" from="meaning">Savings row action</note>
+      </trans-unit>
+      <trans-unit id="6050488296179257523" datatype="html">
+        <source>About <x id="INTERPOLATION" equiv-text="{{ formatMoney(total) }}"/> a month</source>
+        <target state="needs-review-translation">Apie <x id="INTERPOLATION" equiv-text="{{ formatMoney(total) }}"/> per mėnesį</target>
+        <note priority="1" from="description">Everything the household saves each month</note>
+        <note priority="1" from="meaning">Savings total</note>
+      </trans-unit>
+      <trans-unit id="3047795199928707005" datatype="html">
+        <source> Add a contribution </source>
+        <target state="needs-review-translation"> Pridėti įnašą </target>
+        <note priority="1" from="description">Opens the form for declaring a savings transfer</note>
+        <note priority="1" from="meaning">Savings action</note>
+      </trans-unit>
+      <trans-unit id="7713293652013384174" datatype="html">
+        <source> Nothing detected. Money moved into an account we don&apos;t sync — a 529, a workplace plan — never reaches the ledger, so tell us about it here. </source>
+        <target state="needs-review-translation"> Nieko neaptikta. Pinigai, pervesti į nesinchronizuojamą sąskaitą — 529 ar darbovietės planą — į apskaitą nepatenka, tad nurodykite juos čia. </target>
+        <note priority="1" from="description">Explains why no savings were detected and invites a declaration</note>
+        <note priority="1" from="meaning">Savings empty state</note>
+      </trans-unit>
+      <trans-unit id="6714969922874790103" datatype="html">
+        <source>Loading accounts…</source>
+        <target state="needs-review-translation">Įkeliamos sąskaitos…</target>
+        <note priority="1" from="description">Shown while the account list is fetched</note>
+        <note priority="1" from="meaning">Savings form loading</note>
+      </trans-unit>
+      <trans-unit id="2854383242485944470" datatype="html">
+        <source>From</source>
+        <target state="needs-review-translation">Iš</target>
+        <note priority="1" from="description">The account the money leaves</note>
+        <note priority="1" from="meaning">Savings form field</note>
+      </trans-unit>
+      <trans-unit id="8907506899612937121" datatype="html">
+        <source>Into</source>
+        <target state="needs-review-translation">Į</target>
+        <note priority="1" from="description">The account the money arrives in</note>
+        <note priority="1" from="meaning">Savings form field</note>
+      </trans-unit>
+      <trans-unit id="7967049448364453782" datatype="html">
+        <source><x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> each time</source>
+        <target state="needs-review-translation"><x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> kaskart</target>
+        <note priority="1" from="description">How much moves on each transfer, in the household currency</note>
+        <note priority="1" from="meaning">Savings form field</note>
+      </trans-unit>
+      <trans-unit id="2094223732915281526" datatype="html">
+        <source>How often</source>
+        <target state="needs-review-translation">Kaip dažnai</target>
+        <note priority="1" from="description">How often the transfer repeats</note>
+        <note priority="1" from="meaning">Savings form field</note>
+      </trans-unit>
+      <trans-unit id="2861960702171032218" datatype="html">
+        <source> Save </source>
+        <target state="needs-review-translation"> Išsaugoti </target>
+        <note priority="1" from="description">Submits the declared contribution</note>
+        <note priority="1" from="meaning">Savings form action</note>
+      </trans-unit>
+      <trans-unit id="282739249377587930" datatype="html">
+        <source> Cancel </source>
+        <target state="needs-review-translation"> Atšaukti </target>
+        <note priority="1" from="description">Closes the form without saving</note>
+        <note priority="1" from="meaning">Savings form action</note>
+      </trans-unit>
+      <trans-unit id="7501768263743254107" datatype="html">
+        <source>Emergency fund</source>
+        <target state="needs-review-translation">Rezervo fondas</target>
+        <note priority="1" from="description">Cash held back for emergencies</note>
+        <note priority="1" from="meaning">Emergency fund card header</note>
+      </trans-unit>
+      <trans-unit id="8173515361240444901" datatype="html">
+        <source><x id="INTERPOLATION" equiv-text="{{ fund.months | number: &apos;1.1-1&apos; }}"/> months</source>
+        <target state="needs-review-translation"><x id="INTERPOLATION" equiv-text="{{ fund.months | number: &apos;1.1-1&apos; }}"/> mėn.</target>
+        <note priority="1" from="description">How many months of expenses the fund covers</note>
+        <note priority="1" from="meaning">Emergency fund cover</note>
+      </trans-unit>
+      <trans-unit id="3734266149687638822" datatype="html">
+        <source>of <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> recommended</source>
+        <target state="needs-review-translation">iš rekomenduojamų <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/></target>
+        <note priority="1" from="description">The recommended number of months of cover</note>
+        <note priority="1" from="meaning">Emergency fund cover</note>
+      </trans-unit>
+      <trans-unit id="4701424439367098791" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(fund.reserved) }}"/> set aside <x id="START_BLOCK_IF" equiv-text="@if (fund.using_designations) {"/> (designated accounts) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> (all cash — <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/accounts&quot;&gt;"/>designate accounts<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to be precise) <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · expenses <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(fund.monthly_expenses) }}"/>/month </source>
+        <target state="needs-review-translation"> atidėta <x id="INTERPOLATION" equiv-text="{{ formatMoney(fund.reserved) }}"/> <x id="START_BLOCK_IF" equiv-text="@if (fund.using_designations) {"/> (pažymėtose sąskaitose) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> (visi pinigai — <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/accounts&quot;&gt;"/>pažymėkite sąskaitas<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, kad būtų tiksliau) <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · išlaidos <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(fund.monthly_expenses) }}"/>/mėn. </target>
+        <note priority="1" from="description">What is set aside, where it was counted, and monthly expenses</note>
+        <note priority="1" from="meaning">Emergency fund detail</note>
+      </trans-unit>
+      <trans-unit id="3822378556402807587" datatype="html">
+        <source> Your goal: <x id="INTERPOLATION" equiv-text="{{ formatMoney(goalTarget) }}"/> </source>
+        <target state="needs-review-translation"> Jūsų tikslas: <x id="INTERPOLATION" equiv-text="{{ formatMoney(goalTarget) }}"/> </target>
+        <note priority="1" from="description">The household&apos;s own target for the fund</note>
+        <note priority="1" from="meaning">Emergency fund detail</note>
+      </trans-unit>
+      <trans-unit id="8014166645219871985" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(gap) }}"/> more to reach the <x id="INTERPOLATION_1" equiv-text="{{ fund.target_months_recommended }}"/>-month goal </source>
+        <target state="needs-review-translation"> dar <x id="INTERPOLATION" equiv-text="{{ formatMoney(gap) }}"/> iki <x id="INTERPOLATION_1" equiv-text="{{ fund.target_months_recommended }}"/> mėn. tikslo </target>
+        <note priority="1" from="description">How much more is needed to reach the recommended months of cover</note>
+        <note priority="1" from="meaning">Emergency fund gap</note>
+      </trans-unit>
+      <trans-unit id="3771637344083863907" datatype="html">
+        <source> ✓ Target met </source>
+        <target state="needs-review-translation"> ✓ Tikslas pasiektas </target>
+        <note priority="1" from="description">The recommended months of cover are reached</note>
+        <note priority="1" from="meaning">Emergency fund gap</note>
+      </trans-unit>
+      <trans-unit id="4082654148703252691" datatype="html">
+        <source><x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Add your recurring bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> so coverage can be measured against your <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/>-month target. </source>
+        <target state="needs-review-translation"><x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Pridėkite pasikartojančias sąskaitas<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, kad padengimą būtų galima palyginti su jūsų <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> mėn. tikslu. </target>
+        <note priority="1" from="description">Bills are needed before months of cover can be worked out</note>
+        <note priority="1" from="meaning">Emergency fund empty state</note>
+      </trans-unit>
+      <trans-unit id="2810600121652470576" datatype="html">
+        <source>Target months</source>
+        <target state="needs-review-translation">Tikslas mėnesiais</target>
+        <note priority="1" from="description">How many months of expenses the fund should cover</note>
+        <note priority="1" from="meaning">Emergency fund target field</note>
+      </trans-unit>
+      <trans-unit id="8290129569072690511" datatype="html">
+        <source>Saving…</source>
+        <target state="needs-review-translation">Išsaugoma…</target>
+        <note priority="1" from="description">Shown while the new target is saved</note>
+        <note priority="1" from="meaning">Emergency fund target action</note>
+      </trans-unit>
+      <trans-unit id="3975486299232080026" datatype="html">
+        <source>Save</source>
+        <target state="needs-review-translation">Išsaugoti</target>
+        <note priority="1" from="description">Stores the new target months</note>
+        <note priority="1" from="meaning">Emergency fund target action</note>
+      </trans-unit>
+      <trans-unit id="1098787070725983498" datatype="html">
+        <source> Cancel </source>
+        <target state="needs-review-translation"> Atšaukti </target>
+        <note priority="1" from="description">Leaves the target unchanged</note>
+        <note priority="1" from="meaning">Emergency fund target action</note>
+      </trans-unit>
+      <trans-unit id="1726675835500815318" datatype="html">
+        <source> Adjust target (<x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> months) </source>
+        <target state="needs-review-translation"> Keisti tikslą (<x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> mėn.) </target>
+        <note priority="1" from="description">Opens the editor for the months of cover target</note>
+        <note priority="1" from="meaning">Emergency fund target action</note>
+      </trans-unit>
+      <trans-unit id="5281683573172981194" datatype="html">
+        <source>Assets</source>
+        <target state="needs-review-translation">Turtas</target>
+        <note priority="1" from="description">Everything the household owns, by category</note>
+        <note priority="1" from="meaning">Assets card header</note>
+      </trans-unit>
+      <trans-unit id="5216922900910366103" datatype="html">
+        <source>Total debt</source>
+        <target state="needs-review-translation">Visos skolos</target>
+        <note priority="1" from="description">Everything the household owes</note>
+        <note priority="1" from="meaning">Debt card header</note>
+      </trans-unit>
+      <trans-unit id="6439574015697758589" datatype="html">
+        <source>Top goal</source>
+        <target state="needs-review-translation">Svarbiausias tikslas</target>
+        <note priority="1" from="description">The savings goal closest to being reached</note>
+        <note priority="1" from="meaning">Top goal card header</note>
+      </trans-unit>
+      <trans-unit id="5886388169542734743" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> · <x id="INTERPOLATION_2" equiv-text="{{ goal.percent_complete }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (goal.target_date) {"/> · by <x id="INTERPOLATION_3" equiv-text="{{ goal.target_date | date: &apos;MMM y&apos; }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> iš <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> · <x id="INTERPOLATION_2" equiv-text="{{ goal.percent_complete }}"/> % <x id="START_BLOCK_IF" equiv-text="@if (goal.target_date) {"/> · iki <x id="INTERPOLATION_3" equiv-text="{{ goal.target_date | date: &apos;MMM y&apos; }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></target>
+        <note priority="1" from="description">How much is saved against the target, and the target date</note>
+        <note priority="1" from="meaning">Top goal progress</note>
+      </trans-unit>
+      <trans-unit id="1518032545593432997" datatype="html">
+        <source> No goals yet. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/goals&quot;&gt;"/>Set a savings goal<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to track progress. </source>
+        <target state="needs-review-translation"> Tikslų kol kas nėra. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/goals&quot;&gt;"/>Išsikelkite taupymo tikslą<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, kad matytumėte pažangą. </target>
+        <note priority="1" from="description">No savings goal has been created yet</note>
+        <note priority="1" from="meaning">Top goal empty state</note>
+      </trans-unit>
+      <trans-unit id="5870173905586702070" datatype="html">
+        <source>Spending this month</source>
+        <target state="needs-review-translation">Šio mėnesio išlaidos</target>
+        <note priority="1" from="description">What the household has spent so far this month</note>
+        <note priority="1" from="meaning">Spending card header</note>
+      </trans-unit>
+      <trans-unit id="6255227778577297777" datatype="html">
+        <source>vs same period last month</source>
+        <target state="needs-review-translation">palyginti su tuo pačiu laikotarpiu praėjusį mėnesį</target>
+        <note priority="1" from="description">The comparison is against the same days of last month</note>
+        <note priority="1" from="meaning">Spending card header note</note>
+      </trans-unit>
+      <trans-unit id="6634803099511064810" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ spending.change_percent &gt; 0 ? &apos;▲&apos; : spending.change_percent &lt; 0 ? &apos;▼&apos; : &apos;&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ absPercent(spending.change_percent) }}"/>% vs last month (<x id="INTERPOLATION_2" equiv-text="{{ formatMoney(spending.last_month) }}"/>) </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ spending.change_percent &gt; 0 ? &apos;▲&apos; : spending.change_percent &lt; 0 ? &apos;▼&apos; : &apos;&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ absPercent(spending.change_percent) }}"/> % palyginti su praėjusiu mėnesiu (<x id="INTERPOLATION_2" equiv-text="{{ formatMoney(spending.last_month) }}"/>) </target>
+        <note priority="1" from="description">How this month&apos;s spending compares with the same period last month</note>
+        <note priority="1" from="meaning">Spending change</note>
+      </trans-unit>
+      <trans-unit id="3779162589117020559" datatype="html">
+        <source>No spending in the same period last month.</source>
+        <target state="needs-review-translation">Tuo pačiu laikotarpiu praėjusį mėnesį išlaidų nebuvo.</target>
+        <note priority="1" from="description">There is nothing to compare against last month</note>
+        <note priority="1" from="meaning">Spending change empty state</note>
+      </trans-unit>
+      <trans-unit id="4074819199686985022" datatype="html">
+        <source>Budgets</source>
+        <target state="needs-review-translation">Biudžetai</target>
+        <note priority="1" from="description">Spending envelopes and how they are doing</note>
+        <note priority="1" from="meaning">Budgets card header</note>
+      </trans-unit>
+      <trans-unit id="8914865839300889181" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ budgets.over_count }}"/> over budget </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ budgets.over_count }}"/> viršija biudžetą </target>
+        <note priority="1" from="description">How many envelopes have been overspent</note>
+        <note priority="1" from="meaning">Budget verdict</note>
+      </trans-unit>
+      <trans-unit id="6839977428781184968" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ budgets.warning_count }}"/> almost at the limit </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ budgets.warning_count }}"/> beveik pasiekė ribą </target>
+        <note priority="1" from="description">How many envelopes are close to their limit</note>
+        <note priority="1" from="meaning">Budget verdict</note>
+      </trans-unit>
+      <trans-unit id="828014810296537783" datatype="html">
+        <source>All on track</source>
+        <target state="needs-review-translation">Viskas pagal planą</target>
+        <note priority="1" from="description">No envelope is over or near its limit</note>
+        <note priority="1" from="meaning">Budget verdict</note>
+      </trans-unit>
+      <trans-unit id="8721395394153605932" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(budgets.total_spent) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(budgets.total_budgeted) }}"/> across <x id="INTERPOLATION_2" equiv-text="{{ budgets.envelope_count }}"/> budgets · <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/budgets&quot;&gt;"/>manage<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ formatMoney(budgets.total_spent) }}"/> iš <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(budgets.total_budgeted) }}"/> pagal <x id="INTERPOLATION_2" equiv-text="{{ budgets.envelope_count }}"/> biudžetus · <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/budgets&quot;&gt;"/>tvarkyti<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <note priority="1" from="description">Spent against budgeted across all envelopes</note>
+        <note priority="1" from="meaning">Budget detail</note>
+      </trans-unit>
+      <trans-unit id="1753886710135682080" datatype="html">
+        <source>Upcoming bills</source>
+        <target state="needs-review-translation">Artėjančios sąskaitos</target>
+        <note priority="1" from="description">Bills falling due soon</note>
+        <note priority="1" from="meaning">Bills card header</note>
+      </trans-unit>
+      <trans-unit id="7478557027820950349" datatype="html">
+        <source>next 14 days</source>
+        <target state="needs-review-translation">artimiausios 14 d.</target>
+        <note priority="1" from="description">The window the listed bills fall in</note>
+        <note priority="1" from="meaning">Bills card header note</note>
+      </trans-unit>
+      <trans-unit id="7393321363044795012" datatype="html">
+        <source> Nothing due in the next two weeks. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Manage bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
+        <target state="needs-review-translation"> Per artimiausias dvi savaites mokėti nieko nereikia. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Tvarkyti sąskaitas<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <note priority="1" from="description">No bill falls due inside the window</note>
+        <note priority="1" from="meaning">Bills empty state</note>
+      </trans-unit>
+      <trans-unit id="2752553130250927114" datatype="html">
+        <source>Add bills to measure</source>
+        <target state="needs-review-translation">Pridėkite sąskaitų</target>
+        <note priority="1" from="description">No bills recorded so coverage cannot be measured</note>
+        <note priority="1" from="meaning">Emergency fund status</note>
+      </trans-unit>
+      <trans-unit id="5374494745456292800" datatype="html">
+        <source>Not started</source>
+        <target state="needs-review-translation">Nepradėta</target>
+        <note priority="1" from="description">Nothing set aside yet</note>
+        <note priority="1" from="meaning">Emergency fund status</note>
+      </trans-unit>
+      <trans-unit id="1512618514773945540" datatype="html">
+        <source>Getting started</source>
+        <target state="needs-review-translation">Pradžia padaryta</target>
+        <note priority="1" from="description">Some months of cover saved</note>
+        <note priority="1" from="meaning">Emergency fund status</note>
+      </trans-unit>
+      <trans-unit id="1766250238065571403" datatype="html">
+        <source>On track</source>
+        <target state="needs-review-translation">Pagal planą</target>
+        <note priority="1" from="description">Close to the target months of cover</note>
+        <note priority="1" from="meaning">Emergency fund status</note>
+      </trans-unit>
+      <trans-unit id="2339049683788483426" datatype="html">
+        <source>Fully funded</source>
+        <target state="needs-review-translation">Visiškai sukaupta</target>
+        <note priority="1" from="description">Target months of cover reached</note>
+        <note priority="1" from="meaning">Emergency fund status</note>
+      </trans-unit>
+      <trans-unit id="8479163722589453202" datatype="html">
+        <source>Cash</source>
+        <target state="needs-review-translation">Pinigai</target>
+        <note priority="1" from="description">Cash and current accounts</note>
+        <note priority="1" from="meaning">Asset category</note>
+      </trans-unit>
+      <trans-unit id="1142186865539384148" datatype="html">
+        <source>Investments</source>
+        <target state="needs-review-translation">Investicijos</target>
+        <note priority="1" from="description">Brokerage and investment accounts</note>
+        <note priority="1" from="meaning">Asset category</note>
+      </trans-unit>
+      <trans-unit id="1998203468412982538" datatype="html">
+        <source>Retirement</source>
+        <target state="needs-review-translation">Pensijų kaupimas</target>
+        <note priority="1" from="description">Retirement accounts such as a 401(k)</note>
+        <note priority="1" from="meaning">Asset category</note>
+      </trans-unit>
+      <trans-unit id="4497626795055006111" datatype="html">
+        <source>Education</source>
+        <target state="needs-review-translation">Mokslas</target>
+        <note priority="1" from="description">Education savings such as a 529</note>
+        <note priority="1" from="meaning">Asset category</note>
+      </trans-unit>
+      <trans-unit id="5265084091472066623" datatype="html">
+        <source>Property</source>
+        <target state="needs-review-translation">Nekilnojamasis turtas</target>
+        <note priority="1" from="description">Real estate and other property</note>
+        <note priority="1" from="meaning">Asset category</note>
+      </trans-unit>
+      <trans-unit id="3689844634598806992" datatype="html">
+        <source>weekly</source>
+        <target state="needs-review-translation">kas savaitę</target>
+        <note priority="1" from="description">Happens once a week</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="2231532817575773334" datatype="html">
+        <source>every two weeks</source>
+        <target state="needs-review-translation">kas dvi savaites</target>
+        <note priority="1" from="description">Happens once every two weeks</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="140589213458659791" datatype="html">
+        <source>twice a month</source>
+        <target state="needs-review-translation">du kartus per mėnesį</target>
+        <note priority="1" from="description">Happens twice a month</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="6187362819600474711" datatype="html">
+        <source>monthly</source>
+        <target state="needs-review-translation">kas mėnesį</target>
+        <note priority="1" from="description">Happens once a month</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="8904310761060690548" datatype="html">
+        <source>quarterly</source>
+        <target state="needs-review-translation">kas ketvirtį</target>
+        <note priority="1" from="description">Happens once every three months</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="3235941827754506734" datatype="html">
+        <source>twice a year</source>
+        <target state="needs-review-translation">du kartus per metus</target>
+        <note priority="1" from="description">Happens twice a year</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="4616041818883323073" datatype="html">
+        <source>yearly</source>
+        <target state="needs-review-translation">kas metus</target>
+        <note priority="1" from="description">Happens once a year</note>
+        <note priority="1" from="meaning">Savings cadence</note>
+      </trans-unit>
+      <trans-unit id="1342174294043670760" datatype="html">
+        <source>Failed to load the year.</source>
+        <target state="needs-review-translation">Nepavyko įkelti metų duomenų.</target>
+        <note priority="1" from="description">The yearly overview could not be loaded</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="985403508094866089" datatype="html">
+        <source>Could not write the year review.</source>
+        <target state="needs-review-translation">Nepavyko parašyti metų apžvalgos.</target>
+        <note priority="1" from="description">The AI written year review could not be generated</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="3218378110452603663" datatype="html">
+        <source>Jan</source>
+        <target state="needs-review-translation">saus.</target>
+        <note priority="1" from="description">Short name for January</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="7082336985868037554" datatype="html">
+        <source>Feb</source>
+        <target state="needs-review-translation">vas.</target>
+        <note priority="1" from="description">Short name for February</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="904538870339525557" datatype="html">
+        <source>Mar</source>
+        <target state="needs-review-translation">kov.</target>
+        <note priority="1" from="description">Short name for March</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="8264908294023790112" datatype="html">
+        <source>Apr</source>
+        <target state="needs-review-translation">bal.</target>
+        <note priority="1" from="description">Short name for April</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="4966268357058485132" datatype="html">
+        <source>May</source>
+        <target state="needs-review-translation">geg.</target>
+        <note priority="1" from="description">Short name for May</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="1477195481879050160" datatype="html">
+        <source>Jun</source>
+        <target state="needs-review-translation">birž.</target>
+        <note priority="1" from="description">Short name for June</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="6579980807320240416" datatype="html">
+        <source>Jul</source>
+        <target state="needs-review-translation">liep.</target>
+        <note priority="1" from="description">Short name for July</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="8547404332167345046" datatype="html">
+        <source>Aug</source>
+        <target state="needs-review-translation">rugp.</target>
+        <note priority="1" from="description">Short name for August</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="5958445105323375966" datatype="html">
+        <source>Sep</source>
+        <target state="needs-review-translation">rugs.</target>
+        <note priority="1" from="description">Short name for September</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="442392210385353004" datatype="html">
+        <source>Oct</source>
+        <target state="needs-review-translation">spal.</target>
+        <note priority="1" from="description">Short name for October</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="4565405034620400906" datatype="html">
+        <source>Nov</source>
+        <target state="needs-review-translation">lapkr.</target>
+        <note priority="1" from="description">Short name for November</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="3582042130024097595" datatype="html">
+        <source>Dec</source>
+        <target state="needs-review-translation">gruod.</target>
+        <note priority="1" from="description">Short name for December</note>
+        <note priority="1" from="meaning">Month abbreviation</note>
+      </trans-unit>
+      <trans-unit id="1525972315254129499" datatype="html">
+        <source>January</source>
+        <target state="needs-review-translation">sausis</target>
+        <note priority="1" from="description">Full name of the first month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="6982933307044735549" datatype="html">
+        <source>February</source>
+        <target state="needs-review-translation">vasaris</target>
+        <note priority="1" from="description">Full name of the second month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="312822281723543917" datatype="html">
+        <source>March</source>
+        <target state="needs-review-translation">kovas</target>
+        <note priority="1" from="description">Full name of the third month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="6540699673137803103" datatype="html">
+        <source>April</source>
+        <target state="needs-review-translation">balandis</target>
+        <note priority="1" from="description">Full name of the fourth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="1414298393030354810" datatype="html">
+        <source>May</source>
+        <target state="needs-review-translation">gegužė</target>
+        <note priority="1" from="description">Full name of the fifth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="2585508153965780830" datatype="html">
+        <source>June</source>
+        <target state="needs-review-translation">birželis</target>
+        <note priority="1" from="description">Full name of the sixth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="2649140081700062696" datatype="html">
+        <source>July</source>
+        <target state="needs-review-translation">liepa</target>
+        <note priority="1" from="description">Full name of the seventh month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="1667523007516483366" datatype="html">
+        <source>August</source>
+        <target state="needs-review-translation">rugpjūtis</target>
+        <note priority="1" from="description">Full name of the eighth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="5443529199807918423" datatype="html">
+        <source>September</source>
+        <target state="needs-review-translation">rugsėjis</target>
+        <note priority="1" from="description">Full name of the ninth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="5904622476913527350" datatype="html">
+        <source>October</source>
+        <target state="needs-review-translation">spalis</target>
+        <note priority="1" from="description">Full name of the tenth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="5141612503871226671" datatype="html">
+        <source>November</source>
+        <target state="needs-review-translation">lapkritis</target>
+        <note priority="1" from="description">Full name of the eleventh month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="3170039165229690347" datatype="html">
+        <source>December</source>
+        <target state="needs-review-translation">gruodis</target>
+        <note priority="1" from="description">Full name of the twelfth month</note>
+        <note priority="1" from="meaning">Month name</note>
+      </trans-unit>
+      <trans-unit id="1231855066292789383" datatype="html">
+        <source>What made up my income in <x id="month" equiv-text="label"/>? List where the money came from.</source>
+        <target state="needs-review-translation">Iš ko susidarė mano <x id="month" equiv-text="label"/> pajamos? Išvardykite, iš kur atkeliavo pinigai.</target>
+        <note priority="1" from="description">Prefilled question about a month&apos;s income</note>
+        <note priority="1" from="meaning">Advisor question</note>
+      </trans-unit>
+      <trans-unit id="4115806666668359122" datatype="html">
+        <source>What made up my spending in <x id="month" equiv-text="label"/>? Break it down by category and biggest merchants.</source>
+        <target state="needs-review-translation">Iš ko susidarė mano <x id="month" equiv-text="label"/> išlaidos? Suskirstykite pagal kategorijas ir didžiausius pardavėjus.</target>
+        <note priority="1" from="description">Prefilled question about a month&apos;s spending</note>
+        <note priority="1" from="meaning">Advisor question</note>
+      </trans-unit>
+      <trans-unit id="1583565472603741038" datatype="html">
+        <source>Failed to load household overview.</source>
+        <target state="needs-review-translation">Nepavyko įkelti namų ūkio apžvalgos.</target>
+        <note priority="1" from="description">The overview page data could not be loaded</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="3325153729964333956" datatype="html">
+        <source>Free up cash</source>
+        <target state="needs-review-translation">Atlaisvinkite pinigų</target>
+        <note priority="1" from="description">Move money from savings into the current account</note>
+        <note priority="1" from="meaning">Cash outlook action</note>
+      </trans-unit>
+      <trans-unit id="1545849134647331250" datatype="html">
+        <source>Sell RSUs (≈ <x id="units" equiv-text="cash.sell_units"/> <x id="ticker" equiv-text="cash.sell_ticker"/>)</source>
+        <target state="needs-review-translation">Parduokite RSU (≈ <x id="units" equiv-text="cash.sell_units"/> <x id="ticker" equiv-text="cash.sell_ticker"/>)</target>
+        <note priority="1" from="description">Sell vested stock, with the share count and ticker</note>
+        <note priority="1" from="meaning">Cash outlook action</note>
+      </trans-unit>
+      <trans-unit id="2450425082723697336" datatype="html">
+        <source>Sell RSUs</source>
+        <target state="needs-review-translation">Parduokite RSU</target>
+        <note priority="1" from="description">Sell vested stock to cover the shortfall</note>
+        <note priority="1" from="meaning">Cash outlook action</note>
+      </trans-unit>
+      <trans-unit id="5658704226226700784" datatype="html">
+        <source>Detected from transfers between your accounts. Payroll deductions like a 401(k) don&apos;t appear here.</source>
+        <target state="needs-review-translation">Aptikta iš pervedimų tarp jūsų sąskaitų. Atskaitymai iš atlyginimo, pvz., 401(k), čia nematomi.</target>
+        <note priority="1" from="description">Only transfers between accounts are detected, payroll deductions are not</note>
+        <note priority="1" from="meaning">Savings section footnote</note>
+      </trans-unit>
+      <trans-unit id="4935190100642110675" datatype="html">
+        <source>Rows marked inferred were matched from the money leaving your account — the destination isn&apos;t synced.</source>
+        <target state="needs-review-translation">Eilutės, pažymėtos „numanoma“, atpažintos tik pagal iš sąskaitos išeinančius pinigus — gavėjo sąskaita nesinchronizuojama.</target>
+        <note priority="1" from="description">Explains the inferred marker on a savings row</note>
+        <note priority="1" from="meaning">Savings section footnote</note>
+      </trans-unit>
+      <trans-unit id="4233774476917293110" datatype="html">
+        <source>seen 1 time</source>
+        <target state="needs-review-translation">aptikta kartų: 1</target>
+        <note priority="1" from="description">The transfer was detected exactly once</note>
+        <note priority="1" from="meaning">Savings row evidence</note>
+      </trans-unit>
+      <trans-unit id="2724351217621774119" datatype="html">
+        <source>seen <x id="count" equiv-text="contribution.occurrences"/> times</source>
+        <target state="needs-review-translation">aptikta kartų: <x id="count" equiv-text="contribution.occurrences"/></target>
+        <note priority="1" from="description">How many times the transfer was detected</note>
+        <note priority="1" from="meaning">Savings row evidence</note>
+      </trans-unit>
+      <trans-unit id="5115507115704643507" datatype="html">
+        <source>transfers</source>
+        <target state="needs-review-translation">pervedimai</target>
+        <note priority="1" from="description">Money saved by moving it between accounts</note>
+        <note priority="1" from="meaning">Savings rate source</note>
+      </trans-unit>
+      <trans-unit id="2543153139016236360" datatype="html">
+        <source>payroll (401k/HSA)</source>
+        <target state="needs-review-translation">atlyginimas (401k/HSA)</target>
+        <note priority="1" from="description">Money saved before pay lands, such as a 401k or HSA</note>
+        <note priority="1" from="meaning">Savings rate source</note>
+      </trans-unit>
+      <trans-unit id="4347621288357729643" datatype="html">
+        <source>residual</source>
+        <target state="needs-review-translation">likutis</target>
+        <note priority="1" from="description">Take-home pay left unspent and unmoved</note>
+        <note priority="1" from="meaning">Savings rate source</note>
+      </trans-unit>
+      <trans-unit id="8726929144391706440" datatype="html">
+        <source>Failed to load accounts.</source>
+        <target state="needs-review-translation">Nepavyko įkelti sąskaitų.</target>
+        <note priority="1" from="description">The account list could not be loaded</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="8816176351807426107" datatype="html">
+        <source>Failed to save the contribution.</source>
+        <target state="needs-review-translation">Nepavyko išsaugoti įnašo.</target>
+        <note priority="1" from="description">A declared savings contribution could not be saved</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="567541523790327569" datatype="html">
+        <source>Failed to stop tracking that contribution.</source>
+        <target state="needs-review-translation">Nepavyko nustoti sekti šio įnašo.</target>
+        <note priority="1" from="description">A tracked savings contribution could not be removed</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="8976305485125934343" datatype="html">
+        <source>Failed to dismiss that transfer.</source>
+        <target state="needs-review-translation">Nepavyko atmesti šio pervedimo.</target>
+        <note priority="1" from="description">A detected transfer could not be dismissed</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="4134537866347734474" datatype="html">
+        <source>Unlink from <x id="goal" equiv-text="goalName"/></source>
+        <target state="needs-review-translation">Atsieti nuo <x id="goal" equiv-text="goalName"/></target>
+        <note priority="1" from="description">Screen-reader name for the button that unlinks a goal from a savings contribution</note>
+        <note priority="1" from="meaning">Savings row goal link</note>
+      </trans-unit>
+      <trans-unit id="6668246090764032954" datatype="html">
+        <source>Failed to link the goal.</source>
+        <target state="needs-review-translation">Nepavyko susieti tikslo.</target>
+        <note priority="1" from="description">A savings contribution could not be linked to a goal</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="4083313136335638233" datatype="html">
+        <source>Failed to unlink the goal.</source>
+        <target state="needs-review-translation">Nepavyko atsieti tikslo.</target>
+        <note priority="1" from="description">A savings contribution could not be unlinked from a goal</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="4740807031415301074" datatype="html">
+        <source>The advisor answers in this language. Screens follow in a later update.</source>
+        <target state="needs-review-translation">Šia kalba atsako patarėjas. Ekranai bus išversti vėlesniame atnaujinime.</target>
+        <note priority="1" from="description">Explains what the language setting changes</note>
+        <note priority="1" from="meaning">Household language hint</note>
+      </trans-unit>
+      <trans-unit id="6377404529219534786" datatype="html">
+        <source>Failed to change the language.</source>
+        <target state="needs-review-translation">Nepavyko pakeisti kalbos.</target>
+        <note priority="1" from="description">The household answer language could not be changed</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="4775040489516936770" datatype="html">
+        <source>Failed to update committed savings.</source>
+        <target state="needs-review-translation">Nepavyko atnaujinti įsipareigotų santaupų.</target>
+        <note priority="1" from="description">The committed savings setting could not be saved</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="118337957472521540" datatype="html">
+        <source>Due today</source>
+        <target state="needs-review-translation">Mokėti šiandien</target>
+        <note priority="1" from="description">The bill is due today</note>
+        <note priority="1" from="meaning">Bill due label</note>
+      </trans-unit>
+      <trans-unit id="3939291514880993764" datatype="html">
+        <source>Due tomorrow</source>
+        <target state="needs-review-translation">Mokėti rytoj</target>
+        <note priority="1" from="description">The bill is due tomorrow</note>
+        <note priority="1" from="meaning">Bill due label</note>
+      </trans-unit>
+      <trans-unit id="8976679241326331814" datatype="html">
+        <source>Due in <x id="days" equiv-text="daysUntil"/> days</source>
+        <target state="needs-review-translation">Mokėti po <x id="days" equiv-text="daysUntil"/> d.</target>
+        <note priority="1" from="description">How many days until the bill is due</note>
+        <note priority="1" from="meaning">Bill due label</note>
+      </trans-unit>
+      <trans-unit id="7190155879231897653" datatype="html">
+        <source>Create your household</source>
+        <target state="needs-review-translation">Sukurkite savo namų ūkį</target>
+        <note priority="1" from="description">Signup page title</note>
+      </trans-unit>
+      <trans-unit id="4367375257055245171" datatype="html">
+        <source> Set up the first owner account for this self-hosted instance. You can add family members afterwards from the Users page. </source>
+        <target state="needs-review-translation"> Sukurkite pirmąją savininko paskyrą šiame savame serveryje. Šeimos narius vėliau pridėsite Vartotojų puslapyje. </target>
+        <note priority="1" from="description">Intro above the first-owner form</note>
+        <note priority="1" from="meaning">Signup page</note>
+      </trans-unit>
+      <trans-unit id="6748111778398706174" datatype="html">
+        <source>Household name</source>
+        <target state="needs-review-translation">Namų ūkio pavadinimas</target>
+        <note priority="1" from="description">Name of the household</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="6472263309393543878" datatype="html">
+        <source>Enter a household name.</source>
+        <target state="needs-review-translation">Įveskite namų ūkio pavadinimą.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="7911833271180750870" datatype="html">
+        <source>Base currency</source>
+        <target state="needs-review-translation">Pagrindinė valiuta</target>
+        <note priority="1" from="description">Currency the household reports in</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="938313679066722192" datatype="html">
+        <source>Use a 3-letter currency code (e.g. USD).</source>
+        <target state="needs-review-translation">Naudokite 3 raidžių valiutos kodą (pvz., USD).</target>
+        <note priority="1" from="description">USD is an ISO currency code and stays untranslated</note>
+        <note priority="1" from="meaning">Validation message</note>
+      </trans-unit>
+      <trans-unit id="7546235570022150987" datatype="html">
+        <source>Enter your name.</source>
+        <target state="needs-review-translation">Įveskite savo vardą.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="1357220306373799170" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Creating…} other {Create household}}" xid="4279301481893814462"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{submitting(), select, true {Creating…} other {Create household}}" xid="4279301481893814462"/> </target>
+        <note priority="1" from="description">Creates the household, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Signup submit button</note>
+      </trans-unit>
+      <trans-unit id="4279301481893814462" datatype="html">
+        <source>{VAR_SELECT, select, true {Creating…} other {Create household}}</source>
+        <target state="needs-review-translation">{VAR_SELECT, select, true {Kuriama…} other {Sukurti namų ūkį}}</target>
+      </trans-unit>
+      <trans-unit id="8465131035995881968" datatype="html">
+        <source>Already have an account? <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/login&quot;&gt;"/>Sign in<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
+        <target state="needs-review-translation">Jau turite paskyrą? <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/login&quot;&gt;"/>Prisijunkite<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <note priority="1" from="description">Footer link back to sign-in</note>
+        <note priority="1" from="meaning">Signup page</note>
+      </trans-unit>
+      <trans-unit id="2604576946445293556" datatype="html">
+        <source>Could not create the household.</source>
+        <target state="needs-review-translation">Nepavyko sukurti namų ūkio.</target>
+      </trans-unit>
+      <trans-unit id="5097631479765742714" datatype="html">
+        <source>Toggle navigation menu</source>
+        <target state="needs-review-translation">Atverti arba užverti meniu</target>
+        <note priority="1" from="description">Screen-reader name for the hamburger button that opens the sidebar</note>
+        <note priority="1" from="meaning">Mobile menu button</note>
+      </trans-unit>
+      <trans-unit id="2970937143191694315" datatype="html">
+        <source>System Health ↗</source>
+        <target state="needs-review-translation">Sistemos būklė ↗</target>
+        <note priority="1" from="description">Link out to the Grafana ops dashboards</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="5884013396313108367" datatype="html">
+        <source>The monorepo version this box runs (ADR 0029)</source>
+        <target state="needs-review-translation">Šiame serveryje veikianti monorepozitorijos versija (ADR 0029)</target>
+        <note priority="1" from="description">Tooltip explaining the version number in the footer</note>
+        <note priority="1" from="meaning">Sidebar version badge</note>
+      </trans-unit>
+      <trans-unit id="3397655456296716868" datatype="html">
+        <source> Log out </source>
+        <target state="needs-review-translation"> Atsijungti </target>
+        <note priority="1" from="description">Button that signs the member out</note>
+        <note priority="1" from="meaning">Sidebar footer action</note>
+      </trans-unit>
+      <trans-unit id="5536025403430922915" datatype="html">
+        <source>Overview</source>
+        <target state="needs-review-translation">Apžvalga</target>
+        <note priority="1" from="description">Link to the household overview page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="2945060004455022907" datatype="html">
+        <source>Advisor</source>
+        <target state="needs-review-translation">Patarėjas</target>
+        <note priority="1" from="description">Link to the AI advisor chat page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="3632654317044316116" datatype="html">
+        <source>Money</source>
+        <target state="needs-review-translation">Pinigai</target>
+        <note priority="1" from="description">Heading over the money pages</note>
+        <note priority="1" from="meaning">Sidebar nav group</note>
+      </trans-unit>
+      <trans-unit id="1116278345387114173" datatype="html">
+        <source>Accounts</source>
+        <target state="needs-review-translation">Sąskaitos</target>
+        <note priority="1" from="description">Link to the bank and asset accounts page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="5529762237496341867" datatype="html">
+        <source>Transactions</source>
+        <target state="needs-review-translation">Operacijos</target>
+        <note priority="1" from="description">Link to the transactions ledger page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="7768035538909295247" datatype="html">
+        <source>Bills</source>
+        <target state="needs-review-translation">Mokėtinos sąskaitos</target>
+        <note priority="1" from="description">Link to the recurring bills page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="5650195000427358626" datatype="html">
+        <source>Debts &amp; loans</source>
+        <target state="needs-review-translation">Skolos ir paskolos</target>
+        <note priority="1" from="description">Link to the debts and loans page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="464611396501170901" datatype="html">
+        <source>Income &amp; tax</source>
+        <target state="needs-review-translation">Pajamos ir mokesčiai</target>
+        <note priority="1" from="description">Link to the income and tax page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="673703669989405255" datatype="html">
+        <source>Budgets</source>
+        <target state="needs-review-translation">Biudžetai</target>
+        <note priority="1" from="description">Link to the budget envelopes page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="4111012196467815477" datatype="html">
+        <source>Categories</source>
+        <target state="needs-review-translation">Kategorijos</target>
+        <note priority="1" from="description">Link to the spending categories page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="8513724183304428158" datatype="html">
+        <source>Goals</source>
+        <target state="needs-review-translation">Tikslai</target>
+        <note priority="1" from="description">Link to the savings goals page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="772555493210304050" datatype="html">
+        <source>AI</source>
+        <target state="needs-review-translation">DI</target>
+        <note priority="1" from="description">Heading over the AI advisor pages</note>
+        <note priority="1" from="meaning">Sidebar nav group</note>
+      </trans-unit>
+      <trans-unit id="4499359415267334852" datatype="html">
+        <source>Advisor memory</source>
+        <target state="needs-review-translation">Patarėjo atmintis</target>
+        <note priority="1" from="description">Link to what the advisor remembers</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="2986184013783663173" datatype="html">
+        <source>AI runtime</source>
+        <target state="needs-review-translation">DI variklis</target>
+        <note priority="1" from="description">Link to the AI model runtime settings</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="3885296197045458410" datatype="html">
+        <source>Admin</source>
+        <target state="needs-review-translation">Administravimas</target>
+        <note priority="1" from="description">Heading over the administration pages</note>
+        <note priority="1" from="meaning">Sidebar nav group</note>
+      </trans-unit>
+      <trans-unit id="6298866472441753559" datatype="html">
+        <source>Imports</source>
+        <target state="needs-review-translation">Importai</target>
+        <note priority="1" from="description">Link to the statement imports page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="4044023947285686169" datatype="html">
+        <source>Reports</source>
+        <target state="needs-review-translation">Ataskaitos</target>
+        <note priority="1" from="description">Link to the reports page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="3064553406273200304" datatype="html">
+        <source>Backups</source>
+        <target state="needs-review-translation">Atsarginės kopijos</target>
+        <note priority="1" from="description">Link to the backups page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="194353691148671609" datatype="html">
+        <source>Users</source>
+        <target state="needs-review-translation">Vartotojai</target>
+        <note priority="1" from="description">Link to the household members page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="1898593214395640687" datatype="html">
+        <source>Roles</source>
+        <target state="needs-review-translation">Vaidmenys</target>
+        <note priority="1" from="description">Link to the roles and rights page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="7744865580926941272" datatype="html">
+        <source>Devices</source>
+        <target state="needs-review-translation">Įrenginiai</target>
+        <note priority="1" from="description">Link to the paired devices page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="6415460226917499402" datatype="html">
+        <source>Households</source>
+        <target state="needs-review-translation">Namų ūkiai</target>
+        <note priority="1" from="description">Link to the hosted households page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

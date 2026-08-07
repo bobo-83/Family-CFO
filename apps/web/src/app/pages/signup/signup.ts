@@ -57,7 +57,7 @@ export class Signup {
     this.submitting.set(false);
 
     if (!result.ok) {
-      this.errorMessage.set(result.errorMessage ?? 'Could not create the household.');
+      this.errorMessage.set(result.errorMessage ?? $localize`Could not create the household.`);
       return;
     }
 

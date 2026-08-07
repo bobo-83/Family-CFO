@@ -1,49 +1,49 @@
 <div class="signup">
   <mat-card class="signup__card" appearance="outlined">
     <mat-card-header>
-      <mat-card-title>Create your household</mat-card-title>
+      <mat-card-title i18n="Signup page title">Create your household</mat-card-title>
     </mat-card-header>
     <mat-card-content>
-      <p class="signup__subtitle">
+      <p class="signup__subtitle" i18n="Signup page|Intro above the first-owner form">
         Set up the first owner account for this self-hosted instance. You can add family members
         afterwards from the Users page.
       </p>
 
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="signup__form">
         <mat-form-field appearance="outline">
-          <mat-label>Household name</mat-label>
+          <mat-label i18n="Form field label|Name of the household">Household name</mat-label>
           <input matInput type="text" formControlName="displayName" autocomplete="organization" />
           @if (form.controls.displayName.invalid) {
-            <mat-error>Enter a household name.</mat-error>
+            <mat-error i18n="Validation message">Enter a household name.</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Base currency</mat-label>
+          <mat-label i18n="Form field label|Currency the household reports in">Base currency</mat-label>
           <input matInput type="text" formControlName="baseCurrency" maxlength="3" autocomplete="off" />
           @if (form.controls.baseCurrency.invalid) {
-            <mat-error>Use a 3-letter currency code (e.g. USD).</mat-error>
+            <mat-error i18n="Validation message|USD is an ISO currency code and stays untranslated">Use a 3-letter currency code (e.g. USD).</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Your name</mat-label>
+          <mat-label i18n="Form field label|Display name of the person signing up">Your name</mat-label>
           <input matInput type="text" formControlName="ownerDisplayName" autocomplete="name" />
           @if (form.controls.ownerDisplayName.invalid) {
-            <mat-error>Enter your name.</mat-error>
+            <mat-error i18n="Validation message">Enter your name.</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
+          <mat-label i18n="Form field label|Email address">Email</mat-label>
           <input matInput type="email" formControlName="ownerEmail" autocomplete="username" />
           @if (form.controls.ownerEmail.invalid) {
-            <mat-error>Enter a valid email address.</mat-error>
+            <mat-error i18n="Validation message">Enter a valid email address.</mat-error>
           }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Password</mat-label>
+          <mat-label i18n="Form field label|Account password">Password</mat-label>
           <input
             matInput
             type="password"
@@ -51,7 +51,7 @@
             autocomplete="new-password"
           />
           @if (form.controls.ownerPassword.invalid) {
-            <mat-error>Password must be at least 8 characters.</mat-error>
+            <mat-error i18n="Validation message">Password must be at least 8 characters.</mat-error>
           }
         </mat-form-field>
 
@@ -59,12 +59,18 @@
           <p class="signup__error-banner" role="alert">{{ message }}</p>
         }
 
-        <button mat-flat-button type="submit" class="signup__submit" [disabled]="submitting()">
-          {{ submitting() ? 'Creating…' : 'Create household' }}
+        <button
+          mat-flat-button
+          type="submit"
+          class="signup__submit"
+          [disabled]="submitting()"
+          i18n="Signup submit button|Creates the household, showing progress while the request is in flight"
+        >
+          {submitting(), select, true {Creating…} other {Create household}}
         </button>
       </form>
 
-      <p class="signup__foot">Already have an account? <a routerLink="/login">Sign in</a></p>
+      <p class="signup__foot" i18n="Signup page|Footer link back to sign-in">Already have an account? <a routerLink="/login">Sign in</a></p>
     </mat-card-content>
   </mat-card>
 </div>

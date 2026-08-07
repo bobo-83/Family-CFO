@@ -14,13 +14,13 @@ import { formatMoney } from '../../shared/format-money';
 
 // #201's cadence words, so a funding row reads "College 529 · USD 500.00 monthly".
 const CADENCE_WORDS: Record<RecurringFrequency, string> = {
-  weekly: 'weekly',
-  biweekly: 'every two weeks',
-  semimonthly: 'twice a month',
-  monthly: 'monthly',
-  quarterly: 'quarterly',
-  semiannual: 'twice a year',
-  annual: 'yearly',
+  weekly: $localize`:Funding cadence|How often a contribution repeats:weekly`,
+  biweekly: $localize`:Funding cadence|How often a contribution repeats:every two weeks`,
+  semimonthly: $localize`:Funding cadence|How often a contribution repeats:twice a month`,
+  monthly: $localize`:Funding cadence|How often a contribution repeats:monthly`,
+  quarterly: $localize`:Funding cadence|How often a contribution repeats:quarterly`,
+  semiannual: $localize`:Funding cadence|How often a contribution repeats:twice a year`,
+  annual: $localize`:Funding cadence|How often a contribution repeats:yearly`,
 };
 
 const GOAL_TYPES: GoalType[] = [
@@ -58,13 +58,13 @@ export class Goals {
   // M75: human labels for goal types.
   protected goalTypeLabel(type: string): string {
     const labels: Record<string, string> = {
-      emergency_fund: 'Emergency fund',
-      vacation: 'Vacation',
-      retirement: 'Retirement',
-      college: 'College',
-      vehicle: 'Vehicle',
-      renovation: 'Renovation',
-      other: 'Other',
+      emergency_fund: $localize`:Goal type|Savings goal category:Emergency fund`,
+      vacation: $localize`:Goal type|Savings goal category:Vacation`,
+      retirement: $localize`:Goal type|Savings goal category:Retirement`,
+      college: $localize`:Goal type|Savings goal category:College`,
+      vehicle: $localize`:Goal type|Savings goal category:Vehicle`,
+      renovation: $localize`:Goal type|Savings goal category:Renovation`,
+      other: $localize`:Goal type|Savings goal category:Other`,
     };
     return labels[type] ?? type;
   }
@@ -76,7 +76,7 @@ export class Goals {
     loader: async () => {
       const { data, error } = await this.api.listGoals();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load goals.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load goals.`));
       }
       return data.goals;
     },
@@ -97,27 +97,29 @@ export class Goals {
     if (!funding) {
       return null;
     }
-    const monthly = `${formatMoney(funding.monthly_equivalent)}/mo`;
+    const monthly = $localize`:Funding rate|Money going into a goal each month, e.g. "USD 500.00/mo":${formatMoney(funding.monthly_equivalent)}:amount:/mo`;
     switch (funding.status) {
       case 'on_track': {
         const projected = funding.projected_completion
-          ? ` · projected ${this.monthLabel(funding.projected_completion)}`
+          ? $localize`:Funding line fragment|Appended when a completion month is projected: · projected ${this.monthLabel(funding.projected_completion)}:month:`
           : '';
-        return `On track — ${monthly} going in${projected}`;
+        return $localize`:Goal funding status|The goal is on track:On track — ${monthly}:rate: going in${projected}:projected:`;
       }
       case 'behind': {
-        const target = goal.target_date ? ` by ${this.monthLabel(goal.target_date)}` : '';
-        const projected = funding.projected_completion
-          ? ` (projected ${this.monthLabel(funding.projected_completion)})`
+        const target = goal.target_date
+          ? $localize`:Funding line fragment|Appended when the goal has a target date: by ${this.monthLabel(goal.target_date)}:month:`
           : '';
-        return `Behind — ${monthly} won't reach the target${target}${projected}`;
+        const projected = funding.projected_completion
+          ? $localize`:Funding line fragment|Appended in parentheses when a completion month is projected: (projected ${this.monthLabel(funding.projected_completion)}:month:)`
+          : '';
+        return $localize`:Goal funding status|The current rate will not reach the target:Behind — ${monthly}:rate: won't reach the target${target}:targetDate:${projected}:projected:`;
       }
       case 'funded_no_date':
-        return `${monthly} going in`;
+        return $localize`:Goal funding status|Money is going in but no completion month is projected:${monthly}:rate: going in`;
       case 'unfunded':
         return goal.type === 'retirement'
-          ? "No linked transfers — 401(k) payroll deductions don't appear here."
-          : 'Nothing is currently funding this goal';
+          ? $localize`:Goal funding status|Retirement goals are fed by payroll deductions the ledger never sees:No linked transfers — 401(k) payroll deductions don't appear here.`
+          : $localize`:Goal funding status|No linked transfers feed this goal:Nothing is currently funding this goal`;
       default:
         return null;
     }
@@ -126,7 +128,7 @@ export class Goals {
   /** Compact "College 529 · USD 500.00 monthly" row under the funding line. */
   protected fundingSourceLine(source: GoalFundingSource): string {
     const cadence = CADENCE_WORDS[source.frequency] ?? source.frequency;
-    return `${source.destination_name} · ${formatMoney(source.amount)} ${cadence}`;
+    return $localize`:Goal funding source|One contribution feeding a goal, e.g. "College 529 · USD 500.00 monthly":${source.destination_name}:destination: · ${formatMoney(source.amount)}:amount: ${cadence}:cadence:`;
   }
 
   private monthLabel(date: string): string {
@@ -148,12 +150,12 @@ export class Goals {
   protected readonly savingContribution = signal(false);
 
   protected async removeGoal(goalId: string, name: string): Promise<void> {
-    if (!confirm(`Delete the goal "${name}"?`)) {
+    if (!confirm($localize`:Confirmation|Browser confirm before a goal is deleted:Delete the goal "${name}:name:"?`)) {
       return;
     }
     const { error } = await this.api.deleteGoal(goalId);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete the goal.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete the goal.`));
       return;
     }
     this.goals.reload();
@@ -183,7 +185,7 @@ export class Goals {
     });
     this.savingContribution.set(false);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to save the contribution.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to save the contribution.`));
       return;
     }
     this.editingContributionId.set(null);
@@ -221,7 +223,7 @@ export class Goals {
     this.submitting.set(false);
 
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to create goal.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to create goal.`));
       return;
     }
 
