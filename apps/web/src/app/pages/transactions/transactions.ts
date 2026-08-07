@@ -37,7 +37,7 @@ export class Transactions {
     loader: async () => {
       const { data, error } = await this.api.listAccounts();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load accounts.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load accounts.`));
       }
       return data.accounts;
     },
@@ -47,7 +47,7 @@ export class Transactions {
     loader: async () => {
       const { data, error } = await this.api.listTransactions();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load transactions.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load transactions.`));
       }
       return data.transactions;
     },
@@ -57,7 +57,7 @@ export class Transactions {
     loader: async () => {
       const { data, error } = await this.api.listCategories();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load categories.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load categories.`));
       }
       return data.categories;
     },
@@ -82,7 +82,9 @@ export class Transactions {
     }
     const account = this.accounts.value()?.find((a) => a.id === this.form.getRawValue().accountId);
     if (!account) {
-      this.submitError.set('Select an account first.');
+      this.submitError.set(
+        $localize`:Validation message|The transaction form was submitted without an account chosen:Select an account first.`,
+      );
       return;
     }
 
@@ -101,7 +103,7 @@ export class Transactions {
     this.submitting.set(false);
 
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to create transaction.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to create transaction.`));
       return;
     }
     this.form.reset({
@@ -122,19 +124,21 @@ export class Transactions {
       value ? { category_id: value } : { clear_category: true },
     );
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to update category.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to update category.`));
       return;
     }
     this.transactions.reload();
   }
 
   protected async remove(id: string): Promise<void> {
-    if (!confirm('Delete this transaction? This cannot be undone.')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm before a transaction is deleted:Delete this transaction? This cannot be undone.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteTransaction(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete transaction.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete transaction.`));
       return;
     }
     this.transactions.reload();

@@ -46,6 +46,17 @@ export class Backups implements OnInit {
   protected readonly revealedKey = signal<string | null>(null);
   private passwordEdited = false;
 
+  /** Bound, not a static attribute: an interpolated `i18n-placeholder` would be
+   * dropped silently, so the translated hint is built here. */
+  protected readonly passwordPlaceholder = computed(() =>
+    this.hasStoredPassword()
+      ? $localize`:Form field placeholder|A password is already stored; an empty field keeps it:saved — leave blank to keep`
+      : '',
+  );
+
+  /** Fallback when the server reports an unwritable destination without a reason. */
+  protected readonly connectionFailedLabel = $localize`:Connection check result|The destination check failed and the server gave no reason:Failed`;
+
   protected readonly latest = signal<{ status: string; completed_at?: string | null; size_bytes?: number | null; error_message?: string | null; remote_status?: string | null; remote_error?: string | null } | null>(null);
   protected readonly remoteBackups = signal<RemoteBackup[]>([]);
 
@@ -82,7 +93,7 @@ export class Backups implements OnInit {
     loader: async () => {
       const { data, error } = await this.api.listBackups();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load backups.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load backups.`));
       }
       return data.backups;
     },
@@ -138,6 +149,13 @@ export class Backups implements OnInit {
     return false;
   }
 
+  /** Bound `[title]`, for the same reason as `passwordPlaceholder`. */
+  protected versionTitle(appVersion: string | null | undefined): string {
+    return this.isFromNewerVersion(appVersion)
+      ? $localize`:Backup version tooltip|The backup was written by a newer app than the box runs:Made by a newer version — update first`
+      : '';
+  }
+
   private async loadConfig(): Promise<void> {
     const { data, error } = await this.api.getBackupConfig();
     if (error || !data) {
@@ -175,7 +193,7 @@ export class Backups implements OnInit {
       max_bytes: this.maxGB() > 0 ? Math.round(this.maxGB() * 1_000_000_000) : undefined,
     });
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save settings.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to save settings.`));
       return;
     }
     this.actionError.set(null);
@@ -204,7 +222,7 @@ export class Backups implements OnInit {
     });
     this.checking.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to test connection.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to test connection.`));
       return;
     }
     this.checkResult.set(data ?? null);
@@ -222,24 +240,29 @@ export class Backups implements OnInit {
     const { data, error } = await this.api.createBackup();
     this.busy.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to create backup.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to create backup.`));
       return;
     }
     if (data) this.latest.set(data);
-    this.statusMessage.set('Backup complete.');
+    this.statusMessage.set($localize`:Status message|A backup finished successfully:Backup complete.`);
     this.backups.reload();
     await this.loadRemote();
   }
 
   protected async restore(id: string): Promise<void> {
     if (this.busy()) return;
-    if (!confirm('Restore this backup? This REPLACES all current data with the backup contents. This cannot be undone.')) return;
+    if (
+      !confirm(
+        $localize`:Confirmation|Browser confirm before an on-box backup is restored over the live data:Restore this backup? This REPLACES all current data with the backup contents. This cannot be undone.`,
+      )
+    )
+      return;
     this.busy.set(true);
     this.actionError.set(null);
     const { error } = await this.api.restoreBackup(id);
     this.busy.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to restore backup.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to restore backup.`));
       return;
     }
     this.backups.reload();
@@ -247,32 +270,43 @@ export class Backups implements OnInit {
 
   protected async restoreRemote(filename: string): Promise<void> {
     if (this.busy()) return;
-    if (!confirm(`Restore from ${filename}? This REPLACES all current data with the backup contents. This cannot be undone.`)) return;
+    if (
+      !confirm(
+        $localize`:Confirmation|Browser confirm before an off-box snapshot is restored over the live data:Restore from ${filename}:filename:? This REPLACES all current data with the backup contents. This cannot be undone.`,
+      )
+    )
+      return;
     this.busy.set(true);
     this.actionError.set(null);
     const { error } = await this.api.restoreRemoteBackup(filename);
     this.busy.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to restore from Synology.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to restore from Synology.`));
       return;
     }
-    this.statusMessage.set(`Restored from ${filename}.`);
+    this.statusMessage.set(
+      $localize`:Status message|An off-box snapshot was restored:Restored from ${filename}:filename:.`,
+    );
   }
 
   protected async revealKey(): Promise<void> {
     const { data, error } = await this.api.getBackupEncryptionKey();
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to load key.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to load key.`));
       return;
     }
-    this.revealedKey.set(data?.key ?? '(not configured)');
+    this.revealedKey.set(
+      data?.key ?? $localize`:Backup key value|Shown in place of the key when the box has none:(not configured)`,
+    );
   }
 
   protected async copyKey(): Promise<void> {
     const key = this.revealedKey();
     if (key) {
       await navigator.clipboard?.writeText(key);
-      this.statusMessage.set('Backup key copied.');
+      this.statusMessage.set(
+        $localize`:Status message|The backup key was put on the clipboard:Backup key copied.`,
+      );
     }
   }
 
@@ -285,7 +319,9 @@ export class Backups implements OnInit {
     if (this.busy()) return;
     if (
       this.keyStatus()?.has_recovery_key &&
-      !confirm('Replace the recovery key? The old recovery key stops working immediately.')
+      !confirm(
+        $localize`:Confirmation|Browser confirm before the recovery key is replaced:Replace the recovery key? The old recovery key stops working immediately.`,
+      )
     ) {
       return;
     }
@@ -295,7 +331,7 @@ export class Backups implements OnInit {
     this.busy.set(false);
     if (error) {
       // 409 (encryption off) carries a human message — show it verbatim.
-      this.actionError.set(apiErrorMessage(error, 'Failed to create recovery key.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to create recovery key.`));
       return;
     }
     this.generatedRecoveryKey.set(data?.recovery_key ?? null);
@@ -306,7 +342,9 @@ export class Backups implements OnInit {
     const key = this.generatedRecoveryKey();
     if (key) {
       await navigator.clipboard?.writeText(key);
-      this.statusMessage.set('Recovery key copied.');
+      this.statusMessage.set(
+        $localize`:Status message|The recovery key was put on the clipboard:Recovery key copied.`,
+      );
     }
   }
 
@@ -317,15 +355,15 @@ export class Backups implements OnInit {
     if (this.busy()) return;
     const consequence =
       mode === 'sealed'
-        ? 'Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.'
-        : 'Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.';
+        ? $localize`:Confirmation|Browser confirm before the household is sealed:Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.`
+        : $localize`:Confirmation|Browser confirm before the household leaves sealed mode:Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.`;
     if (!confirm(consequence)) return;
     this.busy.set(true);
     this.actionError.set(null);
     const { data, error } = await this.api.setSealMode(mode);
     this.busy.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to switch privacy mode.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to switch privacy mode.`));
       return;
     }
     this.keyStatus.set(data ?? null);
@@ -345,13 +383,15 @@ export class Backups implements OnInit {
     const { data, error } = await this.api.unlockWithRecoveryKey(key);
     this.busy.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to unlock.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to unlock.`));
       return;
     }
     this.keyStatus.set(data ?? null);
     this.recoveryUnlockInput.set('');
     this.showRecoveryUnlock.set(false);
-    this.statusMessage.set('Household unlocked.');
+    this.statusMessage.set(
+      $localize`:Status message|A locked household was unlocked with its recovery key:Household unlocked.`,
+    );
   }
 
   // --- "Export my data" (#189): the whole household as a portable zip ---
@@ -374,7 +414,11 @@ export class Backups implements OnInit {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      this.exportError.set(error instanceof Error ? error.message : 'Export failed.');
+      this.exportError.set(
+        error instanceof Error
+          ? error.message
+          : $localize`:Error message|The household export could not be produced:Export failed.`,
+      );
     } finally {
       this.exporting.set(false);
     }
@@ -392,20 +436,26 @@ export class Backups implements OnInit {
   }
 
   protected async deleteLocal(id: string): Promise<void> {
-    if (!confirm('Delete this on-box backup?')) return;
+    if (!confirm($localize`:Confirmation|Browser confirm before an on-box backup is deleted:Delete this on-box backup?`))
+      return;
     const { error } = await this.api.deleteBackup(id);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to delete backup.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to delete backup.`));
       return;
     }
     this.backups.reload();
   }
 
   protected async deleteRemote(filename: string): Promise<void> {
-    if (!confirm(`Delete ${filename} from the Synology?`)) return;
+    if (
+      !confirm(
+        $localize`:Confirmation|Browser confirm before an off-box snapshot is deleted:Delete ${filename}:filename: from the Synology?`,
+      )
+    )
+      return;
     const { error } = await this.api.deleteRemoteBackup(filename);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to delete from Synology.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to delete from Synology.`));
       return;
     }
     this.remoteBackups.set((await this.api.listRemoteBackups()).data?.backups ?? []);

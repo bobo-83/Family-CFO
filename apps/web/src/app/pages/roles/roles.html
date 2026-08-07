@@ -1,13 +1,13 @@
 <section class="page">
   <header class="page__header">
     <div>
-      <h1>Roles</h1>
-      <p class="page__sub">
+      <h1 i18n="Page title|Household roles page">Roles</h1>
+      <p class="page__sub" i18n="Page intro|What a role is and where it gets assigned">
         Rights bundled into roles — assign one to each member on the Users page.
         Built-in roles can't be edited; create a custom role for anything finer.
       </p>
     </div>
-    <button mat-flat-button type="button" (click)="startCreate()">+ New role</button>
+    <button mat-flat-button type="button" (click)="startCreate()" i18n="Button|Opens the editor for a brand-new custom role">+ New role</button>
   </header>
 
   @if (data.error(); as message) {
@@ -24,13 +24,13 @@
           <div class="role-list__name">
             {{ role.name }}
             @if (role.built_in) {
-              <span class="role-list__badge">built-in</span>
+              <span class="role-list__badge" i18n="Role badge|The role ships with the product and cannot be edited">built-in</span>
             }
           </div>
           <details class="role-list__rights">
-            <summary class="role-list__meta">
-              {{ role.rights.length }} right{{ role.rights.length === 1 ? '' : 's' }} ·
-              {{ role.member_count ?? 0 }} member{{ (role.member_count ?? 0) === 1 ? '' : 's' }}
+            <summary class="role-list__meta" i18n="Role summary|How many rights the role grants and how many members hold it">
+              {role.rights.length, plural, =1 {1 right} other {{{ role.rights.length }} rights}} ·
+              {memberCount(role), plural, =1 {1 member} other {{{ memberCount(role) }} members}}
             </summary>
             <ul class="role-rights">
               @for (right of sortedRights(role); track right) {
@@ -39,7 +39,7 @@
                   <code>{{ right }}</code>
                 </li>
               } @empty {
-                <li class="role-rights__item role-rights__item--empty">
+                <li class="role-rights__item role-rights__item--empty" i18n="Empty state|The role grants no rights at all">
                   No rights — this role can view nothing and do nothing.
                 </li>
               }
@@ -48,14 +48,15 @@
         </div>
         @if (!role.built_in) {
           <div class="role-list__actions">
-            <button mat-button type="button" (click)="startEdit(role)">Edit</button>
+            <button mat-button type="button" (click)="startEdit(role)" i18n="Button|Opens the editor for this custom role">Edit</button>
             <button
               mat-button
               type="button"
               class="role-list__delete"
-              [disabled]="(role.member_count ?? 0) > 0"
-              [title]="(role.member_count ?? 0) > 0 ? 'Reassign its members first' : ''"
+              [disabled]="memberCount(role) > 0"
+              [title]="deleteBlockedHint(role)"
               (click)="remove(role)"
+              i18n="Button|Deletes this custom role"
             >
               Delete
             </button>
@@ -69,9 +70,15 @@
     <mat-card appearance="outlined" class="role-editor-card">
       <mat-card-content>
       <form class="role-editor" (ngSubmit)="save()">
-        <h2>{{ draft.id ? 'Edit role' : 'New role' }}</h2>
+        <h2>
+          @if (draft.id) {
+            <ng-container i18n="Section heading|Editing an existing custom role">Edit role</ng-container>
+          } @else {
+            <ng-container i18n="Section heading|Creating a brand-new custom role">New role</ng-container>
+          }
+        </h2>
         <mat-form-field appearance="outline">
-          <mat-label>Name</mat-label>
+          <mat-label i18n="Form field label|Name of the custom role">Name</mat-label>
           <input
             matInput
             type="text"
@@ -83,7 +90,7 @@
           />
         </mat-form-field>
         <fieldset class="role-editor__rights">
-          <legend>Rights</legend>
+          <legend i18n="Fieldset legend|The permissions this role grants">Rights</legend>
           @for (right of data.value()?.all_rights ?? []; track right) {
             <mat-checkbox
               class="role-editor__right"
@@ -96,10 +103,15 @@
           }
         </fieldset>
         <div class="role-editor__actions">
-          <button mat-flat-button type="submit" [disabled]="saving() || !draft.name.trim()">
-            {{ saving() ? 'Saving…' : 'Save role' }}
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="saving() || !draft.name.trim()"
+            i18n="Button|Saves the role, showing progress while the request is in flight"
+          >
+            {saving(), select, true {Saving…} other {Save role}}
           </button>
-          <button mat-button type="button" (click)="editing.set(null)">Cancel</button>
+          <button mat-button type="button" (click)="editing.set(null)" i18n="Button|Abandons the role edit">Cancel</button>
         </div>
       </form>
       </mat-card-content>

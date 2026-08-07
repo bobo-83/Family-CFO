@@ -34,11 +34,26 @@ const FREQUENCIES: RecurringFrequency[] = [
 
 // M111 (ADR 0024): bill-paying order — the same grouping the iOS tab renders.
 const TIMELINE_GROUPS: { status: PaymentTimelineItem['status']; title: string }[] = [
-  { status: 'overdue', title: 'Overdue' },
-  { status: 'due_soon', title: 'Due soon' },
-  { status: 'no_date', title: 'No due date yet' },
-  { status: 'paid', title: 'Paid this cycle' },
-  { status: 'upcoming', title: 'Upcoming' },
+  {
+    status: 'overdue',
+    title: $localize`:Payment timeline section|Bills whose due date has already passed:Overdue`,
+  },
+  {
+    status: 'due_soon',
+    title: $localize`:Payment timeline section|Bills due within the next few days:Due soon`,
+  },
+  {
+    status: 'no_date',
+    title: $localize`:Payment timeline section|Bills whose due day cannot be inferred yet:No due date yet`,
+  },
+  {
+    status: 'paid',
+    title: $localize`:Payment timeline section|Bills already settled in the current cycle:Paid this cycle`,
+  },
+  {
+    status: 'upcoming',
+    title: $localize`:Payment timeline section|Bills due further out:Upcoming`,
+  },
 ];
 
 @Component({
@@ -96,29 +111,31 @@ export class Bills {
       case 'paid': {
         const paid = item.paid_with;
         if (!paid) {
-          return 'Paid';
+          return $localize`:Payment timeline status|The bill is settled, with no receipt detail to show:Paid`;
         }
-        const next = item.due_date ? ` · next ${short(item.due_date)}` : '';
-        return `Paid ${short(paid.occurred_at)} · ${formatMoney(paid.amount)}${next}`;
+        const next = item.due_date
+          ? $localize`:Payment timeline fragment|Appended when the next occurrence already has a due date: · next ${short(item.due_date)}:date:`
+          : '';
+        return $localize`:Payment timeline status|When the bill was paid and for how much:Paid ${short(paid.occurred_at)}:date: · ${formatMoney(paid.amount)}:amount:${next}:next:`;
       }
       case 'overdue':
-        return `Was due ${short(item.due_date)} · no payment seen`;
+        return $localize`:Payment timeline status|The due date passed with no matching charge:Was due ${short(item.due_date)}:date: · no payment seen`;
       case 'no_date':
         return item.kind === 'credit_card'
-          ? 'Current balance · due date unknown'
-          : 'Due date unknown';
+          ? $localize`:Payment timeline status|A card balance with no statement due date:Current balance · due date unknown`
+          : $localize`:Payment timeline status|No due day could be inferred for this bill:Due date unknown`;
       default: {
         const days = item.days_until;
         if (days === 0) {
-          return 'Due today';
+          return $localize`:Payment timeline status|The bill falls due today:Due today`;
         }
         if (days === 1) {
-          return 'Due tomorrow';
+          return $localize`:Payment timeline status|The bill falls due tomorrow:Due tomorrow`;
         }
         if (days != null && days > 1 && days <= 14) {
-          return `Due ${short(item.due_date)} · in ${days} days`;
+          return $localize`:Payment timeline status|Due date plus how many days away it is; days is always more than one here:Due ${short(item.due_date)}:date: · in ${days}:days: days`;
         }
-        return `Due ${short(item.due_date)}`;
+        return $localize`:Payment timeline status|Due date further out than a fortnight:Due ${short(item.due_date)}:date:`;
       }
     }
   }
@@ -126,15 +143,15 @@ export class Bills {
   protected timelineKindLabel(kind: PaymentTimelineItem['kind']): string {
     switch (kind) {
       case 'credit_card':
-        return 'Card';
+        return $localize`:Payment kind|A credit-card payment:Card`;
       case 'mortgage':
-        return 'Mortgage';
+        return $localize`:Payment kind|A mortgage payment:Mortgage`;
       case 'loan':
-        return 'Loan';
+        return $localize`:Payment kind|A loan payment:Loan`;
       case 'lease':
-        return 'Lease';
+        return $localize`:Payment kind|A lease payment:Lease`;
       default:
-        return 'Bill';
+        return $localize`:Payment kind|An ordinary recurring bill:Bill`;
     }
   }
 
@@ -171,7 +188,7 @@ export class Bills {
       return;
     }
     if (error || !data) {
-      this.linkError.set(apiErrorMessage(error, 'Failed to load charges.'));
+      this.linkError.set(apiErrorMessage(error, $localize`Failed to load charges.`));
       this.candidates.set([]);
       return;
     }
@@ -195,7 +212,7 @@ export class Bills {
     const { error } = await this.api.linkBillPayment(item.id, transaction.id, item.due_date);
     this.linkBusy.set(false);
     if (error) {
-      this.linkError.set(apiErrorMessage(error, 'Failed to link the payment.'));
+      this.linkError.set(apiErrorMessage(error, $localize`Failed to link the payment.`));
       return;
     }
     this.closeMarkPaid();
@@ -213,7 +230,7 @@ export class Bills {
     const { error } = await this.api.unlinkBillPayment(item.id, linkId);
     this.linkBusy.set(false);
     if (error) {
-      this.linkError.set(apiErrorMessage(error, 'Failed to unlink the payment.'));
+      this.linkError.set(apiErrorMessage(error, $localize`Failed to unlink the payment.`));
       return;
     }
     await this.load();
@@ -241,7 +258,7 @@ export class Bills {
     ]);
     this.loading.set(false);
     if (billsResult.error || !billsResult.data) {
-      this.loadError.set(apiErrorMessage(billsResult.error, 'Failed to load bills.'));
+      this.loadError.set(apiErrorMessage(billsResult.error, $localize`Failed to load bills.`));
       return;
     }
     this.bills.set(billsResult.data.bills);
@@ -254,7 +271,7 @@ export class Bills {
   private async loadSuggestions(): Promise<void> {
     const { data, error } = await this.api.listBillSuggestions();
     if (error || !data) {
-      this.suggestionError.set(apiErrorMessage(error, 'Failed to load suggestions.'));
+      this.suggestionError.set(apiErrorMessage(error, $localize`Failed to load suggestions.`));
       return;
     }
     this.suggestions.set(data.suggestions);
@@ -274,7 +291,7 @@ export class Bills {
     });
     this.suggestionBusy.set(null);
     if (error) {
-      this.suggestionError.set(apiErrorMessage(error, 'Failed to update the bill.'));
+      this.suggestionError.set(apiErrorMessage(error, $localize`Failed to update the bill.`));
       return;
     }
     await Promise.all([this.load(), this.loadSuggestions()]);
@@ -289,7 +306,7 @@ export class Bills {
     const { error } = await this.api.dismissBillSuggestion(update.dismiss_key);
     this.suggestionBusy.set(null);
     if (error) {
-      this.suggestionError.set(apiErrorMessage(error, 'Failed to dismiss the update.'));
+      this.suggestionError.set(apiErrorMessage(error, $localize`Failed to dismiss the update.`));
       return;
     }
     await this.loadSuggestions();
@@ -309,7 +326,7 @@ export class Bills {
     });
     this.suggestionBusy.set(null);
     if (error) {
-      this.suggestionError.set(apiErrorMessage(error, 'Failed to create the bill.'));
+      this.suggestionError.set(apiErrorMessage(error, $localize`Failed to create the bill.`));
       return;
     }
     await Promise.all([this.load(), this.loadSuggestions()]);
@@ -324,7 +341,7 @@ export class Bills {
     const { error } = await this.api.dismissBillSuggestion(suggestion.merchant_key);
     this.suggestionBusy.set(null);
     if (error) {
-      this.suggestionError.set(apiErrorMessage(error, 'Failed to dismiss the suggestion.'));
+      this.suggestionError.set(apiErrorMessage(error, $localize`Failed to dismiss the suggestion.`));
       return;
     }
     await this.loadSuggestions();
@@ -377,7 +394,7 @@ export class Bills {
     });
     this.creditBusy.set(false);
     if (error) {
-      this.creditError.set(apiErrorMessage(error, 'Failed to record the credit.'));
+      this.creditError.set(apiErrorMessage(error, $localize`Failed to record the credit.`));
       return;
     }
     this.scannedCredit.set(null);
@@ -415,7 +432,7 @@ export class Bills {
     const { data, error } = await this.api.scanBill(base64, mediaType);
     this.scanning.set(false);
     if (error || !data) {
-      this.submitError.set(apiErrorMessage(error, 'Bill scan failed.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Bill scan failed.`));
       return;
     }
     // Prefill only — never overwrite what the user already typed.
@@ -457,7 +474,7 @@ export class Bills {
     });
     if (error || !created) {
       this.submitting.set(false);
-      this.submitError.set(apiErrorMessage(error, 'Failed to create bill.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to create bill.`));
       return;
     }
     // A scanned credit statement: the new bill starts with its credit recorded.
@@ -475,12 +492,12 @@ export class Bills {
   }
 
   protected async remove(id: string): Promise<void> {
-    if (!confirm('Delete this bill?')) {
+    if (!confirm($localize`:Confirmation|Browser confirm shown before a bill is deleted:Delete this bill?`)) {
       return;
     }
     const { error } = await this.api.deleteBill(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete bill.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete bill.`));
       return;
     }
     await this.load();
@@ -527,7 +544,7 @@ export class Bills {
       ...(nextDueDate ? { next_due_date: nextDueDate } : {}),
     });
     if (error) {
-      this.editError.set(apiErrorMessage(error, 'Failed to update the bill.'));
+      this.editError.set(apiErrorMessage(error, $localize`Failed to update the bill.`));
       return;
     }
     this.editingId.set(null);

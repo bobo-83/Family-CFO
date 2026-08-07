@@ -83,6 +83,20 @@ export class Accounts {
     }
   }
 
+  /** Display names for the spendability groups — the keys above stay English
+   * because they key the grouping map and its ordering. */
+  protected categoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      Cash: $localize`:Account group|Everyday spendable money:Cash`,
+      Investments: $localize`:Account group|Taxable brokerage holdings:Investments`,
+      Retirement: $localize`:Account group|Retirement and health savings accounts:Retirement`,
+      Education: $localize`:Account group|College savings accounts:Education`,
+      Property: $localize`:Account group|Property and other owned assets:Property`,
+      Debts: $localize`:Account group|What the household owes:Debts`,
+    };
+    return labels[category] ?? category;
+  }
+
   protected readonly groupedAccounts = computed(() => {
     const list = this.accounts.value() ?? [];
     const groups = new Map<string, Account[]>();
@@ -113,7 +127,7 @@ export class Accounts {
     loader: async () => {
       const { data, error } = await this.api.listAccounts();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load accounts.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load accounts.`));
       }
       return data.accounts;
     },
@@ -179,7 +193,7 @@ export class Accounts {
     const { data, error } = await this.api.scanAccountStatement(base64, mediaType);
     this.scanning.set(false);
     if (error || !data) {
-      this.submitError.set(apiErrorMessage(error, 'Statement scan failed.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Statement scan failed.`));
       return;
     }
     // Prefill only — the user confirms every value before saving.
@@ -200,7 +214,7 @@ export class Accounts {
     const created = await this.api.createAccount({ name, type, currency });
     if (created.error || !created.data) {
       this.submitting.set(false);
-      this.submitError.set(apiErrorMessage(created.error, 'Failed to create account.'));
+      this.submitError.set(apiErrorMessage(created.error, $localize`Failed to create account.`));
       return;
     }
     if (openingBalance !== 0) {
@@ -264,7 +278,7 @@ export class Accounts {
     }
     const { error } = await this.api.updateAccount(account.id, body);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to update emergency fund.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to update emergency fund.`));
       return;
     }
     this.accounts.reload();
@@ -279,7 +293,7 @@ export class Accounts {
     // Send only this field — a bare boolean can never clear another account's tag.
     const { error } = await this.api.updateAccount(account.id, { rsu_ready_to_sell: checked });
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to update the RSU tag.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to update the RSU tag.`));
       return;
     }
     this.accounts.reload();
@@ -290,19 +304,23 @@ export class Accounts {
     const type = (event.target as HTMLSelectElement).value as AccountType;
     const { error } = await this.api.updateAccount(id, { type });
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to change account type.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to change account type.`));
       return;
     }
     this.accounts.reload();
   }
 
   protected async remove(id: string): Promise<void> {
-    if (!confirm('Delete this account? Accounts referenced by transactions cannot be deleted.')) {
+    if (
+      !confirm(
+        $localize`:Confirmation|Browser confirm before an account is deleted:Delete this account? Accounts referenced by transactions cannot be deleted.`,
+      )
+    ) {
       return;
     }
     const { error } = await this.api.deleteAccount(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete account.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete account.`));
       return;
     }
     this.accounts.reload();

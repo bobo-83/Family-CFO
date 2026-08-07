@@ -23,11 +23,11 @@ import { formatMoney } from '../../shared/format-money';
 // The liability account types offered as "loans" — credit cards are handled by
 // the pay-in-full setting, same split as iOS.
 const LOAN_TYPES: { value: AccountType; label: string }[] = [
-  { value: 'mortgage', label: 'Mortgage' },
-  { value: 'auto_loan', label: 'Auto loan / lease' },
-  { value: 'student_loan', label: 'Student loan' },
-  { value: '401k_loan', label: '401(k) loan' },
-  { value: 'other_liability', label: 'Other' },
+  { value: 'mortgage', label: $localize`:Loan type|Kind of debt:Mortgage` },
+  { value: 'auto_loan', label: $localize`:Loan type|Kind of debt:Auto loan / lease` },
+  { value: 'student_loan', label: $localize`:Loan type|Kind of debt:Student loan` },
+  { value: '401k_loan', label: $localize`:Loan type|Kind of debt:401(k) loan` },
+  { value: 'other_liability', label: $localize`:Loan type|Kind of debt:Other` },
 ];
 const LOAN_TYPE_VALUES = new Set(LOAN_TYPES.map((t) => t.value));
 
@@ -133,7 +133,7 @@ export class Loans {
     const { data, error } = await this.api.listAccounts();
     this.loading.set(false);
     if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, 'Failed to load loans.'));
+      this.loadError.set(apiErrorMessage(error, $localize`Failed to load loans.`));
       return;
     }
     this.loans.set(data.accounts.filter((a) => LOAN_TYPE_VALUES.has(a.type)));
@@ -239,7 +239,7 @@ export class Loans {
       : await this.api.createAccount({ ...body, currency });
     if (saved.error || !saved.data) {
       this.saving.set(false);
-      this.actionError.set(apiErrorMessage(saved.error, 'Failed to save the loan.'));
+      this.actionError.set(apiErrorMessage(saved.error, $localize`Failed to save the loan.`));
       return;
     }
     // A liability carries a NEGATIVE balance — the amount owed.
@@ -250,7 +250,7 @@ export class Loans {
     );
     this.saving.set(false);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Saved, but recording the balance failed.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Saved, but recording the balance failed.`));
       return;
     }
     this.editingId.set(null);
@@ -258,12 +258,14 @@ export class Loans {
   }
 
   protected async remove(loan: Account): Promise<void> {
-    if (!confirm(`Delete ${loan.name}?`)) {
+    if (
+      !confirm($localize`:Confirmation|Browser confirm before a loan is deleted:Delete ${loan.name}:name:?`)
+    ) {
       return;
     }
     const { error } = await this.api.deleteAccount(loan.id);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to delete the loan.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Failed to delete the loan.`));
       return;
     }
     this.editingId.set(null);
@@ -317,7 +319,7 @@ export class Loans {
     const { data, error } = await this.api.scanLoanStatement(base64, mediaType);
     this.scanning.set(false);
     if (error || !data) {
-      this.actionError.set(apiErrorMessage(error, 'Statement scan failed.'));
+      this.actionError.set(apiErrorMessage(error, $localize`Statement scan failed.`));
       return;
     }
     // Prefill only — never overwrite what the user already typed.
