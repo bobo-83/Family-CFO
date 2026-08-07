@@ -91,6 +91,28 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
         return best ?? AVSpeechSynthesisVoice(language: language)
     }
 
+    /// Human-readable resolution of the voice this phone would speak the
+    /// given language with — surfaced in Settings so "why doesn't it sound
+    /// right" is answerable at a glance.
+    static func voiceStatus(for householdLanguage: String) -> String {
+        let target = voiceLanguageCode(for: householdLanguage)
+        let base = String(target.prefix(2))
+        guard let voice = bestAvailableVoice(for: householdLanguage),
+              voice.language == target || voice.language.hasPrefix(base) else {
+            let name = householdLanguage == "vi" ? "Vietnamese" : "Lithuanian"
+            return "No \(name) voice is installed on this iPhone — speech will "
+                + "use the English voice. Download one in Settings → "
+                + "Accessibility → Read & Speak → Voices."
+        }
+        let tier =
+            switch voice.quality {
+            case .premium: " (Premium)"
+            case .enhanced: " (Enhanced)"
+            default: ""
+            }
+        return "Speech voice: \(voice.name)\(tier)."
+    }
+
     func stopSpeaking() {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)

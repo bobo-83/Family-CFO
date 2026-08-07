@@ -243,6 +243,15 @@ struct SettingsView: View {
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("The advisor answers in this language. App screens follow in a later update.")
+                        // Ground truth for "why doesn't it sound right": the
+                        // voice the app RESOLVED on this phone, or the fact
+                        // that none is installed. Settings can list a default
+                        // voice whose asset was never downloaded — the app
+                        // only sees voices on disk.
+                        if let languageModel, languageModel.language != "en" {
+                            Text(SpeechSynthesizerService.voiceStatus(for: languageModel.language))
+                                .foregroundStyle(.secondary)
+                        }
                         if let error = languageModel?.errorMessage {
                             Text(error).foregroundStyle(.red)
                         }
