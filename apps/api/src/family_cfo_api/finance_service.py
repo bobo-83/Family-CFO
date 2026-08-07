@@ -1981,6 +1981,92 @@ def monthly_income_total(
     return total
 
 
+@dataclass(frozen=True, slots=True)
+class ObservedSavingsRate:
+    """#6: saving as what the household actually does, from three sources that
+    must not overlap:
+
+      transfers  — declared contributions to savings vehicles (#203). Excluded
+                   from spending, so they'd otherwise sit in the residual; we
+                   pull them out into their own bucket.
+      payroll    — pre-tax 401(k)/HSA deductions. Never reach the bank feed, so
+                   they are NOT in take-home and never in the residual.
+      residual   — take-home minus spending minus transfers: money that came in
+                   and wasn't spent or moved anywhere identifiable.
+
+    total = transfers + payroll + residual = payroll + (take_home - spending).
+    gross = take_home + payroll. percent = total / gross.
+    """
+
+    percent: int | None
+    gross_monthly_minor: int
+    take_home_monthly_minor: int
+    spending_monthly_minor: int
+    transfers_monthly_minor: int
+    payroll_monthly_minor: int
+    residual_monthly_minor: int
+    total_saved_monthly_minor: int
+    # Which sources contributed real numbers, for the honesty note.
+    has_payroll_profile: bool
+    has_declared_transfers: bool
+
+
+def observed_savings_rate(
+    engine, household_id: str, currency: str, *, today: date | None = None
+) -> ObservedSavingsRate:
+    from family_cfo_api import savings_detection
+
+    today = today or date.today()
+    this_month_start = today.replace(day=1)
+    window_start = add_months(this_month_start, -3)
+    window_end = this_month_start - timedelta(days=1)
+
+    take_home = monthly_income_total(engine, household_id, currency, today=today).amount_minor
+    spending = round(
+        repository.sum_spending(engine, household_id, window_start, window_end, currency) / 3
+    )
+
+    # Payroll deductions: pre-tax retirement + HSA across earners, monthlyised.
+    profiles = repository.list_income_profiles(engine, household_id)
+    payroll = sum(
+        p.retirement_contribution_annual_minor + p.hsa_contribution_annual_minor
+        for p in profiles
+    ) // 12
+
+    # Declared transfers only — a detected guess is not "what the household does".
+    transfers = 0
+    try:
+        for c in savings_detection.detect_for_household(engine, household_id, today=today):
+            if c.declared and c.currency == currency:
+                transfers += savings_detection.monthly_equivalent_minor(c)
+    except Exception:
+        logger.exception("savings-rate transfer sum failed household=%s", household_id)
+
+    # Residual: unspent take-home that didn't move to a named contribution.
+    # Transfers are excluded from spending, so subtract them here to avoid
+    # double-counting them as both a transfer and unspent cash.
+    residual = take_home - spending - transfers
+    total_saved = payroll + take_home - spending
+    gross = take_home + payroll
+    percent = None if gross <= 0 else round(total_saved / gross * 100)
+
+    return ObservedSavingsRate(
+        percent=percent,
+        gross_monthly_minor=gross,
+        take_home_monthly_minor=take_home,
+        spending_monthly_minor=spending,
+        transfers_monthly_minor=transfers,
+        payroll_monthly_minor=payroll,
+        residual_monthly_minor=residual,
+        total_saved_monthly_minor=total_saved,
+        has_payroll_profile=any(
+            p.retirement_contribution_annual_minor or p.hsa_contribution_annual_minor
+            for p in profiles
+        ),
+        has_declared_transfers=transfers > 0,
+    )
+
+
 def w2_baseline_monthly(engine: Engine, household_id: str, currency: str) -> Money | None:
     """Monthly gross implied by the W2 / compensation profiles, or None if the
     household declared none. This is a baseline reference shown next to actual

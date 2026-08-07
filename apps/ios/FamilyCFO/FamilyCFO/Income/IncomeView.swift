@@ -93,6 +93,13 @@ struct IncomeView: View {
                         Text("Base \(earner.baseSalary.formatted)/yr")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        // #6: pre-tax saving, shown beside base pay when it's on
+                        // file — the figure the savings rate leans on.
+                        if let note = Self.preTaxSavingNote(earner) {
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .swipeActions {
                         Button(role: .destructive) {
@@ -165,6 +172,20 @@ struct IncomeView: View {
                     .foregroundStyle(Color.green)
             }
         }
+    }
+
+    /// #6: the earner's pre-tax annual saving, as "401(k) $19,500/yr · HSA
+    /// $4,150/yr" — only the amounts on file, nil when neither is set so the
+    /// row shows nothing extra.
+    static func preTaxSavingNote(_ earner: Components.Schemas.IncomeEarner) -> String? {
+        var parts: [String] = []
+        if let retirement = earner.retirementContributionAnnual {
+            parts.append("401(k) \(retirement.formatted)/yr")
+        }
+        if let hsa = earner.hsaContributionAnnual {
+            parts.append("HSA \(hsa.formatted)/yr")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func detailLine(_ label: String, _ value: String) -> some View {

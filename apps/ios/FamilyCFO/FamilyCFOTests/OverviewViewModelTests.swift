@@ -359,6 +359,48 @@ struct OverviewViewModelTests {
         #expect(OverviewView.savingsFootnote(seenBothLegs) == payroll)
     }
 
+    // MARK: - #6 observed savings rate
+
+    private func savingsRate(
+        transfers: Int64? = nil,
+        payroll: Int64? = nil,
+        residual: Int64? = nil,
+        payrollProfilePresent: Bool? = nil
+    ) -> Components.Schemas.SavingsRate {
+        .init(
+            percent: 12,
+            monthlyIncome: .init(amountMinor: 800_000, currency: "USD"),
+            averageMonthlySpending: .init(amountMinor: 500_000, currency: "USD"),
+            transfers: transfers.map { .init(amountMinor: $0, currency: "USD") },
+            payrollDeductions: payroll.map { .init(amountMinor: $0, currency: "USD") },
+            residual: residual.map { .init(amountMinor: $0, currency: "USD") },
+            payrollProfilePresent: payrollProfilePresent
+        )
+    }
+
+    /// #6: the breakdown names all three observed sources, in order.
+    @Test func savingsBreakdownShowsTheThreeSources() {
+        let breakdown = OverviewView.savingsBreakdown(
+            savingsRate(transfers: 50_000, payroll: 250_000, residual: 30_000))
+        #expect(breakdown == "$500 transfers · $2,500 payroll · $300 residual")
+    }
+
+    /// A source the box didn't send is simply left out; nil when none are.
+    @Test func savingsBreakdownOmitsAbsentSources() {
+        #expect(
+            OverviewView.savingsBreakdown(savingsRate(transfers: 50_000))
+                == "$500 transfers")
+        #expect(OverviewView.savingsBreakdown(savingsRate()) == nil)
+    }
+
+    /// #6: the understatement note appears only when the box reports no payroll
+    /// profile on file — not when it's present, and not when it's unknown.
+    @Test func payrollNoteTogglesOnPayrollProfilePresent() {
+        #expect(OverviewView.payrollNote(savingsRate(payrollProfilePresent: false)) != nil)
+        #expect(OverviewView.payrollNote(savingsRate(payrollProfilePresent: true)) == nil)
+        #expect(OverviewView.payrollNote(savingsRate(payrollProfilePresent: nil)) == nil)
+    }
+
     // MARK: - #203 declared savings contributions
 
     private func declaration() -> Components.Schemas.SavingsContributionCreateRequest {

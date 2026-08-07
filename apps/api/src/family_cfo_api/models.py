@@ -770,6 +770,15 @@ income_profiles = Table(
     Column("w2_year", Integer, nullable=True),
     Column("w2_wages_minor", BigInteger, nullable=True),
     Column("w2_withheld_minor", BigInteger, nullable=True),
+    # #6: pre-tax payroll deductions the household saves but the bank never
+    # sees — the biggest input to an honest savings rate. Annual minor units.
+    Column(
+        "retirement_contribution_annual_minor",
+        BigInteger, nullable=False, server_default="0",
+    ),
+    Column(
+        "hsa_contribution_annual_minor", BigInteger, nullable=False, server_default="0"
+    ),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )

@@ -60,6 +60,17 @@ struct W2ScanView: View {
                 moneyField("Box 2 — federal withheld", value: $viewModel.form.withheld)
             }
 
+            Section {
+                moneyField("Annual 401(k)/pre-tax retirement", value: $viewModel.form.retirementAnnual)
+                moneyField("Annual HSA", value: $viewModel.form.hsaAnnual)
+            } header: {
+                Text("Pre-tax saving")
+            } footer: {
+                // #6: this is the whole reason to type it in — it never lands in
+                // the bank feed, so without it the savings rate understates.
+                Text("Money deducted before your paycheck lands never shows up in transfers. Add it here so your savings rate counts it.")
+            }
+
             if let errorMessage = viewModel.errorMessage {
                 Section {
                     Label(errorMessage, systemImage: "exclamationmark.triangle")

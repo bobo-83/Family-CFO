@@ -53,6 +53,16 @@
                 @if (earner.rsu_frequency) { ({{ earner.rsu_frequency }}) }
               }
               @if ((earner.bonus_percent ?? 0) > 0) { · bonus {{ earner.bonus_percent }}% }
+              @if (earner.retirement_contribution_annual; as retirement) {
+                @if (retirement.amount_minor > 0) {
+                  · 401(k) {{ formatMoney(retirement) }}/yr
+                }
+              }
+              @if (earner.hsa_contribution_annual; as hsa) {
+                @if (hsa.amount_minor > 0) {
+                  · HSA {{ formatMoney(hsa) }}/yr
+                }
+              }
             </div>
           </div>
           @if (canWrite()) {
@@ -179,6 +189,16 @@
           <mat-form-field appearance="outline">
             <mat-label>Bonus month (1–12)</mat-label>
             <input matInput type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
+          </mat-form-field>
+          <!-- #6: pre-tax saving the deposit ledger never sees, so the savings
+               rate can count payroll 401(k)/HSA instead of understating. -->
+          <mat-form-field appearance="outline">
+            <mat-label>Annual 401(k)/pre-tax retirement (USD/yr)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="earnerForm.retirementAnnual" name="earnerRetirement" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Annual HSA (USD/yr)</mat-label>
+            <input matInput type="number" min="0" [(ngModel)]="earnerForm.hsaAnnual" name="earnerHsa" />
           </mat-form-field>
 
           <button mat-flat-button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">

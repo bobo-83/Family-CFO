@@ -144,6 +144,33 @@ struct W2ScanViewModelTests {
         #expect(viewModel.didSave)
     }
 
+    /// #6: the pre-tax saving fields (401(k)/HSA) cross the contract in minor
+    /// units, and are omitted entirely when left blank rather than sent as zero.
+    @Test func addingTheEarnerSendsPreTaxSavingFields() async {
+        let api = MockIncomeAPI()
+        let viewModel = W2ScanViewModel(api: api)
+        viewModel.form.label = "Alex"
+        viewModel.form.retirementAnnual = Decimal(string: "19500")
+        viewModel.form.hsaAnnual = Decimal(string: "4150.50")
+
+        await viewModel.addEarner()
+
+        #expect(api.created.count == 1)
+        #expect(api.created[0].retirementContributionAnnualMinor == 1_950_000)
+        #expect(api.created[0].hsaContributionAnnualMinor == 415_050)
+    }
+
+    @Test func preTaxSavingFieldsAreOmittedWhenBlank() async {
+        let api = MockIncomeAPI()
+        let viewModel = W2ScanViewModel(api: api)
+        viewModel.form.label = "Alex"
+
+        await viewModel.addEarner()
+
+        #expect(api.created[0].retirementContributionAnnualMinor == nil)
+        #expect(api.created[0].hsaContributionAnnualMinor == nil)
+    }
+
     /// Money crosses the contract in minor units, rounded through Decimal —
     /// binary floating point mangles cents often enough to matter on a tax
     /// figure.

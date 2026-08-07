@@ -17,6 +17,7 @@ import type {
   OutlookEvent as OutlookEventDto,
   RecurringFrequency,
   SavingsContribution,
+  SavingsRate,
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -321,6 +322,26 @@ export class Overview {
       amount_minor: contributions.reduce((sum, c) => sum + c.monthly_equivalent.amount_minor, 0),
       currency: contributions[0].monthly_equivalent.currency,
     };
+  }
+
+  /**
+   * #6: the savings rate as observed saving from three sources — declared
+   * transfers, pre-tax payroll (401(k)/HSA), and residual (take-home left
+   * unspent and unmoved) — instead of a single income-minus-spending figure.
+   * Each source is shown when it carries a non-zero amount.
+   */
+  protected savingsSources(rate: SavingsRate): { label: string; amount: Money }[] {
+    const sources: { label: string; amount: Money }[] = [];
+    if (rate.transfers && rate.transfers.amount_minor !== 0) {
+      sources.push({ label: 'transfers', amount: rate.transfers });
+    }
+    if (rate.payroll_deductions && rate.payroll_deductions.amount_minor !== 0) {
+      sources.push({ label: 'payroll (401k/HSA)', amount: rate.payroll_deductions });
+    }
+    if (rate.residual && rate.residual.amount_minor !== 0) {
+      sources.push({ label: 'residual', amount: rate.residual });
+    }
+    return sources;
   }
 
   // --- #203: declaring what detection cannot see -----------------------------

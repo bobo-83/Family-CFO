@@ -418,16 +418,38 @@
             }
             @if (context.savings_rate; as savings) {
               @if (savings.percent !== null && savings.percent !== undefined) {
+                <!-- #6: report saving as observed from three sources — declared
+                     transfers, pre-tax payroll (401k/HSA), and residual — not just
+                     income minus spending. -->
                 <span
-                  class="overview__detail"
+                  class="overview__detail overview__savings-rate"
                   [class.overview__value--positive]="savings.percent > 0"
                   [class.overview__value--negative]="savings.percent < 0"
                 >
-                  Savings rate {{ savings.percent }}%
-                  <span class="overview__value-context">
-                    · {{ formatMoney(savings.average_monthly_spending) }}/mo avg spend (last 3 mo)
-                  </span>
+                  Saving {{ savings.percent }}%
+                  @if (savings.total_saved; as saved) {
+                    — {{ formatMoney(saved) }}/mo saved
+                  }
                 </span>
+                @if (savingsSources(savings); as sources) {
+                  @if (sources.length > 0) {
+                    <span class="overview__value-context overview__savings-breakdown">
+                      @for (source of sources; track source.label) {
+                        {{ formatMoney(source.amount) }} {{ source.label }}{{ $last ? '' : ' · ' }}
+                      }
+                    </span>
+                  }
+                }
+                <span class="overview__value-context">
+                  · {{ formatMoney(savings.average_monthly_spending) }}/mo avg spend (last 3 mo)
+                </span>
+                @if (savings.payroll_profile_present === false) {
+                  <span class="overview__hint overview__savings-note">
+                    Payroll 401(k)/HSA not declared — add it on the
+                    <a routerLink="/income-tax">Income page</a> for a complete rate;
+                    the rate may understate your saving.
+                  </span>
+                }
               }
             }
           </div>

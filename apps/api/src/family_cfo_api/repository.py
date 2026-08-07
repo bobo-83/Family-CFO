@@ -5649,6 +5649,9 @@ class IncomeProfileRecord:
     w2_year: int | None
     w2_wages_minor: int | None
     w2_withheld_minor: int | None
+    # #6: annual pre-tax payroll deductions the household saves.
+    retirement_contribution_annual_minor: int = 0
+    hsa_contribution_annual_minor: int = 0
 
 
 def list_income_profiles(engine: Engine, household_id: str) -> list[IncomeProfileRecord]:
@@ -5673,6 +5676,10 @@ def list_income_profiles(engine: Engine, household_id: str) -> list[IncomeProfil
             w2_year=row["w2_year"],
             w2_wages_minor=row["w2_wages_minor"],
             w2_withheld_minor=row["w2_withheld_minor"],
+            retirement_contribution_annual_minor=row[
+                "retirement_contribution_annual_minor"
+            ],
+            hsa_contribution_annual_minor=row["hsa_contribution_annual_minor"],
         )
         for row in rows
     ]
@@ -5692,6 +5699,8 @@ def create_income_profile(
     w2_year: int | None = None,
     w2_wages_minor: int | None = None,
     w2_withheld_minor: int | None = None,
+    retirement_contribution_annual_minor: int = 0,
+    hsa_contribution_annual_minor: int = 0,
 ) -> str:
     profile_id = new_id()
     now = utcnow()
@@ -5710,6 +5719,8 @@ def create_income_profile(
                 w2_year=w2_year,
                 w2_wages_minor=w2_wages_minor,
                 w2_withheld_minor=w2_withheld_minor,
+                retirement_contribution_annual_minor=retirement_contribution_annual_minor,
+                hsa_contribution_annual_minor=hsa_contribution_annual_minor,
                 created_at=now,
                 updated_at=now,
             )

@@ -200,6 +200,10 @@ def _earner_schema(record: repository.IncomeProfileRecord, currency: str) -> Inc
         w2_year=record.w2_year,
         w2_wages=money(record.w2_wages_minor),
         w2_withheld=money(record.w2_withheld_minor),
+        retirement_contribution_annual=money(
+            record.retirement_contribution_annual_minor or None
+        ),
+        hsa_contribution_annual=money(record.hsa_contribution_annual_minor or None),
     )
 
 
@@ -469,6 +473,8 @@ async def create_income_earner(
         w2_year=payload.w2_year,
         w2_wages_minor=payload.w2_wages_minor,
         w2_withheld_minor=payload.w2_withheld_minor,
+        retirement_contribution_annual_minor=payload.retirement_contribution_annual_minor,
+        hsa_contribution_annual_minor=payload.hsa_contribution_annual_minor,
     )
     audit.write_audit(
         engine,

@@ -5027,6 +5027,8 @@ components:
         w2_year: { type: integer }
         w2_wages: { $ref: "#/components/schemas/Money" }
         w2_withheld: { $ref: "#/components/schemas/Money" }
+        retirement_contribution_annual: { $ref: "#/components/schemas/Money" }
+        hsa_contribution_annual: { $ref: "#/components/schemas/Money" }
     ExpectedIncomeEvent:
       type: object
       required: [date, label, amount]
@@ -5143,6 +5145,8 @@ components:
         w2_year: { type: integer }
         w2_wages_minor: { type: integer, minimum: 0 }
         w2_withheld_minor: { type: integer, minimum: 0 }
+        retirement_contribution_annual_minor: { type: integer, minimum: 0 }
+        hsa_contribution_annual_minor: { type: integer, minimum: 0 }
     W2ScanRequest:
       type: object
       required: [image_base64, image_media_type]
@@ -5850,9 +5854,34 @@ components:
             - integer
             - "null"
         monthly_income:
+          description: Take-home (deposit-based) monthly income.
           $ref: "#/components/schemas/Money"
         average_monthly_spending:
           $ref: "#/components/schemas/Money"
+        gross_income:
+          description: "#6: take-home + payroll deductions — the rate's denominator."
+          $ref: "#/components/schemas/Money"
+        transfers:
+          description: "#6: declared savings transfers, monthly."
+          $ref: "#/components/schemas/Money"
+        payroll_deductions:
+          description: "#6: pre-tax 401(k)/HSA saved, monthly."
+          $ref: "#/components/schemas/Money"
+        residual:
+          description: "#6: take-home minus spending minus transfers — unspent, unmoved."
+          $ref: "#/components/schemas/Money"
+        total_saved:
+          description: "#6: transfers + payroll + residual."
+          $ref: "#/components/schemas/Money"
+        payroll_profile_present:
+          description: >-
+            "#6: false means no 401(k)/HSA figure is declared, so payroll
+            saving is invisible and the rate understates — say so."
+          type: boolean
+          default: false
+        declared_transfers_present:
+          type: boolean
+          default: false
     SpendingInsights:
       type: object
       required:
