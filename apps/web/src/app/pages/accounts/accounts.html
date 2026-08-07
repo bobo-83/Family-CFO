@@ -1,7 +1,7 @@
-<h1>Accounts</h1>
+<h1 i18n="Page title|List of the household's financial accounts">Accounts</h1>
 
 @if (emergencyFundTotal(); as reserved) {
-  <p class="accounts-ef-total">
+  <p class="accounts-ef-total" i18n="Emergency fund total|Money set aside for emergencies across every account">
     🛟 Reserved for emergencies: <strong>{{ reserved }}</strong>
   </p>
 }
@@ -10,10 +10,14 @@
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form class="account-form" [formGroup]="form" (ngSubmit)="submit()">
-      <h2>Add an account</h2>
+      <h2 i18n="Section heading|Form that creates a new account">Add an account</h2>
       <div class="account-form__scan">
         <label class="account-form__scan-button">
-          📄 {{ scanning() ? 'Reading the statement…' : 'Scan a statement' }}
+          @if (scanning()) {
+            <ng-container i18n="Scan button|Shown while the uploaded statement is being read">📄 Reading the statement…</ng-container>
+          } @else {
+            <ng-container i18n="Scan button|Opens the file picker for an account statement">📄 Scan a statement</ng-container>
+          }
           <input
             type="file"
             accept="image/*,application/pdf"
@@ -22,7 +26,7 @@
             (change)="onStatementSelected($event)"
           />
         </label>
-        <span class="account-form__scan-hint">
+        <span class="account-form__scan-hint" i18n="Scan hint|How the statement scan prefills the add-account form">
           Fastest start: a photo, PDF, or pasted screenshot (Ctrl/⌘+V anywhere on
           this page) of an HSA, savings, or brokerage statement prefills this
           form. Nothing is saved until you press “Add account”.
@@ -32,11 +36,11 @@
         <p class="account-form__scan-note">{{ note }}</p>
       }
       <mat-form-field appearance="outline">
-        <mat-label>Name</mat-label>
+        <mat-label i18n="Form field label|Name of the account">Name</mat-label>
         <input matInput type="text" formControlName="name" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Type</mat-label>
+        <mat-label i18n="Form field label|Kind of account (checking, savings, …)">Type</mat-label>
         <mat-select formControlName="type">
           @for (type of accountTypes; track type) {
             <mat-option [value]="type">{{ type }}</mat-option>
@@ -44,14 +48,14 @@
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Currency</mat-label>
+        <mat-label i18n="Form field label|ISO currency code the account is held in">Currency</mat-label>
         <input matInput type="text" formControlName="currency" maxlength="3" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Opening balance</mat-label>
+        <mat-label i18n="Form field label|Balance the account starts with">Opening balance</mat-label>
         <input matInput type="number" step="0.01" formControlName="openingBalance" />
       </mat-form-field>
-      <button mat-flat-button type="submit" [disabled]="submitting()">Add account</button>
+      <button mat-flat-button type="submit" [disabled]="submitting()" i18n="Button|Saves the new account">Add account</button>
       @if (submitError()) {
         <p class="account-form__error">{{ submitError() }}</p>
       }
@@ -62,7 +66,7 @@
 
 @switch (accounts.status()) {
   @case ('loading') {
-    <p>Loading…</p>
+    <p i18n="Loading placeholder">Loading…</p>
   }
   @case ('error') {
     <p class="page-error" role="alert">{{ accounts.error() }}</p>
@@ -70,12 +74,12 @@
   @default {
     @if (accounts.value(); as accountList) {
       @if (accountList.length === 0) {
-        <p class="page-empty">No accounts yet.</p>
+        <p class="page-empty" i18n="Empty state|No accounts have been added">No accounts yet.</p>
       } @else {
         @for (group of groupedAccounts(); track group.category) {
           <section class="accounts-group">
             <h2 class="accounts-group__title">
-              {{ group.category }}
+              {{ categoryLabel(group.category) }}
               <span class="accounts-group__total">{{ group.total }}</span>
             </h2>
             <mat-card appearance="outlined" class="accounts-table-card">
@@ -83,14 +87,16 @@
             <table class="accounts-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Institution</th>
-                  <th>Last synced</th>
-                  <th>Balance</th>
-                  <th>Emergency fund</th>
+                  <th i18n="Table column|Name of the account">Name</th>
+                  <th i18n="Table column|Kind of account">Type</th>
+                  <th i18n="Table column|Bank or broker the account is held at">Institution</th>
+                  <th i18n="Table column|When the account last refreshed from its institution">Last synced</th>
+                  <th i18n="Table column|Current account balance">Balance</th>
+                  <th i18n="Table column|Share of this account held back for emergencies">Emergency fund</th>
                   <th
                     title="This account's balance is vested company stock you could sell for cash. Shown beside Safe to Spend — never added to it."
+                    i18n="Table column|Accounts holding vested company stock that could be sold"
+                    i18n-title="Table column tooltip|Explains that vested stock sits beside safe-to-spend rather than inside it"
                   >
                     Vested RSUs
                   </th>
@@ -110,6 +116,7 @@
                           [value]="account.type"
                           (change)="retype(account.id, $event)"
                           aria-label="Change account type"
+                          i18n-aria-label="Select accessible name|Corrects a mistyped account's kind"
                         >
                           @for (type of accountTypes; track type) {
                             <option [value]="type" [selected]="type === account.type">
@@ -125,7 +132,7 @@
                       @if (account.institution) {
                         🔗 {{ account.institution }}
                       } @else {
-                        <span class="accounts-table__manual">manual</span>
+                        <span class="accounts-table__manual" i18n="Account source|The account is kept up to date by hand, not synced">manual</span>
                       }
                     </td>
                     <td>
@@ -144,12 +151,21 @@
                           [value]="efModeOf(account)"
                           (change)="setEmergencyFund(account, efMode.value, efValue.value)"
                           aria-label="Emergency fund mode"
+                          i18n-aria-label="Select accessible name|Chooses how this account's emergency-fund share is worked out"
                         >
                           <option value="none" [selected]="efModeOf(account) === 'none'">—</option>
-                          <option value="percent" [selected]="efModeOf(account) === 'percent'">
+                          <option
+                            value="percent"
+                            [selected]="efModeOf(account) === 'percent'"
+                            i18n="Emergency fund mode|Reserve a percentage of the account balance"
+                          >
                             % of balance
                           </option>
-                          <option value="amount" [selected]="efModeOf(account) === 'amount'">
+                          <option
+                            value="amount"
+                            [selected]="efModeOf(account) === 'amount'"
+                            i18n="Emergency fund mode|Reserve a fixed sum of money"
+                          >
                             fixed amount
                           </option>
                         </select>
@@ -163,6 +179,7 @@
                           [class.accounts-table__ef-value--hidden]="efMode.value === 'none'"
                           (change)="setEmergencyFund(account, efMode.value, efValue.value)"
                           aria-label="Emergency fund value"
+                          i18n-aria-label="Input accessible name|The percentage or amount reserved for emergencies"
                         />
                       }
                       @if (account.emergency_fund_reserved; as reserved) {
@@ -182,6 +199,8 @@
                           (change)="setRsuReadyToSell(account, $event)"
                           aria-label="Vested RSUs, ready to sell"
                           title="This account's balance is vested company stock you could sell for cash. Shown beside Safe to Spend — never added to it."
+                          i18n-aria-label="Checkbox accessible name|Tags this account as vested company stock that could be sold"
+                          i18n-title="Checkbox tooltip|Explains that vested stock sits beside safe-to-spend rather than inside it"
                         />
                       } @else {
                         {{ account.rsu_ready_to_sell ? '✓' : '—' }}
@@ -194,6 +213,7 @@
                           type="button"
                           class="accounts-table__delete"
                           (click)="remove(account.id)"
+                          i18n="Button|Deletes this account"
                         >
                           Delete
                         </button>

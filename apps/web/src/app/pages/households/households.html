@@ -1,9 +1,9 @@
-<h1>Households</h1>
+<h1 i18n="Page title|Households hosted on this box">Households</h1>
 
 @if (!canHost()) {
-  <p class="page-empty">Only a system administrator can manage hosted households.</p>
+  <p class="page-empty" i18n="Permission notice|Shown to anyone who is not a system administrator">Only a system administrator can manage hosted households.</p>
 } @else {
-  <p class="page-hint">
+  <p class="page-hint" i18n="Page intro|What hosting a household on this box means for the operator">
     Families you host on this box. Create a household and hand its first owner the
     one-time join link — they pick their own password and run their household from
     there.
@@ -12,21 +12,26 @@
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
       <form class="create-form" [formGroup]="createForm" (ngSubmit)="createHousehold()">
-        <h3>Create household</h3>
+        <h3 i18n="Section heading|Form that creates a hosted household">Create household</h3>
         <mat-form-field appearance="outline">
-          <mat-label>Display name</mat-label>
+          <mat-label i18n="Form field label|Name the new household is shown under">Display name</mat-label>
           <input matInput formControlName="displayName" />
         </mat-form-field>
         <mat-form-field appearance="outline" class="create-form__currency">
-          <mat-label>Currency</mat-label>
+          <mat-label i18n="Form field label|The household's base currency, an ISO code such as USD">Currency</mat-label>
           <input matInput formControlName="baseCurrency" maxlength="3" />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Owner email</mat-label>
+          <mat-label i18n="Form field label|Email address of the household's first owner">Owner email</mat-label>
           <input matInput type="email" formControlName="ownerEmail" />
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="creating()">
-          {{ creating() ? 'Creating…' : 'Create household' }}
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="creating()"
+          i18n="Button|Creates the household, showing progress while the request is in flight"
+        >
+          {creating(), select, true {Creating…} other {Create household}}
         </button>
         @if (createError(); as message) {
           <p class="page-error" role="alert">{{ message }}</p>
@@ -35,34 +40,46 @@
 
       @if (inviteLink(); as link) {
         <div class="invite-link" role="status">
-          <p class="invite-link__note">
+          <p class="invite-link__note" i18n="Invite notice|The one-time join link is shown only once and expires">
             <strong>Shown once — share it with the family now.</strong>
             Send this link to <strong>{{ link.email }}</strong>; it expires
             {{ link.expiresAt | date: 'MMM d, y' }}.
           </p>
           <code class="invite-link__url">{{ link.url }}</code>
           <div class="invite-link__actions">
-            <button mat-flat-button type="button" (click)="copyInviteLink()">
-              {{ inviteLinkCopied() ? 'Copied ✓' : 'Copy link' }}
+            <button
+              mat-flat-button
+              type="button"
+              (click)="copyInviteLink()"
+              i18n="Button|Copies the one-time join link, confirming once copied"
+            >
+              {inviteLinkCopied(), select, true {Copied ✓} other {Copy link}}
             </button>
-            <button mat-button type="button" (click)="dismissInviteLink()">Done</button>
+            <button
+              mat-button
+              type="button"
+              (click)="dismissInviteLink()"
+              i18n="Button|Dismisses the one-time join link"
+            >
+              Done
+            </button>
           </div>
         </div>
       }
     </mat-card-content>
   </mat-card>
 
-  <h2>Hosted households</h2>
+  <h2 i18n="Section heading|The list of households hosted on this box">Hosted households</h2>
   @switch (households.status()) {
     @case ('loading') {
-      <p>Loading…</p>
+      <p i18n="Loading placeholder">Loading…</p>
     }
     @case ('error') {
       <p class="page-error" role="alert">{{ households.error() }}</p>
     }
     @default {
       @if ((households.value() ?? []).length === 0) {
-        <p class="page-empty">No households yet.</p>
+        <p class="page-empty" i18n="Empty state|No households are hosted on this box yet">No households yet.</p>
       } @else {
         @if (deleteError(); as message) {
           <p class="page-error" role="alert">{{ message }}</p>
@@ -75,15 +92,15 @@
                   <div class="household-list__name">
                     {{ household.name }}
                     @if (household.pending_owner_invite) {
-                      <span class="household-badge household-badge--pending">invite pending</span>
+                      <span class="household-badge household-badge--pending" i18n="Household badge|The first owner has not accepted the join link yet">invite pending</span>
                     }
                     @if (household.sealed) {
-                      <span class="household-badge household-badge--sealed">sealed</span>
+                      <span class="household-badge household-badge--sealed" i18n="Household badge|The household's data is sealed to the operator">sealed</span>
                     }
                   </div>
-                  <div class="household-list__meta">
+                  <div class="household-list__meta" i18n="Household summary|Base currency, member count, and creation date; the currency is an ISO code and stays untranslated">
                     {{ household.base_currency }}
-                    · {{ household.member_count }} {{ household.member_count === 1 ? 'member' : 'members' }}
+                    · {household.member_count, plural, =1 {1 member} other {{{ household.member_count }} members}}
                     · created {{ household.created_at | date: 'MMM d, y' }}
                   </div>
                 </div>
@@ -95,8 +112,9 @@
                     class="household-list__delete"
                     [disabled]="deletingId() !== null"
                     (click)="deleteHousehold(household)"
+                    i18n="Button|Deletes this hosted household, showing progress while the request is in flight"
                   >
-                    {{ deletingId() === household.id ? 'Deleting…' : 'Delete…' }}
+                    {deletingId() === household.id, select, true {Deleting…} other {Delete…}}
                   </button>
                 }
               </div>

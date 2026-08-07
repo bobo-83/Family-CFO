@@ -1,13 +1,13 @@
-<h1>Income &amp; tax</h1>
+<h1 i18n="Page title|Income and tax page">Income &amp; tax</h1>
 
-<p class="page-hint">
+<p class="page-hint" i18n="Page intro|Explains that recurring deposits were detected and can be corrected by hand">
   Recurring deposits detected on your checking accounts over the last 12
   months — every underlying transaction is listed so you can remove a deposit
   that isn't income or add one the scan missed.
 </p>
 
 @if (loading()) {
-  <p>Loading…</p>
+  <p i18n="Loading placeholder|Shown while the income analysis loads">Loading…</p>
 } @else if (loadError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
 } @else if (analysis(); as data) {
@@ -21,21 +21,21 @@
 
   <section class="income-rollup">
     <div class="income-rollup__item">
-      <span class="income-rollup__label">Income, last {{ data.rollup.window_days }} days</span>
+      <span class="income-rollup__label" i18n="Income rollup label|Total income over the analysed window">Income, last {{ data.rollup.window_days }} days</span>
       <span class="income-rollup__value">{{ formatMoney(data.rollup.annual_income) }}</span>
     </div>
     <div class="income-rollup__item">
-      <span class="income-rollup__label">Monthly average</span>
+      <span class="income-rollup__label" i18n="Income rollup label|Average income per month">Monthly average</span>
       <span class="income-rollup__value">{{ formatMoney(data.rollup.monthly_average) }}</span>
     </div>
     <div class="income-rollup__item">
-      <span class="income-rollup__label">Deposits counted</span>
+      <span class="income-rollup__label" i18n="Income rollup label|How many deposits went into the total">Deposits counted</span>
       <span class="income-rollup__value">{{ data.rollup.transaction_count }}</span>
     </div>
   </section>
 
-  <h2>Compensation profile</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Declared pay for each earner in the household">Compensation profile</h2>
+  <p class="page-hint" i18n="Section intro|Asks for gross pay so the tax estimate uses declared numbers instead of guessing from deposits">
     Declare each earner's pay — base, RSU value and vesting, bonus — all as
     pre-tax (gross) amounts, and the tax estimate uses these numbers directly
     instead of guessing from deposits. Best for RSU-heavy pay.
@@ -46,7 +46,7 @@
         <div class="earner-list__item">
           <div class="earner-list__main">
             <div class="earner-list__name">{{ earner.label }}</div>
-            <div class="earner-list__meta">
+            <div class="earner-list__meta" i18n="Earner pay|One line of declared pay: base salary, stock, bonus and pre-tax saving; 401(k) and HSA are US account names">
               base {{ formatMoney(earner.base_salary) }}
               @if (earner.rsu_annual.amount_minor > 0) {
                 · RSU {{ formatMoney(earner.rsu_annual) }}/yr
@@ -72,6 +72,7 @@
               class="earner-list__delete"
               [disabled]="busy() !== null"
               (click)="removeEarner(earner.id)"
+              i18n="Button|Deletes this earner from the compensation profile"
             >
               Remove
             </button>
@@ -79,12 +80,12 @@
         </div>
       }
     </div>
-    <p class="earner-total">
+    <p class="earner-total" i18n="Compensation total|Sum of every earner's declared yearly pre-tax pay">
       Expected annual gross: <strong>{{ formatMoney(profile.expected_annual_gross) }}</strong>
     </p>
     @if (profile.expected_events.length > 0) {
-      <h3 class="earner-events-title">Upcoming income (pre-tax)</h3>
-      <p class="page-hint">
+      <h3 class="earner-events-title" i18n="Section heading|Pay events expected over the coming months, before tax">Upcoming income (pre-tax)</h3>
+      <p class="page-hint" i18n="Section intro|Warns that the deposit landing after an RSU vest is smaller than the pre-tax amount">
         Amounts are before tax — for RSU vests, brokers typically sell or
         withhold shares for taxes at vest, so the deposit that lands will be
         smaller.
@@ -103,13 +104,17 @@
 
   @if (canWrite()) {
     <details class="earner-form-wrap" [open]="!analysis()?.profile">
-      <summary>Add an earner (or scan a W2)</summary>
+      <summary i18n="Section heading|Opens the form that adds an earner, optionally by scanning a W2 tax form">Add an earner (or scan a W2)</summary>
       <mat-card appearance="outlined" class="earner-form-card">
         <mat-card-content>
         <form class="earner-form" (ngSubmit)="addEarner()">
           <div class="earner-form__scan-row">
             <label class="earner-form__scan">
-              {{ scanning() ? 'Reading…' : '📷 Scan last year&#8217;s W2' }}
+              @if (scanning()) {
+                <ng-container i18n="Scan button|The uploaded W2 is being read">Reading…</ng-container>
+              } @else {
+                <ng-container i18n="Scan button|Opens the file picker to read last year's W2 tax form">📷 Scan last year&#8217;s W2</ng-container>
+              }
               <input
                 type="file"
                 accept="image/*,application/pdf"
@@ -117,7 +122,7 @@
                 hidden
               />
             </label>
-            <span class="earner-form__scan-hint">
+            <span class="earner-form__scan-hint" i18n="Scan hint|Says a photo or PDF of the W2 prefills the form and that nothing is saved until the button is pressed">
               Fastest start: a photo or PDF of the W2 prefills this form — or copy
               one and paste it here (Ctrl/⌘+V). Employer, year, Box 1 and Box 2
               are read for you. Nothing is saved until you press
@@ -125,84 +130,88 @@
             </span>
           </div>
           @if (scanNote(); as note) {
-            <p class="earner-form__scan-note">
+            <p class="earner-form__scan-note" i18n="Scan result|Repeats the scanner's note and asks the user to check the prefilled fields">
               {{ note }} Review the fields below, then press &ldquo;Add
               earner&rdquo;.
             </p>
           }
 
           <div class="earner-form__w2">
-            <span class="earner-form__w2-title">Last year's W2 (optional — calibrates the estimate)</span>
+            <span class="earner-form__w2-title" i18n="Form group heading|Optional figures from last year's W2 tax form">Last year's W2 (optional — calibrates the estimate)</span>
             <div class="earner-form__w2-fields">
               <mat-form-field appearance="outline">
-                <mat-label>Year</mat-label>
+                <mat-label i18n="Form field label|Tax year the W2 covers">Year</mat-label>
                 <input matInput type="number" [(ngModel)]="earnerForm.w2Year" name="earnerW2Year" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Box 1 wages (USD)</mat-label>
+                <mat-label i18n="Form field label|W2 box 1 wages; USD is an ISO currency code and stays untranslated">Box 1 wages (USD)</mat-label>
                 <input matInput type="number" min="0" [(ngModel)]="earnerForm.w2Wages" name="earnerW2Wages" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Box 2 federal withheld (USD)</mat-label>
+                <mat-label i18n="Form field label|W2 box 2 federal tax withheld; USD is an ISO currency code and stays untranslated">Box 2 federal withheld (USD)</mat-label>
                 <input matInput type="number" min="0" [(ngModel)]="earnerForm.w2Withheld" name="earnerW2Withheld" />
               </mat-form-field>
             </div>
           </div>
 
           <mat-form-field appearance="outline">
-            <mat-label>Name / label</mat-label>
+            <mat-label i18n="Form field label|What to call this earner">Name / label</mat-label>
             <input matInput type="text" [(ngModel)]="earnerForm.label" name="earnerLabel" />
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Base salary (USD/yr)</mat-label>
+            <mat-label i18n="Form field label|Yearly base pay; USD is an ISO currency code and stays untranslated">Base salary (USD/yr)</mat-label>
             <input matInput type="number" min="0" [(ngModel)]="earnerForm.baseSalary" name="earnerBase" />
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>RSU value (USD/yr, pre-tax)</mat-label>
+            <mat-label i18n="Form field label|Yearly pre-tax value of restricted stock units; USD is an ISO currency code and stays untranslated">RSU value (USD/yr, pre-tax)</mat-label>
             <input matInput type="number" min="0" [(ngModel)]="earnerForm.rsuAnnual" name="earnerRsu" />
           </mat-form-field>
           @if ((rsuGrants()?.grants ?? []).length > 0) {
-            <p class="rsu-fallback-hint">
+            <p class="rsu-fallback-hint" i18n="Form hint|The RSU fields are only a fallback because grants and a live share price are available">
               This household has RSU grants below, so the RSU value is derived
               from the grants and the live share price — these RSU fields are
               only the fallback.
             </p>
           }
           <mat-form-field appearance="outline">
-            <mat-label>RSU vesting</mat-label>
+            <mat-label i18n="Form field label|How often restricted stock units vest">RSU vesting</mat-label>
             <mat-select [(ngModel)]="earnerForm.rsuFrequency" name="earnerRsuFreq">
-              <mat-option value="">None</mat-option>
-              <mat-option value="monthly">Monthly</mat-option>
-              <mat-option value="quarterly">Quarterly</mat-option>
-              <mat-option value="semiannual">Twice a year</mat-option>
-              <mat-option value="annual">Annually</mat-option>
+              <mat-option value="" i18n="Vesting frequency|No vesting schedule declared">None</mat-option>
+              <mat-option value="monthly" i18n="Vesting frequency|Vests once a month">Monthly</mat-option>
+              <mat-option value="quarterly" i18n="Vesting frequency|Vests once every three months">Quarterly</mat-option>
+              <mat-option value="semiannual" i18n="Vesting frequency|Vests twice a year">Twice a year</mat-option>
+              <mat-option value="annual" i18n="Vesting frequency|Vests once a year">Annually</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Next vest date</mat-label>
+            <mat-label i18n="Form field label|Date of the next stock vest">Next vest date</mat-label>
             <input matInput type="date" [(ngModel)]="earnerForm.rsuNextVest" name="earnerVestDate" />
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Bonus (% of base)</mat-label>
+            <mat-label i18n="Form field label|Bonus expressed as a percentage of base salary">Bonus (% of base)</mat-label>
             <input matInput type="number" min="0" max="100" [(ngModel)]="earnerForm.bonusPercent" name="earnerBonusPct" />
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Bonus month (1–12)</mat-label>
+            <mat-label i18n="Form field label|Which month of the year the bonus is paid">Bonus month (1–12)</mat-label>
             <input matInput type="number" min="1" max="12" [(ngModel)]="earnerForm.bonusMonth" name="earnerBonusMonth" />
           </mat-form-field>
           <!-- #6: pre-tax saving the deposit ledger never sees, so the savings
                rate can count payroll 401(k)/HSA instead of understating. -->
           <mat-form-field appearance="outline">
-            <mat-label>Annual 401(k)/pre-tax retirement (USD/yr)</mat-label>
+            <mat-label i18n="Form field label|Yearly pre-tax retirement saving; 401(k) is a US plan name and USD an ISO currency code">Annual 401(k)/pre-tax retirement (USD/yr)</mat-label>
             <input matInput type="number" min="0" [(ngModel)]="earnerForm.retirementAnnual" name="earnerRetirement" />
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Annual HSA (USD/yr)</mat-label>
+            <mat-label i18n="Form field label|Yearly health savings account contribution; HSA is a US account type and USD an ISO currency code">Annual HSA (USD/yr)</mat-label>
             <input matInput type="number" min="0" [(ngModel)]="earnerForm.hsaAnnual" name="earnerHsa" />
           </mat-form-field>
 
           <button mat-flat-button type="submit" [disabled]="busy() !== null || !earnerForm.label.trim()">
-            {{ busy() === 'earner' ? 'Saving…' : 'Add earner' }}
+            @if (busy() === 'earner') {
+              <ng-container i18n="Button|The earner is being saved">Saving…</ng-container>
+            } @else {
+              <ng-container i18n="Button|Adds the earner to the compensation profile">Add earner</ng-container>
+            }
           </button>
         </form>
         </mat-card-content>
@@ -211,8 +220,8 @@
   }
 
   @if (rsuGrants() || (canWrite() && earners().length > 0)) {
-    <h2>RSU grants</h2>
-    <p class="page-hint">
+    <h2 i18n="Section heading|Restricted stock unit grants and their vest schedules">RSU grants</h2>
+    <p class="page-hint" i18n="Section intro|Says the coming year of vests priced at the live share price replaces the flat RSU value above">
       Track each RSU grant and its vest schedule. The next 12 months of vests,
       priced at the live share price, replace the flat &ldquo;RSU value&rdquo;
       above in the income and tax numbers.
@@ -221,7 +230,7 @@
       @if (rsu.quotes.length > 0) {
         <div class="rsu-quotes">
           @for (quote of rsu.quotes; track quote.ticker) {
-            <span class="rsu-quotes__item">
+            <span class="rsu-quotes__item" i18n="Share price|Latest price for a ticker and when it was taken">
               <strong>{{ quote.ticker }}</strong> {{ formatMoney(quote.price) }}
               · as of {{ quote.as_of | date: 'MMM d, y' }}
             </span>
@@ -232,14 +241,15 @@
               type="button"
               [disabled]="quoteBusy()"
               (click)="refreshQuotes()"
+              i18n="Button|Fetches the latest share price, showing progress while the request is in flight"
             >
-              {{ quoteBusy() ? 'Refreshing…' : 'Refresh price' }}
+              {quoteBusy(), select, true {Refreshing…} other {Refresh price}}
             </button>
           }
         </div>
       }
       @if (rsu.derived_annual; as derived) {
-        <p class="rsu-derived">
+        <p class="rsu-derived" i18n="Derived RSU value|The coming year of vests priced live, which now feeds the estimate">
           Next 12 months of vests at the live price:
           <strong>{{ formatMoney(derived) }}</strong> — this is the RSU value
           that now feeds the income and tax estimate.
@@ -249,7 +259,7 @@
         <details class="rsu-grant" [open]="rsu.grants.length === 1">
           <summary class="rsu-grant__summary">
             <span class="rsu-grant__name">{{ grant.units }} {{ grant.ticker }}</span>
-            <span class="rsu-grant__meta">
+            <span class="rsu-grant__meta" i18n="Grant summary|When the grant was made and how it vests">
               granted {{ grant.grant_date | date: 'MMM d, y' }} · vests
               {{ vestFrequencyLabel(grant.frequency) }} over {{ grant.vest_years }} years
             </span>
@@ -260,6 +270,7 @@
                 class="rsu-grant__delete"
                 [disabled]="busy() !== null"
                 (click)="$event.preventDefault(); removeGrant(grant.id)"
+                i18n="Button|Deletes this stock grant"
               >
                 Delete
               </button>
@@ -279,6 +290,7 @@
                     type="button"
                     [disabled]="busy() !== null"
                     (click)="saveVestEvent(event, vestDate.value, vestUnits.value)"
+                    i18n="Button|Saves the edited vest date and share count"
                   >
                     Save
                   </button>
@@ -288,12 +300,13 @@
                     class="rsu-vests__delete"
                     [disabled]="busy() !== null"
                     (click)="removeVestEvent(event.id)"
+                    i18n="Button|Deletes this vest from the schedule"
                   >
                     Delete
                   </button>
                 } @else {
                   <span class="rsu-vests__date">{{ event.vest_date | date: 'MMM d, y' }}</span>
-                  <span class="rsu-vests__units">{{ event.units }} units</span>
+                  <span class="rsu-vests__units" i18n="Vest event|How many shares vest on this date">{{ event.units }} units</span>
                   <span class="rsu-vests__value">
                     @if (event.value; as value) { {{ formatMoney(value) }} }
                   </span>
@@ -303,12 +316,20 @@
             @if (canWrite()) {
               <li class="rsu-vests__row rsu-vests__row--add">
                 <input class="rsu-vests__date" type="date" #newVestDate />
-                <input class="rsu-vests__units" type="number" min="0" placeholder="Units" #newVestUnits />
+                <input
+                  class="rsu-vests__units"
+                  type="number"
+                  min="0"
+                  placeholder="Units"
+                  i18n-placeholder="Form field placeholder|How many shares vest"
+                  #newVestUnits
+                />
                 <button
                   mat-button
                   type="button"
                   [disabled]="busy() !== null"
                   (click)="addVestEvent(grant, newVestDate.value, newVestUnits.value); newVestDate.value = ''; newVestUnits.value = ''"
+                  i18n="Button|Adds a vest to this grant's schedule"
                 >
                   Add vest
                 </button>
@@ -321,12 +342,12 @@
 
     @if (canWrite() && earners().length > 0) {
       <details class="earner-form-wrap rsu-grant-form-wrap" [open]="(rsuGrants()?.grants ?? []).length === 0">
-        <summary>Add an RSU grant</summary>
+        <summary i18n="Section heading|Opens the form that adds a stock grant">Add an RSU grant</summary>
         <mat-card appearance="outlined" class="earner-form-card">
           <mat-card-content>
             <form class="earner-form" (ngSubmit)="addGrant()">
               <mat-form-field appearance="outline">
-                <mat-label>Earner</mat-label>
+                <mat-label i18n="Form field label|Which earner the grant belongs to">Earner</mat-label>
                 <mat-select [(ngModel)]="grantForm.earnerId" name="grantEarner">
                   @for (earner of earners(); track earner.id) {
                     <mat-option [value]="earner.id">{{ earner.label }}</mat-option>
@@ -334,7 +355,7 @@
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Ticker</mat-label>
+                <mat-label i18n="Form field label|Stock symbol of the granted shares">Ticker</mat-label>
                 <input
                   matInput
                   type="text"
@@ -344,24 +365,24 @@
                 />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Units granted</mat-label>
+                <mat-label i18n="Form field label|How many shares the grant covers">Units granted</mat-label>
                 <input matInput type="number" min="0" [(ngModel)]="grantForm.units" name="grantUnits" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Grant date</mat-label>
+                <mat-label i18n="Form field label|Date the shares were granted">Grant date</mat-label>
                 <input matInput type="date" [(ngModel)]="grantForm.grantDate" name="grantDate" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Vesting period (years)</mat-label>
+                <mat-label i18n="Form field label|How many years the grant takes to vest fully">Vesting period (years)</mat-label>
                 <input matInput type="number" min="1" [(ngModel)]="grantForm.vestYears" name="grantVestYears" />
               </mat-form-field>
               <mat-form-field appearance="outline">
-                <mat-label>Vesting frequency</mat-label>
+                <mat-label i18n="Form field label|How often the shares vest">Vesting frequency</mat-label>
                 <mat-select [(ngModel)]="grantForm.frequency" name="grantFrequency">
-                  <mat-option value="monthly">Monthly</mat-option>
-                  <mat-option value="quarterly">Quarterly</mat-option>
-                  <mat-option value="semiannual">Twice a year</mat-option>
-                  <mat-option value="annual">Annually</mat-option>
+                  <mat-option value="monthly" i18n="Vesting frequency|Vests once a month">Monthly</mat-option>
+                  <mat-option value="quarterly" i18n="Vesting frequency|Vests once every three months">Quarterly</mat-option>
+                  <mat-option value="semiannual" i18n="Vesting frequency|Vests twice a year">Twice a year</mat-option>
+                  <mat-option value="annual" i18n="Vesting frequency|Vests once a year">Annually</mat-option>
                 </mat-select>
               </mat-form-field>
               <button
@@ -369,7 +390,11 @@
                 type="submit"
                 [disabled]="busy() !== null || !grantForm.earnerId || !grantForm.ticker.trim() || !grantForm.units || !grantForm.grantDate"
               >
-                {{ busy() === 'grant' ? 'Saving…' : 'Add grant' }}
+                @if (busy() === 'grant') {
+                  <ng-container i18n="Button|The stock grant is being saved">Saving…</ng-container>
+                } @else {
+                  <ng-container i18n="Button|Adds the stock grant">Add grant</ng-container>
+                }
               </button>
             </form>
           </mat-card-content>
@@ -378,9 +403,9 @@
     }
   }
 
-  <h2>Detected income sources</h2>
+  <h2 i18n="Section heading|Recurring deposits the scan classified as income">Detected income sources</h2>
   @if (data.sources.length === 0) {
-    <p class="page-empty">
+    <p class="page-empty" i18n="Empty state|No recurring deposits were found yet">
       No recurring deposits found yet. If your paychecks land in a checking
       account, they will appear after the next bank sync — or add deposits
       manually from the list below.
@@ -390,7 +415,7 @@
     <details class="income-source" [open]="data.sources.length === 1">
       <summary class="income-source__summary">
         <span class="income-source__name">{{ source.name }}</span>
-        <span class="income-source__meta">
+        <span class="income-source__meta" i18n="Income source summary|How often this source pays, the typical amount, and the totals seen">
           {{ source.frequency }} · typical {{ formatMoney(source.typical_amount) }} ·
           {{ source.transactions.length }} deposits ·
           {{ formatMoney(source.total_amount) }} total
@@ -411,27 +436,28 @@
                     class="income-txns__remove"
                     [disabled]="busy() !== null"
                     (click)="$event.preventDefault(); remove(txn)"
+                    i18n="Button|Stops counting this deposit as income"
                   >
                     Remove
                   </button>
                 }
               </summary>
               <dl class="income-txn__details">
-                <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
-                <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
-                <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
-                <div><dt>Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
-                <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
-                <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+                <div><dt i18n="Deposit detail label|When the deposit landed">Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Who sent the money">From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|The raw text the bank supplied">Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Which bank the account is held at">Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Which account received the money">Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|How much was deposited">Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
               </dl>
               @if (canWrite()) {
                 <label class="income-txn__recat">
-                  Not income? Recategorize:
+                  <ng-container i18n="Recategorize label|Offers to file this deposit under another category instead of income">Not income? Recategorize: </ng-container>
                   <select
                     [disabled]="busy() !== null"
                     (change)="recategorizeDeposit(txn, $any($event.target).value); $any($event.target).value = ''"
                   >
-                    <option value="" selected>Choose a category…</option>
+                    <option value="" selected i18n="Category picker placeholder|Shown before a category is chosen">Choose a category…</option>
                     @for (cat of categories(); track cat.id) {
                       <option [value]="cat.id">{{ cat.name }}</option>
                     }
@@ -446,8 +472,8 @@
   }
 
   @if (suspectedIncome().length > 0) {
-    <h2>Suspected income</h2>
-    <p class="page-hint">
+    <h2 i18n="Section heading|Transfers that look like misfiled income">Suspected income</h2>
+    <p class="page-hint" i18n="Section intro|Explains that these large unmatched transfers are probably paychecks filed in the wrong place">
       These landed in one of your accounts as a large &ldquo;Transfer&rdquo; with no
       matching move out of another account &mdash; usually a paycheck or deposit filed
       in the wrong place. Confirm the amount to count it as income, or keep it as a
@@ -459,8 +485,8 @@
           <div class="income-txns__row">
             <span class="income-txns__date">{{ txn.occurred_at | date: 'MMM d, y' }}</span>
             <span class="income-txns__name">
-              {{ txn.merchant || txn.description || 'Deposit' }}
-              <span class="suspected-badge">Suspected income</span>
+              {{ txn.merchant || txn.description || depositLabel }}
+              <span class="suspected-badge" i18n="Badge|This transfer is probably income">Suspected income</span>
             </span>
             <span class="income-txns__amount">{{ formatMoney(txn.amount) }}</span>
             @if (canWrite()) {
@@ -470,6 +496,7 @@
                 type="button"
                 [disabled]="busy() !== null"
                 (click)="confirmAsIncome(txn)"
+                i18n="Button|Files this transfer under income"
               >
                 Confirm as income
               </button>
@@ -478,27 +505,28 @@
                 type="button"
                 [disabled]="busy() !== null"
                 (click)="keepAsTransfer(txn)"
+                i18n="Button|Leaves this transaction filed as a transfer"
               >
                 Keep as transfer
               </button>
             }
           </div>
           @if (txn.account_name) {
-            <p class="income-txns__account">Deposited into {{ txn.account_name }}</p>
+            <p class="income-txns__account" i18n="Deposit detail|Which account received the money">Deposited into {{ txn.account_name }}</p>
           }
         </li>
       }
     </ul>
   }
 
-  <h2>Other deposits</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Deposits that are not counted as income">Other deposits</h2>
+  <p class="page-hint" i18n="Section intro|Explains which deposits land here and what can be done with them">
     Deposits not counted as income (transfers between your own accounts are
     filtered out automatically). Add ones the scan missed, or reject ones that
     aren't income.
   </p>
   @if (activeOther().length === 0) {
-    <p class="page-empty">Nothing else — every deposit is classified.</p>
+    <p class="page-empty" i18n="Empty state|Every deposit has already been classified">Nothing else — every deposit is classified.</p>
   } @else {
     <ul class="income-txns income-txns--other">
       @for (txn of activeOther(); track txn.transaction_id) {
@@ -515,6 +543,7 @@
                   class="income-txns__add"
                   [disabled]="busy() !== null"
                   (click)="$event.preventDefault(); addAsIncome(txn)"
+                  i18n="Button|Starts counting this deposit as income"
                 >
                   Add as income
                 </button>
@@ -524,17 +553,18 @@
                   class="income-txns__reject"
                   [disabled]="busy() !== null"
                   (click)="$event.preventDefault(); remove(txn)"
+                  i18n="Button|Rejects this deposit so it is never counted as income"
                 >
                   Not income
                 </button>
               }
             </summary>
             <dl class="income-txn__details">
-              <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
-              <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
-              <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
-              <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
-              <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+              <div><dt i18n="Deposit detail label|When the deposit landed">Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+              <div><dt i18n="Deposit detail label|Who sent the money">From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+              <div><dt i18n="Deposit detail label|The raw text the bank supplied">Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+              <div><dt i18n="Deposit detail label|Which account received the money">Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+              <div><dt i18n="Deposit detail label|How much was deposited">Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
             </dl>
           </details>
         </li>
@@ -544,7 +574,7 @@
 
   @if (rejectedOther().length > 0) {
     <details class="income-rejected">
-      <summary>Rejected deposits ({{ rejectedOther().length }})</summary>
+      <summary i18n="Section heading|Deposits the user rejected, with how many there are">Rejected deposits ({{ rejectedOther().length }})</summary>
       <ul class="income-txns income-txns--other">
         @for (txn of rejectedOther(); track txn.transaction_id) {
           <li>
@@ -560,18 +590,19 @@
                     class="income-txns__add"
                     [disabled]="busy() !== null"
                     (click)="$event.preventDefault(); restore(txn)"
+                    i18n="Button|Puts a rejected deposit back into the unclassified list"
                   >
                     Restore
                   </button>
                 }
               </summary>
               <dl class="income-txn__details">
-                <div><dt>Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
-                <div><dt>From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
-                <div><dt>Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
-                <div><dt>Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
-                <div><dt>Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
-                <div><dt>Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
+                <div><dt i18n="Deposit detail label|When the deposit landed">Date</dt><dd>{{ txn.occurred_at | date: 'EEEE, MMM d, y' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Who sent the money">From / payer</dt><dd>{{ txn.merchant || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|The raw text the bank supplied">Bank description</dt><dd>{{ txn.description || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Which bank the account is held at">Bank</dt><dd>{{ txn.institution || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|Which account received the money">Deposited into</dt><dd>{{ txn.account_name || '—' }}</dd></div>
+                <div><dt i18n="Deposit detail label|How much was deposited">Amount</dt><dd>{{ formatMoney(txn.amount) }}</dd></div>
               </dl>
             </details>
           </li>
@@ -580,7 +611,7 @@
     </details>
   }
 
-  <h2>Estimated tax for {{ data.tax.tax_year }}</h2>
+  <h2 i18n="Section heading|Estimated tax for the given tax year">Estimated tax for {{ data.tax.tax_year }}</h2>
   @if (data.coverage_warning; as warning) {
     <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
   }
@@ -589,17 +620,17 @@
     @if (canWrite()) {
       <div class="tax-card__settings">
         <label>
-          <span>Filing status</span>
+          <span i18n="Form field label|How the household files its tax return">Filing status</span>
           <select [(ngModel)]="filingStatus" name="filingStatus">
-            <option value="married_joint">Married filing jointly</option>
-            <option value="single">Single</option>
-            <option value="head_of_household">Head of household</option>
+            <option value="married_joint" i18n="Filing status|A married couple filing one return together">Married filing jointly</option>
+            <option value="single" i18n="Filing status|An individual filing alone">Single</option>
+            <option value="head_of_household" i18n="Filing status|An unmarried filer supporting dependants">Head of household</option>
           </select>
         </label>
         <label>
-          <span>State (for state income tax)</span>
+          <span i18n="Form field label|Which state's income tax applies">State (for state income tax)</span>
           <select [(ngModel)]="state" name="state">
-            <option value="">Not set</option>
+            <option value="" i18n="State picker placeholder|No state has been chosen">Not set</option>
             @for (code of states; track code) {
               <option [value]="code">{{ code }}</option>
             }
@@ -607,37 +638,41 @@
         </label>
         <label class="tax-card__toggle">
           <input type="checkbox" [(ngModel)]="treatedAsNet" name="treatedAsNet" />
-          <span>Deposits are take-home pay (gross is estimated from them)</span>
+          <span i18n="Checkbox|The deposits seen are after tax, so gross pay has to be worked back from them">Deposits are take-home pay (gross is estimated from them)</span>
         </label>
         <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="saveSettings()">
-          {{ busy() === 'settings' ? 'Saving…' : 'Recalculate' }}
+          @if (busy() === 'settings') {
+            <ng-container i18n="Button|The tax settings are being saved">Saving…</ng-container>
+          } @else {
+            <ng-container i18n="Button|Saves the tax settings and works the estimate out again">Recalculate</ng-container>
+          }
         </button>
       </div>
     }
 
     <dl class="tax-card__figures">
       @if (data.tax.net_income; as net) {
-        <div><dt>Take-home income (deposits)</dt><dd>{{ formatMoney(net) }}</dd></div>
+        <div><dt i18n="Tax figure label|Income actually deposited, after tax">Take-home income (deposits)</dt><dd>{{ formatMoney(net) }}</dd></div>
       }
-      <div><dt>Estimated gross income</dt><dd>{{ formatMoney(data.tax.gross_income) }}</dd></div>
-      <div><dt>Standard deduction</dt><dd>−{{ formatMoney(data.tax.standard_deduction) }}</dd></div>
-      <div><dt>Federal income tax</dt><dd>{{ formatMoney(data.tax.federal_income_tax) }}</dd></div>
-      <div><dt>Social Security &amp; Medicare</dt><dd>{{ formatMoney(data.tax.fica_tax) }}</dd></div>
+      <div><dt i18n="Tax figure label|Pre-tax income the estimate is built on">Estimated gross income</dt><dd>{{ formatMoney(data.tax.gross_income) }}</dd></div>
+      <div><dt i18n="Tax figure label|The flat deduction subtracted before tax is worked out">Standard deduction</dt><dd>−{{ formatMoney(data.tax.standard_deduction) }}</dd></div>
+      <div><dt i18n="Tax figure label|Income tax owed to the federal government">Federal income tax</dt><dd>{{ formatMoney(data.tax.federal_income_tax) }}</dd></div>
+      <div><dt i18n="Tax figure label|US payroll taxes funding social security and medicare">Social Security &amp; Medicare</dt><dd>{{ formatMoney(data.tax.fica_tax) }}</dd></div>
       @if (data.tax.state_income_tax; as stateTax) {
         <div>
-          <dt>State income tax ({{ data.tax.state }})</dt>
+          <dt i18n="Tax figure label|Income tax owed to the named state">State income tax ({{ data.tax.state }})</dt>
           <dd>{{ formatMoney(stateTax) }}</dd>
         </div>
       }
       <div class="tax-card__total">
-        <dt>Estimated total tax</dt>
+        <dt i18n="Tax figure label|Everything owed across federal, payroll and state tax">Estimated total tax</dt>
         <dd>{{ formatMoney(data.tax.total_tax) }}</dd>
       </div>
-      <div><dt>Effective rate</dt><dd>{{ data.tax.effective_rate | percent: '1.1-1' }}</dd></div>
+      <div><dt i18n="Tax figure label|Total tax as a share of gross income">Effective rate</dt><dd>{{ data.tax.effective_rate | percent: '1.1-1' }}</dd></div>
     </dl>
 
     <details class="tax-card__assumptions">
-      <summary>Assumptions behind this estimate</summary>
+      <summary i18n="Section heading|Opens the list of assumptions the tax estimate rests on">Assumptions behind this estimate</summary>
       <ul>
         @for (assumption of data.tax.assumptions; track assumption) {
           <li>{{ assumption }}</li>

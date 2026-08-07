@@ -77,11 +77,30 @@ export class AiRuntime {
   protected readonly providers = PROVIDERS;
   protected readonly isOwner = () => this.auth.hasRight('ai_runtime.manage');
 
+  /** Shown where no photo model is being served. */
+  protected readonly offLabel = $localize`:Runtime model value|No photo model is being served:off`;
+
+  /**
+   * Tooltip on the Apply buttons — empty for an admin, otherwise the reason the
+   * button is disabled. Built here because an interpolated i18n-title would be
+   * applied as a JS expando and silently vanish from the DOM.
+   */
+  protected applyDisabledTitle(): string {
+    return this.canManageRuntime()
+      ? ''
+      : $localize`:Apply button tooltip|Explains why only a system administrator may switch the box-wide model:Only a system administrator can switch the box-wide model (ADR 0065)`;
+  }
+
   protected readonly config = resource({
     loader: async () => {
       const { data, error } = await this.api.getAiRuntimeConfig();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load AI runtime configuration.'));
+        throw new Error(
+          apiErrorMessage(
+            error,
+            $localize`:Error message|The AI runtime configuration could not be loaded:Failed to load AI runtime configuration.`,
+          ),
+        );
       }
       return data;
     },
@@ -98,7 +117,12 @@ export class AiRuntime {
     loader: async () => {
       const { data, error } = await this.api.listAiModels();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load the model catalog.'));
+        throw new Error(
+          apiErrorMessage(
+            error,
+            $localize`:Error message|The list of available models could not be loaded:Failed to load the model catalog.`,
+          ),
+        );
       }
       return data.models;
     },
@@ -173,7 +197,7 @@ export class AiRuntime {
         : 2.1;
     return {
       id,
-      label: `${name} (not in catalog)`,
+      label: $localize`:Model label|A model that is not in the curated catalog, so its specs are guessed:${name}:name: (not in catalog)`,
       role: isVision && roleHint === 'vision' ? 'vision' : isVision ? 'both' : 'main',
       parameters_b: params,
       est_memory_gb: params ? Math.round(params * gbPerB) : 0,
@@ -181,7 +205,7 @@ export class AiRuntime {
       tool_parser: isVision ? undefined : 'hermes',
       supports_vision: isVision,
       gated: false,
-      notes: 'Specs estimated from the model name.',
+      notes: $localize`:Model note|The model's specs were guessed from its identifier:Specs estimated from the model name.`,
     };
   }
 
@@ -237,15 +261,15 @@ export class AiRuntime {
   protected statusPhaseLabel(): string {
     switch (this.status.value()?.loading_phase) {
       case 'downloading':
-        return 'downloading';
+        return $localize`:Runtime phase|The weights are being downloaded:downloading`;
       case 'loading':
-        return 'loading weights';
+        return $localize`:Runtime phase|The downloaded weights are being loaded into memory:loading weights`;
       case 'warming_up':
-        return 'warming up';
+        return $localize`:Runtime phase|The model is loaded and warming up:warming up`;
       case 'starting':
-        return 'starting';
+        return $localize`:Runtime phase|The serving container is starting:starting`;
       default:
-        return 'loading / off';
+        return $localize`:Runtime phase|The model is either loading or not running at all:loading / off`;
     }
   }
 
@@ -328,7 +352,12 @@ export class AiRuntime {
     });
     this.savingCluster.set(false);
     if (error) {
-      this.clusterError.set(apiErrorMessage(error, 'Could not update the cluster setting.'));
+      this.clusterError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The two-box cluster toggle could not be saved:Could not update the cluster setting.`,
+        ),
+      );
       return;
     }
     this.config.reload();
@@ -391,17 +420,17 @@ export class AiRuntime {
     if (model.role === 'vision') {
       mainId = this.currentMainId() ?? model.id;
       visionId = model.id;
-      description = `Photos: this model · Chat: ${mainId}`;
+      description = $localize`:Apply plan|This model would analyse photos while another keeps answering chat:Photos: this model · Chat: ${mainId}:mainModel:`;
     } else if (model.supports_vision) {
       mainId = model.id;
       visionId = null;
-      description = 'Chat + photos: this model (sees photos itself)';
+      description = $localize`:Apply plan|One model would answer chat and analyse photos:Chat + photos: this model (sees photos itself)`;
     } else {
       mainId = model.id;
       visionId = this.status.value()?.vision_model ?? null;
       description = visionId
-        ? `Chat: this model · Photos: ${visionId} (kept)`
-        : 'Chat: this model · Photos: off';
+        ? $localize`:Apply plan|This model would answer chat while the current photo model is kept:Chat: this model · Photos: ${visionId}:visionModel: (kept)`
+        : $localize`:Apply plan|This model would answer chat and no photo model would run:Chat: this model · Photos: off`;
     }
 
     const main = mainId === model.id ? model : this.byId(mainId);
@@ -489,7 +518,10 @@ export class AiRuntime {
     }
     if (state.state === 'running' || state.state === 'succeeded') {
       // succeeded = containers recreated; the model may still be downloading/loading.
-      return { phase: 'working' as const, detail: 'Downloading / loading the model…' };
+      return {
+        phase: 'working' as const,
+        detail: $localize`:Model swap detail|The swap is running: the weights are being downloaded or loaded:Downloading / loading the model…`,
+      };
     }
     return null;
   });
@@ -511,7 +543,9 @@ export class AiRuntime {
     }
     const main = this.currentMainId();
     if (!main) {
-      this.applyError.set('No chat model is configured to pair with.');
+      this.applyError.set(
+        $localize`:Error message|A photo model cannot be applied because no chat model is configured:No chat model is configured to pair with.`,
+      );
       return;
     }
     if (main === model.id) {
@@ -538,7 +572,10 @@ export class AiRuntime {
     this.applying.set(false);
     if (error || !data) {
       this.applyError.set(
-        apiErrorMessage(error, 'Could not start the model swap. Is the model manager running?'),
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The model swap request failed to start:Could not start the model swap. Is the model manager running?`,
+        ),
       );
       return;
     }
@@ -616,7 +653,9 @@ export class AiRuntime {
       }
     }
     if (failures === responses.length) {
-      this.searchError.set('Hugging Face is unreachable; showing curated models only.');
+      this.searchError.set(
+        $localize`:Error message|The live model hub could not be reached; Hugging Face is a product name:Hugging Face is unreachable; showing curated models only.`,
+      );
       return;
     }
     this.searchResults.set(merged);
@@ -802,7 +841,10 @@ export class AiRuntime {
     this.applyingVision.set(false);
     if (error || !data) {
       this.visionApplyError.set(
-        apiErrorMessage(error, 'Could not start the vision swap. Is the model manager running?'),
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The photo model swap request failed to start:Could not start the vision swap. Is the model manager running?`,
+        ),
       );
       return;
     }
@@ -852,7 +894,12 @@ export class AiRuntime {
     this.submitting.set(false);
 
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to update AI runtime configuration.'));
+      this.submitError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The AI runtime configuration could not be saved:Failed to update AI runtime configuration.`,
+        ),
+      );
       return;
     }
 

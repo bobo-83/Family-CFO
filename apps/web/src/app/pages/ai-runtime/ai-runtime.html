@@ -1,5 +1,5 @@
-<h1>AI runtime</h1>
-<p class="page-empty">
+<h1 i18n="Page title|Local AI runtime configuration page">AI runtime</h1>
+<p class="page-empty" i18n="Page intro|Explains that the models run locally and that applying one replaces the current model">
   Choose which local models power the advisor. Everything runs on this server — no household data
   ever leaves it. Applying a model <strong>replaces</strong> the current one; it does not add to
   it.
@@ -7,7 +7,7 @@
 
 @switch (config.status()) {
   @case ('loading') {
-    <p>Loading…</p>
+    <p i18n="Loading placeholder|Shown while the AI runtime configuration loads">Loading…</p>
   }
   @case ('error') {
     <p class="page-error" role="alert">{{ config.error() }}</p>
@@ -17,10 +17,10 @@
       <section class="picker">
         <!-- ================= Now serving (always first, M47) ================= -->
         <div class="now-serving">
-          <h2>Now serving</h2>
+          <h2 i18n="Section heading|The models the box is serving right now">Now serving</h2>
           <div class="now-serving__rows">
             <div class="now-serving__row">
-              <span class="now-serving__label">Chat model</span>
+              <span class="now-serving__label" i18n="Runtime row label|The model that answers chat questions">Chat model</span>
               <span class="now-serving__model">
                 {{ status.value()?.served_model || status.value()?.model || '—' }}
               </span>
@@ -30,11 +30,11 @@
                 [class.now-serving__state--error]="status.value()?.loading_phase === 'error'"
               >
                 @if (status.value()?.ready) {
-                  ● active
+                  <ng-container i18n="Runtime state|The model is loaded and answering">● active</ng-container>
                 } @else if (status.value()?.loading_phase === 'error') {
-                  ✕ failed to start
+                  <ng-container i18n="Runtime state|The model crashed while starting">✕ failed to start</ng-container>
                 } @else {
-                  ○ {{ statusPhaseLabel() }}
+                  <ng-container i18n="Runtime state|The model is not answering yet; the phase says what it is doing">○ {{ statusPhaseLabel() }}</ng-container>
                 }
               </span>
             </div>
@@ -48,14 +48,18 @@
               </p>
             }
             <div class="now-serving__row">
-              <span class="now-serving__label">Photo model</span>
-              <span class="now-serving__model">{{ status.value()?.vision_model || 'off' }}</span>
+              <span class="now-serving__label" i18n="Runtime row label|The model that analyses photos">Photo model</span>
+              <span class="now-serving__model">{{ status.value()?.vision_model || offLabel }}</span>
               <span
                 class="now-serving__state"
                 [class.now-serving__state--ok]="status.value()?.vision_ready"
               >
                 @if (status.value()?.vision_model) {
-                  {{ status.value()?.vision_ready ? '● active' : '○ loading' }}
+                  @if (status.value()?.vision_ready) {
+                    <ng-container i18n="Runtime state|The photo model is loaded and answering">● active</ng-container>
+                  } @else {
+                    <ng-container i18n="Runtime state|The photo model is still starting up">○ loading</ng-container>
+                  }
                 } @else {
                   —
                 }
@@ -66,13 +70,13 @@
           <!-- Median answer time per model — evidence for picking, not benchmarks -->
           @if (answerStats().length > 0) {
             <div class="answer-stats">
-              <h3 class="answer-stats__heading">Median answer time</h3>
+              <h3 class="answer-stats__heading" i18n="Section heading|Typical time each model takes to answer">Median answer time</h3>
               @for (stat of answerStats(); track stat.model) {
                 <div class="answer-stats__row">
                   <span class="answer-stats__model">{{ stat.model }}</span>
-                  <span>
+                  <span i18n="Answer time|A model's median answer time and how many answers it was measured over">
                     <strong>{{ formatAnswerTime(stat.median_ms) }}</strong>
-                    · {{ stat.samples }} answer{{ stat.samples === 1 ? '' : 's' }}
+                    · {stat.samples, plural, =1 {1 answer} other {{{ stat.samples }} answers}}
                   </span>
                 </div>
               }
@@ -91,14 +95,14 @@
               @switch (live.phase) {
                 @case ('working') {
                   <span class="apply-live__spinner" aria-hidden="true"></span>
-                  <span>Applying — {{ live.detail }} This can take several minutes for a first
+                  <span i18n="Model swap status|The swap is in progress and may take a while">Applying — {{ live.detail }} This can take several minutes for a first
                     download; the current model keeps answering meanwhile.</span>
                 }
                 @case ('active') {
-                  <span>✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
+                  <span i18n="Model swap status|The newly applied model is serving">✅ <strong>{{ live.detail }}</strong> is active and answering.</span>
                 }
                 @case ('failed') {
-                  <span>❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
+                  <span i18n="Model swap status|The swap failed, with the tail of the container log">❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span>
                 }
               }
             </div>
@@ -107,7 +111,7 @@
             <p class="page-error" role="alert">{{ message }}</p>
           }
           @if (status.value()?.ready && !status.value()?.vision_model) {
-            <p class="now-serving__nudge">
+            <p class="now-serving__nudge" i18n="Photo model nudge|No vision model is serving so photos sent in chat are ignored; the button jumps to the photo models">
               📷 No photo model is serving — chat photos won't be analyzed.
               <button mat-button type="button" (click)="pickPhotoModelNext()">Pick a photo model</button>
             </p>
@@ -119,7 +123,7 @@
              single-family box with the fair-use cap off. -->
         @if (usageVisible() && usage.value(); as usageData) {
           <div class="usage">
-            <h2>Household usage</h2>
+            <h2 i18n="Section heading|How much of the box each household is using">Household usage</h2>
             <!-- Same row chrome as the medians above — both are evidence views. -->
             <div class="answer-stats">
               @for (row of usageData.households; track row.household_id) {
@@ -128,11 +132,11 @@
                     {{ row.name }}
                     <!-- #196: members present but no member key yet — can't be sealed. -->
                     @if (row.member_key_ok === false) {
-                      <span class="usage__flag">member sign-in needed</span>
+                      <span class="usage__flag" i18n="Household usage flag|The household has members but nobody has signed in yet">member sign-in needed</span>
                     }
                   </span>
-                  <span>
-                    {{ row.chats_7d }} chat{{ row.chats_7d === 1 ? '' : 's' }} this week
+                  <span i18n="Household usage|Chats this household ran, its median answer time, and the space it takes up">
+                    {row.chats_7d, plural, =1 {1 chat} other {{{ row.chats_7d }} chats}} this week
                     ({{ row.chats_24h }} in the last 24 h) ·
                     @if (row.median_answer_ms != null) {
                       <strong>{{ formatAnswerTime(row.median_answer_ms) }}</strong> median
@@ -145,16 +149,16 @@
               }
             </div>
             @if (memberSignInNeeded()) {
-              <p class="usage__note">
+              <p class="usage__note" i18n="Household usage footnote|Explains the member sign-in needed flag">
                 Households marked "member sign-in needed" can't be sealed until a
                 member signs in with their password.
               </p>
             }
             <p class="usage__cap" [class.usage__cap--off]="usageData.chat_hourly_limit === 0">
               @if (usageData.chat_hourly_limit > 0) {
-                Fair-use cap: {{ usageData.chat_hourly_limit }} chats/hour per household
+                <ng-container i18n="Fair-use cap|How many chats per hour each household may run">Fair-use cap: {{ usageData.chat_hourly_limit }} chats/hour per household</ng-container>
               } @else {
-                Fair-use cap: off
+                <ng-container i18n="Fair-use cap|No per-household chat limit is set">Fair-use cap: off</ng-container>
               }
             </p>
           </div>
@@ -163,16 +167,16 @@
         <!-- ================= Two-box cluster (ADR 0071) ================= -->
         @if (clusterPeerHost(); as peerHost) {
           <div class="cluster">
-            <h2>Second box</h2>
+            <h2 i18n="Section heading|The optional second machine that shares the load">Second box</h2>
             @if (clusterPeerReachable()) {
-              <p class="cluster__line">
+              <p class="cluster__line" i18n="Cluster status|A second box is enrolled and reachable, with the combined memory budget">
                 Second box detected ({{ peerHost }})
                 @if (clusterMemoryGb() !== null) {
                   — combined budget {{ clusterMemoryGb() }} GB
                 }
               </p>
             } @else {
-              <p class="cluster__line cluster__line--warn" role="alert">
+              <p class="cluster__line cluster__line--warn" role="alert" i18n="Cluster status|A second box is enrolled but cannot be reached">
                 ⚠️ Second box ({{ peerHost }}) enrolled but not reachable
               </p>
             }
@@ -181,6 +185,7 @@
               [ngModel]="clusterEnabled()"
               [disabled]="!clusterPeerReachable() || savingCluster()"
               (ngModelChange)="setClusterEnabled($event)"
+              i18n="Checkbox|Spreads a model across both boxes so bigger models fit"
             >
               Use both boxes for larger models
             </mat-checkbox>
@@ -192,10 +197,10 @@
 
         <!-- ================= Browse & filter (M47/M48) ================= -->
         <div class="browse">
-          <h2>Find a model</h2>
+          <h2 i18n="Section heading|Browse and search the available models">Find a model</h2>
           <div class="hf-search">
             <mat-form-field appearance="outline" class="hf-search__field" subscriptSizing="dynamic">
-              <mat-label>Search Hugging Face</mat-label>
+              <mat-label i18n="Form field label|Search box for the Hugging Face model hub; Hugging Face is a product name">Search Hugging Face</mat-label>
               <input
                 matInput
                 type="search"
@@ -205,21 +210,33 @@
                 (keydown.enter)="runSearch()"
               />
             </mat-form-field>
-            <button mat-flat-button type="button" (click)="runSearch()" [disabled]="searching()">
-              {{ searching() ? '…' : 'Search' }}
+            <button
+              mat-flat-button
+              type="button"
+              (click)="runSearch()"
+              [disabled]="searching()"
+              i18n="Button|Runs the Hugging Face model search, showing progress while it is in flight"
+            >
+              {searching(), select, true {…} other {Search}}
             </button>
           </div>
           @if (searchError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
           }
 
-          <div class="browse__quick" role="group" aria-label="Quick filters">
+          <div
+            class="browse__quick"
+            role="group"
+            aria-label="Quick filters"
+            i18n-aria-label="Quick filter group accessible name|Names the row of one-click model filters"
+          >
             <button
               mat-stroked-button
               type="button"
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'recommended'"
               (click)="setQuickFilter('recommended')"
+              i18n="Quick filter|Shows the strongest chat models that fit this box"
             >
               ✨ Recommended chat models
             </button>
@@ -229,6 +246,7 @@
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'all-in-one'"
               (click)="setQuickFilter('all-in-one')"
+              i18n="Quick filter|Shows models that handle both chat and photos"
             >
               🪄 One model for both
             </button>
@@ -238,6 +256,7 @@
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'finance'"
               (click)="setQuickFilter('finance')"
+              i18n="Quick filter|Shows models suited to financial reasoning"
             >
               🏦 Best for finances
             </button>
@@ -247,6 +266,7 @@
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'vision-big'"
               (click)="setQuickFilter('vision-big')"
+              i18n="Quick filter|Shows the largest photo model this box can run"
             >
               📷 Biggest vision that fits
             </button>
@@ -256,6 +276,7 @@
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'vision-small'"
               (click)="setQuickFilter('vision-small')"
+              i18n="Quick filter|Shows the smallest photo model available"
             >
               📷 Smallest vision
             </button>
@@ -265,36 +286,38 @@
               class="browse__qf"
               [class.browse__qf--on]="quickFilter() === 'all'"
               (click)="setQuickFilter('all')"
+              i18n="Quick filter|Removes the quick filter and shows every model"
             >
               All
             </button>
           </div>
           @if (searching()) {
-            <p class="browse__loading">Fetching the live list from Hugging Face…</p>
+            <p class="browse__loading" i18n="Loading placeholder|Shown while the live model list is fetched; Hugging Face is a product name">Fetching the live list from Hugging Face…</p>
           }
 
           <div class="browse__facets">
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Role</mat-label>
+              <mat-label i18n="Form field label|Filters models by what they are used for">Role</mat-label>
               <mat-select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
-                <mat-option value="all">All</mat-option>
-                <mat-option value="main">Main</mat-option>
-                <mat-option value="vision">Vision</mat-option>
+                <mat-option value="all" i18n="Role filter option|No role filter">All</mat-option>
+                <mat-option value="main" i18n="Role filter option|Models that answer chat questions">Main</mat-option>
+                <mat-option value="vision" i18n="Role filter option|Models that analyse photos">Vision</mat-option>
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Sort</mat-label>
+              <mat-label i18n="Form field label|Orders the model list">Sort</mat-label>
               <mat-select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
-                <mat-option value="default">Recommended</mat-option>
-                <mat-option value="size-desc">Largest first</mat-option>
-                <mat-option value="size-asc">Smallest first</mat-option>
-                <mat-option value="memory-asc">Least memory first</mat-option>
+                <mat-option value="default" i18n="Sort option|The suggested order">Recommended</mat-option>
+                <mat-option value="size-desc" i18n="Sort option|Most parameters first">Largest first</mat-option>
+                <mat-option value="size-asc" i18n="Sort option|Fewest parameters first">Smallest first</mat-option>
+                <mat-option value="memory-asc" i18n="Sort option|Lowest memory requirement first">Least memory first</mat-option>
               </mat-select>
             </mat-form-field>
             <mat-checkbox
               class="browse__fits"
               [ngModel]="onlyFits()"
               (ngModelChange)="onlyFits.set($event)"
+              i18n="Checkbox|Hides models this box does not have the memory for"
             >
               Only models that fit
             </mat-checkbox>
@@ -303,7 +326,7 @@
           <!-- ADR 0071: cluster-tier models — only with the toggle on + peer reachable -->
           @if (clusterModels().length > 0) {
             <div class="cluster-models">
-              <h3 class="cluster-models__heading">Cluster (both boxes)</h3>
+              <h3 class="cluster-models__heading" i18n="Section heading|Models that need both boxes to run">Cluster (both boxes)</h3>
               <ul class="browse__list">
                 @for (model of clusterModels(); track model.id) {
                   <li
@@ -315,10 +338,10 @@
                         <span class="model-row__label">
                           {{ model.label }}
                           @if (model.id === status.value()?.served_model) {
-                            <span class="model-row__now">now serving</span>
+                            <span class="model-row__now" i18n="Model badge|This model is the one currently being served">now serving</span>
                           }
                         </span>
-                        <span class="model-row__meta">
+                        <span class="model-row__meta" i18n="Model size line|Parameter count, memory needed, and the memory both boxes have together">
                           @if (model.parameters_b) {
                             {{ model.parameters_b }}B ·
                           }
@@ -329,16 +352,16 @@
                       <span class="model-row__fit" [attr.data-verdict]="fitOf(model)">
                         @switch (fitOf(model)) {
                           @case ('fits') {
-                            ✅ Fits across both boxes
+                            <ng-container i18n="Fit verdict|The model fits the two boxes together">✅ Fits across both boxes</ng-container>
                           }
                           @case ('tight') {
-                            ⚠️ Tight — may need reduced context
+                            <ng-container i18n="Fit verdict|The model only just fits the available memory">⚠️ Tight — may need reduced context</ng-container>
                           }
                           @case ('no') {
-                            ❌ Too big even for both boxes
+                            <ng-container i18n="Fit verdict|The model does not fit even both boxes together">❌ Too big even for both boxes</ng-container>
                           }
                           @default {
-                            ❓ Unknown
+                            <ng-container i18n="Fit verdict|The model's memory need could not be worked out">❓ Unknown</ng-container>
                           }
                         }
                       </span>
@@ -348,12 +371,12 @@
                         class="picker__apply"
                         (click)="applyModel(model)"
                         [disabled]="!canManageRuntime() || applying() || model.id === status.value()?.served_model || fitOf(model) === 'no'"
-                        [title]="canManageRuntime() ? '' : 'Only a system administrator can switch the box-wide model (ADR 0065)'"
+                        [title]="applyDisabledTitle()"
                       >
                         @if (model.id === status.value()?.served_model) {
-                          Already serving
+                          <ng-container i18n="Button|This model is already the one being served">Already serving</ng-container>
                         } @else {
-                          {{ applying() ? 'Starting…' : 'Apply' }}
+                          <ng-container i18n="Button|Switches the box to this model, showing progress while the swap starts">{applying(), select, true {Starting…} other {Apply}}</ng-container>
                         }
                       </button>
                     </div>
@@ -365,12 +388,12 @@
 
           @if (visibleModels().length === 0 && !searching()) {
             @if (quickFilter() === 'all-in-one') {
-              <p class="page-empty">
+              <p class="page-empty" i18n="Empty state|No single model handles both chat and photos well">
                 No available model reliably does both chat (tool calling) and photos today.
                 Pick a chat model first, then a photo model — the expanded panel guides you.
               </p>
             } @else {
-              <p class="page-empty">
+              <p class="page-empty" i18n="Empty state|The current filters match no models">
                 No models match these filters. Try "All" or search Hugging Face above.
               </p>
             }
@@ -392,20 +415,26 @@
                     <span class="model-row__label">
                       {{ model.label }}
                       @if (model.id === status.value()?.served_model) {
-                        <span class="model-row__now">now serving</span>
+                        <span class="model-row__now" i18n="Model badge|This model is the one currently being served">now serving</span>
                       }
                       @if (model.supports_vision) {
-                        <span title="vision-capable">📷</span>
+                        <span
+                          title="vision-capable"
+                          i18n-title="Model icon tooltip|The model can look at photos"
+                        >📷</span>
                       }
                       @if (model.gated) {
-                        <span title="gated on Hugging Face">🔒</span>
+                        <span
+                          title="gated on Hugging Face"
+                          i18n-title="Model icon tooltip|The model needs an access token; Hugging Face is a product name"
+                        >🔒</span>
                       }
                     </span>
                     <span class="model-row__meta">
                       @if (model.parameters_b) {
-                        {{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory
+                        <ng-container i18n="Model size line|Parameter count and the memory the model needs">{{ model.parameters_b }}B · ~{{ model.est_memory_gb }} GB memory</ng-container>
                       } @else {
-                        size unknown
+                        <ng-container i18n="Model size line|The model's size could not be worked out">size unknown</ng-container>
                       }
                     </span>
                   </div>
@@ -438,9 +467,9 @@
                     }
                     <!-- Live hub stats (drill-down, 2026-07-22) -->
                     @if (hubDetailLoading()) {
-                      <p class="model-detail__hub">Fetching Hugging Face stats…</p>
+                      <p class="model-detail__hub" i18n="Loading placeholder|Shown while the live model statistics load; Hugging Face is a product name">Fetching Hugging Face stats…</p>
                     } @else if (hubDetail(); as hub) {
-                      <p class="model-detail__hub">
+                      <p class="model-detail__hub" i18n="Model hub statistics|Downloads, likes, licence and last update of the model on Hugging Face">
                         ⬇️ {{ hub.downloads?.toLocaleString() ?? '—' }} downloads
                         · ❤️ {{ hub.likes ?? '—' }}
                         @if (hub.license) {
@@ -458,8 +487,8 @@
                       <p class="model-detail__plan">{{ plan.description }}</p>
                       <div class="fit__rows">
                         <div class="fit__row" [attr.data-verdict]="plan.memoryVerdict">
-                          <span class="fit__what">Memory (incl. ~15% headroom)</span>
-                          <span class="fit__numbers">
+                          <span class="fit__what" i18n="Fit row label|Memory the model needs, including runtime headroom">Memory (incl. ~15% headroom)</span>
+                          <span class="fit__numbers" i18n="Fit row figures|Memory the model needs against the memory this computer has free">
                             @if (plan.memoryGb !== null) {
                               {{ plan.memoryGb }} GB required ·
                             } @else {
@@ -477,39 +506,39 @@
                           <span class="fit__verdict">
                             @switch (plan.memoryVerdict) {
                               @case ('fits') {
-                                ✅ Fits this computer
+                                <ng-container i18n="Fit verdict|The model fits this computer's memory">✅ Fits this computer</ng-container>
                               }
                               @case ('tight') {
-                                ⚠️ Tight — may need reduced context
+                                <ng-container i18n="Fit verdict|The model only just fits the available memory">⚠️ Tight — may need reduced context</ng-container>
                               }
                               @case ('no') {
-                                ❌ Won't fit this computer
+                                <ng-container i18n="Fit verdict|The model needs more memory than this computer has">❌ Won't fit this computer</ng-container>
                               }
                               @default {
-                                ❓ Unknown
+                                <ng-container i18n="Fit verdict|The model's memory need could not be worked out">❓ Unknown</ng-container>
                               }
                             }
                           </span>
                         </div>
                         <div class="fit__row" [attr.data-verdict]="plan.diskVerdict">
-                          <span class="fit__what">Disk for downloads</span>
-                          <span class="fit__numbers">
+                          <span class="fit__what" i18n="Fit row label|Disk space the downloaded weights need">Disk for downloads</span>
+                          <span class="fit__numbers" i18n="Fit row figure|Disk the weights need against the free disk on this computer">
                             ~{{ plan.diskGb ?? '?' }} GB weights ·
                             {{ hardware.value()?.disk_free_gb ?? '?' }} GB free
                           </span>
                           <span class="fit__verdict">
                             @switch (plan.diskVerdict) {
                               @case ('fits') {
-                                ✅ Fits
+                                <ng-container i18n="Disk fit verdict|There is enough free disk">✅ Fits</ng-container>
                               }
                               @case ('tight') {
-                                ⚠️ Tight
+                                <ng-container i18n="Disk fit verdict|There is only just enough free disk">⚠️ Tight</ng-container>
                               }
                               @case ('no') {
-                                ❌ Not enough free disk
+                                <ng-container i18n="Disk fit verdict|There is not enough free disk">❌ Not enough free disk</ng-container>
                               }
                               @default {
-                                ❓ Unknown
+                                <ng-container i18n="Fit verdict|The model's memory need could not be worked out">❓ Unknown</ng-container>
                               }
                             }
                           </span>
@@ -517,12 +546,12 @@
                       </div>
                     }
                     @if (model.gated) {
-                      <p class="model-detail__gated">
+                      <p class="model-detail__gated" i18n="Model warning|The model needs an access token; HUGGING_FACE_HUB_TOKEN is an environment variable name and Hugging Face is a product name">
                         🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN.
                       </p>
                     }
                     @if (model.role !== 'vision' && !model.tool_parser) {
-                      <p class="model-detail__gated">
+                      <p class="model-detail__gated" i18n="Model warning|The model cannot call the financial tools, so it is a poor chat model">
                         ⚠️ This model can't call the financial tools — as the chat model,
                         answers fall back to deterministic snapshots. Best applied as the
                         photo model.
@@ -535,12 +564,12 @@
                         class="picker__apply"
                         (click)="applyModel(model)"
                         [disabled]="!canManageRuntime() || applying() || model.id === status.value()?.served_model || fitOf(model) === 'no'"
-                        [title]="canManageRuntime() ? '' : 'Only a system administrator can switch the box-wide model (ADR 0065)'"
+                        [title]="applyDisabledTitle()"
                       >
                         @if (model.id === status.value()?.served_model) {
-                          Already serving
+                          <ng-container i18n="Button|This model is already the one being served">Already serving</ng-container>
                         } @else {
-                          {{ applying() ? 'Starting…' : 'Apply — download & switch now' }}
+                          <ng-container i18n="Button|Downloads and switches to this model, showing progress while the swap starts">{applying(), select, true {Starting…} other {Apply — download & switch now}}</ng-container>
                         }
                       </button>
                       @if (model.supports_vision && model.role !== 'vision') {
@@ -551,11 +580,11 @@
                           (click)="applyAsVision(model)"
                           [disabled]="applying() || model.id === status.value()?.vision_model"
                         >
-                          {{
-                            model.id === status.value()?.vision_model
-                              ? 'Already the photo model'
-                              : 'Apply as photo model only'
-                          }}
+                          @if (model.id === status.value()?.vision_model) {
+                            <ng-container i18n="Button|This model already analyses the photos">Already the photo model</ng-container>
+                          } @else {
+                            <ng-container i18n="Button|Uses this model for photos only, keeping the current chat model">Apply as photo model only</ng-container>
+                          }
                         </button>
                       } @else if (model.role !== 'vision') {
                         <button
@@ -563,6 +592,7 @@
                           type="button"
                           class="model-detail__as-photo"
                           (click)="pickPhotoModelNext()"
+                          i18n="Button|Guides the user on to choosing a photo model"
                         >
                           Next: pick a photo model →
                         </button>
@@ -574,7 +604,13 @@
             }
           </ul>
           @if (hiddenCount() > 0) {
-            <button mat-button type="button" class="browse__more" (click)="showMore()">
+            <button
+              mat-button
+              type="button"
+              class="browse__more"
+              (click)="showMore()"
+              i18n="Button|Reveals the models hidden below the fold"
+            >
               Show {{ hiddenCount() }} more
             </button>
           }
@@ -583,14 +619,14 @@
 
       <!-- ===================== Advanced raw configuration ===================== -->
       <details class="advanced">
-        <summary>Advanced configuration</summary>
-        <p class="advanced__current">
+        <summary i18n="Section heading|Raw AI runtime settings, hidden by default">Advanced configuration</summary>
+        <p class="advanced__current" i18n="Advanced summary|Which model answers chat and which analyses photos right now">
           Currently serving: <strong>{{ status.value()?.served_model || '—' }}</strong>
-          (main) + <strong>{{ status.value()?.vision_model || 'off' }}</strong> (vision)
+          (main) + <strong>{{ status.value()?.vision_model || offLabel }}</strong> (vision)
         </p>
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="ai-runtime-form">
           <mat-form-field appearance="outline">
-            <mat-label>Provider</mat-label>
+            <mat-label i18n="Form field label|Which serving engine runs the model">Provider</mat-label>
             <mat-select formControlName="provider">
               @for (provider of providers; track provider) {
                 <mat-option [value]="provider">{{ provider }}</mat-option>
@@ -599,16 +635,20 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Base URL</mat-label>
+            <mat-label i18n="Form field label|Address the serving engine listens on">Base URL</mat-label>
             <input matInput type="text" formControlName="base_url" placeholder="http://vllm:8000" />
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Main model</mat-label>
+            <mat-label i18n="Form field label|Identifier of the model that answers chat questions">Main model</mat-label>
             <input matInput type="text" formControlName="model" placeholder="Qwen/Qwen2.5-32B-Instruct" />
           </mat-form-field>
 
-          <mat-checkbox class="ai-runtime-form__checkbox" formControlName="enabled">
+          <mat-checkbox
+            class="ai-runtime-form__checkbox"
+            formControlName="enabled"
+            i18n="Checkbox|Turns the AI runtime on"
+          >
             Enabled
           </mat-checkbox>
 
@@ -616,18 +656,23 @@
             <p class="page-error" role="alert">{{ message }}</p>
           }
           @if (submitSuccess()) {
-            <p class="ai-runtime-form__success">Saved.</p>
+            <p class="ai-runtime-form__success" i18n="Success notice|The raw configuration was saved">Saved.</p>
           }
 
-          <button mat-flat-button type="submit" [disabled]="submitting()">
-            {{ submitting() ? 'Saving…' : 'Save' }}
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="submitting()"
+            i18n="Button|Saves the raw configuration, showing progress while the request is in flight"
+          >
+            {submitting(), select, true {Saving…} other {Save}}
           </button>
         </form>
 
         @if (form.value.provider === 'vllm') {
           <div class="advanced__vision">
-            <h3>Vision model</h3>
-            <p class="advanced__vision-note">
+            <h3 i18n="Section heading|Settings for the model that analyses photos">Vision model</h3>
+            <p class="advanced__vision-note" i18n="Advanced note|Explains that changing the photo model restarts its container and that one model can serve both roles">
               The photo model is served by a separate container; changing it triggers a model swap
               and <strong>restarts the vision container</strong> (empty = photo analysis off).
               Entering the same model as the chat model runs <strong>one</strong> container that
@@ -635,7 +680,7 @@
             </p>
             <div class="advanced__vision-form">
               <mat-form-field appearance="outline" class="advanced__vision-field" subscriptSizing="dynamic">
-                <mat-label>Vision model</mat-label>
+                <mat-label i18n="Form field label|Identifier of the model that analyses photos">Vision model</mat-label>
                 <input
                   matInput
                   type="text"
@@ -650,8 +695,9 @@
                 type="button"
                 (click)="applyVisionModel()"
                 [disabled]="applyingVision()"
+                i18n="Button|Switches the photo model, showing progress while the swap starts"
               >
-                {{ applyingVision() ? 'Applying…' : 'Apply vision model' }}
+                {applyingVision(), select, true {Applying…} other {Apply vision model}}
               </button>
             </div>
             @if (visionApplyError(); as message) {
@@ -661,21 +707,21 @@
         }
       </details>
     } @else {
-      <p class="page-empty">Only the household owner can change the AI runtime configuration.</p>
+      <p class="page-empty" i18n="Permission notice|Shown instead of the runtime settings to everyone but the owner">Only the household owner can change the AI runtime configuration.</p>
     }
 
     <!-- ================= Knowledge of your data (ADR 0040) ================= -->
     @if (study.value(); as knowledge) {
       <div class="study">
-        <h2>Knowledge of your data</h2>
-        <p class="study__note">
+        <h2 i18n="Section heading|What the advisor has learned from the household's history">Knowledge of your data</h2>
+        <p class="study__note" i18n="Study explanation|Says how the advisor studies the history and that the notes stay reviewable and deletable">
           While nobody is chatting, the advisor studies your history one month at a time and
           remembers the patterns — spending habits, income rhythm, seasonal costs. Knowledge is
           stored as reviewable notes, never trained into the model, so it stays current and
           deletable.
         </p>
         @if (knowledge.total_months === 0) {
-          <p class="study__empty">Nothing to study yet — add or import transactions first.</p>
+          <p class="study__empty" i18n="Empty state|There is no history for the advisor to study yet">Nothing to study yet — add or import transactions first.</p>
         } @else {
           <div class="study__coverage">
             <div
@@ -689,7 +735,7 @@
             </div>
             <span class="study__percent">{{ knowledge.coverage_percent }}%</span>
           </div>
-          <p class="study__months">
+          <p class="study__months" i18n="Study progress|How many complete months of history have been studied, and whether studying is paused">
             Studied {{ knowledge.studied_months }} of {{ knowledge.total_months }} complete months
             of your history.
             @if (!knowledge.runtime_usable) {
@@ -697,14 +743,19 @@
             }
           </p>
           @if (knowledge.insights.length > 0) {
-            <h3>What it has learned</h3>
+            <h3 i18n="Section heading|The patterns the advisor has learned">What it has learned</h3>
             <ul class="study__insights">
               @for (insight of knowledge.insights.slice(0, studyInsightsShown()); track insight.key) {
                 <li>{{ insight.value }}</li>
               }
             </ul>
             @if (knowledge.insights.length > studyInsightsShown()) {
-              <button mat-button type="button" (click)="studyInsightsShown.set(knowledge.insights.length)">
+              <button
+                mat-button
+                type="button"
+                (click)="studyInsightsShown.set(knowledge.insights.length)"
+                i18n="Button|Expands the list to show every learned insight"
+              >
                 Show all {{ knowledge.insights.length }}
               </button>
             }

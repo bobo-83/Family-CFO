@@ -44,7 +44,7 @@ export class Categories {
     const { data, error } = await this.api.listCategories();
     this.loading.set(false);
     if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, 'Failed to load categories.'));
+      this.loadError.set(apiErrorMessage(error, $localize`Failed to load categories.`));
       return;
     }
     this.categories.set(data.categories);
@@ -68,7 +68,7 @@ export class Categories {
     const { error } = await this.api.createCategory({ name });
     this.submitting.set(false);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to create category.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to create category.`));
       return;
     }
     this.form.reset({ name: '' });
@@ -76,25 +76,27 @@ export class Categories {
   }
 
   protected async rename(category: Category): Promise<void> {
-    const name = prompt('Rename category', category.name)?.trim();
+    const name = prompt($localize`:Prompt|Browser prompt title when renaming a spending category:Rename category`, category.name)?.trim();
     if (!name || name === category.name) {
       return;
     }
     const { error } = await this.api.updateCategory(category.id, { name });
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to rename category.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to rename category.`));
       return;
     }
     await this.load();
   }
 
   protected async remove(id: string): Promise<void> {
-    if (!confirm('Delete this category? Transactions using it will become uncategorized.')) {
+    if (!confirm(
+        $localize`:Confirmation|Browser confirm before a spending category is deleted:Delete this category? Transactions using it will become uncategorized.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteCategory(id);
     if (error) {
-      this.submitError.set(apiErrorMessage(error, 'Failed to delete category.'));
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete category.`));
       return;
     }
     await this.load();

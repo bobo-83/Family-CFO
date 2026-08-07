@@ -1,12 +1,12 @@
-<h1>Transactions</h1>
+<h1 i18n="Page title|Ledger of individual transactions">Transactions</h1>
 
 @if (canWrite()) {
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form class="txn-form" [formGroup]="form" (ngSubmit)="submit()">
-      <h2>Add a transaction</h2>
+      <h2 i18n="Section heading|Form that records a new transaction">Add a transaction</h2>
       <mat-form-field appearance="outline">
-        <mat-label>Account</mat-label>
+        <mat-label i18n="Form field label|Account the transaction belongs to">Account</mat-label>
         <mat-select formControlName="accountId">
           @for (account of accounts.value() ?? []; track account.id) {
             <mat-option [value]="account.id">{{ account.name }}</mat-option>
@@ -14,31 +14,31 @@
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Date</mat-label>
+        <mat-label i18n="Form field label|Day the transaction happened">Date</mat-label>
         <input matInput type="date" formControlName="occurredAt" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Amount (negative for spending)</mat-label>
+        <mat-label i18n="Form field label|Transaction amount; a negative number is money going out">Amount (negative for spending)</mat-label>
         <input matInput type="number" step="0.01" formControlName="amount" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Merchant</mat-label>
+        <mat-label i18n="Form field label|Shop or payee the money went to">Merchant</mat-label>
         <input matInput type="text" formControlName="merchant" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Description</mat-label>
+        <mat-label i18n="Form field label|Free-text note about the transaction">Description</mat-label>
         <input matInput type="text" formControlName="description" />
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Category</mat-label>
+        <mat-label i18n="Form field label|Spending category for the transaction">Category</mat-label>
         <mat-select formControlName="categoryId">
-          <mat-option value="">Uncategorized</mat-option>
+          <mat-option value="" i18n="Category option|Transaction with no spending category">Uncategorized</mat-option>
           @for (category of categories.value() ?? []; track category.id) {
             <mat-option [value]="category.id">{{ category.name }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
-      <button mat-flat-button type="submit" [disabled]="submitting()">Add transaction</button>
+      <button mat-flat-button type="submit" [disabled]="submitting()" i18n="Button|Saves the new transaction">Add transaction</button>
       @if (submitError()) {
         <p class="txn-form__error">{{ submitError() }}</p>
       }
@@ -46,11 +46,11 @@
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="txn-note">Only the household owner or an adult member can add transactions.</p>
+  <p class="txn-note" i18n="Permission notice|Shown instead of the add-transaction form to members without the right">Only the household owner or an adult member can add transactions.</p>
 }
 
 @if (transactions.isLoading()) {
-  <p>Loading transactions…</p>
+  <p i18n="Loading placeholder|While the transaction list is being fetched">Loading transactions…</p>
 } @else if (transactions.error()) {
   <p class="txn-error">{{ transactions.error() }}</p>
 } @else {
@@ -59,10 +59,10 @@
     <table class="txn-table">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Merchant</th>
-          <th>Category</th>
-          <th class="txn-table__amount">Amount</th>
+          <th i18n="Table column|Day the transaction happened">Date</th>
+          <th i18n="Table column|Shop or payee the money went to">Merchant</th>
+          <th i18n="Table column|Spending category of the transaction">Category</th>
+          <th class="txn-table__amount" i18n="Table column|Money moved by the transaction">Amount</th>
           @if (canWrite()) {
             <th></th>
           }
@@ -80,8 +80,9 @@
                     [value]="txn.category_id ?? ''"
                     (selectionChange)="setCategory(txn.id, $event.value)"
                     aria-label="Transaction category"
+                    i18n-aria-label="Select accessible name|Changes this transaction's spending category"
                   >
-                    <mat-option value="">Uncategorized</mat-option>
+                    <mat-option value="" i18n="Category option|Transaction with no spending category">Uncategorized</mat-option>
                     @for (category of categories.value() ?? []; track category.id) {
                       <mat-option [value]="category.id">{{ category.name }}</mat-option>
                     }
@@ -94,7 +95,13 @@
             <td class="txn-table__amount">{{ formatMoney(txn.amount) }}</td>
             @if (canWrite()) {
               <td>
-                <button mat-button type="button" class="txn-table__delete" (click)="remove(txn.id)">
+                <button
+                  mat-button
+                  type="button"
+                  class="txn-table__delete"
+                  (click)="remove(txn.id)"
+                  i18n="Button|Deletes this transaction"
+                >
                   Delete
                 </button>
               </td>
@@ -102,7 +109,7 @@
           </tr>
         } @empty {
           <tr>
-            <td colspan="5">No transactions yet.</td>
+            <td colspan="5" i18n="Empty state|No transactions have been recorded">No transactions yet.</td>
           </tr>
         }
       </tbody>

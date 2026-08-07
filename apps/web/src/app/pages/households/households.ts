@@ -40,7 +40,7 @@ export class Households {
       }
       const { data, error } = await this.api.listHostedHouseholds();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load households.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load households.`));
       }
       this.offboxRetentionDays.set(data.offbox_backup_retention_days);
       return data.households;
@@ -81,7 +81,7 @@ export class Households {
     });
     this.creating.set(false);
     if (error || !data) {
-      this.createError.set(apiErrorMessage(error, 'Failed to create the household.'));
+      this.createError.set(apiErrorMessage(error, $localize`Failed to create the household.`));
       return;
     }
     this.createForm.reset({ displayName: '', baseCurrency: 'USD', ownerEmail: '' });
@@ -123,14 +123,11 @@ export class Households {
     const days = this.offboxRetentionDays();
     const horizon =
       days > 0
-        ? `Their data remains only in encrypted backups, fully gone within ${days} days.`
-        : 'Their data remains in encrypted off-box backups until you prune them ' +
-          '(set an off-box retention limit to bound this).';
+        ? $localize`:Deletion horizon|How long a deleted household lingers when off-box backups are pruned on a schedule:Their data remains only in encrypted backups, fully gone within ${days}:days: days.`
+        : $localize`:Deletion horizon|How long a deleted household lingers when off-box backups are kept forever:Their data remains in encrypted off-box backups until you prune them (set an off-box retention limit to bound this).`;
     if (
       !confirm(
-        `Permanently delete ${household.name}? This removes the family's accounts, ` +
-          'transactions, advisor history, documents, and logins. It cannot be undone. ' +
-          horizon,
+        $localize`:Confirmation|Browser confirm before a hosted household is permanently deleted:Permanently delete ${household.name}:name:? This removes the family's accounts, transactions, advisor history, documents, and logins. It cannot be undone. ${horizon}:horizon:`,
       )
     ) {
       return;
@@ -141,7 +138,7 @@ export class Households {
     this.deletingId.set(null);
     if (error) {
       // 409 ("can't delete your own") and 404 carry human messages — verbatim.
-      this.deleteError.set(apiErrorMessage(error, 'Failed to delete the household.'));
+      this.deleteError.set(apiErrorMessage(error, $localize`Failed to delete the household.`));
       return;
     }
     this.households.reload();

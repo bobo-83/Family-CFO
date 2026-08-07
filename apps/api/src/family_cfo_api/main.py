@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import household_crypto
+from family_cfo_api import household_crypto, localization
 from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
@@ -60,8 +60,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
 
     @app.exception_handler(HTTPException)
-    async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONResponse:
+    async def handle_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
         message = exc.detail if isinstance(exc.detail, str) else "HTTP error"
+        # #10 phase 4: translate at the RESPONSE boundary. Every raise site
+        # keeps writing plain English (readable, greppable, testable) and the
+        # reader still gets their language — localizing ~180 call sites
+        # individually would be churn with more places to get it wrong.
+        message = localization.translate(message, request.headers.get("accept-language"))
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response("http_error", message),
@@ -72,13 +77,19 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_exception(
-        _request: Request,
+        request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content=error_response(
-                "validation_error", "Request validation failed", {"errors": exc.errors()}
+                "validation_error",
+                localization.translate(
+                    "Request validation failed", request.headers.get("accept-language")
+                ),
+                # The per-field errors stay English: they name FIELDS, which are
+                # contract identifiers, not prose for a reader.
+                {"errors": exc.errors()},
             ),
         )
 

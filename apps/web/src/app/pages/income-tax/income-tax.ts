@@ -42,6 +42,9 @@ export class IncomeTax {
   private readonly auth = inject(AuthService);
 
   protected readonly formatMoney = formatMoney;
+
+  /** Fallback name for a suspected-income deposit the bank left unlabelled. */
+  protected readonly depositLabel = $localize`:Transaction name|Fallback name for a deposit with no merchant or description:Deposit`;
   protected readonly canWrite = () => {
     return this.auth.hasRight('income.manage');
   };
@@ -78,7 +81,12 @@ export class IncomeTax {
     const { data, error } = await this.api.getIncomeAnalysis();
     this.loading.set(false);
     if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, 'Failed to load the income analysis.'));
+      this.loadError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The income analysis could not be loaded:Failed to load the income analysis.`,
+        ),
+      );
       return;
     }
     this.analysis.set(data);
@@ -114,7 +122,12 @@ export class IncomeTax {
       const { data, error } = await this.api.createCategory({ name: 'Income' });
       if (error || !data) {
         this.busy.set(null);
-        this.actionError.set(apiErrorMessage(error, 'Failed to create the Income category.'));
+        this.actionError.set(
+          apiErrorMessage(
+            error,
+            $localize`:Error message|The Income category could not be created:Failed to create the Income category.`,
+          ),
+        );
         return;
       }
       incomeId = data.id;
@@ -122,7 +135,12 @@ export class IncomeTax {
     const { error } = await this.api.updateTransaction(transaction.id, { category_id: incomeId });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to confirm as income.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The transfer could not be refiled as income:Failed to confirm as income.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -137,7 +155,12 @@ export class IncomeTax {
     const { error } = await this.api.setIncomeOverride(transaction.id, 'exclude');
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save the change.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|An income include or exclude decision could not be saved:Failed to save the change.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -155,7 +178,12 @@ export class IncomeTax {
     const { error } = await this.api.setIncomeOverride(transaction.transaction_id, verdict);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save the change.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|An income include or exclude decision could not be saved:Failed to save the change.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -178,7 +206,12 @@ export class IncomeTax {
     });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to recategorize.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The deposit could not be moved to another category:Failed to recategorize.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -269,7 +302,12 @@ export class IncomeTax {
     const { error } = await this.api.createIncomeEarner(body);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save the earner.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The earner could not be added to the compensation profile:Failed to save the earner.`,
+        ),
+      );
       return;
     }
     this.earnerForm = this.emptyEarnerForm();
@@ -286,7 +324,12 @@ export class IncomeTax {
     const { error } = await this.api.deleteIncomeEarner(id);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to remove the earner.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The earner could not be deleted:Failed to remove the earner.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -344,7 +387,12 @@ export class IncomeTax {
     });
     this.scanning.set(false);
     if (error || !data) {
-      this.actionError.set(apiErrorMessage(error, 'W2 scan failed.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The uploaded W2 tax form could not be read:W2 scan failed.`,
+        ),
+      );
       return;
     }
     // Prefill only — the user confirms every value before saving.
@@ -386,9 +434,12 @@ export class IncomeTax {
 
   protected vestFrequencyLabel(frequency: RsuGrant['frequency']): string {
     return (
-      { monthly: 'monthly', quarterly: 'quarterly', semiannual: 'twice a year', annual: 'annually' }[
-        frequency
-      ] ?? frequency
+      {
+        monthly: $localize`:Vest cadence|Shares vest once a month:monthly`,
+        quarterly: $localize`:Vest cadence|Shares vest once every three months:quarterly`,
+        semiannual: $localize`:Vest cadence|Shares vest twice a year:twice a year`,
+        annual: $localize`:Vest cadence|Shares vest once a year:annually`,
+      }[frequency] ?? frequency
     );
   }
 
@@ -401,7 +452,12 @@ export class IncomeTax {
     const { data, error } = await this.api.refreshRsuQuotes();
     this.quoteBusy.set(false);
     if (error || !data) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to refresh the share price.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The live share price could not be fetched:Failed to refresh the share price.`,
+        ),
+      );
       return;
     }
     this.rsuGrants.set(data);
@@ -424,7 +480,12 @@ export class IncomeTax {
     });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to add the grant.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The stock grant could not be added:Failed to add the grant.`,
+        ),
+      );
       return;
     }
     this.grantForm = this.emptyGrantForm();
@@ -442,7 +503,12 @@ export class IncomeTax {
     const { error } = await this.api.deleteRsuGrant(grantId);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to delete the grant.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The stock grant could not be deleted:Failed to delete the grant.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -461,7 +527,12 @@ export class IncomeTax {
     });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to add the vest.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The vest could not be added to the grant:Failed to add the vest.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -480,7 +551,12 @@ export class IncomeTax {
     });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save the vest.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The edited vest could not be saved:Failed to save the vest.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -495,7 +571,12 @@ export class IncomeTax {
     const { error } = await this.api.deleteRsuVestEvent(eventId);
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to delete the vest.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The vest could not be deleted:Failed to delete the vest.`,
+        ),
+      );
       return;
     }
     await this.load();
@@ -514,7 +595,12 @@ export class IncomeTax {
     });
     this.busy.set(null);
     if (error) {
-      this.actionError.set(apiErrorMessage(error, 'Failed to save tax settings.'));
+      this.actionError.set(
+        apiErrorMessage(
+          error,
+          $localize`:Error message|The filing status, state or take-home toggle could not be saved:Failed to save tax settings.`,
+        ),
+      );
       return;
     }
     await this.load();

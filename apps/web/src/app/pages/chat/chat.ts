@@ -67,9 +67,9 @@ export function encodePdfFile(file: File): Promise<AttachedImage> {
 }
 
 const EXAMPLE_PROMPTS = [
-  'Can I afford a $1,000 phone?',
-  'How are we doing this month?',
-  'If I invest $5,000 at 6% for 20 years, what could it grow to?',
+  $localize`:Example question|Starter prompt offered on an empty advisor thread:Can I afford a $1,000 phone?`,
+  $localize`:Example question|Starter prompt offered on an empty advisor thread:How are we doing this month?`,
+  $localize`:Example question|Starter prompt offered on an empty advisor thread:If I invest $5,000 at 6% for 20 years, what could it grow to?`,
 ];
 
 @Component({
@@ -112,12 +112,25 @@ export class Chat implements OnDestroy {
   protected readonly examplePrompts = EXAMPLE_PROMPTS;
   protected readonly formatMoney = formatMoney;
 
+  // These four ride interpolated [attr.aria-label]/[title] bindings, so they are
+  // localized here rather than with i18n-<attr> (which Angular silently drops on
+  // a bound attribute).
+  protected readonly readAloudLabel = $localize`:Button accessible name|Reads this advisor answer aloud:Read this answer aloud`;
+  protected readonly stopReadingLabel = $localize`:Button accessible name|Stops the answer being read aloud:Stop reading`;
+  protected readonly readAloudTitle = $localize`:Tooltip|Reads this advisor answer aloud:Read aloud`;
+  protected readonly stopReadingTitle = $localize`:Tooltip|Stops the answer being read aloud:Stop`;
+
+  /** Screen-reader name for the ✕ on a saved conversation. */
+  protected deleteConversationLabel(title: string): string {
+    return $localize`:Button accessible name|Deletes one saved advisor conversation:Delete conversation ${title}:title:`;
+  }
+
   // Live runtime status for the banner: is a model loaded, and which one.
   protected readonly aiStatus = resource({
     loader: async () => {
       const { data, error } = await this.api.getAiRuntimeStatus();
       if (error || !data) {
-        throw new Error(apiErrorMessage(error, 'Could not check AI status.'));
+        throw new Error(apiErrorMessage(error, $localize`Could not check AI status.`));
       }
       return data;
     },
@@ -151,7 +164,7 @@ export class Chat implements OnDestroy {
     loader: async () => {
       const { data, error } = await this.api.listConversations();
       if (error) {
-        throw new Error(apiErrorMessage(error, 'Failed to load conversations.'));
+        throw new Error(apiErrorMessage(error, $localize`Failed to load conversations.`));
       }
       return data.conversations;
     },
@@ -197,7 +210,9 @@ export class Chat implements OnDestroy {
       );
       this.errorMessage.set(null);
     } catch {
-      this.errorMessage.set('Could not read that file — try a different photo or PDF.');
+      this.errorMessage.set(
+        $localize`Could not read that file — try a different photo or PDF.`,
+      );
     }
   }
 
@@ -225,7 +240,9 @@ export class Chat implements OnDestroy {
       this.attachedFile.set({ base64, name: file.name });
       this.errorMessage.set(null);
     } catch {
-      this.errorMessage.set('Could not read that file — try a CSV, spreadsheet, or text file.');
+      this.errorMessage.set(
+        $localize`Could not read that file — try a CSV, spreadsheet, or text file.`,
+      );
     }
   }
 
@@ -456,6 +473,19 @@ export class Chat implements OnDestroy {
     return 'Low';
   }
 
+  /** The same three levels as words for the reader; the label above stays an
+   *  identifier because the confidence chip styles itself off it. */
+  protected confidenceText(confidence: number): string {
+    switch (this.confidenceLabel(confidence)) {
+      case 'High':
+        return $localize`:Advisor confidence level|The advisor is very sure of the answer:High`;
+      case 'Medium':
+        return $localize`:Advisor confidence level|The advisor is moderately sure of the answer:Medium`;
+      default:
+        return $localize`:Advisor confidence level|The advisor is not very sure of the answer:Low`;
+    }
+  }
+
   protected confidencePercent(confidence: number): number {
     return Math.round(confidence * 100);
   }
@@ -470,12 +500,14 @@ export class Chat implements OnDestroy {
 
   protected async deleteConversation(id: string, event: Event): Promise<void> {
     event.stopPropagation();
-    if (!window.confirm('Delete this conversation and its messages? This cannot be undone.')) {
+    if (!window.confirm(
+        $localize`:Confirmation|Browser confirm shown before an advisor conversation is deleted:Delete this conversation and its messages? This cannot be undone.`,
+      )) {
       return;
     }
     const { error } = await this.api.deleteConversation(id);
     if (error) {
-      this.errorMessage.set(apiErrorMessage(error, 'Failed to delete the conversation.'));
+      this.errorMessage.set(apiErrorMessage(error, $localize`Failed to delete the conversation.`));
       return;
     }
     if (this.conversationId() === id) {
@@ -492,7 +524,7 @@ export class Chat implements OnDestroy {
     this.errorMessage.set(null);
     const { data, error } = await this.api.getConversation(id);
     if (error || !data) {
-      this.errorMessage.set(apiErrorMessage(error, 'Failed to open that conversation.'));
+      this.errorMessage.set(apiErrorMessage(error, $localize`Failed to open that conversation.`));
       return;
     }
     this.conversationId.set(data.id);
@@ -524,7 +556,7 @@ export class Chat implements OnDestroy {
     if (error) {
       turn.rating = previous;
       this.turns.update((turns) => [...turns]);
-      this.errorMessage.set(apiErrorMessage(error, 'Could not save your feedback.'));
+      this.errorMessage.set(apiErrorMessage(error, $localize`Could not save your feedback.`));
     }
   }
 
@@ -575,7 +607,7 @@ export class Chat implements OnDestroy {
     this.progressDetail.set(null);
 
     if (error || !data) {
-      this.errorMessage.set(apiErrorMessage(error, 'The advisor could not answer. Please try again.'));
+      this.errorMessage.set(apiErrorMessage(error, $localize`The advisor could not answer. Please try again.`));
       return;
     }
 
