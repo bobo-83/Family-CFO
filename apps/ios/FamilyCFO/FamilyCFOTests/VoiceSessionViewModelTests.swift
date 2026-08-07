@@ -311,6 +311,10 @@ struct VoiceSessionViewModelTests {
             unsettled: .milliseconds(40),
             hangingClause: .milliseconds(40)
         )
+        // A starved CI runner can stall this test past the 10s noise-escape
+        // hatch, which then sends BY DESIGN and fails the hold assertion —
+        // the hatch is product behavior, the stall is not.
+        model.noiseEscapeGrace = .seconds(600)
 
         await model.begin()
         // "Still talking" is pinned BEFORE the transcript arrives: on a

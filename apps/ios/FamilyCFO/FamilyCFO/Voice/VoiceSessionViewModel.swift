@@ -30,6 +30,10 @@ final class VoiceSessionViewModel: Identifiable {
     /// timer: a mid-sentence hesitation must not be mistaken for a finished
     /// question (see `EndOfUtterance`).
     var endOfUtterance = EndOfUtterance()
+    /// How long a frozen transcript can outlive the silence threshold before
+    /// the noise-escape hatch sends anyway. Tests raise it; product default
+    /// stays 10s.
+    var noiseEscapeGrace: Duration = .seconds(10)
 
     private let api: AdvisorAPI
     private let engine: SpeechEngine
@@ -131,8 +135,10 @@ final class VoiceSessionViewModel: Identifiable {
                 let required = self.endOfUtterance.requiredSilence(after: self.transcript)
                 // Steady non-speech noise (a fan, traffic) must not hold the
                 // turn open forever: once the transcript has sat unchanged far
-                // beyond the threshold, send what we have.
-                let noiseEscape = sinceTranscript >= required + .seconds(10)
+                // beyond the threshold, send what we have. Injectable because
+                // a starved CI runner can stall a test past any fixed grace,
+                // firing this hatch mid-assertion (observed 2026-08-07).
+                let noiseEscape = sinceTranscript >= required + self.noiseEscapeGrace
                 if !self.transcript.isEmpty, quietFor >= required || noiseEscape {
                     // Hop to a fresh task: sendCurrentUtterance cancels the
                     // silence watcher as cleanup, and running it INSIDE the
