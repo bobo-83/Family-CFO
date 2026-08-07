@@ -86,6 +86,11 @@ extension HouseholdAPI {
 
 struct LiveHouseholdAPI: HouseholdAPI {
     let client: Client
+    /// Fired with every LIVE (current-month) context this client fetches,
+    /// whichever screen asked — AppModel seeds its household-language cache
+    /// from the first one (#10). The app launches into the Advisor tab, so
+    /// Overview's load alone would run too late for a read-aloud tap there.
+    var onContext: (@MainActor @Sendable (Components.Schemas.HouseholdContext) -> Void)? = nil
 
     func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
         switch try await client.getYearlyOverview(.init(query: .init(year: year))) {
@@ -116,7 +121,11 @@ struct LiveHouseholdAPI: HouseholdAPI {
     func context(month: String?) async throws -> Components.Schemas.HouseholdContext {
         switch try await client.getHouseholdContext(.init(query: .init(month: month))) {
         case .ok(let response):
-            return try response.body.json
+            let context = try response.body.json
+            // Only the live context speaks for household settings — a frozen
+            // past-month snapshot may predate a language change.
+            if month == nil, let onContext { await onContext(context) }
+            return context
         case .unauthorized:
             throw APIError.unauthorized
         case .undocumented(let status, _):

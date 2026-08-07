@@ -213,12 +213,104 @@ struct FallbackSpeechSynthesizerTests {
     @Test func englishStillPrefersTheNaturalVoice() async {
         let primary = StubThrowingSynthesizer()
         let system = RecordingSystemSynthesizer()
-        let synthesizer = FallbackSpeechSynthesizer(primary: primary, fallback: system)
+        let synthesizer = FallbackSpeechSynthesizer(
+            primary: primary, fallback: system, prefersSystemVoice: { false })
 
         await synthesizer.speak("Net worth is up.", language: "en")
 
         #expect(primary.spoken == ["Net worth is up."])
         #expect(system.spoken.isEmpty)
+    }
+
+    /// The per-device toggle: a household can elect the phone's built-in voice
+    /// for English answers too — the same bypass the languages get, but chosen.
+    @Test func preferringTheOnDeviceVoiceBypassesTheNaturalVoiceForEnglish() async {
+        let primary = StubThrowingSynthesizer()
+        let system = RecordingSystemSynthesizer()
+        let synthesizer = FallbackSpeechSynthesizer(
+            primary: primary, fallback: system, prefersSystemVoice: { true })
+
+        await synthesizer.speak("Net worth is up.", language: "en")
+
+        #expect(primary.spoken.isEmpty)
+        #expect(system.spoken == ["Net worth is up."])
+    }
+
+    /// The language bypass does not depend on the toggle: Vietnamese must skip
+    /// the English-only model whatever this phone prefers.
+    @Test func languageBypassIgnoresTheVoicePreference() async {
+        let primary = StubThrowingSynthesizer()
+        let system = RecordingSystemSynthesizer()
+        let synthesizer = FallbackSpeechSynthesizer(
+            primary: primary, fallback: system, prefersSystemVoice: { false })
+
+        await synthesizer.speak("Giá trị tài sản ròng đang tăng.", language: "vi")
+
+        #expect(primary.spoken.isEmpty)
+        #expect(system.spoken == ["Giá trị tài sản ròng đang tăng."])
+    }
+
+    /// The preference is read per utterance, not captured at construction —
+    /// flipping the Settings toggle mid-session is heard on the next answer.
+    @Test func flippingThePreferenceMidSessionTakesEffectOnTheNextUtterance() async {
+        let primary = StubThrowingSynthesizer()
+        let system = RecordingSystemSynthesizer()
+        var prefer = false
+        let synthesizer = FallbackSpeechSynthesizer(
+            primary: primary, fallback: system, prefersSystemVoice: { prefer })
+
+        await synthesizer.speak("First answer.", language: "en")
+        prefer = true
+        await synthesizer.speak("Second answer.", language: "en")
+
+        #expect(primary.spoken == ["First answer."])
+        #expect(system.spoken == ["Second answer."])
+    }
+}
+
+/// The voice must follow the language OF THE TEXT, not the current household
+/// setting (user report, 2026-08-07: a Vietnamese answer read aloud after the
+/// household flipped back to English lost its Vietnamese voice).
+struct UtteranceLanguageTests {
+    /// The user's exact repro: Vietnamese text, household set to English.
+    @Test func vietnameseTextDetectsRegardlessOfTheHouseholdSetting() {
+        let detected = UtteranceLanguage.detect(
+            in: "Giá trị tài sản ròng của bạn đang tăng lên trong tháng này.",
+            householdLanguage: "en")
+        #expect(detected == "vi")
+    }
+
+    /// Grounding keeps some English fragments, and a fully-English answer in a
+    /// Vietnamese household must still get the English voice (and Kokoro).
+    @Test func englishTextKeepsTheEnglishVoiceInAVietnameseHousehold() {
+        let detected = UtteranceLanguage.detect(
+            in: "Your net worth is up four percent this month.",
+            householdLanguage: "vi")
+        #expect(detected == "en")
+    }
+
+    @Test func lithuanianTextDetectsInAnEnglishHousehold() {
+        let detected = UtteranceLanguage.detect(
+            in: "Jūsų grynoji vertė šį mėnesį išaugo keturiais procentais.",
+            householdLanguage: "en")
+        #expect(detected == "lt")
+    }
+
+    /// Bare numbers and empty strings carry no language of their own — the
+    /// household setting answers.
+    @Test func ambiguousTextFallsBackToTheHouseholdLanguage() {
+        #expect(UtteranceLanguage.detect(in: "1234567", householdLanguage: "vi") == "vi")
+        #expect(UtteranceLanguage.detect(in: "", householdLanguage: "lt") == "lt")
+    }
+
+    /// A diacritic-heavy merchant name inside an English answer pulls the
+    /// recognizer toward "vi" — but below the confidence floor, so the
+    /// household setting (here English) keeps the sentence on its voice.
+    @Test func englishAnswerCitingAVietnameseMerchantStaysOnTheHouseholdVoice() {
+        let detected = UtteranceLanguage.detect(
+            in: "You spent $84 at Phở Hà Nội last week, filed under Dining.",
+            householdLanguage: "en")
+        #expect(detected == "en")
     }
 }
 

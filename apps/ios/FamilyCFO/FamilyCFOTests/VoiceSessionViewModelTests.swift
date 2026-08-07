@@ -146,8 +146,8 @@ struct VoiceSessionViewModelTests {
         #expect(model.phase == .listening)
     }
 
-    /// #10 phase 1: answers are spoken in the household's language, read fresh
-    /// per utterance so a Settings change mid-session takes effect.
+    /// #10 phase 1: a Lithuanian answer in a Lithuanian household speaks with
+    /// the Lithuanian voice — detection and the household fallback agree.
     @Test func answersAreSpokenInTheHouseholdLanguage() async {
         let api = MockAdvisorAPI()
         api.response = groundedResponse("Jūsų santaupos auga.")
@@ -164,6 +164,26 @@ struct VoiceSessionViewModelTests {
 
         #expect(synth.spoken == ["Jūsų santaupos auga."])
         #expect(synth.languages == ["lt"])
+    }
+
+    /// The voice follows the language of the TEXT: a Vietnamese answer speaks
+    /// Vietnamese even while the household setting says English — an answer
+    /// can predate a language switch (user report, 2026-08-07).
+    @Test func vietnameseAnswerSpeaksVietnameseEvenInAnEnglishHousehold() async {
+        let api = MockAdvisorAPI()
+        api.response = groundedResponse("Giá trị tài sản ròng của bạn đang tăng lên trong tháng này.")
+        let engine = MockSpeechEngine()
+        let synth = MockSynthesizer()
+        let model = VoiceSessionViewModel(
+            api: api, conversationID: nil, engine: engine, synthesizer: synth,
+            language: { "en" })
+
+        await model.begin()
+        engine.hear("tiền của tôi thế nào")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(synth.languages == ["vi"])
     }
 
     /// The canned "no answer" apology must follow the household language too —

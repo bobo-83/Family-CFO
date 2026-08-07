@@ -189,12 +189,17 @@ final class VoiceSessionViewModel: Identifiable {
         lastAnswer = answer
         phase = .speaking
         let speakable = SpokenReply.speakable(answer)
-        let language = language()
+        let household = language()
         // An unspeakable answer must never be silent dead air — the user
-        // has no screen open to notice (user report, 2026-07-21).
+        // has no screen open to notice (user report, 2026-07-21). The voice
+        // follows the language OF THE TEXT (an answer can predate a language
+        // switch — user report, 2026-08-07); the apology alone follows the
+        // household setting, because it is generated here, not detected.
         await synthesizer.speak(
-            speakable.isEmpty ? Self.noAnswerApology(language: language) : speakable,
-            language: language)
+            speakable.isEmpty ? Self.noAnswerApology(language: household) : speakable,
+            language: speakable.isEmpty
+                ? household
+                : UtteranceLanguage.detect(in: speakable, householdLanguage: household))
         // Hands-free: keep the conversation going unless interrupted or
         // ended (both of which change phase out from under us).
         if phase == .speaking {

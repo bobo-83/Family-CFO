@@ -194,6 +194,13 @@ struct SettingsView: View {
     // MainTabView owns its tab view models).
     @State private var languageModel: HouseholdLanguageViewModel?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
+    // Per-device (deliberately NOT a household setting — it's about this
+    // phone's speaker, battery, and taste): speak English answers in the
+    // phone's built-in voice instead of the box's natural voice. Read per
+    // utterance by the synthesizer, so flipping it mid-session is heard on
+    // the very next answer.
+    @AppStorage(FallbackSpeechSynthesizer.prefersOnDeviceVoiceKey)
+    private var preferOnDeviceVoice = false
 
     // No NavigationStack of its own: pushed inside MoreView's stack — a second
     // stack here is exactly what doubled the nav bars (2026-07-22).
@@ -276,10 +283,13 @@ struct SettingsView: View {
                         Toggle(isOn: $showDisclaimer) {
                             Label("Show advisor disclaimer", systemImage: "text.badge.checkmark")
                         }
+                        Toggle(isOn: $preferOnDeviceVoice) {
+                            Label("Use this iPhone's voice", systemImage: "speaker.wave.2")
+                        }
                     } header: {
                         Text("Advisor")
                     } footer: {
-                        Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031).")
+                        Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031). English answers default to the box's natural voice when it's available; switch on this iPhone's voice to hear them in the phone's built-in voice instead — non-English answers always use it. A choice for this phone only.")
                     }
                 }
                 // Always present: Devices is listed for every member (only its

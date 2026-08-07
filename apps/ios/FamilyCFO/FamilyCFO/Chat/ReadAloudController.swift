@@ -38,9 +38,13 @@ final class ReadAloudController {
         stop()
         activateAudioSession()
         speakingMessageID = messageID
-        let language = language()
+        let speakable = SpokenReply.speakable(markdown)
+        // The voice follows the language OF THE TEXT, with the household
+        // setting as hint and fallback — the transcript holds answers from
+        // before any language switch (user report, 2026-08-07).
+        let language = UtteranceLanguage.detect(in: speakable, householdLanguage: language())
         task = Task { [weak self] in
-            await synthesizer.speak(SpokenReply.speakable(markdown), language: language)
+            await synthesizer.speak(speakable, language: language)
             guard let self, self.speakingMessageID == messageID else { return }
             self.speakingMessageID = nil
         }

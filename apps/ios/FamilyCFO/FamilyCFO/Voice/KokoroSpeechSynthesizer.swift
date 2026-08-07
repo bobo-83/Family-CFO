@@ -164,23 +164,39 @@ final class KokoroSpeechSynthesizer: ThrowingSpeechSynthesizing {
 /// session, which stays unaware that there is more than one voice.
 @MainActor
 final class FallbackSpeechSynthesizer: SpeechSynthesizing {
+    /// Per-device preference (this phone's speaker, battery, and taste — not a
+    /// household setting, so no API involved): speak English answers in the
+    /// phone's built-in voice instead of the box's Kokoro. Default false —
+    /// Kokoro stays the default voice.
+    nonisolated static let prefersOnDeviceVoiceKey = "family-cfo.preferOnDeviceVoice"
+
     private let primary: ThrowingSpeechSynthesizing
     private let fallback: SpeechSynthesizing
+    private let prefersSystemVoice: @MainActor () -> Bool
     private var isStopped = false
 
-    init(primary: ThrowingSpeechSynthesizing, fallback: SpeechSynthesizing) {
+    init(
+        primary: ThrowingSpeechSynthesizing,
+        fallback: SpeechSynthesizing,
+        prefersSystemVoice: @escaping @MainActor () -> Bool = {
+            UserDefaults.standard.bool(forKey: FallbackSpeechSynthesizer.prefersOnDeviceVoiceKey)
+        }
+    ) {
         self.primary = primary
         self.fallback = fallback
+        self.prefersSystemVoice = prefersSystemVoice
     }
 
     func speak(_ text: String, language: String?) async {
         isStopped = false
         // Kokoro is an English-only model — it reads Vietnamese or Lithuanian
         // text with English phonetics (user report, 2026-07-26). Non-English
-        // goes straight to the system voice. Decided here, per utterance, NOT
-        // at construction: the synthesizer is built once at configure time
-        // while the household language can change at any moment in Settings.
-        guard language == nil || language == "en" else {
+        // goes straight to the system voice; English does too when this phone
+        // prefers its own voice. Decided here, per utterance, NOT at
+        // construction: the synthesizer is built once at configure time while
+        // the household language and the Settings toggle can change at any
+        // moment.
+        guard (language == nil || language == "en") && !prefersSystemVoice() else {
             await fallback.speak(text, language: language)
             return
         }

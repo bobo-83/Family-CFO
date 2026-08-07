@@ -50,12 +50,8 @@ struct OverviewView: View {
             model.syncStatus.observe(viewModel?.context?.lastSyncedAt)
             if let month = viewModel?.selectedMonth { await warmMonthCache(month) }
         }
-        // Every context load (first load, pull-to-refresh, month hop) carries
-        // the household language — note it so the speech paths pick a matching
-        // voice without a fetch of their own (#10 phase 1).
-        .onChange(of: viewModel?.context?.language) { _, code in
-            if let code { model.householdLanguage = code }
-        }
+        // The household language rides along automatically: every live context
+        // fetch seeds AppModel.householdLanguage inside LiveHouseholdAPI (#10).
     }
 
     /// Load the month's transactions + categories into the shared cache (M105) so
