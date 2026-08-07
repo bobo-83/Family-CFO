@@ -1,6 +1,6 @@
-<h1>Devices</h1>
+<h1 i18n="Page title|Paired iPhone devices page">Devices</h1>
 
-<p class="page-hint">
+<p class="page-hint" i18n="Page intro|Explains device pairing; Family CFO is the product name and stays untranslated">
   Pair the Family CFO iPhone app by scanning a code from this screen. Paired
   devices get their own revocable credential — losing a phone never means
   changing your password.
@@ -13,51 +13,57 @@
 @if (canPair()) {
   <mat-card appearance="outlined" class="pairing-card">
     <mat-card-content>
-    <h2>Pair a device</h2>
+    <h2 i18n="Section heading|Creates a one-time pairing code for a phone">Pair a device</h2>
     @if (canPairForOthers() && members().length) {
       <mat-form-field appearance="outline" class="pairing-card__for">
-        <mat-label>Pair this code for</mat-label>
+        <mat-label i18n="Form field label|Which household member the pairing code is minted for">Pair this code for</mat-label>
         <mat-select
           [value]="pairFor()"
           (selectionChange)="pairFor.set($event.value); qrSvg.set(null)"
         >
-          <mat-option value="">Myself (this account)</mat-option>
+          <mat-option value="" i18n="Select option|Pair a device for the signed-in user rather than another member">Myself (this account)</mat-option>
           @for (m of members(); track m.user_id) {
             <mat-option [value]="m.user_id">{{ m.display_name }} ({{ m.role }})</mat-option>
           }
         </mat-select>
       </mat-form-field>
-      <p class="pairing-card__meta">
+      <p class="pairing-card__meta" i18n="Pairing hint|Why an owner would mint a code for another member">
         Generate a code for a member so they can pair on their phone — they never
         need to sign into this dashboard.
       </p>
     }
     @if (qrSvg(); as svg) {
       <div class="pairing-card__qr" [innerHTML]="svg"></div>
-      <p class="pairing-card__meta">
+      <p class="pairing-card__meta" i18n="Pairing hint|When the shown pairing code expires; Family CFO is the product name and stays untranslated">
         Scan with the Family CFO app. This code expires
         {{ qrExpiresAt() | date: 'shortTime' }} and can only be used once.
       </p>
       @if (fingerprint(); as fp) {
-        <p class="pairing-card__fingerprint">
+        <p class="pairing-card__fingerprint" i18n="Pairing detail|The TLS certificate fingerprint the phone app pins">
           Server certificate fingerprint (the app pins this):
           <code>{{ fp }}</code>
         </p>
       } @else {
-        <p class="pairing-card__meta">
+        <p class="pairing-card__meta" i18n="Pairing warning|No certificate fingerprint is available for the pairing code">
           ⚠️ No server certificate fingerprint available — the app will ask
           you to confirm the connection manually on first pairing.
         </p>
       }
       @if (qrPayload(); as payload) {
         <div class="pairing-card__paste">
-          <p class="pairing-card__meta">
+          <p class="pairing-card__meta" i18n="Pairing hint|How to pair when the dashboard is open on the same iPhone; Family CFO is the product name and the quoted phrase is a label inside the iPhone app">
             <strong>Pairing on this same iPhone?</strong> You can't scan a code on
             your own screen — copy it instead, open the Family CFO app's pairing
             screen, and paste it into “…or paste the pairing payload”.
           </p>
-          <button mat-stroked-button type="button" class="pairing-card__copy" (click)="copyPayload()">
-            {{ copied() ? '✓ Copied — now paste it in the app' : 'Copy pairing code' }}
+          <button
+            mat-stroked-button
+            type="button"
+            class="pairing-card__copy"
+            (click)="copyPayload()"
+            i18n="Button|Copies the pairing payload to the clipboard, confirming once copied"
+          >
+            {copied(), select, true {✓ Copied — now paste it in the app} other {Copy pairing code}}
           </button>
           <textarea
             class="pairing-card__payload"
@@ -67,16 +73,28 @@
           >{{ payload }}</textarea>
         </div>
       }
-      <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
+      <button
+        mat-flat-button
+        type="button"
+        [disabled]="busy() !== null"
+        (click)="showPairingCode()"
+        i18n="Button|Replaces the shown pairing code with a fresh one"
+      >
         Generate a new code
       </button>
     } @else {
-      <p class="pairing-card__meta">
+      <p class="pairing-card__meta" i18n="Pairing hint|What the pairing code contains and how long it lasts">
         The code carries the server address, its certificate fingerprint, and
         a one-time secret — valid for 10 minutes.
       </p>
-      <button mat-flat-button type="button" [disabled]="busy() !== null" (click)="showPairingCode()">
-        {{ busy() === 'qr' ? 'Generating…' : 'Show pairing code' }}
+      <button
+        mat-flat-button
+        type="button"
+        [disabled]="busy() !== null"
+        (click)="showPairingCode()"
+        i18n="Button|Mints and shows a pairing code, showing progress while the request is in flight"
+      >
+        {busy(), select, qr {Generating…} other {Show pairing code}}
       </button>
     }
     </mat-card-content>
@@ -85,16 +103,23 @@
 
 <mat-card appearance="outlined" class="pairing-card install-card">
   <mat-card-content>
-  <h2>Install the iPhone app</h2>
-  <p class="pairing-card__meta">
+  <h2 i18n="Section heading|How to install the companion iPhone app">Install the iPhone app</h2>
+  <p class="pairing-card__meta" i18n="Install hint|The install page must be opened in Safari on the phone itself">
     Open this page <strong>in Safari on the iPhone</strong> — on your home
     Wi-Fi or over the household VPN — to install or update the app. It downloads
     straight from this box; nothing leaves your network.
   </p>
-  <a mat-stroked-button class="install-card__button" href="/ota/" target="_blank" rel="noopener">
+  <a
+    mat-stroked-button
+    class="install-card__button"
+    href="/ota/"
+    target="_blank"
+    rel="noopener"
+    i18n="Link button|Opens the over-the-air install page for the iPhone app"
+  >
     Open the install page
   </a>
-  <p class="pairing-card__meta">
+  <p class="pairing-card__meta" i18n="Install hint|First-run certificate trust, and what a missing build looks like; the quoted phrase is Safari's own wording and the code is a script path that stays untranslated">
     First time on a device: you'll be asked to trust this box's certificate — the
     install page walks you through it. If the button shows “not found”, no build
     has been published yet (<code>scripts/deploy-ios-ota.sh</code>).
@@ -102,13 +127,13 @@
   </mat-card-content>
 </mat-card>
 
-<h2>Paired devices</h2>
+<h2 i18n="Section heading|The list of phones already paired with this household">Paired devices</h2>
 @if (loading()) {
-  <p>Loading…</p>
+  <p i18n="Loading placeholder">Loading…</p>
 } @else if (loadError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
 } @else if (devices().length === 0) {
-  <p class="page-empty">No devices paired yet.</p>
+  <p class="page-empty" i18n="Empty state|No phones have been paired yet">No devices paired yet.</p>
 } @else {
   <ul class="device-list">
     @for (device of devices(); track device.id) {
@@ -117,13 +142,13 @@
           <div class="device-list__name">
             {{ device.name }}
             @if (device.revoked_at) {
-              <span class="device-list__revoked">revoked</span>
+              <span class="device-list__revoked" i18n="Device badge|The device credential has been revoked">revoked</span>
             }
           </div>
           <div class="device-list__meta">
-            paired {{ device.created_at | date: 'MMM d, y' }}
+            <ng-container i18n="Device meta|When the device was paired">paired {{ device.created_at | date: 'MMM d, y' }}</ng-container>
             @if (device.last_seen_at) {
-              · last seen {{ device.last_seen_at | date: 'MMM d, y h:mm a' }}
+              <ng-container i18n="Device meta|When the device last contacted this box"> · last seen {{ device.last_seen_at | date: 'MMM d, y h:mm a' }}</ng-container>
             }
           </div>
         </div>
@@ -134,6 +159,7 @@
             class="device-list__revoke"
             [disabled]="busy() !== null"
             (click)="revoke(device)"
+            i18n="Button|Revokes this device's credential"
           >
             Revoke
           </button>

@@ -1,12 +1,12 @@
-<h1>Bills</h1>
+<h1 i18n="Page title|Everything that needs paying">Bills</h1>
 
-<p class="page-hint">
+<p class="page-hint" i18n="Page intro|Explains what the bills page collects">
   Everything that needs paying — bills, credit-card payments, and loan or lease
   payments — in one place, organized by when it's due (ADR 0024).
 </p>
 
 @if (loading()) {
-  <p>Loading…</p>
+  <p i18n="Loading placeholder">Loading…</p>
 } @else if (loadError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
 }
@@ -21,21 +21,21 @@
     <div class="timeline-headline__figures">
       <div>
         <div class="timeline-headline__amount">{{ formatMoney(headline.due_total) }}</div>
-        <div class="timeline-headline__label">due in the next {{ headline.window_days }} days</div>
+        <div class="timeline-headline__label" i18n="Bill timeline figure|Caption under the total that falls due inside the lookahead window">{headline.window_days, plural, =1 {due in the next day} other {due in the next {{ headline.window_days }} days}}</div>
       </div>
       <div class="timeline-headline__cash">
         <div class="timeline-headline__amount timeline-headline__amount--secondary">
           {{ formatMoney(headline.liquid_balance) }}
         </div>
-        <div class="timeline-headline__label">cash on hand</div>
+        <div class="timeline-headline__label" i18n="Bill timeline figure|Caption under the liquid balance">cash on hand</div>
       </div>
     </div>
     <div class="timeline-headline__verdict">
-      {{
-        headline.covered
-          ? '✓ Covered — your cash clears everything due.'
-          : '⚠ Short — what’s due exceeds your cash on hand.'
-      }}
+      @if (headline.covered) {
+        <ng-container i18n="Bill timeline verdict|Cash on hand covers everything that is due">✓ Covered — your cash clears everything due.</ng-container>
+      } @else {
+        <ng-container i18n="Bill timeline verdict|What is due exceeds the cash on hand">⚠ Short — what’s due exceeds your cash on hand.</ng-container>
+      }
     </div>
     </mat-card-content>
   </mat-card>
@@ -47,9 +47,9 @@
   @for (section of timelineSections(); track section.status) {
     <h2>{{ section.title }}</h2>
     @if (section.status === 'paid') {
-      <p class="page-hint">Matched to the actual charge — the receipt behind every checkmark.</p>
+      <p class="page-hint" i18n="Section hint|Explains the paid group of the payment timeline">Matched to the actual charge — the receipt behind every checkmark.</p>
     } @else if (section.status === 'no_date') {
-      <p class="page-hint">
+      <p class="page-hint" i18n="Section hint|Explains why some accounts have no due date yet">
         No payment seen on this account yet, so its due day can't be inferred.
       </p>
     }
@@ -68,14 +68,18 @@
                 >
                   {{ timelineStatusLine(item) }}
                   @if (item.paid_with?.source === 'linked') {
-                    <span class="timeline-list__linked">linked by you</span>
+                    <span class="timeline-list__linked" i18n="Payment provenance|The member linked this charge to the bill by hand">linked by you</span>
                   }
                 </div>
               </div>
               <div class="bill-list__amount">
                 {{ formatMoney(item.amount) }}
                 @if (item.status === 'paid') {
-                  <span class="timeline-list__check" aria-label="Paid">✓</span>
+                  <span
+                    class="timeline-list__check"
+                    aria-label="Paid"
+                    i18n-aria-label="Checkmark accessible name|Marks a row as already paid"
+                  >✓</span>
                 }
               </div>
               @if (canMarkPaid(item)) {
@@ -84,6 +88,7 @@
                   type="button"
                   class="bill-list__confirm timeline-list__mark-paid"
                   (click)="openMarkPaid(item)"
+                  i18n="Button|Opens the picker that links a charge to this bill"
                 >
                   Mark paid…
                 </button>
@@ -95,6 +100,7 @@
                   class="bill-list__delete timeline-list__unlink"
                   [disabled]="linkBusy()"
                   (click)="unlinkPayment(item)"
+                  i18n="Button|Detaches the charge linked to this bill"
                 >
                   Unlink
                 </button>
@@ -102,7 +108,7 @@
             </div>
             @if (markPaidItem() === item) {
               <div class="paylink-panel">
-                <p class="paylink-panel__hint">
+                <p class="paylink-panel__hint" i18n="Payment picker hint|Explains how the candidate charges are ordered">
                   Pick the charge that paid this bill. Charges that look like “{{ item.name }}”
                   are listed first.
                 </p>
@@ -111,7 +117,7 @@
                 }
                 @if (candidates(); as charges) {
                   @if (charges.length === 0 && !linkError()) {
-                    <p class="paylink-panel__empty">
+                    <p class="paylink-panel__empty" i18n="Payment picker empty state|No charges sit near the bill's due date">
                       No charges found near this due date — sync your accounts or add the
                       transaction first.
                     </p>
@@ -127,7 +133,11 @@
                           >
                             <span class="paylink-candidate__main">
                               <span class="paylink-candidate__name">
-                                {{ charge.merchant || charge.description || 'Charge' }}
+                                @if (charge.merchant || charge.description; as label) {
+                                  {{ label }}
+                                } @else {
+                                  <ng-container i18n="Charge fallback name|Shown when a transaction has neither merchant nor description">Charge</ng-container>
+                                }
                               </span>
                               <span class="paylink-candidate__meta">
                                 {{ charge.occurred_at | date: 'MMM d, y' }}
@@ -145,13 +155,14 @@
                     </ul>
                   }
                 } @else {
-                  <p class="paylink-panel__empty">Loading charges…</p>
+                  <p class="paylink-panel__empty" i18n="Loading placeholder|Candidate charges are being fetched">Loading charges…</p>
                 }
                 <button
                   mat-button
                   type="button"
                   class="bill-list__delete"
                   (click)="closeMarkPaid()"
+                  i18n="Button|Closes the payment picker without linking"
                 >
                   Cancel
                 </button>
@@ -165,13 +176,13 @@
   }
 }
 
-<h2>Manage bills</h2>
-<p class="page-hint">
+<h2 i18n="Section heading|The editable list of saved bills">Manage bills</h2>
+<p class="page-hint" i18n="Section hint|Where else the saved bills are used">
   Recurring bills also feed the Overview page's emergency-fund coverage estimate.
 </p>
 
 @if (!loading() && bills().length === 0) {
-  <p class="page-empty">No bills yet.</p>
+  <p class="page-empty" i18n="Empty state|No bills have been saved">No bills yet.</p>
 } @else if (bills().length > 0) {
   @if (editError(); as message) {
     <p class="page-error" role="alert">{{ message }}</p>
@@ -189,15 +200,15 @@
               class="bill-form bill-form--inline"
             >
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>Name</mat-label>
+                <mat-label i18n="Form field label|Name of the bill">Name</mat-label>
                 <input matInput type="text" formControlName="name" />
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>Amount (USD)</mat-label>
+                <mat-label i18n="Form field label|How much the bill is for; USD is an ISO currency code and stays untranslated">Amount (USD)</mat-label>
                 <input matInput type="number" step="0.01" min="0" formControlName="amount" />
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>Frequency</mat-label>
+                <mat-label i18n="Form field label|How often the bill repeats">Frequency</mat-label>
                 <mat-select formControlName="frequency">
                   @for (frequency of frequencies; track frequency) {
                     <mat-option [value]="frequency">{{ frequency }}</mat-option>
@@ -205,12 +216,18 @@
                 </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>Next due date</mat-label>
+                <mat-label i18n="Form field label|Date the bill is next due">Next due date</mat-label>
                 <input matInput type="date" formControlName="nextDueDate" />
               </mat-form-field>
               <div class="bill-form__actions">
-                <button mat-flat-button type="submit">Save</button>
-                <button mat-button type="button" class="bill-list__delete" (click)="cancelEdit()">
+                <button mat-flat-button type="submit" i18n="Button|Saves the edited bill">Save</button>
+                <button
+                  mat-button
+                  type="button"
+                  class="bill-list__delete"
+                  (click)="cancelEdit()"
+                  i18n="Button|Abandons the bill edit"
+                >
                   Cancel
                 </button>
               </div>
@@ -222,10 +239,10 @@
                 <div class="bill-list__frequency">
                   {{ bill.frequency }}
                   @if (bill.next_due_date) {
-                    · next due {{ bill.next_due_date | date: 'MMM d, y' }}
+                    <ng-container i18n="Bill meta|Appended when the bill has a next due date"> · next due {{ bill.next_due_date | date: 'MMM d, y' }}</ng-container>
                   }
                   @if (creditTotalFor(bill.id); as total) {
-                    · {{ formatMoney(total) }} in credits
+                    <ng-container i18n="Bill meta|Statement credits recorded against this bill"> · {{ formatMoney(total) }} in credits</ng-container>
                   }
                 </div>
               </div>
@@ -237,6 +254,8 @@
                   class="bill-list__confirm"
                   (click)="startEdit(bill)"
                   aria-label="Edit bill"
+                  i18n="Button|Opens the inline bill editor"
+                  i18n-aria-label="Button accessible name|Opens the inline bill editor"
                 >
                   Edit
                 </button>
@@ -246,6 +265,8 @@
                   class="bill-list__delete"
                   (click)="remove(bill.id)"
                   aria-label="Delete bill"
+                  i18n="Button|Deletes this bill"
+                  i18n-aria-label="Button accessible name|Deletes this bill"
                 >
                   Delete
                 </button>
@@ -261,8 +282,8 @@
 
 @if (credits(); as creditData) {
   @if (creditData.bills.length > 0) {
-    <h2>Statement credits</h2>
-    <p class="page-hint">
+    <h2 i18n="Section heading|Credits a statement carries back to the household">Statement credits</h2>
+    <p class="page-hint" i18n="Section hint|Explains what statement credits are and why they are tracked">
       Credits your statements carry (net metering, overpayments) — tracked per
       bill so you can see what solar gives back per month and per year.
     </p>
@@ -281,10 +302,7 @@
               <div class="bill-list__row">
                 <div class="bill-list__main">
                   <div class="bill-list__name">{{ group.name }}</div>
-                  <div class="bill-list__frequency">
-                    {{ group.credits.length }}
-                    {{ group.credits.length === 1 ? 'credit' : 'credits' }} recorded
-                  </div>
+                  <div class="bill-list__frequency" i18n="Statement credit count|How many credits are recorded for one bill">{group.credits.length, plural, =1 {1 credit recorded} other {{{ group.credits.length }} credits recorded}}</div>
                 </div>
                 <div class="bill-list__amount">{{ formatMoney(group.total) }}</div>
               </div>
@@ -312,8 +330,8 @@
 }
 
 @if (updates().length > 0) {
-  <h2>Suggested updates</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Saved bills whose live charges drifted from the saved amount">Suggested updates</h2>
+  <p class="page-hint" i18n="Section hint|Nothing is changed until the member confirms">
     These bills' recent charges no longer match the saved amount. Nothing
     changes without your confirmation.
   </p>
@@ -325,9 +343,8 @@
           <div class="bill-list__main">
             <div class="bill-list__name">{{ update.name }}</div>
             <div class="bill-list__frequency">
-              {{ formatMoney(update.current_amount) }} →
-              {{ formatMoney(update.suggested_amount) }} · {{ update.frequency }} ·
-              {{ update.occurrences }} charges · last {{ update.last_seen | date: 'MMM d' }}
+              <ng-container i18n="Bill drift meta|Saved amount, the amount recently charged, and the cadence">{{ formatMoney(update.current_amount) }} →
+              {{ formatMoney(update.suggested_amount) }} · {{ update.frequency }} · </ng-container><ng-container i18n="Charge count|How many matching charges were seen">{update.occurrences, plural, =1 {1 charge} other {{{ update.occurrences }} charges}}</ng-container><ng-container i18n="Bill drift meta|When the most recent matching charge landed"> · last {{ update.last_seen | date: 'MMM d' }}</ng-container>
             </div>
           </div>
           @if (canWrite()) {
@@ -338,7 +355,11 @@
               [disabled]="suggestionBusy() !== null"
               (click)="applyUpdate(update)"
             >
-              {{ suggestionBusy() === update.dismiss_key ? '…' : 'Update' }}
+              @if (suggestionBusy() === update.dismiss_key) {
+                …
+              } @else {
+                <ng-container i18n="Button|Applies the suggested new amount to the saved bill">Update</ng-container>
+              }
             </button>
             <button
               mat-button
@@ -346,6 +367,7 @@
               class="bill-list__delete"
               [disabled]="suggestionBusy() !== null"
               (click)="dismissUpdate(update)"
+              i18n="Button|Hides this suggested update for good"
             >
               Dismiss
             </button>
@@ -358,8 +380,8 @@
 }
 
 @if (suggestions().length > 0) {
-  <h2>Suggested from your transactions</h2>
-  <p class="page-hint">
+  <h2 i18n="Section heading|Recurring charges the box spotted that are not bills yet">Suggested from your transactions</h2>
+  <p class="page-hint" i18n="Section hint|Explains where the suggestions come from and what the buttons do">
     Recurring charges detected on your checking and credit-card accounts.
     Confirm to add one as a bill, or dismiss if it isn't one.
   </p>
@@ -374,9 +396,9 @@
           <div class="bill-list__main">
             <div class="bill-list__name">{{ suggestion.name }}</div>
             <div class="bill-list__frequency">
-              {{ suggestion.frequency }} · {{ suggestion.occurrences }} charges ·
+              {{ suggestion.frequency }} · <ng-container i18n="Charge count|How many matching charges were seen">{suggestion.occurrences, plural, =1 {1 charge} other {{{ suggestion.occurrences }} charges}}</ng-container><ng-container i18n="Bill suggestion meta|When the last charge landed and when the next one is expected"> ·
               last {{ suggestion.last_seen | date: 'MMM d' }} · next
-              {{ suggestion.next_due_date | date: 'MMM d' }}
+              {{ suggestion.next_due_date | date: 'MMM d' }}</ng-container>
             </div>
           </div>
           <div class="bill-list__amount">{{ formatMoney(suggestion.amount) }}</div>
@@ -388,7 +410,11 @@
               [disabled]="suggestionBusy() !== null"
               (click)="confirmSuggestion(suggestion)"
             >
-              {{ suggestionBusy() === suggestion.merchant_key ? '…' : 'Confirm' }}
+              @if (suggestionBusy() === suggestion.merchant_key) {
+                …
+              } @else {
+                <ng-container i18n="Button|Turns the suggested recurring charge into a saved bill">Confirm</ng-container>
+              }
             </button>
             <button
               mat-button
@@ -396,6 +422,7 @@
               class="bill-list__delete"
               [disabled]="suggestionBusy() !== null"
               (click)="dismissSuggestion(suggestion)"
+              i18n="Button|Hides this suggested bill for good"
             >
               Dismiss
             </button>
@@ -408,13 +435,17 @@
 }
 
 @if (canWrite()) {
-  <h2>Add a bill</h2>
+  <h2 i18n="Section heading|Form that creates a new bill">Add a bill</h2>
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="bill-form">
       <div class="bill-form__scan-row">
         <label class="earner-form__scan">
-          {{ scanning() ? 'Reading…' : '📄 Scan a bill' }}
+          @if (scanning()) {
+            <ng-container i18n="Bill scan button|Shown while the uploaded bill is being read">Reading…</ng-container>
+          } @else {
+            <ng-container i18n="Bill scan button|Uploads a photo or PDF of a bill for the on-box vision model">📄 Scan a bill</ng-container>
+          }
           <input
             type="file"
             accept="image/*,application/pdf"
@@ -422,7 +453,7 @@
             hidden
           />
         </label>
-        <span class="bill-form__scan-hint">
+        <span class="bill-form__scan-hint" i18n="Bill scan hint|What scanning does and why every value still needs checking">
           Photograph or upload a bill and the on-box vision model fills in what it
           can read. Confirm every value before saving.
         </span>
@@ -433,7 +464,7 @@
       @if (scannedCredit(); as pending) {
         @if (pending.targetBill; as target) {
           <div class="bill-form__credit-offer">
-            <span>
+            <span i18n="Scanned credit offer|Offers to record the scanned credit against a bill that already exists">
               Record the
               {{ formatMoney({ amount_minor: pending.amountMinor, currency: 'USD' }) }}
               credit on your existing bill “{{ target.name }}”?
@@ -443,12 +474,13 @@
               type="button"
               [disabled]="creditBusy()"
               (click)="recordScannedCredit()"
+              i18n="Button|Records the scanned statement credit, showing progress while the request is in flight"
             >
-              {{ creditBusy() ? 'Recording…' : 'Record credit' }}
+              {creditBusy(), select, true {Recording…} other {Record credit}}
             </button>
           </div>
         } @else {
-          <p class="bill-form__scan-note">
+          <p class="bill-form__scan-note" i18n="Scanned credit note|Saving the new bill will also record the credit that was scanned with it">
             Saving this bill also records its
             {{ formatMoney({ amount_minor: pending.amountMinor, currency: 'USD' }) }} credit.
           </p>
@@ -458,17 +490,17 @@
         }
       }
       <mat-form-field appearance="outline">
-        <mat-label>Name</mat-label>
+        <mat-label i18n="Form field label|Name of the bill">Name</mat-label>
         <input matInput type="text" formControlName="name" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Amount (USD)</mat-label>
+        <mat-label i18n="Form field label|How much the bill is for; USD is an ISO currency code and stays untranslated">Amount (USD)</mat-label>
         <input matInput type="number" step="0.01" min="0" formControlName="amount" />
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Frequency</mat-label>
+        <mat-label i18n="Form field label|How often the bill repeats">Frequency</mat-label>
         <mat-select formControlName="frequency">
           @for (frequency of frequencies; track frequency) {
             <mat-option [value]="frequency">{{ frequency }}</mat-option>
@@ -477,7 +509,7 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Next due date (optional)</mat-label>
+        <mat-label i18n="Form field label|Date the bill is next due, which may be left blank">Next due date (optional)</mat-label>
         <input matInput type="date" formControlName="nextDueDate" />
       </mat-form-field>
 
@@ -485,12 +517,17 @@
         <p class="page-error" role="alert">{{ message }}</p>
       }
 
-      <button mat-flat-button type="submit" [disabled]="submitting()">
-        {{ submitting() ? 'Saving…' : 'Add bill' }}
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="submitting()"
+        i18n="Bill form submit button|Creates the bill, showing progress while the request is in flight"
+      >
+        {submitting(), select, true {Saving…} other {Add bill}}
       </button>
     </form>
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="page-empty">Only the household owner or an adult member can add bills.</p>
+  <p class="page-empty" i18n="Permission notice|Shown instead of the create-bill form to members without the right">Only the household owner or an adult member can add bills.</p>
 }

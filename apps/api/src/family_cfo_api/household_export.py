@@ -49,8 +49,62 @@ def _csv_bytes(header: list[str], rows: list[list]) -> bytes:
     return buffer.getvalue().encode()
 
 
+# #10 phase 4: the one long prose document the server authors for a reader.
+# File NAMES stay English — they are the actual entries in the zip, and a
+# translated description beside an untranslated filename is what a person
+# needs to match them up.
+_README_VI = """Family CFO — xuất dữ liệu
+=========================
+
+- accounts.csv        tài khoản của bạn và số dư mới nhất
+- transactions.csv    mọi giao dịch (số tiền theo đơn vị nhỏ, ví dụ xu)
+- bills.csv           hóa đơn định kỳ
+- income.csv          nguồn thu nhập định kỳ
+- goals.csv           mục tiêu tiết kiệm
+- savings.csv         các khoản đóng góp tiết kiệm bạn đã khai báo
+- categories.csv      danh sách danh mục của bạn
+- conversations.json  mọi cuộc trò chuyện với cố vấn, theo thứ tự
+- memories.json       những điều cố vấn đã ghi nhớ
+- documents/          sao kê và ảnh chụp đã tải lên
+- attachments/        ảnh đính kèm giao dịch
+
+Số tiền là số nguyên theo đơn vị nhỏ của tiền tệ. Ngày theo chuẩn ISO-8601.
+"""
+
+_README_LT = """Family CFO — duomenų eksportas
+==============================
+
+- accounts.csv        jūsų sąskaitos ir naujausi likučiai
+- transactions.csv    visos operacijos (sumos mažaisiais vienetais, pvz. centais)
+- bills.csv           pasikartojančios sąskaitos
+- income.csv          pasikartojantys pajamų šaltiniai
+- goals.csv           taupymo tikslai
+- savings.csv         jūsų deklaruoti taupymo įnašai
+- categories.csv      jūsų kategorijų sąrašas
+- conversations.json  visi pokalbiai su patarėju, iš eilės
+- memories.json       ką patarėjas įsiminė
+- documents/          įkeltos ataskaitos ir nuskaitymai
+- attachments/        prie operacijų pridėtos nuotraukos
+
+Sumos yra sveikieji skaičiai valiutos mažaisiais vienetais. Datos — ISO-8601.
+"""
+
+_READMES = {"vi": _README_VI, "lt": _README_LT}
+
+
+def readme_for(language: str | None) -> str:
+    from family_cfo_api import localization
+
+    return _READMES.get(localization.normalize(language), _README)
+
+
 def build_export_zip(
-    engine: Engine, settings: Settings, household_id: str, out_path: str
+    engine: Engine,
+    settings: Settings,
+    household_id: str,
+    out_path: str,
+    *,
+    language: str | None = None,
 ) -> dict[str, int]:
     """Write the export zip to out_path; returns per-section counts."""
     counts: dict[str, int] = {}
@@ -68,7 +122,7 @@ def build_export_zip(
     conversations = repository.list_all_household_conversations(engine, household_id)
 
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-        bundle.writestr("README.txt", _README)
+        bundle.writestr("README.txt", readme_for(language))
 
         bundle.writestr(
             "accounts.csv",

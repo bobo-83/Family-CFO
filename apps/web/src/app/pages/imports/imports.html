@@ -1,12 +1,12 @@
-<h1>Imports</h1>
+<h1 i18n="Page title|Statement imports page">Imports</h1>
 
 @if (canReview()) {
   <mat-card appearance="outlined" class="page-card">
     <mat-card-content>
     <form class="import-form" [formGroup]="form" (ngSubmit)="submit()">
-      <h2>Import a statement</h2>
+      <h2 i18n="Section heading|Form that uploads a bank statement file">Import a statement</h2>
       <mat-form-field appearance="outline">
-        <mat-label>Format</mat-label>
+        <mat-label i18n="Form field label|File format of the statement being uploaded">Format</mat-label>
         <mat-select formControlName="sourceType">
           <mat-option value="csv">CSV</mat-option>
           <mat-option value="pdf">PDF</mat-option>
@@ -15,7 +15,7 @@
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>Account</mat-label>
+        <mat-label i18n="Form field label|Which account the statement belongs to">Account</mat-label>
         <mat-select formControlName="accountId">
           @for (account of accounts.value() ?? []; track account.id) {
             <mat-option [value]="account.id">{{ account.name }}</mat-option>
@@ -23,11 +23,18 @@
         </mat-select>
       </mat-form-field>
       <label class="import-form__file">
-        <span>File</span>
+        <span i18n="Form field label|The statement file to upload">File</span>
         <input type="file" (change)="onFileSelected($event)" />
       </label>
-      <button mat-flat-button type="submit" [disabled]="submitting()">Upload for processing</button>
-      <p class="import-form__hint">
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="submitting()"
+        i18n="Button|Uploads the chosen statement file for background parsing"
+      >
+        Upload for processing
+      </button>
+      <p class="import-form__hint" i18n="Import hint|What happens after an upload; the emphasized words are literal import status values and stay untranslated">
         Uploaded files are processed by the background worker; status updates from
         <em>pending</em> to <em>needs_review</em> once parsed.
       </p>
@@ -38,11 +45,11 @@
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="import-note">Only the household owner or an adult member can manage imports.</p>
+  <p class="import-note" i18n="Permission notice|Shown instead of the import form to members without the right">Only the household owner or an adult member can manage imports.</p>
 }
 
 @if (imports.isLoading()) {
-  <p>Loading imports…</p>
+  <p i18n="Loading placeholder|The list of past imports is loading">Loading imports…</p>
 } @else if (imports.error()) {
   <p class="import-error">{{ imports.error() }}</p>
 } @else {
@@ -51,10 +58,10 @@
     <table class="import-table">
       <thead>
         <tr>
-          <th>File</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Skipped</th>
+          <th i18n="Table column header|Name of the uploaded statement file">File</th>
+          <th i18n="Table column header|File format of the import">Type</th>
+          <th i18n="Table column header|Where the import is in processing">Status</th>
+          <th i18n="Table column header|How many rows the parser could not use">Skipped</th>
           @if (canReview()) {
             <th></th>
           }
@@ -70,8 +77,21 @@
             @if (canReview()) {
               <td>
                 @if (record.status === 'needs_review') {
-                  <button mat-button type="button" (click)="apply(record.id)">Apply</button>
-                  <button mat-button type="button" class="import-table__discard" (click)="discard(record.id)">
+                  <button
+                    mat-button
+                    type="button"
+                    (click)="apply(record.id)"
+                    i18n="Button|Commits the parsed transactions of this import"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    class="import-table__discard"
+                    (click)="discard(record.id)"
+                    i18n="Button|Throws away this import and its pending transactions"
+                  >
                     Discard
                   </button>
                 }
@@ -80,7 +100,7 @@
           </tr>
         } @empty {
           <tr>
-            <td colspan="5">No imports yet.</td>
+            <td colspan="5" i18n="Empty state|No statements have been imported yet">No imports yet.</td>
           </tr>
         }
       </tbody>
@@ -91,8 +111,8 @@
 
 <!-- ===================== Linked institutions (M27) ===================== -->
 <section class="connections">
-  <h2>Linked institutions</h2>
-  <p class="page-empty">
+  <h2 i18n="Section heading|Banks connected for automatic statement sync">Linked institutions</h2>
+  <p class="page-empty" i18n="Linked institutions intro|How the SimpleFIN bridge works; SimpleFIN is a product name and stays untranslated">
     Pull statements automatically via <a href="https://beta-bridge.simplefin.org" target="_blank" rel="noopener">SimpleFIN</a>:
     connect your banks there, then paste the one-time setup token below.
     <strong>One token covers every institution in your SimpleFIN account</strong> — banks you add
@@ -107,14 +127,27 @@
       <mat-card-content>
       <form class="connections__form" [formGroup]="connectionForm" (ngSubmit)="linkInstitution()" novalidate>
         <mat-form-field appearance="outline">
-          <mat-label>Connection name</mat-label>
-          <input matInput type="text" formControlName="displayName" placeholder="e.g. SimpleFIN — all banks" />
+          <mat-label i18n="Form field label|Name the household gives this bank connection">Connection name</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="displayName"
+            placeholder="e.g. SimpleFIN — all banks"
+            i18n-placeholder="Form field placeholder|Example connection name; SimpleFIN is a product name and stays untranslated"
+          />
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>SimpleFIN setup token</mat-label>
+          <mat-label i18n="Form field label|The one-time token copied from SimpleFIN; SimpleFIN is a product name and stays untranslated">SimpleFIN setup token</mat-label>
           <input matInput type="text" formControlName="setupToken" />
         </mat-form-field>
-        <button mat-flat-button type="submit" [disabled]="linking()">{{ linking() ? 'Linking…' : 'Link' }}</button>
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="linking()"
+          i18n="Button|Links the institution, showing progress while the request is in flight"
+        >
+          {linking(), select, true {Linking…} other {Link}}
+        </button>
       </form>
       </mat-card-content>
     </mat-card>
@@ -136,9 +169,9 @@
           <span class="connections__meta">
             {{ conn.provider }} ·
             @if (conn.last_synced_at) {
-              last synced {{ conn.last_synced_at | date: 'MMM d, h:mm a' }}
+              <ng-container i18n="Connection meta|When this institution last synced">last synced {{ conn.last_synced_at | date: 'MMM d, h:mm a' }}</ng-container>
             } @else {
-              never synced
+              <ng-container i18n="Connection meta|This institution has never synced">never synced</ng-container>
             }
             @if (conn.last_sync_error) {
               · ⚠️ {{ conn.last_sync_error }}
@@ -147,16 +180,30 @@
         </div>
         @if (canReview()) {
           <div class="connections__actions">
-            <button mat-button type="button" (click)="syncNow(conn.id)" [disabled]="syncingId() === conn.id">
-              {{ syncingId() === conn.id ? 'Syncing…' : 'Sync now' }}
+            <button
+              mat-button
+              type="button"
+              (click)="syncNow(conn.id)"
+              [disabled]="syncingId() === conn.id"
+              i18n="Button|Syncs this institution immediately, showing progress while the request is in flight"
+            >
+              {syncingId() === conn.id, select, true {Syncing…} other {Sync now}}
             </button>
-            <button mat-button type="button" class="connections__unlink" (click)="unlink(conn.id)">Unlink</button>
+            <button
+              mat-button
+              type="button"
+              class="connections__unlink"
+              (click)="unlink(conn.id)"
+              i18n="Button|Removes this institution's connection"
+            >
+              Unlink
+            </button>
           </div>
         }
         </mat-card-content>
       </mat-card>
     } @empty {
-      <p class="page-empty">No institutions linked yet.</p>
+      <p class="page-empty" i18n="Empty state|No banks have been linked yet">No institutions linked yet.</p>
     }
   }
 </section>

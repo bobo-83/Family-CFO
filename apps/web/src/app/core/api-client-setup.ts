@@ -48,6 +48,14 @@ export function configureApiClient(): void {
     if (token) {
       request.headers.set('Authorization', `Bearer ${token}`);
     }
+    // #10 phase 4: the API localizes the prose it authors (error details) from
+    // this header. The running bundle's locale IS the household language —
+    // that is what compile-time i18n means — so <html lang> is the right
+    // source and needs no extra state.
+    const locale = document.documentElement.lang;
+    if (locale) {
+      request.headers.set('Accept-Language', locale);
+    }
     return request;
   });
 
