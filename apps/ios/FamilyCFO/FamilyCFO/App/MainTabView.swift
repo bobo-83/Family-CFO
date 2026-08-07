@@ -190,16 +190,72 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingUnpair = false
     @State private var confirmingSignOut = false
+    // Held here so the loaded language survives Form re-renders (same reason
+    // MainTabView owns its tab view models).
+    @State private var languageModel: HouseholdLanguageViewModel?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
+    // Per-device (deliberately NOT a household setting — it's about this
+    // phone's speaker, battery, and taste): speak English answers in the
+    // phone's built-in voice instead of the box's natural voice. Read per
+    // utterance by the synthesizer, so flipping it mid-session is heard on
+    // the very next answer.
+    @AppStorage(FallbackSpeechSynthesizer.prefersOnDeviceVoiceKey)
+    private var preferOnDeviceVoice = false
 
     // No NavigationStack of its own: pushed inside MoreView's stack — a second
     // stack here is exactly what doubled the nav bars (2026-07-22).
     var body: some View {
         Group {
             Form {
-                Section("Household") {
+                Section {
                     LabeledContent("Name", value: model.server?.householdName ?? "—")
                     LabeledContent("Acting as", value: model.rolePolicy.displayName)
+                    if let languageModel {
+                        // #10: household-wide (one language per household, a
+                        // server constraint) — so only household.settings.manage,
+                        // the right the PATCH checks, may change it.
+                        if model.rolePolicy.canManageHouseholdSettings {
+                            Picker(
+                                "Language",
+                                selection: Binding(
+                                    get: { languageModel.language },
+                                    set: { code in
+                                        Task {
+                                            await languageModel.change(to: code)
+                                            // Post-change (it rolls back on
+                                            // failure): the speech paths read
+                                            // this per utterance (#10 phase 1).
+                                            model.householdLanguage = languageModel.language
+                                        }
+                                    }
+                                )
+                            ) {
+                                ForEach(HouseholdLanguageViewModel.options) { option in
+                                    Text(option.name).tag(option.code)
+                                }
+                            }
+                        } else {
+                            LabeledContent("Language", value: languageModel.displayName)
+                        }
+                    }
+                } header: {
+                    Text("Household")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("The advisor answers in this language. App screens follow in a later update.")
+                        // Ground truth for "why doesn't it sound right": the
+                        // voice the app RESOLVED on this phone, or the fact
+                        // that none is installed. Settings can list a default
+                        // voice whose asset was never downloaded — the app
+                        // only sees voices on disk.
+                        if let languageModel, languageModel.language != "en" {
+                            Text(SpeechSynthesizerService.voiceStatus(for: languageModel.language))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let error = languageModel?.errorMessage {
+                            Text(error).foregroundStyle(.red)
+                        }
+                    }
                 }
                 Section {
                     // M120 (ADR 0029): one monorepo version everywhere; the app
@@ -236,10 +292,13 @@ struct SettingsView: View {
                         Toggle(isOn: $showDisclaimer) {
                             Label("Show advisor disclaimer", systemImage: "text.badge.checkmark")
                         }
+                        Toggle(isOn: $preferOnDeviceVoice) {
+                            Label("Use this iPhone's voice", systemImage: "speaker.wave.2")
+                        }
                     } header: {
                         Text("Advisor")
                     } footer: {
-                        Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031).")
+                        Text("What the AI has studied, and which model answers. Hiding the disclaimer only tucks the reminder away — the advisor stays educational guidance, not financial advice (ADR 0031). English answers default to the box's natural voice when it's available; switch on this iPhone's voice to hear them in the phone's built-in voice instead — non-English answers always use it. A choice for this phone only.")
                     }
                 }
                 // Always present: Devices is listed for every member (only its
@@ -328,6 +387,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .task {
+                if languageModel == nil, let api = model.household {
+                    languageModel = HouseholdLanguageViewModel(api: api)
+                    await languageModel?.load()
+                }
+            }
             // Centered alerts, not confirmationDialog: on this screen the
             // dialog rendered as a popover anchored far from the tapped row
             // (user report 2026-07-25) — a modal in the middle is unambiguous.

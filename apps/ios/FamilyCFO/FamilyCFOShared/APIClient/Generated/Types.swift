@@ -5780,6 +5780,10 @@ public enum Components {
             public var householdId: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/display_name`.
             public var displayName: Swift.String
+            /// "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/language`.
+            public var language: Swift.String?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/currency`.
             public var currency: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/net_worth`.
@@ -5855,6 +5859,7 @@ public enum Components {
             /// - Parameters:
             ///   - householdId:
             ///   - displayName:
+            ///   - language: "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
             ///   - currency:
             ///   - netWorth:
             ///   - emergencyFundMonths:
@@ -5877,6 +5882,7 @@ public enum Components {
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
+                language: Swift.String? = nil,
                 currency: Swift.String,
                 netWorth: Components.Schemas.Money,
                 emergencyFundMonths: Swift.Double,
@@ -5899,6 +5905,7 @@ public enum Components {
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
+                self.language = language
                 self.currency = currency
                 self.netWorth = netWorth
                 self.emergencyFundMonths = emergencyFundMonths
@@ -5922,6 +5929,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
                 case displayName = "display_name"
+                case language
                 case currency
                 case netWorth = "net_worth"
                 case emergencyFundMonths = "emergency_fund_months"
@@ -8985,25 +8993,33 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/credit_cards_paid_in_full`.
             public var creditCardsPaidInFull: Swift.Bool?
+            /// "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/language`.
+            public var language: Swift.String?
             /// Creates a new `HouseholdUpdateRequest`.
             ///
             /// - Parameters:
             ///   - emergencyFundTargetMonths: Months of expenses to target for the emergency fund (1-60).
             ///   - clearEmergencyFundTarget: Reset the emergency-fund target to the default (6 months).
             ///   - creditCardsPaidInFull: M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
+            ///   - language: "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
             public init(
                 emergencyFundTargetMonths: Swift.Double? = nil,
                 clearEmergencyFundTarget: Swift.Bool? = nil,
-                creditCardsPaidInFull: Swift.Bool? = nil
+                creditCardsPaidInFull: Swift.Bool? = nil,
+                language: Swift.String? = nil
             ) {
                 self.emergencyFundTargetMonths = emergencyFundTargetMonths
                 self.clearEmergencyFundTarget = clearEmergencyFundTarget
                 self.creditCardsPaidInFull = creditCardsPaidInFull
+                self.language = language
             }
             public enum CodingKeys: String, CodingKey {
                 case emergencyFundTargetMonths = "emergency_fund_target_months"
                 case clearEmergencyFundTarget = "clear_emergency_fund_target"
                 case creditCardsPaidInFull = "credit_cards_paid_in_full"
+                case language
             }
         }
         /// - Remark: Generated from `#/components/schemas/Member`.
@@ -13873,6 +13889,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/household/PATCH/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/household/PATCH/responses/422/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.UpdateHousehold.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.UpdateHousehold.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Unsupported language
+            ///
+            /// - Remark: Generated from `#/paths//household/patch(updateHousehold)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.UpdateHousehold.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.UpdateHousehold.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }

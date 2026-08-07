@@ -91,6 +91,11 @@ export class Overview {
     return this.auth.hasRight('advisor.use');
   };
 
+  // #10: household language — the server enforces this right on updateHousehold.
+  protected readonly canManageSettings = () => {
+    return this.auth.hasRight('household.settings.manage');
+  };
+
   protected readonly editingTarget = signal(false);
   protected readonly targetInput = signal<number | null>(null);
   protected readonly savingTarget = signal(false);
@@ -466,6 +471,51 @@ export class Overview {
       return;
     }
     this.editingTarget.set(false);
+    this.household.reload();
+  }
+
+  // --- #10 phase 1: the household's answer language --------------------------
+
+  /** A language's own name is never translated. */
+  protected readonly languageOptions = [
+    { value: 'en', label: 'English' },
+    { value: 'vi', label: 'Tiếng Việt' },
+    { value: 'lt', label: 'Lietuvių' },
+  ] as const;
+
+  protected readonly languageHint =
+    'The advisor answers in this language. Screens follow in a later update.';
+
+  /** Optimistic pick shown while saving; null means "use the context value". */
+  protected readonly languageInput = signal<string | null>(null);
+  protected readonly savingLanguage = signal(false);
+  protected readonly languageError = signal<string | null>(null);
+
+  protected languageValue(context: HouseholdContext): string {
+    return this.languageInput() ?? context.language ?? 'en';
+  }
+
+  protected languageLabel(context: HouseholdContext): string {
+    const value = this.languageValue(context);
+    return this.languageOptions.find((option) => option.value === value)?.label ?? value;
+  }
+
+  protected async changeLanguage(language: string): Promise<void> {
+    if (this.savingLanguage()) {
+      return;
+    }
+    const previous = this.languageInput();
+    this.languageInput.set(language);
+    this.savingLanguage.set(true);
+    this.languageError.set(null);
+    const { error } = await this.api.updateHousehold({ language });
+    this.savingLanguage.set(false);
+    if (error) {
+      // The server 422s an unsupported value; show its message and revert.
+      this.languageError.set(apiErrorMessage(error, 'Failed to change the language.'));
+      this.languageInput.set(previous);
+      return;
+    }
     this.household.reload();
   }
 

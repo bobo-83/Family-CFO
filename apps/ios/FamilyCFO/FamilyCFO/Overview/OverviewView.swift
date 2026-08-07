@@ -50,6 +50,8 @@ struct OverviewView: View {
             model.syncStatus.observe(viewModel?.context?.lastSyncedAt)
             if let month = viewModel?.selectedMonth { await warmMonthCache(month) }
         }
+        // The household language rides along automatically: every live context
+        // fetch seeds AppModel.householdLanguage inside LiveHouseholdAPI (#10).
     }
 
     /// Load the month's transactions + categories into the shared cache (M105) so

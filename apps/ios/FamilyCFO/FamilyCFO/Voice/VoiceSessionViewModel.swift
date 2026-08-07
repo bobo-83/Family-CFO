@@ -30,10 +30,18 @@ final class VoiceSessionViewModel: Identifiable {
     /// timer: a mid-sentence hesitation must not be mistaken for a finished
     /// question (see `EndOfUtterance`).
     var endOfUtterance = EndOfUtterance()
+    /// How long a frozen transcript can outlive the silence threshold before
+    /// the noise-escape hatch sends anyway. Tests raise it; product default
+    /// stays 10s.
+    var noiseEscapeGrace: Duration = .seconds(10)
 
     private let api: AdvisorAPI
     private let engine: SpeechEngine
     private let synthesizer: SpeechSynthesizing
+    /// The household's advisor language, read fresh per utterance (#10 phase 1):
+    /// the session can outlive a language change in Settings, so it is a
+    /// closure over live state (AppModel), not a value captured at init.
+    private let language: @MainActor () -> String
     private var listenTask: Task<Void, Never>?
     private var silenceTask: Task<Void, Never>?
     private var sendTask: Task<Void, Never>?
@@ -43,12 +51,14 @@ final class VoiceSessionViewModel: Identifiable {
         api: AdvisorAPI,
         conversationID: String? = nil,
         engine: SpeechEngine,
-        synthesizer: SpeechSynthesizing
+        synthesizer: SpeechSynthesizing,
+        language: @escaping @MainActor () -> String = { "en" }
     ) {
         self.api = api
         self.conversationID = conversationID
         self.engine = engine
         self.synthesizer = synthesizer
+        self.language = language
     }
 
     func begin() async {
@@ -125,8 +135,10 @@ final class VoiceSessionViewModel: Identifiable {
                 let required = self.endOfUtterance.requiredSilence(after: self.transcript)
                 // Steady non-speech noise (a fan, traffic) must not hold the
                 // turn open forever: once the transcript has sat unchanged far
-                // beyond the threshold, send what we have.
-                let noiseEscape = sinceTranscript >= required + .seconds(10)
+                // beyond the threshold, send what we have. Injectable because
+                // a starved CI runner can stall a test past any fixed grace,
+                // firing this hatch mid-assertion (observed 2026-08-07).
+                let noiseEscape = sinceTranscript >= required + self.noiseEscapeGrace
                 if !self.transcript.isEmpty, quietFor >= required || noiseEscape {
                     // Hop to a fresh task: sendCurrentUtterance cancels the
                     // silence watcher as cleanup, and running it INSIDE the
@@ -183,16 +195,35 @@ final class VoiceSessionViewModel: Identifiable {
         lastAnswer = answer
         phase = .speaking
         let speakable = SpokenReply.speakable(answer)
+        let household = language()
         // An unspeakable answer must never be silent dead air — the user
-        // has no screen open to notice (user report, 2026-07-21).
+        // has no screen open to notice (user report, 2026-07-21). The voice
+        // follows the language OF THE TEXT (an answer can predate a language
+        // switch — user report, 2026-08-07); the apology alone follows the
+        // household setting, because it is generated here, not detected.
         await synthesizer.speak(
-            speakable.isEmpty
-                ? "Sorry, I couldn't come up with an answer to that. Try asking again."
-                : speakable)
+            speakable.isEmpty ? Self.noAnswerApology(language: household) : speakable,
+            language: speakable.isEmpty
+                ? household
+                : UtteranceLanguage.detect(in: speakable, householdLanguage: household))
         // Hands-free: keep the conversation going unless interrupted or
         // ended (both of which change phase out from under us).
         if phase == .speaking {
             await startListening()
+        }
+    }
+
+    /// The canned "no answer" sentence in the household's language — an English
+    /// apology in a Vietnamese voice is the pronunciation bug inverted. A
+    /// hardcoded map until phase 3 moves user-facing strings to String Catalogs.
+    static func noAnswerApology(language: String) -> String {
+        switch language {
+        case "vi":
+            return "Xin lỗi, tôi chưa nghĩ ra câu trả lời. Bạn thử hỏi lại nhé."
+        case "lt":
+            return "Atsiprašau, nesugalvojau atsakymo. Pabandykite paklausti dar kartą."
+        default:
+            return "Sorry, I couldn't come up with an answer to that. Try asking again."
         }
     }
 

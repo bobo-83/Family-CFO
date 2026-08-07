@@ -79,6 +79,15 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         }
     }
 
+    // #10: household language PATCHes.
+    private(set) var updatedLanguages: [String] = []
+    nonisolated func updateLanguage(_ language: String) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            updatedLanguages.append(language)
+        }
+    }
+
     var monthlySpending: Components.Schemas.SpendingByCategory?
     nonisolated func spending(month: String?) async throws
         -> Components.Schemas.SpendingByCategory

@@ -105,6 +105,11 @@ households = Table(
     # M96: when true, safe-to-spend treats full credit-card balances as committed
     # (paid in full monthly), not just recorded minimum payments. Null = false.
     Column("credit_cards_paid_in_full", Boolean, nullable=True),
+    # #10: BCP-47 language for every surface the household reads — the web build
+    # served, the advisor's answers, and (phase 4) API-owned strings. Household-
+    # level by design: compile-time i18n ships one web build per locale, so
+    # language cannot be a per-member toggle. Null = "en".
+    Column("language", String(5), nullable=True),
     # ADR 0072 Phase 3: sealed households have no box wrap — content unlocks
     # only via member/device/recovery keys while a session is live. Null = off.
     Column("sealed_mode", Boolean, nullable=True),

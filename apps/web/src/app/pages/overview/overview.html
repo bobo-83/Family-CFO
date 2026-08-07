@@ -128,6 +128,30 @@
         <div class="overview__card">
           <span class="overview__label">Household</span>
           <span class="overview__value">{{ context.display_name }}</span>
+
+          <!-- #10 phase 1: one language per household; the advisor answers in it. -->
+          @if (canManageSettings()) {
+            <mat-form-field appearance="outline" class="overview__language" subscriptSizing="dynamic">
+              <mat-label>Language</mat-label>
+              <mat-select
+                [value]="languageValue(context)"
+                [disabled]="savingLanguage()"
+                (selectionChange)="changeLanguage($event.value)"
+              >
+                @for (option of languageOptions; track option.value) {
+                  <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          } @else {
+            <span class="overview__detail overview__language-readonly">
+              Language: {{ languageLabel(context) }}
+            </span>
+          }
+          @if (languageError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
+          }
+          <span class="overview__hint">{{ languageHint }}</span>
         </div>
 
         @if (outlook.value(); as cash) {

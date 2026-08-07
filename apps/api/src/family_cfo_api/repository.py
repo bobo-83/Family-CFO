@@ -1086,6 +1086,8 @@ class HouseholdRecord:
     state: str | None = None
     # M96: pays credit cards in full monthly → full balances count as committed.
     credit_cards_paid_in_full: bool = False
+    # #10: display/answer language for every surface. Null = "en".
+    language: str | None = None
     # M98: off-box backup destination (mounted share) + cadence.
     backup_destination_path: str | None = None
     backup_frequency: str = "daily"
@@ -1135,6 +1137,7 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         income_treated_as_net=row["income_treated_as_net"],
         state=row["state"],
         credit_cards_paid_in_full=bool(row["credit_cards_paid_in_full"]),
+        language=row["language"],
         backup_destination_path=row["backup_destination_path"],
         backup_frequency=row["backup_frequency"] or "daily",
         backup_smb_host=row["backup_smb_host"],
@@ -1154,6 +1157,19 @@ def set_credit_cards_paid_in_full(engine: Engine, household_id: str, value: bool
             update(models.households)
             .where(models.households.c.id == household_id)
             .values(credit_cards_paid_in_full=value, updated_at=utcnow())
+        )
+
+
+SUPPORTED_LANGUAGES = ("en", "vi", "lt")  # #10: must match the web locale builds
+
+
+def set_household_language(engine: Engine, household_id: str, language: str) -> None:
+    """#10: the language every surface answers this household in."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(language=language, updated_at=utcnow())
         )
 
 

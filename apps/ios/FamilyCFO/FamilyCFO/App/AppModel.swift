@@ -62,6 +62,13 @@ final class AppModel {
     /// whole month each time (M105).
     let monthTransactions = MonthTransactionsCache()
 
+    /// The household's advisor language ("en" | "vi" | "lt"), noted by the
+    /// screens that already fetch `HouseholdContext` — Overview's load and the
+    /// Settings language picker (#10 phase 1). The speech paths read it per
+    /// utterance to pick a matching voice; nothing fetches it on the speak
+    /// path. Server default is "en".
+    var householdLanguage = "en"
+
     var rolePolicy: RolePolicy {
         RolePolicy(role: credential?.role, rights: credential?.rights.map(Set.init))
     }
@@ -97,9 +104,16 @@ final class AppModel {
         client.map { LiveSpeechAudioAPI(client: $0) }
     }
 
-    /// The daily-glance context behind the Overview tab (M88).
+    /// The daily-glance context behind the Overview tab (M88). Every live
+    /// context fetch — Overview, Settings, whichever runs first — seeds the
+    /// household-language cache, because the app launches into the Advisor
+    /// tab where nothing else would have loaded it yet (#10).
     var household: HouseholdAPI? {
-        client.map { LiveHouseholdAPI(client: $0) }
+        client.map { client in
+            LiveHouseholdAPI(client: client) { [weak self] context in
+                self?.householdLanguage = context.language ?? "en"
+            }
+        }
     }
 
     /// W-2 scan and earner creation behind the camera flows (M89).
@@ -215,6 +229,7 @@ final class AppModel {
         if await BiometricGate.authenticate() {
             phase = .ready
             await refreshSessionRights()
+            seedHouseholdLanguage()
             // M-watch (ADR 0067): keep the watch's copy of the pairing fresh.
             PhoneWatchBridge.shared.activate()
             PhoneWatchBridge.shared.push(server: server, credential: credential)
@@ -255,6 +270,20 @@ final class AppModel {
         phase = .ready
         PhoneWatchBridge.shared.activate()
         PhoneWatchBridge.shared.push(server: server, credential: credential)
+        seedHouseholdLanguage()
+    }
+
+    /// One best-effort context fetch per session so the language cache is
+    /// seeded even when no context screen ever loads — the launch tab is the
+    /// Advisor, where a read-aloud tap can come first (#10, user report
+    /// 2026-08-07). The fetch itself lands in `householdLanguage` through
+    /// LiveHouseholdAPI's onContext; failure keeps the "en" default. Never
+    /// called on the speak path.
+    private func seedHouseholdLanguage() {
+        // Piggyback: warm the NL model here, off the speak path, so the first
+        // read-aloud never pays the recognizer's model load.
+        Task.detached(priority: .utility) { UtteranceLanguage.warmUp() }
+        Task { _ = try? await household?.context(month: nil) }
     }
 
     /// Forgets the pairing locally. Revoking the credential server-side

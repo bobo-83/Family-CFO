@@ -410,6 +410,8 @@ class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
     currency: str
+    # #10: the household's display/answer language; "en" when never set.
+    language: str = "en"
     net_worth: Money
     emergency_fund_months: float | None
     # M38: enriched overview summary (additive).
@@ -1663,6 +1665,9 @@ class HouseholdUpdateRequest(BaseModel):
     # M96: pays credit cards in full monthly → safe-to-spend commits full card
     # balances. None leaves it unchanged.
     credit_cards_paid_in_full: bool | None = None
+    # #10: household display/answer language ("en", "vi", "lt"). None leaves it
+    # unchanged; validation happens in the endpoint against the supported set.
+    language: str | None = None
 
 
 class Member(BaseModel):

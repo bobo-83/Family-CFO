@@ -767,6 +767,10 @@ export type GoalListResponse = {
 export type HouseholdContext = {
     household_id: string;
     display_name: string;
+    /**
+     * "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
+     */
+    language?: string;
     currency: string;
     net_worth: Money;
     emergency_fund_months: number;
@@ -1647,6 +1651,10 @@ export type HouseholdUpdateRequest = {
      * M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
      */
     credit_cards_paid_in_full?: boolean | null;
+    /**
+     * "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
+     */
+    language?: string | null;
 };
 
 export type Member = {
@@ -2663,6 +2671,10 @@ export type UpdateHouseholdErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Unsupported language
+     */
+    422: ErrorResponse;
 };
 
 export type UpdateHouseholdError = UpdateHouseholdErrors[keyof UpdateHouseholdErrors];

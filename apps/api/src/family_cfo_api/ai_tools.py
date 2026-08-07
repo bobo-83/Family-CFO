@@ -71,6 +71,11 @@ def build_system_prompt(settings: Settings | None = None, *, today: date | None 
     return f"{persona}\n\n{date_line}\n\n{GROUNDING_RULES}"
 
 
+# #10: the names the model needs — a bare BCP-47 code ("lt") is easy for a
+# model to gloss over; "Lithuanian (lt)" is not.
+LANGUAGE_NAMES = {"en": "English", "vi": "Vietnamese", "lt": "Lithuanian"}
+
+
 def build_household_context(
     *,
     currency: str,
@@ -78,6 +83,7 @@ def build_household_context(
     member_count: int = 1,
     earliest_month: str | None = None,
     latest_month: str | None = None,
+    language: str | None = None,
 ) -> str:
     """A system message of stable household facts the model can't derive on its
     own: who it's speaking with, the currency, the family size, and which months
@@ -93,6 +99,14 @@ def build_household_context(
             f"- Transaction data exists from {earliest_month} through {latest_month}. Look up "
             "any month in that range with the month tools; there is simply no data outside it "
             "(never claim an in-range month is missing or hasn't happened)."
+        )
+    if language and language != "en":
+        name = LANGUAGE_NAMES.get(language, language)
+        lines.append(
+            f"- Answer in {name} ({language}) — every reply, in full. Keep exact "
+            "figures, merchant names, and account names as the tools report them; "
+            "translate everything else. If the user writes in a different language, "
+            "match the user."
         )
     return "\n".join(lines)
 

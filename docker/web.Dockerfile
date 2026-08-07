@@ -19,6 +19,10 @@ RUN apk add --no-cache openssl
 COPY docker/web-nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
 RUN chmod +x /usr/local/bin/web-entrypoint.sh
-COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
+# #10: --localize outputs one build per locale (dist/web/en|vi|lt). All three
+# ship in the image; nginx serves /en/ at the root today and the locale builds
+# by path — per-household routing arrives with phase 2 (string extraction),
+# because until then the three builds render identically.
+COPY --from=build /app/apps/web/dist/web /usr/share/nginx/html
 EXPOSE 80 443
 CMD ["/usr/local/bin/web-entrypoint.sh"]

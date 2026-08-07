@@ -763,6 +763,7 @@ def _historical_context(
         household_id=household.id,
         display_name=household.display_name,
         currency=currency,
+        language=household.language or "en",
         net_worth=MoneySchema(amount_minor=net_worth_minor, currency=currency),
         # Required, non-nullable in the contract (the client decodes a plain Double,
         # so `null` would fail to decode and the whole month would silently fail to
@@ -831,6 +832,7 @@ def _build_household_context(
         household_id=household.id,
         display_name=household.display_name,
         currency=currency,
+        language=household.language or "en",
         net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
         emergency_fund_months=months,
         emergency_fund=_emergency_fund_summary(
@@ -935,6 +937,7 @@ async def get_spending_by_category(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Household not found", "model": ErrorResponse},
+        422: {"description": "Unsupported language", "model": ErrorResponse},
     },
     summary="Update household settings (M43: emergency-fund target)",
 )
@@ -959,6 +962,18 @@ async def update_household(
             engine, session.household_id, payload.credit_cards_paid_in_full
         )
         changed.append(f"credit-cards-paid-in-full to {payload.credit_cards_paid_in_full}")
+
+    if payload.language is not None:
+        # #10: bounded by the locales the box actually built — a language we
+        # can't serve would silently fall back and confuse the family.
+        if payload.language not in repository.SUPPORTED_LANGUAGES:
+            supported = ", ".join(repository.SUPPORTED_LANGUAGES)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported language; supported: {supported}",
+            )
+        repository.set_household_language(engine, session.household_id, payload.language)
+        changed.append(f"language to {payload.language}")
 
     if changed:
         audit.write_audit(

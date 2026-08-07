@@ -39,6 +39,9 @@ protocol HouseholdAPI: Sendable {
     ) async throws
     /// #203: stop tracking a contribution the household declared.
     func deleteSavingsContribution(id: String) async throws
+    /// #10: set the household's language (en, vi, lt) — household-wide, so the
+    /// advisor answers everyone in it. The server 422s unsupported codes.
+    func updateLanguage(_ language: String) async throws
     /// #203: a detected route that isn't saving. Keyed by the route rather than
     /// a row id because detection re-derives its rows on every context load —
     /// there is no stable id to delete.
@@ -76,10 +79,18 @@ extension HouseholdAPI {
     ) async throws {
         throw APIError.server(501)
     }
+    func updateLanguage(_ language: String) async throws {
+        throw APIError.server(501)
+    }
 }
 
 struct LiveHouseholdAPI: HouseholdAPI {
     let client: Client
+    /// Fired with every LIVE (current-month) context this client fetches,
+    /// whichever screen asked — AppModel seeds its household-language cache
+    /// from the first one (#10). The app launches into the Advisor tab, so
+    /// Overview's load alone would run too late for a read-aloud tap there.
+    var onContext: (@MainActor @Sendable (Components.Schemas.HouseholdContext) -> Void)? = nil
 
     func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
         switch try await client.getYearlyOverview(.init(query: .init(year: year))) {
@@ -110,7 +121,11 @@ struct LiveHouseholdAPI: HouseholdAPI {
     func context(month: String?) async throws -> Components.Schemas.HouseholdContext {
         switch try await client.getHouseholdContext(.init(query: .init(month: month))) {
         case .ok(let response):
-            return try response.body.json
+            let context = try response.body.json
+            // Only the live context speaks for household settings — a frozen
+            // past-month snapshot may predate a language change.
+            if month == nil, let onContext { await onContext(context) }
+            return context
         case .unauthorized:
             throw APIError.unauthorized
         case .undocumented(let status, _):
@@ -225,6 +240,26 @@ struct LiveHouseholdAPI: HouseholdAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateLanguage(_ language: String) async throws {
+        let request = Components.Schemas.HouseholdUpdateRequest(language: language)
+        switch try await client.updateHousehold(.init(body: .json(request))) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        // A locale the box doesn't build; documented on the PATCH so the
+        // client has a real case instead of an undocumented fall-through.
+        case .unprocessableContent:
+            throw APIError.server(422)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

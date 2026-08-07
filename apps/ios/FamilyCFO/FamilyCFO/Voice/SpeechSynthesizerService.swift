@@ -7,8 +7,17 @@ import Foundation
 @MainActor
 protocol SpeechSynthesizing: AnyObject {
     /// Speaks the text; returns when speech finishes or is stopped.
-    func speak(_ text: String) async
+    /// `language` is the household's advisor language ("en" | "vi" | "lt",
+    /// #10 phase 1) so the voice matches the text; nil behaves like "en".
+    func speak(_ text: String, language: String?) async
     func stopSpeaking()
+}
+
+extension SpeechSynthesizing {
+    /// English/device-voice behavior, unchanged from before languages existed.
+    func speak(_ text: String) async {
+        await speak(text, language: nil)
+    }
 }
 
 @MainActor
@@ -21,11 +30,11 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
         synthesizer.delegate = self
     }
 
-    func speak(_ text: String) async {
+    func speak(_ text: String, language: String?) async {
         stopSpeaking()
         guard !text.isEmpty else { return }
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = Self.bestAvailableVoice()
+        utterance.voice = Self.bestAvailableVoice(for: language)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             finishContinuation = continuation
@@ -33,12 +42,34 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
         }
     }
 
+    /// The voice locale for the household's advisor language. "en" (and nil)
+    /// keep the device's own locale — today's behavior, in the regional accent
+    /// the user chose for their phone.
+    static func voiceLanguageCode(for householdLanguage: String?) -> String {
+        switch householdLanguage {
+        case "vi": return "vi-VN"
+        case "lt": return "lt-LT"
+        default: return AVSpeechSynthesisVoice.currentLanguageCode()
+        }
+    }
+
+    /// The best voice for the household's language: a device-language voice
+    /// reads Vietnamese or Lithuanian answers with English phonetics (user
+    /// report, 2026-07-26). When the device has no voice for that language at
+    /// all, a wrong-accent voice still beats silence.
+    static func bestAvailableVoice(for householdLanguage: String? = nil) -> AVSpeechSynthesisVoice? {
+        let language = voiceLanguageCode(for: householdLanguage)
+        if let voice = installedVoice(for: language) { return voice }
+        let deviceLanguage = AVSpeechSynthesisVoice.currentLanguageCode()
+        guard language != deviceLanguage else { return nil }
+        return installedVoice(for: deviceLanguage)
+    }
+
     /// The default voice is the "compact" (most robotic) tier. Prefer the
-    /// highest-quality voice the user has installed for their language —
+    /// highest-quality voice the user has installed for the language —
     /// premium > enhanced > default. Users can download premium voices in
     /// Settings → Accessibility → Spoken Content → Voices.
-    static func bestAvailableVoice() -> AVSpeechSynthesisVoice? {
-        let language = AVSpeechSynthesisVoice.currentLanguageCode()
+    private static func installedVoice(for language: String) -> AVSpeechSynthesisVoice? {
         func rank(_ quality: AVSpeechSynthesisVoiceQuality) -> Int {
             switch quality {
             case .premium: return 3
@@ -46,10 +77,40 @@ final class SpeechSynthesizerService: NSObject, SpeechSynthesizing, AVSpeechSynt
             default: return 1
             }
         }
+        // Prefix match: a voice can register under a variant of the region
+        // code ("lt" vs "lt-LT"); the base language is what matters. Exact
+        // locale still wins at equal quality so an en-US phone doesn't drift
+        // to a premium en-GB accent.
+        let base = String(language.prefix(2))
         let best = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language == language }
-            .max { rank($0.quality) < rank($1.quality) }
+            .filter { $0.language == language || $0.language.hasPrefix(base) }
+            .max {
+                (rank($0.quality), $0.language == language ? 1 : 0)
+                    < (rank($1.quality), $1.language == language ? 1 : 0)
+            }
         return best ?? AVSpeechSynthesisVoice(language: language)
+    }
+
+    /// Human-readable resolution of the voice this phone would speak the
+    /// given language with — surfaced in Settings so "why doesn't it sound
+    /// right" is answerable at a glance.
+    static func voiceStatus(for householdLanguage: String) -> String {
+        let target = voiceLanguageCode(for: householdLanguage)
+        let base = String(target.prefix(2))
+        guard let voice = bestAvailableVoice(for: householdLanguage),
+              voice.language == target || voice.language.hasPrefix(base) else {
+            let name = householdLanguage == "vi" ? "Vietnamese" : "Lithuanian"
+            return "No \(name) voice is installed on this iPhone — speech will "
+                + "use the English voice. Download one in Settings → "
+                + "Accessibility → Read & Speak → Voices."
+        }
+        let tier =
+            switch voice.quality {
+            case .premium: " (Premium)"
+            case .enhanced: " (Enhanced)"
+            default: ""
+            }
+        return "Speech voice: \(voice.name)\(tier)."
     }
 
     func stopSpeaking() {

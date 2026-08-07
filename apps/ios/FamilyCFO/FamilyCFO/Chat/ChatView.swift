@@ -48,7 +48,11 @@ struct ChatView: View {
         }
         .navigationTitle("Advisor")
         .navigationBarTitleDisplayMode(.inline)
-        .task { readAloud.configure(speechAudio: model.speechAudio) }
+        .task {
+            readAloud.configure(
+                speechAudio: model.speechAudio,
+                language: { [model] in model.householdLanguage })
+        }
         .onDisappear { readAloud.stop() }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -58,7 +62,8 @@ struct ChatView: View {
                         api: viewModel.api,
                         conversationID: viewModel.conversationID,
                         engine: SpeechEngineFactory.make(),
-                        synthesizer: SpeechSynthesizerFactory.make(speechAudio: model.speechAudio)
+                        synthesizer: SpeechSynthesizerFactory.make(speechAudio: model.speechAudio),
+                        language: { [model] in model.householdLanguage }
                     )
                     voiceSession = session
                     endedVoiceSession = session

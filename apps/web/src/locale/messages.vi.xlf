@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" target-language="vi" datatype="plaintext" original="ng2.template">
+    <body>
+      <!-- #10 phase 2 fills this: run 'npm run extract-i18n', merge new units
+           here, translate. Machine-translated units are marked
+           state="needs-review-translation" until a speaker reviews them. -->
+    </body>
+  </file>
+</xliff>

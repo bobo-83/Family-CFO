@@ -590,3 +590,15 @@ def test_tool_schemas_never_expose_minor_unit_inputs() -> None:
     for tool in build_tools():
         for name in tool.parameters.get("properties", {}):
             assert not name.endswith("_minor"), f"{tool.name}.{name} exposes minor units"
+
+
+def test_household_context_directs_the_answer_language() -> None:
+    """#10: a non-English household gets every answer in its language, with
+    tool-reported figures and names kept verbatim."""
+    ctx = ai_tools.build_household_context(currency="USD", language="vi")
+    assert "Vietnamese (vi)" in ctx
+    ctx_lt = ai_tools.build_household_context(currency="USD", language="lt")
+    assert "Lithuanian (lt)" in ctx_lt
+    # English is the default voice — no directive line at all.
+    assert "Answer in" not in ai_tools.build_household_context(currency="USD", language="en")
+    assert "Answer in" not in ai_tools.build_household_context(currency="USD")

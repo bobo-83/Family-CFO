@@ -29,8 +29,15 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
-            "allowedCommonJsDependencies": ["qrcode"]
+            "styles": [
+              "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "qrcode"
+            ],
+            "polyfills": [
+              "@angular/localize/init"
+            ]
           },
           "configurations": {
             "production": {
@@ -46,7 +53,8 @@
                   "maximumError": "12kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "localize": true
             },
             "development": {
               "optimization": false,
@@ -70,6 +78,17 @@
         },
         "test": {
           "builder": "@angular/build:unit-test"
+        }
+      },
+      "i18n": {
+        "sourceLocale": "en",
+        "locales": {
+          "vi": {
+            "translation": "src/locale/messages.vi.xlf"
+          },
+          "lt": {
+            "translation": "src/locale/messages.lt.xlf"
+          }
         }
       }
     }
