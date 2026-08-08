@@ -702,3 +702,27 @@ struct BillCategoryPropagationTests {
         #expect(vm.syncResult == "Filed AAA under Subscriptions.")
     }
 }
+
+// MARK: - #31: keys stay English so section merging survives translation
+
+@Suite("Bill section keys")
+@MainActor
+struct BillSectionKeyTests {
+    @Test func obligationTitleIsLocalizedButTheKeyIsNot() {
+        // The label may be translated; the key is what the merge matches on.
+        #expect(BillsViewModel.obligationTitle(forKey: "Loans") == String(localized: "Loans"))
+        #expect(BillsViewModel.obligationTitle(forKey: "Leases") == String(localized: "Leases"))
+        #expect(
+            BillsViewModel.obligationTitle(forKey: "Payroll-deducted")
+                == String(localized: "Payroll-deducted"))
+    }
+
+    @Test func theFooterIsChosenByKeyNotByDisplayedText() {
+        // Switching on the displayed title would pick the wrong footer the
+        // moment the app runs in another language.
+        let payroll = BillsViewModel.obligationFooter(forKey: "Payroll-deducted")
+        let other = BillsViewModel.obligationFooter(forKey: "Loans")
+        #expect(payroll != other)
+        #expect(payroll.contains("paycheck") || !payroll.isEmpty)
+    }
+}

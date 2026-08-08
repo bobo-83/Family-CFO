@@ -111,12 +111,17 @@ final class BillsViewModel {
     /// loan/mortgage accounts) collapse into a single section instead of two
     /// identically-titled ones (M110 bugfix).
     struct BillSection: Identifiable {
+        /// Stable identity, never translated (#31): for a category section it is
+        /// the server's category name, for an obligation section the English
+        /// key. `title` is what a person reads and changes with the language, so
+        /// it cannot be the identity.
+        var key: String
         var title: String
         var bills: [Components.Schemas.Bill]
         var obligations: [Components.Schemas.AccountObligation]
         /// The account-obligation explainer, shown only when the section has any.
         var obligationFooter: String?
-        var id: String { title }
+        var id: String { key }
     }
 
     /// The Bills-tab sections in display order: category-grouped bills first (with
@@ -125,31 +130,38 @@ final class BillsViewModel {
     /// "Loans" category exists).
     var billSections: [BillSection] {
         var remaining = obligationSections
-        func takeObligations(named title: String)
+        // Matched on the untranslated KEY: the server's category names are the
+        // household's own English-ish text, so a localized title would never
+        // match and the sections would stop collapsing (#31).
+        func takeObligations(named categoryName: String)
             -> (items: [Components.Schemas.AccountObligation], footer: String?)?
         {
-            guard let i = remaining.firstIndex(where: { $0.title == title }) else { return nil }
+            guard let i = remaining.firstIndex(where: { $0.key == categoryName }) else {
+                return nil
+            }
             let section = remaining.remove(at: i)
-            return (section.items, Self.obligationFooter(for: section.title))
+            return (section.items, Self.obligationFooter(forKey: section.key))
         }
 
         var sections: [BillSection] = billsByCategory.map { group in
             let merged = takeObligations(named: group.name)
+            // A category section shows the household's OWN category name — user
+            // data, never translated.
             return BillSection(
-                title: group.name, bills: group.bills,
+                key: group.name, title: group.name, bills: group.bills,
                 obligations: merged?.items ?? [], obligationFooter: merged?.footer)
         }
         // Whatever obligation sections weren't merged into a bill category.
         sections += remaining.map {
             BillSection(
-                title: $0.title, bills: [], obligations: $0.items,
-                obligationFooter: Self.obligationFooter(for: $0.title))
+                key: $0.key, title: $0.title, bills: [], obligations: $0.items,
+                obligationFooter: Self.obligationFooter(forKey: $0.key))
         }
         return sections
     }
 
-    static func obligationFooter(for title: String) -> String {
-        title == "Payroll-deducted"
+    static func obligationFooter(forKey key: String) -> String {
+        key == "Payroll-deducted"
             ? String(
                 localized:
                     "Managed on your accounts — shown here for the full picture. These come out of your paycheck, so safe-to-spend doesn't reserve them again."
@@ -162,7 +174,24 @@ final class BillsViewModel {
 
     /// Account obligations grouped into display sections (M106): Loans (mortgage +
     /// loans), Leases, and Payroll-deducted (401k loans). Highest payment first.
-    var obligationSections: [(title: String, items: [Components.Schemas.AccountObligation])] {
+    /// #31: the KEY is the English identifier these sections have always used —
+    /// it is matched against the server's category names to merge a "Loans"
+    /// category with the loan accounts, so translating it would silently split
+    /// sections that should collapse. `title` is the localized label.
+    static func obligationTitle(forKey key: String) -> String {
+        switch key {
+        case "Loans":
+            return String(localized: "Loans")
+        case "Leases":
+            return String(localized: "Leases")
+        default:
+            return String(localized: "Payroll-deducted")
+        }
+    }
+
+    var obligationSections: [(
+        key: String, title: String, items: [Components.Schemas.AccountObligation]
+    )] {
         func items(
             _ kinds: [Components.Schemas.AccountObligation.KindPayload]
         ) -> [Components.Schemas.AccountObligation] {
@@ -177,7 +206,9 @@ final class BillsViewModel {
         if !leases.isEmpty { sections.append(("Leases", leases)) }
         let payroll = items([.retirementLoan])
         if !payroll.isEmpty { sections.append(("Payroll-deducted", payroll)) }
-        return sections.map { (title: $0.0, items: $0.1) }
+        return sections.map {
+            (key: $0.0, title: Self.obligationTitle(forKey: $0.0), items: $0.1)
+        }
     }
 
     /// Delete a category from the shared picker (long-press) — the server

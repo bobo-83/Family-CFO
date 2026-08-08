@@ -7436,6 +7436,23 @@
         }
       }
     },
+    "Leases": {
+      "extractionState": "manual",
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išperkamoji nuoma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hợp đồng thuê"
+          }
+        }
+      }
+    },
     "Left to spend this month": {
       "localizations": {
         "lt": {
@@ -10120,6 +10137,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kỳ trả còn lại"
+          }
+        }
+      }
+    },
+    "Payroll-deducted": {
+      "extractionState": "manual",
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išskaičiuota iš atlyginimo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trừ vào lương"
           }
         }
       }
@@ -14861,6 +14895,23 @@
         }
       }
     },
+    "Twice a year": {
+      "extractionState": "manual",
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Du kartus per metus"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hai lần mỗi năm"
+          }
+        }
+      }
+    },
     "Type": {
       "localizations": {
         "lt": {
@@ -15897,6 +15948,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Năm"
+          }
+        }
+      }
+    },
+    "Yearly": {
+      "extractionState": "manual",
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kasmet"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hàng năm"
           }
         }
       }

@@ -176,6 +176,19 @@ struct RsuVestScheduleView: View {
 /// Add a grant by hand: whose it is, the ticker, total units, grant date, and
 /// the vesting shape. The server derives the tranche schedule from these.
 struct RsuGrantFormView: View {
+    /// #31: vest cadence for a person to read. The picker binds on the enum, so
+    /// the wire value is untouched by translation.
+    static func frequencyLabel(
+        _ frequency: Components.Schemas.RsuGrantCreateRequest.FrequencyPayload
+    ) -> String {
+        switch frequency {
+        case .monthly: return String(localized: "Monthly")
+        case .quarterly: return String(localized: "Quarterly")
+        case .semiannual: return String(localized: "Twice a year")
+        case .annual: return String(localized: "Yearly")
+        }
+    }
+
     @Environment(\.dismiss) private var dismiss
     let viewModel: IncomeViewModel
 
@@ -217,7 +230,9 @@ struct RsuGrantFormView: View {
                             Components.Schemas.RsuGrantCreateRequest.FrequencyPayload.allCases,
                             id: \.self
                         ) { f in
-                            Text(f.rawValue.capitalized).tag(f)
+                            // #31: the TAG carries the enum (what is sent to the
+                            // server); only the label is translated.
+                            Text(Self.frequencyLabel(f)).tag(f)
                         }
                     }
                 } footer: {
