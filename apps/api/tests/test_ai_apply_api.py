@@ -4,8 +4,9 @@ import pytest
 from family_cfo_api.api import ai_runtime as ai_runtime_module
 from family_cfo_api.config import Settings
 from family_cfo_api.main import create_app
+from tests._test_keys import TEST_FERNET_KEY
 
-_KEY = "jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY="
+_KEY = TEST_FERNET_KEY
 
 
 def _settings(**overrides) -> Settings:

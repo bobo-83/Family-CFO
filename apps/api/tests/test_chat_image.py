@@ -4,6 +4,7 @@ import pytest
 from family_cfo_ai_orchestrator import RuntimeToolCompletion, ToolCall
 
 from family_cfo_api.api import chat as chat_module
+from tests._test_keys import TEST_FERNET_KEY
 
 _IMG = base64.b64encode(b"fake-jpeg-bytes").decode()
 
@@ -101,7 +102,7 @@ async def test_oversized_image_rejected(demo_client, demo_engine, demo_token, tm
         Settings(
             version="0.1.0",
             health_check_database=False,
-            backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+            backup_encryption_key=TEST_FERNET_KEY,
             max_upload_bytes=1024,
         ),
         engine=demo_engine,
@@ -159,7 +160,7 @@ async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None
     settings = Settings(
         version="0.1.0",
         health_check_database=False,
-        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+        backup_encryption_key=TEST_FERNET_KEY,
         ai_default_enabled=True,
         ai_default_model="Qwen/Qwen2.5-32B-Instruct",
         ai_vision_enabled=True,

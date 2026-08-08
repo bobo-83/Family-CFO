@@ -147,6 +147,30 @@ final class StatementReconciliationViewModel {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - #25: closing a gap
+
+    /// Only a line the feed never delivered is worth adding. A near-miss
+    /// (`amountDiffers`) already HAS a transaction — offering to add it there
+    /// would invite a duplicate to fix a disagreement.
+    static func canAdd(_ line: Components.Schemas.StatementLine) -> Bool {
+        state(of: line) == .missing
+    }
+
+    /// #29 + #25: hand this line's values to the add-transaction sheet.
+    ///
+    /// A PREFILL and nothing more. Building it calls nothing and stores
+    /// nothing — this screen is read-only on the ledger, so the household reads
+    /// every field and presses Save itself.
+    func prefill(for line: Components.Schemas.StatementLine) -> AddTransactionViewModel.Prefill {
+        AddTransactionViewModel.Prefill(
+            accountID: statement.accountId,
+            occurredOn: line.occurredOn,
+            // Already in the ledger's convention: the stored line is negative
+            // for a charge, so the sheet lands on "Expense" without guessing.
+            amountMinor: line.amount.amountMinor,
+            merchant: line.description)
+    }
+
     /// "Sapphire · August 2026" — which card and which cycle is being checked,
     /// falling back to the recorded statement while the read is in flight.
     var subtitle: String {

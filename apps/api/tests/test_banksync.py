@@ -7,8 +7,9 @@ from sqlalchemy.engine import Engine
 
 from family_cfo_api import banksync, fixtures, repository
 from family_cfo_api.config import Settings
+from tests._test_keys import TEST_FERNET_KEY
 
-_KEY = "jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY="
+_KEY = TEST_FERNET_KEY
 _HH = fixtures.DEMO_HOUSEHOLD_ID
 
 

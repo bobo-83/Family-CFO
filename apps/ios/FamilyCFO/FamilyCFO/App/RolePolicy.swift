@@ -48,6 +48,10 @@ struct RolePolicy: Equatable {
 
     var canChat: Bool { has("advisor.use") }
     var canCategorize: Bool { has("transactions.manage") }
+    /// #29: write to the ledger by hand — the same right `POST /transactions`
+    /// checks. Named for what it does, so the add-transaction surfaces don't
+    /// read as if they were gated on categorizing.
+    var canManageTransactions: Bool { has("transactions.manage") }
     var canManageBills: Bool { has("bills.manage") }
     var canManageBudgets: Bool { has("budgets.manage") }
     var canManageGoals: Bool { has("goals.manage") }
