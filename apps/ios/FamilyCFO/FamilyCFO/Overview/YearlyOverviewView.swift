@@ -6,6 +6,12 @@ import SwiftUI
 /// suggestions, regenerable), and the year's top categories. Tapping a month
 /// drills into that month via the Overview's existing month navigation.
 struct YearlyOverviewView: View {
+    /// #31: the series names are Swift Charts SCALE KEYS as well as legend
+    /// text — the marks and `chartForegroundStyleScale` must use the identical
+    /// string or the colours detach. Localized once here so both sides agree.
+    private static let seriesIncome = String(localized: "Income")
+    private static let seriesSpending = String(localized: "Spending")
+
     @Environment(AppModel.self) private var model
     @State var viewModel: YearlyOverviewViewModel
     /// Drill-down: hand the tapped month ("yyyy-MM") back to the Overview.
@@ -69,21 +75,21 @@ struct YearlyOverviewView: View {
                 ForEach(overview.months, id: \.month) { month in
                     BarMark(
                         x: .value("Month", Self.shortLabel(month.month)),
-                        y: .value("Income", month.income.decimalValue)
+                        y: .value(Self.seriesIncome, month.income.decimalValue)
                     )
-                    .foregroundStyle(by: .value("Series", "Income"))
-                    .position(by: .value("Series", "Income"))
+                    .foregroundStyle(by: .value("Series", Self.seriesIncome))
+                    .position(by: .value("Series", Self.seriesIncome))
                     .opacity(barOpacity(month.month))
                     BarMark(
                         x: .value("Month", Self.shortLabel(month.month)),
-                        y: .value("Spending", month.spending.decimalValue)
+                        y: .value(Self.seriesSpending, month.spending.decimalValue)
                     )
-                    .foregroundStyle(by: .value("Series", "Spending"))
-                    .position(by: .value("Series", "Spending"))
+                    .foregroundStyle(by: .value("Series", Self.seriesSpending))
+                    .position(by: .value("Series", Self.seriesSpending))
                     .opacity(barOpacity(month.month))
                 }
             }
-            .chartForegroundStyleScale(["Income": Color.green, "Spending": Color.orange])
+            .chartForegroundStyleScale([Self.seriesIncome: Color.green, Self.seriesSpending: Color.orange])
             .frame(height: 190)
             // A tap selects the month (tap again to clear); the card below
             // carries the values and the explicit actions (ADR 0068).
