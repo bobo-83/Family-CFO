@@ -7023,6 +7023,42 @@
         <note priority="1" from="description">The statement charged this but no synced transaction explains it</note>
         <note priority="1" from="meaning">Statement line state</note>
       </trans-unit>
+      <trans-unit id="397187458327341962" datatype="html">
+        <source>Time zone</source>
+        <target state="needs-review-translation">Laiko juosta</target>
+        <note priority="1" from="description">Label of the household time-zone picker</note>
+        <note priority="1" from="meaning">Household timezone field</note>
+      </trans-unit>
+      <trans-unit id="3802037962777628076" datatype="html">
+        <source>Search zones</source>
+        <target state="needs-review-translation">Ieškoti juostų</target>
+        <note priority="1" from="description">Invites the member to type part of a time zone name to search</note>
+        <note priority="1" from="meaning">Form field placeholder</note>
+      </trans-unit>
+      <trans-unit id="212186198250661314" datatype="html">
+        <source> Time zone: <x id="INTERPOLATION" equiv-text="{{ timezoneLabel(context) }}"/> </source>
+        <target state="needs-review-translation"> Laiko juosta: <x id="INTERPOLATION" equiv-text="{{ timezoneLabel(context) }}"/> </target>
+        <note priority="1" from="description">Shows the time zone to members who cannot change it. A zone ID such as Europe/London is an identifier and is never translated.</note>
+        <note priority="1" from="meaning">Household timezone readonly</note>
+      </trans-unit>
+      <trans-unit id="2775937633367336456" datatype="html">
+        <source>Bills, due dates and Safe to Spend use this zone to decide what “today” means.</source>
+        <target state="needs-review-translation">Sąskaitos, mokėjimo terminai ir „Saugu išleisti“ pagal šią juostą nustato, kuri diena yra „šiandien“.</target>
+        <note priority="1" from="description">Explains what the time zone setting changes</note>
+        <note priority="1" from="meaning">Household timezone hint</note>
+      </trans-unit>
+      <trans-unit id="8962489565871971615" datatype="html">
+        <source>Not set — the box&apos;s own zone</source>
+        <target state="needs-review-translation">Nenustatyta — paties serverio juosta</target>
+        <note priority="1" from="description">Shown in place of a zone when the household has never chosen one</note>
+        <note priority="1" from="meaning">Household timezone unset</note>
+      </trans-unit>
+      <trans-unit id="6174130713972081067" datatype="html">
+        <source>Failed to change the time zone.</source>
+        <target state="needs-review-translation">Nepavyko pakeisti laiko juostos.</target>
+        <note priority="1" from="description">The household time zone could not be changed</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

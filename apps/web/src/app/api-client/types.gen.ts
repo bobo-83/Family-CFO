@@ -914,6 +914,10 @@ export type HouseholdContext = {
      * #5: whether committed savings is reserved like a bill.
      */
     reserve_committed_savings?: boolean;
+    /**
+     * #41: the household's IANA zone; null means the box default.
+     */
+    timezone?: string | null;
     currency: string;
     net_worth: Money;
     emergency_fund_months: number;
@@ -1872,6 +1876,10 @@ export type HouseholdUpdateRequest = {
      * "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
      */
     reserve_committed_savings?: boolean | null;
+    /**
+     * "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means for this household. Rejected with 422 if unknown."
+     */
+    timezone?: string | null;
 };
 
 export type Member = {

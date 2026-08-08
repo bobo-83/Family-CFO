@@ -194,6 +194,42 @@
           }
           <span class="overview__hint">{{ languageHint }}</span>
 
+          <!-- #41: the zone this household reckons "today" in. ~600 IANA zones
+               in one picker is a wall, so the field is a search box over a
+               shortlist. Zone IDs are identifiers and are never translated. -->
+          @if (canManageSettings()) {
+            <mat-form-field appearance="outline" class="overview__timezone" subscriptSizing="dynamic">
+              <mat-label i18n="Household timezone field|Label of the household time-zone picker">Time zone</mat-label>
+              <input
+                matInput
+                type="text"
+                [matAutocomplete]="timezoneAuto"
+                [value]="timezoneDisplay(context)"
+                [disabled]="savingTimezone()"
+                (input)="timezoneQuery.set($any($event.target).value)"
+                (blur)="timezoneQuery.set(null)"
+                i18n-placeholder="Form field placeholder|Invites the member to type part of a time zone name to search"
+                placeholder="Search zones"
+              />
+              <mat-autocomplete #timezoneAuto (optionSelected)="changeTimezone($event.option.value)">
+                @for (zone of timezoneOptions(context); track zone) {
+                  <mat-option [value]="zone">{{ zone }}</mat-option>
+                }
+              </mat-autocomplete>
+            </mat-form-field>
+          } @else {
+            <span
+              class="overview__detail overview__timezone-readonly"
+              i18n="Household timezone readonly|Shows the time zone to members who cannot change it. A zone ID such as Europe/London is an identifier and is never translated."
+            >
+              Time zone: {{ timezoneLabel(context) }}
+            </span>
+          }
+          @if (timezoneError(); as message) {
+            <p class="page-error" role="alert">{{ message }}</p>
+          }
+          <span class="overview__hint">{{ timezoneHint }}</span>
+
           <!-- #5: reserve committed savings like a bill, or show it beside
                Safe to Spend. Server enforces household.settings.manage. -->
           @if (canManageSettings()) {

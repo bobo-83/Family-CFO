@@ -49,6 +49,9 @@ protocol HouseholdAPI: Sendable {
     /// to Spend without subtracting (false). Household-wide, gated on
     /// household.settings.manage — the right the PATCH checks.
     func updateReserveCommittedSavings(_ value: Bool) async throws
+    /// #41: the IANA zone this household reckons "today" in. The server 422s a
+    /// zone it doesn't know rather than silently shifting every date by hours.
+    func updateTimezone(_ identifier: String) async throws
     /// #203: a detected route that isn't saving. Keyed by the route rather than
     /// a row id because detection re-derives its rows on every context load —
     /// there is no stable id to delete.
@@ -93,6 +96,9 @@ extension HouseholdAPI {
         throw APIError.server(501)
     }
     func updateReserveCommittedSavings(_ value: Bool) async throws {
+        throw APIError.server(501)
+    }
+    func updateTimezone(_ identifier: String) async throws {
         throw APIError.server(501)
     }
 }
@@ -309,6 +315,26 @@ struct LiveHouseholdAPI: HouseholdAPI {
         case .notFound:
             throw APIError.server(404)
         // Documented on the PATCH; a real case beats an undocumented fall-through.
+        case .unprocessableContent:
+            throw APIError.server(422)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func updateTimezone(_ identifier: String) async throws {
+        let request = Components.Schemas.HouseholdUpdateRequest(timezone: identifier)
+        switch try await client.updateHousehold(.init(body: .json(request))) {
+        case .ok:
+            return
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
+        // A zone the box's database doesn't have; documented on the PATCH so
+        // the client has a real case instead of an undocumented fall-through.
         case .unprocessableContent:
             throw APIError.server(422)
         case .undocumented(let status, _):

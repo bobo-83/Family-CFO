@@ -6469,6 +6469,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/reserve_committed_savings`.
             public var reserveCommittedSavings: Swift.Bool?
+            /// #41: the household's IANA zone; null means the box default.
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/timezone`.
+            public var timezone: Swift.String?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/currency`.
             public var currency: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/net_worth`.
@@ -6546,6 +6550,7 @@ public enum Components {
             ///   - displayName:
             ///   - language: "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
             ///   - reserveCommittedSavings: #5: whether committed savings is reserved like a bill.
+            ///   - timezone: #41: the household's IANA zone; null means the box default.
             ///   - currency:
             ///   - netWorth:
             ///   - emergencyFundMonths:
@@ -6570,6 +6575,7 @@ public enum Components {
                 displayName: Swift.String,
                 language: Swift.String? = nil,
                 reserveCommittedSavings: Swift.Bool? = nil,
+                timezone: Swift.String? = nil,
                 currency: Swift.String,
                 netWorth: Components.Schemas.Money,
                 emergencyFundMonths: Swift.Double,
@@ -6594,6 +6600,7 @@ public enum Components {
                 self.displayName = displayName
                 self.language = language
                 self.reserveCommittedSavings = reserveCommittedSavings
+                self.timezone = timezone
                 self.currency = currency
                 self.netWorth = netWorth
                 self.emergencyFundMonths = emergencyFundMonths
@@ -6619,6 +6626,7 @@ public enum Components {
                 case displayName = "display_name"
                 case language
                 case reserveCommittedSavings = "reserve_committed_savings"
+                case timezone
                 case currency
                 case netWorth = "net_worth"
                 case emergencyFundMonths = "emergency_fund_months"
@@ -9899,6 +9907,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/reserve_committed_savings`.
             public var reserveCommittedSavings: Swift.Bool?
+            /// "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means for this household. Rejected with 422 if unknown."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/timezone`.
+            public var timezone: Swift.String?
             /// Creates a new `HouseholdUpdateRequest`.
             ///
             /// - Parameters:
@@ -9907,18 +9919,21 @@ public enum Components {
             ///   - creditCardsPaidInFull: M96: household pays credit cards in full monthly, so safe-to-spend commits full card balances. Omit to leave unchanged.
             ///   - language: "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
             ///   - reserveCommittedSavings: "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
+            ///   - timezone: "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means for this household. Rejected with 422 if unknown."
             public init(
                 emergencyFundTargetMonths: Swift.Double? = nil,
                 clearEmergencyFundTarget: Swift.Bool? = nil,
                 creditCardsPaidInFull: Swift.Bool? = nil,
                 language: Swift.String? = nil,
-                reserveCommittedSavings: Swift.Bool? = nil
+                reserveCommittedSavings: Swift.Bool? = nil,
+                timezone: Swift.String? = nil
             ) {
                 self.emergencyFundTargetMonths = emergencyFundTargetMonths
                 self.clearEmergencyFundTarget = clearEmergencyFundTarget
                 self.creditCardsPaidInFull = creditCardsPaidInFull
                 self.language = language
                 self.reserveCommittedSavings = reserveCommittedSavings
+                self.timezone = timezone
             }
             public enum CodingKeys: String, CodingKey {
                 case emergencyFundTargetMonths = "emergency_fund_target_months"
@@ -9926,6 +9941,7 @@ public enum Components {
                 case creditCardsPaidInFull = "credit_cards_paid_in_full"
                 case language
                 case reserveCommittedSavings = "reserve_committed_savings"
+                case timezone
             }
         }
         /// - Remark: Generated from `#/components/schemas/Member`.

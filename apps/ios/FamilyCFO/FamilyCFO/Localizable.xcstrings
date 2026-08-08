@@ -3153,6 +3153,22 @@
         }
       }
     },
+    "Bills, due dates and Safe to Spend use this zone to decide what “today” means.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sąskaitos, mokėjimo terminai ir „Saugu išleisti“ pagal šią juostą nustato, kuri diena yra „šiandien“."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hóa đơn, ngày đến hạn và An toàn để chi tiêu dựa vào múi giờ này để xác định “hôm nay” là ngày nào."
+          }
+        }
+      }
+    },
     "Biweekly": {
       "localizations": {
         "lt": {
@@ -9123,6 +9139,22 @@
         }
       }
     },
+    "Not set — the box's own zone": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nenustatyta — paties serverio juosta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa đặt — dùng múi giờ của máy"
+          }
+        }
+      }
+    },
     "Not started": {
       "localizations": {
         "lt": {
@@ -12010,6 +12042,22 @@
         }
       }
     },
+    "Search zones": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ieškoti juostų"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm múi giờ"
+          }
+        }
+      }
+    },
     "Searching…": {
       "localizations": {
         "lt": {
@@ -14619,6 +14667,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vừa khít — vẫn tải được nhưng gần hết bộ nhớ"
+          }
+        }
+      }
+    },
+    "Time zone": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laiko juosta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Múi giờ"
           }
         }
       }

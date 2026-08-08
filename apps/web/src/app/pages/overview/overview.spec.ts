@@ -686,6 +686,128 @@ describe('Overview', () => {
     });
   });
 
+  // #41: the household's own zone decides what "today" means.
+  describe('household time zone (#41)', () => {
+    function contextInZone(timezone: string | null) {
+      return response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+        language: 'en',
+        timezone,
+      });
+    }
+
+    async function render() {
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('changes the zone and reloads the overview', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('America/New_York'));
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__timezone')).toBeTruthy();
+      expect(host.textContent).toContain(
+        'Bills, due dates and Safe to Spend use this zone to decide what “today” means.',
+      );
+
+      await fixture.componentInstance['changeTimezone']('Europe/London');
+      await fixture.whenStable();
+
+      expect(apiMock.updateHousehold).toHaveBeenCalledWith({ timezone: 'Europe/London' });
+      // Every date on the page was computed in the old zone.
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
+    });
+
+    it('surfaces the server message and reverts when the zone is unknown', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('America/New_York'));
+      apiMock.updateHousehold.mockResolvedValue(
+        response(undefined, { error: { message: 'Unknown timezone' } }),
+      );
+
+      const fixture = await render();
+      const component = fixture.componentInstance;
+      await component['changeTimezone']('Mars/Olympus_Mons');
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Unknown timezone');
+      // The field falls back to the context value — the change never took.
+      expect(component['timezoneValue']({ timezone: 'America/New_York' } as never)).toBe(
+        'America/New_York',
+      );
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the zone read-only for a viewer', async () => {
+      TestBed.resetTestingModule();
+      configure('viewer');
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Europe/London'));
+
+      const fixture = await render();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.overview__timezone')).toBeNull();
+      expect(host.querySelector('.overview__timezone-readonly')?.textContent).toContain(
+        'Europe/London',
+      );
+    });
+
+    it('says so, rather than showing a blank, when no zone is set', async () => {
+      TestBed.resetTestingModule();
+      configure('viewer');
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone(null));
+
+      const fixture = await render();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.overview__timezone-readonly')
+          ?.textContent,
+      ).toContain("the box's own zone");
+    });
+
+    it('offers the common zones before anything is typed', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('America/New_York'));
+      const component = (await render()).componentInstance;
+
+      const shortlist = component['timezoneOptions']({ timezone: 'America/New_York' } as never);
+
+      expect(shortlist).toContain('Europe/London');
+      expect(shortlist).toContain('America/New_York');
+      // A shortlist people can actually scan, not the whole zone database.
+      expect(shortlist.length).toBeLessThan(25);
+    });
+
+    it('keeps a zone outside the shortlist visible', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Pacific/Chatham'));
+      const component = (await render()).componentInstance;
+
+      const shortlist = component['timezoneOptions']({ timezone: 'Pacific/Chatham' } as never);
+
+      expect(shortlist[0]).toBe('Pacific/Chatham');
+    });
+
+    it('searches every zone, matching spaces against underscores', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('UTC'));
+      const component = (await render()).componentInstance;
+
+      component['timezoneQuery'].set('new york');
+      expect(component['timezoneOptions']({ timezone: 'UTC' } as never)).toContain(
+        'America/New_York',
+      );
+
+      // Never enough hits at once to drown the panel.
+      component['timezoneQuery'].set('a');
+      expect(
+        component['timezoneOptions']({ timezone: 'UTC' } as never).length,
+      ).toBeLessThanOrEqual(50);
+    });
+  });
+
   // #5: committed savings — shown beside Safe to Spend, or reserved like a bill.
   describe('committed savings (#5)', () => {
     function contextWith(safeToSpendExtra: Record<string, unknown>) {

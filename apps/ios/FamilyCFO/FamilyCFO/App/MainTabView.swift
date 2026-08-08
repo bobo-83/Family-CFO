@@ -195,6 +195,8 @@ struct SettingsView: View {
     @State private var languageModel: HouseholdLanguageViewModel?
     // Held here for the same reason as languageModel — survives Form re-renders.
     @State private var reserveModel: CommittedSavingsReserveViewModel?
+    // #41: same reason again — and the picker it pushes reads it back.
+    @State private var timezoneModel: HouseholdTimezoneViewModel?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
     // Per-device (deliberately NOT a household setting — it's about this
     // phone's speaker, battery, and taste): speak English answers in the
@@ -241,6 +243,20 @@ struct SettingsView: View {
                             LabeledContent("Language", value: languageModel.displayName)
                         }
                     }
+                    if let timezoneModel {
+                        // #41: household-wide — the server reckons every date
+                        // in this zone, so only household.settings.manage, the
+                        // right the PATCH checks, may change it.
+                        if model.rolePolicy.canManageHouseholdSettings {
+                            NavigationLink {
+                                HouseholdTimezonePicker(model: timezoneModel)
+                            } label: {
+                                LabeledContent("Time zone", value: timezoneModel.displayName)
+                            }
+                        } else {
+                            LabeledContent("Time zone", value: timezoneModel.displayName)
+                        }
+                    }
                 } header: {
                     Text("Household")
                 } footer: {
@@ -256,6 +272,10 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         if let error = languageModel?.errorMessage {
+                            Text(error).foregroundStyle(.red)
+                        }
+                        Text("Bills, due dates and Safe to Spend use this zone to decide what “today” means.")
+                        if let error = timezoneModel?.errorMessage {
                             Text(error).foregroundStyle(.red)
                         }
                     }
@@ -427,6 +447,10 @@ struct SettingsView: View {
                     reserveModel = CommittedSavingsReserveViewModel(api: api)
                     await reserveModel?.load()
                 }
+                if timezoneModel == nil, let api = model.household {
+                    timezoneModel = HouseholdTimezoneViewModel(api: api)
+                    await timezoneModel?.load()
+                }
             }
             // Centered alerts, not confirmationDialog: on this screen the
             // dialog rendered as a popover anchored far from the tapped row
@@ -450,5 +474,40 @@ struct SettingsView: View {
                 Text("Removes the credential and the server info from this phone.")
             }
         }
+    }
+}
+
+/// #41: picking the household's zone. The device knows hundreds of them, so the
+/// list opens on a shortlist — whatever is set, then this phone's own zone, then
+/// the common ones — and search reaches everything else.
+struct HouseholdTimezonePicker: View {
+    let model: HouseholdTimezoneViewModel
+    @State private var query = ""
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List(model.options(matching: query), id: \.self) { zone in
+            Button {
+                Task {
+                    // Leaves immediately: a rejected zone rolls back and says
+                    // so in the Settings footer we're returning to.
+                    await model.change(to: zone)
+                    dismiss()
+                }
+            } label: {
+                HStack {
+                    // A zone ID is an identifier, never translated.
+                    Text(verbatim: zone)
+                    Spacer()
+                    if zone == model.timezone {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+            }
+            .foregroundStyle(.primary)
+        }
+        .searchable(text: $query, prompt: Text("Search zones"))
+        .navigationTitle("Time zone")
     }
 }
