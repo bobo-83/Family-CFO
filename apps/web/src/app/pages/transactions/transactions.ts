@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -75,6 +76,30 @@ export class Transactions {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
 
+  /** #25: the form arrived prefilled from an unmatched statement line. */
+  protected readonly prefilled = signal(false);
+
+  constructor() {
+    // #25: an unmatched statement line links here carrying its values. This is
+    // a PREFILL and nothing more — reconciliation never writes to the ledger,
+    // so the household still reviews the row and presses "Add transaction".
+    const params = inject(ActivatedRoute).snapshot.queryParamMap;
+    const accountId = params.get('account');
+    if (!accountId) {
+      return;
+    }
+    const amount = Number(params.get('amount'));
+    this.form.patchValue({
+      accountId,
+      occurredAt: params.get('date') ?? '',
+      amount: Number.isFinite(amount) ? amount : 0,
+      merchant: params.get('merchant') ?? '',
+    });
+    this.prefilled.set(true);
+    // Clear the query string so a reload does not silently refill the form.
+    void inject(Router).navigate([], { queryParams: {}, replaceUrl: true });
+  }
+
   protected async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) {
       this.form.markAllAsTouched();
@@ -114,6 +139,7 @@ export class Transactions {
       description: '',
       categoryId: '',
     });
+    this.prefilled.set(false);
     this.transactions.reload();
   }
 

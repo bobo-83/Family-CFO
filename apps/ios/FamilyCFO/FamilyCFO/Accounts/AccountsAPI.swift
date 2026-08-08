@@ -45,6 +45,20 @@ protocol AccountsAPI: Sendable {
     func scanCardStatement(
         _ attachment: ChatAttachment
     ) async throws -> Components.Schemas.CardStatementScanResult
+    /// #25: what this statement's line items say about the synced ledger —
+    /// which charges a transaction explains, which the feed never delivered,
+    /// and which synced transactions the statement never listed. A read: the
+    /// server gates it on membership alone, and it re-runs matching every call
+    /// so a later sync closes a gap without re-uploading anything.
+    func statementReconciliation(
+        statementID: String
+    ) async throws -> Components.Schemas.StatementReconciliation
+    /// #25: store the lines read off a statement. REPLACES whatever was read
+    /// for it before — a second scan corrects the statement rather than
+    /// doubling its charges. Returns the reconciliation of what was stored.
+    func replaceStatementLines(
+        statementID: String, lines: [Components.Schemas.StatementLineInput]
+    ) async throws -> Components.Schemas.StatementReconciliation
 }
 
 extension AccountsAPI {
@@ -69,6 +83,16 @@ extension AccountsAPI {
     func scanCardStatement(
         _ attachment: ChatAttachment
     ) async throws -> Components.Schemas.CardStatementScanResult {
+        throw APIError.server(501)
+    }
+    func statementReconciliation(
+        statementID: String
+    ) async throws -> Components.Schemas.StatementReconciliation {
+        throw APIError.server(501)
+    }
+    func replaceStatementLines(
+        statementID: String, lines: [Components.Schemas.StatementLineInput]
+    ) async throws -> Components.Schemas.StatementReconciliation {
         throw APIError.server(501)
     }
 }
@@ -111,6 +135,10 @@ enum CardStatementScanError: Error, LocalizedError, Equatable {
 /// The generated `CardStatement` carries a stable `id`; conforming lets it drive
 /// `ForEach` and `.sheet(item:)` directly.
 extension Components.Schemas.CardStatement: Identifiable {}
+
+/// #25: a reconciled statement line carries the id the server assigned it, so
+/// it can drive `ForEach` without an index that shifts as lines reorder.
+extension Components.Schemas.StatementLine: Identifiable {}
 
 /// Asset account types offered when adding one by hand (liabilities are the
 /// Debts tab's job).
@@ -345,6 +373,44 @@ struct LiveAccountsAPI: AccountsAPI {
         case .serviceUnavailable:
             // No vision model on the box — say so, and let them type it in.
             throw CardStatementScanError.visionModelUnavailable
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func statementReconciliation(
+        statementID: String
+    ) async throws -> Components.Schemas.StatementReconciliation {
+        // No 403 arm: reading the gaps takes only membership, so anyone who can
+        // see the statement can see what it does and doesn't account for.
+        switch try await client.getStatementReconciliation(
+            .init(path: .init(statementId: statementID))
+        ) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .notFound:
+            throw APIError.server(404)
+        case .undocumented(let status, _):
+            throw APIError.server(status)
+        }
+    }
+
+    func replaceStatementLines(
+        statementID: String, lines: [Components.Schemas.StatementLineInput]
+    ) async throws -> Components.Schemas.StatementReconciliation {
+        switch try await client.replaceStatementLines(
+            .init(path: .init(statementId: statementID), body: .json(.init(lines: lines)))
+        ) {
+        case .ok(let response):
+            return try response.body.json
+        case .unauthorized:
+            throw APIError.unauthorized
+        case .forbidden:
+            throw APIError.server(403)
+        case .notFound:
+            throw APIError.server(404)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

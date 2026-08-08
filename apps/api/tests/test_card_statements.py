@@ -199,3 +199,178 @@ def test_scan_parses_a_statement_and_degrades_honestly() -> None:
     # A zero balance is legitimate (card paid off), not a parse failure.
     zero = parse_card_statement_scan('{"statement_balance": 0, "due_date": "2026-09-15"}')
     assert zero.statement_balance_minor == 0
+
+
+def test_scan_reads_the_transaction_table_in_ledger_signs() -> None:
+    """#25: the rows are what reconciliation matches on, and the matcher
+    compares SIGNS — a printed charge has to come back negative."""
+    from family_cfo_api.api.accounts import parse_card_statement_scan
+
+    read = parse_card_statement_scan(
+        '{"statement_balance": 300.00, "due_date": "2026-09-15", '
+        '"transactions": ['
+        '{"date": "2026-08-03", "description": "BLUE BOTTLE COFFEE", "amount": -6.75},'
+        '{"date": "08/14/2026", "description": "COSTCO WHSE #1102", "amount": "-$182.40"},'
+        '{"date": "2026-08-20", "description": "PAYMENT THANK YOU", "amount": 250.00}]}'
+    )
+    assert read.statement_balance_minor == 300_00
+    assert [(line.occurred_on, line.description, line.amount_minor) for line in read.lines] == [
+        (date(2026, 8, 3), "BLUE BOTTLE COFFEE", -6_75),
+        (date(2026, 8, 14), "COSTCO WHSE #1102", -182_40),
+        (date(2026, 8, 20), "PAYMENT THANK YOU", 250_00),
+    ]
+    # Charges negative, payments positive — the ledger's own convention.
+    assert sum(line.amount_minor for line in read.lines) == 60_85
+
+
+def test_scan_skips_unreadable_rows_without_dropping_the_good_ones() -> None:
+    """A row is skipped, never guessed at: no date, no amount, no description
+    each mean the row cannot be matched, and inventing one would invent a
+    charge. The rows around it must survive."""
+    from family_cfo_api.api.accounts import parse_card_statement_scan
+
+    read = parse_card_statement_scan(
+        '{"statement_balance": 100.00, "transactions": ['
+        '{"date": "2026-08-01", "description": "GOOD ONE", "amount": -10.00},'
+        '{"description": "NO DATE PRINTED", "amount": -20.00},'
+        '{"date": "08/14", "description": "NO YEAR PRINTED", "amount": -21.00},'
+        '{"date": "2026-08-05", "description": "NO AMOUNT"},'
+        '{"date": "2026-08-06", "description": "  ", "amount": -30.00},'
+        '"not even a row",'
+        '{"date": "2026-08-07", "description": "ALSO GOOD", "amount": -40.00}]}'
+    )
+    assert [line.description for line in read.lines] == ["GOOD ONE", "ALSO GOOD"]
+    # The summary is untouched by a bad table.
+    assert read.statement_balance_minor == 100_00
+
+
+def test_scan_summary_still_works_when_there_is_no_table() -> None:
+    """A summary-only statement (or a page whose table is unreadable) must keep
+    working exactly as it did before #25 — lines are additive, not required."""
+    from family_cfo_api.api.accounts import parse_card_statement_scan
+
+    no_key = parse_card_statement_scan(
+        '{"statement_balance": 1234.56, "due_date": "2026-09-15"}'
+    )
+    assert no_key.lines == []
+    assert no_key.statement_balance_minor == 123_456
+
+    wrong_shape = parse_card_statement_scan(
+        '{"statement_balance": 1234.56, "transactions": "could not read the table"}'
+    )
+    assert wrong_shape.lines == []
+    assert wrong_shape.statement_balance_minor == 123_456
+
+
+@pytest.mark.anyio
+async def test_scan_accumulates_lines_across_pages(demo_client, demo_token, monkeypatch):
+    """#25: the transaction table runs past page 1. The scan must keep reading
+    and ACCUMULATE, taking the summary from wherever it appeared."""
+    import base64
+
+    from family_cfo_api.api import accounts as accounts_api
+
+    pages = [
+        (
+            '{"statement_balance": 300.00, "due_date": "2026-09-15", "transactions": ['
+            '{"date": "2026-08-03", "description": "PAGE ONE", "amount": -6.75}]}'
+        ),
+        (
+            '{"statement_balance": null, "transactions": ['
+            '{"date": "2026-08-09", "description": "PAGE TWO", "amount": -12.00}]}'
+        ),
+        "the model gave up on this page",
+    ]
+    answers = iter(pages)
+
+    class _Completion:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class _Describer:
+        def complete(self, messages, **kwargs):
+            return _Completion(next(answers))
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        accounts_api, "select_vision_describer", lambda *a, **k: (_Describer(), "test"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "family_cfo_api.ai_runtime_selection.select_vision_describer",
+        lambda *a, **k: (_Describer(), "test"),
+    )
+    monkeypatch.setattr(
+        "family_cfo_api.api.income_analysis.pdf_page_pngs",
+        lambda pdf_bytes, max_pages=3: [b"page"] * min(3, max_pages),
+    )
+
+    scanned = await demo_client.post(
+        "/api/v1/accounts/card-statements/scan",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "image_base64": base64.b64encode(b"%PDF-1.4").decode("ascii"),
+            "image_media_type": "application/pdf",
+        },
+    )
+    assert scanned.status_code == 200, scanned.text
+    body = scanned.json()
+    assert body["statement_balance_minor"] == 300_00
+    assert [line["description"] for line in body["lines"]] == ["PAGE ONE", "PAGE TWO"]
+
+
+@pytest.mark.anyio
+async def test_scan_stops_once_the_table_ends(demo_client, demo_token, monkeypatch):
+    """#25: statements end in pages of disclosures. Once the summary is in hand,
+    two consecutive pages with no rows mean the table is behind us — paying for
+    more vision calls on fine print is waste."""
+    from family_cfo_api import ai_runtime_selection
+
+    calls = {"n": 0}
+
+    class _Describer:
+        def complete(self, messages, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                body = (
+                    '{"statement_balance": 100.00, "due_date": "2026-09-15", '
+                    '"transactions": [{"date": "2026-08-02", "description": "SHOP", '
+                    '"amount": 25.00}]}'
+                )
+            else:
+                body = '{"transactions": []}'  # disclosures, no rows
+
+            class _C:
+                text = body
+
+            return _C()
+
+        def close(self):
+            pass
+
+    # The endpoint imports both symbols INSIDE the function body, so they must
+    # be patched on their source modules, not on the endpoint's module.
+    from family_cfo_api.api import income_analysis
+
+    monkeypatch.setattr(
+        ai_runtime_selection, "select_vision_describer", lambda *a, **k: (_Describer(), "test")
+    )
+    monkeypatch.setattr(income_analysis, "pdf_page_pngs", lambda *a, **k: [b"p"] * 10)
+
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    import base64
+
+    response = await demo_client.post(
+        "/api/v1/accounts/card-statements/scan",
+        headers=headers,
+        json={
+            "image_base64": base64.b64encode(b"%PDF-1.4 fake").decode(),
+            "image_media_type": "application/pdf",
+        },
+    )
+    assert response.status_code == 200, response.text
+    # Page 1 (summary + row) then two empty pages -> stop. Not all 10.
+    assert calls["n"] == 3, f"scanned {calls['n']} pages; expected to stop at 3"
+    assert len(response.json()["lines"]) == 1

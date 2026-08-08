@@ -10763,6 +10763,202 @@
         <target state="needs-review-translation">Vaikas</target>
 <note priority="1" from="description">Limited access for a child</note><note priority="1" from="meaning">Household role</note>
       </trans-unit>
+      <trans-unit id="91102754334788273" datatype="html">
+        <source>Hide the check</source>
+        <target state="needs-review-translation">Slėpti patikrą</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">292,293</context>
+        </context-group>
+        <note priority="1" from="description">Hides the statement line-item check</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="2138535203088444968" datatype="html">
+        <source>Check line items</source>
+        <target state="needs-review-translation">Tikrinti eilutes</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">294,296</context>
+        </context-group>
+        <note priority="1" from="description">Shows whether synced transactions cover every charge on the statement</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="1262417973536493358" datatype="html">
+        <source> No line items have been read from this statement yet. Scan the statement below and store what the reader finds. </source>
+        <target state="needs-review-translation">Iš šio išrašo dar nenuskaityta nė viena eilutė. Nuskaitykite išrašą žemiau ir išsaugokite tai, ką skaitytuvas rado.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">331,333</context>
+        </context-group>
+        <note priority="1" from="description">No statement line items have been stored, so nothing can be checked yet</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="2860839735407815125" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ coverage().matched }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ coverage().total }}"/> charges matched </source>
+        <target state="needs-review-translation"> Suderinta <x id="INTERPOLATION" equiv-text="{{ coverage().matched }}"/> iš <x id="INTERPOLATION_1" equiv-text="{{ coverage().total }}"/> nurašymų </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">337,338</context>
+        </context-group>
+        <note priority="1" from="description">How many of the statement&apos;s charges a synced transaction explains</note>
+        <note priority="1" from="meaning">Reconciliation coverage</note>
+      </trans-unit>
+      <trans-unit id="1977106538182856587" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ coverage().missing }}"/> not synced </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ coverage().missing }}"/> nesinchronizuota </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">341,342</context>
+        </context-group>
+        <note priority="1" from="description">Charges on the statement that the bank feed never delivered</note>
+        <note priority="1" from="meaning">Reconciliation coverage</note>
+      </trans-unit>
+      <trans-unit id="8510613253870877241" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ coverage().differs }}"/> amount differs </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ coverage().differs }}"/> nesutampa suma </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">346,347</context>
+        </context-group>
+        <note priority="1" from="description">Charges matched to a transaction whose amount disagrees</note>
+        <note priority="1" from="meaning">Reconciliation coverage</note>
+      </trans-unit>
+      <trans-unit id="5406046430801520496" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ coverage().notOnStatement }}"/> posted after close </source>
+        <target state="needs-review-translation"> <x id="INTERPOLATION" equiv-text="{{ coverage().notOnStatement }}"/> užfiksuota po ciklo pabaigos </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">351,352</context>
+        </context-group>
+        <note priority="1" from="description">Synced transactions this statement does not list</note>
+        <note priority="1" from="meaning">Reconciliation coverage</note>
+      </trans-unit>
+      <trans-unit id="4559048210167206668" datatype="html">
+        <source> Add this transaction </source>
+        <target state="needs-review-translation">Pridėti šią operaciją</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">375,376</context>
+        </context-group>
+        <note priority="1" from="description">Opens the add-transaction form already filled in from an unmatched statement line</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8539736578415986222" datatype="html">
+        <source> Synced, but not on this statement </source>
+        <target state="needs-review-translation">Sinchronizuota, bet nėra šiame išraše</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">385,386</context>
+        </context-group>
+        <note priority="1" from="description">Synced transactions that this statement does not list</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="4936713711164346808" datatype="html">
+        <source> These almost always posted after the cycle closed, so they belong to the next statement. Only look twice if one of them duplicates a charge above. </source>
+        <target state="needs-review-translation">Šios beveik visada užfiksuotos po ciklo pabaigos, todėl priklauso kitam išrašui. Atidžiau pažiūrėkite tik tada, jei kuri nors dubliuoja aukščiau esantį nurašymą.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">388,390</context>
+        </context-group>
+        <note priority="1" from="description">Why a synced transaction is usually missing from a statement</note>
+        <note priority="1" from="meaning">Section hint</note>
+      </trans-unit>
+      <trans-unit id="930056451157407701" datatype="html">
+        <source> The reader also found <x id="INTERPOLATION" equiv-text="{{ scannedLines().length }}"/> line items on this statement. Storing them REPLACES whatever was read for this statement before — it never adds a second copy. </source>
+        <target state="needs-review-translation"> Skaitytuvas šiame išraše taip pat rado <x id="INTERPOLATION" equiv-text="{{ scannedLines().length }}"/> eilučių. Jas išsaugojus, ankstesnis šio išrašo nuskaitymas bus PAKEISTAS — antra kopija niekada nepridedama. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">414,416</context>
+        </context-group>
+        <note priority="1" from="description">Offers to store the transaction rows the statement scan read, warning that it overwrites</note>
+        <note priority="1" from="meaning">Prompt</note>
+      </trans-unit>
+      <trans-unit id="8236353731735505133" datatype="html">
+        <source> Store the line items </source>
+        <target state="needs-review-translation">Išsaugoti eilutes</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">426,427</context>
+        </context-group>
+        <note priority="1" from="description">Stores the line items the statement scan read</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8784790563801562631" datatype="html">
+        <source> Discard them </source>
+        <target state="needs-review-translation">Atmesti jas</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">434,436</context>
+        </context-group>
+        <note priority="1" from="description">Throws the scanned line items away without storing them</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="7022883676885862693" datatype="html">
+        <source> The reader also found <x id="INTERPOLATION" equiv-text="{{ scannedLines().length }}"/> line items. Save the statement below and you can store them against it. </source>
+        <target state="needs-review-translation"> Skaitytuvas taip pat rado <x id="INTERPOLATION" equiv-text="{{ scannedLines().length }}"/> eilučių. Išsaugokite išrašą žemiau ir galėsite jas priskirti jam. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.html</context>
+          <context context-type="linenumber">438,439</context>
+        </context-group>
+        <note priority="1" from="description">Scanned line items cannot be stored until the statement itself is saved</note>
+        <note priority="1" from="meaning">Prompt</note>
+      </trans-unit>
+      <trans-unit id="2198032842144175919" datatype="html">
+        <source>Failed to load the statement reconciliation.</source>
+        <target state="needs-review-translation">Nepavyko įkelti išrašo sutikrinimo.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.ts</context>
+          <context context-type="linenumber">561</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3671914044849520164" datatype="html">
+        <source>Failed to store the statement line items.</source>
+        <target state="needs-review-translation">Nepavyko išsaugoti išrašo eilučių.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/accounts/accounts.ts</context>
+          <context context-type="linenumber">626</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="6100982804102560893" datatype="html">
+        <source> Filled in from a statement line that no synced transaction explained. Check every value — nothing is recorded until you press “Add transaction”. </source>
+        <target state="needs-review-translation">Užpildyta pagal išrašo eilutę, kurios nepaaiškino jokia sinchronizuota operacija. Patikrinkite kiekvieną reikšmę — niekas neįrašoma, kol nepaspausite „Pridėti operaciją“.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/transactions/transactions.html</context>
+          <context context-type="linenumber">10,15</context>
+        </context-group>
+        <note priority="1" from="description">The form was filled in from a statement line and still needs confirming</note>
+        <note priority="1" from="meaning">Form hint</note>
+      </trans-unit>
+      <trans-unit id="758036460788542841" datatype="html">
+        <source>Matched</source>
+        <target state="needs-review-translation">Suderinta</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/enum-labels.ts</context>
+          <context context-type="linenumber">25</context>
+        </context-group>
+        <note priority="1" from="description">The statement line was matched to a synced transaction</note>
+        <note priority="1" from="meaning">Statement line state</note>
+      </trans-unit>
+      <trans-unit id="2369970707269235413" datatype="html">
+        <source>Amount differs</source>
+        <target state="needs-review-translation">Nesutampa suma</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/enum-labels.ts</context>
+          <context context-type="linenumber">27</context>
+        </context-group>
+        <note priority="1" from="description">A synced transaction looks like this line but the amounts disagree</note>
+        <note priority="1" from="meaning">Statement line state</note>
+      </trans-unit>
+      <trans-unit id="7969395508628268253" datatype="html">
+        <source>Not in your ledger</source>
+        <target state="needs-review-translation">Nėra jūsų apskaitoje</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/enum-labels.ts</context>
+          <context context-type="linenumber">29</context>
+        </context-group>
+        <note priority="1" from="description">The statement charged this but no synced transaction explains it</note>
+        <note priority="1" from="meaning">Statement line state</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

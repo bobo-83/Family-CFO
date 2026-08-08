@@ -308,3 +308,118 @@
   font-size: 0.78rem;
   color: rgba(127, 127, 127, 0.95);
 }
+
+// #25: the line-item check. Everything here is read-only on the ledger — an
+// unmatched line offers a PREFILLED add-transaction form, never a silent write.
+.statement-recon {
+  flex: 1 0 100%;
+  margin-top: 0.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+}
+
+.statement-recon__coverage {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+
+  span + span::before {
+    content: ' · ';
+    color: rgba(127, 127, 127, 0.8);
+  }
+}
+
+// The gaps are the reason anyone opens this panel, so they carry the weight.
+.statement-recon__count--alarm {
+  font-weight: 700;
+  color: #a3232b;
+}
+
+.statement-recon__count--warn {
+  font-weight: 600;
+  color: #8a6d1a;
+}
+
+.statement-recon__subtitle {
+  margin: 0.9rem 0 0.2rem;
+  font-size: 0.88rem;
+}
+
+.statement-recon__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: rgba(127, 127, 127, 0.95);
+  max-width: 46rem;
+}
+
+.statement-recon__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.statement-recon__line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  // A matched line is settled business: readable, but it recedes.
+  color: rgba(127, 127, 127, 0.95);
+}
+
+.statement-recon__line--missing {
+  color: inherit;
+  font-weight: 600;
+  background: #fdecec;
+  border-left: 3px solid #a3232b;
+}
+
+.statement-recon__line--differs {
+  color: inherit;
+  background: #fff7e6;
+  border-left: 3px solid #8a6d1a;
+}
+
+.statement-recon__date {
+  flex: 0 0 4.5rem;
+}
+
+.statement-recon__desc {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+.statement-recon__amount {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-recon__state {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.statement-lines-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px dashed rgba(127, 127, 127, 0.6);
+  border-radius: 8px;
+}
+
+.statement-lines-offer__text {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 0.82rem;
+  max-width: 46rem;
+}

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -20,6 +21,8 @@ function configure(apiMock: Record<string, unknown>, role: string) {
     providers: [
       { provide: ApiService, useValue: apiMock },
       { provide: AuthService, useValue: authMock(role) },
+      // #25 sends an unmatched statement line to the add-transaction form.
+      provideRouter([]),
     ],
   });
 }
@@ -241,6 +244,23 @@ function cardApiMock(overrides: Record<string, unknown> = {}) {
     markCardStatementPaid: vi.fn().mockResolvedValue(response(cardStatement())),
     deleteCardStatement: vi.fn().mockResolvedValue(response(undefined)),
     scanCardStatement: vi.fn(),
+    replaceStatementLines: vi.fn().mockResolvedValue(response(reconciliation())),
+    getStatementReconciliation: vi.fn().mockResolvedValue(response(reconciliation())),
+    ...overrides,
+  };
+}
+
+function reconciliation(overrides: Record<string, unknown> = {}) {
+  return {
+    statement_id: 's1',
+    account_name: 'Visa',
+    period_label: 'August 2026',
+    lines: [],
+    unaccounted: [],
+    matched_count: 0,
+    missing_from_sync_count: 0,
+    not_on_statement_count: 0,
+    amount_differs_count: 0,
     ...overrides,
   };
 }
@@ -422,5 +442,223 @@ describe('Accounts #11: credit-card statements', () => {
     expect(host.querySelector('.card-statement-form')).toBeFalsy();
     expect(host.querySelector('.card-statements__paid')).toBeFalsy();
     expect(host.querySelector('.card-statements__delete')).toBeFalsy();
+  });
+});
+
+// --- #25: reconciling the statement's LINE ITEMS against synced transactions --
+
+function statementLine(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'l1',
+    occurred_on: '2026-08-03',
+    description: 'BLUE BOTTLE COFFEE',
+    amount: { amount_minor: -675, currency: 'USD' },
+    matched_transaction_id: 't1',
+    match_kind: 'exact',
+    ...overrides,
+  };
+}
+
+/** Opens the card panel and then the reconciliation view for statement s1. */
+async function openReconciliation(apiMock: Record<string, unknown>, role: string) {
+  const opened = await openCardPanel(apiMock, role);
+  (opened.host.querySelector('.card-statements__reconcile') as HTMLButtonElement).click();
+  await opened.fixture.whenStable();
+  opened.fixture.detectChanges();
+  return opened;
+}
+
+describe('Accounts #25: statement reconciliation', () => {
+  it('leads with the charges the feed never delivered', async () => {
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+      getStatementReconciliation: vi.fn().mockResolvedValue(
+        response(
+          reconciliation({
+            lines: [
+              statementLine(),
+              statementLine({ id: 'l2', description: 'COSTCO', matched_transaction_id: null, match_kind: null }),
+              statementLine({ id: 'l3', description: 'TIP ADJUSTED', match_kind: 'amount_differs' }),
+            ],
+            matched_count: 2,
+            missing_from_sync_count: 1,
+            amount_differs_count: 1,
+            not_on_statement_count: 0,
+          }),
+        ),
+      ),
+    });
+    const { host } = await openReconciliation(apiMock, 'owner');
+
+    expect(apiMock.getStatementReconciliation).toHaveBeenCalledWith('s1');
+    const coverage = host.querySelector('.statement-recon__coverage')?.textContent ?? '';
+    expect(coverage).toContain('2 of 3');
+    expect(coverage).toContain('1 not synced');
+    expect(coverage).toContain('1 amount differs');
+
+    // The gap is FIRST, not buried under the rows that are fine.
+    const rows = Array.from(host.querySelectorAll('.statement-recon__line'));
+    expect(rows[0].textContent).toContain('COSTCO');
+    expect(rows[0].classList).toContain('statement-recon__line--missing');
+    expect(rows[1].classList).toContain('statement-recon__line--differs');
+  });
+
+  it('names the synced transactions the statement never listed', async () => {
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+      getStatementReconciliation: vi.fn().mockResolvedValue(
+        response(
+          reconciliation({
+            lines: [statementLine()],
+            matched_count: 1,
+            unaccounted: [
+              {
+                transaction_id: 't9',
+                occurred_at: '2026-08-11',
+                merchant: 'POSTED LATE LLC',
+                amount: { amount_minor: -4_200, currency: 'USD' },
+              },
+            ],
+            not_on_statement_count: 1,
+          }),
+        ),
+      ),
+    });
+    const { host } = await openReconciliation(apiMock, 'owner');
+
+    expect(host.querySelector('.statement-recon__coverage')?.textContent).toContain(
+      '1 posted after close',
+    );
+    expect(host.querySelector('.statement-recon__subtitle')).toBeTruthy();
+    expect(host.textContent).toContain('POSTED LATE LLC');
+  });
+
+  it('offers the scanned line items but stores nothing until asked', async () => {
+    const apiMock = cardApiMock({
+      scanCardStatement: vi.fn().mockResolvedValue(
+        response({
+          statement_balance_minor: 84_215,
+          due_date: '2026-08-14',
+          // Already in the ledger's convention: a charge is negative.
+          lines: [
+            { occurred_on: '2026-08-03', description: 'BLUE BOTTLE', amount_minor: -675 },
+            { occurred_on: '2026-08-20', description: 'PAYMENT THANK YOU', amount_minor: 25_000 },
+            // A row the reader could not date is dropped, never guessed at.
+            { occurred_on: null, description: 'UNDATED', amount_minor: -100 },
+          ],
+          note: 'Read by the on-box model.',
+        }),
+      ),
+    });
+    const { fixture, host } = await openCardPanel(apiMock, 'owner');
+    const component = fixture.componentInstance as unknown as {
+      accounts: { value(): { id: string; balance: { currency: string } }[] | undefined };
+      scanCardStatementFile(file: File): Promise<void>;
+      statementForm: { setValue(v: unknown): void };
+      submitStatement(account: unknown): Promise<void>;
+    };
+    await component.scanCardStatementFile(new File(['s'], 's.pdf', { type: 'application/pdf' }));
+    fixture.detectChanges();
+
+    // Scanning alone stores nothing — there is not even a statement to hang on yet.
+    expect(apiMock.replaceStatementLines).not.toHaveBeenCalled();
+    expect(host.querySelector('.statement-lines-offer__store')).toBeFalsy();
+
+    const account = component.accounts.value()![0];
+    component.statementForm.setValue({
+      statementBalance: 842.15,
+      dueDate: '2026-08-14',
+      minimumDue: null,
+      periodStart: '',
+      periodEnd: '',
+    });
+    await component.submitStatement(account);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Now the offer appears, and it says plainly that storing overwrites.
+    const offer = host.querySelector('.statement-lines-offer__text')?.textContent ?? '';
+    expect(offer).toContain('2 line items');
+    expect(offer).toContain('REPLACES');
+    expect(apiMock.replaceStatementLines).not.toHaveBeenCalled();
+
+    (host.querySelector('.statement-lines-offer__store') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(apiMock.replaceStatementLines).toHaveBeenCalledWith('s1', [
+      {
+        occurred_on: '2026-08-03',
+        description: 'BLUE BOTTLE',
+        amount: { amount_minor: -675, currency: 'USD' },
+      },
+      {
+        occurred_on: '2026-08-20',
+        description: 'PAYMENT THANK YOU',
+        amount: { amount_minor: 25_000, currency: 'USD' },
+      },
+    ]);
+    // The offer is consumed, so a second click cannot double-store.
+    expect(host.querySelector('.statement-lines-offer__store')).toBeFalsy();
+  });
+
+  it('prefills the add-transaction form from an unmatched line, never writing', async () => {
+    const createTransaction = vi.fn();
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+      createTransaction,
+      getStatementReconciliation: vi.fn().mockResolvedValue(
+        response(
+          reconciliation({
+            lines: [
+              statementLine({
+                id: 'l2',
+                description: 'COSTCO WHSE #1102',
+                amount: { amount_minor: -18_240, currency: 'USD' },
+                matched_transaction_id: null,
+                match_kind: null,
+              }),
+            ],
+            missing_from_sync_count: 1,
+          }),
+        ),
+      ),
+    });
+    const { fixture, host } = await openReconciliation(apiMock, 'owner');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    (host.querySelector('.statement-recon__add') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(navigate).toHaveBeenCalledWith(['/transactions'], {
+      queryParams: {
+        account: 'c1',
+        date: '2026-08-03',
+        amount: '-182.40',
+        merchant: 'COSTCO WHSE #1102',
+      },
+    });
+    // READ-ONLY on the ledger: the household confirms on the other page.
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it('lets a viewer read the check but never store or add', async () => {
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+      getStatementReconciliation: vi.fn().mockResolvedValue(
+        response(
+          reconciliation({
+            lines: [statementLine({ matched_transaction_id: null, match_kind: null })],
+            missing_from_sync_count: 1,
+          }),
+        ),
+      ),
+    });
+    const { host } = await openReconciliation(apiMock, 'viewer');
+
+    expect(host.querySelector('.statement-recon__line--missing')).toBeTruthy();
+    expect(host.querySelector('.statement-recon__add')).toBeFalsy();
+    expect(host.querySelector('.statement-lines-offer')).toBeFalsy();
   });
 });

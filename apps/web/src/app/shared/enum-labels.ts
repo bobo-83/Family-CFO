@@ -83,3 +83,27 @@ export const ROLE_LABELS: Record<HouseholdRole, string> = {
   viewer: $localize`:Household role|Can look but not change anything:Viewer`,
   child: $localize`:Household role|Limited access for a child:Child`,
 };
+
+/** #25: what a statement line's `match_kind` + `matched_transaction_id` mean. */
+export type StatementMatchState = 'matched' | 'amount_differs' | 'missing';
+
+export function statementMatchState(line: {
+  matched_transaction_id?: string | null;
+  match_kind?: string | null;
+}): StatementMatchState {
+  if (!line.matched_transaction_id) {
+    return 'missing';
+  }
+  return line.match_kind === 'amount_differs' ? 'amount_differs' : 'matched';
+}
+
+export function statementMatchLabel(state: StatementMatchState): string {
+  switch (state) {
+    case 'matched':
+      return $localize`:Statement line state|The statement line was matched to a synced transaction:Matched`;
+    case 'amount_differs':
+      return $localize`:Statement line state|A synced transaction looks like this line but the amounts disagree:Amount differs`;
+    default:
+      return $localize`:Statement line state|The statement charged this but no synced transaction explains it:Not in your ledger`;
+  }
+}

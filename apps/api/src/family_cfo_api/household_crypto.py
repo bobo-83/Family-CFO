@@ -709,6 +709,12 @@ def sealed_tables(models_module):
             ["statement_balance_minor", "minimum_due_minor"],
             "household_id",
         ),
+        # #25: statement line items carry merchant text and amounts.
+        (
+            models_module.card_statement_lines,
+            ["description", "amount_minor"],
+            "household_id",
+        ),
     ]
 
 

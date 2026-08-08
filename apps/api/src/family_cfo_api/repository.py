@@ -817,6 +817,125 @@ def delete_card_statement(engine: Engine, household_id: str, statement_id: str) 
     return result.rowcount > 0
 
 
+@dataclass(frozen=True, slots=True)
+class StatementLineRecord:
+    id: str
+    statement_id: str
+    occurred_on: date
+    description: str
+    amount_minor: int
+    currency: str
+    matched_transaction_id: str | None
+    match_kind: str | None
+
+
+def replace_statement_lines(
+    engine: Engine, household_id: str, statement_id: str, lines: list[dict]
+) -> list[StatementLineRecord]:
+    """#25: store the lines read off a statement, replacing any previous read.
+
+    Replace rather than append: re-scanning the same statement must not double
+    its line items, and a better scan should win outright.
+    """
+    now = utcnow()
+    records: list[StatementLineRecord] = []
+    with engine.begin() as conn:
+        conn.execute(
+            delete(models.card_statement_lines).where(
+                models.card_statement_lines.c.household_id == household_id,
+                models.card_statement_lines.c.statement_id == statement_id,
+            )
+        )
+        for line in lines:
+            line_id = new_id()
+            conn.execute(
+                insert(models.card_statement_lines).values(
+                    id=line_id,
+                    household_id=household_id,
+                    statement_id=statement_id,
+                    occurred_on=line["occurred_on"],
+                    description=household_crypto.encrypt_text(engine, household_id, line["description"]),
+                    amount_minor=_enc_amount(engine, household_id, line["amount_minor"]),
+                    currency=line["currency"],
+                    matched_transaction_id=None,
+                    match_kind=None,
+                    created_at=now,
+                )
+            )
+            records.append(
+                StatementLineRecord(
+                    id=line_id,
+                    statement_id=statement_id,
+                    occurred_on=line["occurred_on"],
+                    description=line["description"],
+                    amount_minor=line["amount_minor"],
+                    currency=line["currency"],
+                    matched_transaction_id=None,
+                    match_kind=None,
+                )
+            )
+    return records
+
+
+def list_statement_lines(
+    engine: Engine, household_id: str, statement_id: str
+) -> list[StatementLineRecord]:
+    query = (
+        select(models.card_statement_lines)
+        .where(
+            models.card_statement_lines.c.household_id == household_id,
+            models.card_statement_lines.c.statement_id == statement_id,
+        )
+        .order_by(models.card_statement_lines.c.occurred_on)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [
+        StatementLineRecord(
+            id=row["id"],
+            statement_id=row["statement_id"],
+            occurred_on=row["occurred_on"],
+            description=_dec(engine, household_id, row["description"]),
+            amount_minor=_dec_amount(engine, household_id, row["amount_minor"]),
+            currency=row["currency"],
+            matched_transaction_id=row["matched_transaction_id"],
+            match_kind=row["match_kind"],
+        )
+        for row in rows
+    ]
+
+
+def set_statement_line_match(
+    engine: Engine,
+    household_id: str,
+    line_id: str,
+    transaction_id: str | None,
+    match_kind: str | None,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.card_statement_lines)
+            .where(
+                models.card_statement_lines.c.household_id == household_id,
+                models.card_statement_lines.c.id == line_id,
+            )
+            .values(matched_transaction_id=transaction_id, match_kind=match_kind)
+        )
+
+
+def statement_ids_for_transaction(
+    engine: Engine, household_id: str, transaction_id: str
+) -> list[str]:
+    """#25: which statements claim this transaction — the "seen in the August
+    2026 statement" label."""
+    query = select(models.card_statement_lines.c.statement_id).where(
+        models.card_statement_lines.c.household_id == household_id,
+        models.card_statement_lines.c.matched_transaction_id == transaction_id,
+    )
+    with engine.connect() as conn:
+        return [row[0] for row in conn.execute(query).all()]
+
+
 def prune_dead_auth_sessions(engine: Engine, *, older_than: datetime) -> int:
     """Delete sessions that are expired or revoked past the retention cutoff.
     Issue #48/#3: nothing pruned these before, so they grew without bound.
