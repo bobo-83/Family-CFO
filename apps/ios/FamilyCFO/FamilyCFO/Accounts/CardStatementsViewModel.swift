@@ -21,6 +21,14 @@ final class CardStatementsViewModel {
     private(set) var isSaving = false
     var errorMessage: String?
 
+    /// #25: the transaction table the last scan read, held UNSAVED. Storing it
+    /// is a separate, explicit step — and it replaces the previous read.
+    private(set) var scannedLines: [Components.Schemas.CardStatementScanLine] = []
+    /// The recorded cycle those scanned lines can hang off. Lines need a
+    /// statement to belong to, so the offer only appears once one exists.
+    private(set) var scannedLinesStatementID: String?
+    private(set) var isStoringLines = false
+
     init(api: AccountsAPI, account: Components.Schemas.Account) {
         self.api = api
         self.account = account
@@ -61,6 +69,13 @@ final class CardStatementsViewModel {
                     periodEnd: draft.hasPeriod ? LoanDate.iso(from: draft.periodEnd) : nil))
             errorMessage = nil
             await load()
+            // #25: the cycle now exists, so the lines the same scan read have
+            // something to be stored against. Same card + due date is one
+            // cycle, which is exactly how the just-saved one is found again.
+            if !scannedLines.isEmpty {
+                let dueDate = LoanDate.iso(from: draft.dueDate)
+                scannedLinesStatementID = statements.first { $0.dueDate == dueDate }?.id
+            }
             return true
         } catch {
             errorMessage = Self.describe(error)
@@ -84,10 +99,62 @@ final class CardStatementsViewModel {
         do {
             try await api.deleteCardStatement(id: statement.id)
             statements.removeAll { $0.id == statement.id }
+            // Lines can't outlive the cycle they were read from.
+            if scannedLinesStatementID == statement.id { discardScannedLines() }
             errorMessage = nil
         } catch {
             errorMessage = Self.describe(error)
         }
+    }
+
+    // MARK: - #25: the statement's own line items
+
+    /// The check for one cycle: which of its charges the synced ledger explains.
+    /// Reading it takes no write right — anyone who can see the cycle can see
+    /// what it does and doesn't account for.
+    func reconciliation(
+        for statement: Components.Schemas.CardStatement
+    ) -> StatementReconciliationViewModel {
+        StatementReconciliationViewModel(api: api, statement: statement)
+    }
+
+    /// True once a scan has read a transaction table that hasn't been stored.
+    var hasScannedLines: Bool { !scannedLines.isEmpty }
+
+    /// The offer can only be taken once the cycle those lines belong to exists.
+    var canStoreScannedLines: Bool { scannedLinesStatementID != nil && hasScannedLines }
+
+    /// Store the scanned table against its cycle. This REPLACES whatever was
+    /// read for that statement before — never a second copy of the same charges.
+    func storeScannedLines() async {
+        guard let statementID = scannedLinesStatementID, !scannedLines.isEmpty, !isStoringLines
+        else { return }
+        isStoringLines = true
+        defer { isStoringLines = false }
+        let lines = scannedLines.compactMap { line -> Components.Schemas.StatementLineInput? in
+            // A row with no date can't be matched against anything, so it would
+            // read as a permanent gap — drop it rather than invent a day.
+            guard let occurredOn = line.occurredOn else { return nil }
+            return .init(
+                occurredOn: occurredOn,
+                description: line.description,
+                // Already in the ledger's convention: negative is a charge.
+                amount: .init(amountMinor: Int64(line.amountMinor), currency: currency))
+        }
+        do {
+            _ = try await api.replaceStatementLines(statementID: statementID, lines: lines)
+            discardScannedLines()
+            errorMessage = nil
+            await load()
+        } catch {
+            errorMessage = Self.describe(error)
+        }
+    }
+
+    /// Throw the unstored read away — the ledger is untouched either way.
+    func discardScannedLines() {
+        scannedLines = []
+        scannedLinesStatementID = nil
     }
 
     /// Read a photographed statement into candidates. Returns nil (and sets
@@ -116,6 +183,11 @@ final class CardStatementsViewModel {
         defer { isScanning = false }
         do {
             let result = try await api.scanCardStatement(makeAttachment())
+            // #25: the transaction table rides along with the summary. It is
+            // held here, unstored, until the cycle exists and the household
+            // says to keep it — a re-scan replaces this read, never doubles it.
+            scannedLines = (result.lines ?? []).filter { $0.occurredOn != nil }
+            scannedLinesStatementID = nil
             errorMessage = nil
             return result
         } catch {

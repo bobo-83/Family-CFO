@@ -17,13 +17,20 @@ from family_cfo_api.schemas import (
     CardStatementCreateRequest,
     CardStatementListResponse,
     CardStatementPaidRequest,
+    CardStatementScanLine,
     CardStatementScanRequest,
     CardStatementScanResult,
     ErrorResponse,
     LoanScanRequest,
     LoanScanResult,
+    StatementLinesReplaceRequest,
+    StatementReconciliation,
+    UnaccountedTransaction,
 )
 from family_cfo_api.schemas import Money as MoneySchema
+from family_cfo_api.schemas import (
+    StatementLine as StatementLineSchema,
+)
 
 router = APIRouter(tags=["Accounts"])
 
@@ -117,18 +124,96 @@ def _account_scan_note(cash: int | None, investment: int | None) -> str:
 
 
 _CARD_STATEMENT_PROMPT = (
-    "You are reading a CREDIT CARD statement. Return ONLY compact JSON with the "
-    "keys: statement_balance (the NEW BALANCE for this cycle — not the available "
-    "credit, not the previous balance), minimum_due (the minimum payment due), "
-    "due_date (payment due date, YYYY-MM-DD), period_start and period_end (the "
-    "billing period, YYYY-MM-DD). Use null for anything you cannot read. Never "
-    "guess a value that is not printed on the statement."
+    "You are reading one page of a CREDIT CARD statement. Return ONLY compact "
+    "JSON with the keys: statement_balance (the NEW BALANCE for this cycle — not "
+    "the available credit, not the previous balance), minimum_due (the minimum "
+    "payment due), due_date (payment due date, YYYY-MM-DD), period_start and "
+    "period_end (the billing period, YYYY-MM-DD), and transactions (the rows of "
+    "the transaction table on THIS page, [] if this page has no table). "
+    "Each transaction is {\"date\": YYYY-MM-DD, \"description\": the merchant or "
+    "payee text, \"amount\": a signed number}. "
+    "SIGN CONVENTION — this is important and is NOT how the statement prints it: "
+    "a PURCHASE, CHARGE, FEE or INTEREST charge must be NEGATIVE (a $45.00 "
+    "purchase printed as 45.00 becomes -45.00), and a PAYMENT, REFUND, CREDIT or "
+    "reversal must be POSITIVE. Statements print charges as positive numbers in "
+    "the Amount column; flip them. "
+    "If a row prints only month and day, use the year of the billing period "
+    "shown on the statement. Skip running-balance, subtotal and total rows — "
+    "only real transactions. Use null for any summary value you cannot read, "
+    "and never guess a value that is not printed on the statement."
 )
 
 _CARD_SCAN_NOTE = (
     "Read from the statement — check each value before saving; nothing is stored "
     "until you confirm."
 )
+
+
+def _scan_line_date(raw: object) -> date | None:
+    """A row's date, from the YYYY-MM-DD the prompt asks for or the MM/DD/YYYY a
+    model sometimes copies off the page. A row printed without a year is NOT
+    given one here — inventing a year is a guess, so the row is dropped."""
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        pass
+    parts = text.replace("-", "/").split("/")
+    if len(parts) != 3 or not all(part.strip().isdigit() for part in parts):
+        return None
+    month, day, year = (int(part) for part in parts)
+    if year < 100:
+        year += 2000
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _scan_line_amount(raw: object) -> int | None:
+    """Minor units, keeping the sign the model reported. "(45.00)" — the
+    accounting way to write a negative — is honoured too."""
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.startswith("(") and text.endswith(")"):
+            raw = "-" + text[1:-1]
+    value = _scan_number(raw)
+    return None if value is None else round(value * 100)
+
+
+def parse_card_statement_scan_lines(data: object) -> list[CardStatementScanLine]:
+    """#25: the transaction table off ONE page.
+
+    Defensive in the same way as the summary parse: a row without a readable
+    date, description or amount is SKIPPED rather than guessed at, and a table
+    that is missing or shaped unexpectedly yields an empty list — never an
+    error, so the summary still parses when the table does not.
+    """
+    if not isinstance(data, dict):
+        return []
+    rows = data.get("transactions")
+    if not isinstance(rows, list):
+        return []
+    lines: list[CardStatementScanLine] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        occurred_on = _scan_line_date(row.get("date"))
+        amount_minor = _scan_line_amount(row.get("amount"))
+        description = row.get("description")
+        description = description.strip() if isinstance(description, str) else ""
+        if occurred_on is None or amount_minor is None or not description:
+            continue
+        lines.append(
+            CardStatementScanLine(
+                occurred_on=occurred_on,
+                description=description[:300],
+                amount_minor=amount_minor,
+            )
+        )
+    return lines
 
 
 def parse_card_statement_scan(text: str) -> CardStatementScanResult:
@@ -164,6 +249,7 @@ def parse_card_statement_scan(text: str) -> CardStatementScanResult:
 
     balance = money_minor("statement_balance")
     return CardStatementScanResult(
+        lines=parse_card_statement_scan_lines(data),
         statement_balance_minor=balance,
         minimum_due_minor=money_minor("minimum_due"),
         due_date=as_date("due_date"),
@@ -1058,11 +1144,13 @@ async def scan_card_statement(
             pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
-        # The summary box (balance, minimum, due date) is on page 1 of every
-        # issuer's statement; a couple of extra pages covers a cover sheet.
+        # The summary box sits on page 1, but #25 also wants the TRANSACTION
+        # TABLE, which runs over several pages on a busy card — so read deeper.
+        # The cap keeps a 40-page statement (disclosures, rewards inserts) from
+        # turning into 40 vision calls.
         data_urls = [
             "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-            for png in pdf_page_pngs(pdf_bytes, max_pages=3)
+            for png in pdf_page_pngs(pdf_bytes, max_pages=10)
         ]
     else:
         data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
@@ -1071,7 +1159,10 @@ async def scan_card_statement(
     if describer is None:
         raise HTTPException(status_code=503, detail="No vision model is configured")
     try:
-        result = CardStatementScanResult(note="")
+        summary: CardStatementScanResult | None = None
+        last: CardStatementScanResult | None = None
+        lines: list[CardStatementScanLine] = []
+        empty_pages = 0
         for data_url in data_urls:
             completion = describer.complete(
                 [
@@ -1080,18 +1171,167 @@ async def scan_card_statement(
                     )
                 ],
                 temperature=0.0,
-                max_tokens=400,
+                # A page of the transaction table is far more JSON than the
+                # summary box — too small a budget truncates mid-row and the
+                # whole page parses as nothing.
+                max_tokens=4000,
                 thinking=False,
             )
-            result = parse_card_statement_scan(completion.text)
-            # The whole summary sits together, so a page carrying the balance
-            # carries the rest — stop rather than pay for more pages.
-            if result.statement_balance_minor is not None:
-                return result
-        return result or CardStatementScanResult(
+            page = parse_card_statement_scan(completion.text)
+            last = page
+            # #25: the table spans pages, so every page contributes rows. Rows
+            # are NOT de-duplicated — two identical coffees on one day are two
+            # real charges, and dropping one would invent a missing charge.
+            lines.extend(page.lines)
+            # The summary box sits together, so the first page carrying the
+            # balance carries the rest; later pages only add table rows.
+            if summary is None and page.statement_balance_minor is not None:
+                summary = page
+
+            # Statements end in pages of disclosures and legal text that will
+            # never yield a row. Once the summary is in hand, two consecutive
+            # empty pages mean the table is behind us — stop paying for vision
+            # calls that cannot contribute (a long statement otherwise costs 10
+            # calls, most of them on fine print).
+            empty_pages = empty_pages + 1 if not page.lines else 0
+            if summary is not None and empty_pages >= 2:
+                break
+        result = summary or last or CardStatementScanResult(
             note="Nothing readable was found — enter the values manually."
         )
+        return result.model_copy(update={"lines": lines})
     except RuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
     finally:
         describer.close()
+
+
+# --- #25: statement reconciliation -----------------------------------------
+# A statement balance says what is owed; its LINE ITEMS say whether the synced
+# ledger is complete. A line with no matching transaction is a charge the bank
+# feed never delivered — the thing worth surfacing.
+
+
+def _period_label(statement) -> str:
+    """"August 2026" — how a person refers to a statement."""
+    anchor = statement.period_end or statement.period_start or statement.due_date
+    return anchor.strftime("%B %Y")
+
+
+def _reconciliation_payload(engine, household_id: str, statement) -> StatementReconciliation:
+    from family_cfo_api import statement_reconciliation
+
+    result = statement_reconciliation.reconcile_statement(
+        engine, household_id, statement.id
+    )
+    stored = repository.list_statement_lines(engine, household_id, statement.id)
+    names = repository.account_name_map(engine, household_id)
+
+    by_id = {row.id: row for row in stored}
+    unaccounted: list[UnaccountedTransaction] = []
+    if result.unmatched_transaction_ids:
+        wanted = set(result.unmatched_transaction_ids)
+        for txn in repository.list_transactions(engine, household_id, limit=100_000):
+            if txn.id in wanted:
+                unaccounted.append(
+                    UnaccountedTransaction(
+                        transaction_id=txn.id,
+                        occurred_at=txn.occurred_at,
+                        merchant=txn.merchant or txn.description or "",
+                        amount=MoneySchema(
+                            amount_minor=txn.amount_minor, currency=txn.currency
+                        ),
+                    )
+                )
+    return StatementReconciliation(
+        statement_id=statement.id,
+        account_name=names.get(statement.account_id, "Card"),
+        period_label=_period_label(statement),
+        lines=[
+            StatementLineSchema(
+                id=row.id,
+                occurred_on=row.occurred_on,
+                description=row.description,
+                amount=MoneySchema(amount_minor=row.amount_minor, currency=row.currency),
+                matched_transaction_id=row.matched_transaction_id,
+                match_kind=row.match_kind,
+            )
+            for row in by_id.values()
+        ],
+        unaccounted=sorted(unaccounted, key=lambda u: u.occurred_at),
+        matched_count=result.matched_count,
+        missing_from_sync_count=result.missing_from_sync_count,
+        not_on_statement_count=result.not_on_statement_count,
+        amount_differs_count=result.amount_differs_count,
+    )
+
+
+@router.put(
+    "/accounts/card-statements/{statement_id}/lines",
+    operation_id="replaceStatementLines",
+    response_model=StatementReconciliation,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Statement not found", "model": ErrorResponse},
+    },
+    summary="Store a statement's line items and reconcile them (#25)",
+)
+async def replace_statement_lines(
+    statement_id: str,
+    payload: StatementLinesReplaceRequest,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> StatementReconciliation:
+    statement = repository.get_card_statement(engine, session.household_id, statement_id)
+    if statement is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+
+    repository.replace_statement_lines(
+        engine,
+        session.household_id,
+        statement_id,
+        [
+            {
+                "occurred_on": line.occurred_on,
+                "description": line.description,
+                "amount_minor": line.amount.amount_minor,
+                "currency": line.amount.currency,
+            }
+            for line in payload.lines
+        ],
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "statement_lines.recorded",
+        "card_statement",
+        statement_id,
+        f"Recorded {len(payload.lines)} statement line(s)",
+        undo_token=None,
+    )
+    return _reconciliation_payload(engine, session.household_id, statement)
+
+
+@router.get(
+    "/accounts/card-statements/{statement_id}/reconciliation",
+    operation_id="getStatementReconciliation",
+    response_model=StatementReconciliation,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Statement not found", "model": ErrorResponse},
+    },
+    summary="What the statement accounts for, and what it doesn't (#25)",
+)
+async def get_statement_reconciliation(
+    statement_id: str,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> StatementReconciliation:
+    """Re-runs matching on every read, so a sync that fills a gap turns an
+    unmatched line into a matched one without anyone re-uploading."""
+    statement = repository.get_card_statement(engine, session.household_id, statement_id)
+    if statement is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    return _reconciliation_payload(engine, session.household_id, statement)

@@ -853,6 +853,22 @@
       }
     },
     "%lld MB": {},
+    "%lld amount differs": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%lld nesutampa suma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld lệch số tiền"
+          }
+        }
+      }
+    },
     "%lld answers": {
       "localizations": {
         "en": {
@@ -1103,6 +1119,38 @@
         }
       }
     },
+    "%lld not synced": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%lld nesinchronizuota"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld chưa đồng bộ"
+          }
+        }
+      }
+    },
+    "%lld of %lld charges matched": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suderinta %1$lld iš %2$lld nurašymų"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã khớp %1$lld trong %2$lld khoản chi"
+          }
+        }
+      }
+    },
     "%lld payments left": {
       "localizations": {
         "en": {
@@ -1151,6 +1199,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Còn %lld kỳ thanh toán"
+          }
+        }
+      }
+    },
+    "%lld posted after close": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%lld užfiksuota po ciklo pabaigos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ghi nhận sau khi chốt kỳ"
           }
         }
       }
@@ -1555,6 +1619,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã có danh mục tên “%@” — hãy chọn nó trong danh sách."
+          }
+        }
+      }
+    },
+    "A charge your statement lists that no synced transaction explains is missing from your ledger — the feed never delivered it. Sync again, and if it still doesn't appear, add it yourself.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nurašymas, kurį jūsų išrašas nurodo, bet kurio nepaaiškina jokia sinchronizuota operacija, yra dingęs iš jūsų apskaitos — banko srautas jo taip ir nepristatė. Sinchronizuokite dar kartą, o jei jis vis tiek nepasirodo, pridėkite jį patys."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoản chi mà sao kê của bạn liệt kê nhưng không có giao dịch đồng bộ nào giải thích là khoản đang thiếu trong sổ của bạn — luồng dữ liệu ngân hàng chưa bao giờ gửi nó về. Hãy đồng bộ lại, và nếu nó vẫn không xuất hiện, hãy tự thêm vào."
           }
         }
       }
@@ -2299,6 +2379,22 @@
         }
       }
     },
+    "Already accounted for": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jau paaiškinta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã được giải thích"
+          }
+        }
+      }
+    },
     "Already paid a bill? Swipe its row right to pick the charge that paid it.": {
       "localizations": {
         "lt": {
@@ -2343,6 +2439,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Số tiền"
+          }
+        }
+      }
+    },
+    "Amount differs": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nesutampa suma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lệch số tiền"
           }
         }
       }
@@ -3509,6 +3621,22 @@
         }
       }
     },
+    "Charges to look at": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nurašymai, kuriuos verta patikrinti"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các khoản chi cần xem"
+          }
+        }
+      }
+    },
     "Check / receipt photo": {
       "localizations": {
         "lt": {
@@ -3521,6 +3649,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ảnh séc / biên lai"
+          }
+        }
+      }
+    },
+    "Checked fresh every time you open this — a sync that fills a gap closes it here without re-reading the statement.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tikrinama iš naujo kaskart atidarius — sinchronizavimas, užpildantis spragą, ją čia uždaro be pakartotinio išrašo nuskaitymo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Được kiểm tra lại mỗi lần bạn mở — một lần đồng bộ lấp được chỗ trống sẽ khép lại nó ở đây mà không cần đọc lại sao kê."
           }
         }
       }
@@ -4967,6 +5111,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thiết bị"
+          }
+        }
+      }
+    },
+    "Discard them": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Atmesti jas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bỏ qua chúng"
           }
         }
       }
@@ -7180,6 +7340,38 @@
         }
       }
     },
+    "Line items": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Eilutės"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dòng giao dịch"
+          }
+        }
+      }
+    },
+    "Line items from the scan": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nuskaitytos eilutės"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các dòng giao dịch từ bản quét"
+          }
+        }
+      }
+    },
     "Link a bank from the dashboard, or add a loan from the Debts tab.": {
       "localizations": {
         "lt": {
@@ -7480,6 +7672,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đánh dấu đã trả"
+          }
+        }
+      }
+    },
+    "Matched": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Suderinta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã khớp"
           }
         }
       }
@@ -8466,6 +8674,22 @@
         }
       }
     },
+    "No line items yet": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kol kas nėra eilučių"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có dòng giao dịch nào"
+          }
+        }
+      }
+    },
     "No linked transfers — 401(k) payroll deductions don't appear here.": {
       "localizations": {
         "lt": {
@@ -8626,6 +8850,22 @@
         }
       }
     },
+    "Not in your ledger": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nėra jūsų apskaitoje"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có trong sổ của bạn"
+          }
+        }
+      }
+    },
     "Not income": {
       "localizations": {
         "lt": {
@@ -8750,6 +8990,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không tìm thấy gì trong các khoản chuyển tiền của bạn. Nếu bạn đang đóng vào thứ ứng dụng không thấy được — 529, chương trình của công ty — hãy khai ở đây và mọi con số sẽ tính đến nó."
+          }
+        }
+      }
+    },
+    "Nothing has been read from this statement's transaction table yet. Scan the statement from the previous screen and store what the reader finds.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Iš šio išrašo operacijų lentelės dar nieko nenuskaityta. Nuskaitykite išrašą ankstesniame ekrane ir išsaugokite tai, ką skaitytuvas randa."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa đọc được gì từ bảng giao dịch của sao kê này. Hãy quét sao kê ở màn hình trước và lưu những gì trình đọc tìm thấy."
           }
         }
       }
@@ -12310,6 +12566,22 @@
         }
       }
     },
+    "Store the line items": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išsaugoti eilutes"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu các dòng giao dịch"
+          }
+        }
+      }
+    },
     "Stored as reviewable notes, never trained into the model — so knowledge stays current and deletable.": {
       "localizations": {
         "lt": {
@@ -12322,6 +12594,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Được lưu dưới dạng ghi chú có thể xem lại, không bao giờ huấn luyện vào mô hình — nhờ vậy kiến thức luôn mới và xóa được."
+          }
+        }
+      }
+    },
+    "Storing line items…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išsaugomos eilutės…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang lưu các dòng giao dịch…"
           }
         }
       }
@@ -12580,6 +12868,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chuyển sang tiện lợi"
+          }
+        }
+      }
+    },
+    "Synced, but not on this statement": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sinchronizuota, bet nėra šiame išraše"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã đồng bộ nhưng không có trên sao kê này"
           }
         }
       }
@@ -13477,6 +13781,22 @@
         }
       }
     },
+    "The reader also found %lld charges on this statement. Storing them REPLACES whatever was read for this statement before — it never adds a second copy.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Skaitytuvas šiame išraše taip pat rado %lld nurašymų. Jas išsaugojus, ankstesnis šio išrašo nuskaitymas bus PAKEISTAS — antra kopija niekada nepridedama."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trình đọc còn tìm thấy %lld khoản chi trên sao kê này. Lưu chúng sẽ THAY THẾ mọi kết quả đã đọc trước đó cho sao kê này — không bao giờ thêm một bản sao thứ hai."
+          }
+        }
+      }
+    },
     "The scan only fills in the form below. Nothing is saved until you tap Add earner — check every figure first.": {
       "localizations": {
         "lt": {
@@ -13731,6 +14051,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không có ảnh hay PDF nào trong khay nhớ tạm để dán."
+          }
+        }
+      }
+    },
+    "These almost always posted after the cycle closed, so they belong to the next statement. Only look twice if one of them duplicates a charge above.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Šios beveik visada užfiksuotos po ciklo pabaigos, todėl priklauso kitam išrašui. Atidžiau pažiūrėkite tik tada, jei kuri nors dubliuoja aukščiau esantį nurašymą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Những khoản này hầu như luôn được ghi nhận sau khi kỳ sao kê đã chốt, nên chúng thuộc về sao kê kế tiếp. Chỉ cần xem kỹ nếu một khoản trùng với khoản chi ở trên."
           }
         }
       }

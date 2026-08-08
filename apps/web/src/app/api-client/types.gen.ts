@@ -692,9 +692,74 @@ export type CardStatementPaidRequest = {
     paid_at?: string | null;
 };
 
+export type StatementLineInput = {
+    occurred_on: string;
+    description: string;
+    /**
+     * Negative = a charge, positive = a payment or credit — the ledger's own convention, so signs compare directly.
+     */
+    amount: Money;
+};
+
+/**
+ * "#25: lines read off the statement. REPLACES any previous read — a re-scan must not double the line items."
+ */
+export type StatementLinesReplaceRequest = {
+    lines?: Array<StatementLineInput>;
+};
+
+export type StatementLine = {
+    id: string;
+    occurred_on: string;
+    description: string;
+    amount: Money;
+    matched_transaction_id?: string | null;
+    /**
+     * exact | amount_differs | null when nothing matched
+     */
+    match_kind?: string | null;
+};
+
+/**
+ * A synced transaction in the cycle that no statement line claimed — usually posted after the statement closed.
+ */
+export type UnaccountedTransaction = {
+    transaction_id: string;
+    occurred_at: string;
+    merchant: string;
+    amount: Money;
+};
+
+/**
+ * "#25: whether the synced ledger matches the statement. The unmatched counts are the point — missing_from_sync names charges the bank feed never delivered."
+ */
+export type StatementReconciliation = {
+    statement_id: string;
+    account_name: string;
+    /**
+     * How a person refers to the cycle, e.g. "August 2026".
+     */
+    period_label: string;
+    lines?: Array<StatementLine>;
+    unaccounted?: Array<UnaccountedTransaction>;
+    matched_count?: number;
+    missing_from_sync_count?: number;
+    not_on_statement_count?: number;
+    amount_differs_count?: number;
+};
+
 export type CardStatementScanRequest = {
     image_base64: string;
     image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * "#25: one row of the statement's transaction table. amount_minor is already in the LEDGER's sign convention — negative for a charge, positive for a payment or credit — even though the statement prints charges as positive numbers."
+ */
+export type CardStatementScanLine = {
+    occurred_on?: string | null;
+    description: string;
+    amount_minor: number;
 };
 
 /**
@@ -706,6 +771,10 @@ export type CardStatementScanResult = {
     due_date?: string | null;
     period_start?: string | null;
     period_end?: string | null;
+    /**
+     * "#25: the transaction table, accumulated across pages. Empty when the table could not be read — an unreadable table never fails the summary."
+     */
+    lines?: Array<CardStatementScanLine>;
     note: string;
 };
 
@@ -5278,6 +5347,72 @@ export type MarkCardStatementPaidResponses = {
 };
 
 export type MarkCardStatementPaidResponse = MarkCardStatementPaidResponses[keyof MarkCardStatementPaidResponses];
+
+export type ReplaceStatementLinesData = {
+    body: StatementLinesReplaceRequest;
+    path: {
+        statement_id: string;
+    };
+    query?: never;
+    url: '/accounts/card-statements/{statement_id}/lines';
+};
+
+export type ReplaceStatementLinesErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Statement not found
+     */
+    404: ErrorResponse;
+};
+
+export type ReplaceStatementLinesError = ReplaceStatementLinesErrors[keyof ReplaceStatementLinesErrors];
+
+export type ReplaceStatementLinesResponses = {
+    /**
+     * Reconciliation after storing the lines
+     */
+    200: StatementReconciliation;
+};
+
+export type ReplaceStatementLinesResponse = ReplaceStatementLinesResponses[keyof ReplaceStatementLinesResponses];
+
+export type GetStatementReconciliationData = {
+    body?: never;
+    path: {
+        statement_id: string;
+    };
+    query?: never;
+    url: '/accounts/card-statements/{statement_id}/reconciliation';
+};
+
+export type GetStatementReconciliationErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Statement not found
+     */
+    404: ErrorResponse;
+};
+
+export type GetStatementReconciliationError = GetStatementReconciliationErrors[keyof GetStatementReconciliationErrors];
+
+export type GetStatementReconciliationResponses = {
+    /**
+     * Reconciliation
+     */
+    200: StatementReconciliation;
+};
+
+export type GetStatementReconciliationResponse = GetStatementReconciliationResponses[keyof GetStatementReconciliationResponses];
 
 export type ScanCardStatementData = {
     body: CardStatementScanRequest;

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -14,12 +15,19 @@ function response(data: unknown, error?: unknown) {
   } as never;
 }
 
-function configure(apiMock: Record<string, unknown>, role: string) {
+function configure(
+  apiMock: Record<string, unknown>,
+  role: string,
+  queryParams: Record<string, string> = {},
+) {
   TestBed.configureTestingModule({
     imports: [Transactions],
     providers: [
       { provide: ApiService, useValue: apiMock },
       { provide: AuthService, useValue: authMock(role) },
+      provideRouter([]),
+      // #25 links here from an unmatched statement line, carrying its values.
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } } },
     ],
   });
 }
@@ -87,5 +95,47 @@ describe('Transactions', () => {
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.txn-form')).toBeFalsy();
+  });
+
+  it('#25: prefills from an unmatched statement line without recording it', async () => {
+    const apiMock = {
+      listAccounts: vi.fn().mockResolvedValue(
+        response({
+          accounts: [
+            {
+              id: 'c1',
+              name: 'Visa',
+              type: 'credit_card',
+              balance: { amount_minor: 0, currency: 'USD' },
+            },
+          ],
+        }),
+      ),
+      listTransactions: vi.fn().mockResolvedValue(response({ transactions: [] })),
+      listCategories: vi.fn().mockResolvedValue(response({ categories: [] })),
+      createTransaction: vi.fn().mockResolvedValue(response({ id: 't1' })),
+    };
+    configure(apiMock, 'adult', {
+      account: 'c1',
+      date: '2026-08-14',
+      amount: '-182.40',
+      merchant: 'COSTCO WHSE #1102',
+    });
+
+    const fixture = TestBed.createComponent(Transactions);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    expect(component['form'].getRawValue()).toMatchObject({
+      accountId: 'c1',
+      occurredAt: '2026-08-14',
+      amount: -182.4,
+      merchant: 'COSTCO WHSE #1102',
+    });
+    // Prefill ONLY: reconciliation must never move money on its own.
+    expect(apiMock.createTransaction).not.toHaveBeenCalled();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.txn-form__prefilled')).toBeTruthy();
   });
 });

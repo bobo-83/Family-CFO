@@ -14,12 +14,18 @@ final class MockAccountsAPI: AccountsAPI, @unchecked Sendable {
     var scanResult: Components.Schemas.CardStatementScanResult?
     var scanError: Error?
     var actionError: Error?
+    /// #25: what the GET returns, keyed by statement id.
+    var reconciliations: [String: Components.Schemas.StatementReconciliation] = [:]
+    var reconciliationError: Error?
 
     private(set) var recorded: [CardStatementDraft] = []
     private(set) var paidMarks: [(id: String, paidAt: String?)] = []
     private(set) var deleted: [String] = []
     private(set) var listCalls = 0
     private(set) var scanCalls = 0
+    private(set) var reconciliationCalls = 0
+    private(set) var replacedLines:
+        [(statementID: String, lines: [Components.Schemas.StatementLineInput])] = []
 
     nonisolated func accounts() async throws -> [Components.Schemas.Account] {
         await MainActor.run { currentAccounts }
@@ -101,6 +107,44 @@ final class MockAccountsAPI: AccountsAPI, @unchecked Sendable {
             if let scanError { throw scanError }
             guard let scanResult else { throw APIError.server(503) }
             return scanResult
+        }
+    }
+
+    nonisolated func statementReconciliation(
+        statementID: String
+    ) async throws -> Components.Schemas.StatementReconciliation {
+        try await MainActor.run {
+            reconciliationCalls += 1
+            if let reconciliationError { throw reconciliationError }
+            guard let found = reconciliations[statementID] else { throw APIError.server(404) }
+            return found
+        }
+    }
+
+    nonisolated func replaceStatementLines(
+        statementID: String, lines: [Components.Schemas.StatementLineInput]
+    ) async throws -> Components.Schemas.StatementReconciliation {
+        try await MainActor.run {
+            if let actionError { throw actionError }
+            replacedLines.append((statementID, lines))
+            // The server replaces, never appends — so does the mock, and a
+            // freshly stored line has matched nothing yet.
+            let stored = Components.Schemas.StatementReconciliation(
+                statementId: statementID,
+                accountName: "Sapphire",
+                periodLabel: "August 2026",
+                lines: lines.enumerated().map { index, line in
+                    .init(
+                        id: "line-\(index)", occurredOn: line.occurredOn,
+                        description: line.description, amount: line.amount)
+                },
+                unaccounted: [],
+                matchedCount: 0,
+                missingFromSyncCount: lines.count,
+                notOnStatementCount: 0,
+                amountDiffersCount: 0)
+            reconciliations[statementID] = stored
+            return stored
         }
     }
 }

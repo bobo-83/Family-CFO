@@ -282,6 +282,18 @@
                                     <ng-container i18n="Statement state|The cycle has not been settled yet">unpaid</ng-container>
                                   }
                                 </span>
+                                <button
+                                  mat-button
+                                  type="button"
+                                  class="card-statements__reconcile"
+                                  (click)="toggleReconciliation(statement.id)"
+                                >
+                                  @if (reconcilingStatement() === statement.id) {
+                                    <ng-container i18n="Button|Hides the statement line-item check">Hide the check</ng-container>
+                                  } @else {
+                                    <ng-container i18n="Button|Shows whether synced transactions cover every charge on the statement">Check line items</ng-container>
+                                  }
+                                </button>
                                 @if (canWrite()) {
                                   <button
                                     mat-button
@@ -305,9 +317,129 @@
                                     Delete
                                   </button>
                                 }
+
+                                @if (reconcilingStatement() === statement.id) {
+                                  <div class="statement-recon">
+                                    @if (reconciliation.error(); as message) {
+                                      <p class="page-error" role="alert">{{ message }}</p>
+                                    }
+                                    @if (reconciliation.isLoading()) {
+                                      <p i18n="Loading placeholder">Loading…</p>
+                                    } @else if (reconciliation.value(); as check) {
+                                      @if (coverage().total === 0) {
+                                        <p class="page-empty" i18n="Empty state|No statement line items have been stored, so nothing can be checked yet">
+                                          No line items have been read from this statement yet. Scan
+                                          the statement below and store what the reader finds.
+                                        </p>
+                                      } @else {
+                                        <p class="statement-recon__coverage">
+                                          <span i18n="Reconciliation coverage|How many of the statement's charges a synced transaction explains">
+                                            {{ coverage().matched }} of {{ coverage().total }} charges matched
+                                          </span>
+                                          @if (coverage().missing > 0) {
+                                            <span class="statement-recon__count--alarm" i18n="Reconciliation coverage|Charges on the statement that the bank feed never delivered">
+                                              {{ coverage().missing }} not synced
+                                            </span>
+                                          }
+                                          @if (coverage().differs > 0) {
+                                            <span class="statement-recon__count--warn" i18n="Reconciliation coverage|Charges matched to a transaction whose amount disagrees">
+                                              {{ coverage().differs }} amount differs
+                                            </span>
+                                          }
+                                          @if (coverage().notOnStatement > 0) {
+                                            <span i18n="Reconciliation coverage|Synced transactions this statement does not list">
+                                              {{ coverage().notOnStatement }} posted after close
+                                            </span>
+                                          }
+                                        </p>
+
+                                        <ul class="statement-recon__lines">
+                                          @for (line of reconciledLines(); track line.id) {
+                                            <li
+                                              class="statement-recon__line"
+                                              [class.statement-recon__line--missing]="statementMatchState(line) === 'missing'"
+                                              [class.statement-recon__line--differs]="statementMatchState(line) === 'amount_differs'"
+                                            >
+                                              <span class="statement-recon__date">{{ line.occurred_on | date: 'MMM d' : 'UTC' }}</span>
+                                              <span class="statement-recon__desc">{{ line.description }}</span>
+                                              <span class="statement-recon__amount">{{ formatMoney(line.amount) }}</span>
+                                              <span class="statement-recon__state">{{ statementMatchLabel(statementMatchState(line)) }}</span>
+                                              @if (statementMatchState(line) === 'missing' && canAddTransactions()) {
+                                                <button
+                                                  mat-button
+                                                  type="button"
+                                                  class="statement-recon__add"
+                                                  (click)="prefillTransactionFromLine(account, line)"
+                                                  i18n="Button|Opens the add-transaction form already filled in from an unmatched statement line"
+                                                >
+                                                  Add this transaction
+                                                </button>
+                                              }
+                                            </li>
+                                          }
+                                        </ul>
+                                      }
+
+                                      @if ((check.unaccounted ?? []).length > 0) {
+                                        <h5 class="statement-recon__subtitle" i18n="Section heading|Synced transactions that this statement does not list">
+                                          Synced, but not on this statement
+                                        </h5>
+                                        <p class="statement-recon__hint" i18n="Section hint|Why a synced transaction is usually missing from a statement">
+                                          These almost always posted after the cycle closed, so they
+                                          belong to the next statement. Only look twice if one of them
+                                          duplicates a charge above.
+                                        </p>
+                                        <ul class="statement-recon__lines">
+                                          @for (extra of check.unaccounted ?? []; track extra.transaction_id) {
+                                            <li class="statement-recon__line">
+                                              <span class="statement-recon__date">{{ extra.occurred_at | date: 'MMM d' : 'UTC' }}</span>
+                                              <span class="statement-recon__desc">{{ extra.merchant }}</span>
+                                              <span class="statement-recon__amount">{{ formatMoney(extra.amount) }}</span>
+                                            </li>
+                                          }
+                                        </ul>
+                                      }
+                                    }
+                                  </div>
+                                }
                               </li>
                             }
                           </ul>
+                        }
+
+                        @if (canWrite() && scannedLines().length > 0) {
+                          <div class="statement-lines-offer">
+                            @if (scannedLinesFor()) {
+                              <p class="statement-lines-offer__text" i18n="Prompt|Offers to store the transaction rows the statement scan read, warning that it overwrites">
+                                The reader also found {{ scannedLines().length }} line items on this
+                                statement. Storing them REPLACES whatever was read for this statement
+                                before — it never adds a second copy.
+                              </p>
+                              <button
+                                mat-flat-button
+                                type="button"
+                                class="statement-lines-offer__store"
+                                [disabled]="storingLines()"
+                                (click)="storeScannedLines(account)"
+                                i18n="Button|Stores the line items the statement scan read"
+                              >
+                                Store the line items
+                              </button>
+                              <button
+                                mat-button
+                                type="button"
+                                (click)="discardScannedLines()"
+                                i18n="Button|Throws the scanned line items away without storing them"
+                              >
+                                Discard them
+                              </button>
+                            } @else {
+                              <p class="statement-lines-offer__text" i18n="Prompt|Scanned line items cannot be stored until the statement itself is saved">
+                                The reader also found {{ scannedLines().length }} line items. Save the
+                                statement below and you can store them against it.
+                              </p>
+                            }
+                          </div>
                         }
 
                         @if (canWrite()) {

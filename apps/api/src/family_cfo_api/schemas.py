@@ -1080,9 +1080,75 @@ class CardStatementPaidRequest(BaseModel):
     paid_at: date | None = None
 
 
+class StatementLineInput(BaseModel):
+    occurred_on: date
+    description: str = Field(min_length=1, max_length=300)
+    # Negative = a charge, positive = a payment or credit: the ledger's own
+    # convention, so signs can be compared directly.
+    amount: Money
+
+
+class StatementLinesReplaceRequest(BaseModel):
+    """Lines read off the statement (scanned or typed). Replaces any previous
+    read for this statement — a re-scan must not double the line items."""
+
+    lines: list[StatementLineInput] = Field(default_factory=list)
+
+
+class StatementLine(BaseModel):
+    """#25: one row read off the statement, with what it was matched to."""
+
+    id: str
+    occurred_on: date
+    description: str
+    amount: Money
+    matched_transaction_id: str | None = None
+    # "exact" | "amount_differs" | null when nothing matched
+    match_kind: str | None = None
+
+
+class UnaccountedTransaction(BaseModel):
+    """A synced transaction in the cycle that no statement line claimed —
+    usually posted after the statement closed, occasionally a duplicate."""
+
+    transaction_id: str
+    occurred_at: date
+    merchant: str
+    amount: Money
+
+
+class StatementReconciliation(BaseModel):
+    """#25: whether the synced ledger actually matches the statement.
+
+    The unmatched counts are the point: missing_from_sync names charges the
+    bank feed never delivered."""
+
+    statement_id: str
+    account_name: str
+    period_label: str
+    lines: list[StatementLine] = Field(default_factory=list)
+    unaccounted: list[UnaccountedTransaction] = Field(default_factory=list)
+    matched_count: int = 0
+    missing_from_sync_count: int = 0
+    not_on_statement_count: int = 0
+    amount_differs_count: int = 0
+
+
 class CardStatementScanRequest(BaseModel):
     image_base64: str = Field(min_length=1)
     image_media_type: W2ScanMediaType
+
+
+class CardStatementScanLine(BaseModel):
+    """#25: one row read off the statement's transaction table.
+
+    ``amount_minor`` is already in the LEDGER's sign convention — negative for
+    a charge, positive for a payment or credit — even though the statement
+    prints charges as positive numbers, because the matcher compares signs."""
+
+    occurred_on: date | None = None
+    description: str
+    amount_minor: int
 
 
 class CardStatementScanResult(BaseModel):
@@ -1094,6 +1160,9 @@ class CardStatementScanResult(BaseModel):
     due_date: date | None = None
     period_start: date | None = None
     period_end: date | None = None
+    # #25: the transaction table, accumulated across pages. Empty when the
+    # table could not be read — an unreadable table never fails the summary.
+    lines: list[CardStatementScanLine] = Field(default_factory=list)
     note: str
 
 

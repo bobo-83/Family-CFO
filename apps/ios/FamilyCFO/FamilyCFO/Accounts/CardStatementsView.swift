@@ -27,6 +27,32 @@ struct CardStatementsView: View {
                     .foregroundStyle(.orange)
                 }
             }
+            // #25: the scan read the statement's charges too. They belong to a
+            // cycle, so the offer waits until that cycle has been recorded.
+            if canManage && viewModel.canStoreScannedLines {
+                Section {
+                    Button {
+                        Task { await viewModel.storeScannedLines() }
+                    } label: {
+                        if viewModel.isStoringLines {
+                            HStack(spacing: 6) { ProgressView(); Text("Storing line items…") }
+                        } else {
+                            Label("Store the line items", systemImage: "list.bullet.rectangle")
+                        }
+                    }
+                    .disabled(viewModel.isStoringLines)
+                    Button(role: .destructive) {
+                        viewModel.discardScannedLines()
+                    } label: {
+                        Text("Discard them")
+                    }
+                    .disabled(viewModel.isStoringLines)
+                } header: {
+                    Text("Line items from the scan")
+                } footer: {
+                    Text("The reader also found \(viewModel.scannedLines.count) charges on this statement. Storing them REPLACES whatever was read for this statement before — it never adds a second copy.")
+                }
+            }
             if !viewModel.statements.isEmpty {
                 Section {
                     ForEach(viewModel.statements) { statement in
@@ -74,21 +100,27 @@ struct CardStatementsView: View {
 
     @ViewBuilder private func row(_ statement: Components.Schemas.CardStatement) -> some View {
         let isPaid = statement.paidAt != nil
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: statement.statementBalance.formattedExact)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(isPaid ? Color.secondary : Color.primary)
-                Text(verbatim: CardStatementsViewModel.dueLine(statement))
-                    .font(.caption)
-                    .foregroundStyle(isPaid ? Color.green : Color.secondary)
-                if let detail = CardStatementsViewModel.detailLine(statement) {
-                    Text(verbatim: detail).font(.caption2).foregroundStyle(.tertiary)
+        // #25: the cycle opens onto its line items — whether the synced ledger
+        // accounts for every charge the card printed. A read, so it isn't gated.
+        NavigationLink {
+            StatementReconciliationView(viewModel: viewModel.reconciliation(for: statement))
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(verbatim: statement.statementBalance.formattedExact)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(isPaid ? Color.secondary : Color.primary)
+                    Text(verbatim: CardStatementsViewModel.dueLine(statement))
+                        .font(.caption)
+                        .foregroundStyle(isPaid ? Color.green : Color.secondary)
+                    if let detail = CardStatementsViewModel.detailLine(statement) {
+                        Text(verbatim: detail).font(.caption2).foregroundStyle(.tertiary)
+                    }
                 }
-            }
-            Spacer()
-            if isPaid {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Spacer()
+                if isPaid {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
             }
         }
         .swipeActions(edge: .trailing) {

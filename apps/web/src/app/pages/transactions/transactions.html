@@ -5,6 +5,12 @@
     <mat-card-content>
     <form class="txn-form" [formGroup]="form" (ngSubmit)="submit()">
       <h2 i18n="Section heading|Form that records a new transaction">Add a transaction</h2>
+      @if (prefilled()) {
+        <p class="txn-form__prefilled" i18n="Form hint|The form was filled in from a statement line and still needs confirming">
+          Filled in from a statement line that no synced transaction explained.
+          Check every value — nothing is recorded until you press “Add transaction”.
+        </p>
+      }
       <mat-form-field appearance="outline">
         <mat-label i18n="Form field label|Account the transaction belongs to">Account</mat-label>
         <mat-select formControlName="accountId">

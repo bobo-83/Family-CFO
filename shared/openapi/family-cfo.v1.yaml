@@ -2319,6 +2319,61 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /accounts/card-statements/{statement_id}/lines:
+    put:
+      operationId: replaceStatementLines
+      tags: [accounts]
+      summary: Store a statement's line items and reconcile them (#25)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: statement_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatementLinesReplaceRequest" }
+      responses:
+        "200":
+          description: Reconciliation after storing the lines
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementReconciliation" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: Statement not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /accounts/card-statements/{statement_id}/reconciliation:
+    get:
+      operationId: getStatementReconciliation
+      tags: [accounts]
+      summary: What the statement accounts for, and what it doesn't (#25)
+      description: >-
+        Re-runs matching on every read, so a sync that later fills a gap turns
+        an unmatched line into a matched one without re-uploading.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: statement_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reconciliation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatementReconciliation" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: Statement not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /accounts/card-statements/scan:
     post:
       operationId: scanCardStatement
@@ -5366,6 +5421,72 @@ components:
       description: Null clears the paid mark.
       properties:
         paid_at: { type: [string, "null"], format: date }
+    StatementLineInput:
+      type: object
+      required: [occurred_on, description, amount]
+      properties:
+        occurred_on: { type: string, format: date }
+        description: { type: string, minLength: 1, maxLength: 300 }
+        amount:
+          description: >-
+            Negative = a charge, positive = a payment or credit — the ledger's
+            own convention, so signs compare directly.
+          $ref: "#/components/schemas/Money"
+    StatementLinesReplaceRequest:
+      type: object
+      description: >-
+        "#25: lines read off the statement. REPLACES any previous read — a
+        re-scan must not double the line items."
+      properties:
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/StatementLineInput" }
+    StatementLine:
+      type: object
+      required: [id, occurred_on, description, amount]
+      properties:
+        id: { type: string }
+        occurred_on: { type: string, format: date }
+        description: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+        matched_transaction_id: { type: [string, "null"] }
+        match_kind:
+          description: exact | amount_differs | null when nothing matched
+          type: [string, "null"]
+    UnaccountedTransaction:
+      type: object
+      description: >-
+        A synced transaction in the cycle that no statement line claimed —
+        usually posted after the statement closed.
+      required: [transaction_id, occurred_at, merchant, amount]
+      properties:
+        transaction_id: { type: string }
+        occurred_at: { type: string, format: date }
+        merchant: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+    StatementReconciliation:
+      type: object
+      description: >-
+        "#25: whether the synced ledger matches the statement. The unmatched
+        counts are the point — missing_from_sync names charges the bank feed
+        never delivered."
+      required: [statement_id, account_name, period_label]
+      properties:
+        statement_id: { type: string }
+        account_name: { type: string }
+        period_label:
+          description: How a person refers to the cycle, e.g. "August 2026".
+          type: string
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/StatementLine" }
+        unaccounted:
+          type: array
+          items: { $ref: "#/components/schemas/UnaccountedTransaction" }
+        matched_count: { type: integer }
+        missing_from_sync_count: { type: integer }
+        not_on_statement_count: { type: integer }
+        amount_differs_count: { type: integer }
     CardStatementScanRequest:
       type: object
       required: [image_base64, image_media_type]
@@ -5374,6 +5495,18 @@ components:
         image_media_type:
           type: string
           enum: [image/jpeg, image/png, image/webp, application/pdf]
+    CardStatementScanLine:
+      type: object
+      description: >-
+        "#25: one row of the statement's transaction table. amount_minor is
+        already in the LEDGER's sign convention — negative for a charge,
+        positive for a payment or credit — even though the statement prints
+        charges as positive numbers."
+      required: [description, amount_minor]
+      properties:
+        occurred_on: { type: [string, "null"], format: date }
+        description: { type: string }
+        amount_minor: { type: integer }
     CardStatementScanResult:
       type: object
       description: Candidate values only — the user confirms before anything is saved.
@@ -5384,6 +5517,13 @@ components:
         due_date: { type: [string, "null"], format: date }
         period_start: { type: [string, "null"], format: date }
         period_end: { type: [string, "null"], format: date }
+        lines:
+          description: >-
+            "#25: the transaction table, accumulated across pages. Empty when
+            the table could not be read — an unreadable table never fails the
+            summary."
+          type: array
+          items: { $ref: "#/components/schemas/CardStatementScanLine" }
         note: { type: string }
     AccountScanRequest:
       type: object

@@ -883,6 +883,36 @@ card_statements = Table(
 )
 
 
+card_statement_lines = Table(
+    "card_statement_lines",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column(
+        "statement_id",
+        String(36),
+        ForeignKey("card_statements.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("occurred_on", Date, nullable=False),
+    # #25: sealed like every other description/amount (ADR 0072).
+    Column("description", Text, nullable=False),
+    Column("amount_minor", Text, nullable=False),
+    _currency_column(),
+    # NULL is the meaningful case: the feed never delivered this charge.
+    Column(
+        "matched_transaction_id",
+        String(36),
+        ForeignKey("transactions.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    # "exact" | "amount_differs"
+    Column("match_kind", String(20), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index("ix_card_statement_lines_statement", "statement_id"),
+)
+
+
 savings_contributions = Table(
     "savings_contributions",
     metadata,

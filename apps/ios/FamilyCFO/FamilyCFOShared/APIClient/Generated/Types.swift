@@ -486,6 +486,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /accounts/card-statements/{statement_id}/paid`.
     /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)`.
     func markCardStatementPaid(_ input: Operations.MarkCardStatementPaid.Input) async throws -> Operations.MarkCardStatementPaid.Output
+    /// Store a statement's line items and reconcile them (#25)
+    ///
+    /// - Remark: HTTP `PUT /accounts/card-statements/{statement_id}/lines`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)`.
+    func replaceStatementLines(_ input: Operations.ReplaceStatementLines.Input) async throws -> Operations.ReplaceStatementLines.Output
+    /// What the statement accounts for, and what it doesn't (#25)
+    ///
+    /// Re-runs matching on every read, so a sync that later fills a gap turns an unmatched line into a matched one without re-uploading.
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements/{statement_id}/reconciliation`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)`.
+    func getStatementReconciliation(_ input: Operations.GetStatementReconciliation.Input) async throws -> Operations.GetStatementReconciliation.Output
     /// Read a credit-card statement into candidate values (#11)
     ///
     /// - Remark: HTTP `POST /accounts/card-statements/scan`.
@@ -1960,6 +1972,36 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Store a statement's line items and reconcile them (#25)
+    ///
+    /// - Remark: HTTP `PUT /accounts/card-statements/{statement_id}/lines`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)`.
+    public func replaceStatementLines(
+        path: Operations.ReplaceStatementLines.Input.Path,
+        headers: Operations.ReplaceStatementLines.Input.Headers = .init(),
+        body: Operations.ReplaceStatementLines.Input.Body
+    ) async throws -> Operations.ReplaceStatementLines.Output {
+        try await replaceStatementLines(Operations.ReplaceStatementLines.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// What the statement accounts for, and what it doesn't (#25)
+    ///
+    /// Re-runs matching on every read, so a sync that later fills a gap turns an unmatched line into a matched one without re-uploading.
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements/{statement_id}/reconciliation`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)`.
+    public func getStatementReconciliation(
+        path: Operations.GetStatementReconciliation.Input.Path,
+        headers: Operations.GetStatementReconciliation.Input.Headers = .init()
+    ) async throws -> Operations.GetStatementReconciliation.Output {
+        try await getStatementReconciliation(Operations.GetStatementReconciliation.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Read a credit-card statement into candidate values (#11)
@@ -5585,6 +5627,209 @@ public enum Components {
                 case paidAt = "paid_at"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/StatementLineInput`.
+        public struct StatementLineInput: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StatementLineInput/occurred_on`.
+            public var occurredOn: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementLineInput/description`.
+            public var description: Swift.String
+            /// Negative = a charge, positive = a payment or credit — the ledger's own convention, so signs compare directly.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StatementLineInput/amount`.
+            public var amount: Components.Schemas.Money
+            /// Creates a new `StatementLineInput`.
+            ///
+            /// - Parameters:
+            ///   - occurredOn:
+            ///   - description:
+            ///   - amount: Negative = a charge, positive = a payment or credit — the ledger's own convention, so signs compare directly.
+            public init(
+                occurredOn: Swift.String,
+                description: Swift.String,
+                amount: Components.Schemas.Money
+            ) {
+                self.occurredOn = occurredOn
+                self.description = description
+                self.amount = amount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case occurredOn = "occurred_on"
+                case description
+                case amount
+            }
+        }
+        /// "#25: lines read off the statement. REPLACES any previous read — a re-scan must not double the line items."
+        ///
+        /// - Remark: Generated from `#/components/schemas/StatementLinesReplaceRequest`.
+        public struct StatementLinesReplaceRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StatementLinesReplaceRequest/lines`.
+            public var lines: [Components.Schemas.StatementLineInput]?
+            /// Creates a new `StatementLinesReplaceRequest`.
+            ///
+            /// - Parameters:
+            ///   - lines:
+            public init(lines: [Components.Schemas.StatementLineInput]? = nil) {
+                self.lines = lines
+            }
+            public enum CodingKeys: String, CodingKey {
+                case lines
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StatementLine`.
+        public struct StatementLine: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StatementLine/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementLine/occurred_on`.
+            public var occurredOn: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementLine/description`.
+            public var description: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementLine/amount`.
+            public var amount: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/StatementLine/matched_transaction_id`.
+            public var matchedTransactionId: Swift.String?
+            /// exact | amount_differs | null when nothing matched
+            ///
+            /// - Remark: Generated from `#/components/schemas/StatementLine/match_kind`.
+            public var matchKind: Swift.String?
+            /// Creates a new `StatementLine`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - occurredOn:
+            ///   - description:
+            ///   - amount:
+            ///   - matchedTransactionId:
+            ///   - matchKind: exact | amount_differs | null when nothing matched
+            public init(
+                id: Swift.String,
+                occurredOn: Swift.String,
+                description: Swift.String,
+                amount: Components.Schemas.Money,
+                matchedTransactionId: Swift.String? = nil,
+                matchKind: Swift.String? = nil
+            ) {
+                self.id = id
+                self.occurredOn = occurredOn
+                self.description = description
+                self.amount = amount
+                self.matchedTransactionId = matchedTransactionId
+                self.matchKind = matchKind
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case occurredOn = "occurred_on"
+                case description
+                case amount
+                case matchedTransactionId = "matched_transaction_id"
+                case matchKind = "match_kind"
+            }
+        }
+        /// A synced transaction in the cycle that no statement line claimed — usually posted after the statement closed.
+        ///
+        /// - Remark: Generated from `#/components/schemas/UnaccountedTransaction`.
+        public struct UnaccountedTransaction: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/UnaccountedTransaction/transaction_id`.
+            public var transactionId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/UnaccountedTransaction/occurred_at`.
+            public var occurredAt: Swift.String
+            /// - Remark: Generated from `#/components/schemas/UnaccountedTransaction/merchant`.
+            public var merchant: Swift.String
+            /// - Remark: Generated from `#/components/schemas/UnaccountedTransaction/amount`.
+            public var amount: Components.Schemas.Money
+            /// Creates a new `UnaccountedTransaction`.
+            ///
+            /// - Parameters:
+            ///   - transactionId:
+            ///   - occurredAt:
+            ///   - merchant:
+            ///   - amount:
+            public init(
+                transactionId: Swift.String,
+                occurredAt: Swift.String,
+                merchant: Swift.String,
+                amount: Components.Schemas.Money
+            ) {
+                self.transactionId = transactionId
+                self.occurredAt = occurredAt
+                self.merchant = merchant
+                self.amount = amount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case transactionId = "transaction_id"
+                case occurredAt = "occurred_at"
+                case merchant
+                case amount
+            }
+        }
+        /// "#25: whether the synced ledger matches the statement. The unmatched counts are the point — missing_from_sync names charges the bank feed never delivered."
+        ///
+        /// - Remark: Generated from `#/components/schemas/StatementReconciliation`.
+        public struct StatementReconciliation: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/statement_id`.
+            public var statementId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/account_name`.
+            public var accountName: Swift.String
+            /// How a person refers to the cycle, e.g. "August 2026".
+            ///
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/period_label`.
+            public var periodLabel: Swift.String
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/lines`.
+            public var lines: [Components.Schemas.StatementLine]?
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/unaccounted`.
+            public var unaccounted: [Components.Schemas.UnaccountedTransaction]?
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/matched_count`.
+            public var matchedCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/missing_from_sync_count`.
+            public var missingFromSyncCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/not_on_statement_count`.
+            public var notOnStatementCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/StatementReconciliation/amount_differs_count`.
+            public var amountDiffersCount: Swift.Int?
+            /// Creates a new `StatementReconciliation`.
+            ///
+            /// - Parameters:
+            ///   - statementId:
+            ///   - accountName:
+            ///   - periodLabel: How a person refers to the cycle, e.g. "August 2026".
+            ///   - lines:
+            ///   - unaccounted:
+            ///   - matchedCount:
+            ///   - missingFromSyncCount:
+            ///   - notOnStatementCount:
+            ///   - amountDiffersCount:
+            public init(
+                statementId: Swift.String,
+                accountName: Swift.String,
+                periodLabel: Swift.String,
+                lines: [Components.Schemas.StatementLine]? = nil,
+                unaccounted: [Components.Schemas.UnaccountedTransaction]? = nil,
+                matchedCount: Swift.Int? = nil,
+                missingFromSyncCount: Swift.Int? = nil,
+                notOnStatementCount: Swift.Int? = nil,
+                amountDiffersCount: Swift.Int? = nil
+            ) {
+                self.statementId = statementId
+                self.accountName = accountName
+                self.periodLabel = periodLabel
+                self.lines = lines
+                self.unaccounted = unaccounted
+                self.matchedCount = matchedCount
+                self.missingFromSyncCount = missingFromSyncCount
+                self.notOnStatementCount = notOnStatementCount
+                self.amountDiffersCount = amountDiffersCount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case statementId = "statement_id"
+                case accountName = "account_name"
+                case periodLabel = "period_label"
+                case lines
+                case unaccounted
+                case matchedCount = "matched_count"
+                case missingFromSyncCount = "missing_from_sync_count"
+                case notOnStatementCount = "not_on_statement_count"
+                case amountDiffersCount = "amount_differs_count"
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest`.
         public struct CardStatementScanRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest/image_base64`.
@@ -5615,6 +5860,37 @@ public enum Components {
                 case imageMediaType = "image_media_type"
             }
         }
+        /// "#25: one row of the statement's transaction table. amount_minor is already in the LEDGER's sign convention — negative for a charge, positive for a payment or credit — even though the statement prints charges as positive numbers."
+        ///
+        /// - Remark: Generated from `#/components/schemas/CardStatementScanLine`.
+        public struct CardStatementScanLine: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanLine/occurred_on`.
+            public var occurredOn: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanLine/description`.
+            public var description: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanLine/amount_minor`.
+            public var amountMinor: Swift.Int
+            /// Creates a new `CardStatementScanLine`.
+            ///
+            /// - Parameters:
+            ///   - occurredOn:
+            ///   - description:
+            ///   - amountMinor:
+            public init(
+                occurredOn: Swift.String? = nil,
+                description: Swift.String,
+                amountMinor: Swift.Int
+            ) {
+                self.occurredOn = occurredOn
+                self.description = description
+                self.amountMinor = amountMinor
+            }
+            public enum CodingKeys: String, CodingKey {
+                case occurredOn = "occurred_on"
+                case description
+                case amountMinor = "amount_minor"
+            }
+        }
         /// Candidate values only — the user confirms before anything is saved.
         ///
         /// - Remark: Generated from `#/components/schemas/CardStatementScanResult`.
@@ -5629,6 +5905,10 @@ public enum Components {
             public var periodStart: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/period_end`.
             public var periodEnd: Swift.String?
+            /// "#25: the transaction table, accumulated across pages. Empty when the table could not be read — an unreadable table never fails the summary."
+            ///
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/lines`.
+            public var lines: [Components.Schemas.CardStatementScanLine]?
             /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/note`.
             public var note: Swift.String
             /// Creates a new `CardStatementScanResult`.
@@ -5639,6 +5919,7 @@ public enum Components {
             ///   - dueDate:
             ///   - periodStart:
             ///   - periodEnd:
+            ///   - lines: "#25: the transaction table, accumulated across pages. Empty when the table could not be read — an unreadable table never fails the summary."
             ///   - note:
             public init(
                 statementBalanceMinor: Swift.Int? = nil,
@@ -5646,6 +5927,7 @@ public enum Components {
                 dueDate: Swift.String? = nil,
                 periodStart: Swift.String? = nil,
                 periodEnd: Swift.String? = nil,
+                lines: [Components.Schemas.CardStatementScanLine]? = nil,
                 note: Swift.String
             ) {
                 self.statementBalanceMinor = statementBalanceMinor
@@ -5653,6 +5935,7 @@ public enum Components {
                 self.dueDate = dueDate
                 self.periodStart = periodStart
                 self.periodEnd = periodEnd
+                self.lines = lines
                 self.note = note
             }
             public enum CodingKeys: String, CodingKey {
@@ -5661,6 +5944,7 @@ public enum Components {
                 case dueDate = "due_date"
                 case periodStart = "period_start"
                 case periodEnd = "period_end"
+                case lines
                 case note
             }
         }
@@ -28293,6 +28577,444 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.MarkCardStatementPaid.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Store a statement's line items and reconcile them (#25)
+    ///
+    /// - Remark: HTTP `PUT /accounts/card-statements/{statement_id}/lines`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)`.
+    public enum ReplaceStatementLines {
+        public static let id: Swift.String = "replaceStatementLines"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/path/statement_id`.
+                public var statementId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - statementId:
+                public init(statementId: Swift.String) {
+                    self.statementId = statementId
+                }
+            }
+            public var path: Operations.ReplaceStatementLines.Input.Path
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaceStatementLines.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReplaceStatementLines.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReplaceStatementLines.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/requestBody/content/application\/json`.
+                case json(Components.Schemas.StatementLinesReplaceRequest)
+            }
+            public var body: Operations.ReplaceStatementLines.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.ReplaceStatementLines.Input.Path,
+                headers: Operations.ReplaceStatementLines.Input.Headers = .init(),
+                body: Operations.ReplaceStatementLines.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.StatementReconciliation)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.StatementReconciliation {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReplaceStatementLines.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReplaceStatementLines.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Reconciliation after storing the lines
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ReplaceStatementLines.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ReplaceStatementLines.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/lines/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReplaceStatementLines.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReplaceStatementLines.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Statement not found
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.ReplaceStatementLines.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.ReplaceStatementLines.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// What the statement accounts for, and what it doesn't (#25)
+    ///
+    /// Re-runs matching on every read, so a sync that later fills a gap turns an unmatched line into a matched one without re-uploading.
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements/{statement_id}/reconciliation`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)`.
+    public enum GetStatementReconciliation {
+        public static let id: Swift.String = "getStatementReconciliation"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/path/statement_id`.
+                public var statementId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - statementId:
+                public init(statementId: Swift.String) {
+                    self.statementId = statementId
+                }
+            }
+            public var path: Operations.GetStatementReconciliation.Input.Path
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetStatementReconciliation.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetStatementReconciliation.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetStatementReconciliation.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.GetStatementReconciliation.Input.Path,
+                headers: Operations.GetStatementReconciliation.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.StatementReconciliation)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.StatementReconciliation {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetStatementReconciliation.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetStatementReconciliation.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Reconciliation
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetStatementReconciliation.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetStatementReconciliation.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/reconciliation/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetStatementReconciliation.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetStatementReconciliation.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Statement not found
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.GetStatementReconciliation.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.GetStatementReconciliation.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

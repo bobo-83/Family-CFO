@@ -124,6 +124,9 @@ import {
   listTransactionsForReview,
   recordAccountBalance,
   recordCardStatement,
+  replaceStatementLines,
+  getStatementReconciliation,
+  type StatementLineInput,
   restoreBackup,
   scanAccountStatement,
   scanBill,
@@ -379,6 +382,18 @@ export class ApiService {
         image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
       },
     });
+  }
+
+  // --- #25: statement reconciliation — is the synced ledger complete? ---
+  // REPLACES any previously stored read of this statement, so a re-scan cannot
+  // double the line items.
+  replaceStatementLines(statementId: string, lines: StatementLineInput[]) {
+    return replaceStatementLines({ path: { statement_id: statementId }, body: { lines } });
+  }
+
+  // Matching is recomputed on every read, so a sync that fills a gap closes it.
+  getStatementReconciliation(statementId: string) {
+    return getStatementReconciliation({ path: { statement_id: statementId } });
   }
 
   // --- #203: savings contributions the household states, not the detector ---

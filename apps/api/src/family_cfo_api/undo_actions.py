@@ -56,6 +56,10 @@ UNDO_POLICY: dict[str, str] = {
     "savings_contribution.deleted": UNDOABLE,
     "savings_contribution.dismissed": UNDOABLE,
     "card_statement.recorded": UNDOABLE,
+    # #25: reading a statement's lines REPLACES the previous read, and the point
+    # of the feature is that the newest read is the truth. "Undo" would restore
+    # a worse scan; deleting the statement removes the lines with it.
+    "statement_lines.recorded": IRREVERSIBLE,
     "card_statement.deleted": UNDOABLE,
     "card_statement.paid": UNDOABLE,
     "card_statement.unpaid": UNDOABLE,
