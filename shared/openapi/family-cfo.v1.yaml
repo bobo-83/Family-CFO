@@ -2224,6 +2224,130 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+  /accounts/card-statements:
+    get:
+      operationId: listCardStatements
+      tags: [accounts]
+      summary: Credit-card statements, newest cycle first (#11)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: account_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Statements
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardStatementListResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: recordCardStatement
+      tags: [accounts]
+      summary: Record the amount due for a card's cycle (#11)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardStatementCreateRequest" }
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardStatement" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: Account not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422":
+          description: Not a credit-card account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /accounts/card-statements/{statement_id}:
+    delete:
+      operationId: deleteCardStatement
+      tags: [accounts]
+      summary: Remove a recorded card statement (#11)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: statement_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: Statement not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /accounts/card-statements/{statement_id}/paid:
+    post:
+      operationId: markCardStatementPaid
+      tags: [accounts]
+      summary: Mark a card's cycle paid, or clear the mark (#11)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: statement_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardStatementPaidRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardStatement" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: Statement not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /accounts/card-statements/scan:
+    post:
+      operationId: scanCardStatement
+      tags: [accounts]
+      summary: Read a credit-card statement into candidate values (#11)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardStatementScanRequest" }
+      responses:
+        "200":
+          description: Candidates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardStatementScanResult" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422":
+          description: Unreadable PDF
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "503":
+          description: No vision model available
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
   /accounts/scan:
     post:
       tags:
@@ -4698,6 +4822,15 @@ components:
           type:
             - integer
             - "null"
+        source:
+          description: >-
+            "#11: statement = exact figure from a recorded statement; estimate =
+            running balance with an inferred day. Never present an estimate as
+            exact."
+          type: string
+          default: estimate
+        statement_id:
+          type: [string, "null"]
         status:
           type: string
           enum: [overdue, due_soon, upcoming, paid, no_date]
@@ -5189,6 +5322,68 @@ components:
         next_payment_due_date: { type: string, format: date }
         apr_percent: { type: number }
         is_lease: { type: boolean }
+        note: { type: string }
+    CardStatement:
+      type: object
+      description: >-
+        "#11: one credit-card cycle — what the statement says is due, and when.
+        The EXACT figure, unlike the synced running balance which includes
+        spending posted after the cycle closed."
+      required: [id, account_id, account_name, statement_balance, due_date]
+      properties:
+        id: { type: string }
+        account_id: { type: string }
+        account_name: { type: string }
+        statement_balance: { $ref: "#/components/schemas/Money" }
+        minimum_due: { $ref: "#/components/schemas/Money" }
+        due_date: { type: string, format: date }
+        period_start: { type: [string, "null"], format: date }
+        period_end: { type: [string, "null"], format: date }
+        document_id: { type: [string, "null"] }
+        paid_at: { type: [string, "null"], format: date }
+    CardStatementListResponse:
+      type: object
+      properties:
+        statements:
+          type: array
+          items: { $ref: "#/components/schemas/CardStatement" }
+    CardStatementCreateRequest:
+      type: object
+      description: >-
+        Recording the same cycle twice (same card + due date) UPDATES it rather
+        than stacking a second obligation for the same money.
+      required: [account_id, statement_balance, due_date]
+      properties:
+        account_id: { type: string }
+        statement_balance: { $ref: "#/components/schemas/Money" }
+        due_date: { type: string, format: date }
+        minimum_due: { $ref: "#/components/schemas/Money" }
+        period_start: { type: [string, "null"], format: date }
+        period_end: { type: [string, "null"], format: date }
+        document_id: { type: [string, "null"] }
+    CardStatementPaidRequest:
+      type: object
+      description: Null clears the paid mark.
+      properties:
+        paid_at: { type: [string, "null"], format: date }
+    CardStatementScanRequest:
+      type: object
+      required: [image_base64, image_media_type]
+      properties:
+        image_base64: { type: string }
+        image_media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+    CardStatementScanResult:
+      type: object
+      description: Candidate values only — the user confirms before anything is saved.
+      required: [note]
+      properties:
+        statement_balance_minor: { type: [integer, "null"] }
+        minimum_due_minor: { type: [integer, "null"] }
+        due_date: { type: [string, "null"], format: date }
+        period_start: { type: [string, "null"], format: date }
+        period_end: { type: [string, "null"], format: date }
         note: { type: string }
     AccountScanRequest:
       type: object

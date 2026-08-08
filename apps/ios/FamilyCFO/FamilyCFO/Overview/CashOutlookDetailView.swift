@@ -88,9 +88,9 @@ struct CashOutlookDetailView: View {
                     String(
                         localized: """
                             Paydays come from your recurring deposits; payments from the Bills \
-                            timeline. Card amounts are today's balances — charges you make \
-                            between now and the due date aren't known yet, so the real \
-                            figure may be higher.
+                            timeline. A card with a recorded statement shows its exact \
+                            amount due; otherwise it shows today's balance, which may be \
+                            lower than the final figure.
                             """)
                 )
             }

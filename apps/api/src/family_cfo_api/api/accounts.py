@@ -13,6 +13,12 @@ from family_cfo_api.schemas import (
     AccountScanRequest,
     AccountScanResult,
     AccountUpdateRequest,
+    CardStatement,
+    CardStatementCreateRequest,
+    CardStatementListResponse,
+    CardStatementPaidRequest,
+    CardStatementScanRequest,
+    CardStatementScanResult,
     ErrorResponse,
     LoanScanRequest,
     LoanScanResult,
@@ -108,6 +114,67 @@ def _account_scan_note(cash: int | None, investment: int | None) -> str:
     if investment is not None and cash is None:
         return "Balance is the invested value (no cash balance found). " + _ACCOUNT_SCAN_NOTE
     return _ACCOUNT_SCAN_NOTE
+
+
+_CARD_STATEMENT_PROMPT = (
+    "You are reading a CREDIT CARD statement. Return ONLY compact JSON with the "
+    "keys: statement_balance (the NEW BALANCE for this cycle — not the available "
+    "credit, not the previous balance), minimum_due (the minimum payment due), "
+    "due_date (payment due date, YYYY-MM-DD), period_start and period_end (the "
+    "billing period, YYYY-MM-DD). Use null for anything you cannot read. Never "
+    "guess a value that is not printed on the statement."
+)
+
+_CARD_SCAN_NOTE = (
+    "Read from the statement — check each value before saving; nothing is stored "
+    "until you confirm."
+)
+
+
+def parse_card_statement_scan(text: str) -> CardStatementScanResult:
+    """Defensive parse of the model's answer — candidates only, nothing saved."""
+    import json as _json
+    import re as _re
+
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-z]*\s*|\s*```$", "", cleaned, flags=_re.IGNORECASE)
+    try:
+        data = _json.loads(cleaned)
+        assert isinstance(data, dict)
+    except (ValueError, AssertionError):
+        return CardStatementScanResult(
+            note="The statement could not be read — enter the values manually."
+        )
+
+    def money_minor(key: str) -> int | None:
+        value = _scan_number(data.get(key))
+        # A zero balance is legitimate (paid-off card), so only NEGATIVE is
+        # rejected; a statement never states a negative amount due.
+        return round(value * 100) if value is not None and value >= 0 else None
+
+    def as_date(key: str) -> date | None:
+        raw = data.get(key)
+        if not isinstance(raw, str):
+            return None
+        try:
+            return date.fromisoformat(raw.strip()[:10])
+        except ValueError:
+            return None
+
+    balance = money_minor("statement_balance")
+    return CardStatementScanResult(
+        statement_balance_minor=balance,
+        minimum_due_minor=money_minor("minimum_due"),
+        due_date=as_date("due_date"),
+        period_start=as_date("period_start"),
+        period_end=as_date("period_end"),
+        note=(
+            _CARD_SCAN_NOTE
+            if balance is not None
+            else "No statement balance was found — enter the values manually."
+        ),
+    )
 
 
 def parse_account_scan(text: str) -> AccountScanResult:
@@ -777,6 +844,252 @@ async def scan_account_statement(
                 return merged
         return AccountScanResult(
             note="Nothing readable was found — enter values manually."
+        )
+    except RuntimeUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc
+    finally:
+        describer.close()
+
+
+# --- #11: credit-card statements -------------------------------------------
+# A card's synced balance is not what is due — it includes spending posted after
+# the cycle closed. These endpoints record the STATEMENT figure and its real due
+# date, which the Due Soon timeline and safe-to-spend then use in place of the
+# running-balance estimate.
+
+
+def _statement_schema(record, names: dict[str, str]) -> CardStatement:
+    return CardStatement(
+        id=record.id,
+        account_id=record.account_id,
+        account_name=names.get(record.account_id, "Card"),
+        statement_balance=MoneySchema(
+            amount_minor=record.statement_balance_minor, currency=record.currency
+        ),
+        minimum_due=(
+            MoneySchema(amount_minor=record.minimum_due_minor, currency=record.currency)
+            if record.minimum_due_minor is not None
+            else None
+        ),
+        due_date=record.due_date,
+        period_start=record.period_start,
+        period_end=record.period_end,
+        document_id=record.document_id,
+        paid_at=record.paid_at,
+    )
+
+
+@router.get(
+    "/accounts/card-statements",
+    operation_id="listCardStatements",
+    response_model=CardStatementListResponse,
+    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    summary="Credit-card statements, newest cycle first (#11)",
+)
+async def list_card_statements(
+    account_id: str | None = None,
+    session: repository.SessionContext = Depends(get_current_session),
+    engine: Engine = Depends(get_engine),
+) -> CardStatementListResponse:
+    names = repository.account_name_map(engine, session.household_id)
+    return CardStatementListResponse(
+        statements=[
+            _statement_schema(record, names)
+            for record in repository.list_card_statements(
+                engine, session.household_id, account_id=account_id
+            )
+        ]
+    )
+
+
+@router.post(
+    "/accounts/card-statements",
+    operation_id="recordCardStatement",
+    response_model=CardStatement,
+    status_code=201,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Account not found", "model": ErrorResponse},
+        422: {"description": "Not a credit-card account", "model": ErrorResponse},
+    },
+    summary="Record the amount due for a card's cycle (#11)",
+)
+async def record_card_statement(
+    payload: CardStatementCreateRequest,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> CardStatement:
+    account = repository.get_account(engine, session.household_id, payload.account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if account.account_type != "credit_card":
+        # Loans and leases model their obligation with a monthly payment; a
+        # statement cycle is a credit-card concept.
+        raise HTTPException(status_code=422, detail="Not a credit-card account")
+
+    record = repository.upsert_card_statement(
+        engine,
+        session.household_id,
+        account_id=payload.account_id,
+        statement_balance_minor=payload.statement_balance.amount_minor,
+        currency=payload.statement_balance.currency,
+        due_date=payload.due_date,
+        minimum_due_minor=(
+            payload.minimum_due.amount_minor if payload.minimum_due else None
+        ),
+        period_start=payload.period_start,
+        period_end=payload.period_end,
+        document_id=payload.document_id,
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "card_statement.recorded",
+        "card_statement",
+        record.id,
+        f"Statement for {account.name} due {payload.due_date.isoformat()}",
+        undo_token=undo_actions.created("card_statement", record.id),
+    )
+    names = repository.account_name_map(engine, session.household_id)
+    return _statement_schema(record, names)
+
+
+@router.post(
+    "/accounts/card-statements/{statement_id}/paid",
+    operation_id="markCardStatementPaid",
+    response_model=CardStatement,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Statement not found", "model": ErrorResponse},
+    },
+    summary="Mark a card's cycle paid, or clear the mark (#11)",
+)
+async def mark_card_statement_paid(
+    statement_id: str,
+    payload: CardStatementPaidRequest,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> CardStatement:
+    before = repository.get_card_statement(engine, session.household_id, statement_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    repository.set_card_statement_paid(
+        engine, session.household_id, statement_id, payload.paid_at
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "card_statement.paid" if payload.paid_at else "card_statement.unpaid",
+        "card_statement",
+        statement_id,
+        ("Marked a card statement paid" if payload.paid_at
+         else "Cleared a card statement's paid mark"),
+        undo_token=undo_actions.card_statement_paid_changed(before),
+    )
+    record = repository.get_card_statement(engine, session.household_id, statement_id)
+    names = repository.account_name_map(engine, session.household_id)
+    return _statement_schema(record, names)
+
+
+@router.delete(
+    "/accounts/card-statements/{statement_id}",
+    operation_id="deleteCardStatement",
+    status_code=204,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Statement not found", "model": ErrorResponse},
+    },
+    summary="Remove a recorded card statement (#11)",
+)
+async def delete_card_statement(
+    statement_id: str,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> Response:
+    record = repository.get_card_statement(engine, session.household_id, statement_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    repository.delete_card_statement(engine, session.household_id, statement_id)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "card_statement.deleted",
+        "card_statement",
+        statement_id,
+        "Removed a card statement",
+        undo_token=undo_actions.card_statement_deleted(record),
+    )
+    return Response(status_code=204)
+
+
+@router.post(
+    "/accounts/card-statements/scan",
+    operation_id="scanCardStatement",
+    response_model=CardStatementScanResult,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        422: {"description": "Unreadable PDF", "model": ErrorResponse},
+        503: {"description": "No vision model available", "model": ErrorResponse},
+    },
+    summary="Read a credit-card statement into candidate values (#11)",
+)
+async def scan_card_statement(
+    payload: CardStatementScanRequest,
+    session: repository.SessionContext = Depends(require_right(rights.ACCOUNTS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+) -> CardStatementScanResult:
+    import base64
+    import binascii
+
+    from family_cfo_ai_orchestrator import RuntimeMessage, RuntimeUnavailableError
+
+    from family_cfo_api.ai_runtime_selection import select_vision_describer
+    from family_cfo_api.api.income_analysis import pdf_page_pngs
+
+    if payload.image_media_type == "application/pdf":
+        try:
+            pdf_bytes = base64.b64decode(payload.image_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid PDF upload") from exc
+        # The summary box (balance, minimum, due date) is on page 1 of every
+        # issuer's statement; a couple of extra pages covers a cover sheet.
+        data_urls = [
+            "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+            for png in pdf_page_pngs(pdf_bytes, max_pages=3)
+        ]
+    else:
+        data_urls = [f"data:{payload.image_media_type};base64,{payload.image_base64}"]
+
+    describer, _source = select_vision_describer(engine, session.household_id)
+    if describer is None:
+        raise HTTPException(status_code=503, detail="No vision model is configured")
+    try:
+        result = CardStatementScanResult(note="")
+        for data_url in data_urls:
+            completion = describer.complete(
+                [
+                    RuntimeMessage(
+                        role="user", content=_CARD_STATEMENT_PROMPT, image_data_url=data_url
+                    )
+                ],
+                temperature=0.0,
+                max_tokens=400,
+                thinking=False,
+            )
+            result = parse_card_statement_scan(completion.text)
+            # The whole summary sits together, so a page carrying the balance
+            # carries the rest — stop rather than pay for more pages.
+            if result.statement_balance_minor is not None:
+                return result
+        return result or CardStatementScanResult(
+            note="Nothing readable was found — enter the values manually."
         )
     except RuntimeUnavailableError as exc:
         raise HTTPException(status_code=503, detail="The vision model is unavailable") from exc

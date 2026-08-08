@@ -703,6 +703,12 @@ def sealed_tables(models_module):
         (models_module.goals, ["name"], "household_id"),
         (models_module.audit_events, ["summary", "undo_token"], "household_id"),
         (models_module.reports, ["explanation_text"], "household_id"),
+        # #11: statement amounts are financial figures like any other.
+        (
+            models_module.card_statements,
+            ["statement_balance_minor", "minimum_due_minor"],
+            "household_id",
+        ),
     ]
 
 

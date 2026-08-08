@@ -947,6 +947,11 @@ class PaymentTimelineItem:
     due_date: date | None  # None = we couldn't infer one ("no_date")
     status: str  # "overdue" | "due_soon" | "upcoming" | "paid" | "no_date"
     paid: TimelinePayment | None
+    # #11: "statement" when the figure and date come from an uploaded/entered
+    # statement (exact), "estimate" otherwise (running balance + inferred day).
+    # The UI and the advisor must not present an estimate as an exact amount.
+    source: str = "estimate"
+    statement_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1169,12 +1174,50 @@ def payment_timeline(
     # --- Credit cards: the payment is the (pay-in-full) balance; the due day is
     # inferred from the card's own payment history.
     balances = {b.account_id: b for b in repository.list_account_balances(engine, household_id)}
+    # #11: the newest UNPAID statement per card. It carries the exact amount and
+    # a real due date, so it replaces the balance estimate entirely — showing
+    # both would list the same money twice.
+    statements_by_account: dict[str, repository.CardStatementRecord] = {}
+    for statement in repository.list_card_statements(engine, household_id):
+        if statement.currency != currency or statement.paid_at is not None:
+            continue
+        statements_by_account.setdefault(statement.account_id, statement)
+
     for account in repository.list_liability_accounts(engine, household_id):
         if account.currency != currency or account.account_type != "credit_card":
             continue
+        payments = _account_payments(by_account.get(account.id, []))
+        statement = statements_by_account.get(account.id)
+        if statement is not None:
+            # A payment clearing the card for roughly the statement amount marks
+            # the cycle paid — same tolerance idea as bill matching, since a
+            # credit or a rounding adjustment shifts the exact figure.
+            match = _statement_payment(
+                payments, statement.statement_balance_minor, statement.due_date
+            )
+            status = (
+                "paid"
+                if match is not None
+                else _status_for(statement.due_date, today=today, horizon=horizon)
+            )
+            items.append(
+                PaymentTimelineItem(
+                    id=account.id,
+                    kind="credit_card",
+                    name=account.name,
+                    amount_minor=statement.statement_balance_minor,
+                    currency=currency,
+                    due_date=statement.due_date,
+                    status=status,
+                    paid=match,
+                    source="statement",
+                    statement_id=statement.id,
+                )
+            )
+            continue
+
         balance = balances.get(account.id)
         owed = -balance.balance_minor if balance is not None and balance.balance_minor < 0 else 0
-        payments = _account_payments(by_account.get(account.id, []))
         if owed <= 0 and not payments:
             continue  # inactive card: nothing owed, no history
         items.append(
@@ -1217,6 +1260,38 @@ def payment_timeline(
         covered=liquid >= due_total,
         window_days=window_days,
     )
+
+
+def _status_for(due_date: date, *, today: date, horizon: date) -> str:
+    """#11: a statement's due date is KNOWN (read off the statement), never
+    inferred — so unlike a guessed card date it can legitimately be overdue."""
+    if due_date < today:
+        return "overdue"
+    if due_date <= horizon:
+        return "due_soon"
+    return "upcoming"
+
+
+def _statement_payment(
+    payments: list[TimelinePayment], amount_minor: int, due_date: date
+) -> TimelinePayment | None:
+    """The payment that cleared a statement cycle, if one has posted.
+
+    Matched on amount within the usual tolerance (a statement credit or a
+    rounding adjustment shifts the exact figure) and on timing: a payment for
+    THIS cycle lands somewhere between the statement closing and shortly after
+    the due date. A payment far outside that window belongs to another cycle.
+    """
+    window_start = due_date - timedelta(days=45)
+    # Monthly grace: the same allowance a monthly bill gets before we stop
+    # claiming it is late.
+    window_end = due_date + timedelta(days=_GRACE_DAYS_BY_FREQUENCY["monthly"])
+    for payment in payments:
+        if not (window_start <= payment.occurred_at <= window_end):
+            continue
+        if abs(payment.amount_minor - amount_minor) <= amount_minor * _MATCH_AMOUNT_TOLERANCE:
+            return payment
+    return None
 
 
 def _liability_item(
@@ -1490,12 +1565,37 @@ def compute_safe_to_spend(
     # minimum, and treat those cards as modeled so they aren't warned as unrecorded.
     household = repository.get_household(engine, household_id)
     credit_card_payments = Money.zero(currency)
+    # #11: an uploaded statement is a PRECISE claim — the amount actually due on
+    # a known date — so it REPLACES the running-balance estimate for that card
+    # rather than adding to it. Counting both would charge the household twice
+    # for the same money, since the statement balance is part of the balance.
+    resolved_today = today or date.today()
+    statement_horizon = resolved_today + timedelta(days=horizon_days)
+    card_statement_due: dict[str, Money] = {}
+    for statement in repository.list_card_statements(engine, household_id):
+        if (
+            statement.paid_at is not None
+            or statement.currency != currency
+            or statement.due_date > statement_horizon
+        ):
+            continue
+        # Newest cycle wins per card; the list is due-date descending.
+        card_statement_due.setdefault(
+            statement.account_id, Money(statement.statement_balance_minor, currency)
+        )
+
+    for account_id, amount in card_statement_due.items():
+        credit_card_payments += amount
+        modeled_ids.add(account_id)
+
     if household is not None and household.credit_cards_paid_in_full:
         for balance in balances:
             if (
                 balance.account_type == "credit_card"
                 and balance.currency == currency
                 and balance.balance_minor < 0
+                # Already counted precisely from its statement.
+                and balance.account_id not in card_statement_due
             ):
                 credit_card_payments += Money(-balance.balance_minor, balance.currency)
                 modeled_ids.add(balance.account_id)
@@ -1515,7 +1615,6 @@ def compute_safe_to_spend(
 
     # #5: committed savings due in this window — reserved only if the household
     # asked; otherwise the caller surfaces it beside the figure.
-    resolved_today = today or date.today()
     committed_savings_total, _ = committed_savings_in_window(
         engine, household_id, currency, today=resolved_today, horizon_days=horizon_days
     )

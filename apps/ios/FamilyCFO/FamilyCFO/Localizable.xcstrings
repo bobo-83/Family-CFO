@@ -1591,6 +1591,22 @@
         }
       }
     },
+    "A recorded cycle is the exact amount this card asks for. Without one, Due soon can only estimate from the running balance, which includes anything charged since the cycle closed.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Įrašytas ciklas — tai tiksli suma, kurios prašo ši kortelė. Be jo skiltis „Netrukus mokėti“ gali tik apytiksliai spėti pagal einamąjį likutį, į kurį įskaičiuota ir viskas, kas išleista pasibaigus ciklui."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chu kỳ đã ghi nhận là số tiền chính xác mà thẻ này yêu cầu. Nếu chưa có, mục Sắp đến hạn chỉ có thể ước tính từ số dư đang chạy, vốn đã gồm cả những khoản chi phát sinh sau khi chu kỳ đóng."
+          }
+        }
+      }
+    },
     "A set amount": {
       "localizations": {
         "lt": {
@@ -2043,6 +2059,38 @@
         }
       }
     },
+    "Add statement": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pridėti išrašą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm sao kê"
+          }
+        }
+      }
+    },
+    "Add the closed cycle from your latest statement — or scan it — so this card's payment is an exact figure rather than an estimate.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pridėkite paskutinio išrašo pasibaigusį ciklą — arba jį nuskaitykite — kad šios kortelės įmoka būtų tiksli suma, o ne apytikslis skaičius."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy thêm chu kỳ đã đóng từ bản sao kê mới nhất — hoặc quét nó — để khoản trả của thẻ này là con số chính xác thay vì ước tính."
+          }
+        }
+      }
+    },
     "Add vest": {
       "localizations": {
         "lt": {
@@ -2295,6 +2343,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Số tiền"
+          }
+        }
+      }
+    },
+    "Amount due": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mokėtina suma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số tiền đến hạn"
           }
         }
       }
@@ -3557,6 +3621,22 @@
         }
       }
     },
+    "Clear paid": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Panaikinti apmokėjimo žymę"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bỏ đánh dấu đã trả"
+          }
+        }
+      }
+    },
     "Cluster (both boxes)": {
       "localizations": {
         "lt": {
@@ -4491,6 +4571,22 @@
         }
       }
     },
+    "Cycle %@–%@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ciklas %@–%@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chu kỳ %@–%@"
+          }
+        }
+      }
+    },
     "Daily": {
       "localizations": {
         "lt": {
@@ -5081,6 +5177,22 @@
         }
       }
     },
+    "Due date": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mokėjimo data"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngày đến hạn"
+          }
+        }
+      }
+    },
     "Due date unknown": {
       "localizations": {
         "lt": {
@@ -5607,6 +5719,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mọi thiết bị đã ghép nối với hộ gia đình này."
+          }
+        }
+      }
+    },
+    "Exact — from your statement": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tiksli suma — iš jūsų išrašo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chính xác — từ sao kê của bạn"
           }
         }
       }
@@ -7468,6 +7596,22 @@
         }
       }
     },
+    "Minimum %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Minimali %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tối thiểu %@"
+          }
+        }
+      }
+    },
     "Minimum debt payments": {
       "localizations": {
         "lt": {
@@ -7480,6 +7624,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khoản trả nợ tối thiểu"
+          }
+        }
+      }
+    },
+    "Minimum due": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Minimali mokėtina suma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số tiền tối thiểu"
+          }
+        }
+      }
+    },
+    "Minimum payment": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Minimali įmoka"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoản trả tối thiểu"
           }
         }
       }
@@ -8354,6 +8530,22 @@
         }
       }
     },
+    "No statements yet": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išrašų dar nėra"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có sao kê nào"
+          }
+        }
+      }
+    },
     "No transactions": {
       "localizations": {
         "lt": {
@@ -8958,6 +9150,38 @@
         }
       }
     },
+    "Optional — the days this cycle covers.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Neprivaloma — dienos, kurias apima šis ciklas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bắt buộc — khoảng ngày mà chu kỳ này bao gồm."
+          }
+        }
+      }
+    },
+    "Optional — the least this card will accept. Recorded for reference; Due soon still shows the full amount.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Neprivaloma — mažiausia suma, kurią ši kortelė priims. Fiksuojama tik informacijai; skiltyje „Netrukus mokėti“ vis tiek rodoma visa suma."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bắt buộc — số tiền ít nhất mà thẻ này chấp nhận. Chỉ ghi để tham khảo; mục Sắp đến hạn vẫn hiển thị toàn bộ số tiền."
+          }
+        }
+      }
+    },
     "Other": {
       "localizations": {
         "lt": {
@@ -9137,6 +9361,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã trả %@ · %@"
+          }
+        }
+      }
+    },
+    "Paid %@ · was due %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Apmokėta %@ · mokėti reikėjo %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã trả %@ · đến hạn %@"
           }
         }
       }
@@ -9387,18 +9627,19 @@
         }
       }
     },
-    "Paydays come from your recurring deposits; payments from the Bills timeline. Card amounts are today's balances — charges you make between now and the due date aren't known yet, so the real figure may be higher.": {
+    "Paydays come from your recurring deposits; payments from the Bills timeline. A card with a recorded statement shows its exact amount due; otherwise it shows today's balance, which may be lower than the final figure.": {
+      "extractionState": "manual",
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Įplaukų dienos imamos iš pasikartojančių pajamų, mokėjimai — iš sąskaitų tvarkaraščio. Kortelių sumos yra šiandienos likučiai — nurašymai, kuriuos padarysite iki termino, dar nežinomi, tad tikroji suma gali būti didesnė."
+            "value": "Atlyginimo dienos imamos iš pasikartojančių įplaukų; mokėjimai — iš sąskaitų laiko juostos. Kortelė su įrašytu išrašu rodo tikslią mokėtiną sumą; kitu atveju rodomas šiandienos likutis, kuris gali būti mažesnis už galutinę sumą."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ngày lương lấy từ các khoản nạp định kỳ; khoản chi lấy từ dòng thời gian Hóa đơn. Số tiền thẻ là số dư hôm nay — các khoản chi bạn phát sinh từ giờ đến ngày đến hạn chưa được biết, nên con số thực tế có thể cao hơn."
+            "value": "Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Thẻ đã ghi nhận sao kê sẽ hiển thị đúng số tiền phải trả; nếu chưa có, thẻ hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng."
           }
         }
       }
@@ -9479,6 +9720,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mã hóa riêng theo từng hộ gia đình đang tắt trên máy này."
+          }
+        }
+      }
+    },
+    "Period end": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laikotarpio pabaiga"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kỳ kết thúc"
+          }
+        }
+      }
+    },
+    "Period start": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laikotarpio pradžia"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kỳ bắt đầu"
           }
         }
       }
@@ -9607,6 +9880,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chụp ảnh, tải lên hoặc dán bảng sao kê HSA/tiết kiệm/đầu tư, mô hình thị giác trên máy sẽ điền những gì nó đọc được. Hãy xác nhận mọi con số trước khi lưu."
+          }
+        }
+      }
+    },
+    "Photograph, upload, or paste your credit-card statement (PDF or image) and the on-box vision model fills in what it can read. Confirm every value before saving.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nufotografuokite, įkelkite arba įklijuokite kreditinės kortelės išrašą (PDF arba nuotrauką) — serveryje veikiantis vaizdo modelis užpildys, ką sugebės perskaityti. Prieš išsaugodami patikrinkite kiekvieną reikšmę."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chụp ảnh, tải lên hoặc dán bản sao kê thẻ tín dụng (PDF hoặc ảnh) và mô hình thị giác trên máy sẽ điền những gì đọc được. Hãy xác nhận từng giá trị trước khi lưu."
           }
         }
       }
@@ -10033,6 +10322,22 @@
         }
       }
     },
+    "Record what each closed cycle asks for and when it's due, so Due soon shows the exact amount instead of estimating from the running balance.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užfiksuokite, kokios sumos prašo kiekvienas pasibaigęs ciklas ir kada ją mokėti, kad skiltis „Netrukus mokėti“ rodytų tikslią sumą, o ne apytikslį skaičių pagal einamąjį likutį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghi lại số tiền mỗi chu kỳ đã đóng yêu cầu và ngày đến hạn, để mục Sắp đến hạn hiển thị con số chính xác thay vì ước tính từ số dư đang chạy."
+          }
+        }
+      }
+    },
     "Recorded a %@ credit on %@ — see Manage bills → Statement credits.": {
       "localizations": {
         "en": {
@@ -10051,6 +10356,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã ghi nhận khoản hoàn tiền %@ cho %@ — xem Quản lý hóa đơn → Khoản hoàn tiền trên hóa đơn."
+          }
+        }
+      }
+    },
+    "Recorded cycles": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Įrašyti ciklai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các chu kỳ đã ghi nhận"
           }
         }
       }
@@ -11877,6 +12198,22 @@
         }
       }
     },
+    "Statement balance": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išrašo likutis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số dư sao kê"
+          }
+        }
+      }
+    },
     "Statement credits": {
       "localizations": {
         "lt": {
@@ -11889,6 +12226,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khoản hoàn tiền trên hóa đơn"
+          }
+        }
+      }
+    },
+    "Statement period": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išrašo laikotarpis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kỳ sao kê"
+          }
+        }
+      }
+    },
+    "Statements": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išrašai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao kê"
           }
         }
       }
@@ -12702,6 +13071,22 @@
         }
       }
     },
+    "That file can't be scanned — use a photo or a PDF of the statement.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Šio failo nuskaityti nepavyksta — naudokite išrašo nuotrauką arba PDF."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không quét được tệp đó — hãy dùng ảnh hoặc PDF của bản sao kê."
+          }
+        }
+      }
+    },
     "That file couldn't be read.": {
       "localizations": {
         "lt": {
@@ -12944,6 +13329,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mô hình thị giác trên máy không chạy nên không đọc được biểu mẫu. Bạn vẫn có thể tự nhập số liệu bên dưới."
+          }
+        }
+      }
+    },
+    "The box's vision model isn't running, so it can't read the statement. You can still type the figures in below.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serverio vaizdo modelis neveikia, todėl išrašo perskaityti negali. Skaičius vis tiek galite suvesti žemiau."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mô hình thị giác trên máy không chạy nên không đọc được bản sao kê. Bạn vẫn có thể tự nhập số liệu bên dưới."
+          }
+        }
+      }
+    },
+    "The full amount this closed cycle asks for — not today's running balance.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Visa suma, kurios prašo šis pasibaigęs ciklas, o ne šiandienos einamasis likutis."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toàn bộ số tiền mà chu kỳ đã đóng này yêu cầu — không phải số dư đang chạy hôm nay."
           }
         }
       }

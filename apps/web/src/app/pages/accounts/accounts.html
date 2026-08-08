@@ -100,9 +100,7 @@
                   >
                     Vested RSUs
                   </th>
-                  @if (canWrite()) {
-                    <th></th>
-                  }
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -206,8 +204,20 @@
                         {{ account.rsu_ready_to_sell ? '✓' : '—' }}
                       }
                     </td>
-                    @if (canWrite()) {
-                      <td>
+                    <td class="accounts-table__actions">
+                      @if (isCreditCard(account)) {
+                        <button
+                          mat-button
+                          type="button"
+                          class="accounts-table__statements"
+                          [attr.aria-expanded]="openStatementsFor() === account.id"
+                          (click)="toggleStatements(account.id)"
+                          i18n="Button|Opens the recorded statements for this credit card"
+                        >
+                          Statements
+                        </button>
+                      }
+                      @if (canWrite()) {
                         <button
                           mat-button
                           type="button"
@@ -217,9 +227,154 @@
                         >
                           Delete
                         </button>
-                      </td>
-                    }
+                      }
+                    </td>
                   </tr>
+                  @if (isCreditCard(account) && openStatementsFor() === account.id) {
+                    <tr class="card-statements-row">
+                      <td [attr.colspan]="8" class="card-statements">
+                        <h3 class="card-statements__title" i18n="Section heading|Recorded billing cycles for a credit card">
+                          Statements
+                        </h3>
+                        <p class="card-statements__hint" i18n="Section hint|Why a recorded statement beats the synced card balance">
+                          A recorded statement is the exact amount the issuer wants, by their date.
+                          Without one, Due Soon can only estimate from the running balance.
+                        </p>
+
+                        @if (cardStatements.error(); as message) {
+                          <p class="page-error" role="alert">{{ message }}</p>
+                        }
+                        @if (submitError(); as message) {
+                          <p class="page-error card-statements__error" role="alert">{{ message }}</p>
+                        }
+                        @if (cardStatements.isLoading()) {
+                          <p i18n="Loading placeholder">Loading…</p>
+                        } @else if ((cardStatements.value() ?? []).length === 0) {
+                          <p class="page-empty" i18n="Empty state|No statements recorded for this card yet">
+                            No statements recorded for this card yet.
+                          </p>
+                        } @else {
+                          <ul class="card-statements__list">
+                            @for (statement of cardStatements.value() ?? []; track statement.id) {
+                              <li class="card-statements__item" [class.card-statements__item--paid]="!!statement.paid_at">
+                                <div class="card-statements__figures">
+                                  <span class="card-statements__amount">{{ formatMoney(statement.statement_balance) }}</span>
+                                  <span class="card-statements__due" i18n="Statement row|The date the issuer wants the money by">
+                                    due {{ statement.due_date | date: 'MMM d, y' : 'UTC' }}
+                                  </span>
+                                  @if (statement.minimum_due; as minimum) {
+                                    <span class="card-statements__minimum" i18n="Statement row|The smallest payment that keeps the account current">
+                                      min {{ formatMoney(minimum) }}
+                                    </span>
+                                  }
+                                  @if (statement.period_start && statement.period_end) {
+                                    <span class="card-statements__period" i18n="Statement row|The billing cycle the statement covers">
+                                      cycle {{ statement.period_start | date: 'MMM d' : 'UTC' }} – {{ statement.period_end | date: 'MMM d' : 'UTC' }}
+                                    </span>
+                                  }
+                                </div>
+                                <span class="card-statements__state">
+                                  @if (statement.paid_at) {
+                                    <ng-container i18n="Statement state|The cycle has been settled">
+                                      ✓ paid {{ statement.paid_at | date: 'MMM d' : 'UTC' }}
+                                    </ng-container>
+                                  } @else {
+                                    <ng-container i18n="Statement state|The cycle has not been settled yet">unpaid</ng-container>
+                                  }
+                                </span>
+                                @if (canWrite()) {
+                                  <button
+                                    mat-button
+                                    type="button"
+                                    class="card-statements__paid"
+                                    (click)="toggleStatementPaid(statement)"
+                                  >
+                                    @if (statement.paid_at) {
+                                      <ng-container i18n="Button|Removes the paid mark from a card statement">Clear paid</ng-container>
+                                    } @else {
+                                      <ng-container i18n="Button|Marks a card statement settled">Mark paid</ng-container>
+                                    }
+                                  </button>
+                                  <button
+                                    mat-button
+                                    type="button"
+                                    class="card-statements__delete"
+                                    (click)="removeStatement(statement.id)"
+                                    i18n="Button|Deletes a recorded card statement"
+                                  >
+                                    Delete
+                                  </button>
+                                }
+                              </li>
+                            }
+                          </ul>
+                        }
+
+                        @if (canWrite()) {
+                          <form class="card-statement-form" [formGroup]="statementForm" (ngSubmit)="submitStatement(account)">
+                            <h4 i18n="Section heading|Form that records one credit-card statement">Add a statement</h4>
+                            <div class="card-statement-form__scan">
+                              <label class="card-statement-form__scan-button">
+                                @if (statementScanning()) {
+                                  <ng-container i18n="Scan button|Shown while the uploaded card statement is being read">📄 Reading the statement…</ng-container>
+                                } @else {
+                                  <ng-container i18n="Scan button|Opens the file picker for a credit-card statement">📄 Scan a card statement</ng-container>
+                                }
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  hidden
+                                  [disabled]="statementScanning()"
+                                  (change)="onCardStatementSelected($event)"
+                                />
+                              </label>
+                              <span class="card-statement-form__scan-hint" i18n="Scan hint|How the card statement scan prefills the form">
+                                Photograph, upload, or paste (Ctrl/⌘+V) the statement and the on-box
+                                vision model fills in what it can read. Nothing is saved until you
+                                press “Save statement”.
+                              </span>
+                            </div>
+                            @if (statementScanNote(); as note) {
+                              <p class="card-statement-form__scan-note">{{ note }}</p>
+                            }
+                            <mat-form-field appearance="outline">
+                              <mat-label i18n="Form field label|The exact amount the statement says is due">Statement balance</mat-label>
+                              <input matInput type="number" step="0.01" formControlName="statementBalance" />
+                            </mat-form-field>
+                            <mat-form-field appearance="outline">
+                              <mat-label i18n="Form field label|The date the card payment is due">Due date</mat-label>
+                              <input matInput type="date" formControlName="dueDate" />
+                            </mat-form-field>
+                            <mat-form-field appearance="outline">
+                              <mat-label i18n="Form field label|Smallest payment that keeps the card current">Minimum due (optional)</mat-label>
+                              <input matInput type="number" step="0.01" formControlName="minimumDue" />
+                            </mat-form-field>
+                            <mat-form-field appearance="outline">
+                              <mat-label i18n="Form field label|First day of the billing cycle">Period start (optional)</mat-label>
+                              <input matInput type="date" formControlName="periodStart" />
+                            </mat-form-field>
+                            <mat-form-field appearance="outline">
+                              <mat-label i18n="Form field label|Last day of the billing cycle">Period end (optional)</mat-label>
+                              <input matInput type="date" formControlName="periodEnd" />
+                            </mat-form-field>
+                            <button
+                              mat-flat-button
+                              type="submit"
+                              class="card-statement-form__save"
+                              [disabled]="statementSubmitting()"
+                              i18n="Button|Records the credit-card statement"
+                            >
+                              Save statement
+                            </button>
+                            <p class="card-statement-form__note" i18n="Form hint|Re-recording the same cycle updates it instead of adding a second one">
+                              Recording the same due date again updates that cycle — it never stacks
+                              a second amount for the same money.
+                            </p>
+                          </form>
+                        }
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>

@@ -157,6 +157,8 @@ async def get_payment_timeline(
                     if item.paid
                     else None
                 ),
+                source=item.source,
+                statement_id=item.statement_id,
             )
             for item in timeline.items
         ],

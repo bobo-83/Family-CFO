@@ -654,6 +654,169 @@ def undismiss_savings_route(
         )
 
 
+@dataclass(frozen=True, slots=True)
+class CardStatementRecord:
+    """#11: one credit-card cycle — what the statement says is due, and when."""
+
+    id: str
+    account_id: str
+    statement_balance_minor: int
+    minimum_due_minor: int | None
+    currency: str
+    due_date: date
+    period_start: date | None
+    period_end: date | None
+    document_id: str | None
+    paid_at: date | None
+
+
+def _card_statement_from_row(engine, household_id: str, row) -> CardStatementRecord:
+    minimum = row["minimum_due_minor"]
+    return CardStatementRecord(
+        id=row["id"],
+        account_id=row["account_id"],
+        statement_balance_minor=_dec_amount(
+            engine, household_id, row["statement_balance_minor"]
+        ),
+        minimum_due_minor=(
+            _dec_amount(engine, household_id, minimum) if minimum is not None else None
+        ),
+        currency=row["currency"],
+        due_date=row["due_date"],
+        period_start=row["period_start"],
+        period_end=row["period_end"],
+        document_id=row["document_id"],
+        paid_at=row["paid_at"],
+    )
+
+
+def list_card_statements(
+    engine: Engine, household_id: str, *, account_id: str | None = None
+) -> list[CardStatementRecord]:
+    """Newest cycle first."""
+    query = select(models.card_statements).where(
+        models.card_statements.c.household_id == household_id
+    )
+    if account_id is not None:
+        query = query.where(models.card_statements.c.account_id == account_id)
+    query = query.order_by(models.card_statements.c.due_date.desc())
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_card_statement_from_row(engine, household_id, row) for row in rows]
+
+
+def upsert_card_statement(
+    engine: Engine,
+    household_id: str,
+    *,
+    account_id: str,
+    statement_balance_minor: int,
+    currency: str,
+    due_date: date,
+    minimum_due_minor: int | None = None,
+    period_start: date | None = None,
+    period_end: date | None = None,
+    document_id: str | None = None,
+    statement_id: str | None = None,
+) -> CardStatementRecord:
+    """Record a cycle. Re-uploading the SAME cycle (account + due date) updates
+    it rather than stacking a second obligation for the same money."""
+    now = utcnow()
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(models.card_statements.c.id).where(
+                models.card_statements.c.household_id == household_id,
+                models.card_statements.c.account_id == account_id,
+                models.card_statements.c.due_date == due_date,
+            )
+        ).first()
+        values = {
+            "statement_balance_minor": _enc_amount(
+                engine, household_id, statement_balance_minor
+            ),
+            "minimum_due_minor": (
+                _enc_amount(engine, household_id, minimum_due_minor)
+                if minimum_due_minor is not None
+                else None
+            ),
+            "currency": currency,
+            "period_start": period_start,
+            "period_end": period_end,
+            "document_id": document_id,
+            "updated_at": now,
+        }
+        if existing is not None:
+            record_id = existing[0]
+            conn.execute(
+                update(models.card_statements)
+                .where(models.card_statements.c.id == record_id)
+                .values(**values)
+            )
+        else:
+            record_id = statement_id or new_id()
+            conn.execute(
+                insert(models.card_statements).values(
+                    id=record_id,
+                    household_id=household_id,
+                    account_id=account_id,
+                    due_date=due_date,
+                    paid_at=None,
+                    created_at=now,
+                    **values,
+                )
+            )
+    return CardStatementRecord(
+        id=record_id,
+        account_id=account_id,
+        statement_balance_minor=statement_balance_minor,
+        minimum_due_minor=minimum_due_minor,
+        currency=currency,
+        due_date=due_date,
+        period_start=period_start,
+        period_end=period_end,
+        document_id=document_id,
+        paid_at=None,
+    )
+
+
+def get_card_statement(
+    engine: Engine, household_id: str, statement_id: str
+) -> CardStatementRecord | None:
+    query = select(models.card_statements).where(
+        models.card_statements.c.household_id == household_id,
+        models.card_statements.c.id == statement_id,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _card_statement_from_row(engine, household_id, row) if row else None
+
+
+def set_card_statement_paid(
+    engine: Engine, household_id: str, statement_id: str, paid_at: date | None
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.card_statements)
+            .where(
+                models.card_statements.c.household_id == household_id,
+                models.card_statements.c.id == statement_id,
+            )
+            .values(paid_at=paid_at, updated_at=utcnow())
+        )
+    return result.rowcount > 0
+
+
+def delete_card_statement(engine: Engine, household_id: str, statement_id: str) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(models.card_statements).where(
+                models.card_statements.c.household_id == household_id,
+                models.card_statements.c.id == statement_id,
+            )
+        )
+    return result.rowcount > 0
+
+
 def prune_dead_auth_sessions(engine: Engine, *, older_than: datetime) -> int:
     """Delete sessions that are expired or revoked past the retention cutoff.
     Issue #48/#3: nothing pruned these before, so they grew without bound.

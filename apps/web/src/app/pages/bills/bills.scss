@@ -273,3 +273,18 @@
 .bill-credits__entry {
   padding: 0.1rem 0;
 }
+
+// #11: marks a timeline figure that came from a recorded statement (exact),
+// so an estimated card balance is never mistaken for one.
+.timeline-list__from-statement {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mat-sys-on-primary-container, #14324a);
+  background: var(--mat-sys-primary-container, #dbe9f6);
+}

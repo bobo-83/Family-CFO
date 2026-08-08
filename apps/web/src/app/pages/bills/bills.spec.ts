@@ -308,6 +308,61 @@ describe('Bills', () => {
     expect(host.textContent).toContain('Paid Jul 1');
   });
 
+  it('marks only statement-backed card figures as exact (#11)', async () => {
+    const apiMock = {
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(
+        response({
+          items: [
+            {
+              id: 'c1',
+              kind: 'credit_card',
+              name: 'Costco Visa',
+              amount: { amount_minor: 84_215, currency: 'USD' },
+              due_date: '2026-08-14',
+              days_until: 4,
+              status: 'due_soon',
+              source: 'statement',
+              statement_id: 's1',
+            },
+            {
+              id: 'c2',
+              kind: 'credit_card',
+              name: 'Amex',
+              amount: { amount_minor: 51_000, currency: 'USD' },
+              due_date: '2026-08-18',
+              days_until: 8,
+              status: 'due_soon',
+              source: 'estimate',
+            },
+          ],
+          due_total: { amount_minor: 135_215, currency: 'USD' },
+          liquid_balance: { amount_minor: 900_000, currency: 'USD' },
+          covered: true,
+          window_days: 14,
+        }),
+      ),
+    };
+    configure(apiMock, 'viewer');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const chips = host.querySelectorAll('.timeline-list__from-statement');
+    // Exactly one chip — the estimated card must never look exact.
+    expect(chips.length).toBe(1);
+    const exactRow = Array.from(host.querySelectorAll('.bill-list__item')).find((row) =>
+      row.textContent?.includes('Costco Visa'),
+    )!;
+    expect(exactRow.querySelector('.timeline-list__from-statement')).toBeTruthy();
+    const estimatedRow = Array.from(host.querySelectorAll('.bill-list__item')).find((row) =>
+      row.textContent?.includes('Amex'),
+    )!;
+    expect(estimatedRow.querySelector('.timeline-list__from-statement')).toBeFalsy();
+  });
+
   it('links a candidate charge with the row’s own due date ("I already paid this")', async () => {
     const timeline = {
       items: [

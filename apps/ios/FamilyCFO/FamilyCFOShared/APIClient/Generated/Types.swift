@@ -466,6 +466,31 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /accounts/scan-statement`.
     /// - Remark: Generated from `#/paths//accounts/scan-statement/post(scanLoanStatement)`.
     func scanLoanStatement(_ input: Operations.ScanLoanStatement.Input) async throws -> Operations.ScanLoanStatement.Output
+    /// Credit-card statements, newest cycle first (#11)
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)`.
+    func listCardStatements(_ input: Operations.ListCardStatements.Input) async throws -> Operations.ListCardStatements.Output
+    /// Record the amount due for a card's cycle (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)`.
+    func recordCardStatement(_ input: Operations.RecordCardStatement.Input) async throws -> Operations.RecordCardStatement.Output
+    /// Remove a recorded card statement (#11)
+    ///
+    /// - Remark: HTTP `DELETE /accounts/card-statements/{statement_id}`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)`.
+    func deleteCardStatement(_ input: Operations.DeleteCardStatement.Input) async throws -> Operations.DeleteCardStatement.Output
+    /// Mark a card's cycle paid, or clear the mark (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/{statement_id}/paid`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)`.
+    func markCardStatementPaid(_ input: Operations.MarkCardStatementPaid.Input) async throws -> Operations.MarkCardStatementPaid.Output
+    /// Read a credit-card statement into candidate values (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/scan`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)`.
+    func scanCardStatement(_ input: Operations.ScanCardStatement.Input) async throws -> Operations.ScanCardStatement.Output
     /// Read an asset-account statement photo or PDF into add-account candidates
     ///
     /// ADR 0057: paste/photograph an HSA/savings/brokerage statement and the add-account form is prefilled — name, type, current balance. Candidates only; the user confirms before anything is saved.
@@ -1879,6 +1904,73 @@ extension APIProtocol {
         body: Operations.ScanLoanStatement.Input.Body
     ) async throws -> Operations.ScanLoanStatement.Output {
         try await scanLoanStatement(Operations.ScanLoanStatement.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Credit-card statements, newest cycle first (#11)
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)`.
+    public func listCardStatements(
+        query: Operations.ListCardStatements.Input.Query = .init(),
+        headers: Operations.ListCardStatements.Input.Headers = .init()
+    ) async throws -> Operations.ListCardStatements.Output {
+        try await listCardStatements(Operations.ListCardStatements.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Record the amount due for a card's cycle (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)`.
+    public func recordCardStatement(
+        headers: Operations.RecordCardStatement.Input.Headers = .init(),
+        body: Operations.RecordCardStatement.Input.Body
+    ) async throws -> Operations.RecordCardStatement.Output {
+        try await recordCardStatement(Operations.RecordCardStatement.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Remove a recorded card statement (#11)
+    ///
+    /// - Remark: HTTP `DELETE /accounts/card-statements/{statement_id}`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)`.
+    public func deleteCardStatement(
+        path: Operations.DeleteCardStatement.Input.Path,
+        headers: Operations.DeleteCardStatement.Input.Headers = .init()
+    ) async throws -> Operations.DeleteCardStatement.Output {
+        try await deleteCardStatement(Operations.DeleteCardStatement.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Mark a card's cycle paid, or clear the mark (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/{statement_id}/paid`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)`.
+    public func markCardStatementPaid(
+        path: Operations.MarkCardStatementPaid.Input.Path,
+        headers: Operations.MarkCardStatementPaid.Input.Headers = .init(),
+        body: Operations.MarkCardStatementPaid.Input.Body
+    ) async throws -> Operations.MarkCardStatementPaid.Output {
+        try await markCardStatementPaid(Operations.MarkCardStatementPaid.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Read a credit-card statement into candidate values (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/scan`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)`.
+    public func scanCardStatement(
+        headers: Operations.ScanCardStatement.Input.Headers = .init(),
+        body: Operations.ScanCardStatement.Input.Body
+    ) async throws -> Operations.ScanCardStatement.Output {
+        try await scanCardStatement(Operations.ScanCardStatement.Input(
             headers: headers,
             body: body
         ))
@@ -3989,6 +4081,12 @@ public enum Components {
             public var dueDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/days_until`.
             public var daysUntil: Swift.Int?
+            /// "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/source`.
+            public var source: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/statement_id`.
+            public var statementId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/status`.
             @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case overdue = "overdue"
@@ -4010,6 +4108,8 @@ public enum Components {
             ///   - amount:
             ///   - dueDate:
             ///   - daysUntil:
+            ///   - source: "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
+            ///   - statementId:
             ///   - status:
             ///   - paidWith:
             public init(
@@ -4019,6 +4119,8 @@ public enum Components {
                 amount: Components.Schemas.Money,
                 dueDate: Swift.String? = nil,
                 daysUntil: Swift.Int? = nil,
+                source: Swift.String? = nil,
+                statementId: Swift.String? = nil,
                 status: Components.Schemas.PaymentTimelineItem.StatusPayload,
                 paidWith: Components.Schemas.TimelinePaidWith? = nil
             ) {
@@ -4028,6 +4130,8 @@ public enum Components {
                 self.amount = amount
                 self.dueDate = dueDate
                 self.daysUntil = daysUntil
+                self.source = source
+                self.statementId = statementId
                 self.status = status
                 self.paidWith = paidWith
             }
@@ -4038,6 +4142,8 @@ public enum Components {
                 case amount
                 case dueDate = "due_date"
                 case daysUntil = "days_until"
+                case source
+                case statementId = "statement_id"
                 case status
                 case paidWith = "paid_with"
             }
@@ -5316,6 +5422,245 @@ public enum Components {
                 case nextPaymentDueDate = "next_payment_due_date"
                 case aprPercent = "apr_percent"
                 case isLease = "is_lease"
+                case note
+            }
+        }
+        /// "#11: one credit-card cycle — what the statement says is due, and when. The EXACT figure, unlike the synced running balance which includes spending posted after the cycle closed."
+        ///
+        /// - Remark: Generated from `#/components/schemas/CardStatement`.
+        public struct CardStatement: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatement/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatement/account_id`.
+            public var accountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatement/account_name`.
+            public var accountName: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatement/statement_balance`.
+            public var statementBalance: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CardStatement/minimum_due`.
+            public var minimumDue: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/CardStatement/due_date`.
+            public var dueDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatement/period_start`.
+            public var periodStart: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatement/period_end`.
+            public var periodEnd: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatement/document_id`.
+            public var documentId: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatement/paid_at`.
+            public var paidAt: Swift.String?
+            /// Creates a new `CardStatement`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - accountId:
+            ///   - accountName:
+            ///   - statementBalance:
+            ///   - minimumDue:
+            ///   - dueDate:
+            ///   - periodStart:
+            ///   - periodEnd:
+            ///   - documentId:
+            ///   - paidAt:
+            public init(
+                id: Swift.String,
+                accountId: Swift.String,
+                accountName: Swift.String,
+                statementBalance: Components.Schemas.Money,
+                minimumDue: Components.Schemas.Money? = nil,
+                dueDate: Swift.String,
+                periodStart: Swift.String? = nil,
+                periodEnd: Swift.String? = nil,
+                documentId: Swift.String? = nil,
+                paidAt: Swift.String? = nil
+            ) {
+                self.id = id
+                self.accountId = accountId
+                self.accountName = accountName
+                self.statementBalance = statementBalance
+                self.minimumDue = minimumDue
+                self.dueDate = dueDate
+                self.periodStart = periodStart
+                self.periodEnd = periodEnd
+                self.documentId = documentId
+                self.paidAt = paidAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case accountId = "account_id"
+                case accountName = "account_name"
+                case statementBalance = "statement_balance"
+                case minimumDue = "minimum_due"
+                case dueDate = "due_date"
+                case periodStart = "period_start"
+                case periodEnd = "period_end"
+                case documentId = "document_id"
+                case paidAt = "paid_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CardStatementListResponse`.
+        public struct CardStatementListResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementListResponse/statements`.
+            public var statements: [Components.Schemas.CardStatement]?
+            /// Creates a new `CardStatementListResponse`.
+            ///
+            /// - Parameters:
+            ///   - statements:
+            public init(statements: [Components.Schemas.CardStatement]? = nil) {
+                self.statements = statements
+            }
+            public enum CodingKeys: String, CodingKey {
+                case statements
+            }
+        }
+        /// Recording the same cycle twice (same card + due date) UPDATES it rather than stacking a second obligation for the same money.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest`.
+        public struct CardStatementCreateRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/account_id`.
+            public var accountId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/statement_balance`.
+            public var statementBalance: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/due_date`.
+            public var dueDate: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/minimum_due`.
+            public var minimumDue: Components.Schemas.Money?
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/period_start`.
+            public var periodStart: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/period_end`.
+            public var periodEnd: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementCreateRequest/document_id`.
+            public var documentId: Swift.String?
+            /// Creates a new `CardStatementCreateRequest`.
+            ///
+            /// - Parameters:
+            ///   - accountId:
+            ///   - statementBalance:
+            ///   - dueDate:
+            ///   - minimumDue:
+            ///   - periodStart:
+            ///   - periodEnd:
+            ///   - documentId:
+            public init(
+                accountId: Swift.String,
+                statementBalance: Components.Schemas.Money,
+                dueDate: Swift.String,
+                minimumDue: Components.Schemas.Money? = nil,
+                periodStart: Swift.String? = nil,
+                periodEnd: Swift.String? = nil,
+                documentId: Swift.String? = nil
+            ) {
+                self.accountId = accountId
+                self.statementBalance = statementBalance
+                self.dueDate = dueDate
+                self.minimumDue = minimumDue
+                self.periodStart = periodStart
+                self.periodEnd = periodEnd
+                self.documentId = documentId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case accountId = "account_id"
+                case statementBalance = "statement_balance"
+                case dueDate = "due_date"
+                case minimumDue = "minimum_due"
+                case periodStart = "period_start"
+                case periodEnd = "period_end"
+                case documentId = "document_id"
+            }
+        }
+        /// Null clears the paid mark.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CardStatementPaidRequest`.
+        public struct CardStatementPaidRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementPaidRequest/paid_at`.
+            public var paidAt: Swift.String?
+            /// Creates a new `CardStatementPaidRequest`.
+            ///
+            /// - Parameters:
+            ///   - paidAt:
+            public init(paidAt: Swift.String? = nil) {
+                self.paidAt = paidAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case paidAt = "paid_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest`.
+        public struct CardStatementScanRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest/image_base64`.
+            public var imageBase64: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest/image_media_type`.
+            @frozen public enum ImageMediaTypePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case imageJpeg = "image/jpeg"
+                case imagePng = "image/png"
+                case imageWebp = "image/webp"
+                case applicationPdf = "application/pdf"
+            }
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanRequest/image_media_type`.
+            public var imageMediaType: Components.Schemas.CardStatementScanRequest.ImageMediaTypePayload
+            /// Creates a new `CardStatementScanRequest`.
+            ///
+            /// - Parameters:
+            ///   - imageBase64:
+            ///   - imageMediaType:
+            public init(
+                imageBase64: Swift.String,
+                imageMediaType: Components.Schemas.CardStatementScanRequest.ImageMediaTypePayload
+            ) {
+                self.imageBase64 = imageBase64
+                self.imageMediaType = imageMediaType
+            }
+            public enum CodingKeys: String, CodingKey {
+                case imageBase64 = "image_base64"
+                case imageMediaType = "image_media_type"
+            }
+        }
+        /// Candidate values only — the user confirms before anything is saved.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CardStatementScanResult`.
+        public struct CardStatementScanResult: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/statement_balance_minor`.
+            public var statementBalanceMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/minimum_due_minor`.
+            public var minimumDueMinor: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/due_date`.
+            public var dueDate: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/period_start`.
+            public var periodStart: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/period_end`.
+            public var periodEnd: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CardStatementScanResult/note`.
+            public var note: Swift.String
+            /// Creates a new `CardStatementScanResult`.
+            ///
+            /// - Parameters:
+            ///   - statementBalanceMinor:
+            ///   - minimumDueMinor:
+            ///   - dueDate:
+            ///   - periodStart:
+            ///   - periodEnd:
+            ///   - note:
+            public init(
+                statementBalanceMinor: Swift.Int? = nil,
+                minimumDueMinor: Swift.Int? = nil,
+                dueDate: Swift.String? = nil,
+                periodStart: Swift.String? = nil,
+                periodEnd: Swift.String? = nil,
+                note: Swift.String
+            ) {
+                self.statementBalanceMinor = statementBalanceMinor
+                self.minimumDueMinor = minimumDueMinor
+                self.dueDate = dueDate
+                self.periodStart = periodStart
+                self.periodEnd = periodEnd
+                self.note = note
+            }
+            public enum CodingKeys: String, CodingKey {
+                case statementBalanceMinor = "statement_balance_minor"
+                case minimumDueMinor = "minimum_due_minor"
+                case dueDate = "due_date"
+                case periodStart = "period_start"
+                case periodEnd = "period_end"
                 case note
             }
         }
@@ -27085,6 +27430,1138 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.serviceUnavailable`.
             /// - SeeAlso: `.serviceUnavailable`.
             public var serviceUnavailable: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Credit-card statements, newest cycle first (#11)
+    ///
+    /// - Remark: HTTP `GET /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)`.
+    public enum ListCardStatements {
+        public static let id: Swift.String = "listCardStatements"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/GET/query/account_id`.
+                public var accountId: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - accountId:
+                public init(accountId: Swift.String? = nil) {
+                    self.accountId = accountId
+                }
+            }
+            public var query: Operations.ListCardStatements.Input.Query
+            /// - Remark: Generated from `#/paths/accounts/card-statements/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListCardStatements.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ListCardStatements.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ListCardStatements.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.ListCardStatements.Input.Query = .init(),
+                headers: Operations.ListCardStatements.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CardStatementListResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.CardStatementListResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListCardStatements.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListCardStatements.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Statements
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ListCardStatements.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ListCardStatements.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Record the amount due for a card's cycle (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)`.
+    public enum RecordCardStatement {
+        public static let id: Swift.String = "recordCardStatement"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordCardStatement.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RecordCardStatement.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RecordCardStatement.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/card-statements/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.CardStatementCreateRequest)
+            }
+            public var body: Operations.RecordCardStatement.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.RecordCardStatement.Input.Headers = .init(),
+                body: Operations.RecordCardStatement.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.CardStatement)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.CardStatement {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordCardStatement.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordCardStatement.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.RecordCardStatement.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.RecordCardStatement.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordCardStatement.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordCardStatement.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Account not found
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.RecordCardStatement.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.RecordCardStatement.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordCardStatement.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordCardStatement.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Not a credit-card account
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.RecordCardStatement.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.RecordCardStatement.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Remove a recorded card statement (#11)
+    ///
+    /// - Remark: HTTP `DELETE /accounts/card-statements/{statement_id}`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)`.
+    public enum DeleteCardStatement {
+        public static let id: Swift.String = "deleteCardStatement"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/DELETE/path/statement_id`.
+                public var statementId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - statementId:
+                public init(statementId: Swift.String) {
+                    self.statementId = statementId
+                }
+            }
+            public var path: Operations.DeleteCardStatement.Input.Path
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteCardStatement.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.DeleteCardStatement.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.DeleteCardStatement.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.DeleteCardStatement.Input.Path,
+                headers: Operations.DeleteCardStatement.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Removed
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.DeleteCardStatement.Output.NoContent)
+            /// Removed
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.DeleteCardStatement.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.DeleteCardStatement.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.DeleteCardStatement.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Statement not found
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.DeleteCardStatement.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.DeleteCardStatement.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Mark a card's cycle paid, or clear the mark (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/{statement_id}/paid`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)`.
+    public enum MarkCardStatementPaid {
+        public static let id: Swift.String = "markCardStatementPaid"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/path/statement_id`.
+                public var statementId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - statementId:
+                public init(statementId: Swift.String) {
+                    self.statementId = statementId
+                }
+            }
+            public var path: Operations.MarkCardStatementPaid.Input.Path
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.MarkCardStatementPaid.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.MarkCardStatementPaid.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.MarkCardStatementPaid.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.CardStatementPaidRequest)
+            }
+            public var body: Operations.MarkCardStatementPaid.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.MarkCardStatementPaid.Input.Path,
+                headers: Operations.MarkCardStatementPaid.Input.Headers = .init(),
+                body: Operations.MarkCardStatementPaid.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CardStatement)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.CardStatement {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.MarkCardStatementPaid.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.MarkCardStatementPaid.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Updated
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.MarkCardStatementPaid.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.MarkCardStatementPaid.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/{statement_id}/paid/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.MarkCardStatementPaid.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.MarkCardStatementPaid.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Statement not found
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.MarkCardStatementPaid.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.MarkCardStatementPaid.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Read a credit-card statement into candidate values (#11)
+    ///
+    /// - Remark: HTTP `POST /accounts/card-statements/scan`.
+    /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)`.
+    public enum ScanCardStatement {
+        public static let id: Swift.String = "scanCardStatement"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanCardStatement.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ScanCardStatement.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ScanCardStatement.Input.Headers
+            /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.CardStatementScanRequest)
+            }
+            public var body: Operations.ScanCardStatement.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ScanCardStatement.Input.Headers = .init(),
+                body: Operations.ScanCardStatement.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CardStatementScanResult)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.CardStatementScanResult {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanCardStatement.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanCardStatement.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Candidates
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.ScanCardStatement.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.ScanCardStatement.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanCardStatement.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanCardStatement.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Unreadable PDF
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.ScanCardStatement.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.ScanCardStatement.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/scan/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ScanCardStatement.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ScanCardStatement.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// No vision model available
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/scan/post(scanCardStatement)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.ScanCardStatement.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.ScanCardStatement.Output.ServiceUnavailable {
                 get throws {
                     switch self {
                     case let .serviceUnavailable(response):

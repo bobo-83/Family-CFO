@@ -57,6 +57,7 @@ import {
   createTransaction,
   declareSavingsContribution,
   deleteAccount,
+  deleteCardStatement,
   deleteConnection,
   deleteConversation,
   deleteBill,
@@ -97,6 +98,8 @@ import {
   updateIncomeTaxSettings,
   getReport,
   listAccounts,
+  listCardStatements,
+  markCardStatementPaid,
   listAuditEvents,
   listBackups,
   getCashOutlook,
@@ -120,9 +123,11 @@ import {
   listTransactions,
   listTransactionsForReview,
   recordAccountBalance,
+  recordCardStatement,
   restoreBackup,
   scanAccountStatement,
   scanBill,
+  scanCardStatement,
   scanLoanStatement,
   searchAiModels,
   getAiModelDetail,
@@ -147,6 +152,7 @@ import {
   type AiApplyRequest,
   type AccountUpdateRequest,
   type AiRuntimeConfig,
+  type CardStatementCreateRequest,
   type AuthSessionCreateRequest,
   type BillCreateRequest,
   type BillCreditCreateRequest,
@@ -341,6 +347,38 @@ export class ApiService {
 
   deleteAccount(accountId: string) {
     return deleteAccount({ path: { account_id: accountId } });
+  }
+
+  // --- #11: credit-card statements — the EXACT amount due for a cycle ---
+  listCardStatements(accountId?: string) {
+    return listCardStatements(accountId ? { query: { account_id: accountId } } : {});
+  }
+
+  // Recording the same cycle (same card + due date) updates it in place.
+  recordCardStatement(body: CardStatementCreateRequest) {
+    return recordCardStatement({ body });
+  }
+
+  // null clears the paid mark.
+  markCardStatementPaid(statementId: string, paidAt: string | null) {
+    return markCardStatementPaid({
+      path: { statement_id: statementId },
+      body: { paid_at: paidAt },
+    });
+  }
+
+  deleteCardStatement(statementId: string) {
+    return deleteCardStatement({ path: { statement_id: statementId } });
+  }
+
+  // #11: read a card statement into candidates — the user confirms before saving.
+  scanCardStatement(imageBase64: string, mediaType: string) {
+    return scanCardStatement({
+      body: {
+        image_base64: imageBase64,
+        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+      },
+    });
   }
 
   // --- #203: savings contributions the household states, not the detector ---
