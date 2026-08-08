@@ -239,6 +239,10 @@ export type OutlookEvent = {
     name: string;
     amount: Money;
     kind: 'income' | 'bill' | 'credit_card' | 'mortgage' | 'loan' | 'lease';
+    /**
+     * "#30: statement = the amount came from a recorded statement (exact); estimate = a running balance with an inferred day, or any projected future occurrence."
+     */
+    source?: string;
 };
 
 /**

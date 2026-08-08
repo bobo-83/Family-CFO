@@ -4641,6 +4641,13 @@ components:
         kind:
           type: string
           enum: [income, bill, credit_card, mortgage, loan, lease]
+        source:
+          description: >-
+            "#30: statement = the amount came from a recorded statement
+            (exact); estimate = a running balance with an inferred day, or any
+            projected future occurrence."
+          type: string
+          default: estimate
     CashOutlookResponse:
       type: object
       description: >-

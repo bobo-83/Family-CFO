@@ -947,6 +947,81 @@ describe('Overview', () => {
     expect(text).toContain('-USD 4,181.83'); // the lowest point, shown negative
   });
 
+  it('marks only statement-backed outlook rows as exact (#30)', async () => {
+    apiMock.getHouseholdContext.mockResolvedValue(
+      response({
+        household_id: 'h1',
+        display_name: 'Home',
+        currency: 'USD',
+        net_worth: { amount_minor: 0, currency: 'USD' },
+        emergency_fund_months: null,
+      }),
+    );
+    apiMock.getCashOutlook.mockResolvedValue(
+      response({
+        starting_cash: { amount_minor: 2_000_000, currency: 'USD' },
+        events: [
+          {
+            occurred_on: '2026-07-21',
+            name: 'Costco Visa',
+            amount: { amount_minor: -717_624, currency: 'USD' },
+            kind: 'credit_card',
+            source: 'statement',
+          },
+          {
+            // A running balance with an inferred due day — NOT the final bill.
+            occurred_on: '2026-07-24',
+            name: 'Amex Platinum',
+            amount: { amount_minor: -128_450, currency: 'USD' },
+            kind: 'credit_card',
+            source: 'estimate',
+          },
+          {
+            // An older box may not send `source` at all: still an estimate.
+            occurred_on: '2026-07-30',
+            name: 'Paycheck',
+            amount: { amount_minor: 251_234, currency: 'USD' },
+            kind: 'income',
+          },
+        ],
+        ending_cash: { amount_minor: 1_405_160, currency: 'USD' },
+        lowest_balance: { amount_minor: 1_153_926, currency: 'USD' },
+        lowest_date: '2026-07-24',
+        expected_income: { amount_minor: 251_234, currency: 'USD' },
+        obligations: { amount_minor: 846_074, currency: 'USD' },
+        horizon_days: 30,
+        due_soon: { amount_minor: 846_074, currency: 'USD' },
+        due_soon_covered: true,
+        due_soon_window_days: 14,
+      }),
+    );
+
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const rows = Array.from(host.querySelectorAll('.outlook-card__table tr'));
+    expect(rows.length).toBe(3);
+
+    // Exactly one chip — dressing an estimate up as exact is the one thing
+    // this must never do.
+    expect(host.querySelectorAll('.outlook-card__table .from-statement').length).toBe(1);
+    const exact = rows.find((row) => row.textContent?.includes('Costco Visa'))!;
+    expect(exact.querySelector('.from-statement')).toBeTruthy();
+    for (const name of ['Amex Platinum', 'Paycheck']) {
+      const estimated = rows.find((row) => row.textContent?.includes(name))!;
+      expect(estimated.querySelector('.from-statement')).toBeFalsy();
+    }
+
+    // The footnote points at the chip instead of hedging about every card.
+    const text = host.textContent ?? '';
+    expect(text).toContain('Rows marked from statement are exact');
+    expect(text).not.toContain('A card with a recorded statement shows its exact amount due');
+  });
+
   it('shows the vested-RSU line beside the stress test when tagged accounts exist', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({

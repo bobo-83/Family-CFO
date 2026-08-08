@@ -709,6 +709,7 @@ async def get_cash_outlook(
                 name=event.name,
                 amount=money(event.amount_minor),
                 kind=event.kind,
+                source=event.source,
             )
             for event in outlook.events
         ],

@@ -350,17 +350,17 @@ describe('Bills', () => {
     await stabilize(fixture);
 
     const host = fixture.nativeElement as HTMLElement;
-    const chips = host.querySelectorAll('.timeline-list__from-statement');
+    const chips = host.querySelectorAll('.from-statement');
     // Exactly one chip — the estimated card must never look exact.
     expect(chips.length).toBe(1);
     const exactRow = Array.from(host.querySelectorAll('.bill-list__item')).find((row) =>
       row.textContent?.includes('Costco Visa'),
     )!;
-    expect(exactRow.querySelector('.timeline-list__from-statement')).toBeTruthy();
+    expect(exactRow.querySelector('.from-statement')).toBeTruthy();
     const estimatedRow = Array.from(host.querySelectorAll('.bill-list__item')).find((row) =>
       row.textContent?.includes('Amex'),
     )!;
-    expect(estimatedRow.querySelector('.timeline-list__from-statement')).toBeFalsy();
+    expect(estimatedRow.querySelector('.from-statement')).toBeFalsy();
   });
 
   it('links a candidate charge with the row’s own due date ("I already paid this")', async () => {

@@ -215,6 +215,23 @@ table {
   margin-bottom: 1rem;
 }
 
+/* #11/#30: marks a figure that came from a recorded statement — the EXACT
+   amount the issuer billed — so an estimated card balance is never mistaken
+   for one. Global rather than per-page: the Bills timeline and the cash
+   outlook both mark exact rows, and they must look the same doing it. */
+.from-statement {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mat-sys-on-primary-container, #14324a);
+  background: var(--mat-sys-primary-container, #dbe9f6);
+}
+
 /* A table inside a Material card is card content, not its own card: drop the
    standalone table chrome (from the element baseline above) so it doesn't draw
    a second border/shadow inside the card. */

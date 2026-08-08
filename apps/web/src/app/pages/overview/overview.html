@@ -292,6 +292,19 @@
                       >
                         {{ row.event.amount.amount_minor > 0 ? '+' : ''
                         }}{{ formatMoney(row.event.amount) }}
+                        @if (row.event.source === 'statement') {
+                          <!-- #30: this row's figure is the exact amount the
+                               issuer billed. Every other row — including any
+                               projected future card payment — is an estimate
+                               and gets no chip. Same chip the Bills timeline
+                               uses, so the two screens agree. -->
+                          <span
+                            class="from-statement"
+                            title="The exact amount due, taken from the statement you recorded — not an estimate."
+                            i18n="Amount provenance|Marks a due figure that comes from a recorded statement rather than an estimate"
+                            i18n-title="Amount provenance tooltip|Explains that the figure is the issuer's exact amount due"
+                          >from statement</span>
+                        }
                       </td>
                       <td
                         class="outlook-card__balance"
@@ -302,11 +315,14 @@
                     </tr>
                   }
                 </table>
+                <!-- #30: the rows now say which figures are exact, so the
+                     footnote points at the chip instead of hedging about
+                     every card. -->
                 <p class="overview__hint" i18n="Cash outlook footnote|Says where the projected paydays and payments come from">
                   Paydays come from your recurring deposits; payments from the Bills
-                  timeline. A card with a recorded statement shows its exact amount
-                  due; otherwise it shows today's balance, which may be lower than
-                  the final figure.
+                  timeline. Rows marked from statement are exact; the rest are
+                  estimates — a card without a statement shows today's balance,
+                  which may be lower than the final figure.
                 </p>
               </details>
             }

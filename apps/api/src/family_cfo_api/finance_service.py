@@ -572,6 +572,10 @@ class OutlookEvent:
     name: str
     amount_minor: int  # signed: inflow positive, outflow negative
     kind: str  # "income" | "bill" | "credit_card" | "mortgage" | "loan" | "lease"
+    # #30: "statement" when the figure came from a recorded statement (exact),
+    # "estimate" otherwise. Carried from the timeline item so the outlook can
+    # say WHICH card amounts are exact instead of hedging about all of them.
+    source: str = "estimate"
 
 
 @dataclass(frozen=True, slots=True)
@@ -654,6 +658,7 @@ def cash_outlook(
             OutlookEvent(
                 occurred_on=first, name=item.name,
                 amount_minor=-item.amount_minor, kind=item.kind,
+                source=item.source,
             )
         )
         # Sub-monthly bills and fixed loan/lease payments recur within 30 days;
@@ -671,6 +676,9 @@ def cash_outlook(
                 OutlookEvent(
                     occurred_on=occurrence, name=item.name,
                     amount_minor=-item.amount_minor, kind=item.kind,
+                    # source defaults to "estimate": a PROJECTED occurrence is a
+                    # repeat of the cadence, never a figure read off a statement,
+                    # even when the first occurrence was.
                 )
             )
             occurrence = _step(occurrence, frequency)

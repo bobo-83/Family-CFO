@@ -73,6 +73,11 @@ struct CashOutlookDetailView: View {
                             .monospacedDigit()
                             .foregroundStyle(
                                 row.event.amount.amountMinor >= 0 ? .green : .primary)
+                            if let note = Self.statementNote(row.event) {
+                                Label(note, systemImage: "doc.text.fill")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.teal)
+                            }
                             Text(verbatim: row.balance.formattedExact)
                                 .font(.caption)
                                 .monospacedDigit()
@@ -84,13 +89,15 @@ struct CashOutlookDetailView: View {
             } header: {
                 Text("Day by day")
             } footer: {
+                // #30: the rows now say which figures are exact, so this points
+                // at the badge instead of hedging about every card.
                 Text(
                     String(
                         localized: """
                             Paydays come from your recurring deposits; payments from the Bills \
-                            timeline. A card with a recorded statement shows its exact \
-                            amount due; otherwise it shows today's balance, which may be \
-                            lower than the final figure.
+                            timeline. Rows marked from statement are exact; the rest are \
+                            estimates — a card without a statement shows today's balance, \
+                            which may be lower than the final figure.
                             """)
                 )
             }
@@ -102,6 +109,15 @@ struct CashOutlookDetailView: View {
     private struct Row {
         let event: Components.Schemas.OutlookEvent
         let balance: Components.Schemas.Money
+    }
+
+    /// #30: only a statement-backed row carries the EXACT figure the issuer
+    /// billed. Everything else — a card's running balance on an inferred due
+    /// day, any projected future occurrence, every bill, loan and payday — is
+    /// an estimate and gets no badge. Same wording and idiom as the Bills
+    /// timeline (`BillsView.statementNote`) so the two screens agree.
+    static func statementNote(_ event: Components.Schemas.OutlookEvent) -> String? {
+        event.source == "statement" ? String(localized: "Exact — from your statement") : nil
     }
 
     /// Events with the running balance after each — same order the server

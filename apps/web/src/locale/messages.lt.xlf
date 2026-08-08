@@ -6746,9 +6746,9 @@
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
-      <trans-unit id="5098122122749208005" datatype="html">
-        <source> Paydays come from your recurring deposits; payments from the Bills timeline. A card with a recorded statement shows its exact amount due; otherwise it shows today's balance, which may be lower than the final figure. </source>
-        <target state="needs-review-translation"> Atlyginimo dienos imamos iš pasikartojančių įplaukų; mokėjimai — iš sąskaitų laiko juostos. Kortelė su įrašytu išrašu rodo tikslią mokėtiną sumą; kitu atveju rodomas šiandienos likutis, kuris gali būti mažesnis už galutinę sumą. </target>
+      <trans-unit id="3205177851475530272" datatype="html">
+        <source> Paydays come from your recurring deposits; payments from the Bills timeline. Rows marked from statement are exact; the rest are estimates — a card without a statement shows today's balance, which may be lower than the final figure. </source>
+        <target state="needs-review-translation"> Atlyginimo dienos imamos iš pasikartojančių įplaukų; mokėjimai — iš sąskaitų laiko juostos. Eilutės, pažymėtos iš išrašo, yra tikslios; visos kitos yra tik įverčiai — kortelė be išrašo rodo šiandienos likutį, kuris gali būti mažesnis už galutinę sumą. </target>
         <note priority="1" from="description">Says where the projected paydays and payments come from</note>
         <note priority="1" from="meaning">Cash outlook footnote</note>
       </trans-unit>
