@@ -5752,6 +5752,9 @@ components:
           description: "#5: whether committed savings is reserved like a bill."
           type: boolean
           default: false
+        timezone:
+          description: "#41: the household's IANA zone; null means the box default."
+          type: [string, "null"]
         currency:
           type: string
           example: USD
@@ -7494,6 +7497,13 @@ components:
             Safe to Spend without subtracting (false). Omit to leave unchanged."
           type:
             - boolean
+            - "null"
+        timezone:
+          description: >-
+            "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means
+            for this household. Rejected with 422 if unknown."
+          type:
+            - string
             - "null"
     Member:
       type: object

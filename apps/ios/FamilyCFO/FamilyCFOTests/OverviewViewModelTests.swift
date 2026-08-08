@@ -97,6 +97,15 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         }
     }
 
+    // #41: household time-zone PATCHes.
+    private(set) var updatedTimezones: [String] = []
+    nonisolated func updateTimezone(_ identifier: String) async throws {
+        try await MainActor.run {
+            if let mutationError { throw mutationError }
+            updatedTimezones.append(identifier)
+        }
+    }
+
     // #5: reserve-committed-savings PATCHes.
     private(set) var reserveUpdates: [Bool] = []
     nonisolated func updateReserveCommittedSavings(_ value: Bool) async throws {

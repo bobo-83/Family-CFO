@@ -108,6 +108,10 @@ households = Table(
     # #5: when true, safe-to-spend reserves committed savings like a bill; null
     # = false = show it beside the figure without subtracting.
     Column("reserve_committed_savings", Boolean, nullable=True),
+    # #41: IANA zone (e.g. "America/New_York", "Europe/London") deciding what
+    # "today" means for this household. Null = the box's default, so existing
+    # households don't shift the day nobody asked them to.
+    Column("timezone", String(64), nullable=True),
     # #10: BCP-47 language for every surface the household reads — the web build
     # served, the advisor's answers, and (phase 4) API-owned strings. Household-
     # level by design: compile-time i18n ships one web build per locale, so

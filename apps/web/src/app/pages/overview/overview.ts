@@ -3,6 +3,7 @@ import { FREQUENCY_LABELS } from '../../shared/enum-labels';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -32,6 +33,61 @@ const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
   on_track: $localize`:Emergency fund status|Close to the target months of cover:On track`,
   fully_funded: $localize`:Emergency fund status|Target months of cover reached:Fully funded`,
 };
+
+// --- #41: the zone a household reckons "today" in ---------------------------
+// Zone IDs are identifiers, so none of the values below are ever translated.
+
+/**
+ * Reachable without typing anything. The full IANA list is ~600 entries — one
+ * flat picker of it is a wall, not a choice — so everything outside this set
+ * lives behind the search box.
+ */
+const CURATED_TIMEZONES = [
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Toronto',
+  'Europe/London',
+  'Europe/Dublin',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Vilnius',
+  'Asia/Ho_Chi_Minh',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+  'UTC',
+];
+
+/** Search hits rendered at once — enough to find a zone, few enough to scan. */
+const TIMEZONE_RESULT_LIMIT = 50;
+
+/**
+ * Every zone this browser knows. `Intl.supportedValuesOf` is recent, so an
+ * older engine falls back to the curated set rather than offering nothing.
+ */
+function knownTimezones(): string[] {
+  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
+  try {
+    const zones = intl.supportedValuesOf?.('timeZone');
+    if (zones && zones.length > 0) {
+      return zones;
+    }
+  } catch {
+    // Some engines have the method but throw on the key; treat that as absent.
+  }
+  return CURATED_TIMEZONES;
+}
+
+/** This browser's own zone — nearly always the one the household means. */
+function browserTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   liquid: $localize`:Asset category|Cash and current accounts:Cash`,
@@ -63,6 +119,7 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
     FormsModule,
     ReactiveFormsModule,
     RouterLink,
+    MatAutocompleteModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -646,6 +703,86 @@ export class Overview {
       this.languageInput.set(previous);
       return;
     }
+    this.household.reload();
+  }
+
+  // --- #41: the zone this household reckons "today" in -----------------------
+  // Same right as the language selector above — the server enforces
+  // household.settings.manage on updateHousehold.
+
+  protected readonly timezoneHint = $localize`:Household timezone hint|Explains what the time zone setting changes:Bills, due dates and Safe to Spend use this zone to decide what “today” means.`;
+
+  /** No zone chosen yet: dates follow the box's own zone. */
+  protected readonly timezoneUnset = $localize`:Household timezone unset|Shown in place of a zone when the household has never chosen one:Not set — the box's own zone`;
+
+  /** Optimistic pick shown while saving; null means "use the context value". */
+  protected readonly timezoneInput = signal<string | null>(null);
+  /** What has been typed into the search box; null means "not searching". */
+  protected readonly timezoneQuery = signal<string | null>(null);
+  protected readonly savingTimezone = signal(false);
+  protected readonly timezoneError = signal<string | null>(null);
+
+  private readonly allTimezones = knownTimezones();
+
+  /**
+   * What the list offers before a single key is pressed: this browser's own
+   * zone first (the overwhelmingly likely answer), then the usual suspects.
+   */
+  private readonly shortlistTimezones = [
+    ...new Set([browserTimezone(), ...CURATED_TIMEZONES].filter((zone) => !!zone)),
+  ] as string[];
+
+  /** The saved (or optimistically picked) zone; '' when none is set. */
+  protected timezoneValue(context: HouseholdContext): string {
+    return this.timezoneInput() ?? context.timezone ?? '';
+  }
+
+  /** What the field shows: the search text while typing, else the saved zone. */
+  protected timezoneDisplay(context: HouseholdContext): string {
+    return this.timezoneQuery() ?? this.timezoneValue(context);
+  }
+
+  /** The read-only line for members who cannot change it. */
+  protected timezoneLabel(context: HouseholdContext): string {
+    return this.timezoneValue(context) || this.timezoneUnset;
+  }
+
+  protected timezoneOptions(context: HouseholdContext): string[] {
+    // "America/New_York" is the identifier but "new york" is what gets typed.
+    const query = (this.timezoneQuery() ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (!query) {
+      // Nothing typed yet. A zone set outside the shortlist still has to be
+      // visible — otherwise the current value looks unselected.
+      const current = this.timezoneValue(context);
+      return current && !this.shortlistTimezones.includes(current)
+        ? [current, ...this.shortlistTimezones]
+        : this.shortlistTimezones;
+    }
+    return this.allTimezones
+      .filter((zone) => zone.toLowerCase().includes(query))
+      .slice(0, TIMEZONE_RESULT_LIMIT);
+  }
+
+  protected async changeTimezone(timezone: string): Promise<void> {
+    this.timezoneQuery.set(null); // done searching — show the value again
+    if (this.savingTimezone() || !timezone) {
+      return;
+    }
+    const previous = this.timezoneInput();
+    this.timezoneInput.set(timezone);
+    this.savingTimezone.set(true);
+    this.timezoneError.set(null);
+    const { error } = await this.api.updateHousehold({ timezone });
+    this.savingTimezone.set(false);
+    if (error) {
+      // The server 422s a zone it doesn't know; show its message and revert.
+      this.timezoneError.set(
+        apiErrorMessage(error, $localize`:Error message|The household time zone could not be changed:Failed to change the time zone.`),
+      );
+      this.timezoneInput.set(previous);
+      return;
+    }
+    // Every date on the page was computed in the old zone.
     this.household.reload();
   }
 
