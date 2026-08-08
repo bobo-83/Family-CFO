@@ -856,6 +856,33 @@ bill_payment_links = Table(
 # #203: a savings contribution the household DECLARED (or confirmed from a
 # detected candidate). Declared ones work even when the destination account
 # never syncs — the common case for 529s and retirement plans.
+card_statements = Table(
+    "card_statements",
+    metadata,
+    _uuid_pk(),
+    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
+    Column("account_id", String(36), ForeignKey("accounts.id"), nullable=False),
+    # #11: what the STATEMENT says is due — not the running balance, which
+    # includes spending posted after the cycle closed. Text: amounts are sealed
+    # per household (ADR 0072), so the column holds ciphertext too.
+    Column("statement_balance_minor", Text, nullable=False),
+    Column("minimum_due_minor", Text, nullable=True),
+    _currency_column(),
+    Column("due_date", Date, nullable=False),
+    Column("period_start", Date, nullable=True),
+    Column("period_end", Date, nullable=True),
+    Column("document_id", String(36), ForeignKey("documents.id"), nullable=True),
+    # Null = still owed. Set when the household marks it paid or the matcher
+    # finds the clearing payment.
+    Column("paid_at", Date, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    # One statement per cycle per card: re-uploading a cycle updates it instead
+    # of stacking a second obligation for the same money.
+    Index("uq_card_statements_account_due", "account_id", "due_date", unique=True),
+)
+
+
 savings_contributions = Table(
     "savings_contributions",
     metadata,

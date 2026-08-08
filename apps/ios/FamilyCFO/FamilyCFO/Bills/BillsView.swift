@@ -210,6 +210,11 @@ struct BillsView: View {
                 Text(verbatim: item.amount.formattedExact)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(item.status == .paid ? Color.secondary : Color.primary)
+                if let note = Self.statementNote(item) {
+                    Label(note, systemImage: "doc.text.fill")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.teal)
+                }
                 if item.status == .paid {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
@@ -265,6 +270,14 @@ struct BillsView: View {
     static func canMarkPaid(_ item: Components.Schemas.PaymentTimelineItem) -> Bool {
         item.kind == .bill && item.dueDate != nil
             && [.overdue, .dueSoon, .upcoming].contains(item.status)
+    }
+
+    /// #11: a row whose amount came from a recorded statement is the EXACT
+    /// figure the card asks for — say so. Everything else is an estimate (a
+    /// running balance with an inferred day) and gets no badge: dressing an
+    /// estimate up as exact is the one thing this must never do.
+    static func statementNote(_ item: Components.Schemas.PaymentTimelineItem) -> String? {
+        item.source == "statement" ? String(localized: "Exact — from your statement") : nil
     }
 
     static func kindIcon(_ kind: Components.Schemas.PaymentTimelineItem.KindPayload) -> String {

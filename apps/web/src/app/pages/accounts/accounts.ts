@@ -6,7 +6,13 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type { Account, AccountType, AccountUpdateRequest } from '../../api-client';
+import type {
+  Account,
+  AccountType,
+  AccountUpdateRequest,
+  CardStatement,
+  CardStatementCreateRequest,
+} from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -169,7 +175,12 @@ export class Accounts {
       const file = item.getAsFile();
       if (file && /^(image\/|application\/pdf)/.test(file.type)) {
         event.preventDefault();
-        await this.scanStatementFile(file);
+        // An open card panel owns the paste — otherwise it feeds the new-account form.
+        if (this.openStatementsFor()) {
+          await this.scanCardStatementFile(file);
+        } else {
+          await this.scanStatementFile(file);
+        }
         return;
       }
     }
@@ -323,6 +334,176 @@ export class Accounts {
       this.submitError.set(apiErrorMessage(error, $localize`Failed to delete account.`));
       return;
     }
+    if (this.openStatementsFor() === id) {
+      this.openStatementsFor.set(undefined);
+    }
     this.accounts.reload();
+  }
+
+  // --- #11: credit-card statements -----------------------------------------
+  // A synced card balance is a moving target; the statement is the EXACT sum
+  // the issuer wants, by a date they set. Recording it here is what lets the
+  // payment timeline stop guessing.
+
+  /** Which card's statement panel is open (undefined = none, resource idle). */
+  protected readonly openStatementsFor = signal<string | undefined>(undefined);
+
+  protected readonly cardStatements = resource({
+    params: () => this.openStatementsFor(),
+    loader: async ({ params }) => {
+      const { data, error } = await this.api.listCardStatements(params);
+      if (error) {
+        throw new Error(apiErrorMessage(error, $localize`Failed to load card statements.`));
+      }
+      return data?.statements ?? [];
+    },
+  });
+
+  protected readonly statementForm = this.formBuilder.nonNullable.group({
+    statementBalance: [null as number | null, Validators.required],
+    dueDate: ['', Validators.required],
+    minimumDue: [null as number | null],
+    periodStart: [''],
+    periodEnd: [''],
+  });
+
+  protected readonly statementSubmitting = signal(false);
+  protected readonly statementScanning = signal(false);
+  protected readonly statementScanNote = signal<string | null>(null);
+
+  protected isCreditCard(account: Account): boolean {
+    return account.type === 'credit_card';
+  }
+
+  protected toggleStatements(accountId: string): void {
+    const next = this.openStatementsFor() === accountId ? undefined : accountId;
+    this.openStatementsFor.set(next);
+    this.resetStatementForm();
+  }
+
+  private resetStatementForm(): void {
+    this.statementForm.reset({
+      statementBalance: null,
+      dueDate: '',
+      minimumDue: null,
+      periodStart: '',
+      periodEnd: '',
+    });
+    this.statementScanNote.set(null);
+  }
+
+  protected async onCardStatementSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    await this.scanCardStatementFile(file);
+  }
+
+  /** Candidates only — the scan never saves; the user confirms in the form. */
+  protected async scanCardStatementFile(file: File | undefined | null): Promise<void> {
+    if (!file || this.statementScanning()) {
+      return;
+    }
+    this.statementScanning.set(true);
+    this.statementScanNote.set(null);
+    this.submitError.set(null);
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    const [meta, base64] = dataUrl.split(',', 2);
+    const mediaType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/jpeg';
+    const { data, error } = await this.api.scanCardStatement(base64, mediaType);
+    this.statementScanning.set(false);
+    if (error || !data) {
+      // A 503 here means no vision model is serving — the server says so.
+      this.submitError.set(apiErrorMessage(error, $localize`Statement scan failed.`));
+      return;
+    }
+    // Prefill only — nothing is saved until the user presses “Save statement”.
+    if (data.statement_balance_minor != null) {
+      this.statementForm.controls.statementBalance.setValue(data.statement_balance_minor / 100);
+    }
+    if (data.minimum_due_minor != null) {
+      this.statementForm.controls.minimumDue.setValue(data.minimum_due_minor / 100);
+    }
+    if (data.due_date) this.statementForm.controls.dueDate.setValue(data.due_date);
+    if (data.period_start) this.statementForm.controls.periodStart.setValue(data.period_start);
+    if (data.period_end) this.statementForm.controls.periodEnd.setValue(data.period_end);
+    this.statementScanNote.set(data.note);
+  }
+
+  protected async submitStatement(account: Account): Promise<void> {
+    if (this.statementForm.invalid || this.statementSubmitting()) {
+      this.statementForm.markAllAsTouched();
+      return;
+    }
+    const { statementBalance, dueDate, minimumDue, periodStart, periodEnd } =
+      this.statementForm.getRawValue();
+    if (statementBalance == null || !dueDate) {
+      this.statementForm.markAllAsTouched();
+      return;
+    }
+    const currency = account.balance.currency;
+    const body: CardStatementCreateRequest = {
+      account_id: account.id,
+      statement_balance: { amount_minor: Math.round(statementBalance * 100), currency },
+      due_date: dueDate,
+    };
+    if (minimumDue != null) {
+      body.minimum_due = { amount_minor: Math.round(minimumDue * 100), currency };
+    }
+    if (periodStart) body.period_start = periodStart;
+    if (periodEnd) body.period_end = periodEnd;
+
+    this.statementSubmitting.set(true);
+    this.submitError.set(null);
+    // Same card + due date updates that cycle rather than stacking a duplicate.
+    const { error } = await this.api.recordCardStatement(body);
+    this.statementSubmitting.set(false);
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to record the statement.`));
+      return;
+    }
+    this.resetStatementForm();
+    this.cardStatements.reload();
+  }
+
+  /** Today as "yyyy-MM-dd" in the member's own timezone, not UTC. */
+  private static today(): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  /** Mark this cycle settled, or clear the mark if it is already set. */
+  protected async toggleStatementPaid(statement: CardStatement): Promise<void> {
+    const paidAt = statement.paid_at ? null : Accounts.today();
+    this.submitError.set(null);
+    const { error } = await this.api.markCardStatementPaid(statement.id, paidAt);
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to update the statement.`));
+      return;
+    }
+    this.cardStatements.reload();
+  }
+
+  protected async removeStatement(statementId: string): Promise<void> {
+    if (
+      !confirm(
+        $localize`:Confirmation|Browser confirm before a recorded card statement is deleted:Delete this statement? The card falls back to an estimated amount due.`,
+      )
+    ) {
+      return;
+    }
+    this.submitError.set(null);
+    const { error } = await this.api.deleteCardStatement(statementId);
+    if (error) {
+      this.submitError.set(apiErrorMessage(error, $localize`Failed to delete the statement.`));
+      return;
+    }
+    this.cardStatements.reload();
   }
 }

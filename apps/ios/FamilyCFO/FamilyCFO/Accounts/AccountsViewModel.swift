@@ -108,6 +108,17 @@ final class AccountsViewModel {
     /// Currency for a new manual account — match what's already here, else USD.
     var defaultCurrency: String { accounts.first?.balance.currency ?? "USD" }
 
+    /// #11: only a credit card has statement cycles — a checking account's
+    /// balance is just its balance.
+    static func hasStatements(_ account: Components.Schemas.Account) -> Bool {
+        account._type == .creditCard
+    }
+
+    /// #11: the statements screen for one card, sharing this tab's API client.
+    func cardStatements(for account: Components.Schemas.Account) -> CardStatementsViewModel {
+        CardStatementsViewModel(api: api, account: account)
+    }
+
     func addAccount(
         name: String, type: Components.Schemas.AccountType, balanceMinor: Int64
     ) async {

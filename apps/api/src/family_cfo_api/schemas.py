@@ -693,6 +693,11 @@ class PaymentTimelineItem(BaseModel):
     days_until: int | None = None
     status: TimelineItemStatus
     paid_with: TimelinePaidWith | None = None
+    # #11: "statement" = exact figure from an uploaded/entered statement;
+    # "estimate" = running balance with an inferred day. The UI must not
+    # present an estimate as exact.
+    source: str = "estimate"
+    statement_id: str | None = None
 
 
 class BillPaymentLinkRequest(BaseModel):
@@ -1031,6 +1036,64 @@ class LoanScanResult(BaseModel):
     next_payment_due_date: date | None = None
     apr_percent: float | None = None
     is_lease: bool = False
+    note: str
+
+
+class CardStatement(BaseModel):
+    """#11: one credit-card cycle — what the statement says is due, and when.
+
+    This is the EXACT figure, unlike the synced running balance which includes
+    spending that posted after the cycle closed."""
+
+    id: str
+    account_id: str
+    account_name: str
+    statement_balance: Money
+    minimum_due: Money | None = None
+    due_date: date
+    period_start: date | None = None
+    period_end: date | None = None
+    document_id: str | None = None
+    paid_at: date | None = None
+
+
+class CardStatementListResponse(BaseModel):
+    statements: list[CardStatement] = Field(default_factory=list)
+
+
+class CardStatementCreateRequest(BaseModel):
+    """Recording the same cycle twice (same card + due date) UPDATES it rather
+    than stacking a second obligation for the same money."""
+
+    account_id: str
+    statement_balance: Money
+    due_date: date
+    minimum_due: Money | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    document_id: str | None = None
+
+
+class CardStatementPaidRequest(BaseModel):
+    """Null clears the paid mark (the household corrected themselves)."""
+
+    paid_at: date | None = None
+
+
+class CardStatementScanRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_media_type: W2ScanMediaType
+
+
+class CardStatementScanResult(BaseModel):
+    """Candidate values read from a credit-card statement — the user confirms
+    and edits before anything is saved."""
+
+    statement_balance_minor: int | None = None
+    minimum_due_minor: int | None = None
+    due_date: date | None = None
+    period_start: date | None = None
+    period_end: date | None = None
     note: str
 
 

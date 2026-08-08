@@ -212,3 +212,215 @@ describe('Accounts M36: emergency fund + group rollups', () => {
     expect(apiMock.updateAccount).toHaveBeenCalledTimes(1);
   });
 });
+
+// --- #11: credit-card statements — the EXACT amount due, not the estimate ---
+
+const CARD = {
+  id: 'c1',
+  name: 'Visa',
+  type: 'credit_card',
+  balance: { amount_minor: -120_000, currency: 'USD' },
+};
+
+function cardStatement(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 's1',
+    account_id: 'c1',
+    account_name: 'Visa',
+    statement_balance: { amount_minor: 84_215, currency: 'USD' },
+    due_date: '2026-08-14',
+    ...overrides,
+  };
+}
+
+function cardApiMock(overrides: Record<string, unknown> = {}) {
+  return {
+    listAccounts: vi.fn().mockResolvedValue(response({ accounts: [CARD] })),
+    listCardStatements: vi.fn().mockResolvedValue(response({ statements: [] })),
+    recordCardStatement: vi.fn().mockResolvedValue(response(cardStatement())),
+    markCardStatementPaid: vi.fn().mockResolvedValue(response(cardStatement())),
+    deleteCardStatement: vi.fn().mockResolvedValue(response(undefined)),
+    scanCardStatement: vi.fn(),
+    ...overrides,
+  };
+}
+
+/** Renders the page and opens the card's statement panel. */
+async function openCardPanel(apiMock: Record<string, unknown>, role: string) {
+  configure(apiMock, role);
+  const fixture = TestBed.createComponent(Accounts);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+
+  const host = fixture.nativeElement as HTMLElement;
+  (host.querySelector('.accounts-table__statements') as HTMLButtonElement).click();
+  await fixture.whenStable();
+  fixture.detectChanges();
+  return { fixture, host };
+}
+
+describe('Accounts #11: credit-card statements', () => {
+  it('records a statement through the API and reloads the list', async () => {
+    const apiMock = cardApiMock();
+    const { fixture } = await openCardPanel(apiMock, 'owner');
+    expect(apiMock.listCardStatements).toHaveBeenCalledWith('c1');
+
+    const component = fixture.componentInstance as unknown as {
+      accounts: { value(): { id: string; balance: { currency: string } }[] | undefined };
+      statementForm: { setValue(v: unknown): void };
+      submitStatement(account: unknown): Promise<void>;
+    };
+    const account = component.accounts.value()![0];
+    component.statementForm.setValue({
+      statementBalance: 842.15,
+      dueDate: '2026-08-14',
+      minimumDue: 35,
+      periodStart: '2026-07-10',
+      periodEnd: '2026-08-09',
+    });
+    await component.submitStatement(account);
+    await fixture.whenStable();
+
+    expect(apiMock.recordCardStatement).toHaveBeenCalledWith({
+      account_id: 'c1',
+      statement_balance: { amount_minor: 84_215, currency: 'USD' },
+      due_date: '2026-08-14',
+      minimum_due: { amount_minor: 3_500, currency: 'USD' },
+      period_start: '2026-07-10',
+      period_end: '2026-08-09',
+    });
+    // The list is re-read so the new cycle shows up.
+    expect((apiMock.listCardStatements as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
+  });
+
+  it('reflects a re-recorded cycle as an update, not a second obligation', async () => {
+    const listCardStatements = vi
+      .fn()
+      .mockResolvedValueOnce(response({ statements: [cardStatement()] }))
+      .mockResolvedValue(
+        response({
+          statements: [
+            cardStatement({ statement_balance: { amount_minor: 90_000, currency: 'USD' } }),
+          ],
+        }),
+      );
+    const apiMock = cardApiMock({ listCardStatements });
+    const { fixture, host } = await openCardPanel(apiMock, 'owner');
+    expect(host.querySelectorAll('.card-statements__item').length).toBe(1);
+    expect(host.querySelector('.card-statements__amount')?.textContent).toContain('842.15');
+
+    const component = fixture.componentInstance as unknown as {
+      accounts: { value(): unknown[] | undefined };
+      statementForm: { setValue(v: unknown): void };
+      submitStatement(account: unknown): Promise<void>;
+    };
+    component.statementForm.setValue({
+      statementBalance: 900,
+      dueDate: '2026-08-14', // same card + due date = the same cycle
+      minimumDue: null,
+      periodStart: '',
+      periodEnd: '',
+    });
+    await component.submitStatement(component.accounts.value()![0]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Still one row — the cycle was updated in place.
+    expect(host.querySelectorAll('.card-statements__item').length).toBe(1);
+    expect(host.querySelector('.card-statements__amount')?.textContent).toContain('900.00');
+  });
+
+  it('marks a cycle paid, clears the mark, and deletes it', async () => {
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+    });
+    const { fixture, host } = await openCardPanel(apiMock, 'owner');
+
+    (host.querySelector('.card-statements__paid') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(apiMock.markCardStatementPaid).toHaveBeenCalledWith('s1', expect.any(String));
+
+    // A paid cycle offers the inverse: clearing the mark sends null.
+    (apiMock.listCardStatements as ReturnType<typeof vi.fn>).mockResolvedValue(
+      response({ statements: [cardStatement({ paid_at: '2026-08-12' })] }),
+    );
+    const component = fixture.componentInstance as unknown as {
+      cardStatements: { reload(): void };
+      toggleStatementPaid(s: unknown): Promise<void>;
+    };
+    await component.toggleStatementPaid(cardStatement({ paid_at: '2026-08-12' }));
+    expect(apiMock.markCardStatementPaid).toHaveBeenLastCalledWith('s1', null);
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (host.querySelector('.card-statements__delete') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(apiMock.deleteCardStatement).toHaveBeenCalledWith('s1');
+  });
+
+  it('prefills the form from a scan instead of saving it', async () => {
+    const apiMock = cardApiMock({
+      scanCardStatement: vi.fn().mockResolvedValue(
+        response({
+          statement_balance_minor: 84_215,
+          minimum_due_minor: 3_500,
+          due_date: '2026-08-14',
+          period_start: '2026-07-10',
+          period_end: '2026-08-09',
+          note: 'Read by the on-box model.',
+        }),
+      ),
+    });
+    const { fixture } = await openCardPanel(apiMock, 'owner');
+
+    const component = fixture.componentInstance as unknown as {
+      scanCardStatementFile(file: File): Promise<void>;
+      statementForm: { getRawValue(): Record<string, unknown> };
+      statementScanNote(): string | null;
+    };
+    await component.scanCardStatementFile(new File(['stmt'], 's.png', { type: 'image/png' }));
+
+    expect(apiMock.scanCardStatement).toHaveBeenCalledWith(expect.any(String), 'image/png');
+    // Candidates only — the user still has to confirm.
+    expect(apiMock.recordCardStatement).not.toHaveBeenCalled();
+    expect(component.statementForm.getRawValue()).toMatchObject({
+      statementBalance: 842.15,
+      minimumDue: 35,
+      dueDate: '2026-08-14',
+      periodStart: '2026-07-10',
+      periodEnd: '2026-08-09',
+    });
+    expect(component.statementScanNote()).toBe('Read by the on-box model.');
+  });
+
+  it('surfaces a scan failure (e.g. no vision model) without saving', async () => {
+    const apiMock = cardApiMock({
+      scanCardStatement: vi
+        .fn()
+        .mockResolvedValue(
+          response(undefined, { error: { message: 'No vision model is serving.' } }),
+        ),
+    });
+    const { fixture } = await openCardPanel(apiMock, 'owner');
+    const component = fixture.componentInstance as unknown as {
+      scanCardStatementFile(file: File): Promise<void>;
+      submitError(): string | null;
+    };
+    await component.scanCardStatementFile(new File(['stmt'], 's.png', { type: 'image/png' }));
+
+    expect(component.submitError()).toBe('No vision model is serving.');
+    expect(apiMock.recordCardStatement).not.toHaveBeenCalled();
+  });
+
+  it('lets a viewer read the cycles but offers no actions', async () => {
+    const apiMock = cardApiMock({
+      listCardStatements: vi.fn().mockResolvedValue(response({ statements: [cardStatement()] })),
+    });
+    const { host } = await openCardPanel(apiMock, 'viewer');
+
+    expect(host.querySelector('.card-statements__item')?.textContent).toContain('842.15');
+    expect(host.querySelector('.card-statement-form')).toBeFalsy();
+    expect(host.querySelector('.card-statements__paid')).toBeFalsy();
+    expect(host.querySelector('.card-statements__delete')).toBeFalsy();
+  });
+});

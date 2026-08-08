@@ -175,11 +175,137 @@
         <note priority="1" from="description">Explains that vested stock sits beside safe-to-spend rather than inside it</note>
         <note priority="1" from="meaning">Checkbox tooltip</note>
       </trans-unit>
+      <trans-unit id="4626031306421633627" datatype="html">
+        <source> Statements </source>
+        <target state="translated"> Sao kê </target>
+        <note priority="1" from="description">Opens the recorded statements for this credit card</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
       <trans-unit id="1959486318083221364" datatype="html">
         <source> Delete </source>
         <target state="translated"> Xóa </target>
         <note priority="1" from="description">Deletes this account</note>
         <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="6725099117517779110" datatype="html">
+        <source> Statements </source>
+        <target state="translated"> Sao kê </target>
+        <note priority="1" from="description">Recorded billing cycles for a credit card</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="1192079399238946045" datatype="html">
+        <source> A recorded statement is the exact amount the issuer wants, by their date. Without one, Due Soon can only estimate from the running balance. </source>
+        <target state="translated"> Sao kê đã ghi nhận là số tiền chính xác mà bên phát hành yêu cầu, theo đúng ngày của họ. Không có nó, mục Sắp đến hạn chỉ có thể ước tính từ số dư đang chạy. </target>
+        <note priority="1" from="description">Why a recorded statement beats the synced card balance</note>
+        <note priority="1" from="meaning">Section hint</note>
+      </trans-unit>
+      <trans-unit id="4212669535404527092" datatype="html">
+        <source> No statements recorded for this card yet. </source>
+        <target state="translated"> Chưa ghi nhận sao kê nào cho thẻ này. </target>
+        <note priority="1" from="description">No statements recorded for this card yet</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="7196727771440912985" datatype="html">
+        <source> due <x id="INTERPOLATION" equiv-text="{{ statement.due_date | date: &apos;MMM d, y&apos; : &apos;UTC&apos; }}"/> </source>
+        <target state="translated"> đến hạn <x id="INTERPOLATION" equiv-text="{{ statement.due_date | date: &apos;MMM d, y&apos; : &apos;UTC&apos; }}"/> </target>
+        <note priority="1" from="description">The date the issuer wants the money by</note>
+        <note priority="1" from="meaning">Statement row</note>
+      </trans-unit>
+      <trans-unit id="5955329883134164936" datatype="html">
+        <source> min <x id="INTERPOLATION" equiv-text="{{ formatMoney(minimum) }}"/> </source>
+        <target state="translated"> tối thiểu <x id="INTERPOLATION" equiv-text="{{ formatMoney(minimum) }}"/> </target>
+        <note priority="1" from="description">The smallest payment that keeps the account current</note>
+        <note priority="1" from="meaning">Statement row</note>
+      </trans-unit>
+      <trans-unit id="1611207411977002138" datatype="html">
+        <source> cycle <x id="INTERPOLATION" equiv-text="{{ statement.period_start | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> – <x id="INTERPOLATION_1" equiv-text="{{ statement.period_end | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> </source>
+        <target state="translated"> chu kỳ <x id="INTERPOLATION" equiv-text="{{ statement.period_start | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> – <x id="INTERPOLATION_1" equiv-text="{{ statement.period_end | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> </target>
+        <note priority="1" from="description">The billing cycle the statement covers</note>
+        <note priority="1" from="meaning">Statement row</note>
+      </trans-unit>
+      <trans-unit id="320897503776695134" datatype="html">
+        <source> ✓ paid <x id="INTERPOLATION" equiv-text="{{ statement.paid_at | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> </source>
+        <target state="translated"> ✓ đã trả <x id="INTERPOLATION" equiv-text="{{ statement.paid_at | date: &apos;MMM d&apos; : &apos;UTC&apos; }}"/> </target>
+        <note priority="1" from="description">The cycle has been settled</note>
+        <note priority="1" from="meaning">Statement state</note>
+      </trans-unit>
+      <trans-unit id="4861446413085502720" datatype="html">
+        <source>unpaid</source>
+        <target state="translated">chưa trả</target>
+        <note priority="1" from="description">The cycle has not been settled yet</note>
+        <note priority="1" from="meaning">Statement state</note>
+      </trans-unit>
+      <trans-unit id="4367348238838828042" datatype="html">
+        <source>Clear paid</source>
+        <target state="translated">Bỏ đánh dấu đã trả</target>
+        <note priority="1" from="description">Removes the paid mark from a card statement</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="427649093894435343" datatype="html">
+        <source>Mark paid</source>
+        <target state="translated">Đánh dấu đã trả</target>
+        <note priority="1" from="description">Marks a card statement settled</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="1599552849979402380" datatype="html">
+        <source>Add a statement</source>
+        <target state="translated">Thêm sao kê</target>
+        <note priority="1" from="description">Form that records one credit-card statement</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="1237510224858871400" datatype="html">
+        <source>📄 Scan a card statement</source>
+        <target state="translated">📄 Quét sao kê thẻ</target>
+        <note priority="1" from="description">Opens the file picker for a credit-card statement</note>
+        <note priority="1" from="meaning">Scan button</note>
+      </trans-unit>
+      <trans-unit id="7994573382748449635" datatype="html">
+        <source> Photograph, upload, or paste (Ctrl/⌘+V) the statement and the on-box vision model fills in what it can read. Nothing is saved until you press “Save statement”. </source>
+        <target state="translated"> Hãy chụp ảnh, tải lên hoặc dán (Ctrl/⌘+V) sao kê và mô hình hình ảnh trên máy sẽ điền những gì nó đọc được. Chưa có gì được lưu cho đến khi bạn bấm “Lưu sao kê”. </target>
+        <note priority="1" from="description">How the card statement scan prefills the form</note>
+        <note priority="1" from="meaning">Scan hint</note>
+      </trans-unit>
+      <trans-unit id="4451925660876920425" datatype="html">
+        <source>Statement balance</source>
+        <target state="translated">Số dư sao kê</target>
+        <note priority="1" from="description">The exact amount the statement says is due</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2392256288010286619" datatype="html">
+        <source>Due date</source>
+        <target state="translated">Ngày đến hạn</target>
+        <note priority="1" from="description">The date the card payment is due</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="4229438494399631848" datatype="html">
+        <source>Minimum due (optional)</source>
+        <target state="translated">Số tiền tối thiểu (tùy chọn)</target>
+        <note priority="1" from="description">Smallest payment that keeps the card current</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="1288497491454992877" datatype="html">
+        <source>Period start (optional)</source>
+        <target state="translated">Kỳ bắt đầu (tùy chọn)</target>
+        <note priority="1" from="description">First day of the billing cycle</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3987668829814503316" datatype="html">
+        <source>Period end (optional)</source>
+        <target state="translated">Kỳ kết thúc (tùy chọn)</target>
+        <note priority="1" from="description">Last day of the billing cycle</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="1035893732104660141" datatype="html">
+        <source> Save statement </source>
+        <target state="translated"> Lưu sao kê </target>
+        <note priority="1" from="description">Records the credit-card statement</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="4923172812796365532" datatype="html">
+        <source> Recording the same due date again updates that cycle — it never stacks a second amount for the same money. </source>
+        <target state="translated"> Ghi nhận lại cùng một ngày đến hạn sẽ cập nhật chu kỳ đó — không bao giờ chồng thêm một khoản thứ hai cho cùng số tiền. </target>
+        <note priority="1" from="description">Re-recording the same cycle updates it instead of adding a second one</note>
+        <note priority="1" from="meaning">Form hint</note>
       </trans-unit>
       <trans-unit id="1157656821336028355" datatype="html">
         <source>Cash</source>
@@ -250,6 +376,28 @@
       <trans-unit id="8860899732207352109" datatype="html">
         <source>Failed to delete account.</source>
         <target state="translated">Không xóa được tài khoản.</target>
+      </trans-unit>
+      <trans-unit id="2057483388930612415" datatype="html">
+        <source>Failed to load card statements.</source>
+        <target state="translated">Tải sao kê thẻ thất bại.</target>
+      </trans-unit>
+      <trans-unit id="7107597961505174555" datatype="html">
+        <source>Failed to record the statement.</source>
+        <target state="translated">Ghi nhận sao kê thất bại.</target>
+      </trans-unit>
+      <trans-unit id="2160672721206654885" datatype="html">
+        <source>Failed to update the statement.</source>
+        <target state="translated">Cập nhật sao kê thất bại.</target>
+      </trans-unit>
+      <trans-unit id="7863009659968630988" datatype="html">
+        <source>Delete this statement? The card falls back to an estimated amount due.</source>
+        <target state="translated">Xóa sao kê này? Thẻ sẽ quay lại dùng số tiền đến hạn ước tính.</target>
+        <note priority="1" from="description">Browser confirm before a recorded card statement is deleted</note>
+        <note priority="1" from="meaning">Confirmation</note>
+      </trans-unit>
+      <trans-unit id="1920837578324210280" datatype="html">
+        <source>Failed to delete the statement.</source>
+        <target state="translated">Xóa sao kê thất bại.</target>
       </trans-unit>
       <trans-unit id="3612733712450051324" datatype="html">
         <source>AI runtime</source>
@@ -1602,6 +1750,18 @@
         <target state="translated">bạn tự liên kết</target>
         <note priority="1" from="description">The member linked this charge to the bill by hand</note>
         <note priority="1" from="meaning">Payment provenance</note>
+      </trans-unit>
+      <trans-unit id="8940382086133881406" datatype="html">
+        <source>The exact amount due, taken from the statement you recorded — not an estimate.</source>
+        <target state="translated">Số tiền đến hạn chính xác, lấy từ sao kê bạn đã ghi nhận — không phải ước tính.</target>
+        <note priority="1" from="description">Explains that the figure is the issuer&apos;s exact amount due</note>
+        <note priority="1" from="meaning">Amount provenance tooltip</note>
+      </trans-unit>
+      <trans-unit id="1533033195268318286" datatype="html">
+        <source>from statement</source>
+        <target state="translated">từ sao kê</target>
+        <note priority="1" from="description">Marks a due figure that comes from a recorded statement rather than an estimate</note>
+        <note priority="1" from="meaning">Amount provenance</note>
       </trans-unit>
       <trans-unit id="5258010454325331409" datatype="html">
         <source>Paid</source>
@@ -6569,6 +6729,12 @@
         <target state="translated">Hộ gia đình</target>
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
+      <trans-unit id="5098122122749208005" datatype="html">
+        <source> Paydays come from your recurring deposits; payments from the Bills timeline. A card with a recorded statement shows its exact amount due; otherwise it shows today's balance, which may be lower than the final figure. </source>
+        <target state="translated"> Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Thẻ đã ghi nhận sao kê sẽ hiển thị đúng số tiền phải trả; nếu chưa có, thẻ hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng. </target>
+        <note priority="1" from="description">Says where the projected paydays and payments come from</note>
+        <note priority="1" from="meaning">Cash outlook footnote</note>
       </trans-unit>
     </body>
   </file>

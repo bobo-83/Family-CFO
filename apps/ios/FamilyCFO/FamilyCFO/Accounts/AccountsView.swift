@@ -67,7 +67,10 @@ struct AccountsView: View {
             }
             .task { await viewModel.load() }
             .sheet(item: $designating) { account in
-                AccountDetailSheet(account: account) { name, type, designation, rsuReadyToSell in
+                AccountDetailSheet(
+                    account: account,
+                    makeStatements: { viewModel.cardStatements(for: account) }
+                ) { name, type, designation, rsuReadyToSell in
                     Task {
                         await viewModel.save(
                             account, name: name, type: type, designation: designation,
@@ -131,6 +134,8 @@ struct AccountsView: View {
 /// or tag its balance as vested RSUs ready to sell.
 private struct AccountDetailSheet: View {
     let account: Components.Schemas.Account
+    /// #11: built on demand so a non-card account never spins one up.
+    let makeStatements: () -> CardStatementsViewModel
     let onSave: (String, Components.Schemas.AccountType, EmergencyFundDesignation?, Bool?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -165,11 +170,13 @@ private struct AccountDetailSheet: View {
 
     init(
         account: Components.Schemas.Account,
+        makeStatements: @escaping () -> CardStatementsViewModel,
         onSave: @escaping (
             String, Components.Schemas.AccountType, EmergencyFundDesignation?, Bool?
         ) -> Void
     ) {
         self.account = account
+        self.makeStatements = makeStatements
         self.onSave = onSave
         _name = State(initialValue: account.name)
         _accountType = State(initialValue: account._type)
@@ -209,6 +216,20 @@ private struct AccountDetailSheet: View {
                     Text(
                         "What kind of account this is — it decides whether the balance counts as money or debt. The bank sync guesses from the name and never re-guesses: a type you set here sticks (user report 2026-07-25: a loan can land under Cash)."
                     )
+                }
+                // #11: a card's synced balance keeps moving; a statement says
+                // exactly what's owed and when. Keyed off the SAVED type — the
+                // server only accepts a statement on a real credit card.
+                if AccountsViewModel.hasStatements(account) {
+                    Section {
+                        NavigationLink {
+                            CardStatementsView(viewModel: makeStatements())
+                        } label: {
+                            Label("Statements", systemImage: "doc.text")
+                        }
+                    } footer: {
+                        Text("Record what each closed cycle asks for and when it's due, so Due soon shows the exact amount instead of estimating from the running balance.")
+                    }
                 }
                 if canDesignate {
                     Section {

@@ -342,6 +342,11 @@ export type PaymentTimelineItem = {
     amount: Money;
     due_date?: string | null;
     days_until?: number | null;
+    /**
+     * "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
+     */
+    source?: string;
+    statement_id?: string | null;
     status: 'overdue' | 'due_soon' | 'upcoming' | 'paid' | 'no_date';
     paid_with?: TimelinePaidWith;
 };
@@ -644,6 +649,63 @@ export type LoanScanResult = {
     next_payment_due_date?: string;
     apr_percent?: number;
     is_lease?: boolean;
+    note: string;
+};
+
+/**
+ * "#11: one credit-card cycle — what the statement says is due, and when. The EXACT figure, unlike the synced running balance which includes spending posted after the cycle closed."
+ */
+export type CardStatement = {
+    id: string;
+    account_id: string;
+    account_name: string;
+    statement_balance: Money;
+    minimum_due?: Money;
+    due_date: string;
+    period_start?: string | null;
+    period_end?: string | null;
+    document_id?: string | null;
+    paid_at?: string | null;
+};
+
+export type CardStatementListResponse = {
+    statements?: Array<CardStatement>;
+};
+
+/**
+ * Recording the same cycle twice (same card + due date) UPDATES it rather than stacking a second obligation for the same money.
+ */
+export type CardStatementCreateRequest = {
+    account_id: string;
+    statement_balance: Money;
+    due_date: string;
+    minimum_due?: Money;
+    period_start?: string | null;
+    period_end?: string | null;
+    document_id?: string | null;
+};
+
+/**
+ * Null clears the paid mark.
+ */
+export type CardStatementPaidRequest = {
+    paid_at?: string | null;
+};
+
+export type CardStatementScanRequest = {
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+};
+
+/**
+ * Candidate values only — the user confirms before anything is saved.
+ */
+export type CardStatementScanResult = {
+    statement_balance_minor?: number | null;
+    minimum_due_minor?: number | null;
+    due_date?: string | null;
+    period_start?: string | null;
+    period_end?: string | null;
     note: string;
 };
 
@@ -5082,6 +5144,177 @@ export type ScanLoanStatementResponses = {
 };
 
 export type ScanLoanStatementResponse = ScanLoanStatementResponses[keyof ScanLoanStatementResponses];
+
+export type ListCardStatementsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        account_id?: string;
+    };
+    url: '/accounts/card-statements';
+};
+
+export type ListCardStatementsErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+};
+
+export type ListCardStatementsError = ListCardStatementsErrors[keyof ListCardStatementsErrors];
+
+export type ListCardStatementsResponses = {
+    /**
+     * Statements
+     */
+    200: CardStatementListResponse;
+};
+
+export type ListCardStatementsResponse = ListCardStatementsResponses[keyof ListCardStatementsResponses];
+
+export type RecordCardStatementData = {
+    body: CardStatementCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/accounts/card-statements';
+};
+
+export type RecordCardStatementErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Account not found
+     */
+    404: ErrorResponse;
+    /**
+     * Not a credit-card account
+     */
+    422: ErrorResponse;
+};
+
+export type RecordCardStatementError = RecordCardStatementErrors[keyof RecordCardStatementErrors];
+
+export type RecordCardStatementResponses = {
+    /**
+     * Recorded
+     */
+    201: CardStatement;
+};
+
+export type RecordCardStatementResponse = RecordCardStatementResponses[keyof RecordCardStatementResponses];
+
+export type DeleteCardStatementData = {
+    body?: never;
+    path: {
+        statement_id: string;
+    };
+    query?: never;
+    url: '/accounts/card-statements/{statement_id}';
+};
+
+export type DeleteCardStatementErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Statement not found
+     */
+    404: ErrorResponse;
+};
+
+export type DeleteCardStatementError = DeleteCardStatementErrors[keyof DeleteCardStatementErrors];
+
+export type DeleteCardStatementResponses = {
+    /**
+     * Removed
+     */
+    204: void;
+};
+
+export type DeleteCardStatementResponse = DeleteCardStatementResponses[keyof DeleteCardStatementResponses];
+
+export type MarkCardStatementPaidData = {
+    body: CardStatementPaidRequest;
+    path: {
+        statement_id: string;
+    };
+    query?: never;
+    url: '/accounts/card-statements/{statement_id}/paid';
+};
+
+export type MarkCardStatementPaidErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Statement not found
+     */
+    404: ErrorResponse;
+};
+
+export type MarkCardStatementPaidError = MarkCardStatementPaidErrors[keyof MarkCardStatementPaidErrors];
+
+export type MarkCardStatementPaidResponses = {
+    /**
+     * Updated
+     */
+    200: CardStatement;
+};
+
+export type MarkCardStatementPaidResponse = MarkCardStatementPaidResponses[keyof MarkCardStatementPaidResponses];
+
+export type ScanCardStatementData = {
+    body: CardStatementScanRequest;
+    path?: never;
+    query?: never;
+    url: '/accounts/card-statements/scan';
+};
+
+export type ScanCardStatementErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Unreadable PDF
+     */
+    422: ErrorResponse;
+    /**
+     * No vision model available
+     */
+    503: ErrorResponse;
+};
+
+export type ScanCardStatementError = ScanCardStatementErrors[keyof ScanCardStatementErrors];
+
+export type ScanCardStatementResponses = {
+    /**
+     * Candidates
+     */
+    200: CardStatementScanResult;
+};
+
+export type ScanCardStatementResponse = ScanCardStatementResponses[keyof ScanCardStatementResponses];
 
 export type ScanAccountStatementData = {
     body: AccountScanRequest;

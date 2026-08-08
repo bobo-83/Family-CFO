@@ -55,6 +55,10 @@ UNDO_POLICY: dict[str, str] = {
     "savings_contribution.created": UNDOABLE,
     "savings_contribution.deleted": UNDOABLE,
     "savings_contribution.dismissed": UNDOABLE,
+    "card_statement.recorded": UNDOABLE,
+    "card_statement.deleted": UNDOABLE,
+    "card_statement.paid": UNDOABLE,
+    "card_statement.unpaid": UNDOABLE,
     "savings_contribution.linked": UNDOABLE,
     "savings_contribution.unlinked": UNDOABLE,
     "bill.payment_linked": UNDOABLE,
@@ -373,6 +377,38 @@ def savings_contribution_deleted(record) -> str:
                 "frequency": record.frequency,
                 "source": record.source,
                 "label_key": record.label_key,
+            },
+        }
+    )
+
+
+def card_statement_paid_changed(record) -> str:
+    """#11: undo restores the PREVIOUS paid mark (which may be None)."""
+    return json.dumps(
+        {
+            "op": "card_statement_paid",
+            "statement_id": record.id,
+            "paid_at": record.paid_at.isoformat() if record.paid_at else None,
+        }
+    )
+
+
+def card_statement_deleted(record) -> str:
+    return json.dumps(
+        {
+            "op": "recreate",
+            "entity": "card_statement",
+            "data": {
+                "id": record.id,
+                "account_id": record.account_id,
+                "statement_balance_minor": record.statement_balance_minor,
+                "minimum_due_minor": record.minimum_due_minor,
+                "currency": record.currency,
+                "due_date": record.due_date.isoformat(),
+                "period_start": record.period_start.isoformat() if record.period_start else None,
+                "period_end": record.period_end.isoformat() if record.period_end else None,
+                "document_id": record.document_id,
+                "paid_at": record.paid_at.isoformat() if record.paid_at else None,
             },
         }
     )
@@ -720,6 +756,17 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
         repository.undismiss_savings_route(engine, household_id, source, destination)
         return
 
+    if op == "card_statement_paid":
+        statement_id = token.get("statement_id")
+        if not statement_id:
+            raise UndoError("this action can't be undone")
+        raw = token.get("paid_at")
+        repository.set_card_statement_paid(
+            engine, household_id, statement_id,
+            date.fromisoformat(raw) if raw else None,
+        )
+        return
+
     if op == "relink_savings_contribution":
         contribution_id = token.get("contribution_id")
         if not contribution_id:
@@ -787,6 +834,8 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
         repository.delete_bill_credit(engine, household_id, entity_id)
     elif entity == "savings_contribution":
         repository.delete_savings_contribution(engine, household_id, entity_id)
+    elif entity == "card_statement":
+        repository.delete_card_statement(engine, household_id, entity_id)
     elif entity == "bill_payment_link":
         repository.delete_bill_payment_link(engine, household_id, entity_id)
     elif entity == "rsu_grant":
@@ -883,6 +932,23 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             annual_interest_rate=data.get("annual_interest_rate"),
             minimum_payment_minor=data.get("minimum_payment_minor"),
             maturity_date=_date(data.get("maturity_date")),
+        )
+    elif entity == "card_statement":
+        repository.upsert_card_statement(
+            engine, household_id,
+            account_id=data["account_id"],
+            statement_balance_minor=data["statement_balance_minor"],
+            minimum_due_minor=data.get("minimum_due_minor"),
+            currency=data["currency"],
+            due_date=date.fromisoformat(data["due_date"]),
+            period_start=(
+                date.fromisoformat(data["period_start"]) if data.get("period_start") else None
+            ),
+            period_end=(
+                date.fromisoformat(data["period_end"]) if data.get("period_end") else None
+            ),
+            document_id=data.get("document_id"),
+            statement_id=data.get("id"),
         )
     elif entity == "savings_contribution":
         repository.create_savings_contribution(

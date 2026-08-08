@@ -74,6 +74,15 @@
               </div>
               <div class="bill-list__amount">
                 {{ formatMoney(item.amount) }}
+                @if (item.source === 'statement') {
+                  <!-- #11: an exact figure the issuer billed — never shown for estimates. -->
+                  <span
+                    class="timeline-list__from-statement"
+                    title="The exact amount due, taken from the statement you recorded — not an estimate."
+                    i18n="Amount provenance|Marks a due figure that comes from a recorded statement rather than an estimate"
+                    i18n-title="Amount provenance tooltip|Explains that the figure is the issuer's exact amount due"
+                  >from statement</span>
+                }
                 @if (item.status === 'paid') {
                   <span
                     class="timeline-list__check"
