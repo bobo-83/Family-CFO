@@ -213,7 +213,7 @@
               />
               <mat-autocomplete #timezoneAuto (optionSelected)="changeTimezone($event.option.value)">
                 @for (zone of timezoneOptions(context); track zone) {
-                  <mat-option [value]="zone">{{ zone }}</mat-option>
+                  <mat-option [value]="zone">{{ timezoneOptionLabel(zone) }}</mat-option>
                 }
               </mat-autocomplete>
             </mat-form-field>

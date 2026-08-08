@@ -1881,6 +1881,15 @@ class HouseholdUpdateRequest(BaseModel):
     # #41: IANA zone (e.g. "Europe/London") deciding what "today" means here.
     # Validated in the endpoint against the zone database.
     timezone: str | None = None
+    # #43: distinguishes "back to the box's own zone" (True) from "leave
+    # unchanged" (field omitted). Null is a MEANINGFUL state for this column —
+    # it means "follow FAMILY_CFO_DEFAULT_TIMEZONE" — so a null `timezone`
+    # alone cannot express it. The same one-way limitation still applies to
+    # `language`, `credit_cards_paid_in_full` and `reserve_committed_savings`,
+    # where null carries no such meaning; whether every nullable setting grows
+    # a `clear_*` flag or the model moves to an explicit-null sentinel is left
+    # open (#43).
+    clear_timezone: bool = False
 
 
 class Member(BaseModel):

@@ -135,3 +135,73 @@ struct HouseholdTimezoneViewModelTests {
         #expect(viewModel.options(matching: "UTC").contains("UTC"))
     }
 }
+
+/// #43: getting back to "follow the box's own zone" after a zone was picked.
+@MainActor
+struct HouseholdTimezoneClearTests {
+    private func context(timezone: String?) -> Components.Schemas.HouseholdContext {
+        .init(
+            householdId: "hh-1",
+            displayName: "The Vus",
+            timezone: timezone,
+            currency: "USD",
+            netWorth: .init(amountMinor: 0, currency: "USD"),
+            emergencyFundMonths: 4.5
+        )
+    }
+
+    @Test func clearingSendsNilAndDropsBackToTheBoxsZone() async {
+        let api = MockHouseholdAPI()
+        api.context = context(timezone: "Europe/London")
+        let viewModel = HouseholdTimezoneViewModel(api: api)
+        await viewModel.load()
+
+        await viewModel.change(to: nil)
+
+        #expect(api.updatedTimezones == [String?.none])
+        #expect(viewModel.timezone == nil)
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    /// The row is only worth offering when there is something to clear.
+    @Test func theBoxsZoneRowAppearsOnlyOnceAZoneIsSet() async {
+        let api = MockHouseholdAPI()
+        api.context = context(timezone: nil)
+        let viewModel = HouseholdTimezoneViewModel(api: api)
+        await viewModel.load()
+
+        #expect(!viewModel.offersBoxDefault(matching: ""))
+
+        await viewModel.change(to: "Europe/London")
+
+        #expect(viewModel.offersBoxDefault(matching: ""))
+        // A row that names no zone would read as noise among search hits.
+        #expect(!viewModel.offersBoxDefault(matching: "london"))
+    }
+
+    /// Already on the box's zone: re-picking must not PATCH, exactly like
+    /// re-picking the zone already set — the server audits every write.
+    @Test func clearingAnAlreadyClearedZoneDoesNothing() async {
+        let api = MockHouseholdAPI()
+        api.context = context(timezone: nil)
+        let viewModel = HouseholdTimezoneViewModel(api: api)
+        await viewModel.load()
+
+        await viewModel.change(to: nil)
+
+        #expect(api.updatedTimezones.isEmpty)
+    }
+
+    @Test func aRejectedClearRevertsTheRowAndSurfacesTheError() async {
+        let api = MockHouseholdAPI()
+        api.context = context(timezone: "Europe/London")
+        api.mutationError = APIError.server(422)
+        let viewModel = HouseholdTimezoneViewModel(api: api)
+        await viewModel.load()
+
+        await viewModel.change(to: nil)
+
+        #expect(viewModel.timezone == "Europe/London")
+        #expect(viewModel.errorMessage != nil)
+    }
+}

@@ -15360,6 +15360,22 @@
         }
       }
     },
+    "Use the box's zone": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Naudoti serverio laiko juostą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng múi giờ của máy"
+          }
+        }
+      }
+    },
     "Use this iPhone's voice": {
       "localizations": {
         "lt": {

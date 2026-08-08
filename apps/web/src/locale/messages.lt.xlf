@@ -7053,6 +7053,12 @@
         <note priority="1" from="description">Shown in place of a zone when the household has never chosen one</note>
         <note priority="1" from="meaning">Household timezone unset</note>
       </trans-unit>
+      <trans-unit id="3387189660600833913" datatype="html">
+        <source>Use the box&apos;s zone</source>
+        <target state="needs-review-translation">Naudoti serverio laiko juostą</target>
+        <note priority="1" from="description">First entry in the time-zone picker; picking it clears the household&apos;s zone so dates follow the server&apos;s own zone again</note>
+        <note priority="1" from="meaning">Household timezone option</note>
+      </trans-unit>
       <trans-unit id="6174130713972081067" datatype="html">
         <source>Failed to change the time zone.</source>
         <target state="needs-review-translation">Nepavyko pakeisti laiko juostos.</target>

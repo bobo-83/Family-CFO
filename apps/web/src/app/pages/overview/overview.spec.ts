@@ -788,7 +788,46 @@ describe('Overview', () => {
 
       const shortlist = component['timezoneOptions']({ timezone: 'Pacific/Chatham' } as never);
 
-      expect(shortlist[0]).toBe('Pacific/Chatham');
+      // #43's "use the box's zone" row leads; the current zone follows it.
+      expect(shortlist[1]).toBe('Pacific/Chatham');
+    });
+
+    // #43: the inherit state was one-way — reachable only by never having
+    // chosen a zone.
+    it('offers the box\'s own zone at the top once a zone is set', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Europe/London'));
+      const component = (await render()).componentInstance;
+
+      const shortlist = component['timezoneOptions']({ timezone: 'Europe/London' } as never);
+
+      expect(shortlist[0]).toBe(component['timezoneBoxDefault']);
+      expect(component['timezoneOptionLabel'](shortlist[0])).toContain("box's zone");
+      // A zone ID is an identifier and is shown verbatim.
+      expect(component['timezoneOptionLabel']('Europe/London')).toBe('Europe/London');
+    });
+
+    it('does not offer it when there is nothing to clear', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone(null));
+      const component = (await render()).componentInstance;
+
+      const shortlist = component['timezoneOptions']({ timezone: null } as never);
+
+      expect(shortlist).not.toContain(component['timezoneBoxDefault']);
+    });
+
+    it('clears the zone with the flag, not a null timezone', async () => {
+      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Europe/London'));
+      const fixture = await render();
+      const component = fixture.componentInstance;
+
+      await component['changeTimezone'](component['timezoneBoxDefault']);
+      await fixture.whenStable();
+
+      // A null `timezone` would read as "field omitted" on the server.
+      expect(apiMock.updateHousehold).toHaveBeenCalledWith({ clear_timezone: true });
+      expect(component['timezoneValue']({ timezone: 'Europe/London' } as never)).toBe('');
+      // Every date on the page was computed in the old zone.
+      expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
     });
 
     it('searches every zone, matching spaces against underscores', async () => {

@@ -987,7 +987,11 @@ async def get_spending_by_category(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Household not found", "model": ErrorResponse},
-        422: {"description": "Unsupported language", "model": ErrorResponse},
+        422: {
+            "description": "Unsupported language, unknown timezone, "
+            "or timezone sent together with clear_timezone",
+            "model": ErrorResponse,
+        },
     },
     summary="Update household settings (M43: emergency-fund target)",
 )
@@ -1019,7 +1023,23 @@ async def update_household(
         )
         changed.append(f"reserve-committed-savings to {payload.reserve_committed_savings}")
 
-    if payload.timezone is not None:
+    # #43: both at once is contradictory — one asks to follow the box, the
+    # other names a zone. Rejected rather than resolved: every date in the app
+    # is computed from this column, so silently discarding whichever field the
+    # caller meant is the more expensive mistake. (clear_emergency_fund_target
+    # predates this and lets the clear win; that flag resets to a default
+    # VALUE, where picking one is harmless.)
+    if payload.clear_timezone and payload.timezone is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Send either timezone or clear_timezone, not both",
+        )
+
+    if payload.clear_timezone:
+        # Null is the inherit state: dates fall back to FAMILY_CFO_DEFAULT_TIMEZONE.
+        repository.set_household_timezone(engine, session.household_id, None)
+        changed.append("timezone to the box default")
+    elif payload.timezone is not None:
         # Validated against the real zone database: a typo would silently shift
         # every date in the app by hours.
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError

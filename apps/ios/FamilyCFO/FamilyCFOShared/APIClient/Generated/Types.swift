@@ -9911,6 +9911,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/timezone`.
             public var timezone: Swift.String?
+            /// "#43: put the household back on the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE) by setting the column to null. A null `timezone` cannot say this — it is indistinguishable from an omitted field. Sending both this and `timezone` is contradictory and is rejected with 422."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdUpdateRequest/clear_timezone`.
+            public var clearTimezone: Swift.Bool?
             /// Creates a new `HouseholdUpdateRequest`.
             ///
             /// - Parameters:
@@ -9920,13 +9924,15 @@ public enum Components {
             ///   - language: "#10: set the household language. Must be a locale the box builds (en, vi, lt); anything else is rejected with 422."
             ///   - reserveCommittedSavings: "#5: reserve committed savings like a bill (true) or show it beside Safe to Spend without subtracting (false). Omit to leave unchanged."
             ///   - timezone: "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means for this household. Rejected with 422 if unknown."
+            ///   - clearTimezone: "#43: put the household back on the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE) by setting the column to null. A null `timezone` cannot say this — it is indistinguishable from an omitted field. Sending both this and `timezone` is contradictory and is rejected with 422."
             public init(
                 emergencyFundTargetMonths: Swift.Double? = nil,
                 clearEmergencyFundTarget: Swift.Bool? = nil,
                 creditCardsPaidInFull: Swift.Bool? = nil,
                 language: Swift.String? = nil,
                 reserveCommittedSavings: Swift.Bool? = nil,
-                timezone: Swift.String? = nil
+                timezone: Swift.String? = nil,
+                clearTimezone: Swift.Bool? = nil
             ) {
                 self.emergencyFundTargetMonths = emergencyFundTargetMonths
                 self.clearEmergencyFundTarget = clearEmergencyFundTarget
@@ -9934,6 +9940,7 @@ public enum Components {
                 self.language = language
                 self.reserveCommittedSavings = reserveCommittedSavings
                 self.timezone = timezone
+                self.clearTimezone = clearTimezone
             }
             public enum CodingKeys: String, CodingKey {
                 case emergencyFundTargetMonths = "emergency_fund_target_months"
@@ -9942,6 +9949,7 @@ public enum Components {
                 case language
                 case reserveCommittedSavings = "reserve_committed_savings"
                 case timezone
+                case clearTimezone = "clear_timezone"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Member`.
@@ -14844,7 +14852,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Unsupported language
+            /// Unsupported language, unknown timezone, or timezone sent together with clear_timezone
             ///
             /// - Remark: Generated from `#/paths//household/patch(updateHousehold)/responses/422`.
             ///

@@ -1880,6 +1880,10 @@ export type HouseholdUpdateRequest = {
      * "#41: IANA zone (e.g. Europe/London) deciding what \"today\" means for this household. Rejected with 422 if unknown."
      */
     timezone?: string | null;
+    /**
+     * "#43: put the household back on the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE) by setting the column to null. A null `timezone` cannot say this — it is indistinguishable from an omitted field. Sending both this and `timezone` is contradictory and is rejected with 422."
+     */
+    clear_timezone?: boolean;
 };
 
 export type Member = {
@@ -2897,7 +2901,7 @@ export type UpdateHouseholdErrors = {
      */
     404: ErrorResponse;
     /**
-     * Unsupported language
+     * Unsupported language, unknown timezone, or timezone sent together with clear_timezone
      */
     422: ErrorResponse;
 };
