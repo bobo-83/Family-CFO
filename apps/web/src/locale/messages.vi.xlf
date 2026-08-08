@@ -3081,48 +3081,6 @@
         <note priority="1" from="description">Shown instead of the create-goal form to members without the right</note>
         <note priority="1" from="meaning">Permission notice</note>
       </trans-unit>
-      <trans-unit id="2611963283425689438" datatype="html">
-        <source>weekly</source>
-        <target state="translated">hằng tuần</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="1153651466402655780" datatype="html">
-        <source>every two weeks</source>
-        <target state="translated">hai tuần một lần</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="8286079899140318045" datatype="html">
-        <source>twice a month</source>
-        <target state="translated">hai lần mỗi tháng</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="5109481468427357157" datatype="html">
-        <source>monthly</source>
-        <target state="translated">hằng tháng</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="7826429409887572994" datatype="html">
-        <source>quarterly</source>
-        <target state="translated">hằng quý</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="2158060476581389180" datatype="html">
-        <source>twice a year</source>
-        <target state="translated">hai lần mỗi năm</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
-      <trans-unit id="3538160467710205519" datatype="html">
-        <source>yearly</source>
-        <target state="translated">hằng năm</target>
-        <note priority="1" from="description">How often a contribution repeats</note>
-        <note priority="1" from="meaning">Funding cadence</note>
-      </trans-unit>
       <trans-unit id="699857777224939772" datatype="html">
         <source>Emergency fund</source>
         <target state="translated">Quỹ khẩn cấp</target>
@@ -4930,12 +4888,6 @@
         <note priority="1" from="description">Opens the day-by-day projection table</note>
         <note priority="1" from="meaning">Cash outlook drill-down</note>
       </trans-unit>
-      <trans-unit id="4721382427248234532" datatype="html">
-        <source> Paydays come from your recurring deposits; payments from the Bills timeline. Card amounts are today&apos;s balances — the real figure may be higher by the due date. </source>
-        <target state="translated"> Ngày lương lấy từ các khoản nạp định kỳ; khoản chi lấy từ dòng thời gian Hóa đơn. Số tiền thẻ là số dư hôm nay — con số thực tế đến ngày đáo hạn có thể cao hơn. </target>
-        <note priority="1" from="description">Says where the projected paydays and payments come from</note>
-        <note priority="1" from="meaning">Cash outlook footnote</note>
-      </trans-unit>
       <trans-unit id="3393476593669883693" datatype="html">
         <source>Left to spend this month</source>
         <target state="translated">Còn để chi tiêu tháng này</target>
@@ -5417,48 +5369,6 @@
         <target state="translated">Bất động sản</target>
         <note priority="1" from="description">Real estate and other property</note>
         <note priority="1" from="meaning">Asset category</note>
-      </trans-unit>
-      <trans-unit id="3689844634598806992" datatype="html">
-        <source>weekly</source>
-        <target state="translated">hằng tuần</target>
-        <note priority="1" from="description">Happens once a week</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="2231532817575773334" datatype="html">
-        <source>every two weeks</source>
-        <target state="translated">hai tuần một lần</target>
-        <note priority="1" from="description">Happens once every two weeks</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="140589213458659791" datatype="html">
-        <source>twice a month</source>
-        <target state="translated">hai lần mỗi tháng</target>
-        <note priority="1" from="description">Happens twice a month</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="6187362819600474711" datatype="html">
-        <source>monthly</source>
-        <target state="translated">hằng tháng</target>
-        <note priority="1" from="description">Happens once a month</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="8904310761060690548" datatype="html">
-        <source>quarterly</source>
-        <target state="translated">hằng quý</target>
-        <note priority="1" from="description">Happens once every three months</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="3235941827754506734" datatype="html">
-        <source>twice a year</source>
-        <target state="translated">hai lần mỗi năm</target>
-        <note priority="1" from="description">Happens twice a year</note>
-        <note priority="1" from="meaning">Savings cadence</note>
-      </trans-unit>
-      <trans-unit id="4616041818883323073" datatype="html">
-        <source>yearly</source>
-        <target state="translated">hằng năm</target>
-        <note priority="1" from="description">Happens once a year</note>
-        <note priority="1" from="meaning">Savings cadence</note>
       </trans-unit>
       <trans-unit id="1342174294043670760" datatype="html">
         <source>Failed to load the year.</source>

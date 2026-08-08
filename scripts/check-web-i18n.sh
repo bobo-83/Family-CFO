@@ -43,6 +43,7 @@ if not paths:
     sys.exit(1)
 
 problems = []
+catalog_ids = {}
 for path in paths:
     name = os.path.basename(path)
     text = open(path, encoding="utf-8").read()
@@ -75,12 +76,33 @@ for path in paths:
     if duplicates:
         problems.append(f"{name}: duplicate ids {sorted(duplicates)[:5]}")
 
+    catalog_ids[name] = set(ids)
     print(f"  {name}: {len(ids)} units, well-formed")
 
 if problems:
     for problem in problems:
         print(f"  {problem}", file=sys.stderr)
     sys.exit(1)
+
+# Orphans WARN, they don't fail (#44). A message id is hashed from the English
+# text plus its meaning/description, so editing or moving a string mints a new
+# id and strands the old translations. That is normal for the window between
+# changing English and re-translating — failing here would block legitimate
+# work. The build already fails on the dangerous direction: a MISSING
+# translation. These are merely unreachable text a translator would waste time
+# reviewing.
+source_ids = catalog_ids.get("messages.xlf")
+if source_ids:
+    for name, ids in sorted(catalog_ids.items()):
+        if name == "messages.xlf":
+            continue
+        orphans = ids - source_ids
+        if orphans:
+            print(
+                f"  warning: {name} has {len(orphans)} unit(s) with no source "
+                f"message — safe to delete",
+                file=sys.stderr,
+            )
 PY
 
 if [ "${1:-}" = "--skip-build" ]; then
