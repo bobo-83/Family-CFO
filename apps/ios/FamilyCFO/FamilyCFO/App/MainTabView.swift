@@ -486,26 +486,42 @@ struct HouseholdTimezonePicker: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        List(model.options(matching: query), id: \.self) { zone in
-            Button {
-                Task {
-                    // Leaves immediately: a rejected zone rolls back and says
-                    // so in the Settings footer we're returning to.
-                    await model.change(to: zone)
-                    dismiss()
+        List {
+            // #43: the way back to inheriting the box's own zone. Without it
+            // the inherit state is one-way — reachable only by never having
+            // picked a zone at all.
+            if model.offersBoxDefault(matching: query) {
+                Button {
+                    Task {
+                        await model.change(to: nil)
+                        dismiss()
+                    }
+                } label: {
+                    Text("Use the box's zone")
                 }
-            } label: {
-                HStack {
-                    // A zone ID is an identifier, never translated.
-                    Text(verbatim: zone)
-                    Spacer()
-                    if zone == model.timezone {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(Color.accentColor)
+                .foregroundStyle(.primary)
+            }
+            ForEach(model.options(matching: query), id: \.self) { zone in
+                Button {
+                    Task {
+                        // Leaves immediately: a rejected zone rolls back and says
+                        // so in the Settings footer we're returning to.
+                        await model.change(to: zone)
+                        dismiss()
+                    }
+                } label: {
+                    HStack {
+                        // A zone ID is an identifier, never translated.
+                        Text(verbatim: zone)
+                        Spacer()
+                        if zone == model.timezone {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
                 }
+                .foregroundStyle(.primary)
             }
-            .foregroundStyle(.primary)
         }
         .searchable(text: $query, prompt: Text("Search zones"))
         .navigationTitle("Time zone")

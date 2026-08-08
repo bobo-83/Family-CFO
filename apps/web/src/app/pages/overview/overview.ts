@@ -64,6 +64,13 @@ const CURATED_TIMEZONES = [
 const TIMEZONE_RESULT_LIMIT = 50;
 
 /**
+ * #43: the "go back to the box's own zone" row. A sentinel rather than '' so
+ * it can never collide with a real zone ID, be typed into the search box, or
+ * be mistaken for the empty value the field shows when nothing is set.
+ */
+const TIMEZONE_BOX_DEFAULT = ' box-default';
+
+/**
  * Every zone this browser knows. `Intl.supportedValuesOf` is recent, so an
  * older engine falls back to the curated set rather than offering nothing.
  */
@@ -715,6 +722,10 @@ export class Overview {
   /** No zone chosen yet: dates follow the box's own zone. */
   protected readonly timezoneUnset = $localize`:Household timezone unset|Shown in place of a zone when the household has never chosen one:Not set — the box's own zone`;
 
+  /** #43: the way BACK to that state once a zone has been picked. */
+  protected readonly timezoneBoxDefaultOption = $localize`:Household timezone option|First entry in the time-zone picker; picking it clears the household's zone so dates follow the server's own zone again:Use the box's zone`;
+  protected readonly timezoneBoxDefault = TIMEZONE_BOX_DEFAULT;
+
   /** Optimistic pick shown while saving; null means "use the context value". */
   protected readonly timezoneInput = signal<string | null>(null);
   /** What has been typed into the search box; null means "not searching". */
@@ -747,6 +758,11 @@ export class Overview {
     return this.timezoneValue(context) || this.timezoneUnset;
   }
 
+  /** What a row reads: a zone ID verbatim, or #43's "back to the box" entry. */
+  protected timezoneOptionLabel(option: string): string {
+    return option === TIMEZONE_BOX_DEFAULT ? this.timezoneBoxDefaultOption : option;
+  }
+
   protected timezoneOptions(context: HouseholdContext): string[] {
     // "America/New_York" is the identifier but "new york" is what gets typed.
     const query = (this.timezoneQuery() ?? '').trim().toLowerCase().replace(/\s+/g, '_');
@@ -754,25 +770,35 @@ export class Overview {
       // Nothing typed yet. A zone set outside the shortlist still has to be
       // visible — otherwise the current value looks unselected.
       const current = this.timezoneValue(context);
-      return current && !this.shortlistTimezones.includes(current)
-        ? [current, ...this.shortlistTimezones]
-        : this.shortlistTimezones;
+      const zones =
+        current && !this.shortlistTimezones.includes(current)
+          ? [current, ...this.shortlistTimezones]
+          : this.shortlistTimezones;
+      // #43: only worth offering when there is something to clear, and only
+      // in the unsearched list — a row that is not a zone would read as noise
+      // among search hits.
+      return current ? [TIMEZONE_BOX_DEFAULT, ...zones] : zones;
     }
     return this.allTimezones
       .filter((zone) => zone.toLowerCase().includes(query))
       .slice(0, TIMEZONE_RESULT_LIMIT);
   }
 
-  protected async changeTimezone(timezone: string): Promise<void> {
+  protected async changeTimezone(choice: string): Promise<void> {
     this.timezoneQuery.set(null); // done searching — show the value again
-    if (this.savingTimezone() || !timezone) {
+    if (this.savingTimezone() || !choice) {
       return;
     }
+    // #43: null on the column is the inherit state, and a null `timezone` in
+    // the payload would read as "field omitted" — hence the separate flag.
+    const clearing = choice === TIMEZONE_BOX_DEFAULT;
     const previous = this.timezoneInput();
-    this.timezoneInput.set(timezone);
+    this.timezoneInput.set(clearing ? '' : choice);
     this.savingTimezone.set(true);
     this.timezoneError.set(null);
-    const { error } = await this.api.updateHousehold({ timezone });
+    const { error } = await this.api.updateHousehold(
+      clearing ? { clear_timezone: true } : { timezone: choice },
+    );
     this.savingTimezone.set(false);
     if (error) {
       // The server 422s a zone it doesn't know; show its message and revert.

@@ -671,6 +671,9 @@ def household_updated(before: repository.HouseholdRecord) -> str:
             "data": {
                 "emergency_fund_target_months": before.emergency_fund_target_months,
                 "credit_cards_paid_in_full": before.credit_cards_paid_in_full,
+                # #43: clearing the zone is now reachable, so undo has to be
+                # able to put the old one back. Null is a real value here.
+                "timezone": before.timezone,
             },
         }
     )
@@ -1084,6 +1087,11 @@ def _restore(
         repository.set_credit_cards_paid_in_full(
             engine, household_id, bool(data.get("credit_cards_paid_in_full", False))
         )
+        # #43: presence, not truthiness — null means "it was on the box's own
+        # zone". Tokens minted before #43 carry no key at all, and restoring
+        # None for those would clear a zone the update never touched.
+        if "timezone" in data:
+            repository.set_household_timezone(engine, household_id, data["timezone"])
     elif entity == "member_role":
         if not repository.update_member_role(
             engine, household_id, entity_id, data.get("role", "viewer")

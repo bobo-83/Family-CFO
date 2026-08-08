@@ -1482,8 +1482,12 @@ def set_reserve_committed_savings(engine: Engine, household_id: str, value: bool
         )
 
 
-def set_household_timezone(engine: Engine, household_id: str, timezone: str) -> None:
-    """#41: the zone this household reckons "today" in."""
+def set_household_timezone(engine: Engine, household_id: str, timezone: str | None) -> None:
+    """#41: the zone this household reckons "today" in.
+
+    #43: None is a real value here, not "no change" — it puts the household
+    back on the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE).
+    """
     with engine.begin() as conn:
         conn.execute(
             update(models.households)

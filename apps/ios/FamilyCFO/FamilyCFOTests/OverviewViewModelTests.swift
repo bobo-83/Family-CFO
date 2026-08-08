@@ -97,9 +97,9 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
         }
     }
 
-    // #41: household time-zone PATCHes.
-    private(set) var updatedTimezones: [String] = []
-    nonisolated func updateTimezone(_ identifier: String) async throws {
+    // #41: household time-zone PATCHes. #43: nil is a clear, not "no change".
+    private(set) var updatedTimezones: [String?] = []
+    nonisolated func updateTimezone(_ identifier: String?) async throws {
         try await MainActor.run {
             if let mutationError { throw mutationError }
             updatedTimezones.append(identifier)

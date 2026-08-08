@@ -398,7 +398,9 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "422":
-          description: Unsupported language
+          description: >-
+            Unsupported language, unknown timezone, or timezone sent together
+            with clear_timezone
           content:
             application/json:
               schema:
@@ -7505,6 +7507,14 @@ components:
           type:
             - string
             - "null"
+        clear_timezone:
+          description: >-
+            "#43: put the household back on the box's own zone
+            (FAMILY_CFO_DEFAULT_TIMEZONE) by setting the column to null. A null
+            `timezone` cannot say this — it is indistinguishable from an
+            omitted field. Sending both this and `timezone` is contradictory
+            and is rejected with 422."
+          type: boolean
     Member:
       type: object
       required:

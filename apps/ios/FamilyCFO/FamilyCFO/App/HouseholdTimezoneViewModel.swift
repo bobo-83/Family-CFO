@@ -57,7 +57,9 @@ final class HouseholdTimezoneViewModel {
         timezone = context.timezone
     }
 
-    func change(to identifier: String) async {
+    /// #43: nil puts the household back on the box's own zone. Reachable from
+    /// the picker's first row — before this, the inherit state was one-way.
+    func change(to identifier: String?) async {
         guard identifier != timezone else { return }
         let previous = timezone
         timezone = identifier  // the row tracks us, so show the choice immediately
@@ -85,6 +87,13 @@ final class HouseholdTimezoneViewModel {
             .replacingOccurrences(of: " ", with: "_")  // "new york" finds New_York
         guard !needle.isEmpty else { return shortlist }
         return Self.allZones.filter { $0.lowercased().contains(needle) }
+    }
+
+    /// #43: whether the picker leads with "use the box's zone". Only when there
+    /// is a zone to clear, and only before anything is typed — a row that names
+    /// no zone would read as noise among search hits.
+    func offersBoxDefault(matching query: String) -> Bool {
+        timezone != nil && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var shortlist: [String] {

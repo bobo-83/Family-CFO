@@ -51,7 +51,10 @@ protocol HouseholdAPI: Sendable {
     func updateReserveCommittedSavings(_ value: Bool) async throws
     /// #41: the IANA zone this household reckons "today" in. The server 422s a
     /// zone it doesn't know rather than silently shifting every date by hours.
-    func updateTimezone(_ identifier: String) async throws
+    /// #43: nil clears the column, putting the household back on the box's own
+    /// zone — sent as `clear_timezone`, because a null `timezone` on the PATCH
+    /// is indistinguishable from an omitted field.
+    func updateTimezone(_ identifier: String?) async throws
     /// #203: a detected route that isn't saving. Keyed by the route rather than
     /// a row id because detection re-derives its rows on every context load —
     /// there is no stable id to delete.
@@ -98,7 +101,7 @@ extension HouseholdAPI {
     func updateReserveCommittedSavings(_ value: Bool) async throws {
         throw APIError.server(501)
     }
-    func updateTimezone(_ identifier: String) async throws {
+    func updateTimezone(_ identifier: String?) async throws {
         throw APIError.server(501)
     }
 }
@@ -322,8 +325,12 @@ struct LiveHouseholdAPI: HouseholdAPI {
         }
     }
 
-    func updateTimezone(_ identifier: String) async throws {
-        let request = Components.Schemas.HouseholdUpdateRequest(timezone: identifier)
+    func updateTimezone(_ identifier: String?) async throws {
+        // #43: never both — the server 422s a payload that names a zone AND
+        // asks to clear one, since it cannot tell which the caller meant.
+        let request =
+            identifier.map { Components.Schemas.HouseholdUpdateRequest(timezone: $0) }
+            ?? Components.Schemas.HouseholdUpdateRequest(clearTimezone: true)
         switch try await client.updateHousehold(.init(body: .json(request))) {
         case .ok:
             return
