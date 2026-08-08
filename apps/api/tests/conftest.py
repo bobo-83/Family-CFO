@@ -6,6 +6,7 @@ from family_cfo_api import fixtures
 from family_cfo_api.config import Settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.main import create_app
+from tests._test_keys import TEST_FERNET_KEY
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def demo_settings(tmp_path) -> Settings:
         health_check_database=False,
         import_staging_dir=str(tmp_path / "import-staging"),
         backup_dir=str(tmp_path / "backups"),
-        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+        backup_encryption_key=TEST_FERNET_KEY,
         # M32 lockout is tested explicitly in test_household_lockout; the shared
         # fixture allows multiples so pre-existing bootstrap tests keep working
         # against the seeded demo household.
@@ -77,7 +78,7 @@ def demo_file_settings(tmp_path, demo_file_engine: Engine) -> Settings:
         database_url=f"sqlite+pysqlite:///{database_path}",
         import_staging_dir=str(tmp_path / "import-staging"),
         backup_dir=str(tmp_path / "backups"),
-        backup_encryption_key="jNM8CH53WkD3XZ3P8FluvPFI6BuGGvDIzy6vwiu3jbY=",
+        backup_encryption_key=TEST_FERNET_KEY,
     )
 
 

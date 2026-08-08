@@ -139,6 +139,12 @@ final class AppModel {
         client.map { LiveCategorizeAPI(client: $0) }
     }
 
+    /// #29: record a transaction by hand — cash, or a statement charge the bank
+    /// feed never delivered (#25).
+    var addTransaction: AddTransactionAPI? {
+        client.map { LiveAddTransactionAPI(client: $0) }
+    }
+
     /// The Bills tab — suggestions, current bills, add/delete, and bank sync
     /// (M90/M95).
     var bills: BillsAPI? {

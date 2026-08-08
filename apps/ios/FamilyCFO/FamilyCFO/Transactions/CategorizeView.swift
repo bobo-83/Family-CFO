@@ -10,6 +10,9 @@ struct CategorizeView: View {
     @State private var newCategoryName = ""
     @State private var renamingCategory: Components.Schemas.Category?
     @State private var renameText = ""
+    /// #29: the app's only by-hand write to the ledger lives on the app's
+    /// transactions screen — this one.
+    @State private var addingTransaction = false
 
     /// Identifiable wrapper so a tapped transaction can drive `.sheet(item:)`.
     private struct PickTarget: Identifiable {
@@ -47,6 +50,16 @@ struct CategorizeView: View {
                 if let viewModel {
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
+                            // #29: cash never reaches the feed, so without this
+                            // the phone can only ever file what a bank told it.
+                            // ADR 0034: the same right POST /transactions checks.
+                            if model.rolePolicy.canManageTransactions, model.addTransaction != nil {
+                                Button {
+                                    addingTransaction = true
+                                } label: {
+                                    Label("Add transaction…", systemImage: "square.and.pencil")
+                                }
+                            }
                             Button {
                                 newCategoryName = ""
                                 creatingCategoryFor = CategoryCreationContext(transaction: nil)
@@ -60,8 +73,17 @@ struct CategorizeView: View {
                             }
                             .disabled(viewModel.isAddingStarters)
                         } label: {
-                            Label("Add category", systemImage: "plus")
+                            Label("Add", systemImage: "plus")
                         }
+                    }
+                }
+            }
+            .sheet(isPresented: $addingTransaction) {
+                if let api = model.addTransaction {
+                    AddTransactionSheet(viewModel: AddTransactionViewModel(api: api)) {
+                        // A hand-entered row starts uncategorized unless the
+                        // sheet filed it, so this list is exactly what changes.
+                        Task { await viewModel?.load() }
                     }
                 }
             }

@@ -6,7 +6,18 @@ import SwiftUI
 /// matched ones are kept, quietly, so the check is auditable rather than a
 /// number to be taken on trust.
 struct StatementReconciliationView: View {
+    @Environment(AppModel.self) private var model
     @State var viewModel: StatementReconciliationViewModel
+    /// #29: the line whose values have been handed to the add-transaction
+    /// sheet. Set by a tap and nothing else — presenting the sheet writes
+    /// nothing; only its own Save does.
+    @State private var adding: PendingAdd?
+
+    /// Identifiable wrapper so a tapped line can drive `.sheet(item:)`.
+    private struct PendingAdd: Identifiable {
+        let id: String
+        let prefill: AddTransactionViewModel.Prefill
+    }
 
     private var unmatched: [Components.Schemas.StatementLine] {
         viewModel.lines.filter { StatementReconciliationViewModel.state(of: $0) != .matched }
@@ -81,6 +92,17 @@ struct StatementReconciliationView: View {
         }
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
+        .sheet(item: $adding) { pending in
+            if let api = model.addTransaction {
+                AddTransactionSheet(
+                    viewModel: AddTransactionViewModel(api: api, prefill: pending.prefill)
+                ) {
+                    // Only after a real save: the server re-matches on every
+                    // read, so the gap this closed disappears from the list.
+                    Task { await viewModel.load() }
+                }
+            }
+        }
     }
 
     private var coverageSection: some View {
@@ -115,6 +137,21 @@ struct StatementReconciliationView: View {
                         .foregroundStyle(isMatched ? Color.secondary : Self.tint(for: state))
                 }
                 .font(.caption)
+                // #25/#29: the gap-closing action, on the only rows it can
+                // help. ADR 0034: gated on the right POST /transactions checks,
+                // so a viewer never sees a button that would 403.
+                if StatementReconciliationViewModel.canAdd(line),
+                    model.rolePolicy.canManageTransactions, model.addTransaction != nil
+                {
+                    Button {
+                        adding = PendingAdd(id: line.id, prefill: viewModel.prefill(for: line))
+                    } label: {
+                        Label("Add this transaction", systemImage: "plus.circle")
+                    }
+                    .font(.caption.weight(.medium))
+                    .buttonStyle(.borderless)
+                    .padding(.top, 2)
+                }
             }
             Spacer(minLength: 8)
             Text(verbatim: line.amount.formattedExact)

@@ -1,0 +1,34 @@
+# gitleaks baseline (#32)
+#
+# Every entry below is ONE synthetic Fernet key that lived in the test suite's
+# fixtures. It never protected anything: tests now generate a key per run
+# (apps/api/tests/_test_keys.py), and the literal is gone from the tree.
+#
+# It cannot be removed from HISTORY without another rewrite, and its noise had a
+# real cost — a full-history scan was permanently red, so the one scan that
+# could surface a genuine leak was ignored. Pinning these exact findings by
+# fingerprint keeps that scan meaningful: anything NEW still fails.
+#
+# Do not add a rule exclusion here. Only specific, understood findings.
+# Regenerate with: gitleaks git --report-format json --report-path /tmp/l.json .
+104d0a2f8a67e395ce4809525d82e5dd2e935dc3:apps/api/tests/conftest.py:generic-api-key:31
+104d0a2f8a67e395ce4809525d82e5dd2e935dc3:apps/api/tests/conftest.py:generic-api-key:58
+124b6e461e83ff552ad8070cfb1d9a5e53eb989e:apps/api/tests/test_ai_apply_api.py:generic-api-key:8
+21103cff33680d13aadb7af5b414748a8b26bf4a:apps/api/tests/test_ai_apply_api.py:generic-api-key:8
+2d24d00dbe018d960039c5f9fd4a5f99f0f891a0:apps/api/tests/test_security_m18.py:generic-api-key:8
+34280c8d6d08fadff54dabf0708dd25cc65a3814:apps/api/tests/test_household_lockout.py:generic-api-key:7
+415162be4cfbca3468bedcb62de534d5f9813de8:apps/api/tests/test_chat_image.py:generic-api-key:160
+41ec9dec5be72c2dbd7ce683e353452cbeff9c46:apps/api/tests/test_banksync.py:generic-api-key:11
+456bf95654104cf1e859d2256f91ffaf30efdfd8:apps/api/tests/test_security_m18.py:generic-api-key:8
+5d610dfda3f328231a29d8d2dd703cea4e940e50:apps/api/tests/test_chat_image.py:generic-api-key:102
+6257619c67b8a231b7cfa236a94ad0012f46a390:apps/api/tests/test_household_lockout.py:generic-api-key:7
+70df60fb52e0d925d4b0262f2bb6ac2e8e6e6ba0:apps/api/tests/test_household_lockout.py:generic-api-key:7
+78234fa942d8eab98079baccd3df25a6296d2c34:apps/api/tests/test_banksync.py:generic-api-key:11
+85132636559d9ff883c0abd955e010a76de415cc:apps/api/tests/test_chat_image.py:generic-api-key:102
+a02f4303916e185563bd657f3e4841da222fd7c0:apps/api/tests/conftest.py:generic-api-key:31
+a02f4303916e185563bd657f3e4841da222fd7c0:apps/api/tests/conftest.py:generic-api-key:58
+b7c64f42c326ef034071a505d0fd931952e7d333:apps/api/tests/test_chat_image.py:generic-api-key:102
+cdbdf04b0b2827c04cc4e8aba1efbacb6d961329:apps/api/tests/test_chat_image.py:generic-api-key:160
+e43e3abe760c4ed3080501e111e064e669a7cd2b:apps/api/tests/test_chat_image.py:generic-api-key:160
+f019f5c1e72f6e1b73d4afaadbee344736b1f45f:apps/api/tests/test_banksync.py:generic-api-key:11
+f28bf3bedc712f6f355966d2f3eac0d25964897d:apps/api/tests/test_ai_apply_api.py:generic-api-key:8
