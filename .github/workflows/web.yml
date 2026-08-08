@@ -38,20 +38,14 @@ jobs:
           git diff --exit-code -- src/app/api-client \
             || (echo "Generated API client is stale — run 'npm run generate:client' and commit." && exit 1)
 
-      - name: Build
-        # #10: the point of compile-time i18n is that a missing or malformed
-        # translation is a BUILD failure, not a runtime surprise. Angular only
-        # warns, so fail the job when any locale lacks a translation — this is
-        # the ratchet that keeps every converted string translated in all three
-        # locales as more pages are extracted.
-        run: |
-          set -o pipefail
-          npm run build 2>&1 | tee build.log
-          if grep -q "No translation found" build.log; then
-            echo "::error::Untranslated messages — add them to src/locale/messages.<locale>.xlf:"
-            grep "No translation found" build.log | sed 's/^/  /' | head -40
-            exit 1
-          fi
+      - name: Build and check translations
+        # #10: a missing or malformed translation must be a BUILD failure, not a
+        # runtime surprise. #33: the check lives in a script so CI and a local
+        # run assert the SAME thing — an inline `build | grep -c` passes when the
+        # build dies before printing, which is how a corrupt catalog once got
+        # reported as verified.
+        working-directory: ${{ github.workspace }}
+        run: scripts/check-web-i18n.sh
 
       - name: Unit tests
         run: npm test
