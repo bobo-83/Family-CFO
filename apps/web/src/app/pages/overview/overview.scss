@@ -200,6 +200,13 @@
   width: 11rem;
 }
 
+/* #41: household time-zone search box, under the language selector. Wider
+   than it: zone IDs like "America/Los_Angeles" have to fit. */
+.overview__timezone {
+  margin-top: 0.5rem;
+  width: 15rem;
+}
+
 /* #5: reserve-committed-savings toggle sits under the language control. */
 .overview__committed-toggle {
   margin-top: 0.5rem;
