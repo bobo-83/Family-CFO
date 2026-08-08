@@ -2171,6 +2171,54 @@
         }
       }
     },
+    "Add this transaction": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pridėti šią operaciją"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm giao dịch này"
+          }
+        }
+      }
+    },
+    "Add transaction": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pridėti operaciją"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm giao dịch"
+          }
+        }
+      }
+    },
+    "Add transaction…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pridėti operaciją…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm giao dịch…"
+          }
+        }
+      }
+    },
     "Add vest": {
       "localizations": {
         "lt": {
@@ -3121,6 +3169,22 @@
         }
       }
     },
+    "Both optional — you can file it later from the Categories screen.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abu nebūtini — priskirti galėsite vėliau ekrane „Kategorijos“."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cả hai đều không bắt buộc — bạn có thể phân loại sau ở màn hình Danh mục."
+          }
+        }
+      }
+    },
     "Box 1 — wages": {
       "localizations": {
         "lt": {
@@ -3729,6 +3793,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chọn PDF hoặc ảnh"
+          }
+        }
+      }
+    },
+    "Choose an account and enter an amount before saving.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Prieš išsaugodami pasirinkite sąskaitą ir įveskite sumą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn tài khoản và nhập số tiền trước khi lưu."
           }
         }
       }
@@ -5115,6 +5195,22 @@
         }
       }
     },
+    "Direction": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kryptis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loại giao dịch"
+          }
+        }
+      }
+    },
     "Discard them": {
       "localizations": {
         "lt": {
@@ -5755,6 +5851,22 @@
         }
       }
     },
+    "Enter it as a positive number. An expense is stored as money out and a refund or payment received as money in — you never type a minus sign.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Įveskite teigiamą skaičių. Išlaidos įrašomos kaip išleisti pinigai, o grąžinimas ar gautas mokėjimas — kaip gauti pinigai; minuso ženklo vesti nereikia."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy nhập số dương. Khoản chi được lưu là tiền ra, còn khoản hoàn tiền hay tiền nhận được là tiền vào — bạn không bao giờ phải gõ dấu trừ."
+          }
+        }
+      }
+    },
     "Enter the end date, or — when the statement only says how many payments remain — the number of monthly payments left. Either way drives the payoff view.": {
       "localizations": {
         "lt": {
@@ -5911,6 +6023,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lương dự kiến"
+          }
+        }
+      }
+    },
+    "Expense": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Išlaidos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chi tiêu"
           }
         }
       }
@@ -6146,6 +6274,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Được điền tự động từ bản sao kê đã tải lên; đặt tại đây để ghi đè."
+          }
+        }
+      }
+    },
+    "Filled in from a charge on your statement that no synced transaction explained. Check every value — nothing is recorded until you tap Save.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užpildyta pagal jūsų išraše esantį mokėjimą, kurio nepaaiškino jokia sinchronizuota operacija. Patikrinkite kiekvieną reikšmę — nieko neįrašoma, kol nepaliesite „Išsaugoti“."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Được điền sẵn từ một khoản chi trên sao kê mà không giao dịch đồng bộ nào giải thích được. Hãy kiểm tra từng giá trị — không có gì được ghi lại cho đến khi bạn nhấn Lưu."
           }
         }
       }
@@ -7788,6 +7932,22 @@
         }
       }
     },
+    "Merchant": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pardavėjas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Người bán"
+          }
+        }
+      }
+    },
     "Microphone access needed": {
       "localizations": {
         "lt": {
@@ -8430,6 +8590,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chưa có giọng %@ nào được cài trên iPhone này — phần đọc sẽ dùng giọng tiếng Anh. Hãy tải một giọng trong Cài đặt → Trợ năng → Đọc & Nói → Giọng nói."
+          }
+        }
+      }
+    },
+    "No account to record this against yet — link a bank, or add one by hand on the Accounts tab.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kol kas nėra sąskaitos, kuriai tai priskirtumėte — susiekite banką arba rankiniu būdu pridėkite sąskaitą skirtuke „Sąskaitos“."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có tài khoản nào để ghi giao dịch này — hãy liên kết ngân hàng, hoặc thêm tài khoản thủ công ở thẻ Tài khoản."
           }
         }
       }
@@ -15613,6 +15789,22 @@
         }
       }
     },
+    "Where the money moved. A cash purchase belongs to the account you'd have drawn the cash from.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kur pajudėjo pinigai. Pirkinys grynaisiais priskiriamas sąskaitai, iš kurios būtumėte išsiėmę grynųjų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nơi tiền đã đi qua. Một khoản mua bằng tiền mặt thuộc về tài khoản mà bạn đã rút tiền ra."
+          }
+        }
+      }
+    },
     "While nobody is chatting, the advisor studies your history one month at a time and remembers the patterns — spending habits, income rhythm, seasonal costs.": {
       "localizations": {
         "lt": {
@@ -15625,6 +15817,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khi không ai trò chuyện, cố vấn sẽ học lịch sử của bạn theo từng tháng và ghi nhớ các quy luật — thói quen chi tiêu, nhịp thu nhập, chi phí theo mùa."
+          }
+        }
+      }
+    },
+    "Who the money went to (or came from). Optional, but it's what you'll recognize this row by later.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kam pinigai iškeliavo (arba iš ko atkeliavo). Nebūtina, bet būtent iš to vėliau atpažinsite šią eilutę."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiền đã đi đến (hoặc đến từ) ai. Không bắt buộc, nhưng đây là thứ giúp bạn nhận ra dòng này về sau."
           }
         }
       }
@@ -16115,6 +16323,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "đến hạn ngày mai"
+          }
+        }
+      }
+    },
+    "e.g. Corner Market": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "pvz. Kampinė parduotuvė"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ví dụ: Tạp hóa đầu ngõ"
           }
         }
       }
