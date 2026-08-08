@@ -842,3 +842,39 @@ struct YearlyOverviewViewModelTests {
                 == "What made up my spending in June 2026? Break it down by category and biggest merchants.")
     }
 }
+
+/// #30: the cash outlook must never dress an estimate up as exact — only a
+/// statement-backed row is the figure the issuer actually billed.
+@MainActor
+struct CashOutlookStatementTreatmentTests {
+    private func event(source: String?) -> Components.Schemas.OutlookEvent {
+        .init(
+            occurredOn: "2026-08-12", name: "Sapphire",
+            amount: .init(amountMinor: -128_450, currency: "USD"),
+            kind: .creditCard, source: source)
+    }
+
+    @Test func onlyAStatementRowIsCalledExact() {
+        #expect(CashOutlookDetailView.statementNote(event(source: "statement")) != nil)
+        #expect(CashOutlookDetailView.statementNote(event(source: "estimate")) == nil)
+        // An older box that doesn't send `source` at all is still an estimate.
+        #expect(CashOutlookDetailView.statementNote(event(source: nil)) == nil)
+    }
+
+    /// The Bills timeline and the outlook mark exactness identically — one
+    /// wording, so the two screens can't disagree about the same card.
+    @Test func theOutlookReusesTheBillsTimelineWording() {
+        let note = CashOutlookDetailView.statementNote(event(source: "statement")) ?? ""
+
+        #expect(note.lowercased().contains("statement"))
+        #expect(note.lowercased().contains("exact"))
+        #expect(
+            note
+                == BillsView.statementNote(
+                    .init(
+                        id: "card-1", kind: .creditCard, name: "Sapphire",
+                        amount: .init(amountMinor: 128_450, currency: "USD"),
+                        dueDate: "2026-08-12", daysUntil: 4, source: "statement",
+                        statementId: nil, status: .dueSoon)))
+    }
+}

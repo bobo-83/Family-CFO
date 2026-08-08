@@ -6730,9 +6730,9 @@
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
-      <trans-unit id="5098122122749208005" datatype="html">
-        <source> Paydays come from your recurring deposits; payments from the Bills timeline. A card with a recorded statement shows its exact amount due; otherwise it shows today's balance, which may be lower than the final figure. </source>
-        <target state="translated"> Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Thẻ đã ghi nhận sao kê sẽ hiển thị đúng số tiền phải trả; nếu chưa có, thẻ hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng. </target>
+      <trans-unit id="3205177851475530272" datatype="html">
+        <source> Paydays come from your recurring deposits; payments from the Bills timeline. Rows marked from statement are exact; the rest are estimates — a card without a statement shows today's balance, which may be lower than the final figure. </source>
+        <target state="translated"> Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Các dòng có nhãn từ sao kê là con số chính xác; phần còn lại là ước tính — thẻ chưa có sao kê hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng. </target>
         <note priority="1" from="description">Says where the projected paydays and payments come from</note>
         <note priority="1" from="meaning">Cash outlook footnote</note>
       </trans-unit>

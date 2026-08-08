@@ -10059,19 +10059,19 @@
         }
       }
     },
-    "Paydays come from your recurring deposits; payments from the Bills timeline. A card with a recorded statement shows its exact amount due; otherwise it shows today's balance, which may be lower than the final figure.": {
+    "Paydays come from your recurring deposits; payments from the Bills timeline. Rows marked from statement are exact; the rest are estimates — a card without a statement shows today's balance, which may be lower than the final figure.": {
       "extractionState": "manual",
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Atlyginimo dienos imamos iš pasikartojančių įplaukų; mokėjimai — iš sąskaitų laiko juostos. Kortelė su įrašytu išrašu rodo tikslią mokėtiną sumą; kitu atveju rodomas šiandienos likutis, kuris gali būti mažesnis už galutinę sumą."
+            "value": "Atlyginimo dienos imamos iš pasikartojančių įplaukų; mokėjimai — iš sąskaitų laiko juostos. Eilutės, pažymėtos iš išrašo, yra tikslios; visos kitos yra tik įverčiai — kortelė be išrašo rodo šiandienos likutį, kuris gali būti mažesnis už galutinę sumą."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Thẻ đã ghi nhận sao kê sẽ hiển thị đúng số tiền phải trả; nếu chưa có, thẻ hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng."
+            "value": "Ngày lương lấy từ các khoản tiền vào định kỳ; các khoản chi lấy từ dòng thời gian Hóa đơn. Các dòng có nhãn từ sao kê là con số chính xác; phần còn lại là ước tính — thẻ chưa có sao kê hiển thị số dư hôm nay, có thể thấp hơn con số cuối cùng."
           }
         }
       }

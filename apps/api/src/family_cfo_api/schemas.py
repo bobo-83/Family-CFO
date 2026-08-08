@@ -735,6 +735,10 @@ class OutlookEvent(BaseModel):
     name: str
     amount: Money  # signed: inflow positive, outflow negative
     kind: Literal["income", "bill", "credit_card", "mortgage", "loan", "lease"]
+    # #30: "statement" when the amount came from a recorded statement (exact),
+    # "estimate" otherwise — a running balance with an inferred day, or any
+    # projected future occurrence.
+    source: str = "estimate"
 
 
 class CashOutlookResponse(BaseModel):

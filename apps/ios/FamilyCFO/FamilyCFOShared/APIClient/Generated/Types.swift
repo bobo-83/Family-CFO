@@ -3720,6 +3720,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/OutlookEvent/kind`.
             public var kind: Components.Schemas.OutlookEvent.KindPayload
+            /// "#30: statement = the amount came from a recorded statement (exact); estimate = a running balance with an inferred day, or any projected future occurrence."
+            ///
+            /// - Remark: Generated from `#/components/schemas/OutlookEvent/source`.
+            public var source: Swift.String?
             /// Creates a new `OutlookEvent`.
             ///
             /// - Parameters:
@@ -3727,22 +3731,26 @@ public enum Components {
             ///   - name:
             ///   - amount:
             ///   - kind:
+            ///   - source: "#30: statement = the amount came from a recorded statement (exact); estimate = a running balance with an inferred day, or any projected future occurrence."
             public init(
                 occurredOn: Swift.String,
                 name: Swift.String,
                 amount: Components.Schemas.Money,
-                kind: Components.Schemas.OutlookEvent.KindPayload
+                kind: Components.Schemas.OutlookEvent.KindPayload,
+                source: Swift.String? = nil
             ) {
                 self.occurredOn = occurredOn
                 self.name = name
                 self.amount = amount
                 self.kind = kind
+                self.source = source
             }
             public enum CodingKeys: String, CodingKey {
                 case occurredOn = "occurred_on"
                 case name
                 case amount
                 case kind
+                case source
             }
         }
         /// Projected cash over the horizon (M112, ADR 0026): paychecks in, payments out, and the lowest point the balance reaches — the lived counterpart to safe-to-spend's zero-income stress test.

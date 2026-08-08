@@ -374,3 +374,30 @@ async def test_scan_stops_once_the_table_ends(demo_client, demo_token, monkeypat
     # Page 1 (summary + row) then two empty pages -> stop. Not all 10.
     assert calls["n"] == 3, f"scanned {calls['n']} pages; expected to stop at 3"
     assert len(response.json()["lines"]) == 1
+
+
+@pytest.mark.anyio
+async def test_outlook_says_which_card_amounts_came_from_a_statement(
+    demo_client, demo_token, demo_engine
+):
+    """#30: the outlook projects card payments; a recorded statement makes one
+    of them EXACT, and the outlook must say so rather than hedging that all
+    card amounts are running balances."""
+    from family_cfo_api import repository
+
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    card = await _card(demo_client, headers, "Outlook Card")
+    repository.record_account_balance(demo_engine, card, -400_00)
+    await _record(
+        demo_client, headers, card, minor=250_00, due=date.today() + timedelta(days=8)
+    )
+
+    response = await demo_client.get("/api/v1/overview/cash-outlook", headers=headers)
+    assert response.status_code == 200, response.text
+    outlook = response.json()
+    card_events = [e for e in outlook["events"] if e["kind"] == "credit_card"]
+    assert card_events, "expected the card to appear in the outlook"
+    exact = [e for e in card_events if e["source"] == "statement"]
+    assert exact, "the statement-backed payment should be marked exact"
+    # And it carries the statement figure, not the running balance.
+    assert abs(exact[0]["amount"]["amount_minor"]) == 250_00
