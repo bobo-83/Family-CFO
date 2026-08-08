@@ -1,4 +1,5 @@
 import { Component, HostListener, computed, inject, resource, signal } from '@angular/core';
+import { ACCOUNT_TYPE_LABELS, labelFor } from '../../shared/enum-labels';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -49,6 +50,11 @@ const ACCOUNT_TYPES: AccountType[] = [
   styleUrl: './accounts.scss',
 })
 export class Accounts {
+  /** #20: the wire code (`auto_loan`) is not a label a person reads. */
+  protected accountTypeLabel(type: string): string {
+    return labelFor(ACCOUNT_TYPE_LABELS, type);
+  }
+
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);

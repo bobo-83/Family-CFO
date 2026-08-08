@@ -220,7 +220,7 @@
                 <mat-label i18n="Form field label|How often the bill repeats">Frequency</mat-label>
                 <mat-select formControlName="frequency">
                   @for (frequency of frequencies; track frequency) {
-                    <mat-option [value]="frequency">{{ frequency }}</mat-option>
+                    <mat-option [value]="frequency">{{ frequencyLabel(frequency) }}</mat-option>
                   }
                 </mat-select>
               </mat-form-field>
@@ -246,7 +246,7 @@
               <div class="bill-list__main">
                 <div class="bill-list__name">{{ bill.name }}</div>
                 <div class="bill-list__frequency">
-                  {{ bill.frequency }}
+                  {{ frequencyLabel(bill.frequency) }}
                   @if (bill.next_due_date) {
                     <ng-container i18n="Bill meta|Appended when the bill has a next due date"> · next due {{ bill.next_due_date | date: 'MMM d, y' }}</ng-container>
                   }
@@ -353,7 +353,7 @@
             <div class="bill-list__name">{{ update.name }}</div>
             <div class="bill-list__frequency">
               <ng-container i18n="Bill drift meta|Saved amount, the amount recently charged, and the cadence">{{ formatMoney(update.current_amount) }} →
-              {{ formatMoney(update.suggested_amount) }} · {{ update.frequency }} · </ng-container><ng-container i18n="Charge count|How many matching charges were seen">{update.occurrences, plural, =1 {1 charge} other {{{ update.occurrences }} charges}}</ng-container><ng-container i18n="Bill drift meta|When the most recent matching charge landed"> · last {{ update.last_seen | date: 'MMM d' }}</ng-container>
+              {{ formatMoney(update.suggested_amount) }} · {{ frequencyLabel(update.frequency) }} · </ng-container><ng-container i18n="Charge count|How many matching charges were seen">{update.occurrences, plural, =1 {1 charge} other {{{ update.occurrences }} charges}}</ng-container><ng-container i18n="Bill drift meta|When the most recent matching charge landed"> · last {{ update.last_seen | date: 'MMM d' }}</ng-container>
             </div>
           </div>
           @if (canWrite()) {
@@ -405,7 +405,7 @@
           <div class="bill-list__main">
             <div class="bill-list__name">{{ suggestion.name }}</div>
             <div class="bill-list__frequency">
-              {{ suggestion.frequency }} · <ng-container i18n="Charge count|How many matching charges were seen">{suggestion.occurrences, plural, =1 {1 charge} other {{{ suggestion.occurrences }} charges}}</ng-container><ng-container i18n="Bill suggestion meta|When the last charge landed and when the next one is expected"> ·
+              {{ frequencyLabel(suggestion.frequency) }} · <ng-container i18n="Charge count|How many matching charges were seen">{suggestion.occurrences, plural, =1 {1 charge} other {{{ suggestion.occurrences }} charges}}</ng-container><ng-container i18n="Bill suggestion meta|When the last charge landed and when the next one is expected"> ·
               last {{ suggestion.last_seen | date: 'MMM d' }} · next
               {{ suggestion.next_due_date | date: 'MMM d' }}</ng-container>
             </div>
@@ -512,7 +512,7 @@
         <mat-label i18n="Form field label|How often the bill repeats">Frequency</mat-label>
         <mat-select formControlName="frequency">
           @for (frequency of frequencies; track frequency) {
-            <mat-option [value]="frequency">{{ frequency }}</mat-option>
+            <mat-option [value]="frequency">{{ frequencyLabel(frequency) }}</mat-option>
           }
         </mat-select>
       </mat-form-field>

@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { ROLE_LABELS, labelFor } from '../../shared/enum-labels';
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -18,6 +19,11 @@ import { apiErrorMessage } from '../../shared/api-error';
   styleUrl: './devices.scss',
 })
 export class Devices {
+  /** #20: role codes are wire values; members read words. */
+  protected roleLabel(role: string): string {
+    return labelFor(ROLE_LABELS, role);
+  }
+
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly sanitizer = inject(DomSanitizer);

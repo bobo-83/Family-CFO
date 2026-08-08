@@ -1,4 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { FREQUENCY_LABELS } from '../../shared/enum-labels';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -42,15 +43,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 
 // #201: enums are for machines; a savings row reads "USD 500.00 monthly".
-const CADENCE_WORDS: Record<RecurringFrequency, string> = {
-  weekly: $localize`:Savings cadence|Happens once a week:weekly`,
-  biweekly: $localize`:Savings cadence|Happens once every two weeks:every two weeks`,
-  semimonthly: $localize`:Savings cadence|Happens twice a month:twice a month`,
-  monthly: $localize`:Savings cadence|Happens once a month:monthly`,
-  quarterly: $localize`:Savings cadence|Happens once every three months:quarterly`,
-  semiannual: $localize`:Savings cadence|Happens twice a year:twice a year`,
-  annual: $localize`:Savings cadence|Happens once a year:yearly`,
-};
 
 // M75: human labels for goal types (raw enums leaked into the UI).
 const GOAL_TYPE_LABELS: Record<string, string> = {
@@ -320,7 +312,7 @@ export class Overview {
   }
 
   protected cadenceWord(frequency: RecurringFrequency): string {
-    return CADENCE_WORDS[frequency] ?? frequency;
+    return FREQUENCY_LABELS[frequency] ?? frequency;
   }
 
   /**
@@ -394,7 +386,7 @@ export class Overview {
     return context.savings_contributions ?? [];
   }
 
-  protected readonly cadences = Object.keys(CADENCE_WORDS) as RecurringFrequency[];
+  protected readonly cadences = Object.keys(FREQUENCY_LABELS) as RecurringFrequency[];
 
   protected readonly declaring = signal(false);
   protected readonly savingsSubmitting = signal(false);

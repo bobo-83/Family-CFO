@@ -1,4 +1,9 @@
 import { DatePipe } from '@angular/common';
+import {
+  IMPORT_SOURCE_LABELS,
+  IMPORT_STATUS_LABELS,
+  labelFor,
+} from '../../shared/enum-labels';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,6 +31,15 @@ import { apiErrorMessage } from '../../shared/api-error';
   styleUrl: './imports.scss',
 })
 export class Imports {
+  /** #20: `needs_review` is a wire value, not English. */
+  protected statusLabel(status: string): string {
+    return labelFor(IMPORT_STATUS_LABELS, status);
+  }
+
+  protected sourceLabel(source: string): string {
+    return labelFor(IMPORT_SOURCE_LABELS, source);
+  }
+
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);

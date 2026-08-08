@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { FREQUENCY_LABELS, labelFor } from '../../shared/enum-labels';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -71,6 +72,11 @@ const TIMELINE_GROUPS: { status: PaymentTimelineItem['status']; title: string }[
   styleUrl: './bills.scss',
 })
 export class Bills {
+  /** #20: `biweekly` is a wire value; a person reads 'every two weeks'. */
+  protected frequencyLabel(frequency: string): string {
+    return labelFor(FREQUENCY_LABELS, frequency);
+  }
+
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
