@@ -61,3 +61,9 @@ uv.lock
 
 # M121 (ADR 0030): local list of your own literal identifiers to block (never committed).
 .repo-hygiene-deny
+
+# Claude Code local state. .claude/worktrees/ holds full checkouts of this repo
+# for agents working in isolation — staging one by accident would commit a
+# duplicate tree.
+.claude/settings.local.json
+.claude/worktrees/
