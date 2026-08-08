@@ -30,7 +30,7 @@ from family_cfo_financial_engine import (
 )
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import household_clock, repository
 
 LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
 
@@ -120,7 +120,7 @@ def upcoming_bills(
     safe-to-spend passes a longer one, because money is committed to a bill from
     the moment you know it is coming, not when it becomes imminent.
     """
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     horizon = today + timedelta(days=window_days or UPCOMING_BILL_WINDOW_DAYS)
     # An occurrence the user explicitly linked to its payment is settled — it
     # is no longer due and no longer a claim on cash.
@@ -357,7 +357,7 @@ def debt_history(
     """Total debt at each month-end across the household's transaction history,
     plus the average over that window (ADR 0043). Reconstructed month by month;
     'lifetime' is bounded by how much history exists."""
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     earliest = repository.earliest_transaction_month(engine, household_id)
     points: list[DebtHistoryPoint] = []
     if earliest is not None:
@@ -636,7 +636,7 @@ def cash_outlook(
     question: "given my paychecks and my payments, where does cash actually
     go?" Same-day outflows apply before inflows, so the lowest point errs low.
     """
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     horizon = today + timedelta(days=horizon_days)
 
     # --- Outflows: the payment timeline's items, projected over the window.
@@ -827,7 +827,7 @@ def spending_plan(
     - Income = deposits the income analysis counts, received this month, plus
       recurring paydays projected through month end.
     """
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     month_start = today.replace(day=1)
     month_end = add_months(month_start, 1) - timedelta(days=1)
 
@@ -1095,7 +1095,7 @@ def payment_timeline(
     account. Inferred dates are never flagged overdue — inference isn't strong
     enough evidence to accuse anyone of missing a payment.
     """
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     lookback_start = today - timedelta(days=_TIMELINE_LOOKBACK_DAYS)
     transactions = repository.list_transactions(
         engine, household_id, limit=100_000, start=lookback_start, end=today
@@ -1378,7 +1378,7 @@ def subscription_forecast(
     charge already deducted from liquid is never double-counted."""
     from family_cfo_api import bill_detection
 
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     category_id = _subscriptions_category_id(engine, household_id)
     if category_id is None:
         return [], Money.zero(currency)
@@ -1577,7 +1577,7 @@ def compute_safe_to_spend(
     # a known date — so it REPLACES the running-balance estimate for that card
     # rather than adding to it. Counting both would charge the household twice
     # for the same money, since the statement balance is part of the balance.
-    resolved_today = today or date.today()
+    resolved_today = today or household_clock.today_for_household(engine, household_id)
     statement_horizon = resolved_today + timedelta(days=horizon_days)
     card_statement_due: dict[str, Money] = {}
     for statement in repository.list_card_statements(engine, household_id):
@@ -1932,7 +1932,7 @@ def monthly_taxes_total(
 ) -> Money:
     """Tax withheld, averaged over the trailing 12 complete months to a monthly
     figure (like income) — lumpy RSU withholdings spread into a fair run-rate."""
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     this_month_start = today.replace(day=1)
     window_start = add_months(this_month_start, -INCOME_TRAILING_MONTHS)
     window_end = this_month_start - timedelta(days=1)
@@ -1998,7 +1998,7 @@ def goal_funding(
     """
     from family_cfo_api import savings_detection
 
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     linked = [
         c
         for c in repository.list_savings_contributions(engine, household_id)
@@ -2079,7 +2079,7 @@ def monthly_income_total(
         )
         total += recurring.monthly_amount()
 
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     this_month_start = today.replace(day=1)
     window_start = add_months(this_month_start, -INCOME_TRAILING_MONTHS)
     window_end = this_month_start - timedelta(days=1)
@@ -2123,7 +2123,7 @@ def observed_savings_rate(
 ) -> ObservedSavingsRate:
     from family_cfo_api import savings_detection
 
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     this_month_start = today.replace(day=1)
     window_start = add_months(this_month_start, -3)
     window_end = this_month_start - timedelta(days=1)
@@ -2263,7 +2263,7 @@ def monthly_essential_expenses(
     minimums that no bill already covers. Bills-only — the previous denominator —
     was absurdly optimistic: it ignored groceries, gas, and every loan/card payment,
     so a fund covered "months" of a household that in reality spends far more."""
-    today = today or date.today()
+    today = today or household_clock.today_for_household(engine, household_id)
     this_month_start = today.replace(day=1)
     # Last 3 complete calendar months, matching the savings-rate window (M44).
     window_start = add_months(this_month_start, -3)

@@ -23,6 +23,8 @@ x-api-env: &api-env
   FAMILY_CFO_BACKUP_ENCRYPTION_KEY: ${FAMILY_CFO_BACKUP_ENCRYPTION_KEY:-}
   # ADR 0072: wraps each household's data key; content columns are sealed
   # under it. Empty = per-household encryption off.
+  # #41: the zone a household falls back to when it has not chosen one.
+  FAMILY_CFO_DEFAULT_TIMEZONE: ${FAMILY_CFO_DEFAULT_TIMEZONE:-UTC}
   FAMILY_CFO_MASTER_KEY: ${FAMILY_CFO_MASTER_KEY:-}
   # #192: off-box backups older than this many days are pruned on each backup
   # pass (0 = keep forever). The bounded erasure horizon after a household is

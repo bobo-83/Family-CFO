@@ -811,6 +811,7 @@ def _historical_context(
         currency=currency,
         language=household.language or "en",
         reserve_committed_savings=household.reserve_committed_savings,
+        timezone=household.timezone,
         net_worth=MoneySchema(amount_minor=net_worth_minor, currency=currency),
         # Required, non-nullable in the contract (the client decodes a plain Double,
         # so `null` would fail to decode and the whole month would silently fail to
@@ -881,6 +882,7 @@ def _build_household_context(
         currency=currency,
         language=household.language or "en",
         reserve_committed_savings=household.reserve_committed_savings,
+        timezone=household.timezone,
         net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
         emergency_fund_months=months,
         emergency_fund=_emergency_fund_summary(
@@ -1016,6 +1018,18 @@ async def update_household(
             engine, session.household_id, payload.reserve_committed_savings
         )
         changed.append(f"reserve-committed-savings to {payload.reserve_committed_savings}")
+
+    if payload.timezone is not None:
+        # Validated against the real zone database: a typo would silently shift
+        # every date in the app by hours.
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(payload.timezone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Unknown timezone") from exc
+        repository.set_household_timezone(engine, session.household_id, payload.timezone)
+        changed.append(f"timezone to {payload.timezone}")
 
     if payload.language is not None:
         # #10: bounded by the locales the box actually built — a language we

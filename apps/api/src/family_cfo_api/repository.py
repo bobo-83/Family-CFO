@@ -1393,6 +1393,8 @@ class HouseholdRecord:
     reserve_committed_savings: bool = False
     # #10: display/answer language for every surface. Null = "en".
     language: str | None = None
+    # #41: IANA zone deciding this household's "today". Null = box default.
+    timezone: str | None = None
     # M98: off-box backup destination (mounted share) + cadence.
     backup_destination_path: str | None = None
     backup_frequency: str = "daily"
@@ -1444,6 +1446,7 @@ def get_household(engine: Engine, household_id: str) -> HouseholdRecord | None:
         credit_cards_paid_in_full=bool(row["credit_cards_paid_in_full"]),
         reserve_committed_savings=bool(row["reserve_committed_savings"]),
         language=row["language"],
+        timezone=row["timezone"],
         backup_destination_path=row["backup_destination_path"],
         backup_frequency=row["backup_frequency"] or "daily",
         backup_smb_host=row["backup_smb_host"],
@@ -1476,6 +1479,16 @@ def set_reserve_committed_savings(engine: Engine, household_id: str, value: bool
             update(models.households)
             .where(models.households.c.id == household_id)
             .values(reserve_committed_savings=value, updated_at=utcnow())
+        )
+
+
+def set_household_timezone(engine: Engine, household_id: str, timezone: str) -> None:
+    """#41: the zone this household reckons "today" in."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.households)
+            .where(models.households.c.id == household_id)
+            .values(timezone=timezone, updated_at=utcnow())
         )
 
 

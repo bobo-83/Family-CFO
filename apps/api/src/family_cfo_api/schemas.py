@@ -452,6 +452,8 @@ class HouseholdContext(BaseModel):
     # #5: whether committed savings is reserved like a bill (the toggle's
     # authoritative source, present even when there is no safe-to-spend yet).
     reserve_committed_savings: bool = False
+    # #41: the household's IANA zone; null means the box's default.
+    timezone: str | None = None
     net_worth: Money
     emergency_fund_months: float | None
     # M38: enriched overview summary (additive).
@@ -1876,6 +1878,9 @@ class HouseholdUpdateRequest(BaseModel):
     # #5: reserve committed savings like a bill (True) vs show it beside the
     # figure (False). None leaves it unchanged.
     reserve_committed_savings: bool | None = None
+    # #41: IANA zone (e.g. "Europe/London") deciding what "today" means here.
+    # Validated in the endpoint against the zone database.
+    timezone: str | None = None
 
 
 class Member(BaseModel):
