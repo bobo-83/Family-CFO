@@ -43,7 +43,7 @@
         <mat-label i18n="Form field label|Kind of account (checking, savings, …)">Type</mat-label>
         <mat-select formControlName="type">
           @for (type of accountTypes; track type) {
-            <mat-option [value]="type">{{ type }}</mat-option>
+            <mat-option [value]="type">{{ accountTypeLabel(type) }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -118,12 +118,12 @@
                         >
                           @for (type of accountTypes; track type) {
                             <option [value]="type" [selected]="type === account.type">
-                              {{ type }}
+                              {{ accountTypeLabel(type) }}
                             </option>
                           }
                         </select>
                       } @else {
-                        {{ account.type }}
+                        {{ accountTypeLabel(account.type) }}
                       }
                     </td>
                     <td>

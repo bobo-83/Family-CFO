@@ -23,7 +23,7 @@
         >
           <mat-option value="" i18n="Select option|Pair a device for the signed-in user rather than another member">Myself (this account)</mat-option>
           @for (m of members(); track m.user_id) {
-            <mat-option [value]="m.user_id">{{ m.display_name }} ({{ m.role }})</mat-option>
+            <mat-option [value]="m.user_id">{{ m.display_name }} ({{ roleLabel(m.role) }})</mat-option>
           }
         </mat-select>
       </mat-form-field>

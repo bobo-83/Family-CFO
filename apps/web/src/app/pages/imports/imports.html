@@ -71,8 +71,8 @@
         @for (record of imports.value() ?? []; track record.id) {
           <tr>
             <td>{{ record.filename }}</td>
-            <td>{{ record.source_type }}</td>
-            <td>{{ record.status }}</td>
+            <td>{{ sourceLabel(record.source_type) }}</td>
+            <td>{{ statusLabel(record.status) }}</td>
             <td>{{ record.skipped_row_count }}</td>
             @if (canReview()) {
               <td>

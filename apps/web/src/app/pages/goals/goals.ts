@@ -1,4 +1,5 @@
 import { formatDate } from '@angular/common';
+import { FREQUENCY_LABELS } from '../../shared/enum-labels';
 import { Component, LOCALE_ID, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,15 +14,6 @@ import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 
 // #201's cadence words, so a funding row reads "College 529 · USD 500.00 monthly".
-const CADENCE_WORDS: Record<RecurringFrequency, string> = {
-  weekly: $localize`:Funding cadence|How often a contribution repeats:weekly`,
-  biweekly: $localize`:Funding cadence|How often a contribution repeats:every two weeks`,
-  semimonthly: $localize`:Funding cadence|How often a contribution repeats:twice a month`,
-  monthly: $localize`:Funding cadence|How often a contribution repeats:monthly`,
-  quarterly: $localize`:Funding cadence|How often a contribution repeats:quarterly`,
-  semiannual: $localize`:Funding cadence|How often a contribution repeats:twice a year`,
-  annual: $localize`:Funding cadence|How often a contribution repeats:yearly`,
-};
 
 const GOAL_TYPES: GoalType[] = [
   'emergency_fund',
@@ -127,7 +119,7 @@ export class Goals {
 
   /** Compact "College 529 · USD 500.00 monthly" row under the funding line. */
   protected fundingSourceLine(source: GoalFundingSource): string {
-    const cadence = CADENCE_WORDS[source.frequency] ?? source.frequency;
+    const cadence = FREQUENCY_LABELS[source.frequency] ?? source.frequency;
     return $localize`:Goal funding source|One contribution feeding a goal, e.g. "College 529 · USD 500.00 monthly":${source.destination_name}:destination: · ${formatMoney(source.amount)}:amount: ${cadence}:cadence:`;
   }
 

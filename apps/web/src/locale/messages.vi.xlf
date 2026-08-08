@@ -6736,6 +6736,161 @@
         <note priority="1" from="description">Says where the projected paydays and payments come from</note>
         <note priority="1" from="meaning">Cash outlook footnote</note>
       </trans-unit>
+      <trans-unit id="6169698863746968352" datatype="html">
+        <source>weekly</source>
+        <target state="translated">hàng tuần</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="4711387046723934694" datatype="html">
+        <source>every two weeks</source>
+        <target state="translated">hai tuần một lần</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="2620443442606821151" datatype="html">
+        <source>twice a month</source>
+        <target state="translated">hai lần mỗi tháng</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="8667217048748636071" datatype="html">
+        <source>monthly</source>
+        <target state="translated">hàng tháng</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="2160792953354076100" datatype="html">
+        <source>quarterly</source>
+        <target state="translated">hàng quý</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="5715796056902668094" datatype="html">
+        <source>twice a year</source>
+        <target state="translated">hai lần mỗi năm</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="7095896048031484433" datatype="html">
+        <source>yearly</source>
+        <target state="translated">hàng năm</target>
+<note priority="1" from="description">How often something repeats</note><note priority="1" from="meaning">Cadence</note>
+      </trans-unit>
+      <trans-unit id="7816133888260742229" datatype="html">
+        <source>Checking</source>
+        <target state="translated">Tài khoản thanh toán</target>
+<note priority="1" from="description">Everyday spending account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="7754187011891012690" datatype="html">
+        <source>Savings</source>
+        <target state="translated">Tài khoản tiết kiệm</target>
+<note priority="1" from="description">Interest-bearing deposit account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="8292787653287301787" datatype="html">
+        <source>Credit card</source>
+        <target state="translated">Thẻ tín dụng</target>
+<note priority="1" from="description">Revolving credit account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="2743427991502805302" datatype="html">
+        <source>Brokerage</source>
+        <target state="translated">Tài khoản đầu tư</target>
+<note priority="1" from="description">Taxable investment account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="739827964158641364" datatype="html">
+        <source>Retirement</source>
+        <target state="translated">Tài khoản hưu trí</target>
+<note priority="1" from="description">Retirement account such as a 401(k) or IRA</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="6921292569738729121" datatype="html">
+        <source>HSA</source>
+        <target state="translated">HSA</target>
+<note priority="1" from="description">Health savings account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="2294210096622570549" datatype="html">
+        <source>529 college savings</source>
+        <target state="translated">Quỹ học vấn 529</target>
+<note priority="1" from="description">Education savings plan</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="4847564826359558666" datatype="html">
+        <source>Mortgage</source>
+        <target state="translated">Vay thế chấp nhà</target>
+<note priority="1" from="description">Home loan</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="1717695943458050488" datatype="html">
+        <source>Auto loan</source>
+        <target state="translated">Vay mua xe</target>
+<note priority="1" from="description">Car loan or lease</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="5361452037316911253" datatype="html">
+        <source>Student loan</source>
+        <target state="translated">Vay học phí</target>
+<note priority="1" from="description">Education loan</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="1263232891916683594" datatype="html">
+        <source>401(k) loan</source>
+        <target state="translated">Vay từ 401(k)</target>
+<note priority="1" from="description">Loan taken against a retirement account</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="2045349670665928143" datatype="html">
+        <source>Real estate</source>
+        <target state="translated">Bất động sản</target>
+<note priority="1" from="description">Property held as an asset</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="1827169184842526" datatype="html">
+        <source>Other asset</source>
+        <target state="translated">Tài sản khác</target>
+<note priority="1" from="description">Any other thing owned</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="8640874520594474667" datatype="html">
+        <source>Other debt</source>
+        <target state="translated">Khoản nợ khác</target>
+<note priority="1" from="description">Any other money owed</note><note priority="1" from="meaning">Account type</note>
+      </trans-unit>
+      <trans-unit id="1407011621375210580" datatype="html">
+        <source>Waiting</source>
+        <target state="translated">Đang chờ</target>
+<note priority="1" from="description">Queued, not started yet</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="6997701602574241338" datatype="html">
+        <source>Reading</source>
+        <target state="translated">Đang đọc</target>
+<note priority="1" from="description">Currently being read</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="863743728039816942" datatype="html">
+        <source>Needs review</source>
+        <target state="translated">Cần xem lại</target>
+<note priority="1" from="description">Finished but needs the user to check it</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="2645520563553604991" datatype="html">
+        <source>Done</source>
+        <target state="translated">Xong</target>
+<note priority="1" from="description">Finished successfully</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="7107911626308347254" datatype="html">
+        <source>Discarded</source>
+        <target state="translated">Đã bỏ</target>
+<note priority="1" from="description">Thrown away by the user</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="7140742973903776408" datatype="html">
+        <source>Failed</source>
+        <target state="translated">Thất bại</target>
+<note priority="1" from="description">Could not be read</note><note priority="1" from="meaning">Import status</note>
+      </trans-unit>
+      <trans-unit id="2721008412898714125" datatype="html">
+        <source>Owner</source>
+        <target state="translated">Chủ hộ</target>
+<note priority="1" from="description">Runs the household and its settings</note><note priority="1" from="meaning">Household role</note>
+      </trans-unit>
+      <trans-unit id="5346522693674999331" datatype="html">
+        <source>Adult</source>
+        <target state="translated">Người lớn</target>
+<note priority="1" from="description">Adult member with full day-to-day access</note><note priority="1" from="meaning">Household role</note>
+      </trans-unit>
+      <trans-unit id="7769688037309848923" datatype="html">
+        <source>Viewer</source>
+        <target state="translated">Người xem</target>
+<note priority="1" from="description">Can look but not change anything</note><note priority="1" from="meaning">Household role</note>
+      </trans-unit>
+      <trans-unit id="3156532410117920439" datatype="html">
+        <source>Child</source>
+        <target state="translated">Trẻ em</target>
+<note priority="1" from="description">Limited access for a child</note><note priority="1" from="meaning">Household role</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>
