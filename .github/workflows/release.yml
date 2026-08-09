@@ -17,27 +17,35 @@ on:
     tags:
       - "v*"
 
+# The order is guard -> images -> release, deliberately. Publishing the Release
+# LAST means it is only announced once the artifacts to deploy actually exist,
+# and it keeps a failed run re-runnable: `gh release create` refuses a release
+# that already exists, so creating it first would make any retry after an image
+# failure die on the release step and never reach the images at all.
 jobs:
-  release:
+  guard:
     runs-on: ubuntu-latest
     permissions:
-      # --generate-notes reads merged PRs; creating the release writes.
-      contents: write
-      pull-requests: read
+      contents: read
+    outputs:
+      # The checked version, so nothing downstream re-derives it from the ref.
+      # This is the FULL tag (0.148.0-rc1, not 0.148.0) because it names image
+      # tags: two builds of the same /VERSION must not both claim ":0.148.0",
+      # or that tag silently changes meaning between the rc and the release.
+      version: ${{ steps.guard.outputs.version }}
+      prerelease: ${{ steps.guard.outputs.prerelease }}
     steps:
+      # Shallow: this job only reads /VERSION.
       - uses: actions/checkout@v4
-        with:
-          # Notes are built by diffing against the previous tag, which is not
-          # in a shallow clone.
-          fetch-depth: 0
 
       - name: The tag must agree with /VERSION
-        id: check
+        id: guard
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
           # An optional suffix marks a pre-release: v1.2.3-rc1 is "this build
-          # of 1.2.3", not a claim that 1.2.3 shipped.
+          # of 1.2.3", not a claim that 1.2.3 shipped. Only the part BEFORE the
+          # suffix is checked against /VERSION.
           base="${tag%%-*}"
           suffix="${tag#"$base"}"
           version="$(tr -d '[:space:]' < VERSION)"
@@ -52,24 +60,107 @@ jobs:
             exit 1
           fi
           if [ -n "$suffix" ]; then
-            echo "prerelease=true" >>"$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "tag v${tag} is a pre-release of ${version}"
           else
-            echo "prerelease=false" >>"$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "tag v${tag} matches /VERSION"
           fi
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+
+  # Publish the container images the box actually runs, so a deploy can pull a
+  # KNOWN artifact instead of rebuilding whatever source happened to be in the
+  # working tree at that moment (scripts/patch.sh IMAGE_TAG=...).
+  images:
+    # A tag that disagrees with /VERSION publishes no images: an image tagged
+    # 0.148.0 must contain the code /VERSION calls 0.148.0.
+    needs: guard
+    # The box is arm64. ubuntu-latest is x86_64, so images built there would not
+    # run on it at all — this label is load-bearing, not a preference. GitHub's
+    # arm64 hosted runner is free for public repos, so the build is NATIVE.
+    # QEMU multi-arch was deliberately rejected: the Angular build under
+    # emulation is punishingly slow, and arm64 is the only architecture that has
+    # to run anywhere.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      # Pushing to ghcr.io with the job's GITHUB_TOKEN — no PAT to rotate.
+      packages: write
+    strategy:
+      # One image per DOCKERFILE, not one per service. `api` and `worker` share
+      # docker/api.Dockerfile and differ only in the command compose gives them
+      # (entrypoint-api.sh vs entrypoint-worker.sh), so publishing both would
+      # push identical bytes twice under two names that could then drift.
+      matrix:
+        include:
+          - image: api
+            dockerfile: docker/api.Dockerfile
+          - image: web
+            dockerfile: docker/web.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          # Repo root: api.Dockerfile copies the sibling service packages.
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          # BOTH tags, deliberately. The version is what a human deploys and
+          # what /health reports; the commit SHA is the immutable one — a
+          # version tag could in principle be moved, a SHA cannot, so it is the
+          # tag to use when you need to prove what ran.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/family-cfo-${{ matrix.image }}:${{ needs.guard.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/family-cfo-${{ matrix.image }}:${{ github.sha }}
+          # Scoped per image so the api and web caches never evict each other.
+          # Without this the Angular build starts from zero on every release and
+          # dominates the run.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  release:
+    # Last: the Release is the announcement, and there is no point announcing a
+    # version whose images failed to build.
+    #
+    # `guard` is listed even though `images` already depends on it: needs is
+    # what makes a job's OUTPUTS readable, not just what orders the run, so
+    # without it `needs.guard.outputs.prerelease` resolves to empty and every
+    # rc would quietly publish as a full release.
+    needs: [guard, images]
+    runs-on: ubuntu-latest
+    permissions:
+      # --generate-notes reads merged PRs; creating the release writes.
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Notes are built by diffing against the previous tag, which is not
+          # in a shallow clone.
+          fetch-depth: 0
 
       - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # --generate-notes lists the PRs merged since the previous tag, which
-          # is the honest changelog: it cannot drift from what actually landed.
           prerelease=""
-          if [ "${{ steps.check.outputs.prerelease }}" = "true" ]; then
+          if [ "${{ needs.guard.outputs.prerelease }}" = "true" ]; then
             prerelease="--prerelease"
           fi
+          # --generate-notes lists the PRs merged since the previous tag, which
+          # is the honest changelog: it cannot drift from what actually landed.
           # shellcheck disable=SC2086 # deliberate: empty means "not a pre-release"
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \

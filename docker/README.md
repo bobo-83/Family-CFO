@@ -95,3 +95,12 @@ off-box over SMB).
 
 - `docker/api.Dockerfile` — the API and worker share this image (two entrypoints). Build context is the repo root so the `services/*` packages, `apps/api`, and `database/migrations` are all available; the repo layout is preserved under `/app` so alembic's relative migration path stays valid.
 - `docker/web.Dockerfile` — multi-stage: Node builds the Angular app, nginx serves it.
+
+Both are published to GHCR on a `v*` tag as `ghcr.io/bobo-83/family-cfo-api`
+and `ghcr.io/bobo-83/family-cfo-web` — two images for three services, because
+`api` and `worker` share the one above. They are **arm64 only**: the deployment
+box is arm64 and nothing else has to run. `docker-compose.yml` references them
+via `${FAMILY_CFO_IMAGE_TAG:-dev}`, so with the variable unset compose builds
+from source here exactly as before; set it (or use
+`IMAGE_TAG=… scripts/patch.sh`) to run a published release instead. See
+`docs/guides/deployment.md`.

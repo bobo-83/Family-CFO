@@ -33,6 +33,19 @@
 #   scripts/patch.sh web ios         # the box's web tier AND the phone
 #   SSH_HOST=box scripts/patch.sh web            # a remote box (TARGET inferred)
 #   SSH_HOST="box1 box2" scripts/patch.sh web    # several boxes, in order
+#   IMAGE_TAG=0.148.0 scripts/patch.sh api worker web   # pull a release, don't build
+#
+# IMAGE_TAG — deploy a KNOWN artifact instead of building one:
+#   Without it (the default, and what every existing invocation does) the source
+#   is rebuilt in place: `up -d --build`. What runs is therefore whatever was in
+#   the working tree at that moment, which is not something you can look up
+#   afterwards.
+#   With it, the images published for that release tag are PULLED from GHCR and
+#   started with --no-build, so the running artifact is one that was built once,
+#   on a tag, and can be identified later. Requires a release whose images were
+#   published by .github/workflows/release.yml.
+#   What this pins and what it does NOT: the IMAGE is fixed. The database, .env
+#   and the compose file are not — see docs/guides/deployment.md.
 #
 # Choosing the destination — the two halves differ, deliberately:
 #   * The SERVER is DECLARED, never discovered. TARGET=local is this machine;
@@ -47,6 +60,7 @@
 # Environment overrides (same as scripts/deploy.sh):
 #   TARGET local|remote  SSH_HOST (one or more)  SSH_USER  SSH_PORT  SSH_KEY  REMOTE_DIR
 #   COMPOSE_FILES (default: -f docker-compose.yml)
+#   IMAGE_TAG (default: empty — build from source, as before)
 #   iOS-specific: IOS_DEVICE  IOS_CONFIG  IOS_TEST  NO_LAUNCH  (see scripts/deploy-ios.sh)
 set -euo pipefail
 
@@ -63,6 +77,12 @@ cd "$REPO_ROOT"
 # recreated by a routine patch.
 DEFAULT_SERVICES=(api worker web)
 PROTECTED_SERVICES="vllm db"
+
+# Empty = build from source, which is the behaviour every existing caller gets
+# and the one this script has always had. Set = pull that published tag instead.
+# The two paths are kept strictly separate below rather than parameterising the
+# existing command, so an unset IMAGE_TAG cannot change what runs.
+IMAGE_TAG="${IMAGE_TAG:-}"
 
 # Requested targets = positional args, or the safe default set.
 if [ "$#" -gt 0 ]; then
@@ -170,9 +190,22 @@ if [ "$TARGET" = "local" ]; then
   # shellcheck disable=SC2086
   validate_services "$(docker compose $COMPOSE_FILES config --services 2>/dev/null | tr '\n' ' ')"
 
-  log "Rebuilding and recreating…"
-  # shellcheck disable=SC2086
-  docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
+  if [ -n "$IMAGE_TAG" ]; then
+    log "Pulling published images (tag ${IMAGE_TAG}) and recreating…"
+    # shellcheck disable=SC2086
+    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES pull "${SERVICES[@]}"
+    # An unpublished tag already failed the `pull` above (it exits non-zero,
+    # and set -e stops here). --no-build is the second lock: without it compose
+    # falls back to BUILDING a missing image from the synced source, which is
+    # precisely the silent "you got the working tree, not the release" this
+    # mode exists to prevent.
+    # shellcheck disable=SC2086
+    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build "${SERVICES[@]}"
+  else
+    log "Rebuilding and recreating…"
+    # shellcheck disable=SC2086
+    docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
+  fi
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
   record_deployment "$REPO_ROOT" local "$(detect_host_ip)" "" "" "$REPO_ROOT" "$COMPOSE_FILES"
@@ -240,6 +273,11 @@ patch_remote_host() { # patch_remote_host <host>
 
   validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
 
+  # The sync happens in BOTH modes. In IMAGE_TAG mode the synced source is not
+  # what runs — the pulled image is — but docker-compose.yml itself has to be
+  # present and current on the box for `pull` to know which images to fetch.
+  # This is the honest limit of the reproducibility: the image is pinned to a
+  # release, the compose file is still whatever this working tree holds.
   log "Syncing code to ${ssh_target}:${remote_abs} (excluding .env, data, build artifacts)…"
   rsync -az --delete \
     --exclude '.git' --exclude 'node_modules' --exclude '.venv' \
@@ -247,8 +285,16 @@ patch_remote_host() { # patch_remote_host <host>
     --exclude 'data' --exclude '*.db' --exclude '.env' \
     -e "$rsh" "$REPO_ROOT/" "${ssh_target}:${remote_abs}/"
 
-  log "Rebuilding and recreating on ${ssh_target}…"
-  remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+  if [ -n "$IMAGE_TAG" ]; then
+    log "Pulling published images (tag ${IMAGE_TAG}) on ${ssh_target} and recreating…"
+    # `pull` exits non-zero on a tag that was never published, so the && stops
+    # before anything is recreated. --no-build then stops compose rebuilding a
+    # missing image from the source it just synced.
+    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build ${SERVICES[*]}"
+  else
+    log "Rebuilding and recreating on ${ssh_target}…"
+    remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+  fi
 
   local port
   port="$(remote "grep -E '^WEB_TLS_PORT=' ${remote_abs}/.env | cut -d= -f2" || true)"
