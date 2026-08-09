@@ -521,14 +521,22 @@ spaces — see the `vllm` command comment in `docker-compose.yml`).
    git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
    ```
 
-3. `.github/workflows/release.yml` fires on the tag and creates the GitHub
-   Release, with notes generated from the PRs merged since the previous tag.
-   It **refuses** a tag that disagrees with `/VERSION` — that mismatch means
-   the bump never merged or the tag went on the wrong commit, and it would
-   otherwise produce release notes describing code the release does not
-   contain (`/health` reports `/VERSION`, so the box would claim a version no
-   release matches).
-4. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`.
+3. `.github/workflows/release.yml` fires on the tag and runs three jobs in
+   order — **guard → images → release**:
+   * The guard **refuses** a tag that disagrees with `/VERSION`. That mismatch
+     means the bump never merged or the tag went on the wrong commit, and it
+     would otherwise produce release notes describing code the release does
+     not contain (`/health` reports `/VERSION`, so the box would claim a
+     version no release matches). Nothing is built or published if it fails.
+   * The container images are built and pushed (see below).
+   * The GitHub Release is created last, with notes generated from the PRs
+     merged since the previous tag. Announcing it last means a Release never
+     names a version whose artifacts do not exist — and it keeps a failed run
+     re-runnable, since `gh release create` refuses a release that already
+     exists, so creating it first would make any retry die there and never
+     reach the images.
+4. Deploy the box from the published images:
+   `IMAGE_TAG="$(cat VERSION)" SSH_HOST=<host> scripts/patch.sh api worker web`.
 5. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
    over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
 
@@ -536,3 +544,65 @@ The Release carries notes and the source archives GitHub attaches
 automatically. The signed `.ipa` deliberately stays on the box: publishing an
 app binary to a public repo invites inspection of the certificate-pinning and
 endpoint logic, and the OTA manifest embeds the box's own address.
+
+### Container images
+
+The tag also publishes the images the box runs, to GHCR:
+
+| Image | Services | Built from |
+| --- | --- | --- |
+| `ghcr.io/bobo-83/family-cfo-api` | `api` **and** `worker` | `docker/api.Dockerfile` |
+| `ghcr.io/bobo-83/family-cfo-web` | `web` | `docker/web.Dockerfile` |
+
+Two images, three services: `api` and `worker` are the same image run with
+different commands (`entrypoint-api.sh` vs `entrypoint-worker.sh`), so
+publishing a third would push identical bytes under a name that could drift.
+
+Each is pushed twice — once as the version (`0.148.0`) and once as the commit
+SHA. The version is what you deploy and what `/health` reports; the SHA is the
+immutable one, so it is the tag to cite when you need to prove exactly what ran.
+
+Images are **arm64 only**, built natively on GitHub's `ubuntu-24.04-arm` runner
+(free for public repos). This is not a preference: the box is arm64, and images
+built on the default x86_64 runners would not run on it at all. Multi-arch via
+QEMU was rejected — the Angular build under emulation is punishingly slow, and
+no other architecture has to run.
+
+### Deploying a known artifact
+
+```
+IMAGE_TAG=0.148.0 SSH_HOST=<host> scripts/patch.sh api worker web
+```
+
+With `IMAGE_TAG` set, `patch.sh` **pulls** those images and starts them with
+`--no-build`. Without it, the script behaves exactly as it always has —
+`up -d --build`, rebuilding from the synced working tree. That remains the
+fallback and is the right thing for iterating on an unreleased change.
+
+`--no-build` is deliberate: a tag that was never published fails loudly instead
+of quietly rebuilding local source, which is the whole failure this mode exists
+to prevent.
+
+If the GHCR packages are private, the box needs `docker login ghcr.io` with a
+`read:packages` token once. Making the packages public avoids that.
+
+**What this does and does not pin.** Reproducibility here is narrower than it
+sounds, and it is worth being precise:
+
+* **Fixed** — the application image. Byte-for-byte the artifact built once on
+  the tag, identifiable afterwards by version or SHA. This is the part that
+  used to be unknowable: a source rebuild captured whatever happened to be in
+  the working tree at that moment, which nothing recorded.
+* **NOT fixed — the database.** Migrations still run on `api` startup and are
+  applied forward. Pulling an older tag does **not** roll the schema back, so
+  moving backwards across a migration is not a supported undo.
+* **NOT fixed — `.env`.** It is never synced and never part of an image. The
+  same image tag on two boxes with different `.env` files behaves differently.
+* **NOT fixed — `docker-compose.yml` and the rest of the tree.** `patch.sh`
+  still rsyncs the working tree, because compose has to be present on the box
+  to know which images to pull. Ports, volumes and service wiring therefore
+  still come from your checkout, not from the release. Deploy a tag from a
+  clean checkout of that tag if you want those to match too.
+* **NOT fixed — the pinned third-party images.** `vllm`, `postgres`, `searxng`
+  and friends are `:latest` or a floating major in `docker-compose.yml`, and
+  `patch.sh` never touches them anyway.
