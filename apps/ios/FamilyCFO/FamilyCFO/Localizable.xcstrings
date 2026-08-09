@@ -13783,18 +13783,18 @@
         }
       }
     },
-    "The address you use for the dashboard — ask whoever runs the box if unsure.": {
+    "The address you use for the dashboard, for example 192.168.1.10:8443 — ask whoever runs the box if unsure. Port 8443 is assumed if you leave it off.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Adresas, kuriuo atveriate skydelį — jei nesate tikri, paklauskite serverį prižiūrinčio asmens."
+            "value": "Adresas, kuriuo atveriate skydelį, pavyzdžiui 192.168.1.10:8443 — jei nesate tikri, paklauskite serverį prižiūrinčio asmens. Nenurodžius prievado, naudojamas 8443."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Địa chỉ bạn dùng để vào bảng điều khiển — nếu không chắc, hãy hỏi người quản lý máy."
+            "value": "Địa chỉ bạn dùng để vào bảng điều khiển, ví dụ 192.168.1.10:8443 — nếu không chắc, hãy hỏi người quản lý máy. Bỏ trống cổng thì mặc định là 8443."
           }
         }
       }

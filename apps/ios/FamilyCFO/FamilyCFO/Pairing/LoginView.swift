@@ -73,7 +73,12 @@ struct LoginView: View {
         } header: {
             Text("Your Family CFO server")
         } footer: {
-            Text("The address you use for the dashboard — ask whoever runs the box if unsure.")
+            // #54: the shape belongs on screen BEFORE the attempt. The example
+            // used to live only in the failure message, so the address that
+            // needed correcting was the one that never saw it.
+            Text(
+                "The address you use for the dashboard, for example 192.168.1.10:8443 — ask whoever runs the box if unsure. Port 8443 is assumed if you leave it off."
+            )
         }
     }
 

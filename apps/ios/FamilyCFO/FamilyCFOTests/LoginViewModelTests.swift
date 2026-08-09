@@ -18,6 +18,33 @@ struct LoginViewModelTests {
                 == "https://familycfo.local:8443/api/v1")
     }
 
+    /// #54: the shape a person actually types. Every other case here already
+    /// carried a port, which is exactly why a bare host reached 443 — where
+    /// nothing listens — and reported it as a network problem.
+    @Test func aBareHostGetsTheDefaultPort() {
+        #expect(
+            LoginViewModel.normalizedBaseURL("family-cfo-box")?.absoluteString
+                == "https://family-cfo-box:8443/api/v1")
+        // The case from the field: a MagicDNS name, typed without a port.
+        #expect(
+            LoginViewModel.normalizedBaseURL("box.example.ts.net")?.absoluteString
+                == "https://box.example.ts.net:8443/api/v1")
+        // A scheme does not imply 443 either — nothing serves it.
+        #expect(
+            LoginViewModel.normalizedBaseURL("https://box.example.ts.net")?.absoluteString
+                == "https://box.example.ts.net:8443/api/v1")
+    }
+
+    /// The escape hatch for a reverse proxy: an explicit port always wins.
+    @Test func anExplicitPortIsNeverOverridden() {
+        #expect(
+            LoginViewModel.normalizedBaseURL("box.example.ts.net:443")?.absoluteString
+                == "https://box.example.ts.net:443/api/v1")
+        #expect(
+            LoginViewModel.normalizedBaseURL("https://box:9999/api/v1")?.absoluteString
+                == "https://box:9999/api/v1")
+    }
+
     @Test func keepsAnExistingApiPath() {
         #expect(
             LoginViewModel.normalizedBaseURL("https://box:8443/api/v1")?.absoluteString

@@ -28,14 +28,25 @@ final class LoginViewModel {
     var password: String = ""
     var deviceName: String = UIDevice.current.name
 
+    /// The port the stack serves. compose publishes this and nothing else, so
+    /// an address without a port means this one — not 443, which is what a URL
+    /// otherwise implies and where nothing is listening (#54).
+    static let defaultPort = 8443
+
     /// "192.168.1.10:8443" → https://…/api/v1. Accepts a bare host, host:port,
     /// or a full URL; https is assumed (the box terminates TLS at nginx).
+    ///
+    /// A missing port becomes 8443. Someone fronting the box with a reverse
+    /// proxy on 443 has to say `:443`, which is the right way round: every
+    /// deployment this app supports today serves 8443, so defaulting to 443
+    /// fails for everyone in order to suit no one.
     static func normalizedBaseURL(_ raw: String) -> URL? {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         if !text.contains("://") { text = "https://" + text }
         guard var components = URLComponents(string: text), components.host?.isEmpty == false
         else { return nil }
+        if components.port == nil { components.port = defaultPort }
         components.query = nil
         components.fragment = nil
         var path = components.path
