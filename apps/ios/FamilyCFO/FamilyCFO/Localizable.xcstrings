@@ -9273,6 +9273,22 @@
         }
       }
     },
+    "Nothing is listening at that address and port. The box serves 8443; check the port.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tuo adresu ir prievadu niekas neatsiliepia. Serveris naudoja 8443; patikrinkite prievadą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có gì đang lắng nghe ở địa chỉ và cổng đó. Máy phục vụ ở cổng 8443; hãy kiểm tra lại cổng."
+          }
+        }
+      }
+    },
     "Nothing spent in %@.": {
       "localizations": {
         "lt": {
@@ -13735,6 +13751,22 @@
         }
       }
     },
+    "That name could not be resolved. If it is a tailnet name, check the VPN is connected.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko surasti to pavadinimo. Jei tai tailnet pavadinimas, patikrinkite, ar prisijungta prie VPN."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không phân giải được tên đó. Nếu là tên trong tailnet, hãy kiểm tra VPN đã kết nối chưa."
+          }
+        }
+      }
+    },
     "That photo couldn't be loaded.": {
       "localizations": {
         "lt": {
@@ -13779,6 +13811,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đây là PDF — tệp đính kèm ở đây là ảnh. Hãy chụp màn hình rồi dán ảnh đó."
+          }
+        }
+      }
+    },
+    "The address is reachable in principle but nothing answered in time — usually a firewall between this phone and the box.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Adresas iš esmės pasiekiamas, bet niekas neatsakė laiku — dažniausiai tai ugniasienė tarp telefono ir serverio."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Địa chỉ về nguyên tắc là tới được nhưng không có phản hồi kịp thời — thường là do tường lửa giữa điện thoại và máy."
           }
         }
       }
@@ -14083,6 +14131,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Địa chỉ máy chủ và chứng chỉ đã ghim vẫn ở lại điện thoại này; chỉ phiên đăng nhập của bạn kết thúc."
+          }
+        }
+      }
+    },
+    "The server answered but its certificate was rejected. If the box's certificate was regenerated, this is expected — unpair and pair again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serveris atsakė, bet jo sertifikatas buvo atmestas. Jei serverio sertifikatas buvo sukurtas iš naujo, taip ir turi būti — atsiekite įrenginį ir susiekite iš naujo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ có trả lời nhưng chứng chỉ bị từ chối. Nếu chứng chỉ của máy vừa được tạo lại thì điều này là bình thường — hãy huỷ ghép nối rồi ghép lại."
           }
         }
       }
@@ -14587,6 +14651,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mã ghép nối này là phiên bản %1$lld; ứng dụng hiểu phiên bản %2$lld. Hãy cập nhật ứng dụng."
+          }
+        }
+      }
+    },
+    "This phone lost its network connection.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Telefonas prarado tinklo ryšį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điện thoại đã mất kết nối mạng."
           }
         }
       }
@@ -16585,6 +16665,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "nạp cho %@"
+          }
+        }
+      }
+    },
+    "iOS blocked the connection before it was made (App Transport Security).": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "iOS užblokavo ryšį dar prieš jį užmezgant (App Transport Security)."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS đã chặn kết nối trước khi nó được thiết lập (App Transport Security)."
           }
         }
       }

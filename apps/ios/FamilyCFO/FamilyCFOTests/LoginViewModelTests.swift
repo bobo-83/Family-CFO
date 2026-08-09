@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import FamilyCFO
@@ -49,6 +50,24 @@ struct LoginViewModelTests {
         #expect(
             LoginViewModel.normalizedBaseURL("https://box:8443/api/v1")?.absoluteString
                 == "https://box:8443/api/v1")
+    }
+
+    /// #54 follow-up: the probe used to discard its error, so a certificate
+    /// rejection and an unreachable host produced identical text. Two
+    /// debugging sessions went at the network because of it.
+    @Test func serverCheckNamesTheActualFailure() {
+        let untrusted = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorServerCertificateUntrusted)
+        let certMessage = LoginViewModel.describeServerCheck(untrusted)
+        #expect(certMessage.contains("certificate"))
+        // The raw code travels with it: the operator reading this runs the box.
+        #expect(certMessage.contains("\(NSURLErrorServerCertificateUntrusted)"))
+
+        let refused = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotConnectToHost)
+        #expect(LoginViewModel.describeServerCheck(refused).contains("8443"))
+
+        // Distinct causes must not collapse into the same sentence.
+        #expect(certMessage != LoginViewModel.describeServerCheck(refused))
     }
 
     @Test func rejectsEmptyAndGarbage() {
