@@ -16,6 +16,10 @@ jobs:
       # --generate-notes reads merged PRs; creating the release writes.
       contents: write
       pull-requests: read
+    outputs:
+      # The guarded version, so the image job tags with a value that has
+      # already been checked against /VERSION rather than re-deriving it.
+      version: ${{ steps.guard.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,6 +28,7 @@ jobs:
           fetch-depth: 0
 
       - name: The tag must agree with /VERSION
+        id: guard
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
@@ -39,6 +44,7 @@ jobs:
             exit 1
           fi
           echo "tag v${tag} matches /VERSION"
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Create the release
         env:
@@ -51,3 +57,65 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             --verify-tag
+
+  # Publish the container images the box actually runs, so a deploy can pull a
+  # KNOWN artifact instead of rebuilding whatever source happened to be in the
+  # working tree at that moment (scripts/patch.sh IMAGE_TAG=...).
+  images:
+    # `needs: release` is the guard: the tag/VERSION check lives in that job, so
+    # a tag that disagrees with /VERSION publishes no images either. Images
+    # tagged 0.148.0 must contain the code /VERSION calls 0.148.0.
+    needs: release
+    # The box is arm64. ubuntu-latest is x86_64, so images built there would not
+    # run on it at all — this label is load-bearing, not a preference. GitHub's
+    # arm64 hosted runner is free for public repos, so the build is NATIVE.
+    # QEMU multi-arch was deliberately rejected: the Angular build under
+    # emulation is punishingly slow, and arm64 is the only architecture that has
+    # to run anywhere.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      # Pushing to ghcr.io with the job's GITHUB_TOKEN — no PAT to rotate.
+      packages: write
+    strategy:
+      # One image per DOCKERFILE, not one per service. `api` and `worker` share
+      # docker/api.Dockerfile and differ only in the command compose gives them
+      # (entrypoint-api.sh vs entrypoint-worker.sh), so publishing both would
+      # push identical bytes twice under two names that could then drift.
+      matrix:
+        include:
+          - image: api
+            dockerfile: docker/api.Dockerfile
+          - image: web
+            dockerfile: docker/web.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          # Repo root: api.Dockerfile copies the sibling service packages.
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          # BOTH tags, deliberately. The version is what a human deploys and
+          # what /health reports; the commit SHA is the immutable one — a
+          # version tag could in principle be moved, a SHA cannot, so it is the
+          # tag to use when you need to prove what ran.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/family-cfo-${{ matrix.image }}:${{ needs.release.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/family-cfo-${{ matrix.image }}:${{ github.sha }}
+          # Scoped per image so the api and web caches never evict each other.
+          # Without this the Angular build starts from zero on every release and
+          # dominates the run.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
