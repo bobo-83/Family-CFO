@@ -75,13 +75,64 @@ final class LoginViewModel {
             }
             step = .confirmServer(baseURL: baseURL, fingerprint: capture.capturedSHA256Hex)
         } catch {
-            step = .failed(
-                String(
-                    localized:
-                        "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
-                )
+            step = .failed(Self.describeServerCheck(error))
+        }
+    }
+
+    /// Why the health probe failed, in words that point at the right thing.
+    ///
+    /// This used to discard `error` and always say "could not reach the
+    /// server", which sent two separate debugging sessions at the network
+    /// while the causes were a missing port and something else entirely. Every
+    /// cause produced identical text, so the message was unfalsifiable.
+    ///
+    /// The trailing code is deliberate. A self-hosted box is operated by the
+    /// person reading this, and `NSURLErrorDomain -1202` is the difference
+    /// between "your certificate changed" and "nothing is listening" — worth
+    /// more than a tidier sentence.
+    static func describeServerCheck(_ error: Error) -> String {
+        let nsError = error as NSError
+        let detail = "\(nsError.domain) \(nsError.code)"
+        let explanation: String
+        switch (nsError.domain, nsError.code) {
+        case (NSURLErrorDomain, NSURLErrorServerCertificateUntrusted),
+            (NSURLErrorDomain, NSURLErrorSecureConnectionFailed),
+            (NSURLErrorDomain, NSURLErrorServerCertificateHasBadDate),
+            (NSURLErrorDomain, NSURLErrorServerCertificateNotYetValid):
+            explanation = String(
+                localized:
+                    "The server answered but its certificate was rejected. If the box's certificate was regenerated, this is expected — unpair and pair again."
+            )
+        case (NSURLErrorDomain, NSURLErrorCannotConnectToHost):
+            explanation = String(
+                localized:
+                    "Nothing is listening at that address and port. The box serves 8443; check the port."
+            )
+        case (NSURLErrorDomain, NSURLErrorCannotFindHost):
+            explanation = String(
+                localized:
+                    "That name could not be resolved. If it is a tailnet name, check the VPN is connected."
+            )
+        case (NSURLErrorDomain, NSURLErrorTimedOut):
+            explanation = String(
+                localized:
+                    "The address is reachable in principle but nothing answered in time — usually a firewall between this phone and the box."
+            )
+        case (NSURLErrorDomain, NSURLErrorNotConnectedToInternet),
+            (NSURLErrorDomain, NSURLErrorNetworkConnectionLost):
+            explanation = String(
+                localized: "This phone lost its network connection.")
+        case (NSURLErrorDomain, NSURLErrorAppTransportSecurityRequiresSecureConnection):
+            explanation = String(
+                localized:
+                    "iOS blocked the connection before it was made (App Transport Security).")
+        default:
+            explanation = String(
+                localized:
+                    "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
             )
         }
+        return "\(explanation)\n\n[\(detail): \(nsError.localizedDescription)]"
     }
 
     func confirmServer() {
