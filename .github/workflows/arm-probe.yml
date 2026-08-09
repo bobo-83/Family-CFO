@@ -1,6 +1,8 @@
 name: ARM Runner Probe
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - 'tmp/arm-probe'
 jobs:
   probe:
     runs-on: ubuntu-24.04-arm
