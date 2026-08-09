@@ -1,14 +1,14 @@
 """#41: what "today" means for a given household.
 
 `date.today()` is the date where the PROCESS runs. The API container runs UTC,
-so for a household in New York the app believed it was tomorrow from 8pm local
-every evening — bills read due-soon a day early, items flipped to overdue, and
+so for a household west of UTC the app believed it was tomorrow from the early
+evening onward — bills read due-soon a day early, items flipped to overdue, and
 safe-to-spend's horizon slid. Nothing was corrupted; the picture was simply a
-day ahead for four hours a night.
+day ahead for the last few hours of each evening.
 
 Hosting more than one household makes it structural rather than cosmetic: a box
-serving New York and Edinburgh cannot have one shared "today" that is correct
-for both.
+serving households in different zones cannot have one shared "today" that is
+correct for all of them.
 
 Resolution order, most specific first:
 
