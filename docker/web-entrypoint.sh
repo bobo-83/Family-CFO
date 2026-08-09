@@ -43,8 +43,23 @@ if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
   IFS="$OLD_IFS"
 
   echo "  subjectAltName=${san}"
+  # 397 days, NOT the 825 this used to be. Apple caps TLS server certificates
+  # at 398 days: over that, iOS refuses the connection during the HANDSHAKE
+  # (NSURLErrorDomain -1200), before trust evaluation — so an app's
+  # certificate-accepting delegate never gets a say and pinning cannot help.
+  # Safari still works, because a human can tap through a warning and
+  # URLSession cannot, which makes this fail in the app while looking fine in
+  # a browser. 825 was the pre-2020 limit and is simply stale.
+  #
+  # A certificate installed and trusted as a profile on the device is exempt
+  # (the limit applies to system trust anchors), which is why a box whose cert
+  # predates this can keep working until the cert is regenerated.
+  #
+  # The cost is real: the certificate now expires yearly, and regenerating it
+  # changes the SHA-256 that paired devices pin, so every device re-pairs.
+  # 397 rather than 398 leaves room for clock skew.
   openssl req -x509 -newkey rsa:2048 -nodes \
-    -keyout "$KEY" -out "$CERT" -days 825 \
+    -keyout "$KEY" -out "$CERT" -days 397 \
     -subj "/CN=${CN}" \
     -addext "subjectAltName=${san}" >/dev/null 2>&1
 fi
