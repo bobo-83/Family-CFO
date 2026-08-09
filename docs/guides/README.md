@@ -12,6 +12,9 @@ design specs and decisions, see the [Spec Kit](../specs/README.md) and
 - [AI Advisor](./ai-advisor.md) — deploying the local vLLM runtime and testing
   the agentic tool-calling advisor end-to-end (model choice, tool-calling flags,
   opt-in config, and how to confirm the model actually engaged).
+- [Second Household Access](./second-household-access.md) — letting a family
+  that is not on your LAN reach the box over Tailscale node sharing, without
+  exposing it to the internet or routing their traffic through your home.
 - [Backup and Restore](./backup-and-restore.md) — the encryption key, taking
   backups, restoring, and the version-match requirement.
 - [Tax Parameter Updates](./tax-parameter-updates.md) — refreshing the
