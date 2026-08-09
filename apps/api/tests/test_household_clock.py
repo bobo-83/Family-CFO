@@ -8,9 +8,9 @@ from family_cfo_api import household_clock
 
 
 def test_the_household_zone_decides_the_date() -> None:
-    """The bug in one assertion: at 00:30 UTC it is still the previous day in
-    New York, and already that day in Edinburgh. A UTC container answered
-    'today' wrongly for one of them."""
+    """The bug in one assertion: at 00:30 UTC a household west of UTC is still
+    on the previous day while one east of it has already turned over. A UTC
+    container answered 'today' wrongly for one of them."""
     at_0030_utc = datetime(2026, 8, 9, 0, 30, tzinfo=UTC)
     with mock.patch("family_cfo_api.household_clock.datetime") as clock:
         clock.now.side_effect = lambda tz=None: at_0030_utc.astimezone(tz)
@@ -65,8 +65,8 @@ async def test_timezone_round_trips_and_is_validated(demo_client, demo_token):
 
 @pytest.mark.anyio
 async def test_date_math_follows_the_household_zone(demo_client, demo_token, demo_engine):
-    """#41 end to end: a bill due 'today' in Edinburgh must not read as due
-    tomorrow because the container is in another zone."""
+    """#41 end to end: a bill due 'today' in the household's own zone must not
+    read as due tomorrow because the container is in another zone."""
     from family_cfo_api import finance_service, household_clock, repository
 
     headers = {"Authorization": f"Bearer {demo_token}"}

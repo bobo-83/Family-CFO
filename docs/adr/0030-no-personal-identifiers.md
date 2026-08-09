@@ -43,6 +43,22 @@ placeholders. Concretely:
    login `alex`), never the maintainer's real name.
 5. **No secrets, ever** — enforced separately by gitleaks; production requires
    them via env (compose fails without `POSTGRES_PASSWORD`), never a default.
+6. **No locations and no home-network hardware** (2026-08-08) — never name the
+   city, region, or neighbourhood where the operator or any hosted household
+   lives, and never name the make or model of the home router, mesh system, or
+   ISP equipment. This applies to issues and pull request bodies as much as to
+   code and commit messages; all three are public.
+
+   Two of these together are close to an address, and the router model narrows
+   which CVEs are worth trying against the network the box sits behind. Both
+   are easy to write without noticing, because they feel like context rather
+   than data — "a household in <city>" reads as a scenario, not a disclosure.
+
+   Say what the software needs instead: **"a household west of UTC"**, **"two
+   households in different zones"**, **"the operator's existing VPN"**. IANA
+   zone identifiers (`Europe/London`) are fine as generic test data or picker
+   entries — they are the domain's vocabulary. What is not fine is prose that
+   ties a zone to the people who actually live there.
 
 ## Enforcement
 
