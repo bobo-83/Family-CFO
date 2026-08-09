@@ -1,0 +1,12 @@
+name: ARM Runner Probe
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Report architecture
+        run: |
+          echo "ARCH=$(uname -m)"
+          echo "RUNNER_ARCH=${RUNNER_ARCH}"
+          docker version --format '{{.Server.Arch}}' || true
