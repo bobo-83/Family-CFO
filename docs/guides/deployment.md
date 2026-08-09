@@ -508,3 +508,31 @@ spaces — see the `vllm` command comment in `docker-compose.yml`).
 > repointed to `http://host.docker.internal:8000` (one UPDATE on
 > `ai_runtime_configs`, or re-save from the AI runtime page) — otherwise chat
 > reports the runtime unreachable while the deployment default works fine.
+
+## Cutting a release
+
+`/VERSION` is the source of truth (ADR 0029). The sequence:
+
+1. Bump `/VERSION` in a `chore(release): X.Y.Z` PR and merge it.
+2. Tag the merge commit and push the tag:
+
+   ```
+   git checkout main && git pull
+   git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
+   ```
+
+3. `.github/workflows/release.yml` fires on the tag and creates the GitHub
+   Release, with notes generated from the PRs merged since the previous tag.
+   It **refuses** a tag that disagrees with `/VERSION` — that mismatch means
+   the bump never merged or the tag went on the wrong commit, and it would
+   otherwise produce release notes describing code the release does not
+   contain (`/health` reports `/VERSION`, so the box would claim a version no
+   release matches).
+4. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`.
+5. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
+   over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
+
+The Release carries notes and the source archives GitHub attaches
+automatically. The signed `.ipa` deliberately stays on the box: publishing an
+app binary to a public repo invites inspection of the certificate-pinning and
+endpoint logic, and the OTA manifest embeds the box's own address.

@@ -1,0 +1,53 @@
+name: Release
+
+# A GitHub Release is cut when a vX.Y.Z tag lands, so it is a consequence of
+# tagging rather than a step someone has to remember after the fact. Before
+# this, /VERSION was the only record of a release and nothing on GitHub said
+# what shipped when.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # --generate-notes reads merged PRs; creating the release writes.
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Notes are built by diffing against the previous tag, which is not
+          # in a shallow clone.
+          fetch-depth: 0
+
+      - name: The tag must agree with /VERSION
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          # A tag that disagrees with VERSION means the bump PR never merged,
+          # or the tag went on the wrong commit. Both produce a release whose
+          # notes describe code the artifacts do not contain, and /VERSION is
+          # what the running API reports at /health — so the mismatch would
+          # surface later as a box that claims a version no release matches.
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag v${tag} does not match /VERSION (${version})."
+            echo "Tag the commit that bumped VERSION, or fix the tag." >&2
+            exit 1
+          fi
+          echo "tag v${tag} matches /VERSION"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # --generate-notes lists the PRs merged since the previous tag, which
+          # is the honest changelog: it cannot drift from what actually landed.
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag
