@@ -509,30 +509,60 @@ spaces — see the `vllm` command comment in `docker-compose.yml`).
 > `ai_runtime_configs`, or re-save from the AI runtime page) — otherwise chat
 > reports the runtime unreachable while the deployment default works fine.
 
-## Cutting a release
+## Shipping a build, and releasing one
 
-`/VERSION` is the source of truth (ADR 0029). The sequence:
+These are **two separate acts**, deliberately. Bumping `/VERSION` ships a build
+you can test; tagging cuts a release. Nothing about a version bump creates a
+GitHub Release, so you can bump, deploy, and test as many times as you like
+before deciding anything is worth releasing.
 
-1. Bump `/VERSION` in a `chore(release): X.Y.Z` PR and merge it.
-2. Tag the merge commit and push the tag:
+`/VERSION` is the source of truth for what the running stack reports (ADR
+0029); a tag is a claim that a particular version was good.
 
-   ```
-   git checkout main && git pull
-   git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
-   ```
+### Ship a test build
 
-3. `.github/workflows/release.yml` fires on the tag and creates the GitHub
-   Release, with notes generated from the PRs merged since the previous tag.
-   It **refuses** a tag that disagrees with `/VERSION` — that mismatch means
-   the bump never merged or the tag went on the wrong commit, and it would
-   otherwise produce release notes describing code the release does not
-   contain (`/health` reports `/VERSION`, so the box would claim a version no
-   release matches).
-4. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`.
-5. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
+1. Bump `/VERSION` in a `chore(release): X.Y.Z` PR and merge it. TestFlight
+   requires a version it has not seen, which is why testing needs a bump at
+   all.
+2. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`.
+3. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
    over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
 
-The Release carries notes and the source archives GitHub attaches
-automatically. The signed `.ipa` deliberately stays on the box: publishing an
-app binary to a public repo invites inspection of the certificate-pinning and
-endpoint logic, and the OTA manifest embeds the box's own address.
+Then use it. No tag exists yet, so no release exists yet.
+
+To rebuild at the **same** version — a fix that does not deserve a bump —
+re-run with `FORCE_SAME_VERSION=1`; the build number is a timestamp, so
+TestFlight still sees it as new.
+
+### Cut the release, once you are satisfied
+
+```
+git checkout main && git pull
+git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
+```
+
+`.github/workflows/release.yml` fires on the tag and creates the GitHub
+Release, with notes generated from the PRs merged since the previous tag.
+
+It **refuses a tag whose version disagrees with `/VERSION` at that commit** —
+that mismatch means the bump never merged or the tag went on the wrong commit,
+and the notes would then describe code the release does not contain (`/health`
+reports `/VERSION`, so the box would claim a version no release matches).
+
+If a version turns out bad in testing, simply never tag it: bump again and
+carry on. Untagged versions leave no trace on the releases page.
+
+### Marking a build as a pre-release
+
+A tag may carry a suffix — `v0.149.0-rc1`, `v0.149.0-beta2` — as long as the
+part before the suffix matches `/VERSION`. Those are published as **GitHub
+pre-releases**, so a build can be recorded and shared without claiming to be
+the release. Useful when someone else is testing and you want a fixed thing to
+point at.
+
+### What a Release carries
+
+Notes, and the source archives GitHub attaches automatically. The signed `.ipa`
+deliberately stays on the box: publishing an app binary to a public repo
+invites inspection of the certificate-pinning and endpoint logic, and the OTA
+manifest embeds the box's own address.

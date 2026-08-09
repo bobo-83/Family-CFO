@@ -4,6 +4,14 @@ name: Release
 # tagging rather than a step someone has to remember after the fact. Before
 # this, /VERSION was the only record of a release and nothing on GitHub said
 # what shipped when.
+#
+# Bumping /VERSION does NOT release anything — TestFlight needs a version it
+# has not seen, so a bump is how you ship something to TEST. The tag is the
+# separate, later claim that the version was good. A version that fails
+# testing is simply never tagged and leaves no trace on the releases page.
+#
+# A suffix (v1.2.3-rc1) publishes a PRE-release, so a build can be recorded
+# and shared without claiming to be the release.
 on:
   push:
     tags:
@@ -24,21 +32,32 @@ jobs:
           fetch-depth: 0
 
       - name: The tag must agree with /VERSION
+        id: check
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
+          # An optional suffix marks a pre-release: v1.2.3-rc1 is "this build
+          # of 1.2.3", not a claim that 1.2.3 shipped.
+          base="${tag%%-*}"
+          suffix="${tag#"$base"}"
           version="$(tr -d '[:space:]' < VERSION)"
           # A tag that disagrees with VERSION means the bump PR never merged,
           # or the tag went on the wrong commit. Both produce a release whose
           # notes describe code the artifacts do not contain, and /VERSION is
           # what the running API reports at /health — so the mismatch would
           # surface later as a box that claims a version no release matches.
-          if [ "$tag" != "$version" ]; then
+          if [ "$base" != "$version" ]; then
             echo "::error::tag v${tag} does not match /VERSION (${version})."
             echo "Tag the commit that bumped VERSION, or fix the tag." >&2
             exit 1
           fi
-          echo "tag v${tag} matches /VERSION"
+          if [ -n "$suffix" ]; then
+            echo "prerelease=true" >>"$GITHUB_OUTPUT"
+            echo "tag v${tag} is a pre-release of ${version}"
+          else
+            echo "prerelease=false" >>"$GITHUB_OUTPUT"
+            echo "tag v${tag} matches /VERSION"
+          fi
 
       - name: Create the release
         env:
@@ -47,7 +66,12 @@ jobs:
           set -euo pipefail
           # --generate-notes lists the PRs merged since the previous tag, which
           # is the honest changelog: it cannot drift from what actually landed.
+          prerelease=""
+          if [ "${{ steps.check.outputs.prerelease }}" = "true" ]; then
+            prerelease="--prerelease"
+          fi
+          # shellcheck disable=SC2086 # deliberate: empty means "not a pre-release"
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            --verify-tag
+            --verify-tag $prerelease
