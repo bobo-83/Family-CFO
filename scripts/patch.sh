@@ -146,6 +146,40 @@ for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
   done
 done
 
+# #57: the guard above checks the list you PASS. It never stopped compose from
+# acting on services it pulls in behind them: `api` declares
+# depends_on: [db, vllm], so `up -d api` put vllm in the operation set and
+# recreated it whenever its container no longer matched — reloading the model
+# and taking chat down for minutes during a deploy that changed nothing about
+# the AI runtime. The protection was real but sat one layer too high.
+#
+# Every `up` below therefore passes --no-deps: this script touches exactly the
+# services it was asked to and nothing behind them.
+#
+# The cost of --no-deps is that dependencies are no longer started implicitly,
+# so a stack that is DOWN is no longer brought up as a side effect. That is the
+# right split — patch.sh patches a running stack, deploy.sh stands one up — but
+# it must be said out loud rather than discovered, hence require_running_deps.
+require_running_deps() {
+  # $1: newline-separated list of services currently running.
+  running="$1"
+  case "$running" in
+    *db*) ;;
+    *)
+      die "The database is not running, and --no-deps means this script will
+       not start it (#57). This patches a RUNNING stack; use scripts/deploy.sh
+       to stand one up, or 'docker compose up -d db' first."
+      ;;
+  esac
+  # vllm is deliberately NOT required: running without the local AI runtime is
+  # a supported configuration (FAMILY_CFO_AI_ENABLED=false, or --scale vllm=0),
+  # and demanding it would break those deployments for no benefit.
+  case "$running" in
+    *vllm*) ;;
+    *) log "Note: vllm is not running; it will be left alone (--no-deps)." ;;
+  esac
+}
+
 # Reject a name that is neither `ios` nor a real compose service, so a typo
 # fails here with something readable instead of surfacing as a Docker error
 # three steps later (or, worse, as a no-op that looks like success).
@@ -190,6 +224,9 @@ if [ "$TARGET" = "local" ]; then
   # shellcheck disable=SC2086
   validate_services "$(docker compose $COMPOSE_FILES config --services 2>/dev/null | tr '\n' ' ')"
 
+  # shellcheck disable=SC2086
+  require_running_deps "$(docker compose $COMPOSE_FILES ps --services --status running 2>/dev/null)"
+
   if [ -n "$IMAGE_TAG" ]; then
     log "Pulling published images (tag ${IMAGE_TAG}) and recreating…"
     # shellcheck disable=SC2086
@@ -200,11 +237,11 @@ if [ "$TARGET" = "local" ]; then
     # precisely the silent "you got the working tree, not the release" this
     # mode exists to prevent.
     # shellcheck disable=SC2086
-    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build "${SERVICES[@]}"
+    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build --no-deps "${SERVICES[@]}"
   else
     log "Rebuilding and recreating…"
     # shellcheck disable=SC2086
-    docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
+    docker compose $COMPOSE_FILES up -d --build --no-deps "${SERVICES[@]}"
   fi
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
@@ -273,6 +310,8 @@ patch_remote_host() { # patch_remote_host <host>
 
   validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
 
+  require_running_deps "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} ps --services --status running 2>/dev/null" || true)"
+
   # The sync happens in BOTH modes. In IMAGE_TAG mode the synced source is not
   # what runs — the pulled image is — but docker-compose.yml itself has to be
   # present and current on the box for `pull` to know which images to fetch.
@@ -290,10 +329,10 @@ patch_remote_host() { # patch_remote_host <host>
     # `pull` exits non-zero on a tag that was never published, so the && stops
     # before anything is recreated. --no-build then stops compose rebuilding a
     # missing image from the source it just synced.
-    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build ${SERVICES[*]}"
+    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build --no-deps ${SERVICES[*]}"
   else
     log "Rebuilding and recreating on ${ssh_target}…"
-    remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+    remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build --no-deps ${SERVICES[*]}"
   fi
 
   local port
