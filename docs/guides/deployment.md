@@ -521,18 +521,23 @@ spaces — see the `vllm` command comment in `docker-compose.yml`).
    git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
    ```
 
-3. `.github/workflows/release.yml` fires on the tag and creates the GitHub
-   Release, with notes generated from the PRs merged since the previous tag.
-   It **refuses** a tag that disagrees with `/VERSION` — that mismatch means
-   the bump never merged or the tag went on the wrong commit, and it would
-   otherwise produce release notes describing code the release does not
-   contain (`/health` reports `/VERSION`, so the box would claim a version no
-   release matches).
-4. The same workflow builds and pushes the container images (see below), so by
-   the time the Release appears the artifacts to deploy already exist.
-5. Deploy the box from the published images:
+3. `.github/workflows/release.yml` fires on the tag and runs three jobs in
+   order — **guard → images → release**:
+   * The guard **refuses** a tag that disagrees with `/VERSION`. That mismatch
+     means the bump never merged or the tag went on the wrong commit, and it
+     would otherwise produce release notes describing code the release does
+     not contain (`/health` reports `/VERSION`, so the box would claim a
+     version no release matches). Nothing is built or published if it fails.
+   * The container images are built and pushed (see below).
+   * The GitHub Release is created last, with notes generated from the PRs
+     merged since the previous tag. Announcing it last means a Release never
+     names a version whose artifacts do not exist — and it keeps a failed run
+     re-runnable, since `gh release create` refuses a release that already
+     exists, so creating it first would make any retry die there and never
+     reach the images.
+4. Deploy the box from the published images:
    `IMAGE_TAG="$(cat VERSION)" SSH_HOST=<host> scripts/patch.sh api worker web`.
-6. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
+5. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
    over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
 
 The Release carries notes and the source archives GitHub attaches
