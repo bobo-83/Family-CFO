@@ -363,21 +363,29 @@ def role_deleted(before: repository.RoleRecord) -> str:
 def category_deleted(
     category: repository.CategoryRecord,
     transaction_ids: list[str],
+    bill_ids: list[str],
     budget: repository.BudgetRecord | None,
 ) -> str:
-    """#72: deleting a category is three changes, not one — the category row, the
-    ``category_id`` nulled on every transaction filed under it, and the budget
-    envelope deleted with it. The token carries all three, and the category
-    comes back under its ORIGINAL id so the transactions and the envelope point
-    at the same category they did before.
+    """#72: deleting a category is four changes, not one — the category row, the
+    ``category_id`` nulled on every transaction filed under it, the same nulled
+    on every bill filed under it (#76), and the budget envelope deleted with it.
+    The token carries all four, and the category comes back under its ORIGINAL
+    id so the transactions, the bills and the envelope point at the same
+    category they did before.
 
-    ``transaction_ids`` is read with :data:`SNAPSHOT_ROW_LIMIT` + 1 rows: one
-    over the limit means the household files more transactions here than a
-    single audit row can hold, and the honest answer is IRREVERSIBLE (#71).
+    ``transaction_ids`` and ``bill_ids`` are each read with
+    :data:`SNAPSHOT_ROW_LIMIT` + 1 rows: one over the limit means the household
+    files more rows here than a single audit row can hold, and the honest answer
+    is IRREVERSIBLE (#71).
     """
     if len(transaction_ids) > SNAPSHOT_ROW_LIMIT:
         return irreversible(
             f"more than {SNAPSHOT_ROW_LIMIT} transactions were filed under this "
+            "category; their categories cannot be restored"
+        )
+    if len(bill_ids) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"more than {SNAPSHOT_ROW_LIMIT} bills were filed under this "
             "category; their categories cannot be restored"
         )
     return json.dumps(
@@ -388,6 +396,7 @@ def category_deleted(
                 "id": category.id,
                 "name": category.name,
                 "transaction_ids": transaction_ids,
+                "bill_ids": bill_ids,
                 "budget": (
                     {
                         "id": budget.id,
@@ -1178,10 +1187,11 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             engine, household_id, data["grant_id"], _date(data["vest_date"]), data["units"]
         )
     elif entity == "category":
-        # #72: the whole footprint of a category delete — the row under its
-        # ORIGINAL id, the transactions whose category it nulled, and the budget
-        # envelope it deleted. Tokens minted before #72 carry only the name, so
-        # they still recreate under a fresh id and restore nothing else.
+        # #72/#76: the whole footprint of a category delete — the row under its
+        # ORIGINAL id, the transactions and the bills whose category it nulled,
+        # and the budget envelope it deleted. Tokens minted before #72 carry only
+        # the name, so they still recreate under a fresh id and restore nothing
+        # else; tokens minted between #72 and #76 have no `bill_ids`.
         category = repository.create_category(
             engine, household_id, data["name"], category_id=data.get("id")
         )
@@ -1190,6 +1200,9 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             repository.set_transactions_category(
                 engine, household_id, transaction_ids, category.id
             )
+        bill_ids = [str(i) for i in (data.get("bill_ids") or [])]
+        if bill_ids:
+            repository.set_bills_category(engine, household_id, bill_ids, category.id)
         budget = data.get("budget")
         if budget:
             repository.create_budget(

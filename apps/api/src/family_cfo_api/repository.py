@@ -1994,6 +1994,28 @@ def transaction_ids_for_category(
         return [row[0] for row in conn.execute(query)]
 
 
+def bill_ids_for_category(
+    engine: Engine, household_id: str, category_id: str, limit: int
+) -> list[str]:
+    """Ids of the bills filed under a category, at most ``limit`` + 1.
+
+    Same shape as :func:`transaction_ids_for_category`: the extra row tells the
+    caller the set is larger than ``limit`` (#71). A household's recurring bills
+    are a hand-curated list of tens, not thousands, so the bound is very unlikely
+    to bind — it is here so the token cannot grow without one (#76).
+    """
+    query = (
+        select(models.bills.c.id)
+        .where(
+            models.bills.c.household_id == household_id,
+            models.bills.c.category_id == category_id,
+        )
+        .limit(limit + 1)
+    )
+    with engine.connect() as conn:
+        return [row[0] for row in conn.execute(query)]
+
+
 def create_category(
     engine: Engine, household_id: str, name: str, category_id: str | None = None
 ) -> CategoryRecord:
@@ -2014,9 +2036,19 @@ def create_category(
 
 
 def delete_category(engine: Engine, household_id: str, category_id: str) -> bool:
-    """Delete a category, first nulling it on any transactions that reference it.
+    """Delete a category, first clearing every row that references it.
 
-    Any budget envelope for the category (M46) is deleted with it.
+    Four columns carry a foreign key onto ``transaction_categories.id``:
+    ``transactions.category_id`` and ``bills.category_id`` (both nullable, so
+    they are nulled), ``budgets.category_id`` (NOT NULL, so the envelope is
+    deleted with the category, M46), and ``transaction_categories``'s own
+    ``parent_category_id`` — which no code path ever writes as anything but
+    NULL, so there are no children to reparent.
+
+    #76: ``bills`` was missed. On SQLite that left the bill pointing at a row
+    that no longer existed; on Postgres, which enforces the constraint, the
+    DELETE below raised and the whole endpoint 500'd. All of it happens in one
+    transaction so the category can never outlive its references, or vice versa.
     """
     with engine.begin() as conn:
         exists = conn.execute(
@@ -2033,6 +2065,17 @@ def delete_category(engine: Engine, household_id: str, category_id: str) -> bool
                 models.transactions.c.household_id == household_id,
                 models.transactions.c.category_id == category_id,
             )
+            .values(category_id=None)
+        )
+        conn.execute(
+            update(models.bills)
+            .where(
+                models.bills.c.household_id == household_id,
+                models.bills.c.category_id == category_id,
+            )
+            # `updated_at` is deliberately left alone: this is a cascade from the
+            # category delete, not an edit of the bill, and ADR 0073's round trip
+            # has to land on the row exactly as it was.
             .values(category_id=None)
         )
         conn.execute(
@@ -5398,6 +5441,29 @@ def set_transactions_category(
             .where(
                 models.transactions.c.household_id == household_id,
                 models.transactions.c.id.in_(transaction_ids),
+            )
+            .values(category_id=category_id)
+        )
+    return result.rowcount
+
+
+def set_bills_category(
+    engine: Engine, household_id: str, bill_ids: list[str], category_id: str
+) -> int:
+    """Re-file a set of bills under one category. Returns the count updated.
+
+    #76: the counterpart of the null `delete_category` writes, so undoing a
+    category delete puts the bills' link back (ADR 0073). `updated_at` is left
+    as it was, for the reason given in :func:`delete_category`.
+    """
+    if not bill_ids:
+        return 0
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.bills)
+            .where(
+                models.bills.c.household_id == household_id,
+                models.bills.c.id.in_(bill_ids),
             )
             .values(category_id=category_id)
         )
