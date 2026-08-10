@@ -1996,6 +1996,12 @@ class InviteAcceptRequest(BaseModel):
     token: str = Field(min_length=1)
     password: str = Field(min_length=8)
     display_name: str = Field(min_length=1, max_length=120)
+    # #93: IANA zone the invitee is in, pre-filled by their device. Optional —
+    # an invite accepted without one behaves exactly as before and the
+    # household stays on FAMILY_CFO_DEFAULT_TIMEZONE. Validated in the endpoint
+    # against the zone database; applied ONLY if the household has no zone yet,
+    # so a second member joining cannot move an established household.
+    timezone: str | None = None
 
 
 class AccountCreateRequest(BaseModel):

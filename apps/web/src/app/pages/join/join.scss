@@ -33,6 +33,18 @@
   margin-top: 0.5rem;
 }
 
+/* #93: the time-zone picker sits with the other fields; the form is a column,
+   so it only needs the same rhythm as the inputs above it. */
+.join__timezone {
+  width: 100%;
+}
+
+.join__hint {
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+  font-size: 0.8rem;
+  margin: 0.35rem 0 1rem;
+}
+
 .join__expiry {
   display: block;
   margin-top: 0.35rem;

@@ -1966,6 +1966,10 @@ export type InviteAcceptRequest = {
     token: string;
     password: string;
     display_name: string;
+    /**
+     * "#93: IANA zone (e.g. Europe/London) the invitee is in, pre-filled by their device. Optional — omit it and the household keeps today's behaviour, following the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE). Rejected with 422 if unknown, before the one-time invite is claimed. Applied ONLY when the household has no zone of its own, so a second member joining cannot move an established household to their zone."
+     */
+    timezone?: string | null;
 };
 
 export type MemberRoleUpdateRequest = {
@@ -3366,6 +3370,10 @@ export type AcceptInviteErrors = {
      * Error response
      */
     410: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
     /**
      * Error response
      */

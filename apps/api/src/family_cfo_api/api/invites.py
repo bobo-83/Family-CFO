@@ -13,7 +13,15 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, household_crypto, repository, rights, security, undo_actions
+from family_cfo_api import (
+    audit,
+    household_clock,
+    household_crypto,
+    repository,
+    rights,
+    security,
+    undo_actions,
+)
 from family_cfo_api.api.auth import _issue_session
 from family_cfo_api.api.members import _resolve_role
 from family_cfo_api.config import Settings
@@ -274,6 +282,7 @@ async def preview_invite(
         404: {"description": "Unknown invite token", "model": ErrorResponse},
         409: {"description": "Email already has an account", "model": ErrorResponse},
         410: {"description": "Invite no longer usable", "model": ErrorResponse},
+        422: {"description": "Unknown timezone", "model": ErrorResponse},
         429: {"description": "Too many attempts", "model": ErrorResponse},
     },
     summary="Public: accept an invite — set your own password and join the household",
@@ -286,6 +295,15 @@ async def accept_invite(
     rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
 ) -> AuthSession:
     keys = _limit_or_429(rate_limiter, request)
+
+    # #93: validated BEFORE the invite is claimed. Accepting is one-shot — a
+    # typo'd zone must cost the invitee a retry, not their only link.
+    # A blank field is "didn't answer", not a bad zone: clients that submit an
+    # untouched input must land on today's behaviour, not a 422.
+    timezone = (payload.timezone or "").strip() or None
+    if timezone is not None and not household_clock.is_known_zone(timezone):
+        raise HTTPException(status_code=422, detail=household_clock.UNKNOWN_TIMEZONE_DETAIL)
+
     result = repository.accept_invite(
         engine,
         token_hash=security.hash_token(payload.token),
@@ -311,6 +329,14 @@ async def accept_invite(
     household_crypto.on_password_established(
         engine, result.household_id, result.user_id, payload.password
     )
+    # #93: adopt the invitee's zone ONLY if the household has never had one.
+    # A second member joining from elsewhere must not silently re-date every
+    # bill for the people already there, so this is a conditional write, not a
+    # set — see repository.set_household_timezone_if_unset.
+    adopted = timezone is not None and repository.set_household_timezone_if_unset(
+        engine, result.household_id, timezone
+    )
+    joined = f"{payload.display_name.strip()} joined via invite"
     audit.write_audit(
         engine,
         result.household_id,
@@ -318,7 +344,9 @@ async def accept_invite(
         "invite.accepted",
         "member",
         result.user_id,
-        f"{payload.display_name.strip()} joined via invite",
+        # Never a silent mutation: the audit log names the zone when one was
+        # adopted, so an owner can see why "today" moved.
+        f"{joined} and set the household time zone to {timezone}" if adopted else joined,
     )
     return _issue_session(
         engine, result.user_id, result.household_id, result.role, settings.session_ttl_hours

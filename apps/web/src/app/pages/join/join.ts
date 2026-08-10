@@ -10,6 +10,8 @@ import type { InvitePreview } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { setAuthState } from '../../core/token-store';
 import { apiErrorMessage } from '../../shared/api-error';
+import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
+import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT, browserTimezone } from '../../shared/timezones';
 
 /**
  * ADR 0056: the invite landing page. The admin shared a one-time link whose
@@ -26,6 +28,7 @@ import { apiErrorMessage } from '../../shared/api-error';
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
+    TimezonePicker,
   ],
   templateUrl: './join.html',
   styleUrl: './join.scss',
@@ -47,6 +50,28 @@ export class Join {
 
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+
+  // --- #93: where the person joining actually is -----------------------------
+  //
+  // The household's zone (#41) decides what "today" means for every bill and
+  // due date. Acceptance is the only moment the person who knows the answer is
+  // present, so it is asked here rather than left to a settings page nobody
+  // visits. Pre-filled from the browser: confirming a guess is a different
+  // thing from filling an empty field.
+  //
+  // Blank is a real answer — the household then follows the box's own zone,
+  // exactly as it did before this existed. The server applies it only if the
+  // household has no zone yet, so a second member joining from elsewhere
+  // cannot move everyone else's dates.
+  protected readonly timezone = signal(browserTimezone() ?? '');
+
+  protected readonly timezoneHint = TIMEZONE_HINT;
+
+  protected pickTimezone(choice: string): void {
+    // #43's sentinel row means "follow the box's own zone" — here that is
+    // simply not sending one.
+    this.timezone.set(choice === TIMEZONE_BOX_DEFAULT ? '' : choice);
+  }
 
   constructor() {
     this.token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token') ?? '';
@@ -78,10 +103,13 @@ export class Join {
     this.submitting.set(true);
     this.submitError.set(null);
     const { displayName, password } = this.form.getRawValue();
+    const timezone = this.timezone();
     const { data, error } = await this.api.acceptInvite({
       token: this.token,
       password,
       display_name: displayName,
+      // Omitted, not null, when they cleared it: today's behaviour exactly.
+      ...(timezone ? { timezone } : {}),
     });
     this.submitting.set(false);
     if (error || !data) {

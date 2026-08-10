@@ -1,0 +1,9 @@
+// The host carries the width the page wants (Overview sizes it against the
+// language selector beside it); the field simply fills it.
+:host {
+  display: block;
+}
+
+mat-form-field {
+  width: 100%;
+}

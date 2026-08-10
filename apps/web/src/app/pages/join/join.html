@@ -43,6 +43,16 @@
             }
           </mat-form-field>
 
+          <!-- #93: the household's zone, asked at the one moment the person
+               who knows it is here. Pre-filled from this browser. -->
+          <app-timezone-picker
+            class="join__timezone"
+            [value]="timezone()"
+            [disabled]="submitting()"
+            (picked)="pickTimezone($event)"
+          />
+          <span class="join__hint">{{ timezoneHint }}</span>
+
           @if (submitError(); as message) {
             <p class="join__error-banner" role="alert">{{ message }}</p>
           }
