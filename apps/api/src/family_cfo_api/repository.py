@@ -724,7 +724,9 @@ def upsert_card_statement(
     now = utcnow()
     with engine.begin() as conn:
         existing = conn.execute(
-            select(models.card_statements.c.id).where(
+            select(
+                models.card_statements.c.id, models.card_statements.c.paid_at
+            ).where(
                 models.card_statements.c.household_id == household_id,
                 models.card_statements.c.account_id == account_id,
                 models.card_statements.c.due_date == due_date,
@@ -747,6 +749,8 @@ def upsert_card_statement(
         }
         if existing is not None:
             record_id = existing[0]
+            # Re-recording a cycle restates the figures; it does not un-pay it.
+            paid_at = existing[1]
             conn.execute(
                 update(models.card_statements)
                 .where(models.card_statements.c.id == record_id)
@@ -754,6 +758,7 @@ def upsert_card_statement(
             )
         else:
             record_id = statement_id or new_id()
+            paid_at = None
             conn.execute(
                 insert(models.card_statements).values(
                     id=record_id,
@@ -775,8 +780,70 @@ def upsert_card_statement(
         period_start=period_start,
         period_end=period_end,
         document_id=document_id,
-        paid_at=None,
+        paid_at=paid_at,
     )
+
+
+def get_card_statement_for_cycle(
+    engine: Engine, household_id: str, account_id: str, due_date: date
+) -> CardStatementRecord | None:
+    """The statement :func:`upsert_card_statement` would OVERWRITE for this cycle,
+    or None when the write would create one.
+
+    ADR 0073: the recorder needs the prior values before it writes, because an
+    upsert's undo is "put the old figures back", not "delete what I just saw".
+    """
+    query = select(models.card_statements).where(
+        models.card_statements.c.household_id == household_id,
+        models.card_statements.c.account_id == account_id,
+        models.card_statements.c.due_date == due_date,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _card_statement_from_row(engine, household_id, row) if row else None
+
+
+def restore_card_statement(
+    engine: Engine,
+    household_id: str,
+    statement_id: str,
+    *,
+    statement_balance_minor: int,
+    minimum_due_minor: int | None,
+    currency: str,
+    period_start: date | None,
+    period_end: date | None,
+    document_id: str | None,
+) -> bool:
+    """Write back every figure an upsert overwrites, nulls included (ADR 0073).
+
+    Unlike a PATCH-style updater, None means "it was empty", not "leave it
+    alone" — otherwise a correction that FILLED a blank could not be undone.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.card_statements)
+            .where(
+                models.card_statements.c.household_id == household_id,
+                models.card_statements.c.id == statement_id,
+            )
+            .values(
+                statement_balance_minor=_enc_amount(
+                    engine, household_id, statement_balance_minor
+                ),
+                minimum_due_minor=(
+                    _enc_amount(engine, household_id, minimum_due_minor)
+                    if minimum_due_minor is not None
+                    else None
+                ),
+                currency=currency,
+                period_start=period_start,
+                period_end=period_end,
+                document_id=document_id,
+                updated_at=utcnow(),
+            )
+        )
+    return result.rowcount > 0
 
 
 def get_card_statement(
@@ -1524,8 +1591,11 @@ def set_household_timezone(engine: Engine, household_id: str, timezone: str | No
         )
 
 
-def set_household_language(engine: Engine, household_id: str, language: str) -> None:
-    """#10: the language every surface answers this household in."""
+def set_household_language(engine: Engine, household_id: str, language: str | None) -> None:
+    """#10: the language every surface answers this household in.
+
+    None is a real value: the household never chose one and falls back to "en",
+    so an undo has to be able to put it back (ADR 0073)."""
     with engine.begin() as conn:
         conn.execute(
             update(models.households)
@@ -1904,8 +1974,32 @@ def update_category(engine: Engine, household_id: str, category_id: str, name: s
     return result.rowcount > 0
 
 
-def create_category(engine: Engine, household_id: str, name: str) -> CategoryRecord:
-    category_id = new_id()
+def transaction_ids_for_category(
+    engine: Engine, household_id: str, category_id: str, limit: int
+) -> list[str]:
+    """Ids of the transactions filed under a category, at most ``limit`` + 1.
+
+    The extra row is the signal that the set is larger than ``limit`` — the
+    caller decides what to do about it rather than serialising it blind (#71).
+    """
+    query = (
+        select(models.transactions.c.id)
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.category_id == category_id,
+        )
+        .limit(limit + 1)
+    )
+    with engine.connect() as conn:
+        return [row[0] for row in conn.execute(query)]
+
+
+def create_category(
+    engine: Engine, household_id: str, name: str, category_id: str | None = None
+) -> CategoryRecord:
+    """``category_id`` re-uses an id: undoing a delete has to put back the
+    category the transactions and budget envelope point at (ADR 0073)."""
+    category_id = category_id or new_id()
     with engine.begin() as conn:
         conn.execute(
             insert(models.transaction_categories).values(
@@ -2015,9 +2109,14 @@ def budget_exists_for_category(engine: Engine, household_id: str, category_id: s
 
 
 def create_budget(
-    engine: Engine, household_id: str, category_id: str, limit_minor: int, currency: str
+    engine: Engine,
+    household_id: str,
+    category_id: str,
+    limit_minor: int,
+    currency: str,
+    budget_id: str | None = None,
 ) -> str:
-    budget_id = new_id()
+    budget_id = budget_id or new_id()
     now = utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -4850,8 +4949,14 @@ def create_account(
     minimum_payment_minor: int | None = None,
     maturity_date: date | None = None,
     next_payment_due_date: date | None = None,
+    emergency_fund_percent: float | None = None,
+    emergency_fund_minor: int | None = None,
+    rsu_ready_to_sell: bool = False,
+    account_id: str | None = None,
 ) -> AccountRecord:
-    account_id = new_id()
+    """``account_id`` re-uses an id, so undoing a delete puts the account back
+    where its balances, statements and savings routes point (ADR 0073)."""
+    account_id = account_id or new_id()
     now = utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -4865,6 +4970,9 @@ def create_account(
                 minimum_payment_minor=minimum_payment_minor,
                 maturity_date=maturity_date,
                 next_payment_due_date=next_payment_due_date,
+                emergency_fund_percent=emergency_fund_percent,
+                emergency_fund_minor=emergency_fund_minor,
+                rsu_ready_to_sell=rsu_ready_to_sell,
                 created_at=now,
                 updated_at=now,
             )
@@ -4878,6 +4986,9 @@ def create_account(
         minimum_payment_minor=minimum_payment_minor,
         maturity_date=maturity_date,
         next_payment_due_date=next_payment_due_date,
+        emergency_fund_percent=emergency_fund_percent,
+        emergency_fund_minor=emergency_fund_minor,
+        rsu_ready_to_sell=rsu_ready_to_sell,
     )
 
 
@@ -4930,6 +5041,71 @@ def update_account(
             .values(**values)
         )
     return result.rowcount > 0
+
+
+def restore_account(
+    engine: Engine,
+    household_id: str,
+    account_id: str,
+    *,
+    name: str,
+    account_type: str,
+    annual_interest_rate: float | None,
+    minimum_payment_minor: int | None,
+    maturity_date: date | None,
+    next_payment_due_date: date | None,
+    emergency_fund_percent: float | None,
+    emergency_fund_minor: int | None,
+    rsu_ready_to_sell: bool,
+) -> bool:
+    """Write back every column a PATCH can touch, nulls included (ADR 0073).
+
+    :func:`update_account` reads None as "leave unchanged", which is right for a
+    PATCH and wrong for an undo: it makes ADDING a value — an interest rate, a
+    due date, an emergency-fund designation — impossible to reverse. This
+    setter takes the prior snapshot literally.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.accounts)
+            .where(
+                models.accounts.c.household_id == household_id,
+                models.accounts.c.id == account_id,
+            )
+            .values(
+                name=household_crypto.encrypt_text(engine, household_id, name),
+                type=account_type,
+                annual_interest_rate=annual_interest_rate,
+                minimum_payment_minor=minimum_payment_minor,
+                maturity_date=maturity_date,
+                next_payment_due_date=next_payment_due_date,
+                emergency_fund_percent=emergency_fund_percent,
+                emergency_fund_minor=emergency_fund_minor,
+                rsu_ready_to_sell=rsu_ready_to_sell,
+                updated_at=utcnow(),
+            )
+        )
+    return result.rowcount > 0
+
+
+def account_balance_history(
+    engine: Engine, account_id: str, limit: int
+) -> list[tuple[str, int, datetime]]:
+    """(id, balance_minor, as_of) for an account, oldest first, at most
+    ``limit`` + 1 rows — the extra one tells the caller the history is longer
+    than it is willing to serialise (#71)."""
+    query = (
+        select(
+            models.account_balances.c.id,
+            models.account_balances.c.balance_minor,
+            models.account_balances.c.as_of,
+        )
+        .where(models.account_balances.c.account_id == account_id)
+        .order_by(models.account_balances.c.as_of, models.account_balances.c.id)
+        .limit(limit + 1)
+    )
+    with engine.connect() as conn:
+        return [(row[0], int(row[1]), row[2]) for row in conn.execute(query)]
 
 
 def account_in_use(engine: Engine, account_id: str) -> bool:
@@ -4989,9 +5165,13 @@ def delete_account_balance(engine: Engine, household_id: str, balance_id: str) -
 
 
 def record_account_balance(
-    engine: Engine, account_id: str, balance_minor: int, as_of: datetime | None = None
+    engine: Engine,
+    account_id: str,
+    balance_minor: int,
+    as_of: datetime | None = None,
+    balance_id: str | None = None,
 ) -> str:
-    balance_id = new_id()
+    balance_id = balance_id or new_id()
     now = utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -6153,8 +6333,11 @@ def create_income_profile(
     w2_withheld_minor: int | None = None,
     retirement_contribution_annual_minor: int = 0,
     hsa_contribution_annual_minor: int = 0,
+    profile_id: str | None = None,
 ) -> str:
-    profile_id = new_id()
+    """``profile_id`` re-uses an id instead of minting one — undo of a delete
+    puts the earner back where their RSU grants still point (ADR 0073)."""
+    profile_id = profile_id or new_id()
     now = utcnow()
     with engine.begin() as conn:
         conn.execute(
@@ -6256,9 +6439,13 @@ def create_rsu_grant(
     vest_years: int,
     frequency: str,
     events: list[tuple[date, int]],
+    grant_id: str | None = None,
 ) -> RsuGrantRecord:
-    """Insert a grant with its derived vest schedule in one transaction."""
-    grant_id = new_id()
+    """Insert a grant with its derived vest schedule in one transaction.
+
+    ``grant_id`` re-uses an id, so an undo restores the grant the household's
+    other records already reference rather than a look-alike (ADR 0073)."""
+    grant_id = grant_id or new_id()
     now = utcnow()
     with engine.begin() as conn:
         conn.execute(

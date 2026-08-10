@@ -736,6 +736,11 @@ async def delete_account(
             status_code=409,
             detail="Account is referenced by transactions, bills, or imports; reassign or delete those first",
         )
+    # #72: the delete drops the account's balance history with it, so the
+    # history is read before the write, not after.
+    balances = repository.account_balance_history(
+        engine, account_id, undo_actions.SNAPSHOT_ROW_LIMIT
+    )
     repository.delete_account(engine, session.household_id, account_id)
     audit.write_audit(
         engine,
@@ -745,7 +750,7 @@ async def delete_account(
         "account",
         account_id,
         f"Deleted account “{existing.name}”",
-        undo_token=undo_actions.account_deleted(existing),
+        undo_token=undo_actions.account_deleted(existing, balances),
     )
     return Response(status_code=204)
 
@@ -1014,6 +1019,12 @@ async def record_card_statement(
         # statement cycle is a credit-card concept.
         raise HTTPException(status_code=422, detail="Not a credit-card account")
 
+    # #72: the write below is an upsert. What its undo has to do depends on
+    # whether this call creates the cycle or corrects one already recorded, so
+    # the prior figures are read first — after the write they are gone.
+    before = repository.get_card_statement_for_cycle(
+        engine, session.household_id, payload.account_id, payload.due_date
+    )
     record = repository.upsert_card_statement(
         engine,
         session.household_id,
@@ -1036,7 +1047,7 @@ async def record_card_statement(
         "card_statement",
         record.id,
         f"Statement for {account.name} due {payload.due_date.isoformat()}",
-        undo_token=undo_actions.created("card_statement", record.id),
+        undo_token=undo_actions.card_statement_recorded(record, before),
     )
     names = repository.account_name_map(engine, session.household_id)
     return _statement_schema(record, names)
