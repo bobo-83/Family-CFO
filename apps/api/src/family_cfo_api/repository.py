@@ -1304,6 +1304,26 @@ def accept_invite(
             .mappings()
             .first()
         )
+        if existing is None:
+            # #60: removal ARCHIVES the address (email_archived_<epoch>), so a
+            # returning member is no longer findable by the address they were
+            # invited at. Without this, rejoining would mint a NEW user id and
+            # silently orphan everything they did before — the opposite of what
+            # archiving is for. Most recent wins if the same address was used,
+            # archived, reused and archived again.
+            existing = (
+                conn.execute(
+                    select(models.users)
+                    .where(
+                        func.lower(models.users.c.email).like(
+                            invite["email"].lower() + "_archived_%"
+                        )
+                    )
+                    .order_by(models.users.c.updated_at.desc())
+                )
+                .mappings()
+                .first()
+            )
         if existing is not None:
             memberships = conn.execute(
                 select(func.count()).where(
@@ -1335,7 +1355,15 @@ def accept_invite(
             conn.execute(
                 update(models.users)
                 .where(models.users.c.id == user_id)
-                .values(password_hash=password_hash, display_name=display_name, updated_at=now)
+                # email: the account may have been archived by a removal (#60),
+                # in which case reviving it has to put the address back or the
+                # member rejoins into an account they cannot sign in to.
+                .values(
+                    email=invite["email"],
+                    password_hash=password_hash,
+                    display_name=display_name,
+                    updated_at=now,
+                )
             )
         else:
             conn.execute(
@@ -4504,10 +4532,33 @@ def update_member_role(engine: Engine, household_id: str, user_id: str, role: st
     return result.rowcount > 0
 
 
-def restore_membership(engine: Engine, household_id: str, user_id: str, role: str) -> None:
+def restore_membership(
+    engine: Engine, household_id: str, user_id: str, role: str, email: str | None = None
+) -> None:
     """Undo of a member removal (M117): the user row survives removal, so
-    re-inserting the membership restores access. No-op if already a member."""
+    re-inserting the membership restores access. No-op if already a member.
+
+    #60: removal now ARCHIVES the login address, so the membership alone is no
+    longer enough — `email` restores it. Without that, an undone removal yields
+    a member who is listed but cannot sign in. Optional so an undo token minted
+    before #60 still restores what it can rather than failing outright.
+    """
     with engine.begin() as conn:
+        if email is not None:
+            taken = conn.execute(
+                select(models.users.c.id).where(
+                    models.users.c.email == email, models.users.c.id != user_id
+                )
+            ).first()
+            # Someone was added with that address in the meantime. Restoring it
+            # would collide on the unique index and abort the whole undo, so the
+            # membership is restored and the archived address is left alone.
+            if taken is None:
+                conn.execute(
+                    update(models.users)
+                    .where(models.users.c.id == user_id)
+                    .values(email=email, updated_at=utcnow())
+                )
         existing = conn.execute(
             select(models.household_memberships.c.id).where(
                 models.household_memberships.c.household_id == household_id,
@@ -4547,8 +4598,33 @@ def delete_ai_runtime_config(engine: Engine, household_id: str) -> None:
         )
 
 
-def delete_member(engine: Engine, household_id: str, user_id: str) -> bool:
+def archived_email(email: str, when: datetime) -> str:
+    """`someone@example.com_archived_1754870400` — frees the address for reuse.
+
+    #60: the user row CANNOT be deleted. Nine of the twelve foreign keys onto
+    `users.id` are NOT NULL (paired_devices, conversations, auth_sessions,
+    scenarios, advisor_feedback, …), so any member who ever used the app is
+    undeletable without destroying the history that makes an audit answerable.
+    The identity is `users.id` and always was — email is only a login
+    credential — so renaming it costs nothing and keeps every reference intact.
+
+    Clamped to the column width: an address near the 255 limit would otherwise
+    overflow on the suffix and fail the removal outright.
+    """
+    suffix = f"_archived_{int(when.timestamp())}"
+    return email[: 255 - len(suffix)] + suffix
+
+
+def delete_member(engine: Engine, household_id: str, user_id: str) -> tuple[bool, str | None]:
+    """Remove a member. Returns (removed, the email that was archived).
+
+    The caller needs the original address for the undo token: restoring the
+    membership alone would leave a member who exists, appears in the list, and
+    cannot log in — a worse failure than the one this fixes, because it looks
+    like it worked.
+    """
     now = utcnow()
+    previous_email: str | None = None
     with engine.begin() as conn:
         result = conn.execute(
             delete(models.household_memberships).where(
@@ -4566,7 +4642,25 @@ def delete_member(engine: Engine, household_id: str, user_id: str) -> bool:
                 )
                 .values(revoked_at=now)
             )
-    return result.rowcount > 0
+            # Archive the login. Access is already gone — auth.py refuses a user
+            # with no membership — so this is purely about freeing the address,
+            # which before #60 was squatted forever by an invisible row.
+            #
+            # The password hash is deliberately LEFT ALONE: clearing it would
+            # make the undo below unable to restore a working account, and
+            # there is nothing to gain, since the email it belonged to no
+            # longer resolves to anyone.
+            row = conn.execute(
+                select(models.users.c.email).where(models.users.c.id == user_id)
+            ).first()
+            if row is not None:
+                previous_email = row[0]
+                conn.execute(
+                    update(models.users)
+                    .where(models.users.c.id == user_id)
+                    .values(email=archived_email(previous_email, now), updated_at=now)
+                )
+    return result.rowcount > 0, previous_email
 
 
 # --- Account writes ----------------------------------------------------------
