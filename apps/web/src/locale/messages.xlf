@@ -7186,14 +7186,14 @@
         <source>This invite link is invalid or expired — ask for a new one.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/join/join.ts</context>
-          <context context-type="linenumber">66</context>
+          <context context-type="linenumber">68</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5082522811197004994" datatype="html">
         <source>Could not join — the link may have expired. Ask for a new one.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/join/join.ts</context>
-          <context context-type="linenumber">89</context>
+          <context context-type="linenumber">95</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6276744699093746777" datatype="html">
@@ -10945,6 +10945,34 @@
         </context-group>
         <note priority="1" from="description">The statement charged this but no synced transaction explains it</note>
         <note priority="1" from="meaning">Statement line state</note>
+      </trans-unit>
+      <trans-unit id="3195685795971107506" datatype="html">
+        <source>Too many attempts — try again later.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3074304344858811981" datatype="html">
+        <source>Too many attempts — try again in under a minute.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">41</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="2369182305718071473" datatype="html">
+        <source>Too many attempts — try again in about a minute.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">45</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8855653697550559258" datatype="html">
+        <source>Too many attempts — try again in <x id="PH" equiv-text="minutes"/> minutes.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">47</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5097631479765742714" datatype="html">
         <source>Toggle navigation menu</source>

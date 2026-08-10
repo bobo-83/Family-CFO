@@ -92,7 +92,11 @@ async def test_repeated_bad_logins_get_locked_out(demo_engine, tmp_path) -> None
             json={"email": fixtures.DEMO_USER_EMAIL, "password": fixtures.DEMO_USER_PASSWORD},
         )
         assert locked.status_code == 429
-        assert "Retry-After" in locked.headers
+        # #92: the clients now build their sentence out of this header, so it
+        # has to be the real remaining lockout in whole seconds — not a token
+        # presence. 60s lockout, checked immediately: 59 or 60 (the limiter
+        # rounds the remainder up and never reports 0).
+        assert locked.headers["Retry-After"] in {"59", "60"}
 
 
 @pytest.mark.anyio

@@ -5,13 +5,22 @@ import { ApiService } from '../../core/api.service';
 import { clearAuthState, getToken } from '../../core/token-store';
 import { Join } from './join';
 
-function response(data: unknown, error?: unknown) {
+function response(data: unknown, error?: unknown, raw = new Response()) {
   return {
     data,
     error,
     request: new Request('http://localhost/'),
-    response: new Response(),
+    response: raw,
   } as never;
+}
+
+/** The join page shares the auth limiter's 429; the wait lives in the header. */
+function rateLimited(retryAfter: string) {
+  return response(
+    undefined,
+    { error: { message: 'Too many attempts. Try again later.' } },
+    new Response(null, { status: 429, headers: { 'Retry-After': retryAfter } }),
+  );
 }
 
 describe('Join (ADR 0056)', () => {
@@ -96,6 +105,24 @@ describe('Join (ADR 0056)', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('expired');
     expect(host.querySelector('form')).toBeNull();
+  });
+
+  // #92: the join page is behind the same lockout as login, so it has to say
+  // the same true thing — and say a different thing when the server does.
+  it('says how long the join page is locked for, from the header', async () => {
+    async function lockedMessage(retryAfter: string): Promise<string> {
+      window.location.hash = '#token=stale';
+      TestBed.resetTestingModule();
+      configure({ previewInvite: vi.fn().mockResolvedValue(rateLimited(retryAfter)) });
+      const fixture = TestBed.createComponent(Join);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return (fixture.nativeElement as HTMLElement).textContent ?? '';
+    }
+
+    expect(await lockedMessage('900')).toContain('try again in 15 minutes');
+    expect(await lockedMessage('300')).toContain('try again in 5 minutes');
   });
 
   it('rejects a link with no token without calling the API', async () => {

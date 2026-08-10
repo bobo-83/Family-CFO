@@ -6500,6 +6500,22 @@
         <source>Failed to revoke device.</source>
         <target state="needs-review-translation">Nepavyko atšaukti įrenginio.</target>
       </trans-unit>
+      <trans-unit id="3195685795971107506" datatype="html">
+        <source>Too many attempts — try again later.</source>
+        <target state="needs-review-translation">Per daug bandymų — bandykite dar kartą vėliau.</target>
+      </trans-unit>
+      <trans-unit id="3074304344858811981" datatype="html">
+        <source>Too many attempts — try again in under a minute.</source>
+        <target state="needs-review-translation">Per daug bandymų — bandykite dar kartą greičiau nei po minutės.</target>
+      </trans-unit>
+      <trans-unit id="2369182305718071473" datatype="html">
+        <source>Too many attempts — try again in about a minute.</source>
+        <target state="needs-review-translation">Per daug bandymų — bandykite dar kartą maždaug po minutės.</target>
+      </trans-unit>
+      <trans-unit id="8855653697550559258" datatype="html">
+        <source>Too many attempts — try again in <x id="PH" equiv-text="minutes"/> minutes.</source>
+        <target state="needs-review-translation">Per daug bandymų — bandykite dar kartą po <x id="PH" equiv-text="minutes"/> min.</target>
+      </trans-unit>
       <trans-unit id="5097631479765742714" datatype="html">
         <source>Toggle navigation menu</source>
         <target state="needs-review-translation">Atverti arba užverti meniu</target>

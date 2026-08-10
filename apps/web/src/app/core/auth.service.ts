@@ -67,10 +67,20 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<LoginResult> {
-    const { data, error } = await this.api.login({ email, password });
+    // #92: `response` carries the brute-force lockout's `Retry-After`, which
+    // the error body never mentions — without it a 429 says "try again later"
+    // while the box means fifteen minutes.
+    const { data, error, response } = await this.api.login({ email, password });
 
     if (error || !data) {
-      return { ok: false, errorMessage: apiErrorMessage(error, 'Login failed. Check your email and password.') };
+      return {
+        ok: false,
+        errorMessage: apiErrorMessage(
+          error,
+          'Login failed. Check your email and password.',
+          response,
+        ),
+      };
     }
 
     setAuthState({
