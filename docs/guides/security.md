@@ -79,6 +79,14 @@ The summary names the cause and carries the counts instead ("Scheduled sync of
 …: 3 accounts, 41 new transactions"), and a bulk operation writes **one** row —
 not one per transaction touched.
 
+A restore's own audit row can end up actorless for a different reason. It is
+written *after* the database has been replaced, so it survives the restore it
+describes — but the member who asked for it may have joined *after* the snapshot
+was taken, and so has no account inside it. The row is kept and the attribution
+dropped, and the summary says which case it is ("restored by a member whose
+account is not present in this snapshot"), rather than failing the restore's
+response over a name nobody can look up any more.
+
 ## Data at rest
 
 - **Database:** not encrypted at the application layer by design — put the
