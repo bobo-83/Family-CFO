@@ -5,24 +5,43 @@ from family_cfo_api import fixtures, models, repository, rights
 from family_cfo_api.db import create_database_engine
 
 
-def _fresh_seeded_engine():
+@pytest.fixture
+def fresh_seeded_engine():
+    """A seeded engine that is DISPOSED afterwards. An engine merely dropped
+    leaves its pooled SQLite connections to the garbage collector, which
+    Python 3.13+ reports as a ResourceWarning — and ADR 0037's
+    `filterwarnings = ["error"]` turns that into a failure."""
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     fixtures.create_schema(engine)
     fixtures.seed_demo_household(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
-def test_demo_seed_grants_no_system_admin() -> None:
+def test_demo_seed_grants_no_system_admin(fresh_seeded_engine) -> None:
     # ADR 0065: the showcase's credentials are PUBLIC — the seed must leave the
     # roster empty (the test conftest grants it separately for the suite).
-    engine = _fresh_seeded_engine()
+    engine = fresh_seeded_engine
     assert repository.count_system_admins(engine) == 0
     assert not repository.is_system_admin(engine, fixtures.DEMO_USER_ID)
 
 
-def test_first_household_owner_becomes_system_admin() -> None:
+@pytest.fixture
+def fresh_empty_engine():
+    """An UNSEEDED engine — this suite needs a household-less database — and
+    disposed, for the same reason as fresh_seeded_engine above."""
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     fixtures.create_schema(engine)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+def test_first_household_owner_becomes_system_admin(fresh_empty_engine) -> None:
+    engine = fresh_empty_engine
     first = repository.create_household_with_owner(
         engine,
         display_name="The Family",
@@ -45,10 +64,10 @@ def test_first_household_owner_becomes_system_admin() -> None:
     assert not repository.is_system_admin(engine, second.user_id)
 
 
-def test_box_rights_come_only_from_the_roster() -> None:
+def test_box_rights_come_only_from_the_roster(fresh_seeded_engine) -> None:
     # A legacy household role carrying ai_runtime.manage grants NOTHING; the
     # roster grants it plus system.admin.
-    engine = _fresh_seeded_engine()
+    engine = fresh_seeded_engine
     with engine.begin() as conn:
         role = conn.execute(
             select(models.roles.c.id, models.roles.c.rights_json).where(

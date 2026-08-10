@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 import httpx
 import pytest
 from sqlalchemy.engine import Engine
@@ -25,12 +27,20 @@ def _grant_demo_system_admin(engine: Engine) -> None:
 
 
 @pytest.fixture
-def demo_engine() -> Engine:
+def demo_engine() -> Iterator[Engine]:
+    # yield + dispose, not return: an engine that is merely dropped leaves its
+    # pooled SQLite connections to be closed by the garbage collector. Python
+    # 3.13 started emitting a ResourceWarning when that happens, and ADR 0037's
+    # `filterwarnings = ["error"]` turns it into ~80 failures that look like
+    # unrelated breakage. The leak was always real; only the reporting is new.
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     fixtures.create_schema(engine)
     fixtures.seed_demo_household(engine)
     _grant_demo_system_admin(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture
@@ -55,7 +65,7 @@ def demo_settings(tmp_path) -> Settings:
 
 
 @pytest.fixture
-def demo_file_engine(tmp_path) -> Engine:
+def demo_file_engine(tmp_path) -> Iterator[Engine]:
     """A file-based (not `:memory:`) SQLite engine, for backup/restore tests.
 
     `SqliteFileBackupAdapter` copies the database file directly, which is
@@ -66,7 +76,10 @@ def demo_file_engine(tmp_path) -> Engine:
     fixtures.create_schema(engine)
     fixtures.seed_demo_household(engine)
     _grant_demo_system_admin(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture

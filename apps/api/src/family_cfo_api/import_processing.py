@@ -133,6 +133,9 @@ _STATEMENT_LINE = re.compile(
 )
 
 
+_MONTH_DAY = re.compile(r"(\d{1,2})[/-](\d{1,2})")
+
+
 def _parse_statement_line_date(raw: str) -> date | None:
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y"):
         try:
@@ -140,9 +143,16 @@ def _parse_statement_line_date(raw: str) -> date | None:
         except ValueError:
             continue
     # MM/DD without a year: assume the current year.
+    #
+    # Parsed by hand rather than with strptime("%m/%d"), which defaults the year
+    # to 1900 and is deprecated from Python 3.13 for exactly that reason — it
+    # silently produces a date nobody meant. Doing it explicitly makes the
+    # assumption visible instead of implied.
+    match = _MONTH_DAY.fullmatch(raw.strip())
+    if match is None:
+        return None
     try:
-        parsed = datetime.strptime(raw, "%m/%d")
-        return parsed.replace(year=date.today().year).date()
+        return date(date.today().year, int(match.group(1)), int(match.group(2)))
     except ValueError:
         return None
 
