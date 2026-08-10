@@ -218,6 +218,90 @@ async def create_backup(
     return _to_schema(record)
 
 
+# #75: this MUST stay declared above `POST /backups/{backup_id}/restore`. Starlette
+# matches in declaration order, so with the parameterised route first this one is
+# unreachable — every call lands there as backup_id="remote" and gets 404 "Backup not
+# found". It stayed dead because it is the box-rebuild path: the restore you only
+# reach for once the box is gone, which is far too late to find out.
+@router.post(
+    "/backups/remote/restore",
+    operation_id="restoreRemoteBackup",
+    response_model=BackupDestinationCheckResponse,
+    responses={
+        400: {"description": "Backup could not be restored", "model": ErrorResponse},
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Backup file not found on the share", "model": ErrorResponse},
+        409: {
+            "description": "Backup is from a newer app version than this box",
+            "model": ErrorResponse,
+        },
+    },
+    summary="Restore from a backup file on the off-box share (destructive)",
+)
+async def restore_remote_backup(
+    payload: RemoteRestoreRequest,
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> BackupDestinationCheckResponse:
+    household = repository.get_household(engine, session.household_id)
+    target = _smb_target(household, settings)
+    if target is None:
+        raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
+    # Guard against path traversal — only a bare filename from the share.
+    filename = os.path.basename(payload.filename)
+    if filename != payload.filename or not filename.endswith(".enc"):
+        raise HTTPException(status_code=400, detail="Invalid backup filename")
+
+    # #62: the same boundary the on-box restore records. There is no backup_jobs
+    # row here (this is the box-rebuild path), so the snapshot's timestamp comes
+    # from the archive's mtime on the share — the file is uploaded immediately
+    # after the dump. A share that won't list leaves it unknown, not zero.
+    snapshot_at: datetime | None = None
+    for item in smb_backup.list_backups(target):
+        if item["filename"] == filename:
+            snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
+            break
+    discarded, restore_summary = _restore_boundary(
+        engine, session.household_id, snapshot_at, f"Restored from {filename}"
+    )
+
+    try:
+        ciphertext = smb_backup.download(target, filename)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
+
+    try:
+        backup_processing.restore_from_bytes(
+            ciphertext,
+            database_url=settings.database_url,
+            staging_dir=settings.import_staging_dir,
+            encryption_key=settings.backup_encryption_key,
+        )
+    except backup_processing.BackupCompatibilityError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, backup_processing.BackupConfigurationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # #68: same as the on-box path — the acting member may not exist in the
+    # database this archive just became.
+    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        actor_id,
+        "backup.restored_remote",
+        "backup_file",
+        os.path.splitext(filename)[0][:36],
+        restore_summary,
+    )
+    logger.info(
+        "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
+    )
+    return BackupDestinationCheckResponse(writable=True, reason=None)
+
+
 @router.post(
     "/backups/{backup_id}/restore",
     operation_id="restoreBackup",
@@ -434,85 +518,6 @@ async def list_remote_backups(
             for item in items
         ]
     )
-
-
-@router.post(
-    "/backups/remote/restore",
-    operation_id="restoreRemoteBackup",
-    response_model=BackupDestinationCheckResponse,
-    responses={
-        400: {"description": "Backup could not be restored", "model": ErrorResponse},
-        401: {"description": "Unauthorized", "model": ErrorResponse},
-        403: {"description": "Role does not permit this action", "model": ErrorResponse},
-        404: {"description": "Backup file not found on the share", "model": ErrorResponse},
-        409: {
-            "description": "Backup is from a newer app version than this box",
-            "model": ErrorResponse,
-        },
-    },
-    summary="Restore from a backup file on the off-box share (destructive)",
-)
-async def restore_remote_backup(
-    payload: RemoteRestoreRequest,
-    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
-    engine: Engine = Depends(get_engine),
-    settings: Settings = Depends(get_app_settings),
-) -> BackupDestinationCheckResponse:
-    household = repository.get_household(engine, session.household_id)
-    target = _smb_target(household, settings)
-    if target is None:
-        raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
-    # Guard against path traversal — only a bare filename from the share.
-    filename = os.path.basename(payload.filename)
-    if filename != payload.filename or not filename.endswith(".enc"):
-        raise HTTPException(status_code=400, detail="Invalid backup filename")
-
-    # #62: the same boundary the on-box restore records. There is no backup_jobs
-    # row here (this is the box-rebuild path), so the snapshot's timestamp comes
-    # from the archive's mtime on the share — the file is uploaded immediately
-    # after the dump. A share that won't list leaves it unknown, not zero.
-    snapshot_at: datetime | None = None
-    for item in smb_backup.list_backups(target):
-        if item["filename"] == filename:
-            snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
-            break
-    discarded, restore_summary = _restore_boundary(
-        engine, session.household_id, snapshot_at, f"Restored from {filename}"
-    )
-
-    try:
-        ciphertext = smb_backup.download(target, filename)
-    except Exception as exc:
-        raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
-
-    try:
-        backup_processing.restore_from_bytes(
-            ciphertext,
-            database_url=settings.database_url,
-            staging_dir=settings.import_staging_dir,
-            encryption_key=settings.backup_encryption_key,
-        )
-    except backup_processing.BackupCompatibilityError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except (ValueError, backup_processing.BackupConfigurationError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    # #68: same as the on-box path — the acting member may not exist in the
-    # database this archive just became.
-    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
-    audit.write_audit(
-        engine,
-        session.household_id,
-        actor_id,
-        "backup.restored_remote",
-        "backup_file",
-        os.path.splitext(filename)[0][:36],
-        restore_summary,
-    )
-    logger.info(
-        "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
-    )
-    return BackupDestinationCheckResponse(writable=True, reason=None)
 
 
 @router.get(

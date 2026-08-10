@@ -6,9 +6,7 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, repository, rights, security, smb_backup
-from family_cfo_api.api import backups as backups_api
-from family_cfo_api.schemas import RemoteRestoreRequest
+from family_cfo_api import fixtures, repository, security, smb_backup
 
 NEWCOMER_EMAIL = "newcomer@example.com"
 NEWCOMER_PASSWORD = "newcomer-password-123"
@@ -213,10 +211,8 @@ async def test_remote_restore_of_a_snapshot_older_than_the_actor_records_no_acto
     """#68 again on the off-box path: `backup.restored_remote` shares the mechanism,
     so it shares the failure and the fix.
 
-    The handler is called directly rather than over HTTP because `POST /backups/
-    remote/restore` is currently shadowed by the earlier-declared
-    `POST /backups/{backup_id}/restore` — a separate, pre-existing routing bug that
-    answers "Backup not found" and is not #68's to fix.
+    Driven over HTTP since #75: the route used to be shadowed by the earlier-declared
+    `POST /backups/{backup_id}/restore`, so this had to call the handler directly.
     """
     _enforce_foreign_keys(demo_file_engine)
     owner_headers = {"Authorization": f"Bearer {demo_file_token}"}
@@ -250,30 +246,50 @@ async def test_remote_restore_of_a_snapshot_older_than_the_actor_records_no_acto
     )
     monkeypatch.setattr(smb_backup, "download", lambda target, name: archive)
 
-    newcomer_id, _ = await _member_who_joined_after_the_snapshot(
+    _, newcomer_token = await _member_who_joined_after_the_snapshot(
         demo_file_client, demo_file_engine
     )
-    session = repository.SessionContext(
-        user_id=newcomer_id,
-        household_id=fixtures.DEMO_HOUSEHOLD_ID,
-        role="owner",
-        rights=frozenset({rights.BACKUPS_MANAGE}),
-        is_system_admin=True,
-    )
 
-    result = await backups_api.restore_remote_backup(
-        RemoteRestoreRequest(filename=filename),
-        session=session,
-        engine=demo_file_engine,
-        settings=demo_file_settings,
+    restore_response = await demo_file_client.post(
+        "/api/v1/backups/remote/restore",
+        headers={"Authorization": f"Bearer {newcomer_token}"},
+        json={"filename": filename},
     )
-    assert result.writable is True
+    assert restore_response.status_code == 200
+    assert restore_response.json()["writable"] is True
 
     events = repository.list_audit_events(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
     restored = [e for e in events if e.action == "backup.restored_remote"]
     assert len(restored) == 1
     assert restored[0].actor_user_id is None
     assert "not present in this snapshot" in restored[0].summary
+
+
+@pytest.mark.anyio
+async def test_remote_restore_route_is_not_shadowed_by_the_backup_id_route(
+    demo_file_client, demo_file_token
+) -> None:
+    """#75: `POST /backups/remote/restore` has to be declared BEFORE
+    `POST /backups/{backup_id}/restore`, or Starlette matches the parameterised route
+    first with backup_id="remote" and every caller gets "Backup not found".
+
+    This is the box-rebuild path — the restore you reach for when there are no local
+    backup rows at all — so it can only be proved over HTTP. Calling the handler
+    directly passes whatever the routing table says.
+
+    No destination is configured here, so the remote handler answers 400 "No Synology
+    backup destination is configured". That 400 is the assertion: it can only come
+    from the handler this request was meant to reach.
+    """
+    response = await demo_file_client.post(
+        "/api/v1/backups/remote/restore",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+        json={"filename": "does-not-matter.enc"},
+    )
+
+    assert response.status_code != 404, "shadowed by /backups/{backup_id}/restore"
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "No Synology backup destination is configured"
 
 
 @pytest.mark.anyio
