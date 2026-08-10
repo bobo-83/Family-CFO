@@ -2510,7 +2510,7 @@ export type CreateDeviceSessionWithPasswordErrors = {
      */
     401: ErrorResponse;
     /**
-     * Error response
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
      */
     429: ErrorResponse;
 };
@@ -2627,6 +2627,10 @@ export type CreateAuthSessionErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+     */
+    429: ErrorResponse;
 };
 
 export type CreateAuthSessionError = CreateAuthSessionErrors[keyof CreateAuthSessionErrors];
@@ -3330,7 +3334,7 @@ export type PreviewInviteErrors = {
      */
     410: ErrorResponse;
     /**
-     * Error response
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
      */
     429: ErrorResponse;
 };
@@ -3367,7 +3371,7 @@ export type AcceptInviteErrors = {
      */
     410: ErrorResponse;
     /**
-     * Error response
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
      */
     429: ErrorResponse;
 };
@@ -6751,7 +6755,7 @@ export type CreateBackupErrors = {
      */
     403: ErrorResponse;
     /**
-     * Error response
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
      */
     429: ErrorResponse;
 };

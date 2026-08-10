@@ -14831,18 +14831,66 @@
         }
       }
     },
-    "Too many attempts — wait a minute and try again.": {
+    "Too many attempts — try again in %lld minutes.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Per daug bandymų — palaukite minutę ir bandykite dar kartą."
+            "value": "Per daug bandymų — bandykite dar kartą po %lld min."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quá nhiều lần thử — hãy đợi một phút rồi thử lại."
+            "value": "Quá nhiều lần thử — hãy thử lại sau %lld phút."
+          }
+        }
+      }
+    },
+    "Too many attempts — try again in about a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Per daug bandymų — bandykite dar kartą maždaug po minutės."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá nhiều lần thử — hãy thử lại sau khoảng một phút."
+          }
+        }
+      }
+    },
+    "Too many attempts — try again in under a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Per daug bandymų — bandykite dar kartą greičiau nei po minutės."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá nhiều lần thử — hãy thử lại sau chưa đầy một phút."
+          }
+        }
+      }
+    },
+    "Too many attempts — try again later.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Per daug bandymų — bandykite dar kartą vėliau."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá nhiều lần thử — hãy thử lại sau."
           }
         }
       }

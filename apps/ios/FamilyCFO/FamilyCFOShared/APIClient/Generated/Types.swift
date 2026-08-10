@@ -12178,6 +12178,55 @@ public enum Components {
                 self.body = body
             }
         }
+        public struct RateLimited: Sendable, Hashable {
+            /// - Remark: Generated from `#/components/responses/RateLimited/headers`.
+            public struct Headers: Sendable, Hashable {
+                /// Whole seconds the caller must wait before retrying (RFC 9110 delta-seconds). Optional and typed as a string on purpose: the value reaches the client through whatever proxy the household put in front of the box, so a client must parse it defensively and degrade to "try again later" when it is missing or not a number, rather than fail the whole response over a header.
+                ///
+                /// - Remark: Generated from `#/components/responses/RateLimited/headers/Retry-After`.
+                public var retryAfter: Swift.String?
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - retryAfter: Whole seconds the caller must wait before retrying (RFC 9110 delta-seconds). Optional and typed as a string on purpose: the value reaches the client through whatever proxy the household put in front of the box, so a client must parse it defensively and degrade to "try again later" when it is missing or not a number, rather than fail the whole response over a header.
+                public init(retryAfter: Swift.String? = nil) {
+                    self.retryAfter = retryAfter
+                }
+            }
+            /// Received HTTP response headers
+            public var headers: Components.Responses.RateLimited.Headers
+            /// - Remark: Generated from `#/components/responses/RateLimited/content`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/components/responses/RateLimited/content/application\/json`.
+                case json(Components.Schemas.ErrorResponse)
+                /// The associated value of the enum case if `self` is `.json`.
+                ///
+                /// - Throws: An error if `self` is not `.json`.
+                /// - SeeAlso: `.json`.
+                public var json: Components.Schemas.ErrorResponse {
+                    get throws {
+                        switch self {
+                        case let .json(body):
+                            return body
+                        }
+                    }
+                }
+            }
+            /// Received HTTP response body
+            public var body: Components.Responses.RateLimited.Body
+            /// Creates a new `RateLimited`.
+            ///
+            /// - Parameters:
+            ///   - headers: Received HTTP response headers
+            ///   - body: Received HTTP response body
+            public init(
+                headers: Components.Responses.RateLimited.Headers = .init(),
+                body: Components.Responses.RateLimited.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
     }
     /// Types generated from the `#/components/headers` section of the OpenAPI document.
     public enum Headers {}
@@ -12744,17 +12793,17 @@ public enum Operations {
                     }
                 }
             }
-            /// Error response
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)/responses/429`.
             ///
             /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Components.Responses._Error)
+            case tooManyRequests(Components.Responses.RateLimited)
             /// The associated value of the enum case if `self` is `.tooManyRequests`.
             ///
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Components.Responses._Error {
+            public var tooManyRequests: Components.Responses.RateLimited {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -13243,6 +13292,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+            ///
+            /// - Remark: Generated from `#/paths//auth/sessions/post(createAuthSession)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -17260,17 +17332,17 @@ public enum Operations {
                     }
                 }
             }
-            /// Error response
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//invites/preview/post(previewInvite)/responses/429`.
             ///
             /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Components.Responses._Error)
+            case tooManyRequests(Components.Responses.RateLimited)
             /// The associated value of the enum case if `self` is `.tooManyRequests`.
             ///
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Components.Responses._Error {
+            public var tooManyRequests: Components.Responses.RateLimited {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -17473,17 +17545,17 @@ public enum Operations {
                     }
                 }
             }
-            /// Error response
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/429`.
             ///
             /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Components.Responses._Error)
+            case tooManyRequests(Components.Responses.RateLimited)
             /// The associated value of the enum case if `self` is `.tooManyRequests`.
             ///
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Components.Responses._Error {
+            public var tooManyRequests: Components.Responses.RateLimited {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -36665,17 +36737,17 @@ public enum Operations {
                     }
                 }
             }
-            /// Error response
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//backups/post(createBackup)/responses/429`.
             ///
             /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Components.Responses._Error)
+            case tooManyRequests(Components.Responses.RateLimited)
             /// The associated value of the enum case if `self` is `.tooManyRequests`.
             ///
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Components.Responses._Error {
+            public var tooManyRequests: Components.Responses.RateLimited {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):

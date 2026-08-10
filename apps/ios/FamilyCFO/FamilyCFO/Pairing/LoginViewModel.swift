@@ -23,6 +23,25 @@ final class LoginViewModel {
     }
 
     private(set) var step: Step = .enterServer
+
+    /// How `signIn` builds its client, and where the flow starts. Production
+    /// uses the defaults; tests substitute a stub transport so a real 429 —
+    /// `Retry-After` header and all — can be driven through the generated
+    /// client, which is the plumbing #92 was actually about.
+    typealias ClientBuilder = @Sendable (_ baseURL: URL, _ fingerprint: String?) -> Client
+
+    private let buildClient: ClientBuilder
+
+    init(
+        step: Step = .enterServer,
+        buildClient: @escaping ClientBuilder = { baseURL, fingerprint in
+            APIClientFactory.makeClient(baseURL: baseURL, pinnedCertificateSHA256: fingerprint)
+        }
+    ) {
+        self.step = step
+        self.buildClient = buildClient
+    }
+
     var serverAddress: String = ""
     var email: String = ""
     var password: String = ""
@@ -149,8 +168,7 @@ final class LoginViewModel {
         step = .signingIn
         // The private key stays on the device, like QR pairing (M83).
         let privateKey = P256.Signing.PrivateKey()
-        let client = APIClientFactory.makeClient(
-            baseURL: baseURL, pinnedCertificateSHA256: fingerprint)
+        let client = buildClient(baseURL, fingerprint)
         do {
             let output = try await client.createDeviceSessionWithPassword(
                 .init(
@@ -191,9 +209,14 @@ final class LoginViewModel {
                 password = ""
                 step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
                 signInError = String(localized: "Wrong email or password.")
-            case .tooManyRequests:
+            case .tooManyRequests(let response):
+                // #92: say the wait the server actually named. The lockout
+                // defaults to fifteen minutes; this used to print "wait a
+                // minute", so people retried, were refused again, and read
+                // the wait as a fault.
                 step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
-                signInError = String(localized: "Too many attempts — wait a minute and try again.")
+                signInError = RetryAfter.tooManyAttemptsMessage(
+                    headerValue: response.headers.retryAfter)
             case .undocumented(let status, _):
                 step = .failed(
                     String(localized: "The server answered with an unexpected status (\(status))."))

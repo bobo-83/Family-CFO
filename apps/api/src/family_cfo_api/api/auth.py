@@ -49,7 +49,10 @@ def _issue_session(
     operation_id="createAuthSession",
     response_model=AuthSession,
     status_code=201,
-    responses={401: {"description": "Invalid credentials", "model": ErrorResponse}},
+    responses={
+        401: {"description": "Invalid credentials", "model": ErrorResponse},
+        429: {"description": "Too many attempts", "model": ErrorResponse},
+    },
     summary="Create a local authentication session",
 )
 async def create_auth_session(
