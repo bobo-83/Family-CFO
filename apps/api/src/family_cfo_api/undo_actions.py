@@ -683,9 +683,16 @@ def household_updated(before: repository.HouseholdRecord) -> str:
     )
 
 
-def member_removed(user_id: str, role: str) -> str:
-    """The user row survives removal; re-inserting the membership restores access."""
-    return json.dumps({"op": "restore_membership", "user_id": user_id, "role": role})
+def member_removed(user_id: str, role: str, email: str | None = None) -> str:
+    """The user row survives removal; re-inserting the membership restores access.
+
+    #60: removal also ARCHIVES the login address, so the token carries the
+    original — restoring the membership without it leaves a member who is
+    listed but cannot sign in, which looks like a successful undo and is not.
+    """
+    return json.dumps(
+        {"op": "restore_membership", "user_id": user_id, "role": role, "email": email}
+    )
 
 
 def invite_revoked(invite_id: str) -> str:
@@ -801,7 +808,12 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
         if not user_id:
             raise UndoError("this action can't be undone")
         repository.restore_membership(
-            engine, household_id, user_id, token.get("role") or "viewer"
+            engine,
+            household_id,
+            user_id,
+            token.get("role") or "viewer",
+            # Absent in tokens minted before #60 — restore what we can.
+            token.get("email"),
         )
         return
 
@@ -870,8 +882,9 @@ def _delete(engine: Engine, household_id: str, entity: str | None, entity_id: st
     elif entity == "income_profile":
         repository.delete_income_profile(engine, household_id, entity_id)
     elif entity == "member":
-        # Removes the membership; the user row survives (harmless, and removal
-        # is itself undoable via restore_membership).
+        # Removes the membership and archives the login address (#60); the
+        # user row survives because NOT NULL references depend on it, and the
+        # removal is itself undoable via restore_membership.
         repository.delete_member(engine, household_id, entity_id)
     elif entity == "invite":
         # Undo of invite.created: remove the invite outright — the link dies.

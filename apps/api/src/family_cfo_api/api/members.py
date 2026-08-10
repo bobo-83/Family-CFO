@@ -175,7 +175,7 @@ async def delete_member(
         and repository.count_household_owners(engine, session.household_id) <= 1
     ):
         raise HTTPException(status_code=409, detail="Household must keep at least one owner")
-    repository.delete_member(engine, session.household_id, user_id)
+    _, archived_email = repository.delete_member(engine, session.household_id, user_id)
     # ADR 0072 Phase 2: a removed member may know the old data key (their wrap
     # covered it) — rotate, re-encrypting every sealed row. Remaining members'
     # wraps return at their next login; the recovery key must be re-minted.
@@ -188,6 +188,6 @@ async def delete_member(
         "user",
         user_id,
         f"Removed member {member.email}",
-        undo_token=undo_actions.member_removed(user_id, member.role),
+        undo_token=undo_actions.member_removed(user_id, member.role, archived_email),
     )
     return Response(status_code=204)

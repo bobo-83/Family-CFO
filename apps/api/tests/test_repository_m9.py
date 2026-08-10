@@ -47,7 +47,12 @@ def test_member_lifecycle_and_last_owner_count(demo_engine: Engine) -> None:
     # The seeded demo household has exactly one owner.
     assert repository.count_household_owners(demo_engine, fixtures.DEMO_HOUSEHOLD_ID) == 1
 
-    assert repository.delete_member(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, member.user_id)
+    removed, archived = repository.delete_member(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, member.user_id
+    )
+    assert removed
+    # #60: the address is freed so it can be added again.
+    assert archived == member.email
     assert repository.get_member(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, member.user_id) is None
 
 
