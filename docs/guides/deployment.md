@@ -613,6 +613,20 @@ built on the default x86_64 runners would not run on it at all. Multi-arch via
 QEMU was rejected — the Angular build under emulation is punishingly slow, and
 no other architecture has to run.
 
+### patch.sh patches a RUNNING stack
+
+Every `up` it issues passes `--no-deps`, so it touches exactly the services you
+named and nothing behind them. Without that, `api`'s `depends_on: [db, vllm]`
+pulled **vllm** into the operation set and compose recreated it whenever its
+container no longer matched — reloading the model and taking chat down for
+minutes during a deploy that changed nothing about the AI runtime (#57).
+
+The consequence is that a stopped dependency is no longer started as a side
+effect. `patch.sh` therefore refuses to run when the **database** is down and
+points you at `deploy.sh`, which is the script that stands a stack up. A stopped
+**vllm** is only noted, not fatal — running without the local AI runtime is a
+supported configuration.
+
 ### Deploying a known artifact
 
 ```

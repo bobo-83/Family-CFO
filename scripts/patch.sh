@@ -137,6 +137,45 @@ ask() {
   fi
 }
 
+# A deploy that leaves the box broken must not report success. Compose returning
+# 0 means the containers were created, not that the app works: the API can start
+# and then fail its migrations, and the web tier can serve a stale bundle. So
+# ask the box what it is actually running and compare it to what was shipped.
+run_local() { "$@"; }
+
+smoke_check() {
+  # $1: name of a function that runs its arguments ON the target
+  #     (`run_local` here, the per-host `remote` in the remote path)
+  # $2: the https base URL to probe, as seen FROM the target
+  runner="$1"; base="$2"
+  expected="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+  attempt=0
+  while [ "$attempt" -lt 30 ]; do
+    body="$("$runner" curl -sk --max-time 5 "${base}/api/v1/health" 2>/dev/null || true)"
+    case "$body" in
+      *'"status":"ok"'*)
+        case "$body" in
+          *"\"version\":\"${expected}\""*)
+            log "Verified: API healthy and reporting ${expected}."
+            return 0
+            ;;
+          *)
+            # Reachable but serving something else — a half-finished deploy, or
+            # an image that never rebuilt. Worth failing on: the usual symptom
+            # is a phone talking to endpoints the box does not have.
+            warn "API is up but reports $(printf '%s' "$body" | tr -d '\n') — expected ${expected}."
+            return 1
+            ;;
+        esac
+        ;;
+    esac
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  warn "API did not become healthy at ${base} within 60s."
+  return 1
+}
+
 # Refuse to patch a protected service (the whole point is to leave them alone).
 for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
   for protected in $PROTECTED_SERVICES; do
@@ -145,6 +184,60 @@ for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
     fi
   done
 done
+
+# #57: the guard above checks the list you PASS. It never stopped compose from
+# acting on services it pulls in behind them: `api` declares
+# depends_on: [db, vllm], so `up -d api` put vllm in the operation set and
+# recreated it whenever its container no longer matched — reloading the model
+# and taking chat down for minutes during a deploy that changed nothing about
+# the AI runtime. The protection was real but sat one layer too high.
+#
+# Every `up` below therefore passes --no-deps: this script touches exactly the
+# services it was asked to and nothing behind them.
+#
+# The cost of --no-deps is that dependencies are no longer started implicitly,
+# so a stack that is DOWN is no longer brought up as a side effect. That is the
+# right split — patch.sh patches a running stack, deploy.sh stands one up — but
+# it must be said out loud rather than discovered, hence require_running_deps.
+require_running_deps() {
+  # $1: newline-separated "service<TAB>health" for every running service.
+  #
+  # HEALTH, not merely running. `api` declares
+  # depends_on: db: condition: service_healthy, and --no-deps skips dependency
+  # handling INCLUDING that wait — verified: with the dependency unhealthy,
+  # plain `up -d app` refuses with "dependency failed to start: container is
+  # unhealthy", while `up -d --no-deps app` starts it regardless. So the wait
+  # compose used to perform has to be performed here, or this fix would trade a
+  # vllm restart for starting the API against a database that is not ready.
+  running="$1"
+  # PRESENT and HEALTH are separate questions: compose prints an empty health
+  # column both for a service that is absent and for one with no healthcheck.
+  # Conflating them would report a running-but-uninstrumented database as down.
+  if ! printf '%s\n' "$running" | awk '{print $1}' | grep -qx db; then
+    die "The database is not running, and --no-deps means this script will
+       not start it (#57). This patches a RUNNING stack; use scripts/deploy.sh
+       to stand one up, or 'docker compose up -d db' first."
+  fi
+  db_health="$(printf '%s\n' "$running" | awk '$1 == "db" { print $2; exit }')"
+  case "$db_health" in
+    healthy|"")
+      # Empty = no healthcheck defined; running is then the best signal there is.
+      ;;
+    *)
+      die "The database is running but '${db_health}'. Compose would have waited
+       for it (depends_on: condition: service_healthy); --no-deps does not, so
+       the API would start against a database that is not ready. Wait for it to
+       become healthy, or investigate with scripts/doctor.sh."
+      ;;
+  esac
+  # vllm is deliberately NOT required: running without the local AI runtime is
+  # a supported configuration (FAMILY_CFO_AI_ENABLED=false, or --scale vllm=0),
+  # and demanding it would break those deployments for no benefit.
+  case "$running" in
+    *vllm*) ;;
+    *) log "Note: vllm is not running; it will be left alone (--no-deps)." ;;
+  esac
+}
 
 # Reject a name that is neither `ios` nor a real compose service, so a typo
 # fails here with something readable instead of surfacing as a Docker error
@@ -190,6 +283,9 @@ if [ "$TARGET" = "local" ]; then
   # shellcheck disable=SC2086
   validate_services "$(docker compose $COMPOSE_FILES config --services 2>/dev/null | tr '\n' ' ')"
 
+  # shellcheck disable=SC2086
+  require_running_deps "$(docker compose $COMPOSE_FILES ps --format '{{.Service}}\t{{.Health}}' 2>/dev/null)"
+
   if [ -n "$IMAGE_TAG" ]; then
     log "Pulling published images (tag ${IMAGE_TAG}) and recreating…"
     # shellcheck disable=SC2086
@@ -200,17 +296,20 @@ if [ "$TARGET" = "local" ]; then
     # precisely the silent "you got the working tree, not the release" this
     # mode exists to prevent.
     # shellcheck disable=SC2086
-    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build "${SERVICES[@]}"
+    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build --no-deps "${SERVICES[@]}"
   else
     log "Rebuilding and recreating…"
     # shellcheck disable=SC2086
-    docker compose $COMPOSE_FILES up -d --build "${SERVICES[@]}"
+    docker compose $COMPOSE_FILES up -d --build --no-deps "${SERVICES[@]}"
   fi
 
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
   record_deployment "$REPO_ROOT" local "$(detect_host_ip)" "" "" "$REPO_ROOT" "$COMPOSE_FILES"
   log "Patched. Dashboard: https://$(detect_host_ip):${web_tls_port}"
-  echo "  Verify: scripts/doctor.sh"
+  if ! smoke_check run_local "https://localhost:${web_tls_port}"; then
+    die "The patch completed but the box is not serving the expected version.
+       Investigate with scripts/doctor.sh before trusting this deploy."
+  fi
   # The phone goes last: it must never come up against a box that doesn't yet
   # have the endpoint it was built to call.
   [ "$PATCH_IOS" = "1" ] && patch_ios
@@ -273,6 +372,8 @@ patch_remote_host() { # patch_remote_host <host>
 
   validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
 
+  require_running_deps "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} ps --format '{{.Service}}\t{{.Health}}' 2>/dev/null" || true)"
+
   # The sync happens in BOTH modes. In IMAGE_TAG mode the synced source is not
   # what runs — the pulled image is — but docker-compose.yml itself has to be
   # present and current on the box for `pull` to know which images to fetch.
@@ -290,10 +391,10 @@ patch_remote_host() { # patch_remote_host <host>
     # `pull` exits non-zero on a tag that was never published, so the && stops
     # before anything is recreated. --no-build then stops compose rebuilding a
     # missing image from the source it just synced.
-    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build ${SERVICES[*]}"
+    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build --no-deps ${SERVICES[*]}"
   else
     log "Rebuilding and recreating on ${ssh_target}…"
-    remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build ${SERVICES[*]}"
+    remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build --no-deps ${SERVICES[*]}"
   fi
 
   local port
@@ -301,7 +402,13 @@ patch_remote_host() { # patch_remote_host <host>
   port="${port:-8443}"
   record_deployment "$REPO_ROOT" remote "$host" "$SSH_USER" "$SSH_PORT" "$remote_abs" "$COMPOSE_FILES"
   log "Patched ${host}. Dashboard: https://${host}:${port}"
-  echo "  Verify: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
+  # Probe from the box itself: the dashboard host may not resolve from here,
+  # and what matters is whether the stack is serving, not whether this laptop
+  # can reach it.
+  if ! smoke_check remote "https://localhost:${port}"; then
+    die "The patch completed on ${host} but it is not serving the expected version.
+       Investigate: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
+  fi
 
   # M120 (ADR 0029): one monorepo version — after patching the box, check the
   # published OTA app bundle still matches. A silent drift here is exactly how
