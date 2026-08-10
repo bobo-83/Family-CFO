@@ -18,6 +18,12 @@ The `web` container terminates TLS and adds security headers (HSTS, `X-Content-T
 
 Automated public-CA issuance (ACME/Let's Encrypt) is intentionally not built in — see [ADR 0008](../docs/adr/0008-security-hardening-decisions.md).
 
+### A second certificate for the tailnet name
+
+One exception to the above, for boxes shared with a household that reaches them over Tailscale. iOS refuses a **self-signed** certificate on a public FQDN or a CGNAT address outright, during the handshake — so a shared user has no working address. Set `TLS_TAILNET_NAME` to the box's MagicDNS name and install a `tailscale cert` pair as `tailnet.crt` / `tailnet.key` in `web_certs` (`scripts/tailnet-cert.sh` does both, and renews on a timer), and nginx adds a **second** 443 server block matched by SNI for that one name.
+
+Everything else — the short name, the LAN IP, any connection by IP address (which sends no SNI, so it lands on `default_server`) — keeps the self-signed certificate that paired devices pin. With `TLS_TAILNET_NAME` unset or the files absent, no second block is written and behaviour is unchanged. Both blocks share their body via `docker/web-server-common.conf`. See [the second-household guide](../docs/guides/second-household-access.md).
+
 ## Core Services (default)
 
 `docker compose up -d` brings these up:

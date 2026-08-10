@@ -81,4 +81,12 @@ if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
     -addext "extendedKeyUsage=serverAuth" >/dev/null 2>&1
 fi
 
+# Second certificate, second server block: a CA-signed certificate for the
+# tailnet MagicDNS name, served to that name only via SNI. Writes nothing
+# unless TLS_TAILNET_NAME is set AND tailnet.crt/tailnet.key are present, so
+# a deployment that has never heard of Tailscale is unaffected.
+# `|| :` — a rendering problem must never stop the web tier from serving the
+# certificate that everyone else depends on.
+/usr/local/bin/web-render-tailnet-conf.sh || :
+
 exec nginx -g 'daemon off;'
