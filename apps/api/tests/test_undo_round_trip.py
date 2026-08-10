@@ -280,6 +280,65 @@ async def test_a_category_with_too_many_transactions_is_honestly_irreversible(
     assert "cannot be restored" in refused.json()["error"]["message"]
 
 
+@pytest.mark.anyio
+async def test_undoing_a_category_delete_restores_its_bills(
+    demo_client, demo_engine: Engine, demo_token: str
+) -> None:
+    """#76: `bills.category_id` is the fourth thing the delete changes, and it
+    was changing nothing — the bill was left pointing at a row that no longer
+    existed. Nulling it without carrying the bill ids in the token would only
+    move the defect: the undo would restore the category and not the link."""
+    headers = _headers(demo_token)
+    category = repository.create_category(demo_engine, HH, "Undo Subscriptions")
+    bill = repository.create_bill(
+        demo_engine, HH, name="Undo Streaming", amount_minor=1299, currency="USD",
+        frequency="monthly", next_due_date=date(2026, 3, 1), category_id=category.id,
+    )
+    before = asdict(repository.get_bill(demo_engine, HH, bill.id))
+    assert before["category_id"] == category.id
+
+    deleted = await demo_client.delete(f"/api/v1/categories/{category.id}", headers=headers)
+    assert deleted.status_code == 204, deleted.text
+    assert repository.get_bill(demo_engine, HH, bill.id).category_id is None, (
+        "the delete left the bill filed under a category that no longer exists"
+    )
+
+    await _undo(
+        demo_client, headers, await _latest_event(demo_client, headers, "category.deleted")
+    )
+
+    assert repository.get_category(demo_engine, HH, category.id) == category
+    assert asdict(repository.get_bill(demo_engine, HH, bill.id)) == before, (
+        "the bill came back without its category"
+    )
+
+
+@pytest.mark.anyio
+async def test_a_category_with_too_many_bills_is_honestly_irreversible(
+    demo_client, demo_engine: Engine, demo_token: str, monkeypatch
+) -> None:
+    """The bill ids are bounded the same way the transaction ids are (#71). A
+    household's bills are a curated list of tens, so this bound is not expected
+    to bind in practice — it is here so the token cannot grow without one."""
+    monkeypatch.setattr(undo_actions, "SNAPSHOT_ROW_LIMIT", 2)
+    headers = _headers(demo_token)
+    category = repository.create_category(demo_engine, HH, "Undo Many Bills")
+    for i in range(3):
+        repository.create_bill(
+            demo_engine, HH, name=f"Undo Bill {i}", amount_minor=1000, currency="USD",
+            frequency="monthly", next_due_date=None, category_id=category.id,
+        )
+
+    deleted = await demo_client.delete(f"/api/v1/categories/{category.id}", headers=headers)
+    assert deleted.status_code == 204, deleted.text
+
+    event = await _latest_event(demo_client, headers, "category.deleted")
+    assert event["undoable"] is False
+    refused = await demo_client.post(f"/api/v1/audit/{event['id']}/undo", headers=headers)
+    assert refused.status_code == 400
+    assert "bills were filed under this category" in refused.json()["error"]["message"]
+
+
 # --- 4. account.deleted — the balance history is part of the account ---------
 
 
