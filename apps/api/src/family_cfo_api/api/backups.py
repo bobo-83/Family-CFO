@@ -84,6 +84,30 @@ def _restore_boundary(
     )
 
 
+def _actor_after_restore(engine: Engine, user_id: str, summary: str) -> tuple[str | None, str]:
+    """#68: who the restore audit row can credit, now that the restore has happened.
+
+    The row is written AFTER the database is replaced so it survives the restore it
+    describes (#62) — but `audit_events.actor_user_id` is a foreign key to
+    `users.id`, and a member who joined after the snapshot was taken has no row in
+    it. Naming them fails the constraint and returns 500 for a restore that
+    succeeded. So: drop the attribution, keep the record, and say in the summary
+    why the actor is empty. The record is the part that matters; the attribution is
+    the part the restore made unknowable.
+
+    Checked, not caught: an `IntegrityError` rescue around the write would also
+    swallow the genuine failures the #62 row exists to make loud.
+
+    Returns (actor_user_id, summary) — the summary unchanged when the user is there.
+    """
+    if repository.user_exists(engine, user_id):
+        return user_id, summary
+    return None, (
+        f"{summary}; restored by a member whose account is not present in this "
+        "snapshot, so this row has no actor"
+    )
+
+
 def _to_schema(record: repository.BackupJobRecord) -> BackupJob:
     return BackupJob(
         id=record.id,
@@ -248,11 +272,13 @@ async def restore_backup(
     updated = repository.get_backup_job(engine, backup_id)
     assert updated is not None
     # Written AFTER the replace, deliberately: a row written before it would be
-    # wiped by the very restore it describes (#62).
+    # wiped by the very restore it describes (#62). Which is also why the actor
+    # has to be re-checked against the restored database (#68).
+    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
     audit.write_audit(
         engine,
         session.household_id,
-        session.user_id,
+        actor_id,
         "backup.restored",
         "backup_job",
         backup_id,
@@ -471,10 +497,13 @@ async def restore_remote_backup(
     except (ValueError, backup_processing.BackupConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # #68: same as the on-box path — the acting member may not exist in the
+    # database this archive just became.
+    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
     audit.write_audit(
         engine,
         session.household_id,
-        session.user_id,
+        actor_id,
         "backup.restored_remote",
         "backup_file",
         os.path.splitext(filename)[0][:36],
