@@ -72,10 +72,10 @@ def test_bill_update_is_undone_by_restoring_previous(demo_engine: Engine) -> Non
 
 def test_category_delete_is_undone_by_recreating(demo_engine: Engine) -> None:
     category = repository.create_category(demo_engine, HH, "UndoCat")
-    # #72: the token's footprint now includes the transactions the delete
-    # un-files and the budget envelope it removes; the round trip through the
-    # API lives in test_undo_round_trip.py.
-    token = undo_actions.category_deleted(category, [], None)
+    # #72/#76: the token's footprint now includes the transactions and the bills
+    # the delete un-files and the budget envelope it removes; the round trip
+    # through the API lives in test_undo_round_trip.py.
+    token = undo_actions.category_deleted(category, [], [], None)
     repository.delete_category(demo_engine, HH, category.id)
 
     _reverse(demo_engine, token)

@@ -122,7 +122,7 @@ async def update_category(
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Category not found", "model": ErrorResponse},
     },
-    summary="Delete a spending category (un-categorizes its transactions)",
+    summary="Delete a spending category (un-categorizes its transactions and bills)",
 )
 async def delete_category(
     category_id: str,
@@ -130,10 +130,13 @@ async def delete_category(
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_category(engine, session.household_id, category_id)
-    # #72: the delete also nulls the category on every transaction filed under
-    # it and removes the budget envelope. Both are read before the write —
-    # afterwards there is nothing left to point at them.
+    # #72/#76: the delete also nulls the category on every transaction AND every
+    # bill filed under it, and removes the budget envelope. All three are read
+    # before the write — afterwards there is nothing left to point at them.
     filed_transaction_ids = repository.transaction_ids_for_category(
+        engine, session.household_id, category_id, undo_actions.SNAPSHOT_ROW_LIMIT
+    )
+    filed_bill_ids = repository.bill_ids_for_category(
         engine, session.household_id, category_id, undo_actions.SNAPSHOT_ROW_LIMIT
     )
     envelope = next(
@@ -156,7 +159,9 @@ async def delete_category(
         category_id,
         f"Deleted category “{name}”",
         undo_token=(
-            undo_actions.category_deleted(existing, filed_transaction_ids, envelope)
+            undo_actions.category_deleted(
+                existing, filed_transaction_ids, filed_bill_ids, envelope
+            )
             if existing is not None
             else None
         ),

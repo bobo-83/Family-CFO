@@ -1,6 +1,8 @@
 """M45: category management + assigning categories to transactions."""
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from family_cfo_api import fixtures
 
@@ -9,6 +11,21 @@ _HH = fixtures.DEMO_HOUSEHOLD_ID
 
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _enforce_foreign_keys(engine: Engine) -> None:
+    """SQLite ignores foreign keys unless asked; Postgres — what the box actually
+    runs — never does. Same helper as `test_backups_api.py` (#68): without it the
+    suite cannot see a foreign-key failure at all, which is why #76 sat unnoticed.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _pragma(dbapi_connection, _record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    engine.dispose()  # pooled connections opened before the listener predate the pragma
 
 
 @pytest.mark.anyio
@@ -174,3 +191,38 @@ async def test_delete_category_uncategorizes_transactions(
     txn = repository.get_transaction(demo_engine, _HH, txn_id)
     assert txn is not None
     assert txn.category_id is None
+
+
+@pytest.mark.anyio
+async def test_delete_category_uncategorizes_bills_with_foreign_keys_enforced(
+    demo_file_client, demo_file_token, demo_file_engine
+) -> None:
+    """#76: `bills.category_id` carries a real foreign key onto the category.
+    With the constraint enforced — the database the operator actually runs — the
+    delete used to raise `IntegrityError` out of an endpoint that catches
+    nothing, so removing a category any bill was filed under returned a 500. The
+    bill is now un-filed in the same transaction, so the DELETE has nothing
+    pointing at it.
+    """
+    from family_cfo_api import repository
+
+    _enforce_foreign_keys(demo_file_engine)
+    headers = _headers(demo_file_token)
+    category_id = (
+        await demo_file_client.post(
+            "/api/v1/categories", headers=headers, json={"name": "Subscriptions"}
+        )
+    ).json()["id"]
+    bill = repository.create_bill(
+        demo_file_engine, _HH, name="Streaming", amount_minor=1299, currency="USD",
+        frequency="monthly", category_id=category_id,
+    )
+
+    deleted = await demo_file_client.delete(
+        f"/api/v1/categories/{category_id}", headers=headers
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    after = repository.get_bill(demo_file_engine, _HH, bill.id)
+    assert after is not None, "the bill must survive its category"
+    assert after.category_id is None

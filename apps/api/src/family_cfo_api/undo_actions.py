@@ -209,8 +209,9 @@ def _datetime(value: str | None) -> datetime | None:
 
 
 # ADR 0073 + #71: a snapshot has to fit in one `audit_events.undo_token` column.
-# A delete that cascades over more rows than this gets an honest IRREVERSIBLE
-# token instead of a multi-hundred-kilobyte blob or, worse, a partial one.
+# Any action whose footprint scales with household data — a delete that cascades,
+# a bulk auto-file — gets an honest IRREVERSIBLE token past this many rows,
+# instead of a multi-hundred-kilobyte blob or, worse, a partial one.
 SNAPSHOT_ROW_LIMIT = 500
 
 
@@ -362,21 +363,29 @@ def role_deleted(before: repository.RoleRecord) -> str:
 def category_deleted(
     category: repository.CategoryRecord,
     transaction_ids: list[str],
+    bill_ids: list[str],
     budget: repository.BudgetRecord | None,
 ) -> str:
-    """#72: deleting a category is three changes, not one — the category row, the
-    ``category_id`` nulled on every transaction filed under it, and the budget
-    envelope deleted with it. The token carries all three, and the category
-    comes back under its ORIGINAL id so the transactions and the envelope point
-    at the same category they did before.
+    """#72: deleting a category is four changes, not one — the category row, the
+    ``category_id`` nulled on every transaction filed under it, the same nulled
+    on every bill filed under it (#76), and the budget envelope deleted with it.
+    The token carries all four, and the category comes back under its ORIGINAL
+    id so the transactions, the bills and the envelope point at the same
+    category they did before.
 
-    ``transaction_ids`` is read with :data:`SNAPSHOT_ROW_LIMIT` + 1 rows: one
-    over the limit means the household files more transactions here than a
-    single audit row can hold, and the honest answer is IRREVERSIBLE (#71).
+    ``transaction_ids`` and ``bill_ids`` are each read with
+    :data:`SNAPSHOT_ROW_LIMIT` + 1 rows: one over the limit means the household
+    files more rows here than a single audit row can hold, and the honest answer
+    is IRREVERSIBLE (#71).
     """
     if len(transaction_ids) > SNAPSHOT_ROW_LIMIT:
         return irreversible(
             f"more than {SNAPSHOT_ROW_LIMIT} transactions were filed under this "
+            "category; their categories cannot be restored"
+        )
+    if len(bill_ids) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"more than {SNAPSHOT_ROW_LIMIT} bills were filed under this "
             "category; their categories cannot be restored"
         )
     return json.dumps(
@@ -387,6 +396,7 @@ def category_deleted(
                 "id": category.id,
                 "name": category.name,
                 "transaction_ids": transaction_ids,
+                "bill_ids": bill_ids,
                 "budget": (
                     {
                         "id": budget.id,
@@ -770,7 +780,32 @@ def transactions_auto_filed(transaction_ids: list[str]) -> str:
     """#63: auto-filing (transfers/income/taxes/known merchants) only assigns a
     category to transactions that had none, so the inverse is to clear the category
     on exactly those ids. One token for the whole run — an audit row per operation,
-    not per transaction."""
+    not per transaction.
+
+    #71: nothing bounded that list. A first sync of several years of history
+    auto-files tens of thousands of rows, and every id went into one
+    ``audit_events.undo_token`` column — written on every run and read back
+    whenever the Activity screen renders the event. Above
+    :data:`SNAPSHOT_ROW_LIMIT` the token says so honestly instead (ADR 0073),
+    the same answer :func:`category_deleted` and :func:`account_deleted` give.
+
+    The bound does NOT vary by caller, though auto-file runs both from a user's
+    sync and from the nightly worker with a null actor (#63). Two reasons. The
+    undo endpoint gates on the AUDIT_VIEW right, not on the actor, so a
+    null-actor row is listed on the Activity screen and any member can undo it —
+    "nobody can undo it anyway" is not true of the worker path. And the thing
+    being bounded is the size of one audit row, which is a property of the row,
+    not of who caused it; a per-path bound would make the same 600-row run
+    undoable after a manual sync and not after a nightly one, which is arbitrary
+    to the person reading the log. The size difference the two paths actually
+    have — a nightly 20 rows versus a first sync of 20,000 — is already handled
+    by a single bound, because only one of them comes near it.
+    """
+    if len(transaction_ids) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"this run auto-filed more than {SNAPSHOT_ROW_LIMIT} transactions; "
+            "their previous categories cannot be restored"
+        )
     return json.dumps({"op": "unfile_categories", "ids": list(transaction_ids)})
 
 
@@ -1152,10 +1187,11 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             engine, household_id, data["grant_id"], _date(data["vest_date"]), data["units"]
         )
     elif entity == "category":
-        # #72: the whole footprint of a category delete — the row under its
-        # ORIGINAL id, the transactions whose category it nulled, and the budget
-        # envelope it deleted. Tokens minted before #72 carry only the name, so
-        # they still recreate under a fresh id and restore nothing else.
+        # #72/#76: the whole footprint of a category delete — the row under its
+        # ORIGINAL id, the transactions and the bills whose category it nulled,
+        # and the budget envelope it deleted. Tokens minted before #72 carry only
+        # the name, so they still recreate under a fresh id and restore nothing
+        # else; tokens minted between #72 and #76 have no `bill_ids`.
         category = repository.create_category(
             engine, household_id, data["name"], category_id=data.get("id")
         )
@@ -1164,6 +1200,9 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             repository.set_transactions_category(
                 engine, household_id, transaction_ids, category.id
             )
+        bill_ids = [str(i) for i in (data.get("bill_ids") or [])]
+        if bill_ids:
+            repository.set_bills_category(engine, household_id, bill_ids, category.id)
         budget = data.get("budget")
         if budget:
             repository.create_budget(
