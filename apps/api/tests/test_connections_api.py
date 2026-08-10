@@ -75,7 +75,7 @@ async def test_sync_returns_counts(demo_client, demo_token, monkeypatch) -> None
     monkeypatch.setattr(
         connections_module.banksync,
         "sync_connection",
-        lambda engine, settings, record: banksync.SyncResult(
+        lambda engine, settings, record, actor_user_id=None: banksync.SyncResult(
             accounts_synced=2, imported=14, duplicates_skipped=3
         ),
     )
@@ -101,7 +101,7 @@ async def test_sync_all_connections_aggregates(demo_client, demo_token, monkeypa
     monkeypatch.setattr(
         connections_module.banksync,
         "sync_connection",
-        lambda engine, settings, record: banksync.SyncResult(
+        lambda engine, settings, record, actor_user_id=None: banksync.SyncResult(
             accounts_synced=1, imported=5, duplicates_skipped=2
         ),
     )
@@ -126,7 +126,7 @@ async def test_pull_to_refresh_always_syncs(demo_client, demo_token, monkeypatch
 
     called = {"n": 0}
 
-    def spy(engine, settings, record):
+    def spy(engine, settings, record, actor_user_id=None):
         called["n"] += 1
         return banksync.SyncResult(accounts_synced=1, imported=5, duplicates_skipped=2)
 
@@ -158,7 +158,7 @@ async def test_linking_triggers_an_immediate_background_sync(
     monkeypatch.setattr(
         connections_module.banksync,
         "sync_connection",
-        lambda engine, settings, record: calls.append(record.id)
+        lambda engine, settings, record, actor_user_id=None: calls.append(record.id)
         or banksync.SyncResult(accounts_synced=1, imported=3, duplicates_skipped=0),
     )
     created = await _create(demo_client, demo_token, name="Auto Bank")

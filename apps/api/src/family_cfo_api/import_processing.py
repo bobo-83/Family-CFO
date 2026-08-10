@@ -13,7 +13,7 @@ from family_cfo_ocr_worker import PdfTextExtractionAdapter
 from family_cfo_scheduler import RetryExhaustedError, RetryPolicy, run_with_retry
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import ofx_parsing, repository
+from family_cfo_api import audit, ofx_parsing, repository, undo_actions
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +194,15 @@ _LABEL_DATE_FORMATS = (
 )
 
 
+# Reader-facing names for the account fields a statement can move (#63): the
+# audit summary says WHICH field changed, never the value (audit rows are
+# Internal; amounts and due dates are not).
+_FIELD_LABELS = {
+    "next_payment_due_date": "payment due date",
+    "minimum_payment_minor": "minimum payment",
+}
+
+
 @dataclass(frozen=True)
 class StatementFields:
     statement_date: date | None = None
@@ -238,7 +247,12 @@ def apply_statement_fields_to_account(
     into that account (ADR 0033): the due date and minimum payment update the
     account row; the new balance is recorded as a (negative) balance dated by the
     statement's closing date, so an out-of-order upload can't clobber a newer one.
-    Assets and account-less imports are left alone."""
+    Assets and account-less imports are left alone.
+
+    #63: these two writes happen in the WORKER while parsing the file, long after
+    the upload returned, so they audit with a NULL actor and a summary naming the
+    statement parse as the cause. ``import.applied`` covers the apply endpoint
+    only — it never covered these."""
     account_id = import_record.account_id
     if account_id is None:
         return
@@ -253,7 +267,25 @@ def apply_statement_fields_to_account(
     if fields.minimum_payment_minor is not None and fields.minimum_payment_minor > 0:
         updates["minimum_payment_minor"] = fields.minimum_payment_minor
     if updates:
+        # Only the fields whose value actually moves get a row: re-uploading the
+        # same statement rewrites the same values, and "updated" rows for a no-op
+        # are exactly the noise that makes a trail unreadable.
+        moved = sorted(f for f, value in updates.items() if getattr(account, f) != value)
         repository.update_account(engine, import_record.household_id, account_id, **updates)
+        if moved:
+            changed = " and ".join(_FIELD_LABELS[field] for field in moved)
+            audit.write_audit(
+                engine,
+                import_record.household_id,
+                None,
+                "account.updated",
+                "account",
+                account_id,
+                f"Statement import updated the {changed} on “{account.name}”",
+                # Restores the account as it stood before the parse — `account`
+                # was read above, i.e. before update_account ran.
+                undo_token=undo_actions.account_updated(account),
+            )
 
     if fields.statement_balance_minor is not None and fields.statement_balance_minor > 0:
         # A liability's balance is what is owed — stored negative (assets positive).
@@ -274,7 +306,19 @@ def apply_statement_fields_to_account(
                 if fields.statement_date is not None
                 else None
             )
-            repository.record_account_balance(engine, account_id, new_balance, as_of=as_of)
+            balance_id = repository.record_account_balance(
+                engine, account_id, new_balance, as_of=as_of
+            )
+            audit.write_audit(
+                engine,
+                import_record.household_id,
+                None,
+                "account.balance_recorded",
+                "account",
+                account_id,
+                f"Statement import recorded a new balance for “{account.name}”",
+                undo_token=undo_actions.balance_recorded(balance_id),
+            )
 
 
 def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
