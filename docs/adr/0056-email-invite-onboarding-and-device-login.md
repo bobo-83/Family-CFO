@@ -72,6 +72,17 @@ Without a QR there is no cert fingerprint to pin, so the iOS login flow uses
 cert SHA-256, the user confirms it, and every later request is pinned to it —
 the same trust act as scanning the admin's QR, rotated by re-login like re-pair.
 
+**Amendment (#86): only self-signed certificates are pinned.** A fingerprint is
+what makes a self-signed certificate trustworthy, and nothing else. When the
+presented certificate chains to a root the device already trusts *and* is valid
+for the host being addressed — asked of the platform, not inferred from the
+issuer name — the app validates it that way and records **no** fingerprint,
+because such a certificate is reissued on its CA's schedule (~90 days for an
+ACME-issued one) and a pin would turn each renewal into a silent lockout. The
+same rule governs an already-stored pin: a pin that misses is honoured as a
+rejection unless the presented chain is one the system vouches for under that
+exact hostname.
+
 ### 4. Audit + undo (ADR 0023)
 
 `invite.created` UNDOABLE (undo deletes the invite — the link dies);
