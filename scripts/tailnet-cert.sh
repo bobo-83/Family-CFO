@@ -53,16 +53,25 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
 compose() { docker compose $COMPOSE_FILES "$@"; }
 
-# tailscaled's socket is root-owned unless an operator has been set; a systemd
-# timer already runs as root, an interactive run usually has not.
+# tailscaled's socket is root-owned UNLESS an operator has been set
+# (`tailscale set --operator=$USER`), which is the documented way to avoid sudo
+# and what the guide recommends. So try unprivileged FIRST and escalate only if
+# that is refused: escalating first prompts for a password on a box that does
+# not need one, which also breaks every non-interactive run — the timer's case,
+# and the case this failed in.
+#
+# `tailscale cert` is safe to attempt twice: it is idempotent and reuses its
+# cached certificate, so a refused first try costs nothing.
 ts() {
   if [ "$(id -u)" -eq 0 ]; then
     tailscale "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo -n tailscale "$@" 2>/dev/null || sudo tailscale "$@"
-  else
-    tailscale "$@"
+    return
   fi
+  if tailscale "$@"; then
+    return
+  fi
+  command -v sudo >/dev/null 2>&1 || return 1
+  sudo -n tailscale "$@" 2>/dev/null || sudo tailscale "$@"
 }
 
 command -v tailscale >/dev/null 2>&1 ||
