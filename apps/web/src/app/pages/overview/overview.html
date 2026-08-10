@@ -198,25 +198,12 @@
                in one picker is a wall, so the field is a search box over a
                shortlist. Zone IDs are identifiers and are never translated. -->
           @if (canManageSettings()) {
-            <mat-form-field appearance="outline" class="overview__timezone" subscriptSizing="dynamic">
-              <mat-label i18n="Household timezone field|Label of the household time-zone picker">Time zone</mat-label>
-              <input
-                matInput
-                type="text"
-                [matAutocomplete]="timezoneAuto"
-                [value]="timezoneDisplay(context)"
-                [disabled]="savingTimezone()"
-                (input)="timezoneQuery.set($any($event.target).value)"
-                (blur)="timezoneQuery.set(null)"
-                i18n-placeholder="Form field placeholder|Invites the member to type part of a time zone name to search"
-                placeholder="Search zones"
-              />
-              <mat-autocomplete #timezoneAuto (optionSelected)="changeTimezone($event.option.value)">
-                @for (zone of timezoneOptions(context); track zone) {
-                  <mat-option [value]="zone">{{ timezoneOptionLabel(zone) }}</mat-option>
-                }
-              </mat-autocomplete>
-            </mat-form-field>
+            <app-timezone-picker
+              class="overview__timezone"
+              [value]="timezoneValue(context)"
+              [disabled]="savingTimezone()"
+              (picked)="changeTimezone($event)"
+            />
           } @else {
             <span
               class="overview__detail overview__timezone-readonly"

@@ -44,6 +44,27 @@ def _zone(name: str | None) -> ZoneInfo | None:
         return None
 
 
+# The wording every settings endpoint rejects an unknown zone with. Shared so
+# PATCH /household and POST /invites/accept (#93) cannot drift apart — the two
+# places a household's zone can be chosen must explain a typo the same way.
+UNKNOWN_TIMEZONE_DETAIL = "Unknown timezone"
+
+
+def is_known_zone(name: str) -> bool:
+    """Whether the zone database recognises this id.
+
+    The mirror image of `_zone`'s tolerance: a zone on its way INTO the database
+    is validated and rejected, because a typo stored here would silently shift
+    every date in the app by hours. A zone read back OUT falls back instead, so
+    a bad value already stored cannot take the Overview down.
+    """
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return False
+    return True
+
+
 def resolve_zone(household_timezone: str | None) -> ZoneInfo | None:
     """The zone to reckon dates in, or None to use the process's local time."""
     return _zone(household_timezone) or _zone(os.environ.get(DEFAULT_TIMEZONE_ENV))

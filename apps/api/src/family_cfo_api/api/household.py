@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from family_cfo_api import (
     audit,
     finance_service,
+    household_clock,
     household_crypto,
     repository,
     rights,
@@ -1041,13 +1042,12 @@ async def update_household(
         changed.append("timezone to the box default")
     elif payload.timezone is not None:
         # Validated against the real zone database: a typo would silently shift
-        # every date in the app by hours.
-        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-        try:
-            ZoneInfo(payload.timezone)
-        except (ZoneInfoNotFoundError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail="Unknown timezone") from exc
+        # every date in the app by hours. #93: the same check and the same
+        # wording guard the other door into this column, POST /invites/accept.
+        if not household_clock.is_known_zone(payload.timezone):
+            raise HTTPException(
+                status_code=422, detail=household_clock.UNKNOWN_TIMEZONE_DETAIL
+            )
         repository.set_household_timezone(engine, session.household_id, payload.timezone)
         changed.append(f"timezone to {payload.timezone}")
 

@@ -1,0 +1,22 @@
+<!-- #41: the zone this household reckons "today" in. ~600 IANA zones in one
+     picker is a wall, so the field is a search box over a shortlist. Zone IDs
+     are identifiers and are never translated. -->
+<mat-form-field appearance="outline" subscriptSizing="dynamic">
+  <mat-label i18n="Household timezone field|Label of the household time-zone picker">Time zone</mat-label>
+  <input
+    matInput
+    type="text"
+    [matAutocomplete]="timezoneAuto"
+    [value]="display()"
+    [disabled]="disabled()"
+    (input)="query.set($any($event.target).value)"
+    (blur)="query.set(null)"
+    i18n-placeholder="Form field placeholder|Invites the member to type part of a time zone name to search"
+    placeholder="Search zones"
+  />
+  <mat-autocomplete #timezoneAuto (optionSelected)="choose($event.option.value)">
+    @for (zone of options(); track zone) {
+      <mat-option [value]="zone">{{ optionLabel(zone) }}</mat-option>
+    }
+  </mat-autocomplete>
+</mat-form-field>

@@ -1591,6 +1591,27 @@ def set_household_timezone(engine: Engine, household_id: str, timezone: str | No
         )
 
 
+def set_household_timezone_if_unset(engine: Engine, household_id: str, timezone: str) -> bool:
+    """#93: adopt a zone only for a household that has never chosen one.
+
+    Returns whether it was applied. The "no zone yet" check is the UPDATE's own
+    WHERE clause rather than a read-then-write, so two invitees accepting at the
+    same moment cannot both observe NULL and race: the second statement matches
+    no rows. An established household keeps its zone — a member joining from
+    another country must not move everyone else's idea of "today".
+    """
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.households)
+            .where(
+                models.households.c.id == household_id,
+                models.households.c.timezone.is_(None),
+            )
+            .values(timezone=timezone, updated_at=utcnow())
+        )
+        return result.rowcount > 0
+
+
 def set_household_language(engine: Engine, household_id: str, language: str | None) -> None:
     """#10: the language every surface answers this household in.
 

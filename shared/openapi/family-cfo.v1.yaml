@@ -770,6 +770,8 @@ paths:
           $ref: "#/components/responses/Error"
         "410":
           $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
         "429":
           $ref: "#/components/responses/RateLimited"
   /household/roles:
@@ -7727,6 +7729,18 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        timezone:
+          description: >-
+            "#93: IANA zone (e.g. Europe/London) the invitee is in, pre-filled
+            by their device. Optional — omit it and the household keeps today's
+            behaviour, following the box's own zone
+            (FAMILY_CFO_DEFAULT_TIMEZONE). Rejected with 422 if unknown, before
+            the one-time invite is claimed. Applied ONLY when the household has
+            no zone of its own, so a second member joining cannot move an
+            established household to their zone."
+          type:
+            - string
+            - "null"
     MemberRoleUpdateRequest:
       type: object
       properties:

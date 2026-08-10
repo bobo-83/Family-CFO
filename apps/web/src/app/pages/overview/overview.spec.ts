@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { authMock } from '../../shared/testing-auth';
 import { Overview } from './overview';
+import { TIMEZONE_BOX_DEFAULT } from '../../shared/timezones';
 
 function response(data: unknown, error?: unknown) {
   return {
@@ -770,57 +771,12 @@ describe('Overview', () => {
       ).toContain("the box's own zone");
     });
 
-    it('offers the common zones before anything is typed', async () => {
-      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('America/New_York'));
-      const component = (await render()).componentInstance;
-
-      const shortlist = component['timezoneOptions']({ timezone: 'America/New_York' } as never);
-
-      expect(shortlist).toContain('Europe/London');
-      expect(shortlist).toContain('America/New_York');
-      // A shortlist people can actually scan, not the whole zone database.
-      expect(shortlist.length).toBeLessThan(25);
-    });
-
-    it('keeps a zone outside the shortlist visible', async () => {
-      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Pacific/Chatham'));
-      const component = (await render()).componentInstance;
-
-      const shortlist = component['timezoneOptions']({ timezone: 'Pacific/Chatham' } as never);
-
-      // #43's "use the box's zone" row leads; the current zone follows it.
-      expect(shortlist[1]).toBe('Pacific/Chatham');
-    });
-
-    // #43: the inherit state was one-way — reachable only by never having
-    // chosen a zone.
-    it('offers the box\'s own zone at the top once a zone is set', async () => {
-      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Europe/London'));
-      const component = (await render()).componentInstance;
-
-      const shortlist = component['timezoneOptions']({ timezone: 'Europe/London' } as never);
-
-      expect(shortlist[0]).toBe(component['timezoneBoxDefault']);
-      expect(component['timezoneOptionLabel'](shortlist[0])).toContain("box's zone");
-      // A zone ID is an identifier and is shown verbatim.
-      expect(component['timezoneOptionLabel']('Europe/London')).toBe('Europe/London');
-    });
-
-    it('does not offer it when there is nothing to clear', async () => {
-      apiMock.getHouseholdContext.mockResolvedValue(contextInZone(null));
-      const component = (await render()).componentInstance;
-
-      const shortlist = component['timezoneOptions']({ timezone: null } as never);
-
-      expect(shortlist).not.toContain(component['timezoneBoxDefault']);
-    });
-
     it('clears the zone with the flag, not a null timezone', async () => {
       apiMock.getHouseholdContext.mockResolvedValue(contextInZone('Europe/London'));
       const fixture = await render();
       const component = fixture.componentInstance;
 
-      await component['changeTimezone'](component['timezoneBoxDefault']);
+      await component['changeTimezone'](TIMEZONE_BOX_DEFAULT);
       await fixture.whenStable();
 
       // A null `timezone` would read as "field omitted" on the server.
@@ -830,21 +786,6 @@ describe('Overview', () => {
       expect(apiMock.getHouseholdContext).toHaveBeenCalledTimes(2);
     });
 
-    it('searches every zone, matching spaces against underscores', async () => {
-      apiMock.getHouseholdContext.mockResolvedValue(contextInZone('UTC'));
-      const component = (await render()).componentInstance;
-
-      component['timezoneQuery'].set('new york');
-      expect(component['timezoneOptions']({ timezone: 'UTC' } as never)).toContain(
-        'America/New_York',
-      );
-
-      // Never enough hits at once to drown the panel.
-      component['timezoneQuery'].set('a');
-      expect(
-        component['timezoneOptions']({ timezone: 'UTC' } as never).length,
-      ).toBeLessThanOrEqual(50);
-    });
   });
 
   // #5: committed savings — shown beside Safe to Spend, or reserved like a bill.

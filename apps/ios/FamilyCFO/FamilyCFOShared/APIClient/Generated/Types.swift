@@ -10274,25 +10274,33 @@ public enum Components {
             public var password: Swift.String
             /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest/display_name`.
             public var displayName: Swift.String
+            /// "#93: IANA zone (e.g. Europe/London) the invitee is in, pre-filled by their device. Optional — omit it and the household keeps today's behaviour, following the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE). Rejected with 422 if unknown, before the one-time invite is claimed. Applied ONLY when the household has no zone of its own, so a second member joining cannot move an established household to their zone."
+            ///
+            /// - Remark: Generated from `#/components/schemas/InviteAcceptRequest/timezone`.
+            public var timezone: Swift.String?
             /// Creates a new `InviteAcceptRequest`.
             ///
             /// - Parameters:
             ///   - token:
             ///   - password:
             ///   - displayName:
+            ///   - timezone: "#93: IANA zone (e.g. Europe/London) the invitee is in, pre-filled by their device. Optional — omit it and the household keeps today's behaviour, following the box's own zone (FAMILY_CFO_DEFAULT_TIMEZONE). Rejected with 422 if unknown, before the one-time invite is claimed. Applied ONLY when the household has no zone of its own, so a second member joining cannot move an established household to their zone."
             public init(
                 token: Swift.String,
                 password: Swift.String,
-                displayName: Swift.String
+                displayName: Swift.String,
+                timezone: Swift.String? = nil
             ) {
                 self.token = token
                 self.password = password
                 self.displayName = displayName
+                self.timezone = timezone
             }
             public enum CodingKeys: String, CodingKey {
                 case token
                 case password
                 case displayName = "display_name"
+                case timezone
             }
         }
         /// - Remark: Generated from `#/components/schemas/MemberRoleUpdateRequest`.
@@ -17540,6 +17548,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//invites/accept/post(acceptInvite)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
