@@ -176,6 +176,39 @@ smoke_check() {
   return 1
 }
 
+# The smoke check answers "is the code I just shipped running?". It cannot
+# answer "is this box still set up correctly?" — and almost every incident this
+# project has had was the second question: a certificate iOS would never accept,
+# a renewal timer that had been failing nightly, a migration that never applied,
+# an OTA bundle two versions behind. All of them were found by a person reading
+# files, none by a deploy.
+#
+# So doctor's Setup section runs after every deploy. It is ADVISORY IN BOTH
+# DIRECTIONS and never changes the outcome:
+#   * a warning (certificate expiring in three weeks) must not block shipping a
+#     fix — that would be the tail wagging the dog;
+#   * a FAILURE is printed loudly but still does not roll back, because a
+#     rollback would not repair it. The deploy is fine; the box's SETUP is not,
+#     and reverting the code leaves the certificate just as expired.
+# It runs on the TARGET, not here: it is that host's certificates, timers and
+# database that are being inspected.
+report_setup_drift() { # report_setup_drift <runner-taking-a-shell-string> <dir> <label>
+  local runner="$1" dir="$2" label="$3"
+  log "Setup checks on ${label} (advisory — they never fail a deploy)…"
+  if "$runner" "cd '${dir}' && COMPOSE_FILES='${COMPOSE_FILES}' bash scripts/doctor.sh --setup-only"; then
+    return 0
+  fi
+  warn "SETUP CHECKS FAILED on ${label} — see the report above.
+   The deploy STANDS: the code shipped correctly and a rollback would not fix
+   any of this. Something about the box's setup needs a human.
+   Full report:  bash scripts/doctor.sh"
+}
+
+# run_local runs an argv; report_setup_drift hands its runner a shell command
+# string (the remote `remote` helper already works that way, since ssh joins and
+# re-parses). This is the local equivalent.
+run_local_sh() { bash -c "$1"; }
+
 # Refuse to patch a protected service (the whole point is to leave them alone).
 for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
   for protected in $PROTECTED_SERVICES; do
@@ -310,6 +343,7 @@ if [ "$TARGET" = "local" ]; then
     die "The patch completed but the box is not serving the expected version.
        Investigate with scripts/doctor.sh before trusting this deploy."
   fi
+  report_setup_drift run_local_sh "$REPO_ROOT" "this host"
   # The phone goes last: it must never come up against a box that doesn't yet
   # have the endpoint it was built to call.
   [ "$PATCH_IOS" = "1" ] && patch_ios
@@ -423,6 +457,10 @@ patch_remote_host() { # patch_remote_host <host>
   else
     log "OTA bundle matches (v${ota_version})."
   fi
+
+  # Last, so its report is the freshest thing on screen. `remote` already takes
+  # a shell command string, which is exactly report_setup_drift's contract.
+  report_setup_drift remote "$remote_abs" "$host"
 }
 
 log "Remote hosts to patch: ${SSH_HOSTS[*]}"
