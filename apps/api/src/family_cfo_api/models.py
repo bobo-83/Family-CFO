@@ -741,6 +741,9 @@ audit_events = Table(
     # M101: how to reverse this action (JSON) and when it was undone, if ever.
     Column("undo_token", Text, nullable=True),
     Column("reverted_at", DateTime(timezone=True), nullable=True),
+    # #61: and by whom. Null for events never reverted, and for reversals
+    # recorded before the column existed — there is no honest answer for those.
+    Column("reverted_by", String(36), ForeignKey("users.id"), nullable=True),
 )
 
 conversations = Table(

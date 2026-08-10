@@ -3859,6 +3859,9 @@ class AuditEventRecord:
     created_at: datetime
     undo_token: str | None = None
     reverted_at: datetime | None = None
+    # #61: who pressed Undo. Null unless this event was reverted (and for
+    # reversals recorded before the column existed).
+    reverted_by: str | None = None
 
 
 def record_audit_event(
@@ -3904,6 +3907,7 @@ def _audit_record(row: Any, engine: Engine) -> AuditEventRecord:
         created_at=row["created_at"],
         undo_token=_dec(engine, row["household_id"], row["undo_token"]),
         reverted_at=row["reverted_at"],
+        reverted_by=row["reverted_by"],
     )
 
 
@@ -3921,6 +3925,25 @@ def list_audit_events(
     return [_audit_record(row, engine) for row in rows]
 
 
+def count_audit_events_since(engine: Engine, household_id: str, since: datetime) -> int:
+    """How many of this household's audit rows are newer than `since`.
+
+    #62: a restore replaces the whole database, so every audit row written after
+    the snapshot was taken is discarded by it. Counting them BEFORE the replace is
+    what lets the `backup.restored` row state the size of the gap it created.
+    """
+    query = (
+        select(func.count())
+        .select_from(models.audit_events)
+        .where(
+            models.audit_events.c.household_id == household_id,
+            models.audit_events.c.created_at > _as_aware(since),
+        )
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
 def get_audit_event(
     engine: Engine, household_id: str, audit_id: str
 ) -> AuditEventRecord | None:
@@ -3933,7 +3956,15 @@ def get_audit_event(
     return _audit_record(row, engine) if row is not None else None
 
 
-def mark_audit_reverted(engine: Engine, household_id: str, audit_id: str) -> None:
+def mark_audit_reverted(
+    engine: Engine, household_id: str, audit_id: str, reverted_by: str | None
+) -> None:
+    """Flag an event as undone, and by whom (#61).
+
+    ``reverted_by`` is required at the call site precisely so a reversal can't be
+    recorded anonymously by omission; it stays nullable in the column because
+    rows reverted before this existed have no answer.
+    """
     with engine.begin() as conn:
         conn.execute(
             update(models.audit_events)
@@ -3941,7 +3972,7 @@ def mark_audit_reverted(engine: Engine, household_id: str, audit_id: str) -> Non
                 models.audit_events.c.household_id == household_id,
                 models.audit_events.c.id == audit_id,
             )
-            .values(reverted_at=utcnow())
+            .values(reverted_at=utcnow(), reverted_by=reverted_by)
         )
 
 

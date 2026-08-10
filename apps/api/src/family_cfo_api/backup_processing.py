@@ -25,7 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import __version__ as APP_VERSION
-from family_cfo_api import banksync, repository, smb_backup
+from family_cfo_api import audit, banksync, repository, smb_backup
 from family_cfo_api.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def run_due_backups(engine: Engine, settings: Settings, *, now: datetime | None 
         minutes = BACKUP_CADENCE_MINUTES.get(frequency, 1440)
         if backed_up_within(max(1, minutes - 2)):
             continue
-        run_backup_once(
+        backup_job_id = run_backup_once(
             engine,
             database_url=settings.database_url,
             staging_dir=settings.import_staging_dir,
@@ -111,6 +111,21 @@ def run_due_backups(engine: Engine, settings: Settings, *, now: datetime | None 
             smb_target=smb_target_for(household),
             max_bytes=household.backup_max_bytes,
             offbox_retention_days=settings.offbox_backup_retention_days,
+        )
+        # #62: a manual backup writes `backup.created`; a scheduled one wrote
+        # nothing, so the box's own snapshots left no trace — and a snapshot's
+        # existence is the fact a later `backup.restored` points at. Actor is
+        # None: nobody pressed anything, the cadence did.
+        job = repository.get_backup_job(engine, backup_job_id)
+        audit.write_audit(
+            engine,
+            household_id,
+            None,
+            "backup_job",
+            "backup_job",
+            backup_job_id,
+            f"Scheduled backup ran on the {frequency} cadence for household "
+            f"{household_id} ({job.status if job else 'unknown'})",
         )
         backed_up += 1
     return backed_up

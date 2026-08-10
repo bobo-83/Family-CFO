@@ -167,6 +167,10 @@ UNDO_POLICY: dict[str, str] = {
     "goal.deleted": UNDOABLE,
     # reports
     "report.generated": IRREVERSIBLE,  # a document was produced; nothing to undo
+    # #61: the undo itself is an event too, so the timeline reads top to bottom.
+    # Undoing an undo is a redo: the honest answer is to perform the action
+    # again, not to nest reversals — so this one is IRREVERSIBLE by design.
+    "audit.reverted": IRREVERSIBLE,
 }
 
 
