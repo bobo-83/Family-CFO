@@ -71,6 +71,14 @@ Every sensitive mutation writes a non-sensitive `audit_events` row (actor,
 action, entity, summary — never amounts, passwords, or tokens). Read it via
 `GET /api/v1/audit` (owner) or the dashboard.
 
+Background work audits too — a nightly bank sync, the bulk auto-filing that
+follows it, a statement parsed by the worker, a key rotation. Those rows have
+**no actor** (`actor_user_id` is null): nobody asked for them, and crediting the
+member who happened to link the account would read as "she did this at 3am".
+The summary names the cause and carries the counts instead ("Scheduled sync of
+…: 3 accounts, 41 new transactions"), and a bulk operation writes **one** row —
+not one per transaction touched.
+
 ## Data at rest
 
 - **Database:** not encrypted at the application layer by design — put the

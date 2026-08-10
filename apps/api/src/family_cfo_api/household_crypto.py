@@ -718,12 +718,19 @@ def sealed_tables(models_module):
     ]
 
 
-def rotate_household_key(engine: Engine, household_id: str) -> bool:
+def rotate_household_key(
+    engine: Engine, household_id: str, actor_user_id: str | None = None
+) -> bool:
     """Member removal (ADR 0072): new DEK, re-encrypt every sealed row, then
     fix the wraps — device wraps re-wrap from stored public keys; member wraps
     are DELETED (a password can't be re-derived server-side) and come back at
     each member's next login; the recovery wrap is deleted and the household is
-    told to mint a new key (wrap_status shows has_recovery_key=false)."""
+    told to mint a new key (wrap_status shows has_recovery_key=false).
+
+    #63: a successful rotation emits ``household.key_rotated`` — reserved in
+    UNDO_POLICY since ADR 0023 and, until now, never emitted. The summary states
+    that the recovery key was invalidated, because that consequence is otherwise
+    visible only as a flag on a settings screen nobody was told to look at."""
     from sqlalchemy import delete as sql_delete
     from sqlalchemy import update as sql_update
 
@@ -809,4 +816,20 @@ def rotate_household_key(engine: Engine, household_id: str) -> bool:
     for device in repository.list_paired_devices(engine, household_id):
         if device.revoked_at is None and getattr(device, "public_key", None):
             ensure_device_wrap(engine, household_id, device.id, device.public_key)
+
+    # Imported here (not at module scope): repository imports this module, so a
+    # top-level `audit` import would close the cycle.
+    from family_cfo_api import audit
+
+    audit.write_audit(
+        engine,
+        household_id,
+        actor_user_id,
+        "household.key_rotated",
+        "household",
+        household_id,
+        "Rotated the household encryption key and re-encrypted every sealed row — "
+        "the recovery key was invalidated and must be generated again; each member "
+        "regains access at their next sign-in",
+    )
     return True

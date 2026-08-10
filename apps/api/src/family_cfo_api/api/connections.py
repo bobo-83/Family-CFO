@@ -98,19 +98,31 @@ async def create_connection(
     # First sync runs immediately in the background (the daily worker job would
     # otherwise leave a fresh link empty for up to 24h). Errors are recorded on
     # the connection (last_sync_error), never raised here.
-    background.add_task(_initial_sync, engine, settings, record.id, session.household_id)
+    background.add_task(
+        _initial_sync, engine, settings, record.id, session.household_id, session.user_id
+    )
     return _to_schema(record)
 
 
 def _initial_sync(
-    engine: Engine, settings: Settings, connection_id: str, household_id: str
+    engine: Engine,
+    settings: Settings,
+    connection_id: str,
+    household_id: str,
+    actor_user_id: str,
 ) -> None:
+    # #63: this runs in the background but it is the direct, immediate consequence
+    # of a member pressing "Link" — so it audits as that member. Only the daily
+    # poller's syncs are actorless.
     record = repository.get_institution_connection(engine, household_id, connection_id)
     if record is None:
         return
     try:
-        result = banksync.sync_connection(engine, settings, record)
-        _autofile_all(engine, household_id)  # M96: file transfers/income/etc. now
+        result = banksync.sync_connection(
+            engine, settings, record, actor_user_id=actor_user_id
+        )
+        # M96: file transfers/income/etc. now
+        _autofile_all(engine, household_id, actor_user_id)
         logger.info(
             "initial sync completed connection_id=%s imported=%s duplicates=%s",
             connection_id,
@@ -173,10 +185,14 @@ async def sync_connection(
     if record is None:
         raise HTTPException(status_code=404, detail="Connection not found")
     try:
-        result = banksync.sync_connection(engine, settings, record)
+        result = banksync.sync_connection(
+            engine, settings, record, actor_user_id=session.user_id
+        )
     except banksync.BankSyncError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    transfers_filed, auto_categorized = _autofile_all(engine, session.household_id)
+    transfers_filed, auto_categorized = _autofile_all(
+        engine, session.household_id, session.user_id
+    )
     return ConnectionSyncResult(
         accounts_synced=result.accounts_synced,
         imported=result.imported,
@@ -186,8 +202,10 @@ async def sync_connection(
     )
 
 
-def _autofile_all(engine: Engine, household_id: str) -> tuple[int, int]:
-    return finance_service.autofile_all(engine, household_id)
+def _autofile_all(
+    engine: Engine, household_id: str, actor_user_id: str | None = None
+) -> tuple[int, int]:
+    return finance_service.autofile_all(engine, household_id, actor_user_id)
 
 
 @router.post(
@@ -210,7 +228,9 @@ async def sync_all_connections(
         # M107 (ADR 0019): a user pull-to-refresh is an explicit "fetch now", so it
         # always hits the provider. Only the automatic daily poller is throttled.
         try:
-            result = banksync.sync_connection(engine, settings, record)
+            result = banksync.sync_connection(
+                engine, settings, record, actor_user_id=session.user_id
+            )
         except banksync.BankSyncError:
             # One failing institution must not abort the rest; its error is recorded
             # on the connection (last_sync_error) by banksync.
@@ -220,7 +240,9 @@ async def sync_all_connections(
         imported += result.imported
         duplicates += result.duplicates_skipped
     # Auto-file once over everything imported, rather than per connection.
-    transfers_filed, auto_categorized = _autofile_all(engine, session.household_id)
+    transfers_filed, auto_categorized = _autofile_all(
+        engine, session.household_id, session.user_id
+    )
     # M-rsu-grants: a pull-to-sync is the natural moment to refresh the live
     # quotes behind the RSU valuation (best-effort; never blocks the sync).
     from family_cfo_api import rsu_service

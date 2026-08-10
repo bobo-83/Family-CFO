@@ -30,7 +30,7 @@ from family_cfo_financial_engine import (
 )
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import household_clock, repository
+from family_cfo_api import audit, household_clock, repository, undo_actions
 
 LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
 
@@ -1911,7 +1911,9 @@ def _looks_like_tax(txn: repository.TransactionRecord) -> bool:
     return txn.amount_minor < 0 and any(m in _txn_text(txn) for m in _TAX_TEXT_MARKERS)
 
 
-def autofile_taxes(engine: Engine, household_id: str) -> int:
+def autofile_taxes(
+    engine: Engine, household_id: str, actor_user_id: str | None = None
+) -> int:
     """M96 rule: file tax-withholding outflows (RSU sell-to-cover, "Gencash …
     Lapse") under a Taxes category so they are tracked on their own and kept out
     of discretionary spending, instead of looking like a large mystery purchase.
@@ -1923,7 +1925,20 @@ def autofile_taxes(engine: Engine, household_id: str) -> int:
         return 0
     tax_category_id = _category_id_by_name(engine, household_id, repository.TAXES_CATEGORY_NAMES)
     if tax_category_id is None:
-        tax_category_id = repository.create_category(engine, household_id, "Taxes").id
+        category = repository.create_category(engine, household_id, "Taxes")
+        tax_category_id = category.id
+        # #63: a category appearing on its own is a state change of its own — say
+        # what created it, rather than letting it show up unexplained.
+        audit.write_audit(
+            engine,
+            household_id,
+            actor_user_id,
+            "category.created",
+            "category",
+            category.id,
+            "Created the “Taxes” category to auto-file tax withholding after a sync",
+            undo_token=undo_actions.created("category", category.id),
+        )
     return repository.set_transactions_category(engine, household_id, ids, tax_category_id)
 
 
@@ -1940,21 +1955,56 @@ def monthly_taxes_total(
     return Money(total // INCOME_TRAILING_MONTHS, currency)
 
 
-def autofile_all(engine: Engine, household_id: str) -> tuple[int, int]:
+def autofile_all(
+    engine: Engine, household_id: str, actor_user_id: str | None = None
+) -> tuple[int, int]:
     """M96 rule: keep freshly-imported transactions out of the Categorize queue when
     the system can already tell where they go — interest/dividends recognised as
     income, RSU sell-to-cover as taxes, transfers filed under Transfers, and a known
     merchant reusing the category the user gave it before. Income runs first so an
     "Interest Payment" is recognised as earnings, not swept into transfers. Runs on
     EVERY sync path (manual, initial, and the daily worker). Returns
-    (transfers_filed, auto_categorized)."""
-    autofile_income(engine, household_id)
-    autofile_taxes(engine, household_id)
+    (transfers_filed, auto_categorized).
+
+    #63: the run leaves ONE audit row carrying how many transactions it rewrote and
+    which rule filed them — category assignment drives every budget and report, so
+    a bulk rewrite must not be invisible. ``actor_user_id`` is None for the nightly
+    worker: nobody asked for it, so nobody is credited with it.
+    """
+    # Snapshot what is unfiled BEFORE the rules run, so the audit row can name the
+    # exact transactions this run touched — that set is also the undo token.
+    was_uncategorized = {
+        t.id
+        for t in repository.list_transactions(engine, household_id, limit=100_000)
+        if t.category_id is None
+    }
+
+    income_filed = autofile_income(engine, household_id)
+    taxes_filed = autofile_taxes(engine, household_id, actor_user_id)
     transfers_filed = autofile_transfers(engine, household_id)
     auto_categorized = autocategorize_by_history(engine, household_id)
     # M97: surface exact-duplicate charges (same account/date/amount/merchant) for
     # the Review queue so the user can dispute a double-charge.
     repository.flag_possible_duplicates(engine, household_id)
+
+    filed_ids = [
+        t.id
+        for t in repository.list_transactions(engine, household_id, limit=100_000)
+        if t.category_id is not None and t.id in was_uncategorized
+    ]
+    if filed_ids:
+        audit.write_audit(
+            engine,
+            household_id,
+            actor_user_id,
+            "transactions.auto_filed",
+            "transaction",
+            None,
+            f"Auto-filed {len(filed_ids)} transactions after sync "
+            f"({income_filed} income, {taxes_filed} taxes, {transfers_filed} transfers, "
+            f"{auto_categorized} by a known merchant)",
+            undo_token=undo_actions.transactions_auto_filed(filed_ids),
+        )
     return transfers_filed, auto_categorized
 
 
