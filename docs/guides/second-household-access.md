@@ -332,6 +332,18 @@ certificate on CGNAT, and the CA-signed one is bound to the name). The FQDN is
 their only working address, and it works precisely because step 4 put a
 publicly-trusted certificate on it.
 
+#### How they get the app
+
+**TestFlight, not the over-the-air install.** `scripts/deploy-ios-ota.sh`
+publishes the build on the box and bakes the **LAN address** into the install
+manifest, so the OTA route only works for a device on your home network. A
+shared household never is. It is also the path that needs the box's certificate
+trusted on the device first, which the CA-signed certificate exists to avoid.
+
+So: `scripts/release-testflight.sh`, then add them as a tester in App Store
+Connect. Confirm they are on **0.152.0 or later** — see the caveat above about
+what happens at renewal if they are not.
+
 ### 5. Set their household up in the app
 
 - Create the household and invite them (see the onboarding flow).
