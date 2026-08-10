@@ -179,7 +179,7 @@ async def delete_member(
     # ADR 0072 Phase 2: a removed member may know the old data key (their wrap
     # covered it) — rotate, re-encrypting every sealed row. Remaining members'
     # wraps return at their next login; the recovery key must be re-minted.
-    household_crypto.rotate_household_key(engine, session.household_id)
+    household_crypto.rotate_household_key(engine, session.household_id, session.user_id)
     audit.write_audit(
         engine,
         session.household_id,

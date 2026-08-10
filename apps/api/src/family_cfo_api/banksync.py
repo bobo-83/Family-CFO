@@ -27,7 +27,7 @@ import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import household_crypto, repository
+from family_cfo_api import audit, household_crypto, repository
 from family_cfo_api.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -267,8 +267,15 @@ def sync_connection(
     settings: Settings,
     connection: repository.InstitutionConnectionRecord,
     connector: BankConnector | None = None,
+    actor_user_id: str | None = None,
 ) -> SyncResult:
-    """Fetch and import all accounts/transactions for one connection, deduped."""
+    """Fetch and import all accounts/transactions for one connection, deduped.
+
+    ``actor_user_id`` is the member who asked for this sync, or ``None`` when the
+    scheduled poller ran it (#63). A nightly sync is nobody's action — attributing
+    it to whoever linked the account would read as "she did this at 3am" — so the
+    audit row names the CAUSE in its summary and leaves the actor NULL.
+    """
     connector = connector or SimpleFINConnector()
     access_url = decrypt_credential(settings, connection.access_url_encrypted)
     # M59: always request the full detection lookback, never just "since last
@@ -288,6 +295,7 @@ def sync_connection(
 
     imported = 0
     duplicates = 0
+    balances_recorded = 0
     for ext in external_accounts:
         account_id = repository.get_or_create_connection_account(
             engine,
@@ -313,6 +321,7 @@ def sync_connection(
             ):
                 balance_minor = -balance_minor
             repository.record_account_balance(engine, account_id, balance_minor)
+            balances_recorded += 1
         for txn in ext.transactions:
             created = repository.create_transaction_deduped(
                 engine,
@@ -332,6 +341,22 @@ def sync_connection(
                 duplicates += 1
 
     repository.record_connection_sync(engine, connection.id, error=None)
+    # #63: ONE audit row per sync, carrying the counts — never one per transaction,
+    # which would bury the trail under a 400-row import. Counts are the answer to
+    # "what changed"; the amounts themselves stay out of the summary (audit rows
+    # are Internal, financial figures are not).
+    audit.write_audit(
+        engine,
+        connection.household_id,
+        actor_user_id,
+        "connection.synced",
+        "institution_connection",
+        connection.id,
+        f"{'Scheduled' if actor_user_id is None else 'Requested'} sync of "
+        f"“{connection.display_name}”: {len(external_accounts)} accounts, "
+        f"{balances_recorded} balances recorded, {imported} new transactions, "
+        f"{duplicates} already-known skipped",
+    )
     logger.info(
         "bank sync completed connection_id=%s accounts=%s imported=%s duplicates=%s",
         connection.id,

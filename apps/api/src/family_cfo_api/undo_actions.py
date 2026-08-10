@@ -119,6 +119,15 @@ UNDO_POLICY: dict[str, str] = {
     # bank connections
     "connection.created": UNDOABLE,
     "connection.deleted": IRREVERSIBLE,  # re-linking needs re-authorizing with the provider
+    # #63: a sync mirrors what the institution reports — balances recorded and
+    # transactions inserted. "Undoing" it would delete provider-sourced rows that
+    # the very next sync re-imports (the ADR 0015 external_id dedupe compares
+    # against what is stored, so a deletion is not remembered), i.e. the undo does
+    # not hold. Delete the transactions, or unlink the connection, instead.
+    "connection.synced": IRREVERSIBLE,
+    # #63: auto-filing only ever fills a BLANK category, so the exact inverse is
+    # to blank those same transactions again — the token carries their ids.
+    "transactions.auto_filed": UNDOABLE,
     # imports
     "import.applied": UNDOABLE,
     "import.discarded": IRREVERSIBLE,  # bulk-deleted staged rows; re-upload the file to redo
@@ -619,6 +628,14 @@ def balance_recorded(balance_id: str) -> str:
     return json.dumps({"op": "delete", "entity": "account_balance", "id": balance_id})
 
 
+def transactions_auto_filed(transaction_ids: list[str]) -> str:
+    """#63: auto-filing (transfers/income/taxes/known merchants) only assigns a
+    category to transactions that had none, so the inverse is to clear the category
+    on exactly those ids. One token for the whole run — an audit row per operation,
+    not per transaction."""
+    return json.dumps({"op": "unfile_categories", "ids": list(transaction_ids)})
+
+
 def income_override_set(transaction_id: str, previous_verdict: str | None) -> str:
     """Restore the previous include/exclude verdict, or clear it (M117)."""
     return json.dumps(
@@ -755,6 +772,16 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
             engine, household_id, transaction_id,
             category_id=previous, clear_category=previous is None,
         )
+        return
+
+    if op == "unfile_categories":
+        # #63: reverse of a bulk auto-file — every listed transaction was
+        # uncategorized before the run, so blanking them restores the prior state.
+        # Rows deleted since are simply skipped; the rest still revert.
+        ids = [str(i) for i in (token.get("ids") or [])]
+        if not ids:
+            raise UndoError("this action can't be undone")
+        repository.clear_transactions_category(engine, household_id, ids)
         return
 
     if op == "undismiss_suggestion":

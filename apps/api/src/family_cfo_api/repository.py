@@ -5215,6 +5215,25 @@ def set_transactions_category(
     return result.rowcount
 
 
+def clear_transactions_category(
+    engine: Engine, household_id: str, transaction_ids: list[str]
+) -> int:
+    """Blank the category on a set of transactions (#63) — the inverse of a bulk
+    auto-file, which only ever filled blanks. Returns the count updated."""
+    if not transaction_ids:
+        return 0
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.transactions)
+            .where(
+                models.transactions.c.household_id == household_id,
+                models.transactions.c.id.in_(transaction_ids),
+            )
+            .values(category_id=None)
+        )
+    return result.rowcount
+
+
 # --- M97: duplicate review queue ---------------------------------------------
 
 REVIEW_DUPLICATE_STATES = ("flagged", "disputed")
