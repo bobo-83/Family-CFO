@@ -116,7 +116,7 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/RateLimited"
   /pairing/devices:
     get:
       tags:
@@ -181,6 +181,8 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "401":
           $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     delete:
       tags:
         - Authentication
@@ -742,7 +744,7 @@ paths:
         "410":
           $ref: "#/components/responses/Error"
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/RateLimited"
   /invites/accept:
     post:
       tags:
@@ -771,7 +773,7 @@ paths:
         "422":
           $ref: "#/components/responses/Error"
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/RateLimited"
   /household/roles:
     get:
       tags:
@@ -3451,7 +3453,7 @@ paths:
         "403":
           $ref: "#/components/responses/Error"
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/RateLimited"
   /backups/{backup_id}/restore:
     post:
       tags:
@@ -4129,6 +4131,30 @@ components:
   responses:
     Error:
       description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: >-
+        Rate limited. `Retry-After` carries the remaining wait in seconds, so a
+        client can say how long instead of guessing — the auth lockout is
+        minutes long, not the "wait a minute" clients used to print (#92).
+        Treat the header as advisory: an older server or an intermediary that
+        strips it leaves it absent, and a client must then say "later" rather
+        than name a duration it does not know.
+      headers:
+        Retry-After:
+          description: >-
+            Whole seconds the caller must wait before retrying (RFC 9110
+            delta-seconds). Optional and typed as a string on purpose: the
+            value reaches the client through whatever proxy the household put
+            in front of the box, so a client must parse it defensively and
+            degrade to "try again later" when it is missing or not a number,
+            rather than fail the whole response over a header.
+          schema:
+            type: string
+            example: "900"
       content:
         application/json:
           schema:

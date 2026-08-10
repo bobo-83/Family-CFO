@@ -4,13 +4,26 @@ import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { clearAuthState } from './token-store';
 
-function response(data: unknown, error?: unknown) {
+function response(data: unknown, error?: unknown, raw = new Response()) {
   return {
     data,
     error,
     request: new Request('http://localhost/'),
-    response: new Response(),
+    response: raw,
   } as never;
+}
+
+/** The brute-force lockout's answer: a generic body, the real wait in the header. */
+function rateLimited(retryAfter?: string) {
+  const raw = new Response(null, {
+    status: 429,
+    headers: retryAfter ? { 'Retry-After': retryAfter } : {},
+  });
+  return response(
+    undefined,
+    { error: { code: 'http_error', message: 'Too many login attempts. Try again later.' } },
+    raw,
+  );
 }
 
 describe('AuthService', () => {
@@ -60,6 +73,33 @@ describe('AuthService', () => {
     expect(result.ok).toBe(false);
     expect(result.errorMessage).toBe('Invalid email or password');
     expect(service.isAuthenticated()).toBe(false);
+  });
+
+  // #92: the load-bearing property is that the sentence follows the header.
+  // Asserting one fixed sentence is what let "wait a minute" survive a
+  // fifteen-minute lockout.
+  it('names the lockout the server sent, not a constant', async () => {
+    apiMock.login.mockResolvedValue(rateLimited('883'));
+    const quarterHour = await service.login('demo@family-cfo.local', 'wrong-password');
+
+    apiMock.login.mockResolvedValue(rateLimited('120'));
+    const twoMinutes = await service.login('demo@family-cfo.local', 'wrong-password');
+
+    expect(quarterHour.errorMessage).toBe('Too many attempts — try again in 15 minutes.');
+    expect(twoMinutes.errorMessage).toBe('Too many attempts — try again in 2 minutes.');
+    expect(quarterHour.errorMessage).not.toBe(twoMinutes.errorMessage);
+  });
+
+  it('names no duration when the box or a proxy sent no Retry-After', async () => {
+    apiMock.login.mockResolvedValue(rateLimited());
+    const absent = await service.login('demo@family-cfo.local', 'wrong-password');
+
+    apiMock.login.mockResolvedValue(rateLimited('not-a-number'));
+    const unparseable = await service.login('demo@family-cfo.local', 'wrong-password');
+
+    expect(absent.errorMessage).toBe('Too many attempts — try again later.');
+    expect(unparseable.errorMessage).toBe('Too many attempts — try again later.');
+    expect(absent.errorMessage).not.toMatch(/\d/);
   });
 
   it('clears the session on logout', async () => {

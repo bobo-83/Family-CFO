@@ -7186,14 +7186,14 @@
         <source>This invite link is invalid or expired — ask for a new one.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/join/join.ts</context>
-          <context context-type="linenumber">91</context>
+          <context context-type="linenumber">93</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5082522811197004994" datatype="html">
         <source>Could not join — the link may have expired. Ask for a new one.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/join/join.ts</context>
-          <context context-type="linenumber">117</context>
+          <context context-type="linenumber">123</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6276744699093746777" datatype="html">
@@ -9295,7 +9295,7 @@
         <source>Failed to change the time zone.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">700</context>
+          <context context-type="linenumber">697</context>
         </context-group>
         <note priority="1" from="description">The household time zone could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9304,7 +9304,7 @@
         <source>Failed to update committed savings.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">739</context>
+          <context context-type="linenumber">736</context>
         </context-group>
         <note priority="1" from="description">The committed savings setting could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9313,7 +9313,7 @@
         <source>Due today</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">749</context>
+          <context context-type="linenumber">746</context>
         </context-group>
         <note priority="1" from="description">The bill is due today</note>
         <note priority="1" from="meaning">Bill due label</note>
@@ -9322,7 +9322,7 @@
         <source>Due tomorrow</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">752</context>
+          <context context-type="linenumber">749</context>
         </context-group>
         <note priority="1" from="description">The bill is due tomorrow</note>
         <note priority="1" from="meaning">Bill due label</note>
@@ -9331,7 +9331,7 @@
         <source>Due in <x id="days" equiv-text="daysUntil"/> days</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">754</context>
+          <context context-type="linenumber">751</context>
         </context-group>
         <note priority="1" from="description">How many days until the bill is due</note>
         <note priority="1" from="meaning">Bill due label</note>
@@ -10909,6 +10909,34 @@
         </context-group>
         <note priority="1" from="description">The statement charged this but no synced transaction explains it</note>
         <note priority="1" from="meaning">Statement line state</note>
+      </trans-unit>
+      <trans-unit id="3195685795971107506" datatype="html">
+        <source>Too many attempts — try again later.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3074304344858811981" datatype="html">
+        <source>Too many attempts — try again in under a minute.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">41</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="2369182305718071473" datatype="html">
+        <source>Too many attempts — try again in about a minute.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">45</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8855653697550559258" datatype="html">
+        <source>Too many attempts — try again in <x id="PH" equiv-text="minutes"/> minutes.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/retry-after.ts</context>
+          <context context-type="linenumber">47</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="397187458327341962" datatype="html">
         <source>Time zone</source>

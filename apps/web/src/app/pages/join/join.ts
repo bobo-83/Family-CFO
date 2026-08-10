@@ -84,11 +84,15 @@ export class Join {
       this.loadError.set($localize`This invite link is incomplete — ask for a new one.`);
       return;
     }
-    const { data, error } = await this.api.previewInvite(this.token);
+    const { data, error, response } = await this.api.previewInvite(this.token);
     this.loading.set(false);
     if (error || !data) {
       this.loadError.set(
-        apiErrorMessage(error, $localize`This invite link is invalid or expired — ask for a new one.`),
+        apiErrorMessage(
+          error,
+          $localize`This invite link is invalid or expired — ask for a new one.`,
+          response,
+        ),
       );
       return;
     }
@@ -104,7 +108,7 @@ export class Join {
     this.submitError.set(null);
     const { displayName, password } = this.form.getRawValue();
     const timezone = this.timezone();
-    const { data, error } = await this.api.acceptInvite({
+    const { data, error, response } = await this.api.acceptInvite({
       token: this.token,
       password,
       display_name: displayName,
@@ -114,7 +118,11 @@ export class Join {
     this.submitting.set(false);
     if (error || !data) {
       this.submitError.set(
-        apiErrorMessage(error, $localize`Could not join — the link may have expired. Ask for a new one.`),
+        apiErrorMessage(
+          error,
+          $localize`Could not join — the link may have expired. Ask for a new one.`,
+          response,
+        ),
       );
       return;
     }

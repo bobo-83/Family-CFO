@@ -6484,6 +6484,22 @@
         <source>Failed to revoke device.</source>
         <target state="translated">Không thu hồi được thiết bị.</target>
       </trans-unit>
+      <trans-unit id="3195685795971107506" datatype="html">
+        <source>Too many attempts — try again later.</source>
+        <target state="translated">Quá nhiều lần thử — hãy thử lại sau.</target>
+      </trans-unit>
+      <trans-unit id="3074304344858811981" datatype="html">
+        <source>Too many attempts — try again in under a minute.</source>
+        <target state="translated">Quá nhiều lần thử — hãy thử lại sau chưa đầy một phút.</target>
+      </trans-unit>
+      <trans-unit id="2369182305718071473" datatype="html">
+        <source>Too many attempts — try again in about a minute.</source>
+        <target state="translated">Quá nhiều lần thử — hãy thử lại sau khoảng một phút.</target>
+      </trans-unit>
+      <trans-unit id="8855653697550559258" datatype="html">
+        <source>Too many attempts — try again in <x id="PH" equiv-text="minutes"/> minutes.</source>
+        <target state="translated">Quá nhiều lần thử — hãy thử lại sau <x id="PH" equiv-text="minutes"/> phút.</target>
+      </trans-unit>
       <trans-unit id="5097631479765742714" datatype="html">
         <source>Toggle navigation menu</source>
         <target state="translated">Bật tắt menu điều hướng</target>
