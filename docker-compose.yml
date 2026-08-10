@@ -184,6 +184,13 @@ services:
       # connection host in its SAN is rejected no matter how it is trusted. e.g.
       # TLS_CERT_SAN=192.168.1.10,family-cfo-box
       TLS_CERT_SAN: ${TLS_CERT_SAN:-}
+      # MagicDNS name of this box on the tailnet (ADR 0030: never in the repo).
+      # Set it and install a CA-signed pair as tailnet.crt/tailnet.key in the
+      # web_certs volume (scripts/tailnet-cert.sh) and nginx adds a second,
+      # SNI-matched 443 block for that name. iOS refuses SELF-signed certs for
+      # public FQDNs and CGNAT addresses outright, which is why a shared
+      # Tailscale household needs this one. Unset = today's behaviour exactly.
+      TLS_TAILNET_NAME: ${TLS_TAILNET_NAME:-}
     volumes:
       # Bring-your-own certificate: mount a directory with tls.crt / tls.key to
       # replace the self-signed default (see ADR 0008). Uses a named volume by

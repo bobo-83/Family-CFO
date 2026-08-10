@@ -17,8 +17,13 @@ FROM nginx:alpine
 # openssl generates the self-signed cert at first start when none is mounted.
 RUN apk add --no-cache openssl
 COPY docker/web-nginx.conf /etc/nginx/conf.d/default.conf
+# Shared body of every HTTPS server block. NOT under conf.d/, which nginx.conf
+# includes at http context — a fragment of server-level directives there is a
+# parse error.
+COPY docker/web-server-common.conf /etc/nginx/family-cfo/server-common.conf
 COPY docker/web-entrypoint.sh /usr/local/bin/web-entrypoint.sh
-RUN chmod +x /usr/local/bin/web-entrypoint.sh
+COPY docker/web-render-tailnet-conf.sh /usr/local/bin/web-render-tailnet-conf.sh
+RUN chmod +x /usr/local/bin/web-entrypoint.sh /usr/local/bin/web-render-tailnet-conf.sh
 # #10: --localize writes one build per locale UNDER browser/
 # (dist/web/browser/{en,vi,lt}) — copying dist/web instead put the locales a
 # directory too deep and every path 500'd. Copy the browser dir so the locale

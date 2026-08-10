@@ -64,7 +64,8 @@ sudo tailscale up --hostname=<box-hostname>
 ```
 
 Follow the printed URL to authenticate the box to your tailnet. Then note its
-tailnet address and MagicDNS name — both are needed in step 4.
+tailnet address and MagicDNS name — the MagicDNS name is what step 4 needs, and
+the address is worth having to hand for debugging.
 
 ```bash
 tailscale ip -4
@@ -95,50 +96,199 @@ Consider also enabling:
 - **Device approval**, so a new device of theirs cannot join unattended.
 - **Key expiry**, left at the default rather than disabled.
 
-### 4. Add the tailnet name to the certificate — the disruptive step
+### 4. Serve a real certificate on the tailnet name
 
-**Read this before running it. It breaks every paired iPhone, including
-yours.**
+Adding the tailnet address to the existing self-signed certificate's SAN list
+looks like the obvious move. It does not work, and the reason is worth
+understanding before you spend an evening on it.
 
-The box serves a self-signed certificate whose SAN list is built from
-`TLS_CERT_SAN` (`docker/web-entrypoint.sh`). It currently covers the LAN
-address and local aliases. Over the tunnel the box is reached by a *different*
-address — its tailnet IP and MagicDNS name — and **neither is in the SAN**, so
-iOS and Safari reject the connection outright. Modern clients ignore the CN and
-validate against the SAN only.
+#### Why the self-signed certificate cannot cover the tailnet name
 
-Adding them means regenerating the certificate, and `web-entrypoint.sh` only
-generates when none is present, so the existing one must be deleted first. That
-changes the certificate's SHA-256 — **which the app pins**
-(`FamilyCFOShared/Networking/CertificatePin.swift`; the watch target pins
-separately). Every already-paired device must re-pair.
+iOS grants a relaxed trust policy to **local** network destinations — the one
+where an app's `URLSessionDelegate` is allowed to accept a self-signed
+certificate at all. It is granted to **single-label hostnames and RFC1918
+addresses**, and withheld from **public FQDNs and CGNAT (`100.64.0.0/10`)
+addresses**. A MagicDNS name is a public FQDN; a tailnet address is CGNAT. Both
+are therefore outside the exemption.
 
-Do it once, deliberately:
+A packet capture shows exactly what that costs. Connecting by the MagicDNS name
+or the tailnet IP, the client completes the TCP handshake, sends its
+ClientHello, receives the certificate — and then **abandons the connection
+without finishing the TLS handshake**. The identical certificate on the same box
+is accepted seconds later over the single-label name. The error is
+`NSURLErrorDomain -1200` (handshake), **not** `-1202` (trust), because the
+rejection happens *below* the layer where the delegate is consulted. No delegate
+code, no pinning, and no amount of SAN editing changes it.
 
-1. Add the tailnet IP and MagicDNS name to `TLS_CERT_SAN` in the box's `.env`,
-   **together with any other name you expect to want later**, so the pins churn
-   a single time.
-2. Delete the certificate and restart the web container so it regenerates:
+So a shared household has no working address at all:
+
+| They try | Result |
+| --- | --- |
+| the short single-label name | does not resolve — their MagicDNS search domain is *their* tailnet, not yours |
+| the MagicDNS FQDN | refused mid-handshake (self-signed on a public FQDN) |
+| the tailnet IP | refused mid-handshake (self-signed on CGNAT) |
+
+#### The fix: two certificates, picked by SNI
+
+Tailscale can issue a genuine **Let's Encrypt** certificate for the box's
+MagicDNS name (`tailscale cert`). It covers **only that one name** — its SAN
+contains that single DNS entry and nothing else — so it cannot replace the
+self-signed certificate without breaking the LAN address, the WireGuard address
+and the short name.
+
+The box therefore serves **both**, and nginx chooses per connection using the
+name in the TLS SNI extension:
+
+| Reached by | Certificate | Trusted how |
+| --- | --- | --- |
+| single-label name (`my-box`) | self-signed | the app's pin / an installed profile |
+| LAN or WireGuard IP | self-signed | same |
+| any address with no SNI | self-signed (default block) | same |
+| the MagicDNS FQDN | Let's Encrypt | the system trust store — nothing to install |
+
+A connection by **IP address sends no SNI**, so it lands on nginx's
+`default_server` — the self-signed block. The tailnet block matches by name
+only and can never capture it. With no tailnet certificate installed, no second
+block is written at all and the box behaves exactly as it did before.
+
+Configuration lives in `docker/web-nginx.conf` (default block),
+`docker/web-server-common.conf` (the body both blocks share) and
+`docker/web-render-tailnet-conf.sh` (renders the second block at container
+start).
+
+#### What this makes public
+
+Every certificate a public CA issues is published to **certificate
+transparency** logs. Issuing one for the MagicDNS name therefore puts
+`<box-name>.<tailnet>.ts.net` into a permanent, publicly searchable record. The
+operator has accepted this; write it down rather than rediscover it.
+
+What it does and does not mean:
+
+- It reveals that a node with that name exists on that tailnet. Tailnet names
+  are frequently derived from an account, so treat the node name as public and
+  name it accordingly — this is a reason not to call the box after a person or
+  an address (ADR 0030).
+- It does **not** make the box reachable. The name resolves to a CGNAT address
+  only for devices on the tailnet; there is no public A record, no open port and
+  no route in from the internet.
+
+If that trade is unacceptable, the alternative is to keep self-signed only and
+accept that shared households cannot use an iOS app — a browser can still be
+tapped through the warning.
+
+#### Turn it on
+
+1. Enable HTTPS certificates for the tailnet: admin console → **DNS** → **HTTPS
+   Certificates**. MagicDNS must be on.
+2. Put the box's MagicDNS name in the box's `.env` (never in the repo — ADR
+   0030):
 
    ```bash
-   docker compose exec web rm -f /etc/nginx/certs/tls.crt /etc/nginx/certs/tls.key
-   docker compose up -d --force-recreate web
+   TLS_TAILNET_NAME=<box-name>.<tailnet>.ts.net
    ```
 
-3. Re-pair your own devices first — confirm the LAN path still works before
-   involving anyone else.
-4. Then have them install the certificate and pair.
+3. Apply it so the container sees the variable, then issue and install the
+   certificate:
 
-`scripts/deploy-ios-ota.sh` prints the certificate-trust steps their phone
-needs.
+   ```bash
+   docker compose up -d web
+   scripts/tailnet-cert.sh
+   ```
 
-**This step disappears once #2's mixed-trust work lands.** `tailscale serve`
-can terminate TLS with a genuine CA-signed certificate for the MagicDNS name —
-no SAN editing, no manual trust, no warning. It is blocked only because those
-certificates rotate roughly every 90 days and the app pins fingerprints, so
-today it would break every phone about four times a year. After #2 (system
-trust store for CA-signed chains, pinning kept for self-signed only), it turns
-this section into "open a link".
+   The script runs **on the box**: it asks `tailscaled` for the certificate,
+   copies the pair into the `web_certs` volume as `tailnet.crt` / `tailnet.key`,
+   renders the second server block, runs `nginx -t`, and reloads. It never
+   touches `tls.crt` / `tls.key`, so **no paired device is disturbed**.
+
+4. Check both paths still work — from your own device on the LAN, and over the
+   tailnet:
+
+   ```bash
+   curl -k https://<box-lan-ip>:8443/api/v1/health        # self-signed, -k needed
+   curl    https://<box-magicdns-name>:8443/api/v1/health # CA-signed, no -k
+   ```
+
+   The second one succeeding **without** `-k` is the whole point: it means a
+   public CA vouches for it and nothing has to be installed on their devices.
+
+#### Renewal is not optional
+
+The Let's Encrypt certificate lasts **90 days**, and the households that depend
+on it have no other working address. A silent expiry locks out exactly the
+people the feature exists for, and it will happen on an ordinary Tuesday with no
+deploy to blame.
+
+`scripts/tailnet-cert.sh` is safe to run on a timer: `tailscale cert` reuses its
+cached certificate until renewal is actually due, and an unchanged certificate
+is neither copied nor reloaded. Install it as a **daily** systemd timer on the
+box — daily rather than monthly so a failure has weeks of retries left in it.
+
+The units are not shipped in the repo because the checkout path and the user
+differ per box. Create `/etc/systemd/system/family-cfo-tailnet-cert.service`:
+
+```ini
+[Unit]
+Description=Renew the Family CFO tailnet TLS certificate
+After=tailscaled.service docker.service
+Wants=tailscaled.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/family-cfo
+ExecStart=/path/to/family-cfo/scripts/tailnet-cert.sh
+# Runs as root: tailscaled's socket and the Docker socket both need it.
+User=root
+```
+
+and `/etc/systemd/system/family-cfo-tailnet-cert.timer`:
+
+```ini
+[Unit]
+Description=Daily renewal check for the Family CFO tailnet TLS certificate
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+# Catch up after the box has been off — a missed window must not cost 90 days.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now family-cfo-tailnet-cert.timer
+systemctl list-timers family-cfo-tailnet-cert.timer   # confirm it is scheduled
+sudo systemctl start family-cfo-tailnet-cert.service  # prove it runs clean once
+journalctl -u family-cfo-tailnet-cert.service -n 50
+```
+
+The service exits non-zero when issuance or the reload fails, so it is worth
+alerting on. Whatever you use, check it **before** day 90.
+
+#### The pin still rotates — know this before pairing over the tailnet
+
+The iOS app pins whatever certificate it captures at pairing
+(`FamilyCFOShared/Networking/CertificatePin.swift`; the watch target pins
+separately). A device paired over the **MagicDNS name** therefore pins a
+certificate that rotates roughly every 90 days, and will break at the first
+renewal until #2's mixed-trust work lands (system trust store for CA-signed
+chains, pinning kept for self-signed only).
+
+Until then:
+
+- Pair devices over an address that serves the **self-signed** certificate
+  wherever you can — the LAN or WireGuard address — and use the MagicDNS name
+  for day-to-day access.
+- A shared household that has no such address will need to re-pair at renewal.
+  Tell them so up front rather than at the moment it breaks.
+
+`scripts/deploy-ios-ota.sh` prints the certificate-trust steps a phone needs for
+the self-signed path.
 
 ### 5. Set their household up in the app
 
@@ -169,10 +319,13 @@ From one of their devices, with the client connected:
 
 ```bash
 tailscale status              # the box appears, nothing else does
-curl -k https://<box-tailnet-name>:8443/api/v1/health
+curl https://<box-magicdns-name>:8443/api/v1/health
 ```
 
-Expect `{"status":"ok","version":"..."}`. Then confirm the split tunnel is
+Expect `{"status":"ok","version":"..."}` — and note the absence of `-k`. If it
+only works with `-k`, step 4 has not taken effect and their iPhone app will fail
+even though curl is happy; curl accepts what iOS refuses, so a `-k` result
+proves nothing. Then confirm the split tunnel is
 intact — their public IP should be **unchanged** with the client on:
 
 ```bash
