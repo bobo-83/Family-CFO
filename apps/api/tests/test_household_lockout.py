@@ -53,9 +53,13 @@ async def test_first_run_bootstrap_unaffected() -> None:
 
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     fixtures.create_schema(engine)  # empty schema, no household
+    # Disposed below: a dropped engine's SQLite connections are closed by the
+    # garbage collector, which Python 3.13+ flags as a ResourceWarning against
+    # whichever test is running when it happens.
     app = _app(engine)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://testserver"
     ) as client:
         resp = await client.post("/api/v1/households", json=_payload("first@example.com"))
     assert resp.status_code == 201
+    engine.dispose()
