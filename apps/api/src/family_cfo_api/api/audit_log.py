@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository, rights, undo_actions
+from family_cfo_api import audit, repository, rights, undo_actions
 from family_cfo_api.deps import get_engine, require_right
 from family_cfo_api.schemas import AuditEvent, AuditEventListResponse, ErrorResponse
 
@@ -74,7 +74,19 @@ async def undo_audit_event(
         raise HTTPException(status_code=400, detail="This action can't be undone")
 
     _reverse(engine, session.household_id, token)
-    repository.mark_audit_reverted(engine, session.household_id, audit_id)
+    # #61: two records on purpose. The flag makes "is this reverted?" cheap to
+    # query; the event makes the timeline complete — reading the log top to
+    # bottom now shows the reversal, and says who performed it.
+    repository.mark_audit_reverted(engine, session.household_id, audit_id, session.user_id)
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "audit.reverted",
+        "audit_event",
+        audit_id,
+        f"Undid an earlier action ({record.action})",
+    )
     updated = repository.get_audit_event(engine, session.household_id, audit_id)
     assert updated is not None
     return _to_schema(updated)
