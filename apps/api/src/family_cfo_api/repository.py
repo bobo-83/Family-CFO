@@ -3997,6 +3997,15 @@ class MemberRecord:
     role_name: str = ""
 
 
+def user_exists(engine: Engine, user_id: str) -> bool:
+    """Is this user row still there? (#68) A restore replaces the WHOLE database,
+    so a member who joined after the snapshot was taken is simply absent from it —
+    and anything about to point at `users.id` has to ask before it writes."""
+    with engine.connect() as conn:
+        row = conn.execute(select(models.users.c.id).where(models.users.c.id == user_id)).first()
+    return row is not None
+
+
 def user_email_exists(engine: Engine, email: str) -> bool:
     with engine.connect() as conn:
         row = conn.execute(select(models.users.c.id).where(models.users.c.email == email)).first()
