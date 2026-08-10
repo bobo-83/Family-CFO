@@ -19,7 +19,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, repository, undo_actions
+from family_cfo_api import finance_service, fixtures, repository, undo_actions
 
 HH = fixtures.DEMO_HOUSEHOLD_ID
 
@@ -459,6 +459,93 @@ async def test_undoing_a_first_language_choice_clears_it_again(
     )
 
     assert repository.get_household(demo_engine, HH).language is None
+
+
+# --- 7. transactions.auto_filed — a footprint that scales with the sync ------
+
+
+def _seed_transfers(engine: Engine, count: int) -> None:
+    """Transactions the auto-file rules recognise as transfers, so one run files
+    a known number of rows."""
+    repository.create_category(engine, HH, "Transfers")
+    for index in range(count):
+        repository.create_transaction(
+            engine, HH, account_id=fixtures.DEMO_CHECKING_ACCOUNT_ID,
+            occurred_at=date(2026, 3, 1 + index), amount_minor=-25_000, currency="USD",
+            merchant="Online Transfer to Savings", description=None,
+            import_source="bank_sync", import_id=None, review_state="reviewed",
+        )
+
+
+def _uncategorized(engine: Engine) -> set[str]:
+    return {
+        t.id
+        for t in repository.list_transactions(engine, HH, limit=100_000)
+        if t.category_id is None
+    }
+
+
+def _categories(engine: Engine) -> dict[str, str]:
+    return {
+        t.id: t.category_id
+        for t in repository.list_transactions(engine, HH, limit=100_000)
+        if t.category_id is not None
+    }
+
+
+@pytest.mark.anyio
+async def test_an_autofile_under_the_bound_undoes_exactly_what_it_filed(
+    demo_client, demo_engine: Engine, demo_token: str
+) -> None:
+    """The ordinary run — a nightly worker pass, or a sync of a few days — is
+    unaffected by #71's bound: it stays undoable and the undo clears the rows the
+    run filed and nothing else."""
+    headers = _headers(demo_token)
+    _seed_transfers(demo_engine, 3)
+    before = _uncategorized(demo_engine)
+    untouched_before = _categories(demo_engine)
+
+    finance_service.autofile_all(demo_engine, HH)
+    filed = before - _uncategorized(demo_engine)
+    assert 3 <= len(filed) <= undo_actions.SNAPSHOT_ROW_LIMIT
+
+    event = await _latest_event(demo_client, headers, "transactions.auto_filed")
+    assert event["undoable"] is True
+    await _undo(demo_client, headers, event)
+
+    assert filed <= _uncategorized(demo_engine), "a row the run filed was left categorised"
+    assert {
+        tid: cid for tid, cid in _categories(demo_engine).items() if tid in untouched_before
+    } == untouched_before, "the undo cleared rows the run never touched"
+
+
+@pytest.mark.anyio
+async def test_an_autofile_over_the_bound_is_honestly_irreversible(
+    demo_client, demo_engine: Engine, demo_token: str, monkeypatch
+) -> None:
+    """#71: this token's footprint scales with the sync, not with the household's
+    settings — a first sync of several years auto-files tens of thousands of rows
+    and every id went into one audit column. Past the bound it refuses to
+    serialise them, and the `undoable` flag the Activity screen actually reads
+    agrees, so no Undo is offered that would only error.
+    """
+    monkeypatch.setattr(undo_actions, "SNAPSHOT_ROW_LIMIT", 2)
+    headers = _headers(demo_token)
+    _seed_transfers(demo_engine, 5)
+    before = _uncategorized(demo_engine)
+
+    finance_service.autofile_all(demo_engine, HH)
+    assert len(before - _uncategorized(demo_engine)) > 2
+
+    event = await _latest_event(demo_client, headers, "transactions.auto_filed")
+    assert event["undoable"] is False, "the UI reads the flag, not the token"
+    record = repository.get_audit_event(demo_engine, HH, event["id"])
+    assert '"op": "irreversible"' in record.undo_token
+    assert '"ids"' not in record.undo_token, "no id list may reach the column"
+
+    refused = await demo_client.post(f"/api/v1/audit/{event['id']}/undo", headers=headers)
+    assert refused.status_code == 400
+    assert "cannot be restored" in refused.json()["error"]["message"]
 
 
 # --- the shape the six shared: a token that captures less than the change ----

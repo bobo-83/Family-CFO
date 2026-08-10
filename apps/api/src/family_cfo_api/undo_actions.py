@@ -209,8 +209,9 @@ def _datetime(value: str | None) -> datetime | None:
 
 
 # ADR 0073 + #71: a snapshot has to fit in one `audit_events.undo_token` column.
-# A delete that cascades over more rows than this gets an honest IRREVERSIBLE
-# token instead of a multi-hundred-kilobyte blob or, worse, a partial one.
+# Any action whose footprint scales with household data — a delete that cascades,
+# a bulk auto-file — gets an honest IRREVERSIBLE token past this many rows,
+# instead of a multi-hundred-kilobyte blob or, worse, a partial one.
 SNAPSHOT_ROW_LIMIT = 500
 
 
@@ -770,7 +771,32 @@ def transactions_auto_filed(transaction_ids: list[str]) -> str:
     """#63: auto-filing (transfers/income/taxes/known merchants) only assigns a
     category to transactions that had none, so the inverse is to clear the category
     on exactly those ids. One token for the whole run — an audit row per operation,
-    not per transaction."""
+    not per transaction.
+
+    #71: nothing bounded that list. A first sync of several years of history
+    auto-files tens of thousands of rows, and every id went into one
+    ``audit_events.undo_token`` column — written on every run and read back
+    whenever the Activity screen renders the event. Above
+    :data:`SNAPSHOT_ROW_LIMIT` the token says so honestly instead (ADR 0073),
+    the same answer :func:`category_deleted` and :func:`account_deleted` give.
+
+    The bound does NOT vary by caller, though auto-file runs both from a user's
+    sync and from the nightly worker with a null actor (#63). Two reasons. The
+    undo endpoint gates on the AUDIT_VIEW right, not on the actor, so a
+    null-actor row is listed on the Activity screen and any member can undo it —
+    "nobody can undo it anyway" is not true of the worker path. And the thing
+    being bounded is the size of one audit row, which is a property of the row,
+    not of who caused it; a per-path bound would make the same 600-row run
+    undoable after a manual sync and not after a nightly one, which is arbitrary
+    to the person reading the log. The size difference the two paths actually
+    have — a nightly 20 rows versus a first sync of 20,000 — is already handled
+    by a single bound, because only one of them comes near it.
+    """
+    if len(transaction_ids) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"this run auto-filed more than {SNAPSHOT_ROW_LIMIT} transactions; "
+            "their previous categories cannot be restored"
+        )
     return json.dumps({"op": "unfile_categories", "ids": list(transaction_ids)})
 
 
