@@ -50,7 +50,12 @@ final class WatchModel {
 
     func apply(_ context: [String: String], persist: Bool = true) {
         apiBaseURL = context["apiBaseURL"].flatMap(URL.init(string:))
-        certificateSHA256 = context["certificateSHA256"]
+        // #86: the phone relays "" when the box's certificate is CA-signed and
+        // nothing was pinned — application context carries strings, not
+        // optionals. An empty pin is no pin; keeping it as "" pinned the watch
+        // to a hash no certificate can have, so the watch alone refused every
+        // request while the phone was happily connected.
+        certificateSHA256 = CertificatePin.normalizedPin(context["certificateSHA256"])
         token = context["token"].flatMap { $0.isEmpty ? nil : $0 }
         householdName = context["householdName"]
         if persist, let data = try? JSONEncoder().encode(context) {
