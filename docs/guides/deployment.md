@@ -316,6 +316,14 @@ The API applies any new migrations on startup (so a schema change ships with an
 
 - Health: `scripts/doctor.sh` — a read-only report on containers, the API/DB/
   web/vLLM endpoints, disk, and GPU. Run it any time to answer "is it working?".
+- Setup drift: `scripts/doctor.sh --setup-only` — the "Setup" section on its
+  own: certificate expiry, whether the certificate is one iOS will accept,
+  whether its SAN covers the addresses the box answers to, the tailnet
+  certificate's renewal timer, the applied migration vs the newest one in the
+  tree, and the published OTA bundle's version. `scripts/patch.sh` runs this on
+  the target after every deploy. It is **advisory**: it prints, it never rolls
+  back and never fails a deploy — a certificate with three weeks left must not
+  block shipping a fix, and a rollback would not repair any of it.
 - Smoke test a build: `scripts/e2e-deploy-test.sh` — builds images and boots an
   isolated core stack (no vLLM), logs in, exercises chat, and tears down.
 - Logs: `docker compose logs -f api` (or `worker`, `web`, `db`).
