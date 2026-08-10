@@ -290,25 +290,59 @@ journalctl -u family-cfo-tailnet-cert.service -n 50
 The service exits non-zero when issuance or the reload fails, so it is worth
 alerting on. Whatever you use, check it **before** day 90.
 
-#### The pin still rotates — know this before pairing over the tailnet
+#### Rotation no longer breaks paired devices
 
-The iOS app pins whatever certificate it captures at pairing
-(`FamilyCFOShared/Networking/CertificatePin.swift`; the watch target pins
-separately). A device paired over the **MagicDNS name** therefore pins a
-certificate that rotates roughly every 90 days, and will break at the first
-renewal until #2's mixed-trust work lands (system trust store for CA-signed
-chains, pinning kept for self-signed only).
+The app used to pin whatever certificate it captured at pairing, which was
+correct for a self-signed certificate — the fingerprint *is* the trust — and
+wrong for a CA-signed one, because its issuer replaces it every ~90 days. A
+device paired over the MagicDNS name would have refused the renewed certificate.
 
-Until then:
+Since #86 the app decides per connection, by asking the platform rather than
+guessing from the issuer name:
 
-- Pair devices over an address that serves the **self-signed** certificate
-  wherever you can — the LAN or WireGuard address — and use the MagicDNS name
-  for day-to-day access.
-- A shared household that has no such address will need to re-pair at renewal.
-  Tell them so up front rather than at the moment it breaks.
+| The server presents | The app does |
+| --- | --- |
+| a chain reaching a **trusted root**, valid for that host | ordinary system-trust validation — **no pin**, so renewal is invisible |
+| a **self-signed** certificate | pins the fingerprint, exactly as before |
 
-`scripts/deploy-ios-ota.sh` prints the certificate-trust steps a phone needs for
-the self-signed path.
+So the LAN and WireGuard paths keep the pinning that makes a self-signed
+certificate trustworthy, and the tailnet path survives rotation. Nothing to do
+at renewal, and nobody re-pairs.
+
+**One caveat that still bites:** this lives in the app, so it only protects a
+device running a build that contains it (**0.152.0 or later**). A phone left on
+an older build and paired over the MagicDNS name will still refuse the renewed
+certificate. Check `Settings → About` on their device before day 90 rather than
+after.
+
+#### Which address each person should use
+
+This is the single most useful line in this guide, and the one that costs an
+evening if it is wrong:
+
+| Who they are | What they type into the app |
+| --- | --- |
+| **You** (the tailnet owner), over Tailscale | the **short name** — your search domain resolves it |
+| **You**, at home or over WireGuard | the **LAN address** |
+| **A shared household** | the **MagicDNS FQDN** — nothing else works for them |
+
+A shared user cannot use the short name (their MagicDNS search domain is their
+own tailnet, not yours) and cannot use the tailnet IP (iOS refuses a self-signed
+certificate on CGNAT, and the CA-signed one is bound to the name). The FQDN is
+their only working address, and it works precisely because step 4 put a
+publicly-trusted certificate on it.
+
+#### How they get the app
+
+**TestFlight, not the over-the-air install.** `scripts/deploy-ios-ota.sh`
+publishes the build on the box and bakes the **LAN address** into the install
+manifest, so the OTA route only works for a device on your home network. A
+shared household never is. It is also the path that needs the box's certificate
+trusted on the device first, which the CA-signed certificate exists to avoid.
+
+So: `scripts/release-testflight.sh`, then add them as a tester in App Store
+Connect. Confirm they are on **0.152.0 or later** — see the caveat above about
+what happens at renewal if they are not.
 
 ### 5. Set their household up in the app
 
@@ -335,7 +369,14 @@ Write the answer down somewhere they can see it. See
 
 ## Verifying
 
-From one of their devices, with the client connected:
+Start on the box — `scripts/doctor.sh --setup-only` reports the whole TLS story
+in one place: both certificates' expiry, whether the self-signed one is shaped
+in a way iOS accepts, whether the SAN covers every address this box answers to,
+and whether the renewal **service** is succeeding rather than merely scheduled.
+`scripts/patch.sh` runs the same checks after every deploy, so drift surfaces
+there rather than at expiry.
+
+Then from one of their devices, with the client connected:
 
 ```bash
 tailscale status              # the box appears, nothing else does
