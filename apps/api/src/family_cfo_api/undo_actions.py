@@ -11,12 +11,22 @@ generic shapes cover create/update/delete on the household's own records:
 Plus one special case for a transaction recategorize (it restores the prior
 category id). Inherently-irreversible actions (login, a backup/restore that ran, a
 revealed key) record no token and simply aren't undoable — the UI shows no Undo.
+
+ADR 0073 defines what a token has to contain: an undo restores the state as it
+was immediately before the action, so a token carries prior VALUES (never an
+inverse instruction), and its footprint is everything the action changed,
+cascades included. Two rules follow, and both are load-bearing here:
+
+- A write that can UPDATE an existing row must not mint a ``delete`` token.
+- A snapshot that cannot fit in one audit row is refused, not truncated: the
+  builder returns :func:`irreversible` and the event honestly reports that it
+  cannot be undone (#71).
 """
 
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy.engine import Engine
@@ -194,12 +204,45 @@ def _date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
 
+def _datetime(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None
+
+
+# ADR 0073 + #71: a snapshot has to fit in one `audit_events.undo_token` column.
+# A delete that cascades over more rows than this gets an honest IRREVERSIBLE
+# token instead of a multi-hundred-kilobyte blob or, worse, a partial one.
+SNAPSHOT_ROW_LIMIT = 500
+
+
 # --- token builders (called by the write handlers) --------------------------
 
 
 def created(entity: str, entity_id: str) -> str:
     """A CREATE is undone by deleting the new record."""
     return json.dumps({"op": "delete", "entity": entity, "id": entity_id})
+
+
+def irreversible(reason: str) -> str:
+    """A token that says, in the row itself, that this particular event cannot be
+    put back (ADR 0073).
+
+    The action stays UNDOABLE in ``UNDO_POLICY`` — most of its events are — but
+    this one exceeded what a snapshot can carry, so the Activity screen offers
+    no Undo for it and the reason is on the record.
+    """
+    return json.dumps({"op": "irreversible", "reason": reason})
+
+
+def token_is_reversible(raw: str | None) -> bool:
+    """Whether an audit row's stored token can actually be reversed — used to
+    decide the ``undoable`` flag, so the UI never offers an Undo that errors."""
+    if raw is None:
+        return False
+    try:
+        token = json.loads(raw)
+    except (ValueError, TypeError):
+        return False
+    return isinstance(token, dict) and token.get("op") != "irreversible"
 
 
 def system_admin_revoked(user_id: str, granted_by_user_id: str | None) -> str:
@@ -316,9 +359,45 @@ def role_deleted(before: repository.RoleRecord) -> str:
     )
 
 
-def category_deleted(category: repository.CategoryRecord) -> str:
+def category_deleted(
+    category: repository.CategoryRecord,
+    transaction_ids: list[str],
+    budget: repository.BudgetRecord | None,
+) -> str:
+    """#72: deleting a category is three changes, not one — the category row, the
+    ``category_id`` nulled on every transaction filed under it, and the budget
+    envelope deleted with it. The token carries all three, and the category
+    comes back under its ORIGINAL id so the transactions and the envelope point
+    at the same category they did before.
+
+    ``transaction_ids`` is read with :data:`SNAPSHOT_ROW_LIMIT` + 1 rows: one
+    over the limit means the household files more transactions here than a
+    single audit row can hold, and the honest answer is IRREVERSIBLE (#71).
+    """
+    if len(transaction_ids) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"more than {SNAPSHOT_ROW_LIMIT} transactions were filed under this "
+            "category; their categories cannot be restored"
+        )
     return json.dumps(
-        {"op": "recreate", "entity": "category", "data": {"name": category.name}}
+        {
+            "op": "recreate",
+            "entity": "category",
+            "data": {
+                "id": category.id,
+                "name": category.name,
+                "transaction_ids": transaction_ids,
+                "budget": (
+                    {
+                        "id": budget.id,
+                        "limit_minor": budget.limit_minor,
+                        "currency": budget.currency,
+                    }
+                    if budget is not None
+                    else None
+                ),
+            },
+        }
     )
 
 
@@ -328,24 +407,53 @@ def category_updated(before: repository.CategoryRecord) -> str:
     )
 
 
-def account_deleted(account: repository.AccountRecord) -> str:
+def account_deleted(
+    account: repository.AccountRecord, balances: list[tuple[str, int, datetime]]
+) -> str:
+    """#72: ``delete_account`` drops the account's balance history with it, so the
+    token carries the history and the account's own id — the account comes back
+    where its statements, savings routes and snapshots still point.
+
+    ``balances`` is read with :data:`SNAPSHOT_ROW_LIMIT` + 1 rows; one over the
+    limit means the history is longer than an audit row can hold (#71).
+    """
+    if len(balances) > SNAPSHOT_ROW_LIMIT:
+        return irreversible(
+            f"this account has more than {SNAPSHOT_ROW_LIMIT} recorded balances; "
+            "its history cannot be restored"
+        )
     return json.dumps(
         {
             "op": "recreate",
             "entity": "account",
             "data": {
+                "id": account.id,
                 "name": account.name,
                 "account_type": account.account_type,
                 "currency": account.currency,
                 "annual_interest_rate": account.annual_interest_rate,
                 "minimum_payment_minor": account.minimum_payment_minor,
                 "maturity_date": _iso(account.maturity_date),
+                "next_payment_due_date": _iso(account.next_payment_due_date),
+                "emergency_fund_percent": account.emergency_fund_percent,
+                "emergency_fund_minor": account.emergency_fund_minor,
+                "rsu_ready_to_sell": account.rsu_ready_to_sell,
+                "balances": [
+                    {"id": bid, "balance_minor": minor, "as_of": as_of.isoformat()}
+                    for bid, minor, as_of in balances
+                ],
             },
         }
     )
 
 
 def account_updated(before: repository.AccountRecord) -> str:
+    """#72: every column the PATCH can write, ``next_payment_due_date`` included.
+
+    Restored through ``repository.restore_account``, not ``update_account``:
+    a PATCH reads None as "leave unchanged", which would make ADDING a value
+    (a rate, a due date, an emergency-fund designation) impossible to undo.
+    """
     return json.dumps(
         {
             "op": "restore",
@@ -357,6 +465,7 @@ def account_updated(before: repository.AccountRecord) -> str:
                 "annual_interest_rate": before.annual_interest_rate,
                 "minimum_payment_minor": before.minimum_payment_minor,
                 "maturity_date": _iso(before.maturity_date),
+                "next_payment_due_date": _iso(before.next_payment_due_date),
                 "emergency_fund_percent": before.emergency_fund_percent,
                 "emergency_fund_minor": before.emergency_fund_minor,
                 "rsu_ready_to_sell": before.rsu_ready_to_sell,
@@ -406,6 +515,35 @@ def card_statement_paid_changed(record) -> str:
             "op": "card_statement_paid",
             "statement_id": record.id,
             "paid_at": record.paid_at.isoformat() if record.paid_at else None,
+        }
+    )
+
+
+def card_statement_recorded(record, before) -> str:
+    """#72: recording a cycle is an UPSERT, so its undo depends on what the write
+    actually did.
+
+    A first record for the cycle created the row, and deleting it is the whole
+    reversal. A second record for the same account and due date CORRECTED the
+    figures in place — minting a delete token there would destroy the statement
+    and the original figures both, which is the data loss the Undo button exists
+    to prevent. ``before`` is what the upsert overwrote, or None if it created.
+    """
+    if before is None:
+        return created("card_statement", record.id)
+    return json.dumps(
+        {
+            "op": "restore",
+            "entity": "card_statement",
+            "id": before.id,
+            "data": {
+                "statement_balance_minor": before.statement_balance_minor,
+                "minimum_due_minor": before.minimum_due_minor,
+                "currency": before.currency,
+                "period_start": _iso(before.period_start),
+                "period_end": _iso(before.period_end),
+                "document_id": before.document_id,
+            },
         }
     )
 
@@ -647,12 +785,27 @@ def income_override_set(transaction_id: str, previous_verdict: str | None) -> st
     )
 
 
-def income_profile_deleted(profile: repository.IncomeProfileRecord) -> str:
+def income_profile_deleted(
+    profile: repository.IncomeProfileRecord,
+    grants: list[repository.RsuGrantRecord],
+    events: list[repository.RsuVestEventRecord],
+) -> str:
+    """#72: removing an earner cascade-deletes every RSU grant and vest event
+    they own, so the token carries the whole schedule as it stood — and the
+    earner's own id, because the grants are restored pointing back at it.
+
+    Bounded by construction: grants and their vest schedules are hand-entered
+    per earner, tens of rows at the outside, not the thousands #71 is about.
+    """
+    events_by_grant: dict[str, list[repository.RsuVestEventRecord]] = {}
+    for event in events:
+        events_by_grant.setdefault(event.grant_id, []).append(event)
     return json.dumps(
         {
             "op": "recreate",
             "entity": "income_profile",
             "data": {
+                "id": profile.id,
                 "label": profile.label,
                 "base_salary_minor": profile.base_salary_minor,
                 "rsu_annual_minor": profile.rsu_annual_minor,
@@ -663,6 +816,27 @@ def income_profile_deleted(profile: repository.IncomeProfileRecord) -> str:
                 "w2_year": profile.w2_year,
                 "w2_wages_minor": profile.w2_wages_minor,
                 "w2_withheld_minor": profile.w2_withheld_minor,
+                # #6: pre-tax payroll deductions were dropped by the old token too.
+                "retirement_contribution_annual_minor": (
+                    profile.retirement_contribution_annual_minor
+                ),
+                "hsa_contribution_annual_minor": profile.hsa_contribution_annual_minor,
+                "grants": [
+                    {
+                        "id": grant.id,
+                        "ticker": grant.ticker,
+                        "units": grant.units,
+                        "grant_date": _iso(grant.grant_date),
+                        "vest_years": grant.vest_years,
+                        "frequency": grant.frequency,
+                        # The schedule as it stood, edits included.
+                        "events": [
+                            {"vest_date": _iso(e.vest_date), "units": e.units}
+                            for e in events_by_grant.get(grant.id, [])
+                        ],
+                    }
+                    for grant in grants
+                ],
             },
         }
     )
@@ -695,6 +869,10 @@ def household_updated(before: repository.HouseholdRecord) -> str:
                 # #43: clearing the zone is now reachable, so undo has to be
                 # able to put the old one back. Null is a real value here.
                 "timezone": before.timezone,
+                # #72: the PATCH writes these two as well, and both were audited
+                # as changed while the undo silently left them alone.
+                "reserve_committed_savings": before.reserve_committed_savings,
+                "language": before.language,
             },
         }
     )
@@ -758,6 +936,11 @@ def reverse(engine: Engine, household_id: str, token: dict[str, Any]) -> None:
     """Apply the inverse of a recorded action. Raises :class:`UndoError` if the
     token isn't a shape we can reverse or the target is gone."""
     op = token.get("op")
+
+    if op == "irreversible":
+        # The builder refused to snapshot this one (ADR 0073): say why, rather
+        # than restoring the part that happened to fit.
+        raise UndoError(token.get("reason") or "this action can't be undone")
 
     # A transaction recategorize restores the prior category. ("category" is the
     # legacy key shape from M101, still present on older audit rows.)
@@ -969,7 +1152,25 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             engine, household_id, data["grant_id"], _date(data["vest_date"]), data["units"]
         )
     elif entity == "category":
-        repository.create_category(engine, household_id, data["name"])
+        # #72: the whole footprint of a category delete — the row under its
+        # ORIGINAL id, the transactions whose category it nulled, and the budget
+        # envelope it deleted. Tokens minted before #72 carry only the name, so
+        # they still recreate under a fresh id and restore nothing else.
+        category = repository.create_category(
+            engine, household_id, data["name"], category_id=data.get("id")
+        )
+        transaction_ids = [str(i) for i in (data.get("transaction_ids") or [])]
+        if transaction_ids:
+            repository.set_transactions_category(
+                engine, household_id, transaction_ids, category.id
+            )
+        budget = data.get("budget")
+        if budget:
+            repository.create_budget(
+                engine, household_id,
+                category_id=category.id, limit_minor=budget["limit_minor"],
+                currency=budget["currency"], budget_id=budget.get("id"),
+            )
     elif entity == "role":
         if repository.create_role(
             engine, household_id, data["name"], set(data.get("rights") or []),
@@ -977,13 +1178,28 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
         ) is None:
             raise UndoError("a role with that name already exists")
     elif entity == "account":
-        repository.create_account(
+        # #72: back under its original id, with the emergency-fund designation,
+        # the RSU tag and the balance history the delete took with it.
+        account = repository.create_account(
             engine, household_id,
             name=data["name"], account_type=data["account_type"], currency=data["currency"],
             annual_interest_rate=data.get("annual_interest_rate"),
             minimum_payment_minor=data.get("minimum_payment_minor"),
             maturity_date=_date(data.get("maturity_date")),
+            next_payment_due_date=_date(data.get("next_payment_due_date")),
+            emergency_fund_percent=data.get("emergency_fund_percent"),
+            emergency_fund_minor=data.get("emergency_fund_minor"),
+            rsu_ready_to_sell=bool(data.get("rsu_ready_to_sell", False)),
+            account_id=data.get("id"),
         )
+        for balance in data.get("balances") or []:
+            repository.record_account_balance(
+                engine,
+                account.id,
+                balance["balance_minor"],
+                as_of=_datetime(balance.get("as_of")),
+                balance_id=balance.get("id"),
+            )
     elif entity == "card_statement":
         repository.upsert_card_statement(
             engine, household_id,
@@ -1042,7 +1258,10 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             current_minor=data.get("current_minor", 0),
         )
     elif entity == "income_profile":
-        repository.create_income_profile(
+        # #72: the earner comes back under their ORIGINAL id, then every RSU
+        # grant the delete cascaded through, with the vest schedule as it stood.
+        # Tokens minted before #72 carry neither, and restore the profile alone.
+        profile_id = repository.create_income_profile(
             engine, household_id,
             label=data["label"],
             base_salary_minor=data.get("base_salary_minor", 0),
@@ -1054,7 +1273,23 @@ def _recreate(engine: Engine, household_id: str, entity: str | None, data: dict[
             w2_year=data.get("w2_year"),
             w2_wages_minor=data.get("w2_wages_minor"),
             w2_withheld_minor=data.get("w2_withheld_minor"),
+            retirement_contribution_annual_minor=data.get(
+                "retirement_contribution_annual_minor", 0
+            ),
+            hsa_contribution_annual_minor=data.get("hsa_contribution_annual_minor", 0),
+            profile_id=data.get("id"),
         )
+        for grant in data.get("grants") or []:
+            repository.create_rsu_grant(
+                engine, household_id,
+                income_profile_id=profile_id, ticker=grant["ticker"],
+                units=grant["units"], grant_date=_date(grant["grant_date"]),
+                vest_years=grant["vest_years"], frequency=grant["frequency"],
+                events=[
+                    (_date(e["vest_date"]), e["units"]) for e in grant.get("events") or []
+                ],
+                grant_id=grant.get("id"),
+            )
     elif entity == "transaction":
         repository.restore_deleted_transaction(
             engine, household_id,
@@ -1097,16 +1332,59 @@ def _restore(
             next_due_date=_date(data.get("next_due_date")), category_id=data.get("category_id"),
         )
     elif entity == "account":
-        repository.update_account(
+        # #72: written straight back, nulls included — a PATCH-style update
+        # would read None as "leave unchanged" and quietly fail to reverse an
+        # ADDED rate, due date or emergency-fund designation. Presence, not
+        # truthiness (as #43 did for the timezone): a key the token never
+        # captured keeps whatever the account has now, so tokens minted before
+        # #72 don't clear a column they said nothing about.
+        current = repository.get_account(engine, household_id, entity_id)
+        if current is None:
+            raise UndoError("that account no longer exists")
+
+        repository.restore_account(
             engine, household_id, entity_id,
-            name=data.get("name"), account_type=data.get("account_type"),
-            annual_interest_rate=data.get("annual_interest_rate"),
-            minimum_payment_minor=data.get("minimum_payment_minor"),
-            maturity_date=_date(data.get("maturity_date")),
-            emergency_fund_percent=data.get("emergency_fund_percent"),
-            emergency_fund_minor=data.get("emergency_fund_minor"),
-            rsu_ready_to_sell=data.get("rsu_ready_to_sell"),
+            name=data.get("name", current.name),
+            account_type=data.get("account_type", current.account_type),
+            annual_interest_rate=data.get(
+                "annual_interest_rate", current.annual_interest_rate
+            ),
+            minimum_payment_minor=data.get(
+                "minimum_payment_minor", current.minimum_payment_minor
+            ),
+            maturity_date=(
+                _date(data["maturity_date"])
+                if "maturity_date" in data
+                else current.maturity_date
+            ),
+            next_payment_due_date=(
+                _date(data["next_payment_due_date"])
+                if "next_payment_due_date" in data
+                else current.next_payment_due_date
+            ),
+            emergency_fund_percent=data.get(
+                "emergency_fund_percent", current.emergency_fund_percent
+            ),
+            emergency_fund_minor=data.get(
+                "emergency_fund_minor", current.emergency_fund_minor
+            ),
+            rsu_ready_to_sell=bool(
+                data.get("rsu_ready_to_sell", current.rsu_ready_to_sell)
+            ),
         )
+    elif entity == "card_statement":
+        # #72: undo of a CORRECTION to a cycle — put the overwritten figures
+        # back. The statement itself was not created by that write, so it stays.
+        if not repository.restore_card_statement(
+            engine, household_id, entity_id,
+            statement_balance_minor=data["statement_balance_minor"],
+            minimum_due_minor=data.get("minimum_due_minor"),
+            currency=data["currency"],
+            period_start=_date(data.get("period_start")),
+            period_end=_date(data.get("period_end")),
+            document_id=data.get("document_id"),
+        ):
+            raise UndoError("that statement no longer exists")
     elif entity == "budget":
         repository.update_budget_limit(engine, household_id, entity_id, data["limit_minor"])
     elif entity == "category":
@@ -1136,6 +1414,14 @@ def _restore(
         # None for those would clear a zone the update never touched.
         if "timezone" in data:
             repository.set_household_timezone(engine, household_id, data["timezone"])
+        # #72: the same PATCH writes these two, and neither was restored. Same
+        # presence rule — null language means "never chose one", not "no change".
+        if "reserve_committed_savings" in data:
+            repository.set_reserve_committed_savings(
+                engine, household_id, bool(data["reserve_committed_savings"])
+            )
+        if "language" in data:
+            repository.set_household_language(engine, household_id, data["language"])
     elif entity == "member_role":
         if not repository.update_member_role(
             engine, household_id, entity_id, data.get("role", "viewer")

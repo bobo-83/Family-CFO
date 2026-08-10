@@ -130,6 +130,20 @@ async def delete_category(
     engine: Engine = Depends(get_engine),
 ) -> Response:
     existing = repository.get_category(engine, session.household_id, category_id)
+    # #72: the delete also nulls the category on every transaction filed under
+    # it and removes the budget envelope. Both are read before the write —
+    # afterwards there is nothing left to point at them.
+    filed_transaction_ids = repository.transaction_ids_for_category(
+        engine, session.household_id, category_id, undo_actions.SNAPSHOT_ROW_LIMIT
+    )
+    envelope = next(
+        (
+            b
+            for b in repository.list_budgets(engine, session.household_id)
+            if b.category_id == category_id
+        ),
+        None,
+    )
     if not repository.delete_category(engine, session.household_id, category_id):
         raise HTTPException(status_code=404, detail="Category not found")
     name = existing.name if existing is not None else "a category"
@@ -141,6 +155,10 @@ async def delete_category(
         "category",
         category_id,
         f"Deleted category “{name}”",
-        undo_token=undo_actions.category_deleted(existing) if existing is not None else None,
+        undo_token=(
+            undo_actions.category_deleted(existing, filed_transaction_ids, envelope)
+            if existing is not None
+            else None
+        ),
     )
     return Response(status_code=204)

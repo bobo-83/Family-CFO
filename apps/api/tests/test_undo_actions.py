@@ -72,12 +72,15 @@ def test_bill_update_is_undone_by_restoring_previous(demo_engine: Engine) -> Non
 
 def test_category_delete_is_undone_by_recreating(demo_engine: Engine) -> None:
     category = repository.create_category(demo_engine, HH, "UndoCat")
-    token = undo_actions.category_deleted(category)
+    # #72: the token's footprint now includes the transactions the delete
+    # un-files and the budget envelope it removes; the round trip through the
+    # API lives in test_undo_round_trip.py.
+    token = undo_actions.category_deleted(category, [], None)
     repository.delete_category(demo_engine, HH, category.id)
 
     _reverse(demo_engine, token)
 
-    assert any(c.name == "UndoCat" for c in repository.list_categories(demo_engine, HH))
+    assert repository.get_category(demo_engine, HH, category.id) == category
 
 
 def test_budget_update_is_undone_by_restoring_limit(demo_engine: Engine) -> None:
@@ -245,13 +248,16 @@ def test_income_profile_delete_is_undone_by_recreating(demo_engine: Engine) -> N
     before = next(
         r for r in repository.list_income_profiles(demo_engine, HH) if r.id == profile_id
     )
-    token = undo_actions.income_profile_deleted(before)
+    # #72: the token carries the earner's RSU grants and vest events too — the
+    # cascade round trip lives in test_undo_round_trip.py.
+    token = undo_actions.income_profile_deleted(before, [], [])
     repository.delete_income_profile(demo_engine, HH, profile_id)
 
     _reverse(demo_engine, token)
 
     restored = [r for r in repository.list_income_profiles(demo_engine, HH) if r.label == "Undo Earner"]
     assert len(restored) == 1 and restored[0].base_salary_minor == 10_000_000
+    assert restored[0].id == profile_id
 
 
 def test_attachment_add_is_undone_by_restoring_prior_fields(demo_engine: Engine) -> None:

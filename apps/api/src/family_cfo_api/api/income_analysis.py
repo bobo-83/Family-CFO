@@ -514,6 +514,20 @@ async def delete_income_earner(
          if r.id == earner_id),
         None,
     )
+    # #72: removing an earner cascade-deletes their RSU grants and every vest
+    # event on them, so the schedule is captured before the write — the old
+    # token serialised the profile alone and the vest dates were simply gone.
+    grants = [
+        g
+        for g in repository.list_rsu_grants(engine, session.household_id)
+        if g.income_profile_id == earner_id
+    ]
+    grant_ids = {g.id for g in grants}
+    vest_events = [
+        e
+        for e in repository.list_rsu_vest_events(engine, session.household_id)
+        if e.grant_id in grant_ids
+    ]
     if before is None or not repository.delete_income_profile(
         engine, session.household_id, earner_id
     ):
@@ -526,7 +540,7 @@ async def delete_income_earner(
         "income_profile",
         earner_id,
         f"Removed declared compensation for '{before.label}'",
-        undo_token=undo_actions.income_profile_deleted(before),
+        undo_token=undo_actions.income_profile_deleted(before, grants, vest_events),
     )
     return Response(status_code=204)
 

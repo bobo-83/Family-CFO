@@ -19,7 +19,13 @@ def _to_schema(record: repository.AuditEventRecord) -> AuditEvent:
         entity_id=record.entity_id,
         summary=record.summary,
         created_at=record.created_at,
-        undoable=record.undo_token is not None and record.reverted_at is None,
+        # ADR 0073: a token may honestly say this event can't be put back (its
+        # footprint outgrew what one audit row can carry). Offering an Undo that
+        # is guaranteed to error would be the same lie in a different place.
+        undoable=(
+            undo_actions.token_is_reversible(record.undo_token)
+            and record.reverted_at is None
+        ),
         reverted_at=record.reverted_at,
     )
 
