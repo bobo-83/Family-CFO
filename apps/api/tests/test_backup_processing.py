@@ -36,6 +36,26 @@ def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
     assert skipped == 0  # a backup just completed → within the daily window
 
 
+def test_scheduled_backup_writes_a_backup_job_audit_event(
+    demo_file_engine: Engine, demo_file_settings: Settings
+) -> None:
+    """#62: a manual backup wrote `backup.created` and a scheduled one wrote nothing,
+    so the box's own snapshots left no trace at all. `backup_job` was already
+    classified IRREVERSIBLE in UNDO_POLICY and simply never emitted."""
+    assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 1
+
+    events = repository.list_audit_events(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
+    scheduled = [event for event in events if event.action == "backup_job"]
+    assert len(scheduled) == 1
+    # Automated: nobody pressed anything, so there is no actor.
+    assert scheduled[0].actor_user_id is None
+    assert scheduled[0].entity_type == "backup_job"
+    assert repository.get_backup_job(demo_file_engine, scheduled[0].entity_id) is not None
+    assert "daily" in scheduled[0].summary  # the cause
+    assert fixtures.DEMO_HOUSEHOLD_ID in scheduled[0].summary  # the household
+    assert "completed" in scheduled[0].summary
+
+
 def test_run_backup_once_creates_completed_encrypted_archive(
     demo_file_engine: Engine, demo_file_settings: Settings
 ) -> None:

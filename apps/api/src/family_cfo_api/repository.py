@@ -3921,6 +3921,25 @@ def list_audit_events(
     return [_audit_record(row, engine) for row in rows]
 
 
+def count_audit_events_since(engine: Engine, household_id: str, since: datetime) -> int:
+    """How many of this household's audit rows are newer than `since`.
+
+    #62: a restore replaces the whole database, so every audit row written after
+    the snapshot was taken is discarded by it. Counting them BEFORE the replace is
+    what lets the `backup.restored` row state the size of the gap it created.
+    """
+    query = (
+        select(func.count())
+        .select_from(models.audit_events)
+        .where(
+            models.audit_events.c.household_id == household_id,
+            models.audit_events.c.created_at > _as_aware(since),
+        )
+    )
+    with engine.connect() as conn:
+        return int(conn.execute(query).scalar_one())
+
+
 def get_audit_event(
     engine: Engine, household_id: str, audit_id: str
 ) -> AuditEventRecord | None:

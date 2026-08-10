@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
@@ -51,6 +52,35 @@ def _smb_target(
         username=household.backup_smb_username,
         password=password,
         domain=household.backup_smb_domain,
+    )
+
+
+def _restore_boundary(
+    engine: Engine, household_id: str, snapshot_at: datetime | None, lead: str
+) -> tuple[int | None, str]:
+    """#62: measure the audit gap a restore is about to create, and phrase it.
+
+    A restore replaces the WHOLE database, `audit_events` included, so every event
+    recorded after the snapshot was taken is destroyed by it. We keep that wholesale
+    replace (option 2 in #62) and state the gap instead of trying to carry rows
+    across it: the count is taken here, BEFORE the replace, and written afterwards.
+
+    Returns (discarded_count, summary). The count is None when the snapshot's own
+    timestamp is unknown — the gap is then real but unmeasurable, and the summary
+    says so rather than implying zero.
+    """
+    if snapshot_at is None:
+        return None, (
+            f"{lead} — the snapshot's date is unknown, so the audit events recorded "
+            "since it was taken were discarded uncounted"
+        )
+    discarded = repository.count_audit_events_since(engine, household_id, snapshot_at)
+    # SQLite hands back naive datetimes, Postgres tz-aware ones — both are UTC.
+    aware = snapshot_at if snapshot_at.tzinfo else snapshot_at.replace(tzinfo=UTC)
+    taken = aware.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    return discarded, (
+        f"{lead} — {discarded} audit event(s) recorded between the {taken} snapshot "
+        "and this restore were discarded with it"
     )
 
 
@@ -190,6 +220,16 @@ async def restore_backup(
     if record is None:
         raise HTTPException(status_code=404, detail="Backup not found")
 
+    # #62: count the audit events this restore is about to destroy BEFORE it runs.
+    # `started_at` is the honest bound — the database dump is taken at the top of
+    # the job, so anything logged from that moment on is absent from the snapshot.
+    discarded, restore_summary = _restore_boundary(
+        engine,
+        session.household_id,
+        record.started_at or record.created_at,
+        "Backup restore executed",
+    )
+
     try:
         backup_processing.restore_backup(
             engine,
@@ -204,9 +244,11 @@ async def restore_backup(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    logger.info("backup restored backup_id=%s", backup_id)
+    logger.info("backup restored backup_id=%s discarded_audit_events=%s", backup_id, discarded)
     updated = repository.get_backup_job(engine, backup_id)
     assert updated is not None
+    # Written AFTER the replace, deliberately: a row written before it would be
+    # wiped by the very restore it describes (#62).
     audit.write_audit(
         engine,
         session.household_id,
@@ -214,7 +256,7 @@ async def restore_backup(
         "backup.restored",
         "backup_job",
         backup_id,
-        "Backup restore executed",
+        restore_summary,
     )
     return _to_schema(updated)
 
@@ -399,6 +441,19 @@ async def restore_remote_backup(
     if filename != payload.filename or not filename.endswith(".enc"):
         raise HTTPException(status_code=400, detail="Invalid backup filename")
 
+    # #62: the same boundary the on-box restore records. There is no backup_jobs
+    # row here (this is the box-rebuild path), so the snapshot's timestamp comes
+    # from the archive's mtime on the share — the file is uploaded immediately
+    # after the dump. A share that won't list leaves it unknown, not zero.
+    snapshot_at: datetime | None = None
+    for item in smb_backup.list_backups(target):
+        if item["filename"] == filename:
+            snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
+            break
+    discarded, restore_summary = _restore_boundary(
+        engine, session.household_id, snapshot_at, f"Restored from {filename}"
+    )
+
     try:
         ciphertext = smb_backup.download(target, filename)
     except Exception as exc:
@@ -423,9 +478,11 @@ async def restore_remote_backup(
         "backup.restored_remote",
         "backup_file",
         os.path.splitext(filename)[0][:36],
-        f"Restored from {filename}",
+        restore_summary,
     )
-    logger.info("backup restored from share filename=%s", filename)
+    logger.info(
+        "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
+    )
     return BackupDestinationCheckResponse(writable=True, reason=None)
 
 
