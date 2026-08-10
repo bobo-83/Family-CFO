@@ -257,6 +257,26 @@ Persistent=true
 WantedBy=timers.target
 ```
 
+### The one-command way
+
+```bash
+sudo scripts/install-tailnet-cert-timer.sh
+```
+
+Writes both unit files with this checkout's paths, enables the timer, and then
+**runs the service once and reports whether it actually worked** — which is the
+step that matters. Enabling a timer schedules a job; it says nothing about
+whether the job succeeds, and a service that errors every night looks identical
+to a working one until the certificate expires.
+
+`--check` reports the current state and changes nothing.
+
+`scripts/doctor.sh` checks it stays healthy afterwards, and `scripts/patch.sh`
+runs those checks on every deploy — so a renewal that starts failing surfaces at
+the next deploy rather than at expiry.
+
+### Or by hand
+
 Then:
 
 ```bash
