@@ -213,6 +213,36 @@ where decryption slots in.
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.
 
+## Implementation note — password change (shipped 2026-08-11, #97)
+
+- "Password change → re-wrap only" was designed in Phase 2 and had no caller:
+  a password could be SET (invite accept, member create) or PROVEN (login),
+  never replaced. `POST /auth/password` is that caller — authenticated, and
+  requiring the current password again, because a session can be an
+  unattended laptop.
+- **The ordering matters more than the re-wrap.** `ensure_member_wrap` does
+  replace an existing wrap when the household is unlocked — `_upsert_wrap`
+  deletes the member's row before inserting, so a retired password stops
+  being a key rather than becoming a second one. But when a household is
+  sealed AND locked, the member's own wrap is the only key in reach and it
+  opens with the password they still have; handed an unfamiliar one it
+  unwraps nothing, logs, and returns having changed NOTHING. The old wrap
+  survives. So the change path proves the CURRENT password through the seam
+  first (which unlocks), and only then establishes the new one —
+  `on_password_changed` is that sequence, and calling `ensure_member_wrap`
+  once with the new password is the bug it exists to prevent.
+- That state is not exotic: the session keyring's TTL is 30 minutes while a
+  login session lasts hours, so a member who signs in and changes their
+  password later that afternoon arrives sealed-and-locked.
+- The re-mint is **verified, not assumed** — the stored wrap must open with
+  the new password and clear the canary — and a failure refuses the whole
+  change (409) rather than moving the hash. Half a change is worse than
+  none: the member would authenticate and decrypt nothing.
+- Every other session for that member is revoked, the calling one survives,
+  and `auth.password_changed` is IRREVERSIBLE in `UNDO_POLICY`: an undo token
+  carrying the old hash would be a stored credential, and re-minting a wrap
+  for the password being retired would defeat the action.
+
 ## Implementation note — Phase 4 + onboarding (shipped 2026-08-04, #181/#180)
 
 - **Isolation**: every background job (snapshots, indexing, reports, bank

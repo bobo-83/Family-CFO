@@ -195,6 +195,45 @@ paths:
           description: Session revoked
         "401":
           $ref: "#/components/responses/Error"
+  /auth/password:
+    post:
+      tags:
+        - Authentication
+      operationId: changePassword
+      summary: Change your own password (requires the current one)
+      description: >
+        #97: a member retires their own password. The current password is proven
+        again even though the session is valid — a session can be an unattended
+        open laptop. On success every OTHER session of this user is revoked and
+        the one making the call survives, because the usual reason to change a
+        password is that somebody else has it.
+
+
+        ADR 0072: the password derives the member's household key wrap, so the
+        wrap is re-minted before the hash moves; a 409 means it could not be and
+        nothing was changed. A wrong current password is 403, not 401 — the
+        session is fine, and a 401 would sign the member out mid-form.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeRequest"
+      responses:
+        "204":
+          description: Password changed; other sessions revoked
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /auth/sessions/refresh:
     post:
       tags:
@@ -4371,6 +4410,27 @@ components:
           type: string
           format: password
           minLength: 8
+    PasswordChangeRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+      properties:
+        current_password:
+          type: string
+          format: password
+          minLength: 8
+          description: >-
+            The password in use right now. Proven again on purpose: a valid
+            session alone is not evidence the member is at the keyboard.
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: >-
+            The replacement, held to the same minimum as the invite flow — one
+            standard for setting a password, not two. Must differ from the
+            current one (400 otherwise).
     AuthSession:
       type: object
       required:

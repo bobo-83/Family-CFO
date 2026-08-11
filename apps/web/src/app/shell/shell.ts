@@ -141,6 +141,11 @@ export class Shell {
           path: '/devices',
           label: $localize`:Sidebar nav item|Link to the paired devices page:Devices`,
         },
+        // #97: your own password — no right, because everyone has one.
+        {
+          path: '/change-password',
+          label: $localize`:Sidebar nav item|Link to the change-your-password page:Change password`,
+        },
         // #180: operator hosting — only system admins ever see this.
         {
           path: '/households',

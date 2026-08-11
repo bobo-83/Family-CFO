@@ -122,6 +122,56 @@ def get_user_by_email(engine: Engine, email: str) -> UserRecord | None:
     )
 
 
+def get_user_by_id(engine: Engine, user_id: str) -> UserRecord | None:
+    with engine.connect() as conn:
+        row = (
+            conn.execute(select(models.users).where(models.users.c.id == user_id))
+            .mappings()
+            .first()
+        )
+
+    if row is None:
+        return None
+
+    return UserRecord(
+        id=row["id"],
+        email=row["email"],
+        password_hash=row["password_hash"],
+        display_name=row["display_name"],
+    )
+
+
+def set_user_password_hash(engine: Engine, user_id: str, password_hash: str) -> bool:
+    """#97: the only writer of an EXISTING user's password hash. Callers must
+    have re-minted the member's key wrap first (household_crypto
+    .on_password_changed) — the password derives that wrap (ADR 0072), so a hash
+    that moves without it leaves a member who authenticates and cannot decrypt."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.users)
+            .where(models.users.c.id == user_id)
+            .values(password_hash=password_hash)
+        )
+    return result.rowcount > 0
+
+
+def revoke_other_auth_sessions(engine: Engine, user_id: str, keep_token_hash: str) -> int:
+    """#97: sign this user out everywhere EXCEPT the session in hand. The usual
+    reason to change a password is that somebody else has it, so the old
+    password's sessions must not outlive it. Returns how many were revoked."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.auth_sessions)
+            .where(
+                models.auth_sessions.c.user_id == user_id,
+                models.auth_sessions.c.token_hash != keep_token_hash,
+                models.auth_sessions.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=utcnow())
+        )
+    return result.rowcount or 0
+
+
 def get_primary_household_id(engine: Engine, user_id: str) -> str | None:
     with engine.connect() as conn:
         row = conn.execute(

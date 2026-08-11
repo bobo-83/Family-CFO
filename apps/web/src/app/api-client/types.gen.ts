@@ -100,6 +100,17 @@ export type AuthSessionCreateRequest = {
     password: string;
 };
 
+export type PasswordChangeRequest = {
+    /**
+     * The password in use right now. Proven again on purpose: a valid session alone is not evidence the member is at the keyboard.
+     */
+    current_password: string;
+    /**
+     * The replacement, held to the same minimum as the invite flow — one standard for setting a password, not two. Must differ from the current one (400 otherwise).
+     */
+    new_password: string;
+};
+
 export type AuthSession = {
     access_token: string;
     expires_at: string;
@@ -2647,6 +2658,47 @@ export type CreateAuthSessionResponses = {
 };
 
 export type CreateAuthSessionResponse = CreateAuthSessionResponses[keyof CreateAuthSessionResponses];
+
+export type ChangePasswordData = {
+    body: PasswordChangeRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/password';
+};
+
+export type ChangePasswordErrors = {
+    /**
+     * Error response
+     */
+    400: ErrorResponse;
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+    /**
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+     */
+    429: ErrorResponse;
+};
+
+export type ChangePasswordError = ChangePasswordErrors[keyof ChangePasswordErrors];
+
+export type ChangePasswordResponses = {
+    /**
+     * Password changed; other sessions revoked
+     */
+    204: void;
+};
+
+export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
 
 export type RefreshAuthSessionData = {
     body?: never;

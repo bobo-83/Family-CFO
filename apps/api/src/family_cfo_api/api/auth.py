@@ -18,6 +18,7 @@ from family_cfo_api.schemas import (
     AuthSession,
     AuthSessionCreateRequest,
     ErrorResponse,
+    PasswordChangeRequest,
     SessionInfo,
 )
 
@@ -136,6 +137,112 @@ async def get_session_info(
         is_system_admin=session.is_system_admin,
         device_id=session.device_id,
     )
+
+
+@router.post(
+    "/auth/password",
+    operation_id="changePassword",
+    status_code=204,
+    responses={
+        400: {"description": "The new password is the current one", "model": ErrorResponse},
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Current password is wrong", "model": ErrorResponse},
+        409: {"description": "The member key could not be re-minted", "model": ErrorResponse},
+        429: {"description": "Too many attempts", "model": ErrorResponse},
+    },
+    summary="Change your own password (requires the current one)",
+)
+async def change_password(
+    payload: PasswordChangeRequest,
+    request: Request,
+    session: repository.SessionContext = Depends(get_current_session),
+    token: str = Depends(get_bearer_token),
+    engine: Engine = Depends(get_engine),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+) -> Response:
+    """#97: a member retires their own password.
+
+    A valid session is deliberately NOT sufficient — an unattended open laptop
+    is a valid session — so the current password is proven again here.
+    """
+    # Namespaced keys (the invite flow's precedent): a hijacked session hammering
+    # this form must not lock the real member out of /auth/sessions, but the
+    # current-password check is still a password oracle and is throttled per
+    # account and per IP like a login (ADR 0010).
+    limit_keys = [
+        f"password-change-ip:{client_ip(request)}",
+        f"password-change-user:{session.user_id}",
+    ]
+    retry_after = rate_limiter.retry_after(limit_keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    user = repository.get_user_by_id(engine, session.user_id)
+    if user is None or not security.verify_password(
+        payload.current_password, user.password_hash
+    ):
+        rate_limiter.record_failure(limit_keys)
+        # 403, not 401: the SESSION is fine, the re-authentication failed. A 401
+        # here would trip the clients' dead-token handling and sign the member
+        # out mid-form over a typo.
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+
+    if payload.new_password == payload.current_password:
+        raise HTTPException(
+            status_code=400, detail="The new password must differ from the current one"
+        )
+    rate_limiter.reset(limit_keys)
+
+    # ADR 0072: the password derives this member's key wrap, so the wrap is
+    # re-minted BEFORE the hash moves. If it can't be, nothing is written — a
+    # member whose hash changed but whose wrap did not can sign in and can no
+    # longer read their own household, which is worse than a failed change.
+    #
+    # The session's household is the ONLY one to re-wrap: a user belongs to
+    # exactly one, enforced at the two doors that mint memberships (accepting
+    # an invite as a user who already has one returns `conflict`, and
+    # create_member refuses an email already in use). If that ever changes,
+    # this call has to fan out over every membership or the other households'
+    # wraps go stale — which is the retired password still working as a key.
+    if not household_crypto.on_password_changed(
+        engine,
+        session.household_id,
+        session.user_id,
+        payload.current_password,
+        payload.new_password,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Your encryption key could not be re-created, so the password was "
+                "not changed. Sign in again and retry."
+            ),
+        )
+
+    repository.set_user_password_hash(
+        engine, session.user_id, security.hash_password(payload.new_password)
+    )
+    # The point of changing a password is usually that somebody else has it —
+    # so every other session goes, and only the one in hand survives.
+    revoked = repository.revoke_other_auth_sessions(
+        engine, session.user_id, security.hash_token(token)
+    )
+    audit.write_audit(
+        engine,
+        session.household_id,
+        session.user_id,
+        "auth.password_changed",
+        "user",
+        session.user_id,
+        "Changed their password and signed out their other sessions"
+        if revoked
+        else "Changed their password",
+    )
+    return Response(status_code=204)
 
 
 @router.delete(

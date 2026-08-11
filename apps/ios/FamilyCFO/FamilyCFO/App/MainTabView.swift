@@ -422,6 +422,23 @@ struct SettingsView: View {
                         .font(.callout)
                     }
                 }
+                // #97: your own password. No role gate — everyone has one, and
+                // a password nobody can retire is a password nobody can share
+                // by accident and take back.
+                if let passwords = model.changePassword {
+                    Section {
+                        NavigationLink {
+                            ChangePasswordView(
+                                viewModel: ChangePasswordViewModel(api: passwords))
+                        } label: {
+                            Label("Change password", systemImage: "key")
+                        }
+                    } header: {
+                        Text("Account")
+                    } footer: {
+                        Text("Changing your password signs out every other browser and phone signed in as you. This phone stays signed in.")
+                    }
+                }
                 Section {
                     Button("Sign out") {
                         confirmingSignOut = true

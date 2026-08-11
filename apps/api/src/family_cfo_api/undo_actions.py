@@ -159,6 +159,11 @@ UNDO_POLICY: dict[str, str] = {
     "backup_job": IRREVERSIBLE,  # a scheduled backup ran
     # auth & pairing
     "auth.login": IRREVERSIBLE,  # a sign-in isn't a change to reverse
+    # #97: an undo token would have to carry the OLD password hash — a stored
+    # credential, which this codebase refuses (cf. invite.accepted). And undo
+    # would re-mint the key wrap for the very password the member is retiring,
+    # so the "undo" would defeat the action. Change it again to change it back.
+    "auth.password_changed": IRREVERSIBLE,
     "pairing.confirmed": IRREVERSIBLE,  # a device was paired (revoke it from Devices)
     "pairing.device_revoked": IRREVERSIBLE,  # a device was revoked (re-pair to restore)
     "pairing.login": IRREVERSIBLE,  # a device signed in (revoke it from Devices)

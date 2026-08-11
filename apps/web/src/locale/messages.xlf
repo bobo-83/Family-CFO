@@ -4184,6 +4184,122 @@
           <context context-type="linenumber">99</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="3683738606481202651" datatype="html">
+        <source>Change your password</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">1,2</context>
+        </context-group>
+        <note priority="1" from="description">Screen where a member changes their own password</note>
+        <note priority="1" from="meaning">Page title</note>
+      </trans-unit>
+      <trans-unit id="5548986255379952614" datatype="html">
+        <source> Your current password is needed as well as the new one — being signed in here is not proof you are at the keyboard. When the change succeeds you stay signed in on this browser, and every other browser or phone signed in as you is signed out.
+</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">3,10</context>
+        </context-group>
+        <note priority="1" from="description">Explains why the current password is asked for and what happens to other sessions</note>
+        <note priority="1" from="meaning">Page intro</note>
+      </trans-unit>
+      <trans-unit id="8246909126119098070" datatype="html">
+        <source>Current password</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">12,15</context>
+        </context-group>
+        <note priority="1" from="description">The password the member has right now</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3272041898180057712" datatype="html">
+        <source>Your current password is required.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">20,22</context>
+        </context-group>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="4742744343498520046" datatype="html">
+        <source>New password</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">25,26</context>
+        </context-group>
+        <note priority="1" from="description">The replacement password</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5906359199564086241" datatype="html">
+        <source>Password must be at least 8 characters.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">28,30</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.html</context>
+          <context context-type="linenumber">42,44</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.html</context>
+          <context context-type="linenumber">32,34</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
+          <context context-type="linenumber">54,56</context>
+        </context-group>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="5654794176586884484" datatype="html">
+        <source>Confirm new password</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">33,36</context>
+        </context-group>
+        <note priority="1" from="description">Retype of the new password</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="6282076193412394736" datatype="html">
+        <source>The two new passwords do not match.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">41,43</context>
+        </context-group>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="1641384486457022780" datatype="html">
+        <source> Your password was changed. You are still signed in here; anywhere else signed in as you has been signed out. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">51,57</context>
+        </context-group>
+        <note priority="1" from="description">Shown after the password was changed</note>
+        <note priority="1" from="meaning">Change password confirmation</note>
+      </trans-unit>
+      <trans-unit id="8417912673097212222" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Changing…} other {Change password}}" xid="6757586063646872383"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">63,66</context>
+        </context-group>
+        <note priority="1" from="description">Submits the new password, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Change password submit button</note>
+      </trans-unit>
+      <trans-unit id="6757586063646872383" datatype="html">
+        <source>{VAR_SELECT, select, true {Changing…} other {Change password}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.html</context>
+          <context context-type="linenumber">63,64</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="916439018373501375" datatype="html">
+        <source>Could not change your password. Try again.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/change-password/change-password.ts</context>
+          <context context-type="linenumber">82</context>
+        </context-group>
+        <note priority="1" from="description">Fallback when the server gives no reason</note>
+        <note priority="1" from="meaning">Change password error</note>
+      </trans-unit>
       <trans-unit id="4709044225459339538" datatype="html">
         <source>Ask the Advisor</source>
         <context-group purpose="location">
@@ -7142,22 +7258,6 @@
         </context-group>
         <note priority="1" from="description">Password the invitee picks</note>
         <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="5906359199564086241" datatype="html">
-        <source>Password must be at least 8 characters.</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/join/join.html</context>
-          <context context-type="linenumber">42,44</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">32,34</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
-          <context context-type="linenumber">54,56</context>
-        </context-group>
-        <note priority="1" from="description">Validation message</note>
       </trans-unit>
       <trans-unit id="1748978789267724802" datatype="html">
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Joining…} other {Join the household}}" xid="2870591351420269015"/> </source>
@@ -11199,11 +11299,20 @@
         <note priority="1" from="description">Link to the paired devices page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
+      <trans-unit id="3703096493643413744" datatype="html">
+        <source>Change password</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.ts</context>
+          <context context-type="linenumber">147</context>
+        </context-group>
+        <note priority="1" from="description">Link to the change-your-password page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
       <trans-unit id="6415460226917499402" datatype="html">
         <source>Households</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">147</context>
+          <context context-type="linenumber">152</context>
         </context-group>
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
