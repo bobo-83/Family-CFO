@@ -49,14 +49,4 @@ export function getToken(): string | null {
  * level for the same reason as `authState`: the fetch interceptor that sets
  * it runs outside Angular's DI graph.
  */
-export const sessionNotice = signal<string | null>(null);
 
-export function setSessionNotice(message: string): void {
-  sessionNotice.set(message);
-}
-
-export function consumeSessionNotice(): string | null {
-  const message = sessionNotice();
-  sessionNotice.set(null);
-  return message;
-}

@@ -1,5 +1,5 @@
 import { client } from '../api-client/client.gen';
-import { clearAuthState, getToken, setSessionNotice } from './token-store';
+import { clearAuthState, getToken } from './token-store';
 
 let configured = false;
 
@@ -10,24 +10,23 @@ let configured = false;
  * - 401: the token is dead — drop the session; the auth guard lands the user
  *   on the login page on their next navigation.
  * - 423 (ADR 0072 Phase 3): the household is sealed and locked (e.g. after a
- *   box restart). Same re-login flow — a fresh password login unlocks the
- *   household server-side — but the login page shows the server's message so
- *   the user knows why they were signed out.
+ *   box restart). Treated EXACTLY like 401 — no notice (#101). On the web a 423
+ *   always means "sign in and this resolves itself": the password login IS the
+ *   unlock (auth.py -> on_password_established). Telling someone their
+ *   household is locked, on the one screen whose purpose is to unlock it, reads
+ *   like rejected credentials and adds nothing the next click was not already
+ *   about to do.
+ *
+ *   The case that DOES deserve words is the inverse — signing in successfully
+ *   and STILL being locked, which happens to a member with no usable key wrap.
+ *   That member is genuinely stuck, and saying so belongs after a successful
+ *   login, not before one (#101).
  */
 export async function handleSessionResponse(response: Response): Promise<Response> {
   if (response.status === 401) {
     clearAuthState();
   }
   if (response.status === 423) {
-    // Clone: the generated client still needs to read this body.
-    const body = (await response
-      .clone()
-      .json()
-      .catch(() => null)) as { error?: { message?: string } } | null;
-    setSessionNotice(
-      body?.error?.message ??
-        "This household's data is sealed and currently locked. Sign in again to unlock it.",
-    );
     clearAuthState();
   }
   return response;
