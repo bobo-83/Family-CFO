@@ -197,6 +197,8 @@ struct SettingsView: View {
     @State private var reserveModel: CommittedSavingsReserveViewModel?
     // #41: same reason again — and the picker it pushes reads it back.
     @State private var timezoneModel: HouseholdTimezoneViewModel?
+    // #96: the sealed-mode offer, beside the language and time-zone rows.
+    @State private var sealOfferModel: SealedModeOfferViewModel?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
     // Per-device (deliberately NOT a household setting — it's about this
     // phone's speaker, battery, and taste): speak English answers in the
@@ -256,6 +258,9 @@ struct SettingsView: View {
                         } else {
                             LabeledContent("Time zone", value: timezoneModel.displayName)
                         }
+                    }
+                    if let sealOfferModel, sealOfferModel.isOffered {
+                        sealedModeOffer(sealOfferModel)
                     }
                 } header: {
                     Text("Household")
@@ -468,6 +473,15 @@ struct SettingsView: View {
                     timezoneModel = HouseholdTimezoneViewModel(api: api)
                     await timezoneModel?.load()
                 }
+                // #96: only members who could actually seal — GET
+                // /household/key-status is gated on backups.manage, so anyone
+                // else would get a 403 and an offer they cannot accept.
+                if sealOfferModel == nil, model.rolePolicy.canManageBackups,
+                    let api = model.backups
+                {
+                    sealOfferModel = SealedModeOfferViewModel(api: api)
+                    await sealOfferModel?.load()
+                }
             }
             // Centered alerts, not confirmationDialog: on this screen the
             // dialog rendered as a popover anchored far from the tapped row
@@ -491,6 +505,44 @@ struct SettingsView: View {
                 Text("Removes the credential and the server info from this phone.")
             }
         }
+    }
+
+    /// #96 (ADR 0072 Phase 3): sealed mode was reachable only by scrolling the
+    /// Backups screen. Offered here — never switched on for anyone — with the
+    /// price stated plainly, and dismissible for good on this phone.
+    @ViewBuilder private func sealedModeOffer(_ offer: SealedModeOfferViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Seal this household", systemImage: "lock.shield")
+                .font(.subheadline.weight(.semibold))
+            Text(
+                "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable."
+            )
+            Text(
+                "It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box."
+            )
+            Text(
+                "It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that."
+            )
+            if offer.needsRecoveryKey {
+                Text("Before you can seal: create a recovery key.")
+                    .foregroundStyle(.orange)
+            }
+            if offer.needsMemberKey {
+                Text(
+                    "Before you can seal: sign in with your password once — pairing a phone does not make a member key."
+                )
+                .foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        if let backups = model.backups {
+            NavigationLink {
+                BackupSettingsView(viewModel: BackupViewModel(api: backups))
+            } label: {
+                Label("Privacy mode", systemImage: "lock.rotation")
+            }
+        }
+        Button("Dismiss on this iPhone") { offer.dismiss() }
     }
 }
 

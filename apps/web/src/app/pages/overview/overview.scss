@@ -194,6 +194,45 @@
   transition: width 0.3s ease;
 }
 
+/* #96: the sealed-mode offer — the one block on this card that has to be read,
+   so it gets an accent rule and its own tint rather than the muted hint style. */
+.overview__seal {
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--mat-sys-primary, #3f51b5);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--mat-sys-surface-container, #f2f4f7);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 44rem;
+}
+
+.overview__seal-title {
+  font-weight: 600;
+}
+
+.overview__seal-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.overview__seal-todo {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.overview__seal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
 /* #10: household language selector on the Household card */
 .overview__language {
   margin-top: 0.5rem;

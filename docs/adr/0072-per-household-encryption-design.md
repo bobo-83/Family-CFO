@@ -212,6 +212,22 @@ where decryption slots in.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.
+- **Discoverability (#96, shipped 2026-08-11)**: nothing announced sealed
+  mode — a household only found it by scrolling the Backups screen. The
+  Overview household card (web) and Settings → Household (iOS) now OFFER
+  it, to members holding `backups.manage`, when `GET /household/key-status`
+  reports encryption on and mode `convenient`. A missing precondition does
+  not hide the offer; it names itself ("create a recovery key first"),
+  which a greyed-out control never could. The copy states the price out
+  loud — no reads after a restart until someone signs in, background work
+  deferred, no operator override for a lost recovery key. Sealed stays off
+  by default, and the offer never switches anything on.
+- Dismissal of that offer is per DEVICE (`localStorage` /
+  `UserDefaults`), the posture the advisor disclaimer already uses, not per
+  household: the offer explains a household decision to a *person*, and one
+  member's Dismiss must not silence the strongest protection this app has
+  for the co-owner who would have acted on it. No contract change — the
+  existing key-status response already says everything the offer needs.
 
 ## Implementation note — password change (shipped 2026-08-11, #97)
 

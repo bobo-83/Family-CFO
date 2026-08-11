@@ -28,6 +28,7 @@ describe('Overview', () => {
     dismissSavingsContribution: ReturnType<typeof vi.fn>;
     updateSavingsContribution: ReturnType<typeof vi.fn>;
     listGoals: ReturnType<typeof vi.fn>;
+    getHouseholdKeyStatus: ReturnType<typeof vi.fn>;
   };
 
   function configure(role = 'owner') {
@@ -78,7 +79,11 @@ describe('Overview', () => {
           ],
         }),
       ),
+      // #96: the sealed-mode offer only appears when the box answers; default
+      // to "no answer" so every other test renders without it.
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
     };
+    localStorage.removeItem('family-cfo.hideSealedModeOffer');
     configure();
   });
 
@@ -616,6 +621,126 @@ describe('Overview', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('.overview__target-edit'),
     ).toBeNull();
+  });
+
+  // #96 (ADR 0072 Phase 3): the sealed-mode offer on the household card.
+  describe('sealed mode offer (#96)', () => {
+    function keyStatus(overrides: Record<string, unknown> = {}) {
+      return {
+        encryption_enabled: true,
+        member_wraps: 2,
+        device_wraps: 1,
+        has_recovery_key: true,
+        recovery_key_created_at: '2026-07-01T12:00:00Z',
+        mode: 'convenient',
+        unlocked: true,
+        ...overrides,
+      };
+    }
+
+    async function render() {
+      apiMock.getHouseholdContext.mockResolvedValue(
+        response({
+          household_id: 'h1',
+          display_name: 'Home',
+          currency: 'USD',
+          net_worth: { amount_minor: 0, currency: 'USD' },
+          emergency_fund_months: null,
+        }),
+      );
+      const fixture = TestBed.createComponent(Overview);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    afterEach(() => {
+      localStorage.removeItem('family-cfo.hideSealedModeOffer');
+    });
+
+    it('offers sealing, with the trade stated, when the household could seal', async () => {
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(response(keyStatus()));
+
+      const fixture = await render();
+
+      const offer = (fixture.nativeElement as HTMLElement).querySelector('.overview__seal');
+      expect(offer).not.toBeNull();
+      const text = offer?.textContent ?? '';
+      // What it does, why you'd want it, and why it is not the default.
+      expect(text).toContain('a stolen disk, a backup archive, a snapshot');
+      expect(text).toContain('without a session');
+      expect(text).toContain('off by default');
+      expect(text).toContain('bank sync');
+      // No unmet precondition, so no "before you can seal" line.
+      expect(offer?.querySelector('.overview__seal-todo')).toBeNull();
+      // It links to where sealing actually happens.
+      expect(offer?.querySelector('a')?.getAttribute('href')).toBe('/backups');
+    });
+
+    it('says which precondition is missing instead of hiding the offer', async () => {
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(
+        response(keyStatus({ has_recovery_key: false, recovery_key_created_at: null, member_wraps: 0 })),
+      );
+
+      const fixture = await render();
+
+      const todos = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.overview__seal-todo'),
+      ).map((node) => node.textContent ?? '');
+      expect(todos.length).toBe(2);
+      expect(todos.join(' ')).toContain('create a recovery key');
+      expect(todos.join(' ')).toContain('sign in with your password once');
+    });
+
+    it('stays quiet for a household that is already sealed', async () => {
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(response(keyStatus({ mode: 'sealed' })));
+
+      const fixture = await render();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('.overview__seal')).toBeNull();
+    });
+
+    it('stays quiet when the box does not encrypt per household', async () => {
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(
+        response(keyStatus({ encryption_enabled: false, has_recovery_key: false, member_wraps: 0 })),
+      );
+
+      const fixture = await render();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('.overview__seal')).toBeNull();
+    });
+
+    it('never asks a member who cannot seal', async () => {
+      TestBed.resetTestingModule();
+      configure('adult');
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(response(keyStatus()));
+
+      const fixture = await render();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('.overview__seal')).toBeNull();
+      expect(apiMock.getHouseholdKeyStatus).not.toHaveBeenCalled();
+    });
+
+    it('stays dismissed on this device once dismissed', async () => {
+      apiMock.getHouseholdKeyStatus.mockResolvedValue(response(keyStatus()));
+
+      const fixture = await render();
+      const dismiss = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '.overview__seal-actions button',
+      )[0] as HTMLButtonElement;
+      dismiss.click();
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('.overview__seal')).toBeNull();
+      expect(localStorage.getItem('family-cfo.hideSealedModeOffer')).toBe('true');
+
+      // A fresh render on the same device — the reload a nag would survive.
+      TestBed.resetTestingModule();
+      configure();
+      const again = await render();
+      expect((again.nativeElement as HTMLElement).querySelector('.overview__seal')).toBeNull();
+    });
   });
 
   // #10 phase 1: one language per household; the advisor answers in it.

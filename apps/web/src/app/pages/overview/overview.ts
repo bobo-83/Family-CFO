@@ -94,6 +94,13 @@ export class Overview {
     return this.auth.hasRight('household.settings.manage');
   };
 
+  // #96: sealing is a backups.manage act — GET /household/key-status is gated
+  // on that same right, so anyone else would only get a 403 and an offer they
+  // cannot accept.
+  protected readonly canManageBackups = () => {
+    return this.auth.hasRight('backups.manage');
+  };
+
   protected readonly editingTarget = signal(false);
   protected readonly targetInput = signal<number | null>(null);
   protected readonly savingTarget = signal(false);
@@ -242,6 +249,57 @@ export class Overview {
       const { data } = await this.api.getCashOutlook();
       return data ?? null;
     },
+  });
+
+  // --- #96 (ADR 0072 Phase 3): the sealed-mode offer ------------------------
+  // Sealed mode is the strongest protection this app has and nothing announced
+  // it. It stays OFF by default (it cannot even be on at creation — sealing
+  // needs a member wrap and a recovery key, neither of which exists yet), so
+  // the card offers it and states the price honestly.
+  //
+  // Dismissal is PER DEVICE (localStorage), like the advisor disclaimer, not
+  // per household: the offer explains a household decision to a person, and one
+  // member clicking Dismiss on their laptop must not silently hide the feature
+  // from the co-owner who would actually turn it on. Costs nothing on the wire
+  // and needs no contract change.
+  private static readonly SEAL_OFFER_KEY = 'family-cfo.hideSealedModeOffer';
+
+  protected readonly sealOfferDismissed = signal(
+    localStorage.getItem(Overview.SEAL_OFFER_KEY) === 'true',
+  );
+
+  protected dismissSealOffer(): void {
+    localStorage.setItem(Overview.SEAL_OFFER_KEY, 'true');
+    this.sealOfferDismissed.set(true);
+  }
+
+  /** Not fetched at all for members who cannot seal, or once dismissed. */
+  protected readonly keyStatus = resource({
+    params: () => (this.canManageBackups() && !this.sealOfferDismissed() ? true : undefined),
+    loader: async () => {
+      const { data } = await this.api.getHouseholdKeyStatus();
+      return data ?? null;
+    },
+  });
+
+  /**
+   * Offer sealing only where it is actually possible: encryption on (the box
+   * has a master key) and the household not already sealed. A missing member
+   * wrap or recovery key does NOT hide the offer — it names what to make first,
+   * which a greyed-out control never could.
+   */
+  protected readonly sealOffer = computed(() => {
+    if (this.sealOfferDismissed()) {
+      return null;
+    }
+    const status = this.keyStatus.value();
+    if (!status || !status.encryption_enabled || status.mode === 'sealed') {
+      return null;
+    }
+    return {
+      needsRecoveryKey: !status.has_recovery_key,
+      needsMemberKey: status.member_wraps < 1,
+    };
   });
 
   // M113 (ADR 0027): left to spend this month. Degrades gracefully.
