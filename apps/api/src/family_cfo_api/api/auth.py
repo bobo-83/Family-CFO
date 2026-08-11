@@ -201,6 +201,13 @@ async def change_password(
     # re-minted BEFORE the hash moves. If it can't be, nothing is written — a
     # member whose hash changed but whose wrap did not can sign in and can no
     # longer read their own household, which is worse than a failed change.
+    #
+    # The session's household is the ONLY one to re-wrap: a user belongs to
+    # exactly one, enforced at the two doors that mint memberships (accepting
+    # an invite as a user who already has one returns `conflict`, and
+    # create_member refuses an email already in use). If that ever changes,
+    # this call has to fan out over every membership or the other households'
+    # wraps go stale — which is the retired password still working as a key.
     if not household_crypto.on_password_changed(
         engine,
         session.household_id,
