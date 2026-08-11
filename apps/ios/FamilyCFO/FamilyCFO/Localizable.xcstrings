@@ -3089,6 +3089,38 @@
         }
       }
     },
+    "Before you can seal: create a recovery key.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Prieš užsandarinant: sukurkite atkūrimo raktą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước khi niêm phong: hãy tạo một khóa khôi phục."
+          }
+        }
+      }
+    },
+    "Before you can seal: sign in with your password once — pairing a phone does not make a member key.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Prieš užsandarinant: bent kartą prisijunkite su slaptažodžiu — telefono susiejimas nesukuria nario rakto."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước khi niêm phong: hãy đăng nhập bằng mật khẩu một lần — ghép nối điện thoại không tạo ra khóa thành viên."
+          }
+        }
+      }
+    },
     "Behind — projected %@, after the target": {
       "localizations": {
         "lt": {
@@ -5275,6 +5307,22 @@
         }
       }
     },
+    "Dismiss on this iPhone": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Paslėpti šiame „iPhone“"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn trên iPhone này"
+          }
+        }
+      }
+    },
     "Dispute": {
       "localizations": {
         "lt": {
@@ -7176,6 +7224,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đầu tư"
+          }
+        }
+      }
+    },
+    "It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tai apsaugo nuo visko, kas pasiekia jūsų duomenis be prisijungimo seanso: nuo paties įrenginio, jo diskų, jo atsarginių kopijų ir nuo kito namų ūkio, besidalijančio tuo pačiu serveriu."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nó bảo vệ trước mọi thứ chạm tới dữ liệu mà không cần phiên đăng nhập: chiếc máy, ổ đĩa, bản sao lưu của nó, hay một hộ gia đình khác dùng chung máy."
+          }
+        }
+      }
+    },
+    "It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia, todėl banko sinchronizavimas ir kiti naktiniai darbai laukia jūsų. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mặc định nó tắt vì cái giá phải trả là có thật. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập, nên đồng bộ ngân hàng và các việc chạy ban đêm sẽ chờ bạn. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp."
           }
         }
       }
@@ -11946,6 +12026,22 @@
         }
       }
     },
+    "Seal this household": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užsandarinti šį namų ūkį"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niêm phong hộ gia đình này"
+          }
+        }
+      }
+    },
     "Seal this household?": {
       "localizations": {
         "lt": {
@@ -13907,6 +14003,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Máy giữ một bản dự phòng của khóa dữ liệu: đồng bộ ban đêm, ghi nhận số liệu và việc tự học lúc rảnh vẫn chạy. Nội dung của bạn được bảo vệ trước ổ đĩa và bản sao lưu bị đánh cắp — nhưng chính chiếc máy đó vẫn đọc được."
+          }
+        }
+      }
+    },
+    "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas egzistuoja tik tol, kol narys yra prisijungęs, todėl neprisijungusi kopija — pavogtas diskas, atsarginė kopija, momentinė kopija — tampa neįskaitoma."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong lúc có thành viên đang đăng nhập, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được."
           }
         }
       }

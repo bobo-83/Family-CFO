@@ -163,9 +163,57 @@
   @default {
     @if (household.value(); as context) {
       <div class="overview__cards">
-        <div class="overview__card">
+        <div class="overview__card" [class.overview__card--wide]="!!sealOffer()">
           <span class="overview__label" i18n="Household card header|The family this app tracks">Household</span>
           <span class="overview__value">{{ context.display_name }}</span>
+
+          <!-- #96 (ADR 0072 Phase 3): sealed mode was reachable only by
+               scrolling the Backups page. Offered here — never switched on for
+               anyone — with the price stated, and dismissed per device. -->
+          @if (sealOffer(); as seal) {
+            <section class="overview__seal" role="note">
+              <span class="overview__seal-title" i18n="Sealed mode offer|Heading of the offer to seal the household's data">🔒 Seal this household</span>
+              <p class="overview__seal-text" i18n="Sealed mode offer|What sealing does to the household's key">
+                The box keeps a spare of your household key so it can work while nobody is here.
+                Sealing removes that spare: your key then exists only while a member is signed in,
+                so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable.
+              </p>
+              <p class="overview__seal-text" i18n="Sealed mode offer|Which threats sealing protects against">
+                It guards against anything that reaches your data without a session: the machine,
+                its disks, its backups, another household sharing the box.
+              </p>
+              <p class="overview__seal-text" i18n="Sealed mode offer|Why sealed mode is not the default">
+                It is off by default because the price is real. After a restart nothing is readable
+                until someone signs in, so bank sync and other overnight work wait for you. And
+                losing the recovery key with nobody signed in loses the data — no one can override
+                that.
+              </p>
+              @if (seal.needsRecoveryKey) {
+                <p class="overview__seal-todo" i18n="Sealed mode offer|The missing precondition: the household has no recovery key yet">
+                  Before you can seal: create a recovery key.
+                </p>
+              }
+              @if (seal.needsMemberKey) {
+                <p class="overview__seal-todo" i18n="Sealed mode offer|The missing precondition: nobody has signed in with a password yet">
+                  Before you can seal: sign in with your password once — pairing a phone does not
+                  make a member key.
+                </p>
+              }
+              <span class="overview__seal-actions">
+                <a mat-flat-button routerLink="/backups" i18n="Sealed mode offer|Link to the privacy mode setting on the backups page">Privacy mode…</a>
+                <button
+                  mat-button
+                  type="button"
+                  title="Hides this offer on this device"
+                  i18n-title="Tooltip|Explains that dismissing the sealed mode offer only affects this device"
+                  (click)="dismissSealOffer()"
+                  i18n="Sealed mode offer|Hides the offer for good on this device"
+                >
+                  Dismiss
+                </button>
+              </span>
+            </section>
+          }
 
           <!-- #10 phase 1: one language per household; the advisor answers in it. -->
           @if (canManageSettings()) {

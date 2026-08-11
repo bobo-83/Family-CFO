@@ -6975,6 +6975,60 @@
         <note priority="1" from="description">The household time zone could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
+      <trans-unit id="1562275976180772712" datatype="html">
+        <source>🔒 Seal this household</source>
+        <target state="translated">🔒 Niêm phong hộ gia đình này</target>
+        <note priority="1" from="description">Heading of the offer to seal the household&apos;s data</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="1088570610188396491" datatype="html">
+        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
+        <target state="translated"> Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong lúc có thành viên đang đăng nhập, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được. </target>
+        <note priority="1" from="description">What sealing does to the household&apos;s key</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="2087491353407710140" datatype="html">
+        <source> It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box. </source>
+        <target state="translated"> Nó bảo vệ trước mọi thứ chạm tới dữ liệu mà không cần phiên đăng nhập: chiếc máy, ổ đĩa, bản sao lưu của nó, hay một hộ gia đình khác dùng chung máy. </target>
+        <note priority="1" from="description">Which threats sealing protects against</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="2553210445921615004" datatype="html">
+        <source> It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
+        <target state="translated"> Mặc định nó tắt vì cái giá phải trả là có thật. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập, nên đồng bộ ngân hàng và các việc chạy ban đêm sẽ chờ bạn. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp. </target>
+        <note priority="1" from="description">Why sealed mode is not the default</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="4192733393509092808" datatype="html">
+        <source> Before you can seal: create a recovery key. </source>
+        <target state="translated"> Trước khi niêm phong: hãy tạo một khóa khôi phục. </target>
+        <note priority="1" from="description">The missing precondition: the household has no recovery key yet</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="5823524294887255827" datatype="html">
+        <source> Before you can seal: sign in with your password once — pairing a phone does not make a member key. </source>
+        <target state="translated"> Trước khi niêm phong: hãy đăng nhập bằng mật khẩu một lần — ghép nối điện thoại không tạo ra khóa thành viên. </target>
+        <note priority="1" from="description">The missing precondition: nobody has signed in with a password yet</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="7511261617935596114" datatype="html">
+        <source>Privacy mode…</source>
+        <target state="translated">Chế độ riêng tư…</target>
+        <note priority="1" from="description">Link to the privacy mode setting on the backups page</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="4105764463804233723" datatype="html">
+        <source>Hides this offer on this device</source>
+        <target state="translated">Ẩn lời mời này trên thiết bị này</target>
+        <note priority="1" from="description">Explains that dismissing the sealed mode offer only affects this device</note>
+        <note priority="1" from="meaning">Tooltip</note>
+      </trans-unit>
+      <trans-unit id="9156758473662938862" datatype="html">
+        <source> Dismiss </source>
+        <target state="translated"> Bỏ qua </target>
+        <note priority="1" from="description">Hides the offer for good on this device</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -6991,6 +6991,60 @@
         <note priority="1" from="description">The household time zone could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
+      <trans-unit id="1562275976180772712" datatype="html">
+        <source>🔒 Seal this household</source>
+        <target state="needs-review-translation">🔒 Užsandarinti šį namų ūkį</target>
+        <note priority="1" from="description">Heading of the offer to seal the household&apos;s data</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="1088570610188396491" datatype="html">
+        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
+        <target state="needs-review-translation"> Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas egzistuoja tik tol, kol narys yra prisijungęs, todėl neprisijungusi kopija — pavogtas diskas, atsarginė kopija, momentinė kopija — tampa neįskaitoma. </target>
+        <note priority="1" from="description">What sealing does to the household&apos;s key</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="2087491353407710140" datatype="html">
+        <source> It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box. </source>
+        <target state="needs-review-translation"> Tai apsaugo nuo visko, kas pasiekia jūsų duomenis be prisijungimo seanso: nuo paties įrenginio, jo diskų, jo atsarginių kopijų ir nuo kito namų ūkio, besidalijančio tuo pačiu serveriu. </target>
+        <note priority="1" from="description">Which threats sealing protects against</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="2553210445921615004" datatype="html">
+        <source> It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
+        <target state="needs-review-translation"> Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia, todėl banko sinchronizavimas ir kiti naktiniai darbai laukia jūsų. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti. </target>
+        <note priority="1" from="description">Why sealed mode is not the default</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="4192733393509092808" datatype="html">
+        <source> Before you can seal: create a recovery key. </source>
+        <target state="needs-review-translation"> Prieš užsandarinant: sukurkite atkūrimo raktą. </target>
+        <note priority="1" from="description">The missing precondition: the household has no recovery key yet</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="5823524294887255827" datatype="html">
+        <source> Before you can seal: sign in with your password once — pairing a phone does not make a member key. </source>
+        <target state="needs-review-translation"> Prieš užsandarinant: bent kartą prisijunkite su slaptažodžiu — telefono susiejimas nesukuria nario rakto. </target>
+        <note priority="1" from="description">The missing precondition: nobody has signed in with a password yet</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="7511261617935596114" datatype="html">
+        <source>Privacy mode…</source>
+        <target state="needs-review-translation">Privatumo režimas…</target>
+        <note priority="1" from="description">Link to the privacy mode setting on the backups page</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
+      <trans-unit id="4105764463804233723" datatype="html">
+        <source>Hides this offer on this device</source>
+        <target state="needs-review-translation">Paslepia šį pasiūlymą šiame įrenginyje</target>
+        <note priority="1" from="description">Explains that dismissing the sealed mode offer only affects this device</note>
+        <note priority="1" from="meaning">Tooltip</note>
+      </trans-unit>
+      <trans-unit id="9156758473662938862" datatype="html">
+        <source> Dismiss </source>
+        <target state="needs-review-translation"> Atmesti </target>
+        <note priority="1" from="description">Hides the offer for good on this device</note>
+        <note priority="1" from="meaning">Sealed mode offer</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>
