@@ -157,6 +157,8 @@ import {
   type AiRuntimeConfig,
   type CardStatementCreateRequest,
   type AuthSessionCreateRequest,
+  changePassword,
+  type PasswordChangeRequest,
   type BillCreateRequest,
   type BillCreditCreateRequest,
   type BillUpdateRequest,
@@ -203,6 +205,12 @@ import {
 export class ApiService {
   login(body: AuthSessionCreateRequest) {
     return createAuthSession({ body });
+  }
+
+  /** #97: retire your own password. The current one is required — a session on
+   * its own is not evidence the member is at the keyboard. */
+  changePassword(body: PasswordChangeRequest) {
+    return changePassword({ body });
   }
 
   createHousehold(body: HouseholdCreateRequest) {

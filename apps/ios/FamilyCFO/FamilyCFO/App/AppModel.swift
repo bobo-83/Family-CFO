@@ -209,6 +209,13 @@ final class AppModel {
         client.map { LiveSystemAdminsAPI(client: $0) }
     }
 
+    /// #97: your own password. No right gates it — everybody has one. The
+    /// server keeps the calling session alive, so the stored credential stays
+    /// valid and nothing here needs rewriting.
+    var changePassword: ChangePasswordAPI? {
+        client.map { LiveChangePasswordAPI(client: $0) }
+    }
+
     /// Hosted-household roster (#180) — parity with the dashboard's
     /// Households page. System admins only.
     var hostedHouseholds: HouseholdsAPI? {

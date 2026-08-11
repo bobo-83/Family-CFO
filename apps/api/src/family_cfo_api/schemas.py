@@ -82,6 +82,14 @@ class AuthSessionCreateRequest(BaseModel):
     password: str = Field(min_length=8)
 
 
+class PasswordChangeRequest(BaseModel):
+    # #97: the CURRENT password, not merely a valid session — a session can be
+    # an unattended open laptop. `new_password` holds to the invite flow's
+    # standard (min_length=8); one bar for setting a password, not two.
+    current_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)
+
+
 class AuthSession(BaseModel):
     access_token: str
     expires_at: datetime

@@ -53,6 +53,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /auth/sessions`.
     /// - Remark: Generated from `#/paths//auth/sessions/delete(deleteAuthSession)`.
     func deleteAuthSession(_ input: Operations.DeleteAuthSession.Input) async throws -> Operations.DeleteAuthSession.Output
+    /// Change your own password (requires the current one)
+    ///
+    /// #97: a member retires their own password. The current password is proven again even though the session is valid — a session can be an unattended open laptop. On success every OTHER session of this user is revoked and the one making the call survives, because the usual reason to change a password is that somebody else has it.
+    ///
+    /// ADR 0072: the password derives the member's household key wrap, so the wrap is re-minted before the hash moves; a 409 means it could not be and nothing was changed. A wrong current password is 403, not 401 — the session is fine, and a 401 would sign the member out mid-form.
+    ///
+    ///
+    /// - Remark: HTTP `POST /auth/password`.
+    /// - Remark: Generated from `#/paths//auth/password/post(changePassword)`.
+    func changePassword(_ input: Operations.ChangePassword.Input) async throws -> Operations.ChangePassword.Output
     /// Rotate the current session token
     ///
     /// - Remark: HTTP `POST /auth/sessions/refresh`.
@@ -964,6 +974,24 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//auth/sessions/delete(deleteAuthSession)`.
     public func deleteAuthSession(headers: Operations.DeleteAuthSession.Input.Headers = .init()) async throws -> Operations.DeleteAuthSession.Output {
         try await deleteAuthSession(Operations.DeleteAuthSession.Input(headers: headers))
+    }
+    /// Change your own password (requires the current one)
+    ///
+    /// #97: a member retires their own password. The current password is proven again even though the session is valid — a session can be an unattended open laptop. On success every OTHER session of this user is revoked and the one making the call survives, because the usual reason to change a password is that somebody else has it.
+    ///
+    /// ADR 0072: the password derives the member's household key wrap, so the wrap is re-minted before the hash moves; a 409 means it could not be and nothing was changed. A wrong current password is 403, not 401 — the session is fine, and a 401 would sign the member out mid-form.
+    ///
+    ///
+    /// - Remark: HTTP `POST /auth/password`.
+    /// - Remark: Generated from `#/paths//auth/password/post(changePassword)`.
+    public func changePassword(
+        headers: Operations.ChangePassword.Input.Headers = .init(),
+        body: Operations.ChangePassword.Input.Body
+    ) async throws -> Operations.ChangePassword.Output {
+        try await changePassword(Operations.ChangePassword.Input(
+            headers: headers,
+            body: body
+        ))
     }
     /// Rotate the current session token
     ///
@@ -3210,6 +3238,33 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case email
                 case password
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PasswordChangeRequest`.
+        public struct PasswordChangeRequest: Codable, Hashable, Sendable {
+            /// The password in use right now. Proven again on purpose: a valid session alone is not evidence the member is at the keyboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PasswordChangeRequest/current_password`.
+            public var currentPassword: Swift.String
+            /// The replacement, held to the same minimum as the invite flow — one standard for setting a password, not two. Must differ from the current one (400 otherwise).
+            ///
+            /// - Remark: Generated from `#/components/schemas/PasswordChangeRequest/new_password`.
+            public var newPassword: Swift.String
+            /// Creates a new `PasswordChangeRequest`.
+            ///
+            /// - Parameters:
+            ///   - currentPassword: The password in use right now. Proven again on purpose: a valid session alone is not evidence the member is at the keyboard.
+            ///   - newPassword: The replacement, held to the same minimum as the invite flow — one standard for setting a password, not two. Must differ from the current one (400 otherwise).
+            public init(
+                currentPassword: Swift.String,
+                newPassword: Swift.String
+            ) {
+                self.currentPassword = currentPassword
+                self.newPassword = newPassword
+            }
+            public enum CodingKeys: String, CodingKey {
+                case currentPassword = "current_password"
+                case newPassword = "new_password"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AuthSession`.
@@ -13440,6 +13495,231 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Change your own password (requires the current one)
+    ///
+    /// #97: a member retires their own password. The current password is proven again even though the session is valid — a session can be an unattended open laptop. On success every OTHER session of this user is revoked and the one making the call survives, because the usual reason to change a password is that somebody else has it.
+    ///
+    /// ADR 0072: the password derives the member's household key wrap, so the wrap is re-minted before the hash moves; a 409 means it could not be and nothing was changed. A wrong current password is 403, not 401 — the session is fine, and a 401 would sign the member out mid-form.
+    ///
+    ///
+    /// - Remark: HTTP `POST /auth/password`.
+    /// - Remark: Generated from `#/paths//auth/password/post(changePassword)`.
+    public enum ChangePassword {
+        public static let id: Swift.String = "changePassword"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/auth/password/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ChangePassword.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ChangePassword.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ChangePassword.Input.Headers
+            /// - Remark: Generated from `#/paths/auth/password/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/auth/password/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.PasswordChangeRequest)
+            }
+            public var body: Operations.ChangePassword.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ChangePassword.Input.Headers = .init(),
+                body: Operations.ChangePassword.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Password changed; other sessions revoked
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.ChangePassword.Output.NoContent)
+            /// Password changed; other sessions revoked
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.ChangePassword.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+            ///
+            /// - Remark: Generated from `#/paths//auth/password/post(changePassword)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
