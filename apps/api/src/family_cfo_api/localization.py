@@ -78,6 +78,43 @@ _CATALOG: dict[str, dict[str, str]] = {
         "vi": "Hộ gia đình đã niêm phong đang bị khóa",
         "lt": "Užantspauduotas namų ūkis užrakintas",
     },
+    # --- sealed + locked (ADR 0072 Phase 3) ---------------------------------
+    # Three readers, three next actions. The first is the member's (signing in
+    # unlocks it); the other two are #103's, for people the first sentence does
+    # not fit — an invitee who cannot sign in at all, and an owner who must sign
+    # in before the action they just tried will work.
+    "This household's data is sealed and currently locked. Sign in again to unlock it.": {
+        "vi": (
+            "Dữ liệu của hộ gia đình này đã được niêm phong và đang bị khóa. "
+            "Hãy đăng nhập lại để mở khóa."
+        ),
+        "lt": (
+            "Šio namų ūkio duomenys užantspauduoti ir šiuo metu užrakinti. "
+            "Prisijunkite iš naujo, kad atrakintumėte."
+        ),
+    },
+    "This household is locked. Ask whoever invited you to sign in, "
+    "then open this link again.": {
+        "vi": (
+            "Hộ gia đình này đang bị khóa. Hãy nhờ người đã mời bạn đăng nhập, "
+            "rồi mở lại liên kết này."
+        ),
+        "lt": (
+            "Šis namų ūkis užrakintas. Paprašykite jus pakvietusio asmens "
+            "prisijungti ir tada atidarykite šią nuorodą dar kartą."
+        ),
+    },
+    "Sign in to this household first, then add the member. "
+    "Its key is locked and a new member needs it to be readable.": {
+        "vi": (
+            "Hãy đăng nhập vào hộ gia đình này trước, rồi thêm thành viên. "
+            "Khóa của hộ đang bị khóa và thành viên mới cần đọc được khóa đó."
+        ),
+        "lt": (
+            "Pirmiausia prisijunkite prie šio namų ūkio, tada pridėkite narį. "
+            "Jo raktas užrakintas, o naujam nariui jis turi būti perskaitomas."
+        ),
+    },
     "Request validation failed": {
         "vi": "Yêu cầu không hợp lệ",
         "lt": "Užklausa neatitinka reikalavimų",

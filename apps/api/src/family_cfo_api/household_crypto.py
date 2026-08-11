@@ -54,14 +54,41 @@ _session_keyring: dict[str, tuple[bytes, float]] = {}
 CANARY_PLAINTEXT = b"family-cfo-canary-v1"
 
 
-class HouseholdLockedError(Exception):
-    """Sealed household with no live session key — mapped to HTTP 423."""
+LOCKED_CODE = "household_locked"
 
-    def __init__(self, household_id: str):
+# #103: a 423 raised because a NEW member cannot be created — the key wrap that
+# would let them open anything can only be minted while the household key is
+# readable. A separate code because the CLIENT has to tell the two apart: an
+# ordinary 423 means "your session is stale, sign in" and the web drops the
+# session silently (#101), while this one is about the ACTION, not the session,
+# and the reader must be told. Same status, different conversation.
+LOCKED_NEW_MEMBER_CODE = "household_locked_new_member"
+
+
+class HouseholdLockedError(Exception):
+    """Sealed household with no live session key — mapped to HTTP 423.
+
+    The default message addresses a MEMBER, the only reader for whom "sign in
+    again" is both true and available. Callers whose reader is someone else pass
+    their own `message` and `code` — an invitee cannot sign in to a household
+    they have not joined yet, so the generic sentence names a remedy they do not
+    have (#103). The wording lives with the endpoint that knows who is reading.
+    """
+
+    def __init__(
+        self,
+        household_id: str,
+        message: str | None = None,
+        code: str = LOCKED_CODE,
+    ):
         self.household_id = household_id
+        self.code = code
         super().__init__(
-            "This household's data is sealed and currently locked. "
-            "Sign in again to unlock it."
+            message
+            or (
+                "This household's data is sealed and currently locked. "
+                "Sign in again to unlock it."
+            )
         )
 
 

@@ -54,9 +54,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     async def locked_handler(request, exc: household_crypto.HouseholdLockedError):
         # ADR 0072 Phase 3: sealed household, no live session key. 423 Locked —
         # clients prompt a fresh sign-in (or a device posts its key session).
+        # The code is the exception's, not a constant: a 423 that blocks CREATING
+        # a member carries its own code so clients can tell "your session is
+        # stale" from "this action needs the key" (#103).
+        # Translated at the response boundary like every other error detail —
+        # this prose IS shown (the backups export and the join page both surface
+        # it), so it has no business staying English in a vi/lt household.
         return JSONResponse(
             status_code=423,
-            content=error_response("household_locked", str(exc)),
+            content=error_response(
+                exc.code,
+                localization.translate(str(exc), request.headers.get("accept-language")),
+            ),
         )
 
     @app.exception_handler(HTTPException)

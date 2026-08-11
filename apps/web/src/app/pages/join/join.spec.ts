@@ -129,6 +129,56 @@ describe('Join (ADR 0056)', () => {
     expect(await lockedMessage('300')).toContain('try again in 5 minutes');
   });
 
+  // #103: a sealed household whose key is not readable cannot take a new
+  // member, and the invitee is the one person who cannot fix that — they are
+  // not a member, so they have nothing to sign in to. The server says who can,
+  // and the page has to show THAT rather than its own "link may have expired"
+  // guess, which would send them chasing a new link that will fail identically.
+  it('shows the server’s wording when the household is locked', async () => {
+    window.location.hash = '#token=secret-token-abc';
+    const apiMock = {
+      previewInvite: vi.fn().mockResolvedValue(
+        response({
+          household_name: 'The Placeholder Household',
+          email: 'sister@example.com',
+          role_name: 'User',
+          expires_at: '2026-07-28T00:00:00Z',
+        }),
+      ),
+      acceptInvite: vi.fn().mockResolvedValue(
+        response(
+          undefined,
+          {
+            error: {
+              code: 'household_locked_new_member',
+              message:
+                'This household is locked. Ask whoever invited you to sign in, then open this link again.',
+            },
+          },
+          new Response(null, { status: 423 }),
+        ),
+      ),
+    };
+    configure(apiMock);
+
+    const fixture = TestBed.createComponent(Join);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component['form'].setValue({ displayName: 'Sis', password: 'a-strong-pass' });
+    await component['submit']();
+    fixture.detectChanges();
+
+    const shown = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(shown).toContain('Ask whoever invited you to sign in');
+    // Not the generic fallback, which names a cause that is not the cause.
+    expect(shown).not.toContain('may have expired');
+    // The form stays put: they will submit it again after someone signs in.
+    expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+  });
+
   it('rejects a link with no token without calling the API', async () => {
     window.location.hash = '';
     const apiMock = { previewInvite: vi.fn() };

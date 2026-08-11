@@ -4,6 +4,28 @@ import { clearAuthState, getToken } from './token-store';
 let configured = false;
 
 /**
+ * The one 423 that is NOT about the session (#103): the household is sealed and
+ * locked, and the request tried to create a NEW member — accepting an invite,
+ * or adding one from the members screen. Minting that person's key wrap needs
+ * the household key readable, so the server refuses; the message it sends names
+ * the reader's own next action and the screen shows it inline.
+ *
+ * Mirrors `household_crypto.LOCKED_NEW_MEMBER_CODE` on the API side.
+ */
+const LOCKED_NEW_MEMBER_CODE = 'household_locked_new_member';
+
+async function isNewMemberLock(response: Response): Promise<boolean> {
+  try {
+    // Cloned: the caller still has to read this body to show the message.
+    const body = (await response.clone().json()) as { error?: { code?: string } };
+    return body?.error?.code === LOCKED_NEW_MEMBER_CODE;
+  } catch {
+    // No body, or not JSON — an ordinary lock as far as we can tell.
+    return false;
+  }
+}
+
+/**
  * The session-ending statuses, split out of `configureApiClient` so specs can
  * exercise the mapping without the generated client.
  *
@@ -21,12 +43,19 @@ let configured = false;
  *   and STILL being locked, which happens to a member with no usable key wrap.
  *   That member is genuinely stuck, and saying so belongs after a successful
  *   login, not before one (#101).
+ *
+ *   The exception is `household_locked_new_member` (#103), which answers an
+ *   action rather than a stale session. Ending the session there would be
+ *   actively wrong in both places it can happen: the owner adding a member is
+ *   signed in and would be thrown off the form that just told them to sign in,
+ *   and the invitee accepting an invite has no session to end — only a message
+ *   that has to survive long enough to be read.
  */
 export async function handleSessionResponse(response: Response): Promise<Response> {
   if (response.status === 401) {
     clearAuthState();
   }
-  if (response.status === 423) {
+  if (response.status === 423 && !(await isNewMemberLock(response))) {
     clearAuthState();
   }
   return response;

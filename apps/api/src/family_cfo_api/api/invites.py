@@ -47,6 +47,15 @@ from family_cfo_api.schemas import (
 
 router = APIRouter(tags=["Household"])
 
+# #103: what an INVITEE is told when the household they were invited to is
+# sealed and locked. They are not a member yet, so "sign in to unlock it" names
+# a door they cannot reach — the only person who can open it is the one who sent
+# the link. Says the next action, not the machine's state.
+INVITEE_LOCKED_MESSAGE = (
+    "This household is locked. Ask whoever invited you to sign in, "
+    "then open this link again."
+)
+
 INVITE_TTL = timedelta(days=7)
 
 
@@ -304,9 +313,35 @@ async def accept_invite(
     if timezone is not None and not household_clock.is_known_zone(timezone):
         raise HTTPException(status_code=422, detail=household_clock.UNKNOWN_TIMEZONE_DETAIL)
 
+    token_hash = security.hash_token(payload.token)
+
+    # #103: refuse BEFORE claiming the invite, not after.
+    #
+    # Minting the new member's key wrap needs the household key readable, and a
+    # sealed household's key is only readable while someone's session keeps it
+    # alive (30-minute TTL). Discovering that after `accept_invite` has already
+    # burned the one-time token would make the message below a lie: the invitee
+    # would come back to a 410. So the lock is checked here, where nothing has
+    # been mutated yet and the link survives to be opened again.
+    #
+    # Only a token that is real and still pending gets this answer — anything
+    # else falls through to the 404/410 it has always received, so a locked
+    # household cannot become an oracle for guessed tokens.
+    pending = repository.get_invite_by_token_hash(engine, token_hash)
+    if (
+        pending is not None
+        and pending.status == "pending"
+        and not household_crypto.dek_available(engine, pending.household_id)
+    ):
+        raise household_crypto.HouseholdLockedError(
+            pending.household_id,
+            message=INVITEE_LOCKED_MESSAGE,
+            code=household_crypto.LOCKED_NEW_MEMBER_CODE,
+        )
+
     result = repository.accept_invite(
         engine,
-        token_hash=security.hash_token(payload.token),
+        token_hash=token_hash,
         password_hash=security.hash_password(payload.password),
         display_name=payload.display_name.strip(),
     )
