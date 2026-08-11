@@ -24,6 +24,7 @@ USER_FACING_429_OPERATIONS = {
     ("post", "/pairing/login"),  # iOS login
     ("post", "/invites/preview"),  # public join page, on load
     ("post", "/invites/accept"),  # public join page, on submit
+    ("post", "/auth/password"),  # #97: the change-password form's re-auth
 }
 
 

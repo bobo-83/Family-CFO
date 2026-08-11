@@ -515,6 +515,11 @@ def device_wrap_json(engine: Engine, household_id: str, device_id: str) -> str |
 def _upsert_wrap(
     engine: Engine, household_id: str, kind: str, subject_id: str | None, wrap_json: str
 ) -> None:
+    """REPLACE, never accumulate: the delete below is load-bearing. Wraps for a
+    (household, kind, subject) are one-per-subject on purpose — if a second row
+    survived a password change, the retired password would go on opening the
+    household key alongside the new one, and changing it would protect nothing
+    (#97)."""
     from sqlalchemy import delete as sql_delete
 
     from family_cfo_api import models, repository
@@ -559,7 +564,22 @@ def ensure_member_wrap(engine: Engine, household_id: str, user_id: str, password
     """Create/refresh the member's password-derived wrap — and, for a sealed
     household, UNLOCK it: a proven password is a sealed household's front door
     (Phase 3). Called wherever a password is proven (login) or set (invite
-    accept, member create). Never raises: key upkeep must not break a login."""
+    accept, member create). Never raises: key upkeep must not break a login.
+
+    Two behaviours worth knowing before calling this with a password the member
+    has never used (#97):
+
+    * Unlocked (convenient, or sealed-and-open) — the wrap is REPLACED, salt and
+      all, via ``_upsert_wrap``. Whatever password used to open it stops working.
+    * Sealed AND locked — the only key in reach is the member's existing wrap,
+      which opens with their existing password. Handed an unfamiliar one, this
+      function unwraps nothing, logs, and returns having changed NOTHING; the
+      old wrap survives untouched. It cannot do better — without the DEK, a
+      "replacement" wrap could only wrap a key it does not have.
+
+    So a password CHANGE must prove the current password through here first, and
+    only then the new one. ``on_password_changed`` is that sequence; use it
+    rather than calling this twice by hand."""
     try:
         try:
             dek = _dek_for_wrapping(engine, household_id)
@@ -620,6 +640,65 @@ def on_password_established(
     login/set-password path can't silently skip half of it. Delegates to
     ensure_member_wrap (which also unlocks a sealed household)."""
     ensure_member_wrap(engine, household_id, user_id, password)
+
+
+def on_password_changed(
+    engine: Engine,
+    household_id: str,
+    user_id: str,
+    current_password: str,
+    new_password: str,
+) -> bool:
+    """The seam for REPLACING a password (#97) — the sibling of
+    ``on_password_established`` for the one path where a password is retired
+    rather than proven or set.
+
+    Returns False when the member's wrap could not be re-minted under the new
+    password. The caller MUST then leave ``users.password_hash`` alone: a member
+    whose hash moved but whose wrap did not can still sign in and can no longer
+    open their own household.
+
+    Order matters, and is the whole reason this function exists:
+
+    1. Establish the CURRENT password. In a sealed, locked household that is the
+       only way in — the member's existing wrap is the front door, and it opens
+       with the password they have now. Skip this and step 2 has no key to wrap.
+    2. Establish the NEW password, which replaces the wrap outright.
+
+    Then verify rather than assume: re-read the stored wrap and confirm the new
+    password opens it, and that what comes out is really this household's key
+    (the canary). Wrap upkeep everywhere else is best-effort by design, because
+    a login must not fail over it; here it is a precondition, because the
+    alternative is a locked-out member."""
+    if not enabled():
+        # No master key: no wraps exist, the password hash is the whole story.
+        return True
+
+    on_password_established(engine, household_id, user_id, current_password)
+    on_password_established(engine, household_id, user_id, new_password)
+
+    wrap = _member_wrap_json(engine, household_id, user_id)
+    if wrap is None:
+        logger.error(
+            "password change left no member wrap household=%s — refusing the change",
+            household_id,
+        )
+        return False
+    dek = unwrap_with_password(wrap, new_password)
+    if dek is None:
+        # The stale-wrap case: the row still holds the RETIRED password's wrap
+        # (sealed and locked, most likely). Changing the hash now would hand the
+        # member a password that logs in and cannot decrypt.
+        logger.error(
+            "member wrap does not open with the new password household=%s — "
+            "refusing the change",
+            household_id,
+        )
+        return False
+    if not _canary_ok(engine, household_id, dek):
+        logger.error("re-minted member wrap failed the canary household=%s", household_id)
+        return False
+    return True
 
 
 def households_missing_member_wraps(engine: Engine) -> list[str]:
