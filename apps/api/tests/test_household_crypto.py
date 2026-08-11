@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy import text as sql_text
 
-from family_cfo_api import household_crypto, models, repository
+from family_cfo_api import fixtures, household_crypto, models, repository
 from family_cfo_api.config import get_settings
 
 
@@ -359,6 +359,95 @@ async def test_sealed_mode_lifecycle(_master_key, demo_client, demo_token, demo_
     household_crypto.reset_cache_for_tests()
     memories = repository.list_household_memories(demo_engine, hh)
     assert any(m.value == "a golden retriever" for m in memories)
+
+
+@pytest.mark.anyio
+async def test_a_web_password_login_unlocks_a_sealed_household(
+    _master_key, demo_client, demo_token, demo_engine
+) -> None:
+    """The route, not the helper.
+
+    test_sealed_mode_lifecycle above says "the login hook path" and then calls
+    `ensure_member_wrap` DIRECTLY — so it passes whether or not
+    POST /auth/sessions actually reaches the unlock seam. This drives the real
+    web login endpoint, which is the only thing that proves a member with no
+    phone can get back in after a restart.
+    """
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    hh = repository.list_households(demo_engine)[0]
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+
+    member = repository.list_members(demo_engine, hh)[0]
+    household_crypto.ensure_member_wrap(
+        demo_engine, hh, member.user_id, fixtures.DEMO_USER_PASSWORD
+    )
+    await demo_client.post("/api/v1/household/recovery-key", headers=headers)
+    sealed = await demo_client.post(
+        "/api/v1/household/seal-mode", headers=headers, json={"mode": "sealed"}
+    )
+    assert sealed.status_code == 200, sealed.text
+
+    # Box restart: the session keyring is the only place the key lived.
+    household_crypto.reset_cache_for_tests()
+
+    # Asserted FIRST, so a test that never locked anything cannot pass the rest.
+    locked = await demo_client.get("/api/v1/memories", headers=headers)
+    assert locked.status_code == 423, "the household must actually be locked here"
+
+    # The web login route — no app, no paired device, just a password.
+    login = await demo_client.post(
+        "/api/v1/auth/sessions",
+        json={
+            "email": fixtures.DEMO_USER_EMAIL,
+            "password": fixtures.DEMO_USER_PASSWORD,
+        },
+    )
+    assert login.status_code == 201, login.text
+
+    # Unlocked for the NEW session...
+    fresh = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    reopened = await demo_client.get("/api/v1/memories", headers=fresh)
+    assert reopened.status_code == 200, reopened.text
+    assert any(m["value"] == "a golden retriever" for m in reopened.json()["memories"])
+
+    # ...and the key is in the box's keyring, so the household is open to the
+    # sessions that were already live too — unlocking is household-wide, not
+    # a property of the token that happened to do it.
+    assert (await demo_client.get("/api/v1/memories", headers=headers)).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_a_wrong_password_does_not_unlock_a_sealed_household(
+    _master_key, demo_client, demo_token, demo_engine
+) -> None:
+    """The other half: if a failed login unlocked anything, the seal would be
+    decorative."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    hh = repository.list_households(demo_engine)[0]
+    # Sealed content must EXIST for a read to prove anything: an empty list
+    # decrypts nothing and answers 200 whether the household is locked or not.
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+    member = repository.list_members(demo_engine, hh)[0]
+    household_crypto.ensure_member_wrap(
+        demo_engine, hh, member.user_id, fixtures.DEMO_USER_PASSWORD
+    )
+    await demo_client.post("/api/v1/household/recovery-key", headers=headers)
+    assert (
+        await demo_client.post(
+            "/api/v1/household/seal-mode", headers=headers, json={"mode": "sealed"}
+        )
+    ).status_code == 200
+    household_crypto.reset_cache_for_tests()
+    # Asserted before the failed login, so the assertion after it measures the
+    # login rather than the starting state.
+    assert (await demo_client.get("/api/v1/memories", headers=headers)).status_code == 423
+
+    refused = await demo_client.post(
+        "/api/v1/auth/sessions",
+        json={"email": fixtures.DEMO_USER_EMAIL, "password": "not-the-password"},
+    )
+    assert refused.status_code == 401
+    assert (await demo_client.get("/api/v1/memories", headers=headers)).status_code == 423
 
 
 def test_worker_jobs_defer_when_sealed_and_locked(_master_key, demo_engine) -> None:
