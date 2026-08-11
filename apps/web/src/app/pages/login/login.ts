@@ -6,7 +6,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { consumeSessionNotice } from '../../core/token-store';
 
 @Component({
   selector: 'app-login',
@@ -34,7 +33,7 @@ export class Login {
   protected readonly submitting = signal(false);
   // Seeded with any session-ending notice — e.g. a sealed household answered
   // 423 and the API layer dropped the session (ADR 0072 Phase 3).
-  protected readonly errorMessage = signal<string | null>(consumeSessionNotice());
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) {
