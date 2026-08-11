@@ -58,4 +58,25 @@ describe('handleSessionResponse', () => {
 
     expect(authState()).toBeNull();
   });
+
+  // #103: the one 423 that answers an ACTION rather than a stale session —
+  // adding a member, or accepting an invite, into a sealed household whose key
+  // is not readable. Ending the owner's session here would boot them off the
+  // very form whose error message just told them to sign in.
+  it('keeps the session on a 423 that refuses a new member', async () => {
+    signIn();
+
+    const body = JSON.stringify({
+      error: {
+        code: 'household_locked_new_member',
+        message: 'Sign in to this household first, then add the member.',
+      },
+    });
+    const response = new Response(body, { status: 423 });
+    await handleSessionResponse(response);
+
+    expect(authState()).not.toBeNull();
+    // And the screen can still read the message it has to show.
+    expect(await response.text()).toBe(body);
+  });
 });

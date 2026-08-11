@@ -13,6 +13,14 @@ from family_cfo_api.schemas import (
 
 router = APIRouter(tags=["Household"])
 
+# #103: what an OWNER is told when the household is sealed and locked. Unlike
+# the invitee (api/invites.py), they can fix this themselves in ten seconds —
+# so the sentence leads with the action and explains second.
+OWNER_LOCKED_MESSAGE = (
+    "Sign in to this household first, then add the member. "
+    "Its key is locked and a new member needs it to be readable."
+)
+
 
 def _to_schema(record: repository.MemberRecord) -> Member:
     return Member(
@@ -75,6 +83,17 @@ async def create_member(
     session: repository.SessionContext = Depends(require_right(rights.MEMBERS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> Member:
+    # #103: checked first, and before anything is written. A new member's key
+    # wrap can only be minted while the household key is readable; raising it
+    # here rather than letting `on_password_established` raise it afterwards is
+    # what stops a half-made member — a users row with no wrap, an account that
+    # could never open anything.
+    if not household_crypto.dek_available(engine, session.household_id):
+        raise household_crypto.HouseholdLockedError(
+            session.household_id,
+            message=OWNER_LOCKED_MESSAGE,
+            code=household_crypto.LOCKED_NEW_MEMBER_CODE,
+        )
     if repository.user_email_exists(engine, payload.email):
         raise HTTPException(status_code=409, detail="Email already in use")
     assigned = _resolve_role(engine, session.household_id, payload.role_id, payload.role)

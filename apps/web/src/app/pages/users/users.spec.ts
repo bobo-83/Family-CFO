@@ -239,6 +239,50 @@ describe('Users', () => {
     });
   });
 
+  // #103: the owner CAN fix this one, so they are told how — inline, on the
+  // form, with the values they typed still in it.
+  it('shows the locked-household wording inline when adding a member', async () => {
+    apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
+    apiMock.listMembers.mockResolvedValue(response({ members: [] }));
+    apiMock.createMember.mockResolvedValue(
+      response(undefined, {
+        error: {
+          code: 'household_locked_new_member',
+          message:
+            'Sign in to this household first, then add the member. Its key is locked and a new member needs it to be readable.',
+        },
+      }),
+    );
+
+    TestBed.configureTestingModule({
+      imports: [Users],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+    const fixture = TestBed.createComponent(Users);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component['memberForm'].setValue({
+      email: 'a@b.com',
+      password: 'password-123',
+      displayName: 'A',
+      roleId: 'r-user',
+    });
+    await component['addMember']();
+    fixture.detectChanges();
+
+    const shown = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(shown).toContain('Sign in to this household first');
+    expect(shown).not.toContain('Failed to add member.');
+    // Nothing was typed twice: the refusal left the form alone.
+    expect(component['memberForm'].getRawValue().email).toBe('a@b.com');
+  });
+
   it('hides member management for a non-owner', async () => {
     apiMock.listPairedDevices.mockResolvedValue(response({ devices: [] }));
     apiMock.listMembers.mockResolvedValue(response({ members: [] }));
