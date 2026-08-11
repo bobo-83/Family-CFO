@@ -3153,6 +3153,22 @@
         }
       }
     },
+    "Being signed in on this phone is not proof you are holding it, so your current password is needed too.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tai, kad esate prisijungę šiame telefone, neįrodo, kad jį laikote, todėl reikia ir dabartinio slaptažodžio."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc đã đăng nhập trên điện thoại này không chứng minh bạn đang cầm máy, nên cần cả mật khẩu hiện tại."
+          }
+        }
+      }
+    },
     "Bills": {
       "localizations": {
         "lt": {
@@ -3701,6 +3717,70 @@
         }
       }
     },
+    "Change password": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pakeisti slaptažodį"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi mật khẩu"
+          }
+        }
+      }
+    },
+    "Changing your password signs out every other browser and phone signed in as you — the usual reason to change it is that someone else knows it. This phone stays signed in.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pakeitus slaptažodį atjungiamos visos kitos naršyklės ir telefonai, prisijungę jūsų vardu — dažniausia priežastis keisti yra ta, kad slaptažodį žino kas nors kitas. Šis telefonas lieka prisijungęs."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi mật khẩu sẽ đăng xuất mọi trình duyệt và điện thoại khác đang đăng nhập bằng tài khoản của bạn — lý do thường gặp để đổi là có người khác biết mật khẩu. Điện thoại này vẫn đăng nhập."
+          }
+        }
+      }
+    },
+    "Changing your password signs out every other browser and phone signed in as you. This phone stays signed in.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pakeitus slaptažodį atjungiamos visos kitos naršyklės ir telefonai, prisijungę jūsų vardu. Šis telefonas lieka prisijungęs."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi mật khẩu sẽ đăng xuất mọi trình duyệt và điện thoại khác đang đăng nhập bằng tài khoản của bạn. Điện thoại này vẫn đăng nhập."
+          }
+        }
+      }
+    },
+    "Changing…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Keičiama…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đổi…"
+          }
+        }
+      }
+    },
     "Charge": {
       "localizations": {
         "lt": {
@@ -4049,6 +4129,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Xác nhận là thu nhập"
+          }
+        }
+      }
+    },
+    "Confirm it's you": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Patvirtinkite, kad tai jūs"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xác nhận đúng là bạn"
+          }
+        }
+      }
+    },
+    "Confirm new password": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pakartokite naują slaptažodį"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xác nhận mật khẩu mới"
           }
         }
       }
@@ -4839,6 +4951,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Số dư hiện tại · chưa rõ ngày đến hạn"
+          }
+        }
+      }
+    },
+    "Current password": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dabartinis slaptažodis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu hiện tại"
           }
         }
       }
@@ -8627,6 +8755,22 @@
         }
       }
     },
+    "New password": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Naujas slaptažodis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu mới"
+          }
+        }
+      }
+    },
     "Next 12 months at live price: %@": {
       "localizations": {
         "lt": {
@@ -10152,6 +10296,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mật khẩu"
+          }
+        }
+      }
+    },
+    "Password must be at least 8 characters.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Slaptažodį turi sudaryti bent 8 simboliai."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu phải có ít nhất 8 ký tự."
           }
         }
       }
@@ -13847,6 +14007,22 @@
         }
       }
     },
+    "That is not your current password.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tai ne jūsų dabartinis slaptažodis."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đó không phải mật khẩu hiện tại của bạn."
+          }
+        }
+      }
+    },
     "That name could not be resolved. If it is a tailnet name, check the VPN is connected.": {
       "localizations": {
         "lt": {
@@ -14371,6 +14547,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khoản chuyển tiền"
+          }
+        }
+      }
+    },
+    "The two new passwords do not match.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Abu nauji slaptažodžiai nesutampa."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hai mật khẩu mới không khớp nhau."
           }
         }
       }
@@ -16447,6 +16639,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dữ liệu của bạn"
+          }
+        }
+      }
+    },
+    "Your new password must be different from the current one.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Naujas slaptažodis turi skirtis nuo dabartinio."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu mới phải khác mật khẩu hiện tại."
+          }
+        }
+      }
+    },
+    "Your password was changed. You are still signed in on this phone; everywhere else signed in as you has been signed out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jūsų slaptažodis pakeistas. Šiame telefone tebesate prisijungę; visur kitur jūsų vardu prisijungę seansai atjungti."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu của bạn đã được đổi. Bạn vẫn đăng nhập trên điện thoại này; mọi nơi khác đăng nhập bằng tài khoản của bạn đã bị đăng xuất."
+          }
+        }
+      }
+    },
+    "Your password was not changed — this household's encryption key could not be re-created. Sign in again, then retry.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Jūsų slaptažodis nepakeistas — nepavyko iš naujo sukurti šio namų ūkio šifravimo rakto. Prisijunkite iš naujo ir bandykite dar kartą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mật khẩu của bạn chưa được đổi — không thể tạo lại khoá mã hoá của hộ gia đình này. Hãy đăng nhập lại rồi thử lại."
           }
         }
       }

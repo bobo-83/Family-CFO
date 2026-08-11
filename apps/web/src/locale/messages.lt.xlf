@@ -6991,6 +6991,75 @@
         <note priority="1" from="description">The household time zone could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
+      <trans-unit id="3683738606481202651" datatype="html">
+        <source>Change your password</source>
+        <target state="needs-review-translation">Pakeiskite savo slaptažodį</target>
+        <note priority="1" from="description">Screen where a member changes their own password</note>
+        <note priority="1" from="meaning">Page title</note>
+      </trans-unit>
+      <trans-unit id="5548986255379952614" datatype="html">
+        <source> Your current password is needed as well as the new one — being signed in here is not proof you are at the keyboard. When the change succeeds you stay signed in on this browser, and every other browser or phone signed in as you is signed out.
+</source>
+        <target state="needs-review-translation"> Reikia ir dabartinio, ir naujo slaptažodžio — tai, kad esate čia prisijungę, neįrodo, kad sėdite prie klaviatūros. Sėkmingai pakeitus liekate prisijungę šioje naršyklėje, o visos kitos naršyklės ir telefonai, prisijungę jūsų vardu, atjungiami. </target>
+        <note priority="1" from="description">Explains why the current password is asked for and what happens to other sessions</note>
+        <note priority="1" from="meaning">Page intro</note>
+      </trans-unit>
+      <trans-unit id="8246909126119098070" datatype="html">
+        <source>Current password</source>
+        <target state="needs-review-translation">Dabartinis slaptažodis</target>
+        <note priority="1" from="description">The password the member has right now</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3272041898180057712" datatype="html">
+        <source>Your current password is required.</source>
+        <target state="needs-review-translation">Reikia įvesti dabartinį slaptažodį.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="4742744343498520046" datatype="html">
+        <source>New password</source>
+        <target state="needs-review-translation">Naujas slaptažodis</target>
+        <note priority="1" from="description">The replacement password</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="5654794176586884484" datatype="html">
+        <source>Confirm new password</source>
+        <target state="needs-review-translation">Pakartokite naują slaptažodį</target>
+        <note priority="1" from="description">Retype of the new password</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="6282076193412394736" datatype="html">
+        <source>The two new passwords do not match.</source>
+        <target state="needs-review-translation">Abu nauji slaptažodžiai nesutampa.</target>
+        <note priority="1" from="description">Validation message</note>
+      </trans-unit>
+      <trans-unit id="1641384486457022780" datatype="html">
+        <source> Your password was changed. You are still signed in here; anywhere else signed in as you has been signed out. </source>
+        <target state="needs-review-translation"> Jūsų slaptažodis pakeistas. Čia tebesate prisijungę; visur kitur jūsų vardu prisijungę seansai atjungti. </target>
+        <note priority="1" from="description">Shown after the password was changed</note>
+        <note priority="1" from="meaning">Change password confirmation</note>
+      </trans-unit>
+      <trans-unit id="8417912673097212222" datatype="html">
+        <source> <x id="ICU" equiv-text="{submitting(), select, true {Changing…} other {Change password}}" xid="6757586063646872383"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{submitting(), select, true {Changing…} other {Change password}}" xid="6757586063646872383"/> </target>
+        <note priority="1" from="description">Submits the new password, showing progress while the request is in flight</note>
+        <note priority="1" from="meaning">Change password submit button</note>
+      </trans-unit>
+      <trans-unit id="6757586063646872383" datatype="html">
+        <source>{VAR_SELECT, select, true {Changing…} other {Change password}}</source>
+        <target state="needs-review-translation">{VAR_SELECT, select, true {Keičiama…} other {Pakeisti slaptažodį}}</target>
+      </trans-unit>
+      <trans-unit id="916439018373501375" datatype="html">
+        <source>Could not change your password. Try again.</source>
+        <target state="needs-review-translation">Nepavyko pakeisti slaptažodžio. Bandykite dar kartą.</target>
+        <note priority="1" from="description">Fallback when the server gives no reason</note>
+        <note priority="1" from="meaning">Change password error</note>
+      </trans-unit>
+      <trans-unit id="3703096493643413744" datatype="html">
+        <source>Change password</source>
+        <target state="needs-review-translation">Pakeisti slaptažodį</target>
+        <note priority="1" from="description">Link to the change-your-password page</note>
+        <note priority="1" from="meaning">Sidebar nav item</note>
+      </trans-unit>
       <trans-unit id="1562275976180772712" datatype="html">
         <source>🔒 Seal this household</source>
         <target state="needs-review-translation">🔒 Užsandarinti šį namų ūkį</target>

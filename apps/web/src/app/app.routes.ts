@@ -101,6 +101,12 @@ export const routes: Routes = [
         path: 'households',
         loadComponent: () => import('./pages/households/households').then((m) => m.Households),
       },
+      // #97: every member can change their OWN password, so no right gates it.
+      {
+        path: 'change-password',
+        loadComponent: () =>
+          import('./pages/change-password/change-password').then((m) => m.ChangePassword),
+      },
     ],
   },
   { path: '**', redirectTo: '' },
