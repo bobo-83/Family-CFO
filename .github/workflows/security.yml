@@ -31,6 +31,13 @@ jobs:
       - name: Check repo hygiene (no personal identifiers)
         run: scripts/check-repo-hygiene.sh
 
+      # The deny list is gitignored, so CI never sees the literals and cannot
+      # enforce them — the local hooks are the only guard for that half. This
+      # runs the hooks against an invented token instead, so the mechanism is
+      # covered here even though the values are not (#106).
+      - name: Test the deny-list hooks
+        run: scripts/tests/pre-push-deny-list.test.sh
+
   dependency-audit:
     runs-on: ubuntu-latest
     defaults:
