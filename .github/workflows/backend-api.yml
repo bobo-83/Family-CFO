@@ -42,8 +42,10 @@ jobs:
       - name: Lint API
         run: make lint
 
-      - name: Test API
-        run: make test
+      # Runs the whole suite AND enforces 100% coverage of the modules listed in
+      # the Makefile's COVERED_MODULES — one run, not two.
+      - name: Test API (with crypto coverage gate)
+        run: make coverage
 
       - name: Check OpenAPI contract drift
         run: make check-openapi

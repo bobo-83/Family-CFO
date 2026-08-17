@@ -279,3 +279,61 @@ where decryption slots in.
   creation are rights-gated and one-valid-per-target; the remaining soft
   spot is advisor/vision cost per household, addressed by the chat cap —
   study ticks already yield to interactive use and run one month per tick.
+
+## Implementation note — key generation counter (shipped 2026-08-17, #0091)
+
+Written after an incident, so it records what actually happened rather than
+what the design assumed.
+
+**What went wrong.** A household was sealed, and shortly after a member removal
+rotated its key. Both acts ran in the API process. The background worker had
+cached that household's DEK before either, and `_resolve_dek` returned its
+process-local cache *before* consulting anything else — so the worker never
+learned that the key it held had been retired. It kept reading (failing) and,
+worse, kept *writing*: a bank sync re-encrypted every account's `institution`
+under the dead key. ~34 hours later a restart cleared the cache. 225 values
+across six columns could no longer be opened by any surviving key.
+
+The comment on the cache read "the wrap only changes on rotation, which
+restarts the process." Rotation restarts nothing. A cache invalidated by an
+assumption is not invalidated.
+
+**The two fixes.**
+
+- **`household_keys.key_generation`** — a counter bumped by seal, unseal,
+  rotate, and box-wrap healing. Cached DEKs (both the box-wrap cache and the
+  session keyring) carry the generation they were read at and revalidate
+  against it every `DEK_CACHE_REVALIDATE_SECONDS` (5s). Nothing is pushed to
+  anyone; a stale cache disproves itself. The 5s window is the deliberate
+  trade: `decrypt_text` runs per value, thousands of times per page load, so
+  reading the row every time is not an option. Worst-case staleness went from
+  unbounded to seconds.
+- **Rotation refuses to strand its own key.** For a *sealed* household,
+  rotation deletes the member and recovery wraps (a password cannot be
+  re-derived server-side; a recovery key is displayed once) and re-mints device
+  wraps from stored public keys. With no live device, the new key existed only
+  in one process's memory — with every row already re-encrypted under it. That
+  is precisely how the August rotation left its key unrecoverable.
+  `rotation_would_strand_key` now reports that state and `delete_member`
+  returns 409 *before* removing anyone: removing a member without the rotation
+  that must follow is unsafe, and so is a rotation that cannot place its key,
+  so if the second cannot run the first must not either.
+
+**Why not just drop the cache.** Correct and far too slow — see the per-value
+call pattern above. Why not push invalidation between processes? It needs a
+channel the box does not have (no broker, and the worker is a separate
+container), and a missed message fails silently in exactly the direction that
+caused the incident. A counter the reader checks fails safe.
+
+**Coverage.** `household_crypto` is held at 100% line coverage by
+`make coverage`, wired into the backend CI job. Not a repo-wide target and it
+should not become one — it is the list of modules where an untested branch has
+already cost real data.
+
+**Still open, recorded here rather than fixed quietly.** An unreadable amount
+still degrades to `0` in aggregations (`repository._dec_amount`) — deliberate,
+so one bad row cannot crash an overview, but it means wrong money reads as
+right money. During the incident two transactions counted as zero for six days
+and nothing said so. A sealed household also gets no background work at all
+unless a session is live, which is how the worker came to be the only thing
+touching this data.
