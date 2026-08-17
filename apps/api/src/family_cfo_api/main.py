@@ -68,6 +68,22 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             ),
         )
 
+    @app.exception_handler(household_crypto.SealedAmountUnreadableError)
+    async def amount_unreadable_handler(
+        request, exc: household_crypto.SealedAmountUnreadableError
+    ):
+        # #110: a stored amount will not decrypt. 409, not 423 — signing in
+        # again cannot fix a damaged record, and the client must not offer that
+        # as the remedy. Refusing is the point: the alternative is a total that
+        # quietly counts the unreadable row as zero.
+        return JSONResponse(
+            status_code=409,
+            content=error_response(
+                exc.code,
+                localization.translate(str(exc), request.headers.get("accept-language")),
+            ),
+        )
+
     @app.exception_handler(HTTPException)
     async def handle_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
         message = exc.detail if isinstance(exc.detail, str) else "HTTP error"

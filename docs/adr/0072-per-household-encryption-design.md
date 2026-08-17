@@ -330,10 +330,33 @@ caused the incident. A counter the reader checks fails safe.
 should not become one — it is the list of modules where an untested branch has
 already cost real data.
 
-**Still open, recorded here rather than fixed quietly.** An unreadable amount
-still degrades to `0` in aggregations (`repository._dec_amount`) — deliberate,
-so one bad row cannot crash an overview, but it means wrong money reads as
-right money. During the incident two transactions counted as zero for six days
-and nothing said so. A sealed household also gets no background work at all
-unless a session is live, which is how the worker came to be the only thing
-touching this data.
+**Two follow-ups, both closed in the same PR rather than left open.**
+
+- *Rotation could still strand its key* (#112). Passing the precondition proved
+  a wrap *could* be minted, not that one *was* — and `ensure_device_wrap`
+  swallows failures, correctly, because wrap upkeep must never fail a login. A
+  single corrupt stored public key on a one-device household was enough to
+  re-encrypt everything under a key nothing held, and still return `True`.
+  Sealed rotations now mint the device wraps **before** touching a row, via a
+  counting sibling (`_mint_device_wraps`), and abort if none land — free, since
+  nothing has moved yet. If a later step fails, the minted wraps hold a key the
+  canary does not match, so a device unlock is refused and the household stays
+  on its old key: fails closed, still openable by a member password.
+- *An unreadable amount counted as zero* (#110). `_dec_amount` returned 0 so
+  that one bad row could not crash an aggregation. The cost was worse than the
+  crash: the row became a real zero inside spending, cash flow and
+  safe-to-spend, and two of them did exactly that for six days while the only
+  signal was a log line. It now raises `SealedAmountUnreadableError`, mapped to
+  409 with its own code — 409 and not 423 because signing in again cannot
+  repair a damaged record and the client must not offer that remedy.
+
+  The asymmetry with text is deliberate: `[encrypted — key mismatch]` is visible
+  and unmistakable, so losing a merchant name degrades a page rather than
+  refusing it. An amount has no such tell — a damaged one is indistinguishable
+  from a legitimate zero. In a financial app a wrong number is the one output
+  worth refusing to produce. If a future product call prefers degraded-but-
+  flagged totals, the seam is that single raise.
+
+**Still open.** A sealed household gets no background work at all unless a
+session happens to be live, which is how the worker came to be the only thing
+touching this data in the first place.

@@ -315,6 +315,33 @@ def test_rotation_is_refused_when_sealed_with_no_device(_master_key, demo_engine
 
 
 def test_rotation_proceeds_when_sealed_with_a_live_device(_master_key, demo_engine) -> None:
+    """A revoked device sits alongside a live one: the new key must go to the
+    live device only. Wrapping it for a revoked device would hand the key back
+    to something the household deliberately cut off."""
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+    _pair_a_device(demo_engine, hh, member.user_id, "live phone")
+    gone = _pair_a_device(demo_engine, hh, member.user_id, "revoked phone")
+    assert repository.revoke_paired_device(demo_engine, hh, gone) is True
+    _make_sealable(demo_engine, hh)
+    assert household_crypto.seal_household(demo_engine, hh) is None
+
+    assert household_crypto.rotation_would_strand_key(demo_engine, hh) is False
+    assert household_crypto.rotate_household_key(demo_engine, hh) is True
+
+    # The new key has a durable home — one, not two — and the rows moved with it.
+    assert household_crypto.wrap_status(demo_engine, hh)["device_wraps"] == 1
+    values = [m.value for m in repository.list_household_memories(demo_engine, hh)]
+    assert "a golden retriever" in values
+
+
+def test_rotation_aborts_when_no_device_wrap_can_actually_be_minted(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """#112: passing the precondition proves a wrap COULD be minted. Only
+    minting proves one WAS. A device whose stored key cannot produce a wrap
+    must abort the rotation while nothing has been re-encrypted yet."""
     hh = repository.list_households(demo_engine)[0]
     member = repository.list_members(demo_engine, hh)[0]
     repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
@@ -322,10 +349,47 @@ def test_rotation_proceeds_when_sealed_with_a_live_device(_master_key, demo_engi
     _make_sealable(demo_engine, hh)
     assert household_crypto.seal_household(demo_engine, hh) is None
 
+    # The precondition is satisfied — a live device with a stored public key.
     assert household_crypto.rotation_would_strand_key(demo_engine, hh) is False
-    assert household_crypto.rotate_household_key(demo_engine, hh) is True
 
-    # The new key has a durable home, and the rows moved with it.
+    def unmintable(*_args, **_kwargs):
+        raise RuntimeError("stored public key will not parse")
+
+    monkeypatch.setattr(household_crypto, "_wrap_with_p256", unmintable)
+    assert household_crypto.rotate_household_key(demo_engine, hh) is False
+
+    # Aborted before any row moved: the household still reads with its old key.
+    values = [m.value for m in repository.list_household_memories(demo_engine, hh)]
+    assert "a golden retriever" in values
+    assert household_crypto.wrap_status(demo_engine, hh)["member_wraps"] == 1
+
+
+def test_rotation_survives_one_bad_device_when_another_holds_the_key(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """One unusable device must not veto a rotation that another device can
+    carry — abort only when NOTHING durable holds the new key."""
+    hh = repository.list_households(demo_engine)[0]
+    member = repository.list_members(demo_engine, hh)[0]
+    repository.upsert_household_memory(demo_engine, hh, "pet", "a golden retriever")
+    good = _pair_a_device(demo_engine, hh, member.user_id, "good phone")
+    _pair_a_device(demo_engine, hh, member.user_id, "bad phone")
+    _make_sealable(demo_engine, hh)
+    assert household_crypto.seal_household(demo_engine, hh) is None
+
+    real = household_crypto._wrap_with_p256
+    calls: list[int] = []
+
+    def one_bad(dek, raw):
+        calls.append(1)
+        if len(calls) == 1:  # whichever device comes first fails
+            raise RuntimeError("stored public key will not parse")
+        return real(dek, raw)
+
+    monkeypatch.setattr(household_crypto, "_wrap_with_p256", one_bad)
+    assert household_crypto.rotate_household_key(demo_engine, hh) is True
+    assert good  # the surviving device is what carried the key
+
     assert household_crypto.wrap_status(demo_engine, hh)["device_wraps"] == 1
     values = [m.value for m in repository.list_household_memories(demo_engine, hh)]
     assert "a golden retriever" in values

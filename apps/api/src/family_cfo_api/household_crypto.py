@@ -103,6 +103,38 @@ LOCKED_CODE = "household_locked"
 LOCKED_NEW_MEMBER_CODE = "household_locked_new_member"
 
 
+#: A sealed amount that will not decrypt — mapped to HTTP 409 (#110). Distinct
+#: from LOCKED_CODE: locked means "sign in and it works", this means "a stored
+#: record is damaged and no sign-in fixes it".
+AMOUNT_UNREADABLE_CODE = "sealed_amount_unreadable"
+
+
+class SealedAmountUnreadableError(Exception):
+    """A stored amount cannot be decrypted with this household's current key.
+
+    Raised rather than swallowed, which is a deliberate reversal. The previous
+    behaviour returned 0 so that "one bad row cannot crash an aggregation" — but
+    a transaction that cannot be read then became a transaction worth nothing,
+    and flowed into spending totals, cash flow, and safe-to-spend as a real
+    zero. During the August incident two amounts counted as zero for six days
+    and nothing said so.
+
+    Text degrades honestly — `[encrypted — key mismatch]` is visible in the UI
+    and unmistakable. Amounts are the one sealed type whose failure is
+    indistinguishable from a legitimate value, so they are the one that must
+    refuse. In a financial app a wrong number is worse than a missing one.
+    """
+
+    def __init__(self, household_id: str):
+        self.household_id = household_id
+        self.code = AMOUNT_UNREADABLE_CODE
+        super().__init__(
+            "Some stored amounts in this household cannot be read, so totals "
+            "would be wrong. This needs repair, not a retry — check the "
+            "household's key status."
+        )
+
+
 class HouseholdLockedError(Exception):
     """Sealed household with no live session key — mapped to HTTP 423.
 
@@ -963,6 +995,32 @@ def durable_wrap_holders(engine: Engine, household_id: str) -> int:
     )
 
 
+def _mint_device_wraps(engine: Engine, household_id: str, dek: bytes) -> int:
+    """Wrap ``dek`` for every live paired device. Returns how many actually
+    landed — the number that matters, as opposed to how many *could* have.
+
+    ``ensure_device_wrap`` swallows failures because wrap upkeep must never fail
+    a login. Rotation needs the opposite: it has to know. Hence a sibling that
+    counts (#112).
+    """
+    from family_cfo_api import repository
+
+    minted = 0
+    for device in repository.list_paired_devices(engine, household_id):
+        if device.revoked_at is not None or not getattr(device, "public_key", None):
+            continue
+        try:
+            raw = base64.b64decode(device.public_key)
+            _upsert_wrap(engine, household_id, "device", device.id, _wrap_with_p256(dek, raw))
+            minted += 1
+        except Exception:
+            # One bad device must not stop the rest — the count is the verdict.
+            logger.exception(
+                "device wrap mint failed household=%s device=%s", household_id, device.id
+            )
+    return minted
+
+
 def rotation_would_strand_key(engine: Engine, household_id: str) -> bool:
     """True when rotating right now would leave the NEW key with no durable home.
 
@@ -1012,6 +1070,24 @@ def rotate_household_key(
     new_dek = Fernet.generate_key()
     new_rows = _subkey_fernet(new_dek, b"rows")
 
+    box_row = _box_wrap_row(engine, household_id)
+    sealed = box_row is not None and box_row[0] is None
+    # Place the key BEFORE committing to it (#112). The precondition proved a
+    # wrap COULD be minted; only this proves one WAS. Nothing has been
+    # re-encrypted yet, so giving up here costs nothing — whereas finding out
+    # afterwards costs the household everything.
+    #
+    # If a later step fails, these wraps hold a key the canary does not yet
+    # match, so a device unlock is REFUSED and the household stays on its old
+    # key, still openable by a member password. Fails closed.
+    if sealed and _mint_device_wraps(engine, household_id, new_dek) == 0:
+        logger.error(
+            "refusing to rotate household=%s: no device wrap could be minted "
+            "for the new key, so nothing durable would hold it",
+            household_id,
+        )
+        return False
+
     with engine.connect() as conn:
         conversation_households = {
             row[0]: row[1]
@@ -1052,8 +1128,6 @@ def rotate_household_key(
                         sql_update(table).where(table.c.id == row["id"]).values(**values)
                     )
 
-    box_row = _box_wrap_row(engine, household_id)
-    sealed = box_row is not None and box_row[0] is None
     new_canary = _subkey_fernet(new_dek, b"rows").encrypt(CANARY_PLAINTEXT).decode()
     with engine.begin() as conn:
         conn.execute(
@@ -1077,12 +1151,11 @@ def rotate_household_key(
     else:
         _cache_put(engine, household_id, new_dek)
 
-    # Device wraps re-wrap from the stored public keys.
-    from family_cfo_api import repository
-
-    for device in repository.list_paired_devices(engine, household_id):
-        if device.revoked_at is None and getattr(device, "public_key", None):
-            ensure_device_wrap(engine, household_id, device.id, device.public_key)
+    if not sealed:
+        # Convenient mode: the box wrap already holds the new key, so device
+        # wraps are redundancy and minting them after the fact is safe. Sealed
+        # households minted theirs up front, before anything was re-encrypted.
+        _mint_device_wraps(engine, household_id, new_dek)
 
     # Imported here (not at module scope): repository imports this module, so a
     # top-level `audit` import would close the cycle.
