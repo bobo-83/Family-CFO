@@ -17,7 +17,7 @@ describe('Signup', () => {
   });
 
   const validValue = {
-    displayName: 'Vu Family',
+    displayName: 'demo-household',
     baseCurrency: 'usd',
     ownerDisplayName: 'Alex',
     ownerEmail: 'alex@example.com',
@@ -41,7 +41,7 @@ describe('Signup', () => {
     await component['submit']();
 
     expect(authServiceMock.signup).toHaveBeenCalledWith({
-      display_name: 'Vu Family',
+      display_name: 'demo-household',
       base_currency: 'USD',
       owner_display_name: 'Alex',
       owner_email: 'alex@example.com',

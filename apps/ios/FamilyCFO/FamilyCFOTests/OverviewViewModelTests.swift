@@ -161,7 +161,7 @@ struct OverviewViewModelTests {
     ) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1",
-            displayName: "The Vus",
+            displayName: "demo-household",
             currency: "USD",
             netWorth: money(1_234_500),
             emergencyFundMonths: 4.5,

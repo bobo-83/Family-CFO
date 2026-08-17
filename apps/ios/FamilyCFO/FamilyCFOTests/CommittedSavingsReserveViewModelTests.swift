@@ -23,7 +23,7 @@ struct CommittedSavingsReserveViewModelTests {
         }
         return .init(
             householdId: "hh-1",
-            displayName: "The Vus",
+            displayName: "demo-household",
             currency: "USD",
             netWorth: .init(amountMinor: 0, currency: "USD"),
             emergencyFundMonths: 4.5,

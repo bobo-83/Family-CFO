@@ -38,7 +38,20 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     # content and the commit message — is guarded.
     if [ -f "$DENY" ]; then
       msg=$(git log -1 --format=%B "$sha")
-      diffc=$(git show --format= "$sha")
+      # ADDED lines only (#106). `git show` includes removed ones, so a commit
+      # whose whole purpose is taking a denied identifier OUT carried it in its
+      # diff and was blocked — the guard prevented its own remedy, and the
+      # error text told the author to fix the commit, which WAS the fix.
+      #
+      # Not a relaxation. What matters is what ENTERS the repo: an identifier on
+      # an added line is still blocked; one being removed is the outcome we
+      # want; a MOVED one is still caught, because its destination is an added
+      # line; and anything left in the tree is caught by check-repo-hygiene.sh
+      # above, which greps the whole working tree rather than a diff.
+      #
+      # `+++ b/path` header lines are dropped so a denied string in a FILENAME
+      # is not mistaken for content — the tree scan owns that case.
+      diffc=$(git show --format= "$sha" | grep '^+' | grep -v '^+++' || true)
       while IFS= read -r term; do
         [ -z "$term" ] && continue
         case "$term" in \#*) continue ;; esac

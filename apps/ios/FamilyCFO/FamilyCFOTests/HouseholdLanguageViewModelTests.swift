@@ -9,7 +9,7 @@ struct HouseholdLanguageViewModelTests {
     private func context(language: String?) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1",
-            displayName: "The Vus",
+            displayName: "demo-household",
             language: language,
             currency: "USD",
             netWorth: .init(amountMinor: 0, currency: "USD"),
