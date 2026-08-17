@@ -9,7 +9,7 @@ struct HouseholdTimezoneViewModelTests {
     private func context(timezone: String?) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1",
-            displayName: "The Vus",
+            displayName: "demo-household",
             timezone: timezone,
             currency: "USD",
             netWorth: .init(amountMinor: 0, currency: "USD"),
@@ -142,7 +142,7 @@ struct HouseholdTimezoneClearTests {
     private func context(timezone: String?) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1",
-            displayName: "The Vus",
+            displayName: "demo-household",
             timezone: timezone,
             currency: "USD",
             netWorth: .init(amountMinor: 0, currency: "USD"),
