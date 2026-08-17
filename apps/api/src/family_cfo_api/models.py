@@ -995,6 +995,10 @@ household_keys = Table(
     Column("wrapped_dek", Text, nullable=True),
     # rows-subkey ciphertext of a fixed canary — validates posted/unwrapped DEKs.
     Column("canary", Text, nullable=True),
+    # Bumped by seal, unseal, and rotate. Every process revalidates its cached
+    # DEK against this, so a key change reaches the worker without a restart
+    # (#0091). Absolute value is meaningless; only changes matter.
+    Column("key_generation", Integer, nullable=False, server_default="1"),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 

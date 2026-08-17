@@ -2,13 +2,24 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 PYTHONPATH := src
 export PYTHONPATH
 
-.PHONY: install test lint format openapi check-openapi migrate run worker
+.PHONY: install test coverage lint format openapi check-openapi migrate run worker
+
+# Modules held to 100% line coverage. This is not a repo-wide target and should
+# not become one — chasing a global number buys tests written for the counter.
+# It is the list of modules where an untested branch has already cost real data:
+# household_crypto, after the August key-generation incident (migration 0091).
+COVERED_MODULES ?= family_cfo_api.household_crypto
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]" -e ../../services/financial-engine -e ../../services/ai-orchestrator -e ../../services/ocr-worker -e ../../services/scheduler -e ../../services/backup
 
 test:
 	$(PYTHON) -m pytest
+
+# The full suite plus the gate — CI runs this instead of `test`, so the crypto
+# module cannot lose coverage without the build going red.
+coverage:
+	$(PYTHON) -m pytest --cov=$(COVERED_MODULES) --cov-report=term-missing --cov-fail-under=100
 
 lint:
 	$(PYTHON) -m ruff check src tests

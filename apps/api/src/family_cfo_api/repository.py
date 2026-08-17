@@ -47,9 +47,13 @@ def _dec_amount(engine, household_id, value) -> int:
     try:
         amount = int(plain)
     except (TypeError, ValueError):
-        # Wrong-key placeholder — never crash an aggregation over it.
+        # #110: this used to return 0 so an aggregation could not crash over one
+        # bad row. The cost was worse than the crash — the row silently became a
+        # real zero inside spending, cash flow, and safe-to-spend, and the only
+        # signal was this log line. Refuse instead; a wrong number is the one
+        # output a financial app must never produce.
         logger.error("sealed amount unreadable household=%s", household_id)
-        return 0
+        raise household_crypto.SealedAmountUnreadableError(household_id) from None
     if len(_amount_cache) < _AMOUNT_CACHE_MAX:
         _amount_cache[text_value] = amount
     return amount

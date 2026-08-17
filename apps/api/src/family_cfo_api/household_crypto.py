@@ -28,6 +28,8 @@ import logging
 import os
 import secrets
 import threading
+import time
+from typing import NamedTuple
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import insert, select
@@ -39,9 +41,33 @@ logger = logging.getLogger(__name__)
 
 ENC_PREFIX = "enc1:"
 
-# Unwrapped DEKs cached per household — the wrap only changes on rotation
-# (Phase 2), which restarts the process. Guarded for the worker's threads.
-_dek_cache: dict[str, bytes] = {}
+# How long a process may trust a cached DEK before revalidating it against the
+# key row's generation counter. This is the worst-case window in which a seal or
+# a rotation performed by ANOTHER process goes unnoticed here.
+#
+# The comment this replaces read "the wrap only changes on rotation, which
+# restarts the process" — which was simply not true. Rotation happens in the API
+# process and restarts nobody; the worker cached a DEK, missed both a seal and a
+# rotation, and kept writing rows under a retired key for ~34 hours (migration
+# 0091). A cached key now has to keep proving it is current.
+DEK_CACHE_REVALIDATE_SECONDS = 5.0
+
+
+def _now() -> float:
+    """Indirection over the clock so tests can advance it without sleeping."""
+    return time.monotonic()
+
+
+class _CachedDek(NamedTuple):
+    """A DEK plus the generation it was read at, and when we last checked."""
+
+    dek: bytes
+    generation: int
+    checked_at: float
+
+
+# Unwrapped DEKs cached per household. Guarded for the worker's threads.
+_dek_cache: dict[str, _CachedDek] = {}
 _cache_lock = threading.Lock()
 
 # ADR 0072 Phase 3: sealed households have NO box wrap — their DEK exists here
@@ -49,7 +75,19 @@ _cache_lock = threading.Lock()
 # guarantee is exactly that: restart the box, and sealed content is unreadable
 # until a member signs in or a device posts its unwrapped key.
 SESSION_KEYRING_TTL_SECONDS = 30 * 60
-_session_keyring: dict[str, tuple[bytes, float]] = {}
+
+
+class _SessionKey(NamedTuple):
+    """A session-held DEK: same generation discipline as the box-wrap cache,
+    plus the sliding expiry that makes sealed mode mean something."""
+
+    dek: bytes
+    expires: float
+    generation: int
+    checked_at: float
+
+
+_session_keyring: dict[str, _SessionKey] = {}
 
 CANARY_PLAINTEXT = b"family-cfo-canary-v1"
 
@@ -63,6 +101,38 @@ LOCKED_CODE = "household_locked"
 # session silently (#101), while this one is about the ACTION, not the session,
 # and the reader must be told. Same status, different conversation.
 LOCKED_NEW_MEMBER_CODE = "household_locked_new_member"
+
+
+#: A sealed amount that will not decrypt — mapped to HTTP 409 (#110). Distinct
+#: from LOCKED_CODE: locked means "sign in and it works", this means "a stored
+#: record is damaged and no sign-in fixes it".
+AMOUNT_UNREADABLE_CODE = "sealed_amount_unreadable"
+
+
+class SealedAmountUnreadableError(Exception):
+    """A stored amount cannot be decrypted with this household's current key.
+
+    Raised rather than swallowed, which is a deliberate reversal. The previous
+    behaviour returned 0 so that "one bad row cannot crash an aggregation" — but
+    a transaction that cannot be read then became a transaction worth nothing,
+    and flowed into spending totals, cash flow, and safe-to-spend as a real
+    zero. During the August incident two amounts counted as zero for six days
+    and nothing said so.
+
+    Text degrades honestly — `[encrypted — key mismatch]` is visible in the UI
+    and unmistakable. Amounts are the one sealed type whose failure is
+    indistinguishable from a legitimate value, so they are the one that must
+    refuse. In a financial app a wrong number is worse than a missing one.
+    """
+
+    def __init__(self, household_id: str):
+        self.household_id = household_id
+        self.code = AMOUNT_UNREADABLE_CODE
+        super().__init__(
+            "Some stored amounts in this household cannot be read, so totals "
+            "would be wrong. This needs repair, not a retry — check the "
+            "household's key status."
+        )
 
 
 class HouseholdLockedError(Exception):
@@ -107,20 +177,26 @@ def enabled() -> bool:
     return _master_fernet() is not None
 
 
-def _get_or_create_dek(engine: Engine, household_id: str, master: Fernet) -> bytes:
-    with _cache_lock:
-        cached = _dek_cache.get(household_id)
-    if cached is not None:
-        return cached
-
-    from family_cfo_api import models, repository
+def _wrapped_dek_row(engine: Engine, household_id: str):
+    from family_cfo_api import models
 
     with engine.connect() as conn:
-        row = conn.execute(
+        return conn.execute(
             select(models.household_keys.c.wrapped_dek).where(
                 models.household_keys.c.household_id == household_id
             )
         ).first()
+
+
+def _get_or_create_dek(engine: Engine, household_id: str, master: Fernet) -> bytes:
+    """Unwrap the box wrap, minting one for a household that has no key row yet.
+
+    Deliberately does NOT read the cache — ``_resolve_dek`` is the single cache
+    reader, so every hit goes through the generation check exactly once.
+    """
+    from family_cfo_api import models, repository
+
+    row = _wrapped_dek_row(engine, household_id)
     if row is not None:
         dek = master.decrypt(row[0].encode())
     else:
@@ -137,18 +213,14 @@ def _get_or_create_dek(engine: Engine, household_id: str, master: Fernet) -> byt
                 )
             _write_canary(engine, household_id, dek)
         except Exception:
-            with engine.connect() as conn:
-                row = conn.execute(
-                    select(models.household_keys.c.wrapped_dek).where(
-                        models.household_keys.c.household_id == household_id
-                    )
-                ).first()
+            # Lost the race to another process/thread: adopt the row that won.
+            # Anything else (a real failure) still surfaces.
+            row = _wrapped_dek_row(engine, household_id)
             if row is None:
                 raise
             dek = master.decrypt(row[0].encode())
 
-    with _cache_lock:
-        _dek_cache[household_id] = dek
+    _cache_put(engine, household_id, dek)
     return dek
 
 
@@ -159,29 +231,92 @@ def _subkey_fernet(dek: bytes, purpose: bytes) -> Fernet:
     return Fernet(base64.urlsafe_b64encode(derived))
 
 
-def _keyring_get(household_id: str) -> bytes | None:
-    import time
+def _invalidate(household_id: str) -> None:
+    """Forget everything this process believes about a household's key.
 
+    Both caches go, always together: a generation change means the DEK behind
+    the box wrap AND the one a session is holding are equally suspect.
+    """
+    with _cache_lock:
+        _dek_cache.pop(household_id, None)
+        _session_keyring.pop(household_id, None)
+
+
+def _current_generation(engine: Engine, household_id: str) -> int | None:
+    row = _box_wrap_row(engine, household_id)
+    return None if row is None else row[2]
+
+
+def _cache_put(engine: Engine, household_id: str, dek: bytes) -> None:
+    """Cache a DEK stamped with the generation it belongs to. Call AFTER the
+    write that bumped the generation, never before, or the stamp records the
+    generation being replaced."""
+    generation = _current_generation(engine, household_id)
+    if generation is None:
+        return  # no key row: nothing to pin the cache to
+    now = _now()
+    with _cache_lock:
+        _dek_cache[household_id] = _CachedDek(dek, generation, now)
+
+
+def _cache_get(engine: Engine, household_id: str) -> bytes | None:
+    """The cached DEK, but only while it still matches the stored generation.
+
+    Re-reads the generation at most once per DEK_CACHE_REVALIDATE_SECONDS, so
+    the hot path stays in memory while a seal or rotation elsewhere still lands
+    within seconds.
+    """
+    with _cache_lock:
+        entry = _dek_cache.get(household_id)
+    if entry is None:
+        return None
+    if _now() - entry.checked_at < DEK_CACHE_REVALIDATE_SECONDS:
+        return entry.dek
+    if _current_generation(engine, household_id) != entry.generation:
+        _invalidate(household_id)
+        return None
+    with _cache_lock:
+        # Another thread may have invalidated while we were reading.
+        if _dek_cache.get(household_id) == entry:
+            _dek_cache[household_id] = entry._replace(checked_at=_now())
+    return entry.dek
+
+
+def _keyring_get(engine: Engine, household_id: str) -> bytes | None:
     with _cache_lock:
         entry = _session_keyring.get(household_id)
         if entry is None:
             return None
-        dek, expires = entry
-        if time.monotonic() > expires:
+        if _now() > entry.expires:
             del _session_keyring[household_id]
             return None
-        # Sliding TTL: activity keeps the household unlocked.
-        _session_keyring[household_id] = (dek, time.monotonic() + SESSION_KEYRING_TTL_SECONDS)
-        return dek
-
-
-def _keyring_put(household_id: str, dek: bytes) -> None:
-    import time
-
+    if _now() - entry.checked_at >= DEK_CACHE_REVALIDATE_SECONDS:
+        # The generation read happens OUTSIDE the lock (it hits the database),
+        # so another thread may invalidate or expire this entry meanwhile.
+        if _current_generation(engine, household_id) != entry.generation:
+            _invalidate(household_id)
+            return None
+        entry = entry._replace(checked_at=_now())
+    # Sliding TTL: activity keeps the household unlocked. Only extend the entry
+    # we actually read — writing back blindly would resurrect a key that a
+    # concurrent seal or rotation had just dropped, which is the whole failure
+    # this module now exists to prevent.
     with _cache_lock:
-        _session_keyring[household_id] = (
-            dek,
-            time.monotonic() + SESSION_KEYRING_TTL_SECONDS,
+        current = _session_keyring.get(household_id)
+        if current is None or current.dek != entry.dek:
+            return None
+        _session_keyring[household_id] = entry._replace(
+            expires=_now() + SESSION_KEYRING_TTL_SECONDS
+        )
+    return entry.dek
+
+
+def _keyring_put(engine: Engine, household_id: str, dek: bytes) -> None:
+    generation = _current_generation(engine, household_id)
+    now = _now()
+    with _cache_lock:
+        _session_keyring[household_id] = _SessionKey(
+            dek, now + SESSION_KEYRING_TTL_SECONDS, generation or 0, now
         )
 
 
@@ -191,22 +326,30 @@ def _box_wrap_row(engine: Engine, household_id: str):
     with engine.connect() as conn:
         return conn.execute(
             select(
-                models.household_keys.c.wrapped_dek, models.household_keys.c.canary
+                models.household_keys.c.wrapped_dek,
+                models.household_keys.c.canary,
+                models.household_keys.c.key_generation,
             ).where(models.household_keys.c.household_id == household_id)
         ).first()
+
+
+def _bump_generation():
+    """The UPDATE fragment every key-changing write must carry."""
+    from family_cfo_api import models
+
+    return models.household_keys.c.key_generation + 1
 
 
 def _resolve_dek(engine: Engine, household_id: str, master: Fernet) -> bytes:
     """Convenient mode: the box wrap (cached). Sealed mode: the session keyring
     or HouseholdLockedError."""
-    with _cache_lock:
-        cached = _dek_cache.get(household_id)
+    cached = _cache_get(engine, household_id)
     if cached is not None:
         return cached
     row = _box_wrap_row(engine, household_id)
     if row is not None and row[0] is None:
         # Sealed: no box wrap on purpose.
-        dek = _keyring_get(household_id)
+        dek = _keyring_get(engine, household_id)
         if dek is None:
             raise HouseholdLockedError(household_id)
         return dek
@@ -217,7 +360,7 @@ def _resolve_dek(engine: Engine, household_id: str, master: Fernet) -> bytes:
         # restored-onto-new-hardware case. Behave like a locked sealed
         # household: member passwords, devices, or the recovery key unlock,
         # and the unlock path re-mints the wrap under the CURRENT master.
-        dek = _keyring_get(household_id)
+        dek = _keyring_get(engine, household_id)
         if dek is None:
             logger.warning(
                 "box wrap is stale (master key changed?) household=%s — locked "
@@ -406,10 +549,9 @@ def _heal_box_wrap(engine: Engine, household_id: str, dek: bytes) -> None:
         conn.execute(
             sql_update(models.household_keys)
             .where(models.household_keys.c.household_id == household_id)
-            .values(wrapped_dek=master.encrypt(dek).decode())
+            .values(wrapped_dek=master.encrypt(dek).decode(), key_generation=_bump_generation())
         )
-    with _cache_lock:
-        _dek_cache[household_id] = dek
+    _cache_put(engine, household_id, dek)
     logger.info("box wrap re-minted under the current master key household=%s", household_id)
 
 
@@ -418,8 +560,11 @@ def unlock_household(engine: Engine, household_id: str, dek: bytes) -> bool:
     keyring. False = the key is wrong; nothing is unlocked."""
     if not _canary_ok(engine, household_id, dek):
         return False
-    _keyring_put(household_id, dek)
+    # Heal FIRST: re-minting the wrap bumps the generation, and the keyring
+    # entry must record the generation it will be revalidated against. Putting
+    # the key first would stamp it with a number that is stale a line later.
     _heal_box_wrap(engine, household_id, dek)
+    _keyring_put(engine, household_id, dek)
     return True
 
 
@@ -466,16 +611,17 @@ def seal_household(engine: Engine, household_id: str) -> str | None:
         conn.execute(
             sql_update(models.household_keys)
             .where(models.household_keys.c.household_id == household_id)
-            .values(wrapped_dek=None)
+            .values(wrapped_dek=None, key_generation=_bump_generation())
         )
         conn.execute(
             sql_update(models.households)
             .where(models.households.c.id == household_id)
             .values(sealed_mode=True)
         )
-    with _cache_lock:
-        _dek_cache.pop(household_id, None)
-    _keyring_put(household_id, dek)
+    # The bump is what reaches OTHER processes; dropping our own cache is what
+    # reaches this one. A seal that only did the second is the August incident.
+    _invalidate(household_id)
+    _keyring_put(engine, household_id, dek)
     return None
 
 
@@ -489,22 +635,23 @@ def unseal_household(engine: Engine, household_id: str) -> str | None:
     master = _master_fernet()
     if master is None:
         return "Per-household encryption is not enabled on this box (no master key)."
-    dek = _keyring_get(household_id)
+    dek = _keyring_get(engine, household_id)
     if dek is None:
         return "Unlock the household first (sign in), then switch modes."
     with engine.begin() as conn:
         conn.execute(
             sql_update(models.household_keys)
             .where(models.household_keys.c.household_id == household_id)
-            .values(wrapped_dek=master.encrypt(dek).decode())
+            .values(
+                wrapped_dek=master.encrypt(dek).decode(), key_generation=_bump_generation()
+            )
         )
         conn.execute(
             sql_update(models.households)
             .where(models.households.c.id == household_id)
             .values(sealed_mode=False)
         )
-    with _cache_lock:
-        _dek_cache[household_id] = dek
+    _cache_put(engine, household_id, dek)
     return None
 
 
@@ -623,7 +770,7 @@ def ensure_member_wrap(engine: Engine, household_id: str, user_id: str, password
             if not _canary_ok(engine, household_id, dek):
                 logger.error("member wrap failed canary check household=%s", household_id)
                 return
-            _keyring_put(household_id, dek)
+            _keyring_put(engine, household_id, dek)
             _heal_box_wrap(engine, household_id, dek)
         if dek is None:
             return
@@ -824,6 +971,72 @@ def sealed_tables(models_module):
     ]
 
 
+#: What a caller is told when rotation is refused — the remedy, not the mechanism.
+ROTATION_STRANDED_MESSAGE = (
+    "This household is sealed and has no paired device, so rotating its key "
+    "would leave the new key with nothing to hold it. Sign in on a device "
+    "first, then remove the member."
+)
+
+
+def durable_wrap_holders(engine: Engine, household_id: str) -> int:
+    """Paired devices whose wrap a rotation can re-mint from a stored public key.
+
+    The only durable holder rotation can create by itself: member wraps need a
+    password it does not have, and a recovery key is displayed once and cannot
+    be reissued unattended.
+    """
+    from family_cfo_api import repository
+
+    return sum(
+        1
+        for device in repository.list_paired_devices(engine, household_id)
+        if device.revoked_at is None and getattr(device, "public_key", None)
+    )
+
+
+def _mint_device_wraps(engine: Engine, household_id: str, dek: bytes) -> int:
+    """Wrap ``dek`` for every live paired device. Returns how many actually
+    landed — the number that matters, as opposed to how many *could* have.
+
+    ``ensure_device_wrap`` swallows failures because wrap upkeep must never fail
+    a login. Rotation needs the opposite: it has to know. Hence a sibling that
+    counts (#112).
+    """
+    from family_cfo_api import repository
+
+    minted = 0
+    for device in repository.list_paired_devices(engine, household_id):
+        if device.revoked_at is not None or not getattr(device, "public_key", None):
+            continue
+        try:
+            raw = base64.b64decode(device.public_key)
+            _upsert_wrap(engine, household_id, "device", device.id, _wrap_with_p256(dek, raw))
+            minted += 1
+        except Exception:
+            # One bad device must not stop the rest — the count is the verdict.
+            logger.exception(
+                "device wrap mint failed household=%s device=%s", household_id, device.id
+            )
+    return minted
+
+
+def rotation_would_strand_key(engine: Engine, household_id: str) -> bool:
+    """True when rotating right now would leave the NEW key with no durable home.
+
+    Sealed households only. Rotation deletes the member and recovery wraps and
+    re-mints device wraps; with no live device, the new key would exist ONLY in
+    this process's session keyring — one restart away from being gone, taking
+    every row just re-encrypted under it. That is exactly what happened in
+    August, so the answer is to refuse rather than to proceed and hope.
+    """
+    if not enabled():
+        return False
+    row = _box_wrap_row(engine, household_id)
+    sealed = row is not None and row[0] is None
+    return sealed and durable_wrap_holders(engine, household_id) == 0
+
+
 def rotate_household_key(
     engine: Engine, household_id: str, actor_user_id: str | None = None
 ) -> bool:
@@ -845,10 +1058,35 @@ def rotate_household_key(
     master = _master_fernet()
     if master is None:
         return False
+    if rotation_would_strand_key(engine, household_id):
+        logger.error(
+            "refusing to rotate household=%s: sealed with no device wrap to carry "
+            "the new key — it would live only in this process's memory",
+            household_id,
+        )
+        return False
     old_dek = _resolve_dek(engine, household_id, master)
     old_rows = _subkey_fernet(old_dek, b"rows")
     new_dek = Fernet.generate_key()
     new_rows = _subkey_fernet(new_dek, b"rows")
+
+    box_row = _box_wrap_row(engine, household_id)
+    sealed = box_row is not None and box_row[0] is None
+    # Place the key BEFORE committing to it (#112). The precondition proved a
+    # wrap COULD be minted; only this proves one WAS. Nothing has been
+    # re-encrypted yet, so giving up here costs nothing — whereas finding out
+    # afterwards costs the household everything.
+    #
+    # If a later step fails, these wraps hold a key the canary does not yet
+    # match, so a device unlock is REFUSED and the household stays on its old
+    # key, still openable by a member password. Fails closed.
+    if sealed and _mint_device_wraps(engine, household_id, new_dek) == 0:
+        logger.error(
+            "refusing to rotate household=%s: no device wrap could be minted "
+            "for the new key, so nothing durable would hold it",
+            household_id,
+        )
+        return False
 
     with engine.connect() as conn:
         conversation_households = {
@@ -890,8 +1128,6 @@ def rotate_household_key(
                         sql_update(table).where(table.c.id == row["id"]).values(**values)
                     )
 
-    box_row = _box_wrap_row(engine, household_id)
-    sealed = box_row is not None and box_row[0] is None
     new_canary = _subkey_fernet(new_dek, b"rows").encrypt(CANARY_PLAINTEXT).decode()
     with engine.begin() as conn:
         conn.execute(
@@ -900,6 +1136,7 @@ def rotate_household_key(
             .values(
                 wrapped_dek=None if sealed else master.encrypt(new_dek).decode(),
                 canary=new_canary,
+                key_generation=_bump_generation(),
             )
         )
         conn.execute(
@@ -909,19 +1146,16 @@ def rotate_household_key(
             )
         )
     if sealed:
-        with _cache_lock:
-            _dek_cache.pop(household_id, None)
-        _keyring_put(household_id, new_dek)
+        _invalidate(household_id)
+        _keyring_put(engine, household_id, new_dek)
     else:
-        with _cache_lock:
-            _dek_cache[household_id] = new_dek
+        _cache_put(engine, household_id, new_dek)
 
-    # Device wraps re-wrap from the stored public keys.
-    from family_cfo_api import repository
-
-    for device in repository.list_paired_devices(engine, household_id):
-        if device.revoked_at is None and getattr(device, "public_key", None):
-            ensure_device_wrap(engine, household_id, device.id, device.public_key)
+    if not sealed:
+        # Convenient mode: the box wrap already holds the new key, so device
+        # wraps are redundancy and minting them after the fact is safe. Sealed
+        # households minted theirs up front, before anything was re-encrypted.
+        _mint_device_wraps(engine, household_id, new_dek)
 
     # Imported here (not at module scope): repository imports this module, so a
     # top-level `audit` import would close the cycle.

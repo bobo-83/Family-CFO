@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
@@ -10,6 +12,8 @@ from family_cfo_api.schemas import (
     MemberListResponse,
     MemberRoleUpdateRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Household"])
 
@@ -177,7 +181,13 @@ async def update_member_role(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Member not found", "model": ErrorResponse},
-        409: {"description": "Household must keep at least one owner", "model": ErrorResponse},
+        409: {
+            "description": (
+                "Household must keep at least one owner, or is sealed with no "
+                "device to carry the rotated key"
+            ),
+            "model": ErrorResponse,
+        },
     },
     summary="Remove a household member",
 )
@@ -194,11 +204,31 @@ async def delete_member(
         and repository.count_household_owners(engine, session.household_id) <= 1
     ):
         raise HTTPException(status_code=409, detail="Household must keep at least one owner")
+    # Checked BEFORE the member row goes: removal without the rotation that
+    # follows it would leave someone who knows the old key with data still
+    # encrypted under it, and a rotation that cannot place the new key would
+    # strand the household's data instead. Neither half is safe alone, so if
+    # the second cannot run, the first must not either.
+    if household_crypto.rotation_would_strand_key(engine, session.household_id):
+        raise HTTPException(status_code=409, detail=household_crypto.ROTATION_STRANDED_MESSAGE)
     _, archived_email = repository.delete_member(engine, session.household_id, user_id)
     # ADR 0072 Phase 2: a removed member may know the old data key (their wrap
     # covered it) — rotate, re-encrypting every sealed row. Remaining members'
     # wraps return at their next login; the recovery key must be re-minted.
-    household_crypto.rotate_household_key(engine, session.household_id, session.user_id)
+    rotated = household_crypto.rotate_household_key(
+        engine, session.household_id, session.user_id
+    )
+    if household_crypto.enabled() and not rotated:
+        # The precondition above passed, so this is the narrow race where the
+        # last device was revoked in between. The member is already gone and
+        # cannot be un-removed, so the honest move is to say so loudly rather
+        # than let "removed but still holding a live key" pass unrecorded.
+        logger.error(
+            "member removed but the key rotation did not run household=%s — "
+            "the removed member's key wrap covered data still encrypted under it; "
+            "rotate manually once a device is paired",
+            session.household_id,
+        )
     audit.write_audit(
         engine,
         session.household_id,
