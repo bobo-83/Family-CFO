@@ -22,7 +22,7 @@ class _ScriptedRuntime:
 
 def _install_runtime(monkeypatch, turns):
     runtime = _ScriptedRuntime(turns)
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
     return runtime
 
 
@@ -266,7 +266,7 @@ async def test_follow_up_includes_conversation_history(
         return turn
 
     runtime.complete_with_tools = complete_with_tools
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
 
     headers = {"Authorization": f"Bearer {demo_token}"}
     first = await demo_client.post(
@@ -328,7 +328,7 @@ async def test_history_numbers_are_grounded_in_follow_ups(
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
 
     headers = {"Authorization": f"Bearer {demo_token}"}
     first = await demo_client.post(

@@ -36,6 +36,7 @@ class VLLMAdapter:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._max_retries = max_retries
+        self._timeout_seconds = timeout_seconds
         self._client = client or httpx.Client(timeout=timeout_seconds)
         self._owns_client = client is None
 
@@ -71,6 +72,14 @@ class VLLMAdapter:
                 text = data["choices"][0]["message"]["content"] or ""
                 model = data.get("model", self._model)
                 return RuntimeCompletion(text=text, model=model, raw=data)
+            except httpx.TimeoutException as exc:
+                # Not transient: the request was not lost, it was too slow, and
+                # an identical retry is too slow the same way. Retrying turned a
+                # 90s overrun into a five-minute wait before the caller could
+                # fall back (#126). Fail now and let the caller decide.
+                raise RuntimeUnavailableError(
+                    f"vLLM runtime timed out after {self._timeout_seconds:.0f}s"
+                ) from exc
             except (httpx.HTTPError, KeyError, IndexError) as exc:
                 last_error = exc
 
@@ -148,6 +157,11 @@ class VLLMAdapter:
                     model=model,
                     raw=data,
                 )
+            except httpx.TimeoutException as exc:
+                # See the note on the completion path: a timeout is not retried.
+                raise RuntimeUnavailableError(
+                    f"vLLM runtime timed out after {self._timeout_seconds:.0f}s"
+                ) from exc
             except (httpx.HTTPError, KeyError, IndexError) as exc:
                 last_error = exc
 
