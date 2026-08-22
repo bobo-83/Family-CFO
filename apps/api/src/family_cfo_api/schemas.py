@@ -1405,6 +1405,10 @@ class ChatStreamEvent(BaseModel):
     detail: str | None = None
     response: ChatResponse | None = None
     message: str | None = None
+    #: Machine-readable cause on an `error` event, when there is one worth
+    #: switching on -- today `household_locked` for a household that locked
+    #: mid-turn (#120). Absent for errors a client can only display.
+    code: str | None = None
 
 
 class YearMonthSummary(BaseModel):
