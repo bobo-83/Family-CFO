@@ -65,7 +65,7 @@ async def test_image_described_and_numbers_grounded(demo_client, demo_token, mon
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
 
     resp = await _post(demo_client, demo_token, image_base64=_IMG, image_media_type="image/jpeg")
 
@@ -155,7 +155,7 @@ async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None
     runtime = _ScriptedRuntime(
         [RuntimeToolCompletion(tool_calls=[], text="That $42.00 fits your budget.", model="m", raw={})]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
 
     settings = Settings(
         version="0.1.0",
@@ -265,7 +265,7 @@ async def test_data_file_preview_reaches_the_model_and_grounds_its_numbers(
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
 
     csv_bytes = (
         b"Date,Merchant,Amount\n"

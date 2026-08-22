@@ -93,7 +93,11 @@ def select_vision_describer(
 
 
 def select_tool_runtime(
-    engine: Engine, household_id: str, settings: Settings | None = None
+    engine: Engine,
+    household_id: str,
+    settings: Settings | None = None,
+    *,
+    answer_max_tokens: int = 2400,
 ) -> VLLMAdapter | None:
     """Return a tool-calling runtime for the household, or None to fall back deterministically.
 
@@ -105,6 +109,35 @@ def select_tool_runtime(
     config = resolve_ai_config(engine, household_id, settings)
     if not config.is_usable:
         return None
-    # A reasoning model thinking + answering within _ANSWER_MAX_TOKENS can run
-    # ~50s on the box GPU; the 30s adapter default would abort mid-generation.
-    return VLLMAdapter(config.base_url, config.model, timeout_seconds=90.0)
+    return VLLMAdapter(
+        config.base_url,
+        config.model,
+        timeout_seconds=timeout_for_budget(answer_max_tokens),
+    )
+
+
+#: Slowest generation rate we are willing to call healthy, in tokens/second.
+#: Measured on the box GPU at ~17 tok/s for the main reasoning model; the floor
+#: is set well under that so ordinary variance never trips the timeout.
+MIN_EXPECTED_TOKENS_PER_SECOND = 8.0
+
+#: Prompt processing, queueing behind another request, and network overhead —
+#: everything that is not generation.
+RUNTIME_OVERHEAD_SECONDS = 40.0
+
+
+def timeout_for_budget(max_tokens: int) -> float:
+    """How long a completion of ``max_tokens`` may legitimately take.
+
+    Derived rather than hand-set, because the hand-set version silently
+    contradicted the budget it was supposed to cover. The timeout was 90s while
+    ``_ANSWER_MAX_TOKENS`` was 2400 — at the measured ~17 tok/s a full-budget
+    answer needs ~140s, so any answer that used its budget was aborted
+    mid-generation, retried twice into the same wall, and reported as
+    "runtime unavailable". The user got a deterministic snapshot after a
+    five-minute wait, for a runtime that was working correctly the whole time.
+
+    Tying the two together means raising the budget cannot silently
+    reintroduce that: the time allowed grows with the tokens allowed.
+    """
+    return RUNTIME_OVERHEAD_SECONDS + max_tokens / MIN_EXPECTED_TOKENS_PER_SECOND

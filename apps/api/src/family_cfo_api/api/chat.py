@@ -263,7 +263,9 @@ def _try_agentic_answer(
     unavailable, the loop does not converge within its iteration cap, or the
     final answer contains a number not grounded in a tool result (ADR 0009).
     """
-    runtime = select_tool_runtime(engine, household.id)
+    # Pass the budget so the runtime's timeout is derived from it rather than
+    # hand-set alongside it — the two contradicted each other before (#126).
+    runtime = select_tool_runtime(engine, household.id, answer_max_tokens=_ANSWER_MAX_TOKENS)
     if runtime is None:
         return None
 

@@ -231,7 +231,7 @@ async def test_chat_injects_and_grounds_memories(
             )
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
     monkeypatch.setattr(ai_memory, "select_tool_runtime", lambda *a, **k: None)
 
     response = await demo_client.post(
@@ -273,7 +273,7 @@ async def test_chat_injects_and_grounds_conversation_summary(
             )
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id: runtime)
+    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
     monkeypatch.setattr(ai_memory, "select_tool_runtime", lambda *a, **k: None)
 
     response = await demo_client.post(
