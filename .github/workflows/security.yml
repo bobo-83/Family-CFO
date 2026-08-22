@@ -38,6 +38,9 @@ jobs:
       - name: Test the deny-list hooks
         run: scripts/tests/pre-push-deny-list.test.sh
 
+      - name: Test the deny-list shape expansion
+        run: scripts/tests/deny-term-shapes.test.sh
+
   dependency-audit:
     runs-on: ubuntu-latest
     defaults:
