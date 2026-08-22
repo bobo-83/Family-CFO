@@ -22,7 +22,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import ai_memory, ai_tools, finance_service, repository
+from family_cfo_api import ai_memory, ai_tools, finance_service, household_crypto, repository
 from family_cfo_api.ai_runtime_selection import (
     resolve_ai_config,
     select_tool_runtime,
@@ -621,6 +621,11 @@ async def create_chat_message(
     settings: Settings = Depends(get_app_settings),
 ) -> ChatResponse:
     _enforce_chat_quota(session.household_id, settings)
+    # #120: this path already surfaced the 423 correctly — _chat_turn raises at
+    # the save step and the app handler maps it — but only after the model had
+    # run. Checking first costs one query and saves a doomed minute of GPU.
+    if not household_crypto.dek_available(engine, session.household_id):
+        raise household_crypto.HouseholdLockedError(session.household_id)
     return _chat_turn(
         payload, session, engine, settings, schedule=background_tasks.add_task
     )
@@ -654,6 +659,20 @@ async def create_chat_message_stream(
     socket carries bytes while the model thinks (weak-WiFi connections drop
     idle sockets — nginx 499s) and so the user sees live progress."""
     _enforce_chat_quota(session.household_id, settings)
+    # #120: BEFORE the stream opens, while a status code can still be returned.
+    #
+    # A sealed household that is locked cannot store the answer, so the turn is
+    # doomed — but once StreamingResponse commits 200 there is no way to say so
+    # in a way anything acts on. The paired device's unlock middleware triggers
+    # on a 423 and nothing else: it fetches its wrap, unwraps locally, posts the
+    # key back and replays the request, invisibly. Raising here is what lets
+    # that happen, so the reader gets their answer instead of an error. Every
+    # other screen already self-heals this way; the stream was the one that
+    # could not, because it had already promised 200.
+    #
+    # It also stops a doomed turn from spending a minute of model time first.
+    if not household_crypto.dek_available(engine, session.household_id):
+        raise household_crypto.HouseholdLockedError(session.household_id)
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
@@ -675,6 +694,14 @@ async def create_chat_message_stream(
             emit({"type": "answer", "response": response.model_dump(mode="json", by_alias=True)})
         except HTTPException as exc:
             emit({"type": "error", "message": str(exc.detail)})
+        except household_crypto.HouseholdLockedError as exc:
+            # The guard above rules this out at the start of a turn, so reaching
+            # here means the household locked DURING it — a rotation, or a seal
+            # from another session. Too late for a status code, but the reader
+            # is at least told the truth and the clients get a code to switch
+            # on rather than prose to match.
+            logger.info("streamed chat turn hit a mid-turn lock household=%s", exc.household_id)
+            emit({"type": "error", "code": exc.code, "message": str(exc)})
         except Exception:
             logger.exception("streamed chat turn failed")
             emit({"type": "error", "message": "The advisor hit an unexpected error."})
