@@ -27,11 +27,14 @@ git config user.name "Test"
 git config commit.gpgsign false
 git remote add origin "$WORK/remote.git"
 
-# The hook shells out to this one by repo-relative path.
-mkdir -p scripts .githooks
+# The hook shells out to these by repo-relative path; both now source the
+# shape expansion (#118), so the lib has to come along or the guard silently
+# does nothing -- which is how this test caught a real regression.
+mkdir -p scripts/lib .githooks
 cp "$REPO_ROOT/scripts/check-repo-hygiene.sh" scripts/
+cp "$REPO_ROOT/scripts/lib/deny-terms.sh" scripts/lib/
 cp "$REPO_ROOT/.githooks/pre-push" .githooks/
-chmod +x scripts/check-repo-hygiene.sh .githooks/pre-push
+chmod +x scripts/check-repo-hygiene.sh scripts/lib/deny-terms.sh .githooks/pre-push
 
 # The deny list is gitignored in the real repo, and must be here too: `git add
 # -A` would otherwise track the one file that legitimately contains every

@@ -49,6 +49,11 @@ fi
 
 # 4) Local-only: literal identifiers the maintainer chose to block (gitignored).
 if [ -f .repo-hygiene-deny ]; then
+  # #118: match the FORMS an identifier takes, not only the one someone wrote
+  # down. A full name in the list never matched the "The <Surname>s" a fixture
+  # actually used, which is how one survived on a public main for months.
+  . "$(dirname "$0")/lib/deny-terms.sh"
+  expand_deny_terms .repo-hygiene-deny > /tmp/.repo-hygiene-terms.$$
   while IFS= read -r term; do
     [ -z "$term" ] && continue
     case "$term" in \#*) continue ;; esac
@@ -69,7 +74,8 @@ if [ -f .repo-hygiene-deny ]; then
     if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && grep -qF "$term" "$MSG_FILE" 2>/dev/null; then
       note "denylisted identifier in the COMMIT MESSAGE: $(printf '%s' "$term" | cut -c1-4)…"
     fi
-  done < .repo-hygiene-deny
+  done < /tmp/.repo-hygiene-terms.$$
+  rm -f /tmp/.repo-hygiene-terms.$$
 fi
 
 if [ "$fail" -ne 0 ]; then

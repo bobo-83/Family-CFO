@@ -12,6 +12,8 @@
 set -eu
 
 DENY=.repo-hygiene-deny
+TERMS=$(mktemp)
+trap 'rm -f "$TERMS"' EXIT
 ZERO=0000000000000000000000000000000000000000
 
 fail=0
@@ -37,6 +39,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     # (maintainer's rule, 2026-08-06). Only what goes INTO the repo — diff
     # content and the commit message — is guarded.
     if [ -f "$DENY" ]; then
+      # #118: the same expansion the tree scan uses, so both guards agree on
+      # what counts as the identifier.
+      . scripts/lib/deny-terms.sh
+      expand_deny_terms "$DENY" > "$TERMS"
       msg=$(git log -1 --format=%B "$sha")
       # ADDED lines only (#106). `git show` includes removed ones, so a commit
       # whose whole purpose is taking a denied identifier OUT carried it in its
@@ -71,7 +77,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         if printf '%s' "$diffc" | grep -qF "$term"; then
           note "denylisted identifier in DIFF of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
         fi
-      done < "$DENY"
+      done < "$TERMS"
     fi
   done
 done
