@@ -50,14 +50,24 @@
       @if (role(); as currentRole) {
         <span class="shell__role">{{ currentRole }}</span>
       }
-      @if (serverVersion(); as version) {
+      @if (appVersion(); as dashboardVersion) {
         <span
           class="shell__version"
-          i18n-title="Sidebar version badge|Tooltip explaining the version number in the footer"
-          title="The monorepo version this box runs (ADR 0029)"
+          i18n-title="Sidebar version badge|Tooltip explaining the two version numbers in the footer"
+          title="This dashboard's build, and the box it is talking to. They share a compatibility contract, so only the last number differing is normal."
         >
-          v{{ version }}
+          v{{ dashboardVersion }}@if (serverVersion(); as boxVersion) {
+            <span class="shell__version-box"> · box v{{ boxVersion }}</span>
+          }
         </span>
+      }
+      @if (versionMismatch()) {
+        <span
+          class="shell__version-warning"
+          i18n="Sidebar version warning|Shown when the dashboard and the API are on different compatibility contracts"
+          >Dashboard and box are on different versions — some screens may not
+          match the server.</span
+        >
       }
       <button
         type="button"

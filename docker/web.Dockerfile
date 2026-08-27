@@ -29,5 +29,20 @@ RUN chmod +x /usr/local/bin/web-entrypoint.sh /usr/local/bin/web-render-tailnet-
 # directory too deep and every path 500'd. Copy the browser dir so the locale
 # folders land at the nginx root.
 COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
+
+# The dashboard's own version (ADR 0074): the repo-wide MAJOR.MINOR contract
+# plus the web BUILD. Before this the footer could only show the API's version,
+# because the image carried no identity of its own — so a dashboard and a box on
+# different contracts looked identical to anyone reading the screen.
+#
+# Served as a file rather than baked into the bundle, and composed LAST: these
+# two inputs change on every release, and putting them above `npm ci`/`npm run
+# build` would rebuild the whole Angular app for a one-digit bump.
+COPY VERSION /tmp/CONTRACT
+COPY apps/web/BUILD /tmp/BUILD
+RUN printf '%s.%s\n' "$(tr -d '[:space:]' < /tmp/CONTRACT)" \
+                     "$(tr -d '[:space:]' < /tmp/BUILD)" > /usr/share/nginx/html/VERSION \
+    && rm /tmp/CONTRACT /tmp/BUILD
+
 EXPOSE 80 443
 CMD ["/usr/local/bin/web-entrypoint.sh"]

@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -81,5 +82,80 @@ describe('Shell', () => {
     fixture.componentInstance['toggleMenu']();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.shell__scrim')).not.toBeNull();
+  });
+  // ADR 0074: the dashboard and the box carry their own build numbers and are
+  // compatible when their CONTRACTS (MAJOR.MINOR) match. Warning on a differing
+  // BUILD was the bug this scheme exists to remove, so the first case below is
+  // the one that matters.
+  describe('version reporting', () => {
+    const stubVersions = (options: { box?: string | null; app?: string | null }) => {
+      vi.stubGlobal('fetch', (url: string) => {
+        if (url === '/api/v1/health') {
+          return options.box === null || options.box === undefined
+            ? Promise.reject(new Error('unreachable'))
+            : Promise.resolve({ ok: true, json: () => Promise.resolve({ version: options.box }) });
+        }
+        if (url === '/VERSION') {
+          return options.app === null || options.app === undefined
+            ? Promise.resolve({ ok: false, text: () => Promise.resolve('') })
+            : Promise.resolve({ ok: true, text: () => Promise.resolve(`${options.app}\n`) });
+        }
+        return Promise.reject(new Error(`unexpected fetch: ${url}`));
+      });
+    };
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('does not warn when only the build differs', async () => {
+      stubVersions({ app: '0.157.2', box: '0.157.9' });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['versionMismatch']()).toBe(false);
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.shell__version-warning')).toBeNull();
+      expect(host.querySelector('.shell__version')?.textContent).toContain('v0.157.2');
+      expect(host.querySelector('.shell__version')?.textContent).toContain('box v0.157.9');
+    });
+
+    it('warns when the contracts differ', async () => {
+      stubVersions({ app: '0.157.2', box: '0.158.0' });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['versionMismatch']()).toBe(true);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.shell__version-warning'),
+      ).not.toBeNull();
+    });
+
+    it('shows nothing and never warns when its own version is unavailable', async () => {
+      // `ng serve` and the tests have no /VERSION file; a missing badge is the
+      // correct degradation, and a half-known pair must not be called a
+      // mismatch.
+      stubVersions({ app: null, box: '0.157.9' });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['versionMismatch']()).toBe(false);
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.shell__version')).toBeNull();
+      expect(host.querySelector('.shell__version-warning')).toBeNull();
+    });
+
+    it('survives an unreachable box', async () => {
+      stubVersions({ app: '0.157.2', box: null });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['versionMismatch']()).toBe(false);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.shell__version')?.textContent,
+      ).toContain('v0.157.2');
+    });
   });
 });

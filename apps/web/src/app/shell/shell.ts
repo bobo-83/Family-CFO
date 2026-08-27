@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 
@@ -9,10 +9,36 @@ import { AuthService } from '../core/auth.service';
   styleUrl: './shell.scss',
 })
 export class Shell {
-  // M120 (ADR 0029): the monorepo version this box runs, shown in the footer so
-  // "which version is live?" never needs a terminal. Plain fetch: same origin,
-  // unauthenticated, and a failed check must never break the shell.
+  // ADR 0074: the dashboard carries its own build number, so the footer shows
+  // TWO versions — this build, and the box it is talking to. They are expected
+  // to differ in the last field; only a differing contract means trouble.
+  //
+  // Both are plain fetches: same origin, unauthenticated, and a failed check
+  // must never break the shell (it degrades to no badge).
   protected readonly serverVersion = signal<string | null>(null);
+  protected readonly appVersion = signal<string | null>(null);
+
+  /**
+   * The compatibility contract — the MAJOR.MINOR prefix. Two deployables that
+   * agree here can talk to each other whatever their build numbers are.
+   */
+  private static contractOf(version: string): string {
+    return version.split('.').slice(0, 2).join('.');
+  }
+
+  /**
+   * True only when the dashboard and the box name DIFFERENT contracts. A
+   * differing build is the normal, healthy case now — warning about it was the
+   * whole problem ADR 0074 set out to fix.
+   */
+  protected readonly versionMismatch = computed(() => {
+    const app = this.appVersion();
+    const box = this.serverVersion();
+    if (!app || !box) {
+      return false;
+    }
+    return Shell.contractOf(app) !== Shell.contractOf(box);
+  });
 
   private loadVersion(): void {
     void fetch('/api/v1/health')
@@ -21,6 +47,16 @@ export class Shell {
         this.serverVersion.set(health.version ?? null);
       })
       .catch(() => this.serverVersion.set(null));
+
+    // Written into the nginx root by docker/web.Dockerfile. Absent under `ng
+    // serve` and in tests, where the badge simply does not render.
+    void fetch('/VERSION')
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => {
+        const trimmed = text?.trim();
+        this.appVersion.set(trimmed ? trimmed : null);
+      })
+      .catch(() => this.appVersion.set(null));
   }
 
   constructor() {

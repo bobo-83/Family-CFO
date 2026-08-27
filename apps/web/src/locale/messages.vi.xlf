@@ -6512,11 +6512,25 @@
         <note priority="1" from="description">Link out to the Grafana ops dashboards</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
-      <trans-unit id="5884013396313108367" datatype="html">
-        <source>The monorepo version this box runs (ADR 0029)</source>
-        <target state="translated">Phiên bản monorepo mà máy này đang chạy (ADR 0029)</target>
-        <note priority="1" from="description">Tooltip explaining the version number in the footer</note>
+      <trans-unit id="1978284274458143180" datatype="html">
+        <source>This dashboard&apos;s build, and the box it is talking to. They share a compatibility contract, so only the last number differing is normal.</source>
+        <target state="needs-review-translation">Bản dựng của bảng điều khiển này và của máy chủ mà nó đang kết nối. Chúng dùng chung một hợp đồng tương thích, nên việc chỉ khác số cuối là bình thường.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">57,60</context>
+        </context-group>
+        <note priority="1" from="description">Tooltip explaining the two version numbers in the footer</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
+      </trans-unit>
+      <trans-unit id="4142142245989116120" datatype="html">
+        <source>Dashboard and box are on different versions — some screens may not match the server.</source>
+        <target state="needs-review-translation">Bảng điều khiển và máy chủ đang chạy phiên bản khác nhau — một số màn hình có thể không khớp với máy chủ.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">68,75</context>
+        </context-group>
+        <note priority="1" from="description">Shown when the dashboard and the API are on different compatibility contracts</note>
+        <note priority="1" from="meaning">Sidebar version warning</note>
       </trans-unit>
       <trans-unit id="3397655456296716868" datatype="html">
         <source> Log out </source>
