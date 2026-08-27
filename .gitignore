@@ -21,6 +21,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+# `make coverage` writes this next to apps/api/Makefile; it is a binary
+# artifact and was committed by accident once.
+.coverage
+.coverage.*
+htmlcov/
 .venv/
 venv/
 dist/

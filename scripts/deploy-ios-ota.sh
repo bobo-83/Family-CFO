@@ -34,6 +34,10 @@ cd "$REPO_ROOT"
 
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
+# The version scheme (ADR 0074): the app's marketing version is the contract
+# plus the ios BUILD, so the phone and the box compare by contract.
+# shellcheck source=lib/version.sh
+. "$REPO_ROOT/scripts/lib/version.sh"
 load_deploy_env "$REPO_ROOT"
 
 IOS_PROJECT="apps/ios/FamilyCFO/FamilyCFO.xcodeproj"
@@ -91,7 +95,8 @@ mkdir -p "$BUILD_DIR"
 # M120 (ADR 0029): the monorepo ships ONE version — the app is stamped from the
 # repo VERSION file so it can be compared against the box's /health.
 : "${IOS_TEAM_ID:?set IOS_TEAM_ID to your Apple Developer team id (see .deploy.env.example)}"
-APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+APP_VERSION="$(component_version "$REPO_ROOT" ios)" \
+  || die "Cannot read /VERSION and apps/ios/BUILD — the version scheme is broken."
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 # M-watch: the embedded watch app's NEW bundle id needs a provisioning profile
 # minted on first build — that requires App Store Connect API-key auth (the

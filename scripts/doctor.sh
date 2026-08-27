@@ -26,6 +26,10 @@ done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# The version scheme (ADR 0074): contract in /VERSION, per-component BUILD.
+# shellcheck source=lib/version.sh
+. "$REPO_ROOT/scripts/lib/version.sh"
+
 COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 # shellcheck disable=SC2086
 DC="docker compose $COMPOSE_FILES"
@@ -373,24 +377,25 @@ check_migrations() {
   fi
 }
 
-# --- OTA bundle vs VERSION -------------------------------------------------
-# One monorepo version (ADR 0029). patch.sh reports this after a remote deploy;
-# doctor reports it too, so a box inspected on any other day says the same
-# thing. WARN: the phone runs old code against a new backend, which is a real
-# problem, but the box itself is serving correctly.
+# --- OTA bundle vs the box -------------------------------------------------
+# ADR 0074 (amending 0029): the app and the box are compatible when their
+# CONTRACTS match, whatever their build numbers are. patch.sh reports this after
+# a remote deploy; doctor reports it too, so a box inspected on any other day
+# says the same thing. WARN: the phone calling endpoints the box does not have
+# is a real problem, but the box itself is serving correctly.
 check_ota_bundle() {
-  local repo_version ota_version
-  repo_version="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION" 2>/dev/null)"
-  [ -n "$repo_version" ] || { note "no VERSION file — OTA check skipped"; return 0; }
+  local api_version ota_version
+  api_version="$(component_version "$REPO_ROOT" api)" \
+    || { note "no /VERSION or apps/api/BUILD — OTA check skipped"; return 0; }
   ota_version="$(probe_val "$(web_probe)" ota)"
   if [ -z "$(web_probe)" ]; then
     note "web container not reachable — OTA bundle check skipped"
   elif [ -z "$ota_version" ]; then
-    warn "no OTA bundle published (box runs v${repo_version}) — run scripts/deploy-ios-ota.sh so the phone can install it"
-  elif [ "$ota_version" != "$repo_version" ]; then
-    warn "OTA bundle is v${ota_version} but this box runs v${repo_version} — the published app is STALE. Run scripts/deploy-ios-ota.sh."
+    warn "no OTA bundle published (box runs v${api_version}) — run scripts/deploy-ios-ota.sh so the phone can install it"
+  elif ! versions_compatible "$ota_version" "$api_version"; then
+    warn "OTA bundle is v${ota_version} but this box runs v${api_version} — different contract, so the published app is STALE. Run scripts/deploy-ios-ota.sh."
   else
-    pass "OTA bundle matches the box (v${ota_version})"
+    pass "OTA bundle is compatible (app v${ota_version}, box v${api_version})"
   fi
 }
 

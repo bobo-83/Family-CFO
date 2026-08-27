@@ -46,6 +46,10 @@ command -v xcodebuild >/dev/null 2>&1 || die "xcodebuild not found. Install Xcod
 # Load persisted config (IOS_TEAM_ID, ASC_*); a real env var still wins.
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
+# The version scheme (ADR 0074): the app's marketing version is the contract
+# plus the ios BUILD, so the phone and the box compare by contract.
+# shellcheck source=lib/version.sh
+. "$REPO_ROOT/scripts/lib/version.sh"
 load_deploy_env "$REPO_ROOT"
 
 : "${IOS_TEAM_ID:?set IOS_TEAM_ID in .deploy.env}"
@@ -57,14 +61,16 @@ ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"  # the env loader keeps ~ literal
 
 # One monorepo version (ADR 0029); build number from the clock so every upload
 # is strictly newer than the last (App Store Connect rejects a reused build no.).
-APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+APP_VERSION="$(component_version "$REPO_ROOT" ios)" \
+  || die "Cannot read /VERSION and apps/ios/BUILD — the version scheme is broken."
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 
 # Testers can only tell releases apart by the marketing version — TestFlight
 # shows "0.119.0 (202607280110)" and the parenthetical build number is easy to
 # miss, so a same-version re-upload looks like no update at all (it happened:
 # five 0.119.0 builds in two days). Refuse to upload the version that is
-# already the newest build on TestFlight; bump /VERSION (ADR 0029) instead.
+# already the newest build on TestFlight; bump apps/ios/BUILD (ADR 0074)
+# instead — an app-only release no longer needs the whole repo to move.
 # FORCE_SAME_VERSION=1 overrides for a genuine same-version rebuild.
 asc_python() {
   local candidate
@@ -82,7 +88,7 @@ if PY_ASC="$(asc_python)"; then
   if [ -n "$latest_version" ] && [ "$latest_version" = "$APP_VERSION" ] \
     && [ "${FORCE_SAME_VERSION:-0}" != "1" ]; then
     die "TestFlight's newest build is already v${APP_VERSION} (build ${latest#* }).
-       Bump /VERSION so testers can see the update, or re-run with
+       Bump apps/ios/BUILD so testers can see the update, or re-run with
        FORCE_SAME_VERSION=1 for a deliberate same-version rebuild."
   fi
   [ -n "$latest" ] && log "TestFlight currently newest: v${latest_version} (${latest#* })."

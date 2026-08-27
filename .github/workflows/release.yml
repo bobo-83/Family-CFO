@@ -10,12 +10,20 @@ name: Release
 # separate, later claim that the version was good. A version that fails
 # testing is simply never tagged and leaves no trace on the releases page.
 #
-# A suffix (v1.2.3-rc1) publishes a PRE-release, so a build can be recorded
+# A suffix (api-v1.2.3-rc1) publishes a PRE-release, so a build can be recorded
 # and shared without claiming to be the release.
+#
+# Tags name a COMPONENT (ADR 0074): api, web and ios ship their own build
+# numbers, so `v0.157.4` no longer says what was released. The component is a
+# PREFIX, not a suffix, because the suffix slot already means "pre-release" —
+# `v0.157.4-api` would be parsed below as a pre-release of 0.157.4 and published
+# as one.
 on:
   push:
     tags:
-      - "v*"
+      - "api-v*"
+      - "web-v*"
+      - "ios-v*"
 
 # The order is guard -> images -> release, deliberately. Publishing the Release
 # LAST means it is only announced once the artifacts to deploy actually exist,
@@ -30,51 +38,72 @@ jobs:
     outputs:
       # The checked version, so nothing downstream re-derives it from the ref.
       # This is the FULL tag (0.148.0-rc1, not 0.148.0) because it names image
-      # tags: two builds of the same /VERSION must not both claim ":0.148.0",
+      # tags: two builds of the same version must not both claim ":0.148.0",
       # or that tag silently changes meaning between the rc and the release.
       version: ${{ steps.guard.outputs.version }}
       prerelease: ${{ steps.guard.outputs.prerelease }}
+      component: ${{ steps.guard.outputs.component }}
+      matrix: ${{ steps.guard.outputs.matrix }}
     steps:
-      # Shallow: this job only reads /VERSION.
+      # Shallow: this job only reads the version files.
       - uses: actions/checkout@v4
 
-      - name: The tag must agree with /VERSION
+      - name: The tag must agree with the version files
         id: guard
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          # An optional suffix marks a pre-release: v1.2.3-rc1 is "this build
-          # of 1.2.3", not a claim that 1.2.3 shipped. Only the part BEFORE the
-          # suffix is checked against /VERSION.
+          ref="$GITHUB_REF_NAME"
+          component="${ref%%-v*}"
+          tag="${ref#"${component}-v"}"
+          case "$component" in
+            api|web|ios) ;;
+            *) echo "::error::tag ${ref} does not name a component (api|web|ios)." ; exit 1 ;;
+          esac
+          # An optional suffix marks a pre-release: api-v1.2.3-rc1 is "this
+          # build of 1.2.3", not a claim that 1.2.3 shipped. Only the part
+          # BEFORE the suffix is checked against the version files.
           base="${tag%%-*}"
           suffix="${tag#"$base"}"
-          version="$(tr -d '[:space:]' < VERSION)"
-          # A tag that disagrees with VERSION means the bump PR never merged,
-          # or the tag went on the wrong commit. Both produce a release whose
-          # notes describe code the artifacts do not contain, and /VERSION is
-          # what the running API reports at /health — so the mismatch would
-          # surface later as a box that claims a version no release matches.
-          if [ "$base" != "$version" ]; then
-            echo "::error::tag v${tag} does not match /VERSION (${version})."
-            echo "Tag the commit that bumped VERSION, or fix the tag." >&2
+          contract="$(tr -d '[:space:]' < VERSION)"
+          build="$(tr -d '[:space:]' < "apps/${component}/BUILD")"
+          expected="${contract}.${build}"
+          # A tag that disagrees means the bump PR never merged, or the tag went
+          # on the wrong commit. Both produce a release whose notes describe code
+          # the artifacts do not contain, and this is what the component reports
+          # at runtime — so the mismatch would surface later as a box claiming a
+          # version no release matches.
+          if [ "$base" != "$expected" ]; then
+            echo "::error::tag ${ref} does not match /VERSION + apps/${component}/BUILD (${expected})."
+            echo "Tag the commit that bumped them, or fix the tag." >&2
             exit 1
           fi
           if [ -n "$suffix" ]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "tag v${tag} is a pre-release of ${version}"
+            echo "tag ${ref} is a pre-release of ${component} ${expected}"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "tag v${tag} matches /VERSION"
+            echo "tag ${ref} matches ${component} ${expected}"
           fi
           echo "version=${tag}" >> "$GITHUB_OUTPUT"
+          echo "component=${component}" >> "$GITHUB_OUTPUT"
+          # Only the tagged component is built. Publishing both images on any
+          # tag would republish an unchanged one under a version it never had.
+          case "$component" in
+            api) echo 'matrix=[{"image":"api","dockerfile":"docker/api.Dockerfile"}]' >> "$GITHUB_OUTPUT" ;;
+            web) echo 'matrix=[{"image":"web","dockerfile":"docker/web.Dockerfile"}]' >> "$GITHUB_OUTPUT" ;;
+            ios) echo 'matrix=[]' >> "$GITHUB_OUTPUT" ;;
+          esac
 
   # Publish the container images the box actually runs, so a deploy can pull a
   # KNOWN artifact instead of rebuilding whatever source happened to be in the
   # working tree at that moment (scripts/patch.sh IMAGE_TAG=...).
   images:
-    # A tag that disagrees with /VERSION publishes no images: an image tagged
-    # 0.148.0 must contain the code /VERSION calls 0.148.0.
+    # A tag that disagrees with the version files publishes no images: an image
+    # tagged 0.148.0 must contain the code that calls itself 0.148.0.
     needs: guard
+    # ios ships through TestFlight and the OTA page, not GHCR — an ios-v tag
+    # records a release and builds nothing here.
+    if: needs.guard.outputs.component != 'ios'
     # The box is arm64. ubuntu-latest is x86_64, so images built there would not
     # run on it at all — this label is load-bearing, not a preference. GitHub's
     # arm64 hosted runner is free for public repos, so the build is NATIVE.
@@ -91,12 +120,11 @@ jobs:
       # docker/api.Dockerfile and differ only in the command compose gives them
       # (entrypoint-api.sh vs entrypoint-worker.sh), so publishing both would
       # push identical bytes twice under two names that could then drift.
+      #
+      # The set comes from the guard because the tag names ONE component now
+      # (ADR 0074): an api-v tag must not rebuild and republish web.
       matrix:
-        include:
-          - image: api
-            dockerfile: docker/api.Dockerfile
-          - image: web
-            dockerfile: docker/web.Dockerfile
+        include: ${{ fromJSON(needs.guard.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -138,6 +166,10 @@ jobs:
     # without it `needs.guard.outputs.prerelease` resolves to empty and every
     # rc would quietly publish as a full release.
     needs: [guard, images]
+    # `images` is SKIPPED for an ios tag, and a skipped dependency would
+    # normally skip this job too — so the release is gated on images not having
+    # FAILED, rather than on it having succeeded.
+    if: always() && needs.guard.result == 'success' && needs.images.result != 'failure' && needs.images.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
       # --generate-notes reads merged PRs; creating the release writes.

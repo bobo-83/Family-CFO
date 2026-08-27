@@ -48,6 +48,10 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 # before anything requires them. A real environment variable still wins.
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
+# The version scheme (ADR 0074): the app's marketing version is the contract
+# plus the ios BUILD, so the phone and the box compare by contract.
+# shellcheck source=lib/version.sh
+. "$REPO_ROOT/scripts/lib/version.sh"
 load_deploy_env "$REPO_ROOT"
 
 # --- Preflight ---------------------------------------------------------------
@@ -146,7 +150,8 @@ fi
 # M120 (ADR 0029): the monorepo ships ONE version. The app's marketing version is
 # stamped from the repo VERSION file, and the build number from the clock (always
 # increasing, so over-the-top installs never fight a stale build number).
-APP_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+APP_VERSION="$(component_version "$REPO_ROOT" ios)" \
+  || die "Cannot read /VERSION and apps/ios/BUILD — the version scheme is broken."
 BUILD_NUMBER="$(date -u +%Y%m%d%H%M)"
 # M121: the Apple Developer team is NOT committed (the project ships with an
 # empty DEVELOPMENT_TEAM); a device build supplies your own from IOS_TEAM_ID

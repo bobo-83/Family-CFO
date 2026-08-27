@@ -33,9 +33,10 @@
 #   scripts/patch.sh web ios         # the box's web tier AND the phone
 #   SSH_HOST=box scripts/patch.sh web            # a remote box (TARGET inferred)
 #   SSH_HOST="box1 box2" scripts/patch.sh web    # several boxes, in order
-#   IMAGE_TAG=0.148.0 scripts/patch.sh api worker web   # pull a release, don't build
+#   API_IMAGE_TAG=0.157.4 WEB_IMAGE_TAG=0.157.2 scripts/patch.sh api worker web
+#                                    # pull released images, don't build
 #
-# IMAGE_TAG — deploy a KNOWN artifact instead of building one:
+# API_IMAGE_TAG / WEB_IMAGE_TAG — deploy a KNOWN artifact instead of building one:
 #   Without it (the default, and what every existing invocation does) the source
 #   is rebuilt in place: `up -d --build`. What runs is therefore whatever was in
 #   the working tree at that moment, which is not something you can look up
@@ -44,6 +45,11 @@
 #   started with --no-build, so the running artifact is one that was built once,
 #   on a tag, and can be identified later. Requires a release whose images were
 #   published by .github/workflows/release.yml.
+#   They are SEPARATE variables because api and web carry their own build
+#   numbers (ADR 0074): once the two diverge, one shared tag cannot name both,
+#   and would reach for a family-cfo-web image that was never published. Set
+#   only the one you are pinning — an unset variable builds that service from
+#   source, as before.
 #   What this pins and what it does NOT: the IMAGE is fixed. The database, .env
 #   and the compose file are not — see docs/guides/deployment.md.
 #
@@ -60,7 +66,7 @@
 # Environment overrides (same as scripts/deploy.sh):
 #   TARGET local|remote  SSH_HOST (one or more)  SSH_USER  SSH_PORT  SSH_KEY  REMOTE_DIR
 #   COMPOSE_FILES (default: -f docker-compose.yml)
-#   IMAGE_TAG (default: empty — build from source, as before)
+#   API_IMAGE_TAG / WEB_IMAGE_TAG (default: empty — build from source, as before)
 #   iOS-specific: IOS_DEVICE  IOS_CONFIG  IOS_TEST  NO_LAUNCH  (see scripts/deploy-ios.sh)
 set -euo pipefail
 
@@ -81,8 +87,19 @@ PROTECTED_SERVICES="vllm db"
 # Empty = build from source, which is the behaviour every existing caller gets
 # and the one this script has always had. Set = pull that published tag instead.
 # The two paths are kept strictly separate below rather than parameterising the
-# existing command, so an unset IMAGE_TAG cannot change what runs.
-IMAGE_TAG="${IMAGE_TAG:-}"
+# existing command, so an unset tag cannot change what runs.
+API_IMAGE_TAG="${API_IMAGE_TAG:-}"
+WEB_IMAGE_TAG="${WEB_IMAGE_TAG:-}"
+
+# IMAGE_TAG named both images when there was one version for the whole repo. It
+# cannot survive per-component builds (ADR 0074), and silently pinning only the
+# api would be worse than refusing: you would think you deployed a release and
+# have a web tier built from the working tree.
+if [ -n "${IMAGE_TAG:-}" ]; then
+  printf '\033[1;31mError:\033[0m IMAGE_TAG no longer exists — api and web ship separate builds now.\n' >&2
+  printf '  Use API_IMAGE_TAG=%s and/or WEB_IMAGE_TAG=<tag> instead (ADR 0074).\n' "$IMAGE_TAG" >&2
+  exit 1
+fi
 
 # Requested targets = positional args, or the safe default set.
 if [ "$#" -gt 0 ]; then
@@ -101,6 +118,12 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
 load_deploy_env "$REPO_ROOT"
+
+# The version scheme (ADR 0074): the contract in /VERSION plus each component's
+# own BUILD. Deployables are compared by CONTRACT, so a backend-only patch does
+# not make an unchanged app look stale.
+# shellcheck source=lib/version.sh
+. "$REPO_ROOT/scripts/lib/version.sh"
 COMPOSE_FILES="${COMPOSE_FILES:--f docker-compose.yml}"
 
 # How a target is routed: `ios` is the one reserved word and means the phone
@@ -143,12 +166,48 @@ ask() {
 # ask the box what it is actually running and compare it to what was shipped.
 run_local() { "$@"; }
 
+# Pull mode is on when either component is pinned. They are independent, so
+# `API_IMAGE_TAG=… patch.sh api worker` is a perfectly good half-deploy.
+pull_mode() { [ -n "$API_IMAGE_TAG" ] || [ -n "$WEB_IMAGE_TAG" ]; }
+
+# In pull mode every requested container must have a tag. Without this check the
+# unpinned one resolves to `:dev`, which nothing publishes, and the run dies in
+# `pull` with a registry error that does not say what you actually got wrong.
+require_tags_for_services() {
+  local svc
+  for svc in "$@"; do
+    case "$svc" in
+      api|worker)
+        [ -n "$API_IMAGE_TAG" ] || die "Patching '${svc}' in pull mode needs API_IMAGE_TAG (ADR 0074: api and web ship separate builds)." ;;
+      web)
+        [ -n "$WEB_IMAGE_TAG" ] || die "Patching 'web' in pull mode needs WEB_IMAGE_TAG (ADR 0074: api and web ship separate builds)." ;;
+    esac
+  done
+}
+
+# The tags compose passes through. Both are always exported: an empty one falls
+# back to `dev` in docker-compose.yml, and require_tags_for_services has already
+# refused any case where that would matter.
+tag_env() {
+  printf 'FAMILY_CFO_API_IMAGE_TAG=%s FAMILY_CFO_WEB_IMAGE_TAG=%s' \
+    "${API_IMAGE_TAG:-dev}" "${WEB_IMAGE_TAG:-dev}"
+}
+
+# What to print so the log says which artifact went out.
+tag_label() {
+  local parts=""
+  [ -n "$API_IMAGE_TAG" ] && parts="api ${API_IMAGE_TAG}"
+  [ -n "$WEB_IMAGE_TAG" ] && parts="${parts}${parts:+, }web ${WEB_IMAGE_TAG}"
+  printf '%s' "$parts"
+}
+
 smoke_check() {
   # $1: name of a function that runs its arguments ON the target
   #     (`run_local` here, the per-host `remote` in the remote path)
   # $2: the https base URL to probe, as seen FROM the target
   runner="$1"; base="$2"
-  expected="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION")"
+  expected="$(component_version "$REPO_ROOT" api)" \
+    || die "Cannot read /VERSION and apps/api/BUILD — the version scheme is broken."
   attempt=0
   while [ "$attempt" -lt 30 ]; do
     body="$("$runner" curl -sk --max-time 5 "${base}/api/v1/health" 2>/dev/null || true)"
@@ -319,17 +378,20 @@ if [ "$TARGET" = "local" ]; then
   # shellcheck disable=SC2086
   require_running_deps "$(docker compose $COMPOSE_FILES ps --format '{{.Service}}\t{{.Health}}' 2>/dev/null)"
 
-  if [ -n "$IMAGE_TAG" ]; then
-    log "Pulling published images (tag ${IMAGE_TAG}) and recreating…"
-    # shellcheck disable=SC2086
-    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES pull "${SERVICES[@]}"
+  if pull_mode; then
+    require_tags_for_services "${SERVICES[@]}"
+    log "Pulling published images ($(tag_label)) and recreating…"
+    # Both splits are deliberate: COMPOSE_FILES is a flag list, and tag_env
+    # emits two VAR=value words for `env` to consume.
+    # shellcheck disable=SC2086,SC2046
+    env $(tag_env) docker compose $COMPOSE_FILES pull "${SERVICES[@]}"
     # An unpublished tag already failed the `pull` above (it exits non-zero,
     # and set -e stops here). --no-build is the second lock: without it compose
     # falls back to BUILDING a missing image from the synced source, which is
     # precisely the silent "you got the working tree, not the release" this
     # mode exists to prevent.
-    # shellcheck disable=SC2086
-    FAMILY_CFO_IMAGE_TAG="$IMAGE_TAG" docker compose $COMPOSE_FILES up -d --no-build --no-deps "${SERVICES[@]}"
+    # shellcheck disable=SC2086,SC2046
+    env $(tag_env) docker compose $COMPOSE_FILES up -d --no-build --no-deps "${SERVICES[@]}"
   else
     log "Rebuilding and recreating…"
     # shellcheck disable=SC2086
@@ -408,7 +470,7 @@ patch_remote_host() { # patch_remote_host <host>
 
   require_running_deps "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} ps --format '{{.Service}}\t{{.Health}}' 2>/dev/null" || true)"
 
-  # The sync happens in BOTH modes. In IMAGE_TAG mode the synced source is not
+  # The sync happens in BOTH modes. In pull mode the synced source is not
   # what runs — the pulled image is — but docker-compose.yml itself has to be
   # present and current on the box for `pull` to know which images to fetch.
   # This is the honest limit of the reproducibility: the image is pinned to a
@@ -420,12 +482,13 @@ patch_remote_host() { # patch_remote_host <host>
     --exclude 'data' --exclude '*.db' --exclude '.env' \
     -e "$rsh" "$REPO_ROOT/" "${ssh_target}:${remote_abs}/"
 
-  if [ -n "$IMAGE_TAG" ]; then
-    log "Pulling published images (tag ${IMAGE_TAG}) on ${ssh_target} and recreating…"
+  if pull_mode; then
+    require_tags_for_services "${SERVICES[@]}"
+    log "Pulling published images ($(tag_label)) on ${ssh_target} and recreating…"
     # `pull` exits non-zero on a tag that was never published, so the && stops
     # before anything is recreated. --no-build then stops compose rebuilding a
     # missing image from the source it just synced.
-    remote "cd ${remote_abs} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && FAMILY_CFO_IMAGE_TAG=${IMAGE_TAG} docker compose ${COMPOSE_FILES} up -d --no-build --no-deps ${SERVICES[*]}"
+    remote "cd ${remote_abs} && $(tag_env) docker compose ${COMPOSE_FILES} pull ${SERVICES[*]} && $(tag_env) docker compose ${COMPOSE_FILES} up -d --no-build --no-deps ${SERVICES[*]}"
   else
     log "Rebuilding and recreating on ${ssh_target}…"
     remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} up -d --build --no-deps ${SERVICES[*]}"
@@ -444,18 +507,19 @@ patch_remote_host() { # patch_remote_host <host>
        Investigate: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
   fi
 
-  # M120 (ADR 0029): one monorepo version — after patching the box, check the
-  # published OTA app bundle still matches. A silent drift here is exactly how
-  # the phone ends up running old code against a new backend.
-  local repo_version ota_version
-  repo_version="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION" 2>/dev/null || true)"
+  # ADR 0074 (amending 0029): after patching the box, check the published OTA
+  # bundle is still COMPATIBLE — same contract. A silent contract drift here is
+  # exactly how the phone ends up calling endpoints the box does not have. A
+  # differing build number is not drift: that is the point of the scheme.
+  local api_version ota_version
+  api_version="$(component_version "$REPO_ROOT" api || true)"
   ota_version="$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} exec -T web cat /usr/share/nginx/html/ota/VERSION 2>/dev/null" | tr -d '[:space:]' || true)"
   if [ -z "$ota_version" ]; then
-    warn "No OTA bundle published yet (or it predates versioning) — run scripts/deploy-ios-ota.sh so the phone can install v${repo_version}."
-  elif [ "$ota_version" != "$repo_version" ]; then
-    warn "OTA bundle is v${ota_version} but the box now runs v${repo_version} — the published app is STALE. Run scripts/deploy-ios-ota.sh."
+    warn "No OTA bundle published yet (or it predates versioning) — run scripts/deploy-ios-ota.sh so the phone can install v${api_version}."
+  elif ! versions_compatible "$ota_version" "$api_version"; then
+    warn "OTA bundle is v${ota_version} but the box now runs v${api_version} — different contract, so the published app is STALE. Run scripts/deploy-ios-ota.sh."
   else
-    log "OTA bundle matches (v${ota_version})."
+    log "OTA bundle is compatible (app v${ota_version}, box v${api_version})."
   fi
 
   # Last, so its report is the freshest thing on screen. `remote` already takes
