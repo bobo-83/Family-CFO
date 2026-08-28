@@ -12,6 +12,16 @@
 set -eu
 
 DENY=.repo-hygiene-deny
+TERMS=$(mktemp)
+trap 'rm -f "$TERMS"' EXIT INT TERM
+
+# #118: the same expansion the tree scan uses, so both guards agree on what
+# counts as the identifier. Done once here rather than per-commit inside the
+# loops below -- the deny list cannot change mid-push.
+if [ -f "$DENY" ]; then
+  . scripts/lib/deny-terms.sh
+  expand_deny_terms "$DENY" > "$TERMS"
+fi
 ZERO=0000000000000000000000000000000000000000
 
 fail=0
@@ -52,26 +62,19 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       # `+++ b/path` header lines are dropped so a denied string in a FILENAME
       # is not mistaken for content — the tree scan owns that case.
       diffc=$(git show --format= "$sha" | grep '^+' | grep -v '^+++' || true)
-      while IFS= read -r term; do
-        [ -z "$term" ] && continue
-        case "$term" in \#*) continue ;; esac
-        # Same rule as check-repo-hygiene.sh: a purely numeric term must not
-        # match inside a longer number, or generated line-number references
-        # trip it and the guard becomes noise people bypass.
-        if printf '%s' "$term" | grep -qE '^[0-9][0-9.,_]*$'; then
-          escaped=$(printf '%s' "$term" | sed 's/[.]/\\./g')
-          bounded="(^|[^0-9.,_])${escaped}([^0-9.,_]|$)"
-          printf '%s' "$msg" | grep -qE "$bounded" && note "denylisted identifier in MESSAGE of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
-          printf '%s' "$diffc" | grep -qE "$bounded" && note "denylisted identifier in DIFF of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
-          continue
+      # The lib owns matching policy (substring for literals, bounded for
+      # derived and numeric forms) — this loop only reads matchers, so this
+      # scan and the tree scan cannot drift apart. They used to: each carried
+      # its own copy of the numeric bounding.
+      while IFS="$DENY_TAB" read -r mode label pattern; do
+        [ -z "$pattern" ] && continue
+        if printf '%s' "$msg" | deny_match "$mode" "$pattern"; then
+          note "denylisted identifier in MESSAGE of ${sha%??????????????????????????????????}: $label"
         fi
-        if printf '%s' "$msg" | grep -qF "$term"; then
-          note "denylisted identifier in MESSAGE of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
+        if printf '%s' "$diffc" | deny_match "$mode" "$pattern"; then
+          note "denylisted identifier in DIFF of ${sha%??????????????????????????????????}: $label"
         fi
-        if printf '%s' "$diffc" | grep -qF "$term"; then
-          note "denylisted identifier in DIFF of ${sha%??????????????????????????????????}: $(printf '%s' "$term" | cut -c1-4)…"
-        fi
-      done < "$DENY"
+      done < "$TERMS"
     fi
   done
 done

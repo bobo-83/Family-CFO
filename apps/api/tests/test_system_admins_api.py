@@ -44,7 +44,7 @@ def test_first_household_owner_becomes_system_admin(fresh_empty_engine) -> None:
     engine = fresh_empty_engine
     first = repository.create_household_with_owner(
         engine,
-        display_name="The Family",
+        display_name="demo-household",
         base_currency="USD",
         owner_email="owner@example.com",
         owner_password_hash="x",
