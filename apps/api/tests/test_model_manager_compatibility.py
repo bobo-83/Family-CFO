@@ -66,6 +66,10 @@ async def test_current_api_accepts_previous_model_manager_contract(
     monkeypatch.setattr(ai_runtime_module.httpx, "post", fake_post)
     monkeypatch.setattr(ai_runtime_module.httpx, "get", fake_get)
     monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda _hub, _model: True)
+    # This test covers the API/sidecar wire, not host sizing. Linux CI has much
+    # less system memory than the macOS runner and would otherwise reject the
+    # synthetic vision model before the request reaches the mocked manager.
+    monkeypatch.setattr(ai_runtime_module, "_vision_slot_gb", lambda _settings: None)
 
     settings = _settings()
     assert ai_runtime_module._loading_status_from_manager(settings) is not None
