@@ -48,29 +48,47 @@ how often we shipped *anything*, not what is compatible with what.
    component's full version is `<contract>.<build>` — the api reports `0.157.4`,
    the dashboard `0.157.2`, the phone `0.157.1`.
 
-3. **Compatible iff the contract matches.** `0.157.4` and `0.157.1` are the same
-   contract and must not warn. This is the invariant every seam now checks, in
-   place of string equality.
+3. **A contract match is the compatibility signal.** A component may keep the
+   same contract only while it remains compatible with every released
+   counterpart carrying that contract. `0.157.4` and `0.157.1` therefore must
+   not warn: the release policy below guarantees that they can work together.
+   "Compatible" means every shipped and enabled client feature works; a feature
+   that negotiates capabilities and stays unavailable when an endpoint is absent
+   does not require that capability.
 
-4. **There are three components, and the boundary is "can a user install this
-   independently".**
-   - **api** — the api and worker containers plus the `services/*` packages
-     baked into them. They share one Dockerfile and are one artifact.
+4. **There are three versioned product components.** The boundary is an
+   independently released end-user artifact whose compatibility is surfaced at
+   an app↔server seam. Container isolation alone does not create a component.
+   - **api** — the api and worker containers plus the five in-process service
+     packages installed into their shared image. They are one released artifact.
    - **web** — the dashboard. It ships as its own image and `patch.sh web` can
      deploy it alone.
    - **ios** — the iPhone app, with the Watch app embedded in it.
 
-   `services/*` get no version of their own. They are copied into the api image
-   and cannot be deployed separately, so a number for them would describe
-   nothing.
+   `services/model-manager` is the deliberate exception: it is an optional,
+   separately built operational sidecar, not a published end-user artifact, and
+   does not participate in the app↔server contract. Its internal HTTP interface
+   with the api must remain bidirectionally compatible across rolling deploys
+   and rollback: current-api/previous-manager and previous-api/current-manager
+   are both integration-test cases. An incompatible change requires a follow-up
+   ADR that first promotes model-manager to a versioned component and defines an
+   ordered rollout; shipping both in one non-atomic Compose patch is not enough.
+   Third-party/runtime infrastructure such as vLLM, Qdrant, SearXNG, and
+   monitoring is outside this product-version scheme.
 
-5. **The contract bumps only for a client-breaking change** — an endpoint or
-   field removed or renamed in `shared/openapi/family-cfo.v1.yaml`, a type
-   changed, a newly required request field, or a migration an older client
-   cannot tolerate. Adding an endpoint does *not* bump it: an old client that
-   does not know about a new route is not broken by it. When the contract bumps,
-   every component must ship, and a one-sided deploy warns exactly as loudly as
-   it does today.
+5. **The contract bumps whenever any released client/server pairing would break,
+   in either direction.** That includes an endpoint or field removed or renamed
+   in `shared/openapi/family-cfo.v1.yaml`, a type changed, a newly required
+   request field, a migration an older client cannot tolerate, **or a client
+   beginning to require an additive capability an older server does not have**.
+   Adding an endpoint alone does not bump the contract while no released client
+   requires it. Before the first dependent client ships, bump the contract and
+   deploy the api side first; a client must never ship under contract `C` if it
+   requires a capability absent from **any released** api carrying `C`. Release
+   checks must exercise a new client against the oldest published api artifact
+   (or an immutable compatibility fixture) for its contract so that dependency
+   cannot merge unnoticed. When the contract bumps, every component must ship,
+   and a one-sided deploy warns exactly as loudly as it does today.
 
 6. **Every `BUILD` resets to `0` when the contract bumps.** Ordering stays
    monotonic because the contract fields dominate the comparison —
@@ -80,11 +98,13 @@ how often we shipped *anything*, not what is compatible with what.
 
 ## Invariant
 
-> Every deployable reports `<contract>.<build>`, and any two components whose
-> contracts differ are surfaced automatically — in the app, on the OTA page, in
-> the dashboard footer, and in the deploy terminal. Components whose contracts
-> agree are compatible regardless of their build numbers, and are never warned
-> about.
+> Every versioned product component reports `<contract>.<build>`. A contract
+> match guarantees compatibility because no component may ship under a contract
+> while requiring a capability absent from any released counterpart carrying that
+> contract. A contract mismatch is surfaced automatically — in the app, on the
+> OTA page, in the dashboard footer, and in the deploy terminal — regardless of
+> build numbers. Operational sidecars outside this scheme remain bidirectionally
+> compatible across rolling deploys and rollback.
 
 ## Rejected
 
