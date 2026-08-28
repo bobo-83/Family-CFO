@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Accepted. Amended by ADR 0074, which keeps every seam and every check below but
+replaces the exact-equality comparison with a shared `MAJOR.MINOR` contract, so
+each component can ship its own build number.
 
 ## Context
 

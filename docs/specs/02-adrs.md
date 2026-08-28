@@ -30,6 +30,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0032: A debt modeled as both an account and a bill is one obligation](../adr/0032-debt-and-bill-are-one-obligation.md)
 - [0033: Read a loan/card statement's summary onto the account](../adr/0033-statement-summary-to-account.md)
 - [0034: Rights-based roles — custom roles per household, screens guarded by rights](../adr/0034-rights-based-roles.md)
+- [0074: A shared contract, independent per-component builds](../adr/0074-per-component-build-numbers.md)
 
 ## ADR Rules
 
@@ -50,4 +51,7 @@ gets written down before (or with) the code that implements it:
 - **Cross-client parity (ADR 0025):** a user-facing feature change ships on BOTH
   the iOS app and the Angular dashboard in the same change; a platform-bound
   exception must be named in the feature's ADR.
-- **Do not overwrite history.** Supersede with a new ADR; mark the old one Superseded.
+- **Do not overwrite history.** Record the change in a new ADR and link both
+  directions. Mark the old ADR **Superseded** when its decision no longer
+  governs; mark it **Amended** when the original decision remains substantially
+  live and the new ADR changes only a named part of it.
