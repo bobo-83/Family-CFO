@@ -193,17 +193,34 @@ final class OverviewViewModel {
         }
     }
 
-    /// The version this build was stamped with (the monorepo VERSION file, via
-    /// MARKETING_VERSION at build time - M120, ADR 0029).
+    /// The version this build was stamped with - "<contract>.<build>", e.g.
+    /// "0.157.1", composed by the deploy scripts into MARKETING_VERSION
+    /// (M120, ADR 0029 as amended by ADR 0074).
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
-    /// True when the box runs a different version than this build - the app is
-    /// stale (or the box is), and the OTA page has the fix.
+    /// The compatibility contract - the MAJOR.MINOR prefix of a version string
+    /// (ADR 0074). "0.157.4" -> "0.157"; a bare "0.157" is returned unchanged,
+    /// so this is safe to apply to either form. Mirrors `contract_of` in
+    /// scripts/lib/version.sh and `Shell.contractOf` in the dashboard.
+    static func contract(of version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
+    }
+
+    /// True only when app and box name DIFFERENT contracts. A differing build
+    /// number is the normal, healthy case now - the api ships on its own and
+    /// warning about that was the whole problem ADR 0074 set out to fix.
+    static func versionsDiffer(app: String, box: String) -> Bool {
+        contract(of: app) != contract(of: box)
+    }
+
+    /// True when the box speaks a different contract than this build - the app
+    /// is stale (or the box is), and the OTA page has the fix. The guard keeps
+    /// a half-known pair (box unreachable) from being called a mismatch.
     var versionMismatch: Bool {
         guard let serverVersion else { return false }
-        return serverVersion != Self.appVersion
+        return Self.versionsDiffer(app: Self.appVersion, box: serverVersion)
     }
 
     /// "Last synced 3 hours ago" for the freshness line, or nil when never synced.

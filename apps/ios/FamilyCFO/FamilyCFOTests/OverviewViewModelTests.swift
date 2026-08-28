@@ -13,6 +13,14 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
     var syncTotals = SyncTotals()
     private(set) var syncCallCount = 0
 
+    /// What GET /health reports, for the contract comparison (ADR 0074). nil —
+    /// the protocol's own default — is an unreachable box.
+    var version: String?
+
+    nonisolated func serverVersion() async -> String? {
+        await MainActor.run { version }
+    }
+
     nonisolated func context(month: String?) async throws
         -> Components.Schemas.HouseholdContext
     {

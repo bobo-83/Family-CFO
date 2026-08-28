@@ -235,7 +235,9 @@ struct OverviewView: View {
         }
     }
 
-    /// M120: the app is stale (or the box is) - point at the OTA page.
+    /// M120 (ADR 0074): the app and box speak different CONTRACTS, so one of
+    /// them is genuinely stale - point at the OTA page. A build-only
+    /// difference never reaches here.
     private func versionMismatchBanner(server: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(
@@ -246,8 +248,9 @@ struct OverviewView: View {
             Text(
                 String(
                     localized: """
-                        Versions differ, so screens may not match the server. \
-                        Install the update from your box's OTA page.
+                        App and box are on different versions — some screens may \
+                        not match the server. Install the update from your box's \
+                        OTA page.
                         """)
             )
             .font(.caption)
