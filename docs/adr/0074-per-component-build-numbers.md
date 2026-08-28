@@ -96,6 +96,14 @@ how often we shipped *anything*, not what is compatible with what.
    (`_check_restore_compatibility` in `apps/api/src/family_cfo_api/backup_processing.py`)
    keeps working unchanged.
 
+## Enforcement
+
+Two of the requirements above describe rules this ADR adopts, not behaviour the
+repo has today. Decision 5's oldest-api release check and Decision 4's
+bidirectional api↔model-manager tests are both unimplemented, and #141 tracks
+them. Until they land the invariant below is held up by review rather than by
+CI — worth knowing when reading a green build.
+
 ## Invariant
 
 > Every versioned product component reports `<contract>.<build>`. A contract
