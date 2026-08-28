@@ -53,7 +53,15 @@ if [ -f .repo-hygiene-deny ]; then
   # down. A full name in the list never matched the "The <Surname>s" a fixture
   # actually used, which is how one survived on a public main for months.
   . "$(dirname "$0")/lib/deny-terms.sh"
-  expand_deny_terms .repo-hygiene-deny > /tmp/.repo-hygiene-terms.$$
+  # mktemp, not a predictable /tmp path: this file holds every denied
+  # identifier in cleartext -- more of them than the deny list itself, since
+  # the derived forms are here too. A guessable name in a shared directory is
+  # a symlink target and a squat, and the default umask leaves it readable by
+  # anyone on the box. The trap matters as much: `rm -f` alone leaks the file
+  # on any interrupt. Same handling as .githooks/pre-push.
+  TERMS=$(mktemp)
+  trap 'rm -f "$TERMS"' EXIT INT TERM
+  expand_deny_terms .repo-hygiene-deny > "$TERMS"
   while IFS= read -r term; do
     [ -z "$term" ] && continue
     case "$term" in \#*) continue ;; esac
@@ -74,8 +82,7 @@ if [ -f .repo-hygiene-deny ]; then
     if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && grep -qF "$term" "$MSG_FILE" 2>/dev/null; then
       note "denylisted identifier in the COMMIT MESSAGE: $(printf '%s' "$term" | cut -c1-4)…"
     fi
-  done < /tmp/.repo-hygiene-terms.$$
-  rm -f /tmp/.repo-hygiene-terms.$$
+  done < "$TERMS"
 fi
 
 if [ "$fail" -ne 0 ]; then
