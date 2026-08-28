@@ -62,27 +62,28 @@ if [ -f .repo-hygiene-deny ]; then
   TERMS=$(mktemp)
   trap 'rm -f "$TERMS"' EXIT INT TERM
   expand_deny_terms .repo-hygiene-deny > "$TERMS"
-  while IFS= read -r term; do
-    [ -z "$term" ] && continue
-    case "$term" in \#*) continue ;; esac
-    # A purely numeric term must not match INSIDE a longer number: a five-digit
-    # amount otherwise trips on a generated line-number reference that merely
-    # contains it. Bound it by non-digits — a guard that cries wolf is a guard
-    # people learn to ignore. (No literal example here: this file must never
-    # contain the values it guards.)
-    if printf '%s' "$term" | grep -qE '^[0-9][0-9.,_]*$'; then
-      escaped=$(printf '%s' "$term" | sed 's/[.]/\\./g')
-      pattern="(^|[^0-9.,_])${escaped}([^0-9.,_]|$)"
-      if git grep -nE "$pattern" -- . >/dev/null 2>&1; then
-        note "denylisted identifier present: $(printf '%s' "$term" | cut -c1-4)…"
-      fi
-    elif git grep -nF "$term" -- . >/dev/null 2>&1; then
-      note "denylisted identifier present: $(printf '%s' "$term" | cut -c1-4)…"
+  # The lib owns matching policy — how each shape is matched (substring for
+  # literals, bounded for derived and numeric forms) lives in ONE place, so
+  # this scan, the commit-msg scan and the pre-push scan cannot drift apart.
+  # This loop only reads matchers and reports hits.
+  derived_hit=0
+  while IFS="$DENY_TAB" read -r mode label pattern; do
+    [ -z "$pattern" ] && continue
+    hit=$(deny_tree_hit "$mode" "$pattern")
+    if [ -n "$hit" ]; then
+      # Name the file, line and shape: a false positive that cannot be
+      # diagnosed gets answered with --no-verify, which turns off the guard.
+      note "denylisted identifier present: $label at $hit"
+      case "$label" in *'(household plural)'|*'(family form)') derived_hit=1 ;; esac
     fi
-    if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && grep -qF "$term" "$MSG_FILE" 2>/dev/null; then
-      note "denylisted identifier in the COMMIT MESSAGE: $(printf '%s' "$term" | cut -c1-4)…"
+    if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && deny_match "$mode" "$pattern" < "$MSG_FILE"; then
+      note "denylisted identifier in the COMMIT MESSAGE: $label"
+      case "$label" in *'(household plural)'|*'(family form)') derived_hit=1 ;; esac
     fi
   done < "$TERMS"
+  if [ "$derived_hit" -eq 1 ]; then
+    printf 'repo-hygiene: a derived name shape fired. If this one is a false positive, remove that entry'\''s `name:` marker to fall back to literal matching (ADR 0030) — do not bypass with --no-verify.\n' >&2
+  fi
 fi
 
 if [ "$fail" -ne 0 ]; then

@@ -15,6 +15,7 @@ TOKEN="Zzyzx-Invented-Denylist-Token"
 # "Zyzzogeton", so a derived form matching is the expansion working, not luck.
 NAME="Quorra Zyzzogeton"
 NAME_DERIVED="The Zyzzogetons"
+NAME_DERIVED_WORD="Zyzzogetons"  # for building a longer word around the form
 REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -147,13 +148,39 @@ git reset --quiet --hard HEAD~1
 # ...and the tree scan agrees, which is the point of the shared lib.
 printf 'household: "%s"\n' "$NAME_DERIVED" > shapes.txt
 git add shapes.txt
-if scripts/check-repo-hygiene.sh >/dev/null 2>&1; then
-  ko "a DERIVED name form passed the tree scan (#118)"
-else
+hygiene_out=$(scripts/check-repo-hygiene.sh 2>&1 || true)
+if printf '%s\n' "$hygiene_out" | grep -q 'denylisted identifier'; then
   ok "a DERIVED name form is caught by the tree scan"
+else
+  ko "a DERIVED name form passed the tree scan (#118)"
+fi
+# A hit must say WHERE, or a false positive gets answered with --no-verify,
+# and it must hint at the per-entry demotion escape hatch for the same reason.
+if printf '%s\n' "$hygiene_out" | grep -q 'shapes.txt:1'; then
+  ok "a tree-scan hit names its file and line"
+else
+  ko "a tree-scan hit does not say where it matched"
+fi
+if printf '%s\n' "$hygiene_out" | grep -q 'name:.*marker'; then
+  ok "a derived-form hit explains the demotion escape hatch"
+else
+  ko "a derived-form hit gives no way out but --no-verify"
 fi
 rm -f shapes.txt
 git reset --quiet --hard origin/main
+
+# --- boundaries: a derived form inside a longer word is prose, not a leak ----
+# This is the false positive class that turned `Tran` into `Transaction`:
+# 14 of 56 plausible surnames collided with this repo as substrings, and every
+# derived form contains a space, so bounding costs no detection.
+printf 'notes on the %sky affair\n' "$NAME_DERIVED_WORD" > prose.txt
+git add -A
+git commit --quiet -m "prose that merely contains a derived form's letters"
+if git push --quiet origin main 2>/dev/null; then
+  ok "a derived form inside a longer word is not flagged (word boundaries)"
+else
+  ko "boundary matching regressed to substring"
+fi
 
 # An unmarked two-word entry must NOT expand: "Chase Bank" deriving "Banks"
 # would match ordinary code and block every push.

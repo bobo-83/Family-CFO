@@ -90,8 +90,8 @@ placeholders. Concretely:
   and `<Surname> Family` forms, and literal matching never fired — so the first
   history rewrite could not have removed what nothing could detect.
 - Expansion is **opt-in** because personhood cannot be read off capitalisation.
-  An unmarked `Chase Bank` or `Apple Card` — both plausible entries here —
-  would otherwise derive the bare terms `Banks` and `Cards`, each matching
+  An unmarked real-world bank or card name — a plausible entry here —
+  would otherwise derive a bare plural of an ordinary noun, matching
   eleven tracked files and blocking every commit. For the same reason no bare
   `<Surname>s` is derived: it is a single word, and substring matching turns
   `Tran` into a hit inside `Transaction`. A guard that cries wolf is one people
@@ -100,6 +100,30 @@ placeholders. Concretely:
   silently matching only its literal form. **Existing lists need the `name:`
   prefix added** to keep expanding; the note says so, truncated to four
   characters like every other disclosure here.
+- **Matching policy lives in the lib, not the guards** (2026-08-27): the lib
+  emits *matchers* (mode + label + pattern), and every guard consumes them
+  through the same match functions, so the tree scan, commit-msg scan, and
+  pre-push scan cannot disagree on either the terms or the rules. Derived
+  forms are matched on **word boundaries** — they all contain a space, so they
+  cannot hide inside an identifier and bounding costs no detection; it is what
+  keeps a short surname's article-plural out of ordinary longer words.
+  Literal entries stay substring-matched, since a bare token *can* hide inside
+  an identifier or an email local-part. Numeric entries keep their
+  non-number bounding. Measured against 56 plausible surnames, including the
+  short Vietnamese set: zero derived-form false positives against the tree.
+- **A hit is diagnosable, and a false positive has a cheaper exit than
+  `--no-verify`.** The tree scan reports the file, line, and shape that fired
+  (the value stays truncated to four characters); a derived-form hit also
+  prints the escape hatch: remove that one entry's `name:` marker to demote it
+  to literal matching, keeping every other entry and every other shape. The
+  expensive failure was never the false positive itself — it was the
+  undiagnosable one that teaches people to bypass the whole guard.
+- **The guard's own documentation follows the guard's rule**: no tracked file
+  — this ADR, the lib's comments, the tests — may spell out a derivable form
+  or a plausible literal entry, or the guard flags its own docs the first time
+  such an entry lands in someone's deny list. Found the hard way: the first
+  draft of these comments quoted a short surname's article-plural as an
+  example and became the last remaining false positive in the measurement.
 
 ## Invariant
 

@@ -1,13 +1,17 @@
 #!/bin/sh
-# Tests for the deny-list shape expansion (#118, ADR 0030).
+# Tests for the deny-list shape expansion and matching policy (#118, ADR 0030).
 #
-# The gap: the list held a maintainer's FULL name while fixtures used
-# "The <Surname>s" and "<Surname> Family". Literal matching, so the guard never
-# fired -- and the first history rewrite could not remove what nothing could
-# detect. Wiring this expansion in immediately surfaced an eighth occurrence on
-# main that the previous scan had missed.
+# Behavioural, not structural: every assertion feeds a SAMPLE TEXT through the
+# same expand -> deny_match path the guards use, and asks "would this text be
+# flagged?". Asserting on emitted pattern strings would pass even if the
+# matching semantics silently changed.
 #
-# Invented names only. This file must never contain a real denied value.
+# Invented names only, with one rule for sample texts: a text asserted as
+# CAUGHT must use an invented surname, because this file is itself scanned by
+# the guard — a caught-text with a real surname shape would be a false
+# positive planted in our own tree. Real short surnames (the class that made
+# a `Tran` plural match inside `Transaction`) appear only inside innocuous prose
+# asserted as IGNORED.
 set -eu
 
 REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -21,103 +25,109 @@ fail=0
 ok() { printf '  PASS  %s\n' "$1"; pass=$((pass + 1)); }
 ko() { printf '  FAIL  %s\n' "$1"; fail=$((fail + 1)); }
 
-# Capture once rather than piping into `grep -q`: -q exits on the first match
-# and closes the pipe, which makes the producer print a broken-pipe warning
-# that reads like a failure. stderr is dropped -- the unmarked-entry note is
-# asserted separately.
-derived() { expand_deny_terms "$1" 2>/dev/null; }
-
-expands() { # term-file, expected-line
-  if printf '%s\n' "$(derived "$1")" | grep -xF "$2" >/dev/null; then
-    ok "derives '$2'"
-  else
-    ko "did NOT derive '$2'"
-  fi
+# Would this text be flagged by a guard using this deny file?
+flags() { # deny-file, sample-text
+  expand_deny_terms "$1" 2>/dev/null | {
+    while IFS="$DENY_TAB" read -r mode label pattern; do
+      [ -z "$pattern" ] && continue
+      if printf '%s\n' "$2" | deny_match "$mode" "$pattern"; then
+        exit 0
+      fi
+    done
+    exit 1
+  }
 }
-omits() {
-  if printf '%s\n' "$(derived "$1")" | grep -xF "$2" >/dev/null; then
-    ko "wrongly derived '$2'"
-  else
-    ok "leaves '$2' alone"
-  fi
-}
+caught()  { if flags "$1" "$2"; then ok "flags: $3"; else ko "MISSED: $3"; fi; }
+ignored() { if flags "$1" "$2"; then ko "FALSE POSITIVE: $3"; else ok "ignores: $3"; fi; }
 
-# --- a marked name expands into the household forms -------------------------
+# --- a marked name is caught in every household form -------------------------
 printf 'name: Ada Lovelace\n' > "$WORK/deny"
 
-expands "$WORK/deny" "Ada Lovelace"
-expands "$WORK/deny" "The Lovelaces"
-expands "$WORK/deny" "the Lovelaces"
-expands "$WORK/deny" "Lovelace Family"
-expands "$WORK/deny" "Lovelace family"
+caught  "$WORK/deny" 'author: Ada Lovelace'                'the literal full name'
+caught  "$WORK/deny" 'households: ["The Lovelaces"]'       'The <Surname>s in a fixture'
+caught  "$WORK/deny" 'dinner with the Lovelaces tonight'   'the <Surname>s in prose'
+caught  "$WORK/deny" 'owner: Lovelace Family'              '<Surname> Family'
+caught  "$WORK/deny" 'the Lovelace family budget'          '<Surname> family in prose'
+caught  "$WORK/deny" "Ada Lovelace's ledger"               'possessive, via the substring literal'
 
-# The marker itself must never leak into the term list, or the guards would
-# search the tree for the literal string "name: ...".
-omits "$WORK/deny" "name: Ada Lovelace"
+ignored "$WORK/deny" 'Lovelaces on their own'              'bare plural without an article'
+ignored "$WORK/deny" 'The Lovelace'                        'article + singular (matched prose on short surnames)'
 
-# A bare `<Surname>s` is a single word, the case this guard excludes as
-# cry-wolf, and substring matching makes it worse: it is what turned `Tran`
-# into a match inside `Transaction`. A bare `The <Surname>` matched ordinary
-# prose on short surnames.
-omits "$WORK/deny" "Lovelaces"
-omits "$WORK/deny" "The Lovelace"
+# --- boundaries: the false positive that motivated all of this ---------------
+# A derived form contains a space, so it can never hide inside an identifier;
+# bounding it costs no detection. Without bounds, `name: Minh Tran` derived
+# an article-plural for `Tran`, which matched inside `Transaction` repo-wide.
+printf 'name: Minh Tran\n' > "$WORK/tran"
+ignored "$WORK/tran" 'logs the Transaction id'             'a derived form inside a longer word'
+ignored "$WORK/tran" 'renders the Translations table'      'another longer word'
 
-# --- sibilant surnames take `es` --------------------------------------------
+# ...while punctuation and quoting still count as word edges (invented name):
+printf 'name: Kai Zyzzo\n' > "$WORK/zyzzo"
+caught  "$WORK/zyzzo" 'guests=["the Zyzzos"]'              'derived form bounded by quotes'
+caught  "$WORK/zyzzo" 'Say hi to the Zyzzos.'              'derived form bounded by punctuation'
+ignored "$WORK/zyzzo" 'the Zyzzosphere blog'               'derived form inside a coinage'
+
+# --- sibilant surnames take `es` ---------------------------------------------
 printf 'name: Sarah Hollis\n' > "$WORK/sibilant"
-expands "$WORK/sibilant" "The Hollises"
-expands "$WORK/sibilant" "the Hollises"
-omits   "$WORK/sibilant" "The Holliss"
+caught  "$WORK/sibilant" 'The Hollises next door'          'sibilant plural with es'
+ignored "$WORK/sibilant" 'The Holliss'                     'the wrong bare +s plural'
 
 printf 'name: Ida Finch\n' > "$WORK/ch"
-expands "$WORK/ch" "The Finches"
-omits   "$WORK/ch" "The Finchs"
+caught  "$WORK/ch" 'meet the Finches'                      'ch plural with es'
 
 # --- shapes a capitalisation sniff used to refuse silently -------------------
 # Three parts: the surname is the LAST word, not the second.
 printf 'name: Ana Maria Silva\n' > "$WORK/three"
-expands "$WORK/three" "The Silvas"
-expands "$WORK/three" "Silva Family"
-omits   "$WORK/three" "The Marias"
+caught  "$WORK/three" 'so The Silvas arrived'              'three-part name, plural of the last word'
+caught  "$WORK/three" 'the Silva Family trust'             'three-part name, family form'
+ignored "$WORK/three" 'The Marias visit'                   'the middle word is not the surname'
 
 # Non-ASCII letters: an [A-Z][a-z]+ regex matched none of this.
 printf 'name: José García\n' > "$WORK/accent"
-expands "$WORK/accent" "The Garcías"
-expands "$WORK/accent" "García Family"
+caught  "$WORK/accent" 'hosting the Garcías'               'accented plural'
+caught  "$WORK/accent" 'the García family plan'            'accented family form'
 
 # Spacing after the marker is not load-bearing.
 printf 'name:Ada Lovelace\n' > "$WORK/tight"
-expands "$WORK/tight" "The Lovelaces"
+caught  "$WORK/tight" 'greet the Lovelaces'                'marker without a space still expands'
 
-# --- expansion is opt-in ----------------------------------------------------
+# The marker must never leak into a pattern, or the guards would hunt for the
+# literal string "name: ..." instead of the name.
+if expand_deny_terms "$WORK/deny" 2>/dev/null | cut -f3 | grep -q '^name:'; then
+  ko "the name: marker leaked into a pattern"
+else
+  ok "the name: marker never leaks into a pattern"
+fi
+
+# --- expansion is opt-in -----------------------------------------------------
 # Personhood cannot be read off capitalisation. Two capitalised words are just
-# as likely to be a bank or a card in this repo's list, and deriving from the
-# second word turns them into terms that match ordinary code.
-printf 'Chase Bank\n' > "$WORK/notaname"
-expands "$WORK/notaname" "Chase Bank"
-omits   "$WORK/notaname" "Banks"
-omits   "$WORK/notaname" "The Banks"
-omits   "$WORK/notaname" "Bank Family"
+# as likely to be a real bank or card issuer in this repo's list, and
+# deriving from the second word would turn such an entry into terms
+# that match ordinary code. Invented org name for the same reason as above.
+printf 'Vandelay Bancorp\n' > "$WORK/org"
+caught  "$WORK/org" 'issuer: Vandelay Bancorp'             'an unmarked entry, literally'
+ignored "$WORK/org" 'consult The Bancorps'                 'no household plural without the marker'
+ignored "$WORK/org" 'the Bancorp Family office'            'no family form without the marker'
 
 # ...but an unmarked name-shaped entry is NOT silently ignored. Silence is the
 # failure mode #118 was filed for.
-if expand_deny_terms "$WORK/notaname" 2>&1 >/dev/null | grep -q 'unmarked'; then
+if expand_deny_terms "$WORK/org" 2>&1 >/dev/null | grep -q 'unmarked'; then
   ok "an unmarked name-shaped entry warns on stderr"
 else
   ko "an unmarked name-shaped entry was silently left alone"
 fi
-
-# The note must not print the whole entry -- same four-character disclosure the
-# callers' notes use.
-if expand_deny_terms "$WORK/notaname" 2>&1 >/dev/null | grep -q 'Chase Bank'; then
+# The note must not print the whole entry -- same four-character disclosure
+# the guards' hit notes use.
+if expand_deny_terms "$WORK/org" 2>&1 >/dev/null | grep -q 'Vandelay Bancorp'; then
   ko "the note disclosed the full entry"
 else
   ok "the note discloses only a four-character prefix"
 fi
 
-# A lone word is neither expanded nor warned about: it has no name shape.
+# A lone word has no name shape: no expansion, no warning.
 printf 'Lovelace\n' > "$WORK/single"
 if [ "$(expand_deny_terms "$WORK/single" 2>/dev/null | wc -l | tr -d ' ')" = "1" ]; then
-  ok "a single-word entry expands to itself only"
+  ok "a single-word entry yields exactly one matcher"
 else
   ko "a single-word entry was expanded"
 fi
@@ -127,17 +137,15 @@ else
   ko "a single-word entry warned"
 fi
 
-# --- pass-through -----------------------------------------------------------
-# Numbers and comments pass through untouched, so the numeric bounding in the
-# callers still sees exactly what it expects.
-printf '# a comment\n123456\n' > "$WORK/mixed"
-if [ "$(expand_deny_terms "$WORK/mixed" 2>/dev/null)" = "123456" ]; then
-  ok "comments are dropped and numbers pass through unchanged"
-else
-  ko "comment/number handling changed"
-fi
+# A single-word literal stays SUBSTRING-matched: a bare token can hide inside
+# an identifier, so bounding literals would cost real detection.
+caught  "$WORK/single" 'user=adaLovelace_prod'               'a literal hiding inside an identifier'
 
-omits "$WORK/mixed" "The 123456s"
+# --- numeric entries keep their own bounding ---------------------------------
+printf '# a comment\n123456\n' > "$WORK/mixed"
+caught  "$WORK/mixed" 'total 123456 end'                   'a numeric term standing alone'
+ignored "$WORK/mixed" 'ref 91234567 in a longer number'    'a numeric term inside a longer number'
+ignored "$WORK/mixed" '# a comment'                        'a comment line is not a term'
 
 # A missing file is not an error -- the guards run on machines without one.
 if expand_deny_terms "$WORK/does-not-exist" >/dev/null 2>&1; then
