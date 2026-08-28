@@ -98,11 +98,32 @@ how often we shipped *anything*, not what is compatible with what.
 
 ## Enforcement
 
-Two of the requirements above describe rules this ADR adopts, not behaviour the
-repo has today. Decision 5's oldest-api release check and Decision 4's
-bidirectional api↔model-manager tests are both unimplemented, and #141 tracks
-them. Until they land the invariant below is held up by review rather than by
-CI — worth knowing when reading a green build.
+The invariant below is only worth as much as the checks behind it. Both are
+specified here rather than left to the implementation, because a rule that
+depends on reviewers noticing is not a guarantee. Neither can be written on this
+branch — both must resolve a contract, and `/VERSION`, the `BUILD` files and
+`scripts/lib/version.sh` all arrive with the version scheme itself — so they are
+binding requirements on that work.
+
+1. **A client may not merge requiring a capability the oldest api on its
+   contract lacks.** The PR-time gate that validates `/VERSION` resolves the
+   client's contract `C`, resolves the oldest published api artifact carrying
+   `C` (or a pinned fixture standing in for it), and fails when the client
+   exercises a route or field that artifact does not serve. This is the
+   enforcement point for Decision 5. Without it the additive-endpoint skew this
+   ADR exists to close stays reachable: `patch.sh` supports the one-sided deploy
+   that produces it, and every seam reports compatible while it does.
+
+2. **The api↔model-manager interface is covered in both directions.**
+   `current-api`/`previous-manager` and `previous-api`/`current-manager` are both
+   cases. Decision 4 puts model-manager outside the version scheme, so no seam
+   will ever warn on a mismatch there and these tests are the only protection
+   that interface has. A change that cannot satisfy both directions is precisely
+   the trigger for the promoting ADR Decision 4 requires.
+
+Neither check exists today. The version scheme is not complete until both do,
+and a green build before then means the decisions above were followed, not that
+they were verified.
 
 ## Invariant
 
