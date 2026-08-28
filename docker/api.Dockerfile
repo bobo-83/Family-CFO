@@ -18,8 +18,11 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY services/ /app/services/
-COPY apps/api/ /app/apps/api/
-COPY database/ /app/database/
+# Copy only files that affect the installed API package before pip. BUILD is
+# deliberately excluded from this layer, so a release-number-only change can
+# reuse the dependency/package install cache below.
+COPY apps/api/pyproject.toml apps/api/README.md /app/apps/api/
+COPY apps/api/src/ /app/apps/api/src/
 
 # Install the five service packages first, then the API (which imports them at
 # runtime). Non-editable: the built image is a self-contained artifact.
@@ -30,6 +33,11 @@ RUN pip install --no-cache-dir \
         ./services/scheduler \
         ./services/backup \
     && pip install --no-cache-dir ./apps/api
+
+# Runtime-only files do not affect the installed wheel and therefore belong
+# after pip's expensive layer.
+COPY apps/api/alembic.ini /app/apps/api/alembic.ini
+COPY database/ /app/database/
 
 # The version this image reports at /health (ADR 0074): the repo-wide
 # MAJOR.MINOR contract plus the api's own BUILD, composed so the running

@@ -26,17 +26,8 @@ async def test_get_health_returns_openapi_response_shape() -> None:
 
 
 @pytest.mark.anyio
-async def test_get_health_reports_the_configured_version(monkeypatch) -> None:
-    """`get_health` calls `get_settings()` itself rather than taking the app's
-    injected Settings, so `FAMILY_CFO_API_VERSION` is what actually governs what
-    a box reports — pinned because the version is the compatibility signal every
-    client compares against (ADR 0074).
-
-    `get_settings` is `@lru_cache`d, so the first caller in the process wins and
-    the cache has to be cleared for the override to be seen. That is fine in
-    production (the environment is set before the app starts) but it means a
-    version set after startup is silently ignored.
-    """
+async def test_get_health_ignores_environment_version_override(monkeypatch) -> None:
+    """Deployment configuration cannot forge the running artifact identity."""
     monkeypatch.setenv("FAMILY_CFO_API_VERSION", "9.9.9")
     get_settings.cache_clear()
     try:
@@ -46,8 +37,7 @@ async def test_get_health_reports_the_configured_version(monkeypatch) -> None:
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
             response = await client.get("/api/v1/health")
 
-        assert response.json() == {"status": "ok", "version": "9.9.9"}
+        assert response.json() == {"status": "ok", "version": __version__}
     finally:
-        # The cache is process-global; leaving 9.9.9 in it would leak into every
-        # later test that reads settings.
+        # The cache is process-global; do not leak this test's Settings object.
         get_settings.cache_clear()

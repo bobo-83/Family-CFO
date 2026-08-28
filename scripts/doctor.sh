@@ -385,8 +385,9 @@ check_migrations() {
 # is a real problem, but the box itself is serving correctly.
 check_ota_bundle() {
   local api_version ota_version
-  api_version="$(component_version "$REPO_ROOT" api)" \
-    || { note "no /VERSION or apps/api/BUILD — OTA check skipped"; return 0; }
+  api_version="$(in_api cat /app/VERSION 2>/dev/null | tr -d '[:space:]')"
+  [ -n "$api_version" ] \
+    || { note "could not read /app/VERSION from the running api — OTA check skipped"; return 0; }
   ota_version="$(probe_val "$(web_probe)" ota)"
   if [ -z "$(web_probe)" ]; then
     note "web container not reachable — OTA bundle check skipped"

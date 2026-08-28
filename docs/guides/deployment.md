@@ -529,8 +529,10 @@ Versions are per component (ADR 0074): `/VERSION` holds the `MAJOR.MINOR`
 `apps/ios/BUILD` each hold that component's own build number. A component
 reports `<contract>.<build>`, and two components are compatible when their
 contracts match — so a backend-only fix bumps `apps/api/BUILD` alone and leaves
-an unchanged app perfectly valid. Bump the contract only for a change that
-breaks an existing client; every build then resets to 0 and all three must ship.
+an unchanged app perfectly valid. Bump the contract whenever any released
+client/server pairing would break in either direction, including before a client
+starts requiring an additive API capability older servers on the contract lack.
+Deploy the API side first; every build then resets to 0 and all three must ship.
 
 A tag is a claim that a particular component's version was good.
 
@@ -676,7 +678,9 @@ message naming the missing variable rather than a registry error.
 
 (The single `IMAGE_TAG` that named both images is gone — it could not survive
 per-component builds, so setting it now fails with a pointer to the two
-replacements rather than pinning half of what you meant.)
+replacements rather than pinning half of what you meant. Remove the older
+Compose variable `FAMILY_CFO_IMAGE_TAG` from `.env`/`.deploy.env` too;
+`patch.sh` rejects it because Compose no longer reads it.)
 
 `--no-build` is deliberate: a tag that was never published fails loudly instead
 of quietly rebuilding local source, which is the whole failure this mode exists

@@ -16,10 +16,11 @@
 # version strings for equality, so a backend-only patch made a byte-identical
 # app look stale and three separate places warned about nothing.
 #
-# The contract moves only for a change that breaks an existing client — an
-# endpoint or field removed or renamed, a type changed, a newly required
-# request field, or a migration an old client cannot tolerate. Adding an
-# endpoint does not move it. When it does move, every BUILD resets to 0.
+# The contract moves whenever any released client/server pairing would break,
+# in either direction — including before a client begins to require an additive
+# capability absent from an older API on the same contract. Adding an endpoint
+# alone does not move it while no released client requires it. When the contract
+# does move, deploy the API first and reset every BUILD to 0.
 #
 # This file exists because the composition rule was otherwise going to live in
 # seven copies of the same `tr -d '[:space:]' < VERSION` one-liner.

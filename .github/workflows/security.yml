@@ -37,6 +37,9 @@ jobs:
       - name: Check the version scheme
         run: scripts/check-versions.sh
 
+      - name: Check immutable compatibility fixtures
+        run: scripts/check-compatibility-fixtures.sh
+
       # The deny list is gitignored, so CI never sees the literals and cannot
       # enforce them — the local hooks are the only guard for that half. This
       # runs the hooks against an invented token instead, so the mechanism is

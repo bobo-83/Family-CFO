@@ -119,6 +119,19 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
 load_deploy_env "$REPO_ROOT"
 
+# docker-compose.yml used to consume one FAMILY_CFO_IMAGE_TAG for both images.
+# It now consumes separate tags, so leaving the old value in either the process
+# environment, .deploy.env, or Compose's .env would otherwise be a silent no-op.
+legacy_compose_tag="${FAMILY_CFO_IMAGE_TAG:-}"
+if [ -z "$legacy_compose_tag" ] && [ -f "$REPO_ROOT/.env" ]; then
+  legacy_compose_tag="$(grep -E '^FAMILY_CFO_IMAGE_TAG=' "$REPO_ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
+fi
+if [ -n "$legacy_compose_tag" ]; then
+  die "FAMILY_CFO_IMAGE_TAG is obsolete and is now ignored by Compose.
+       Remove it, then use API_IMAGE_TAG and/or WEB_IMAGE_TAG when invoking
+       patch.sh (ADR 0074: api and web ship separate builds)."
+fi
+
 # The version scheme (ADR 0074): the contract in /VERSION plus each component's
 # own BUILD. Deployables are compared by CONTRACT, so a backend-only patch does
 # not make an unchanged app look stale.
@@ -170,6 +183,22 @@ run_local() { "$@"; }
 # `API_IMAGE_TAG=… patch.sh api worker` is a perfectly good half-deploy.
 pull_mode() { [ -n "$API_IMAGE_TAG" ] || [ -n "$WEB_IMAGE_TAG" ]; }
 
+# Tags are interpolated into a remote shell command as well as Docker image
+# references. Accept only the release workflow's version shape: this both keeps
+# the expected runtime version derivable and prevents shell metacharacters from
+# becoming commands on a remote host.
+validate_image_tags() {
+  local name value
+  for name in API_IMAGE_TAG WEB_IMAGE_TAG; do
+    value="${!name:-}"
+    [ -n "$value" ] || continue
+    if ! printf '%s' "$value" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$'; then
+      die "${name}='${value}' is not a release tag (expected X.Y.Z or X.Y.Z-suffix)."
+    fi
+  done
+}
+validate_image_tags
+
 # In pull mode every requested container must have a tag. Without this check the
 # unpinned one resolves to `:dev`, which nothing publishes, and the run dies in
 # `pull` with a registry error that does not say what you actually got wrong.
@@ -201,18 +230,43 @@ tag_label() {
   printf '%s' "$parts"
 }
 
+requested_service() {
+  local wanted="$1" svc
+  for svc in ${SERVICES[@]+"${SERVICES[@]}"}; do
+    [ "$svc" = "$wanted" ] && return 0
+  done
+  return 1
+}
+
+expected_patched_api_version() {
+  requested_service api || return 0
+  if [ -n "$API_IMAGE_TAG" ]; then
+    # Pre-release tags name the same baked base version (0.157.4-rc1 reports
+    # 0.157.4 from /app/VERSION).
+    printf '%s' "${API_IMAGE_TAG%%-*}"
+  else
+    component_version "$REPO_ROOT" api
+  fi
+}
+
+SMOKE_API_VERSION=""
+
 smoke_check() {
   # $1: name of a function that runs its arguments ON the target
   #     (`run_local` here, the per-host `remote` in the remote path)
   # $2: the https base URL to probe, as seen FROM the target
-  runner="$1"; base="$2"
-  expected="$(component_version "$REPO_ROOT" api)" \
-    || die "Cannot read /VERSION and apps/api/BUILD — the version scheme is broken."
+  # $3: expected API version, or empty when this patch did not replace the API
+  runner="$1"; base="$2"; expected="${3:-}"
   attempt=0
   while [ "$attempt" -lt 30 ]; do
     body="$("$runner" curl -sk --max-time 5 "${base}/api/v1/health" 2>/dev/null || true)"
     case "$body" in
       *'"status":"ok"'*)
+        SMOKE_API_VERSION="$(printf '%s' "$body" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+        if [ -z "$expected" ]; then
+          log "Verified: API healthy${SMOKE_API_VERSION:+ and reporting ${SMOKE_API_VERSION}} (API was not patched)."
+          return 0
+        fi
         case "$body" in
           *"\"version\":\"${expected}\""*)
             log "Verified: API healthy and reporting ${expected}."
@@ -401,7 +455,9 @@ if [ "$TARGET" = "local" ]; then
   web_tls_port="$(grep -E '^WEB_TLS_PORT=' .env | cut -d= -f2)"; web_tls_port="${web_tls_port:-8443}"
   record_deployment "$REPO_ROOT" local "$(detect_host_ip)" "" "" "$REPO_ROOT" "$COMPOSE_FILES"
   log "Patched. Dashboard: https://$(detect_host_ip):${web_tls_port}"
-  if ! smoke_check run_local "https://localhost:${web_tls_port}"; then
+  expected_api_version="$(expected_patched_api_version)" \
+    || die "Cannot derive the expected API version from the selected artifact."
+  if ! smoke_check run_local "https://localhost:${web_tls_port}" "$expected_api_version"; then
     die "The patch completed but the box is not serving the expected version.
        Investigate with scripts/doctor.sh before trusting this deploy."
   fi
@@ -502,7 +558,10 @@ patch_remote_host() { # patch_remote_host <host>
   # Probe from the box itself: the dashboard host may not resolve from here,
   # and what matters is whether the stack is serving, not whether this laptop
   # can reach it.
-  if ! smoke_check remote "https://localhost:${port}"; then
+  local expected_api_version
+  expected_api_version="$(expected_patched_api_version)" \
+    || die "Cannot derive the expected API version from the selected artifact."
+  if ! smoke_check remote "https://localhost:${port}" "$expected_api_version"; then
     die "The patch completed on ${host} but it is not serving the expected version.
        Investigate: ssh ${ssh_target} 'cd ${remote_abs} && bash scripts/doctor.sh'"
   fi
@@ -512,7 +571,7 @@ patch_remote_host() { # patch_remote_host <host>
   # exactly how the phone ends up calling endpoints the box does not have. A
   # differing build number is not drift: that is the point of the scheme.
   local api_version ota_version
-  api_version="$(component_version "$REPO_ROOT" api || true)"
+  api_version="$SMOKE_API_VERSION"
   ota_version="$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} exec -T web cat /usr/share/nginx/html/ota/VERSION 2>/dev/null" | tr -d '[:space:]' || true)"
   if [ -z "$ota_version" ]; then
     warn "No OTA bundle published yet (or it predates versioning) — run scripts/deploy-ios-ota.sh so the phone can install v${api_version}."
