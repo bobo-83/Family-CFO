@@ -41,6 +41,9 @@ jobs:
       - name: Test the deny-list shape expansion
         run: scripts/tests/deny-term-shapes.test.sh
 
+      - name: Test the history-rewrite rule generator
+        run: scripts/tests/history-replacements.test.sh
+
   dependency-audit:
     runs-on: ubuntu-latest
     defaults:
