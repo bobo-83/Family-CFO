@@ -120,16 +120,26 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 load_deploy_env "$REPO_ROOT"
 
 # docker-compose.yml used to consume one FAMILY_CFO_IMAGE_TAG for both images.
-# It now consumes separate tags, so leaving the old value in either the process
-# environment, .deploy.env, or Compose's .env would otherwise be a silent no-op.
-legacy_compose_tag="${FAMILY_CFO_IMAGE_TAG:-}"
-if [ -z "$legacy_compose_tag" ] && [ -f "$REPO_ROOT/.env" ]; then
-  legacy_compose_tag="$(grep -E '^FAMILY_CFO_IMAGE_TAG=' "$REPO_ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2-)"
-fi
-if [ -n "$legacy_compose_tag" ]; then
+# It now consumes separate tags, so leaving the old value anywhere Compose still
+# reads it — the process environment, .deploy.env, or the .env beside the
+# compose file — would otherwise be a silent no-op that resolves BOTH services
+# to `:dev` while the operator believes they are still pinned.
+legacy_compose_tag_in_env() { # legacy_compose_tag_in_env  (.env contents on stdin)
+  grep -E '^[[:space:]]*FAMILY_CFO_IMAGE_TAG=' | head -1 | cut -d= -f2- || true
+}
+
+reject_legacy_compose_tag() { # reject_legacy_compose_tag <value> <where it was found>
+  [ -n "$1" ] || return 0
   die "FAMILY_CFO_IMAGE_TAG is obsolete and is now ignored by Compose.
+       Found in: $2
        Remove it, then use API_IMAGE_TAG and/or WEB_IMAGE_TAG when invoking
        patch.sh (ADR 0074: api and web ship separate builds)."
+}
+
+reject_legacy_compose_tag "${FAMILY_CFO_IMAGE_TAG:-}" "the environment (or .deploy.env)"
+if [ -f "$REPO_ROOT/.env" ]; then
+  reject_legacy_compose_tag \
+    "$(legacy_compose_tag_in_env < "$REPO_ROOT/.env")" "$REPO_ROOT/.env"
 fi
 
 # The version scheme (ADR 0074): the contract in /VERSION plus each component's
@@ -521,6 +531,16 @@ patch_remote_host() { # patch_remote_host <host>
   local remote_abs
   remote_abs="$(remote "cd ${REMOTE_DIR} 2>/dev/null && pwd")" \
     || die "Remote directory ${REMOTE_DIR} not found on ${ssh_target} — deploy there first with scripts/deploy.sh."
+
+  # The box keeps its OWN .env — the rsync below excludes it — so the checks at
+  # the top of this script cannot see it. A FAMILY_CFO_IMAGE_TAG left there from
+  # the single-tag era is exactly the pin the old docs told operators to write,
+  # and Compose on the box now ignores it: both services would quietly resolve
+  # to `:dev`. Checked before the sync, so a stale box fails without being
+  # touched.
+  reject_legacy_compose_tag \
+    "$(remote "cat ${remote_abs}/.env 2>/dev/null || true" | legacy_compose_tag_in_env)" \
+    "${ssh_target}:${remote_abs}/.env"
 
   validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
 

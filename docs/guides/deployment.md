@@ -680,7 +680,11 @@ message naming the missing variable rather than a registry error.
 per-component builds, so setting it now fails with a pointer to the two
 replacements rather than pinning half of what you meant. Remove the older
 Compose variable `FAMILY_CFO_IMAGE_TAG` from `.env`/`.deploy.env` too;
-`patch.sh` rejects it because Compose no longer reads it.)
+`patch.sh` rejects it because Compose no longer reads it. That includes the
+`.env` on the remote box, which the sync deliberately leaves alone — it is
+checked over SSH before anything is synced or recreated, since a value stranded
+there would otherwise resolve both services to `dev` on a box you believed was
+pinned.)
 
 `--no-build` is deliberate: a tag that was never published fails loudly instead
 of quietly rebuilding local source, which is the whole failure this mode exists
