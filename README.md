@@ -76,7 +76,7 @@ docs/                  Product, architecture, security, and workflow specs
 - Replaceable components: AI runtime, vector database, OCR, authentication, and financial modules use clean interfaces.
 - API as source of truth: SwiftUI and Angular clients generate from the same OpenAPI contract.
 - Reversible by default: every state-changing action is undoable from the Activity log ([ADR 0023](./docs/adr/0023-every-mutation-is-undoable.md)).
-- One version everywhere: the monorepo ships a single [`VERSION`](./VERSION), verified at `/health` and in each client ([ADR 0029](./docs/adr/0029-monorepo-version.md)); no personal identifiers live in the repo ([ADR 0030](./docs/adr/0030-no-personal-identifiers.md)).
+- One compatibility contract: [`VERSION`](./VERSION) holds a `MAJOR.MINOR` contract shared by the api, dashboard and iOS app, and each carries its own build number, so they ship independently and still verify they can talk to each other at `/health` and in every client ([ADR 0029](./docs/adr/0029-monorepo-version.md), [ADR 0074](./docs/adr/0074-per-component-build-numbers.md)); no personal identifiers live in the repo ([ADR 0030](./docs/adr/0030-no-personal-identifiers.md)).
 
 ## Runtime Stack
 

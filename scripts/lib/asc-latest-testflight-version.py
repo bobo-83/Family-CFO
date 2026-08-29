@@ -1,7 +1,7 @@
 """Print "<version> <build>" of the newest TestFlight build for a bundle id.
 
 Used by scripts/release-testflight.sh to refuse a same-version re-upload
-(ADR 0029: /VERSION is hand-bumped per meaningful release — testers can only
+(ADR 0074: apps/ios/BUILD is hand-bumped per meaningful release — testers can only
 tell releases apart by the marketing version, so it must actually change).
 
 Reads ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH from the environment (the

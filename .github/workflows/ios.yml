@@ -5,6 +5,9 @@ on:
     paths:
       - 'apps/ios/**'
       - 'shared/openapi/**'
+      - 'VERSION'
+      - 'scripts/check-client-compatibility.sh'
+      - 'scripts/generate-swift-client.sh'
       - '.github/workflows/ios.yml'
   push:
     branches:
@@ -12,6 +15,9 @@ on:
     paths:
       - 'apps/ios/**'
       - 'shared/openapi/**'
+      - 'VERSION'
+      - 'scripts/check-client-compatibility.sh'
+      - 'scripts/generate-swift-client.sh'
       - '.github/workflows/ios.yml'
 
 jobs:
@@ -45,6 +51,9 @@ jobs:
 
       - name: Check generated Swift client is up to date with the OpenAPI contract
         run: scripts/generate-swift-client.sh --check
+
+      - name: Compile against the oldest API on this contract
+        run: scripts/check-client-compatibility.sh ios
 
       - name: Build and test (iOS Simulator)
         working-directory: apps/ios/FamilyCFO

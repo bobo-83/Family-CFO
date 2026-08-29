@@ -5,6 +5,8 @@ on:
     paths:
       - 'apps/web/**'
       - 'shared/openapi/**'
+      - 'VERSION'
+      - 'scripts/check-client-compatibility.sh'
       - '.github/workflows/web.yml'
   push:
     branches:
@@ -12,6 +14,8 @@ on:
     paths:
       - 'apps/web/**'
       - 'shared/openapi/**'
+      - 'VERSION'
+      - 'scripts/check-client-compatibility.sh'
       - '.github/workflows/web.yml'
 
 jobs:
@@ -37,6 +41,10 @@ jobs:
           npm run generate:client
           git diff --exit-code -- src/app/api-client \
             || (echo "Generated API client is stale — run 'npm run generate:client' and commit." && exit 1)
+
+      - name: Compile against the oldest API on this contract
+        working-directory: ${{ github.workspace }}
+        run: scripts/check-client-compatibility.sh web
 
       - name: Build and check translations
         # #10: a missing or malformed translation must be a BUILD failure, not a

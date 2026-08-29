@@ -11,8 +11,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL_DIR="$REPO_ROOT/apps/ios/openapi-generator"
-CONTRACT="$REPO_ROOT/shared/openapi/family-cfo.v1.yaml"
-OUTPUT_DIR="$REPO_ROOT/apps/ios/FamilyCFO/FamilyCFOShared/APIClient/Generated"
+CONTRACT="${FAMILY_CFO_OPENAPI_CONTRACT:-$REPO_ROOT/shared/openapi/family-cfo.v1.yaml}"
+OUTPUT_DIR="${FAMILY_CFO_OPENAPI_OUTPUT_DIR:-$REPO_ROOT/apps/ios/FamilyCFO/FamilyCFOShared/APIClient/Generated}"
 
 swift build --package-path "$TOOL_DIR" -c release --product swift-openapi-generator >/dev/null
 

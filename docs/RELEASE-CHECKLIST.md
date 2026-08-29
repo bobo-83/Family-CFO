@@ -45,10 +45,19 @@ is the pre-tag gate.
 
 ## Tag
 
-- [ ] Version strings agree (`apps/api` `__version__`/`pyproject`, service
-      `pyproject`s, `HealthResponse.version`).
-- [ ] Create an annotated tag (`git tag -a vX.Y.Z`) with a summary of the
-      release, and push it.
+- [ ] `scripts/check-versions.sh` passes: `/VERSION` is a bare `MAJOR.MINOR`
+      contract and each `apps/*/BUILD` is an integer (ADR 0074). The per-package
+      `pyproject.toml` versions are NOT part of the scheme and are not checked —
+      nothing reads them.
+- [ ] `scripts/check-compatibility-fixtures.sh` passes, and the web/iOS CI jobs
+      compile against the oldest immutable API fixture for this contract.
+- [ ] The component being released has had its `BUILD` bumped. The contract
+      moved if any released client/server pairing would otherwise break in
+      either direction, including a client newly requiring an additive API
+      capability; the API side ships before that dependent client.
+- [ ] Create an annotated tag naming the component — `git tag -a api-vX.Y.Z`,
+      `web-vX.Y.Z` or `ios-vX.Y.Z` — with a summary of the release, and push it.
+      A bare `vX.Y.Z` tag no longer triggers anything.
 
 ## Known deferrals for this release (0.1.0)
 

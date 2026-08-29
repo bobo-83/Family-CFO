@@ -7,6 +7,7 @@ on:
       - 'services/**'
       - 'database/**'
       - 'shared/openapi/**'
+      - 'shared/schemas/**'
       - '.github/workflows/backend-api.yml'
   push:
     branches:
@@ -16,6 +17,7 @@ on:
       - 'services/**'
       - 'database/**'
       - 'shared/openapi/**'
+      - 'shared/schemas/**'
       - '.github/workflows/backend-api.yml'
 
 jobs:

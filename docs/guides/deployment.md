@@ -519,24 +519,33 @@ spaces — see the `vllm` command comment in `docker-compose.yml`).
 
 ## Shipping a build, and releasing one
 
-These are **two separate acts**, deliberately. Bumping `/VERSION` ships a build
-you can test; tagging cuts a release. Nothing about a version bump creates a
+These are **two separate acts**, deliberately. Bumping a build number ships a
+build you can test; tagging cuts a release. Nothing about a bump creates a
 GitHub Release, so you can bump, deploy, and test as many times as you like
 before deciding anything is worth releasing.
 
-`/VERSION` is the source of truth for what the running stack reports (ADR
-0029); a tag is a claim that a particular version was good.
+Versions are per component (ADR 0074): `/VERSION` holds the `MAJOR.MINOR`
+**contract** shared by everything, and `apps/api/BUILD`, `apps/web/BUILD` and
+`apps/ios/BUILD` each hold that component's own build number. A component
+reports `<contract>.<build>`, and two components are compatible when their
+contracts match — so a backend-only fix bumps `apps/api/BUILD` alone and leaves
+an unchanged app perfectly valid. Bump the contract whenever any released
+client/server pairing would break in either direction, including before a client
+starts requiring an additive API capability older servers on the contract lack.
+Deploy the API side first; every build then resets to 0 and all three must ship.
+
+A tag is a claim that a particular component's version was good.
 
 ### Ship a test build
 
 
-1. Bump `/VERSION` in a `chore(release): X.Y.Z` PR and merge it. TestFlight
-   requires a version it has not seen, which is why testing needs a bump at
-   all.
+1. Bump the BUILD of whatever you changed, in a `chore(release): …` PR, and
+   merge it. TestFlight requires a version it has not seen, which is why
+   testing an app change needs a bump at all.
 2. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`. No
-   `IMAGE_TAG` here — an untagged version has no published images, so this
-   builds from the synced tree, which is exactly right for something you are
-   still deciding about.
+   `API_IMAGE_TAG`/`WEB_IMAGE_TAG` here — an untagged version has no published
+   images, so this builds from the synced tree, which is exactly right for
+   something you are still deciding about.
 3. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
    over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
 
@@ -548,21 +557,28 @@ TestFlight still sees it as new.
 
 ### Cut the release, once you are satisfied
 
+Tags name the component they release — `api-v…`, `web-v…`, `ios-v…`. The
+component is a prefix because the suffix already means "pre-release".
+
 ```
 git checkout main && git pull
-git tag "v$(cat VERSION)" && git push origin "v$(cat VERSION)"
+tag="api-v$(cat VERSION).$(cat apps/api/BUILD)"
+git tag "$tag" && git push origin "$tag"
 ```
 
 `.github/workflows/release.yml` fires on the tag and runs three jobs in order —
 **guard → images → release**:
 
-* The guard **refuses a tag whose version disagrees with `/VERSION` at that
-  commit**. That mismatch means the bump never merged or the tag went on the
-  wrong commit, and it would otherwise produce release notes describing code
-  the release does not contain (`/health` reports `/VERSION`, so the box would
-  claim a version no release matches). Nothing is built or published if it
-  fails.
-* The container images are built and pushed (see below).
+* The guard **refuses a tag whose version disagrees with `/VERSION` plus that
+  component's `BUILD` at that commit**. That mismatch means the bump never
+  merged or the tag went on the wrong commit, and it would otherwise produce
+  release notes describing code the release does not contain (`/health` reports
+  the composed version, so the box would claim a version no release matches).
+  Nothing is built or published if it fails.
+* The container image for **that component only** is built and pushed (see
+  below). An `api-v` tag never republishes web. An `ios-v` tag builds no image
+  at all — the app ships through TestFlight and the OTA page — and goes straight
+  to the Release step.
 * The GitHub Release is created last, with notes generated from the PRs merged
   since the previous tag. Announcing it last means a Release never names a
   version whose artifacts do not exist — and it keeps a failed run re-runnable,
@@ -575,20 +591,27 @@ carry on. Untagged versions leave no trace on the releases page.
 Then deploy the box from the published images:
 
 ```
-IMAGE_TAG="$(cat VERSION)" SSH_HOST=<host> scripts/patch.sh api worker web
+API_IMAGE_TAG="$(cat VERSION).$(cat apps/api/BUILD)" \
+WEB_IMAGE_TAG="$(cat VERSION).$(cat apps/web/BUILD)" \
+  SSH_HOST=<host> scripts/patch.sh api worker web
 ```
+
+Both variables, because the two images carry different build numbers. Pin only
+the component you are deploying — `patch.sh` refuses a pull-mode run where a
+requested service has no tag, rather than silently falling back to a `dev` image
+that was never published.
 
 ### Marking a build as a pre-release
 
-A tag may carry a suffix — `v0.149.0-rc1`, `v0.149.0-beta2` — as long as the
-part before the suffix matches `/VERSION`. Those are published as **GitHub
-pre-releases**, so a build can be recorded and shared without claiming to be
+A tag may carry a suffix — `api-v0.157.4-rc1`, `web-v0.157.2-beta2` — as long as
+the part before the suffix matches the component's composed version. Those are
+published as **GitHub pre-releases**, so a build can be recorded and shared without claiming to be
 the release. Useful when someone else is testing and you want a fixed thing to
 point at.
 
-The images from a pre-release are tagged with the **full** tag
-(`family-cfo-api:0.149.0-rc1`), not the bare version. Two builds of the same
-`/VERSION` must never both claim `:0.149.0`, or that tag silently changes
+The images from a pre-release are tagged with the **full** version including the
+suffix (`family-cfo-api:0.157.4-rc1`), not the bare version. Two builds of the
+same version must never both claim `:0.157.4`, or that tag silently changes
 meaning between the release candidate and the release.
 
 ### What a Release carries
@@ -638,13 +661,31 @@ supported configuration.
 ### Deploying a known artifact
 
 ```
-IMAGE_TAG=0.148.0 SSH_HOST=<host> scripts/patch.sh api worker web
+API_IMAGE_TAG=0.157.4 WEB_IMAGE_TAG=0.157.2 SSH_HOST=<host> \
+  scripts/patch.sh api worker web
 ```
 
-With `IMAGE_TAG` set, `patch.sh` **pulls** those images and starts them with
-`--no-build`. Without it, the script behaves exactly as it always has —
+With either variable set, `patch.sh` **pulls** those images and starts them with
+`--no-build`. Without them, the script behaves exactly as it always has —
 `up -d --build`, rebuilding from the synced working tree. That remains the
 fallback and is the right thing for iterating on an unreleased change.
+
+The two are independent, so pinning one component and building the other is a
+legitimate half-deploy — `API_IMAGE_TAG=0.157.4 scripts/patch.sh api worker`.
+What is refused is requesting a service in pull mode with no tag for it: that
+would resolve to a `dev` image nothing publishes, and the run stops with a
+message naming the missing variable rather than a registry error.
+
+(The single `IMAGE_TAG` that named both images is gone — it could not survive
+per-component builds, so setting it now fails with a pointer to the two
+replacements rather than pinning half of what you meant. Remove the older
+Compose variable `FAMILY_CFO_IMAGE_TAG` from `.env`/`.deploy.env` too;
+`patch.sh` rejects it because Compose no longer reads it. That includes the
+`.env` on the remote box, which the sync deliberately leaves alone — it is
+checked over SSH before anything is synced or recreated, since a value stranded
+there would otherwise resolve both services to `dev` on a box you believed was
+pinned. If that file cannot be read the run stops rather than assuming the box
+is clean: a check that never saw the file has not cleared it.)
 
 `--no-build` is deliberate: a tag that was never published fails loudly instead
 of quietly rebuilding local source, which is the whole failure this mode exists

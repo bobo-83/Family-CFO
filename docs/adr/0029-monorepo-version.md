@@ -20,8 +20,10 @@ Since this is a monorepo everything ships with the same version."
 1. **`/VERSION` at the repo root is the single source of truth** (currently
    `0.119.0`; bump it with each meaningful release). Everything ships stamped
    from it:
-   - **API/worker**: baked into the image (`/app/VERSION`); `Settings.from_env`
-     reads it (env override still wins) → `GET /health` reports it.
+   - **API/worker**: baked into the image (`/app/VERSION`) and read as immutable
+     artifact identity → `GET /health` reports it. Deployment configuration
+     cannot override this value, so health and backup manifests cannot disagree
+     about which artifact is running.
    - **iOS**: both deploy scripts pass `MARKETING_VERSION=$(cat VERSION)` to
      xcodebuild, plus `CURRENT_PROJECT_VERSION=$(date -u +%Y%m%d%H%M)` — a
      monotonic build number, so over-the-top installs never fight a stale

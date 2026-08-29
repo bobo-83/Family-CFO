@@ -89,12 +89,16 @@ services:
     restart: unless-stopped
 
   api:
-    # image + build, both. With FAMILY_CFO_IMAGE_TAG set to a released version
-    # the stack PULLS that published artifact (scripts/patch.sh IMAGE_TAG=...);
-    # left unset it falls back to `dev`, which nothing publishes, so compose
-    # builds from the `build:` section below exactly as it always has. Building
-    # from source is what runs today and stays the fallback.
-    image: ghcr.io/bobo-83/family-cfo-api:${FAMILY_CFO_IMAGE_TAG:-dev}
+    # image + build, both. With FAMILY_CFO_API_IMAGE_TAG set to a released
+    # version the stack PULLS that published artifact (scripts/patch.sh
+    # API_IMAGE_TAG=...); left unset it falls back to `dev`, which nothing
+    # publishes, so compose builds from the `build:` section below exactly as it
+    # always has. Building from source is what runs today and stays the fallback.
+    #
+    # Per-component, not one shared tag (ADR 0074): api and web now carry their
+    # own build numbers, so a single tag could not name both once they diverge —
+    # it would reach for a family-cfo-web that was never published.
+    image: ghcr.io/bobo-83/family-cfo-api:${FAMILY_CFO_API_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -139,7 +143,7 @@ services:
     # docker/api.Dockerfile and differ only in the command below. One image, two
     # entrypoints — publishing a separate worker image would push identical
     # bytes under a second name that could then drift.
-    image: ghcr.io/bobo-83/family-cfo-api:${FAMILY_CFO_IMAGE_TAG:-dev}
+    image: ghcr.io/bobo-83/family-cfo-api:${FAMILY_CFO_API_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -165,9 +169,10 @@ services:
     restart: unless-stopped
 
   web:
-    # See api: pulled when FAMILY_CFO_IMAGE_TAG names a release, built from
-    # source otherwise.
-    image: ghcr.io/bobo-83/family-cfo-web:${FAMILY_CFO_IMAGE_TAG:-dev}
+    # See api: pulled when FAMILY_CFO_WEB_IMAGE_TAG names a release, built from
+    # source otherwise. Its own variable because the dashboard ships its own
+    # build number (ADR 0074).
+    image: ghcr.io/bobo-83/family-cfo-web:${FAMILY_CFO_WEB_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: docker/web.Dockerfile

@@ -129,7 +129,11 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             app_name=os.getenv("FAMILY_CFO_API_NAME", cls.app_name),
-            version=os.getenv("FAMILY_CFO_API_VERSION", cls.version),
+            # Artifact identity is derived from /VERSION + apps/api/BUILD (or
+            # the baked /app/VERSION). It must not be forgeable by deployment
+            # configuration: /health and backup manifests must name the same
+            # code artifact (ADR 0074).
+            version=cls.version,
             environment=os.getenv("FAMILY_CFO_ENV", cls.environment),
             log_level=os.getenv("FAMILY_CFO_LOG_LEVEL", cls.log_level),
             database_url=os.getenv("FAMILY_CFO_DATABASE_URL", cls.database_url),

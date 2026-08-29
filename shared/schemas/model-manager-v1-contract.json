@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "description": "Prior API/model-manager wire contract retained for rolling deploys and rollback (ADR 0074).",
+  "operations": {
+    "swap": {
+      "method": "POST",
+      "path": "/swap",
+      "request": {
+        "main_model": "Qwen/Qwen2.5-14B-Instruct",
+        "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "cluster": false
+      },
+      "response": {
+        "state": "running",
+        "main_model": "Qwen/Qwen2.5-14B-Instruct",
+        "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "log_tail": ""
+      }
+    },
+    "status": {
+      "method": "GET",
+      "path": "/status",
+      "response": {
+        "state": "succeeded",
+        "main_model": "Qwen/Qwen2.5-14B-Instruct",
+        "vision_model": null,
+        "log_tail": "swap complete"
+      }
+    },
+    "logs": {
+      "method": "GET",
+      "path": "/logs",
+      "query": {
+        "service": "vllm",
+        "tail": 40
+      },
+      "response": {
+        "lines": "Starting the engine..."
+      }
+    }
+  }
+}
