@@ -684,7 +684,8 @@ Compose variable `FAMILY_CFO_IMAGE_TAG` from `.env`/`.deploy.env` too;
 `.env` on the remote box, which the sync deliberately leaves alone — it is
 checked over SSH before anything is synced or recreated, since a value stranded
 there would otherwise resolve both services to `dev` on a box you believed was
-pinned.)
+pinned. If that file cannot be read the run stops rather than assuming the box
+is clean: a check that never saw the file has not cleared it.)
 
 `--no-build` is deliberate: a tag that was never published fails loudly instead
 of quietly rebuilding local source, which is the whole failure this mode exists

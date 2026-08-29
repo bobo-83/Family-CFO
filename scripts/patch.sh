@@ -538,8 +538,20 @@ patch_remote_host() { # patch_remote_host <host>
   # and Compose on the box now ignores it: both services would quietly resolve
   # to `:dev`. Checked before the sync, so a stale box fails without being
   # touched.
+  #
+  # Read STRICTLY: an unreadable .env fails the run rather than reading as "no
+  # legacy tag". A guard that cannot see the file has not cleared it, and this
+  # is the one deployment file the sync never replaces — the local path already
+  # refuses to run without it. The contents are matched here and never printed;
+  # only the file's location appears in the error.
+  local remote_env
+  remote_env="$(remote "cat ${remote_abs}/.env")" \
+    || die "Cannot read ${ssh_target}:${remote_abs}/.env, so this deploy cannot
+       confirm the box is free of the obsolete FAMILY_CFO_IMAGE_TAG pin.
+       Every deployment has this file — if ${ssh_target} was never set up, run
+       scripts/deploy.sh against it first."
   reject_legacy_compose_tag \
-    "$(remote "cat ${remote_abs}/.env 2>/dev/null || true" | legacy_compose_tag_in_env)" \
+    "$(printf '%s\n' "$remote_env" | legacy_compose_tag_in_env)" \
     "${ssh_target}:${remote_abs}/.env"
 
   validate_services "$(remote "cd ${remote_abs} && docker compose ${COMPOSE_FILES} config --services 2>/dev/null" | tr '\n' ' ')"
