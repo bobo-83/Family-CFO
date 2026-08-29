@@ -28,8 +28,13 @@ Since this is a monorepo everything ships with the same version."
      xcodebuild, plus `CURRENT_PROJECT_VERSION=$(date -u +%Y%m%d%H%M)` — a
      monotonic build number, so over-the-top installs never fight a stale
      manual counter again.
-   - **Web**: served from the same rsynced tree by the same box; the shell
-     footer shows the running version (one `/health` fetch).
+   - **Web**: its own published image (ADR 0074), stamped the way the api's is
+     — the contract plus `apps/web/BUILD` composed into `VERSION` at the nginx
+     root, served from an exact-match location. The shell footer therefore
+     names TWO versions, its own and the box's from `/health`, and warns only
+     when their contracts differ. Before that the dashboard had no identity of
+     its own and could only report the API's, so a dashboard and a box on
+     different contracts looked identical on screen.
    - **OTA**: the page shows its build's version, and a published
      `ota/VERSION` marker records it machine-readably.
 2. **Every seam verifies, none assumes.**
