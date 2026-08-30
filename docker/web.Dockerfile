@@ -8,9 +8,19 @@ WORKDIR /app/apps/web
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 
+# Everything `ng build` reads, named one by one rather than `COPY apps/web/ ./`.
+# apps/web/BUILD is deliberately NOT in this layer: it changes on every web
+# release, so copying the directory wholesale would invalidate this layer — and
+# the three-locale compile below it — for a one-digit bump, which is exactly the
+# cost the composition at the bottom of this file exists to avoid.
+# api.Dockerfile names its pre-install sources for the same reason.
+#
 # The generated API client is already committed under src/app/api-client, so
 # the build does not need the shared OpenAPI contract.
-COPY apps/web/ ./
+COPY apps/web/angular.json apps/web/tsconfig.json \
+     apps/web/tsconfig.app.json apps/web/tsconfig.spec.json ./
+COPY apps/web/public/ ./public/
+COPY apps/web/src/ ./src/
 RUN npm run build
 
 FROM nginx:alpine
@@ -37,7 +47,10 @@ COPY --from=build /app/apps/web/dist/web/browser /usr/share/nginx/html
 #
 # Served as a file rather than baked into the bundle, and composed LAST: these
 # two inputs change on every release, and putting them above `npm ci`/`npm run
-# build` would rebuild the whole Angular app for a one-digit bump.
+# build` would rebuild the whole Angular app for a one-digit bump. That only
+# holds because the build stage above copies its sources explicitly — BUILD
+# lives inside apps/web/, so a directory-wide COPY would smuggle it back in
+# above the compile and cost the rebuild anyway.
 COPY VERSION /tmp/CONTRACT
 COPY apps/web/BUILD /tmp/BUILD
 RUN printf '%s.%s\n' "$(tr -d '[:space:]' < /tmp/CONTRACT)" \

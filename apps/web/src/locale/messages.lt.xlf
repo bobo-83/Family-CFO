@@ -6538,6 +6538,16 @@
         <note priority="1" from="description">Tooltip explaining the two version numbers in the footer</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
       </trans-unit>
+      <trans-unit id="6672575862713848247" datatype="html">
+        <source>box v<x id="INTERPOLATION" equiv-text="{ boxVersion }"/></source>
+        <target state="needs-review-translation">serveris v<x id="INTERPOLATION" equiv-text="{{ boxVersion }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">66,67</context>
+        </context-group>
+        <note priority="1" from="description">The API&apos;s version shown beside the dashboard&apos;s own. &apos;box&apos; is the machine running the backend.</note>
+        <note priority="1" from="meaning">Sidebar version badge</note>
+      </trans-unit>
       <trans-unit id="4142142245989116120" datatype="html">
         <source>Dashboard and box are on different versions — some screens may not match the server.</source>
         <target state="needs-review-translation">Valdymo skydelis ir serveris veikia skirtingomis versijomis — kai kurie ekranai gali neatitikti serverio.</target>

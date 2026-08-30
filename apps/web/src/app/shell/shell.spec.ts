@@ -88,7 +88,12 @@ describe('Shell', () => {
   // BUILD was the bug this scheme exists to remove, so the first case below is
   // the one that matters.
   describe('version reporting', () => {
-    const stubVersions = (options: { box?: string | null; app?: string | null }) => {
+    const stubVersions = (options: {
+      box?: string | null;
+      app?: string | null;
+      /** A raw 200 body, for the case where /VERSION answers with something else. */
+      appBody?: string;
+    }) => {
       vi.stubGlobal('fetch', (url: string) => {
         if (url === '/api/v1/health') {
           return options.box === null || options.box === undefined
@@ -96,6 +101,10 @@ describe('Shell', () => {
             : Promise.resolve({ ok: true, json: () => Promise.resolve({ version: options.box }) });
         }
         if (url === '/VERSION') {
+          if (options.appBody !== undefined) {
+            const body = options.appBody;
+            return Promise.resolve({ ok: true, text: () => Promise.resolve(body) });
+          }
           return options.app === null || options.app === undefined
             ? Promise.resolve({ ok: false, text: () => Promise.resolve('') })
             : Promise.resolve({ ok: true, text: () => Promise.resolve(`${options.app}\n`) });
@@ -131,10 +140,11 @@ describe('Shell', () => {
       ).not.toBeNull();
     });
 
-    it('shows nothing and never warns when its own version is unavailable', async () => {
-      // `ng serve` and the tests have no /VERSION file; a missing badge is the
-      // correct degradation, and a half-known pair must not be called a
-      // mismatch.
+    it('still names the box when its own version is unavailable', async () => {
+      // `ng serve` and the tests have no /VERSION file. The dashboard's half is
+      // then unknown — but the box's came from a successful /health, and hiding
+      // it too would lose "which version is live?" exactly when the web tier is
+      // the broken half. A half-known pair is still never a mismatch.
       stubVersions({ app: null, box: '0.157.9' });
       const fixture = TestBed.createComponent(Shell);
       await fixture.whenStable();
@@ -142,7 +152,26 @@ describe('Shell', () => {
 
       expect(fixture.componentInstance['versionMismatch']()).toBe(false);
       const host = fixture.nativeElement as HTMLElement;
-      expect(host.querySelector('.shell__version')).toBeNull();
+      expect(host.querySelector('.shell__version-app')).toBeNull();
+      expect(host.querySelector('.shell__version-box')?.textContent).toContain('box v0.157.9');
+      expect(host.querySelector('.shell__version-warning')).toBeNull();
+    });
+
+    it('ignores a /VERSION body that is not a version', async () => {
+      // The exact-match nginx location is the only thing between this fetch and
+      // the SPA's index.html, and it is not the only thing that can answer: a
+      // TLS reverse proxy or an SSO interstitial returns 200 with a page. That
+      // body would otherwise be painted into the badge AND compared as a
+      // contract, warning about nothing.
+      stubVersions({ appBody: '<!doctype html><html lang="en">', box: '0.157.9' });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['appVersion']()).toBeNull();
+      expect(fixture.componentInstance['versionMismatch']()).toBe(false);
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.shell__version-app')).toBeNull();
       expect(host.querySelector('.shell__version-warning')).toBeNull();
     });
 

@@ -19,6 +19,18 @@ export class Shell {
   protected readonly appVersion = signal<string | null>(null);
 
   /**
+   * What a composed version looks like: contract plus build, all integers.
+   * `/VERSION` is a file our own nginx serves from an exact-match location, but
+   * "nginx returned 200" is not "this is a version" — a TLS reverse proxy in
+   * front, an SSO interstitial, or a later edit to that location would each
+   * return a body that is not one. Unvalidated, such a body would be painted
+   * into the badge AND compared as a contract, raising a mismatch warning about
+   * nothing. Anything that does not match degrades to the same "no badge"
+   * posture as a failed fetch.
+   */
+  private static readonly VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+
+  /**
    * The compatibility contract — the MAJOR.MINOR prefix. Two deployables that
    * agree here can talk to each other whatever their build numbers are.
    */
@@ -53,8 +65,8 @@ export class Shell {
     void fetch('/VERSION')
       .then((response) => (response.ok ? response.text() : null))
       .then((text) => {
-        const trimmed = text?.trim();
-        this.appVersion.set(trimmed ? trimmed : null);
+        const trimmed = text?.trim() ?? '';
+        this.appVersion.set(Shell.VERSION_PATTERN.test(trimmed) ? trimmed : null);
       })
       .catch(() => this.appVersion.set(null));
   }

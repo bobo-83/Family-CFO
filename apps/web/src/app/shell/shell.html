@@ -50,14 +50,21 @@
       @if (role(); as currentRole) {
         <span class="shell__role">{{ currentRole }}</span>
       }
-      @if (appVersion(); as dashboardVersion) {
+      @if (appVersion() || serverVersion()) {
         <span
           class="shell__version"
           i18n-title="Sidebar version badge|Tooltip explaining the two version numbers in the footer"
           title="This dashboard's build, and the box it is talking to. They share a compatibility contract, so only the last number differing is normal."
         >
-          v{{ dashboardVersion }}@if (serverVersion(); as boxVersion) {
-            <span class="shell__version-box"> · box v{{ boxVersion }}</span>
+          @if (appVersion(); as dashboardVersion) {
+            <span class="shell__version-app">v{{ dashboardVersion }}</span>
+          }
+          @if (serverVersion(); as boxVersion) {
+            <span
+              class="shell__version-box"
+              i18n="Sidebar version badge|The API's version shown beside the dashboard's own. 'box' is the machine running the backend."
+              >box v{{ boxVersion }}</span
+            >
           }
         </span>
       }

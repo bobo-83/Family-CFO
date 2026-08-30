@@ -144,6 +144,11 @@ $breakpoint: 820px;
 .shell__footer {
   margin-top: auto;
   display: flex;
+  // The row holds the role pill, the version pair and Log out inside a 240px
+  // sidebar. The mismatch warning below is a sentence, not a chip: without
+  // wrapping it would shrink its siblings to fit one line — in the one state
+  // where the footer most needs to stay readable.
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -247,9 +252,20 @@ $breakpoint: 820px;
   color: rgba(255, 255, 255, 0.4);
 }
 
+// The separator is punctuation between two numbers, not language, so it lives
+// here rather than inside the translated string. It also only makes sense
+// BETWEEN them: when /VERSION is unavailable the box version renders alone and
+// must not open with a stray dot.
+.shell__version-app + .shell__version-box::before {
+  content: ' · ';
+}
+
 // A CONTRACT mismatch, which is the only version difference worth interrupting
 // for — matching contracts with different builds are the normal case.
 .shell__version-warning {
+  // Its own line: a full sentence cannot share a 240px row with two other
+  // controls, and squeezing them is worse than the wrap.
+  flex-basis: 100%;
   font-size: 0.75rem;
   line-height: 1.3;
   color: #ffb37a;
