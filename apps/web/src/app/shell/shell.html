@@ -68,14 +68,6 @@
           }
         </span>
       }
-      @if (versionMismatch()) {
-        <span
-          class="shell__version-warning"
-          i18n="Sidebar version warning|Shown when the dashboard and the API are on different compatibility contracts"
-          >Dashboard and box are on different versions — some screens may not
-          match the server.</span
-        >
-      }
       <button
         type="button"
         class="shell__logout"
@@ -84,6 +76,19 @@
       >
         Log out
       </button>
+      <!-- LAST in the footer, after the button. The warning is full-width, so
+           wherever it sits it takes a row of its own: placed before Log out it
+           wedges itself between the version pair and the action and pushes the
+           button to a third row. Kept last, the footer reads role/version →
+           Log out → warning, with the sentence as a closing full-width note. -->
+      @if (versionMismatch()) {
+        <span
+          class="shell__version-warning"
+          i18n="Sidebar version warning|Shown when the dashboard and the API are on different compatibility contracts"
+          >Dashboard and box are on different versions — some screens may not
+          match the server.</span
+        >
+      }
     </div>
   </aside>
 

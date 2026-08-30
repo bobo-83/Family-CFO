@@ -11191,23 +11191,23 @@
         <note priority="1" from="description">The API&apos;s version shown beside the dashboard&apos;s own. &apos;box&apos; is the machine running the backend.</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
       </trans-unit>
-      <trans-unit id="4142142245989116120" datatype="html">
-        <source>Dashboard and box are on different versions — some screens may not match the server.</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">75,82</context>
-        </context-group>
-        <note priority="1" from="description">Shown when the dashboard and the API are on different compatibility contracts</note>
-        <note priority="1" from="meaning">Sidebar version warning</note>
-      </trans-unit>
       <trans-unit id="3397655456296716868" datatype="html">
         <source> Log out </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">85,90</context>
+          <context context-type="linenumber">77,79</context>
         </context-group>
         <note priority="1" from="description">Button that signs the member out</note>
         <note priority="1" from="meaning">Sidebar footer action</note>
+      </trans-unit>
+      <trans-unit id="4142142245989116120" datatype="html">
+        <source>Dashboard and box are on different versions — some screens may not match the server.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">88,97</context>
+        </context-group>
+        <note priority="1" from="description">Shown when the dashboard and the API are on different compatibility contracts</note>
+        <note priority="1" from="meaning">Sidebar version warning</note>
       </trans-unit>
       <trans-unit id="5536025403430922915" datatype="html">
         <source>Overview</source>

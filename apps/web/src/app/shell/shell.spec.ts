@@ -135,9 +135,22 @@ describe('Shell', () => {
       fixture.detectChanges();
 
       expect(fixture.componentInstance['versionMismatch']()).toBe(true);
-      expect(
-        (fixture.nativeElement as HTMLElement).querySelector('.shell__version-warning'),
-      ).not.toBeNull();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.shell__version-warning')).not.toBeNull();
+
+      // The warning is full-width, so it always takes a row of its own. Placed
+      // before Log out it wedges between the version pair and the action and
+      // pushes the button onto a third row; last, it reads as a closing note.
+      // DOM order is the layout here, so it is pinned rather than incidental.
+      const footerOrder = Array.from(host.querySelector('.shell__footer')!.children).map(
+        (el) => el.className,
+      );
+      expect(footerOrder).toEqual([
+        'shell__role',
+        'shell__version',
+        'shell__logout',
+        'shell__version-warning',
+      ]);
     });
 
     it('still names the box when its own version is unavailable', async () => {
