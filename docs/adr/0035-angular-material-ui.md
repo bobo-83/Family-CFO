@@ -70,6 +70,26 @@ For each `pages/<x>/`:
 4. `npm test` + `npm run build`; the page's SCSS budget warning should
    drop as bespoke CSS is deleted.
 
+### The app chrome is not one of the pages
+
+The recipe above is written for `pages/<x>/`. The shell — sidebar, top bar and
+footer — is not a page and no phase claims it, so `shell.scss` keeps the
+`--color-nav*` tokens until the chrome is converted deliberately.
+
+It is called out rather than left implied because that conversion is not a
+find-and-replace. `mat.theme()` is configured `theme-type: light` while the
+chrome is a dark navy surface, so the system colours are near-invisible on it:
+measured against the sidebar gradient, `--mat-sys-on-surface-variant` gives
+1.9:1 and `--mat-sys-error` 2.8:1, both under the 4.5:1 WCAG AA asks for, where
+the chrome's own amber warning is 10.2:1. A component that swapped its colours
+for those tokens today would read as more correct and be less legible.
+Converting the chrome therefore starts with a dark-context theme scoped to the
+sidebar, not with the colours in it.
+
+Tokens that carry no colour — the typography scale — have no such problem, and
+new chrome CSS should use them (`var(--mat-sys-body-small-size)` rather than a
+bare `0.75rem`) so the chrome joins the type scale ahead of its conversion.
+
 ## Consequences
 
 - New runtime deps (`@angular/material`, `@angular/cdk`, `@angular/animations`)

@@ -266,7 +266,16 @@ $breakpoint: 820px;
   // Its own line: a full sentence cannot share a 240px row with two other
   // controls, and squeezing them is worse than the wrap.
   flex-basis: 100%;
-  font-size: 0.75rem;
-  line-height: 1.3;
+  // Type comes from the Material scale (ADR 0035); body-small is 0.75rem, so
+  // this is the same size the sidebar already used, now expressed as a token.
+  font-size: var(--mat-sys-body-small-size);
+  line-height: var(--mat-sys-body-small-line-height);
+  // The COLOUR cannot come from the same place, and that is not an oversight.
+  // mat.theme() is configured `theme-type: light` while this sidebar is a dark
+  // navy surface, so the on-surface tokens are near-invisible on it: measured
+  // against the chrome gradient, --mat-sys-on-surface-variant is 1.9:1 and
+  // --mat-sys-error 2.8:1, both below the 4.5:1 WCAG AA needs. This amber is
+  // 10.2:1. Giving the chrome real tokens means giving it a dark-context
+  // theme, which belongs to the shell's own Material conversion — see ADR 0035.
   color: #ffb37a;
 }
