@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 
@@ -9,18 +9,76 @@ import { AuthService } from '../core/auth.service';
   styleUrl: './shell.scss',
 })
 export class Shell {
-  // M120 (ADR 0029): the monorepo version this box runs, shown in the footer so
-  // "which version is live?" never needs a terminal. Plain fetch: same origin,
-  // unauthenticated, and a failed check must never break the shell.
+  // ADR 0074: the dashboard carries its own build number, so the footer shows
+  // TWO versions — this build, and the box it is talking to. They are expected
+  // to differ in the last field; only a differing contract means trouble.
+  //
+  // Both are plain fetches: same origin, unauthenticated, and a failed check
+  // must never break the shell (it degrades to no badge).
   protected readonly serverVersion = signal<string | null>(null);
+  protected readonly appVersion = signal<string | null>(null);
+
+  /**
+   * What a composed version looks like: contract plus build, all integers.
+   * `/VERSION` is a file our own nginx serves from an exact-match location, but
+   * "nginx returned 200" is not "this is a version" — a TLS reverse proxy in
+   * front, an SSO interstitial, or a later edit to that location would each
+   * return a body that is not one. Unvalidated, such a body would be painted
+   * into the badge AND compared as a contract, raising a mismatch warning about
+   * nothing. Anything that does not match degrades to the same "no badge"
+   * posture as a failed fetch.
+   */
+  private static readonly VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+
+  /** Accept only a composed version, regardless of which endpoint supplied it. */
+  private static parseVersion(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return Shell.VERSION_PATTERN.test(trimmed) ? trimmed : null;
+  }
+
+  /**
+   * The compatibility contract — the MAJOR.MINOR prefix. Two deployables that
+   * agree here can talk to each other whatever their build numbers are.
+   */
+  private static contractOf(version: string): string {
+    return version.split('.').slice(0, 2).join('.');
+  }
+
+  /**
+   * True only when the dashboard and the box name DIFFERENT contracts. A
+   * differing build is the normal, healthy case now — warning about it was the
+   * whole problem ADR 0074 set out to fix.
+   */
+  protected readonly versionMismatch = computed(() => {
+    const app = this.appVersion();
+    const box = this.serverVersion();
+    if (!app || !box) {
+      return false;
+    }
+    return Shell.contractOf(app) !== Shell.contractOf(box);
+  });
 
   private loadVersion(): void {
     void fetch('/api/v1/health')
-      .then((response) => response.json())
-      .then((health: { version?: string }) => {
-        this.serverVersion.set(health.version ?? null);
+      .then((response) => (response.ok ? response.json() : null))
+      .then((health: unknown) => {
+        const value =
+          typeof health === 'object' && health !== null && 'version' in health
+            ? (health as { version?: unknown }).version
+            : null;
+        this.serverVersion.set(Shell.parseVersion(value));
       })
       .catch(() => this.serverVersion.set(null));
+
+    // Written into the nginx root by docker/web.Dockerfile. Absent under `ng
+    // serve` and in tests, where the badge simply does not render.
+    void fetch('/VERSION')
+      .then((response) => (response.ok ? response.text() : null))
+      .then((text) => this.appVersion.set(Shell.parseVersion(text)))
+      .catch(() => this.appVersion.set(null));
   }
 
   constructor() {
