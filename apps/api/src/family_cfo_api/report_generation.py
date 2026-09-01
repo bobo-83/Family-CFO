@@ -340,8 +340,10 @@ def run_scheduled_reports_once(
             generate_report(engine, household_id, report_type, explanation_adapter, reference)
             generated += 1
         except household_crypto.HouseholdLockedError:
-            # #181: sealed+locked household defers; the rest still report.
-            logger.info("report deferred: household %s locked", household_id)
+            # #181: a sealed+locked household is skipped; the rest still report.
+            # Skipped rather than deferred — nothing hands the worker this
+            # household's key later (#115).
+            logger.info("report skipped: household %s locked", household_id)
         finally:
             if runtime_client is not None:
                 runtime_client.close()

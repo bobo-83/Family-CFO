@@ -34,6 +34,8 @@ def record_snapshot_once(engine: Engine, *, today: date | None = None) -> int:
             captured += 1
         except household_crypto.HouseholdLockedError:
             # #181: one sealed+locked household must never stall the others.
-            logger.info("net-worth snapshot deferred: household %s locked", household_id)
+            # Skipped, not deferred: in the worker there is no later tick that
+            # can see this household's key (#115).
+            logger.info("net-worth snapshot skipped: household %s locked", household_id)
     logger.info("net-worth snapshot captured for %s household(s)", captured)
     return captured

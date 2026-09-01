@@ -202,13 +202,29 @@ where decryption slots in.
 - Sealing preconditions: at least one member wrap AND a recovery key. The
   sealing session keeps its key; a box restart locks the household until
   the next sign-in. Locked reads/writes surface as HTTP 423
-  (`household_locked`); worker jobs defer their tick for locked households
-  instead of crashing. Whole-box backups keep running — the dump carries
+  (`household_locked`); worker jobs skip locked households instead of
+  crashing the tick for everyone else (skip, not defer — see below). Whole-box backups keep running — the dump carries
   the sealed household's ciphertext, which is the point.
 - Deviation from the sketch: no durable background-work queue — every
   worker job already polls on minutes-scale intervals, so "queue and drain
-  on next session" reduces to "the next poll tick after an unlock runs the
-  work". Revisit if a job ever becomes event-driven.
+  on next session" was taken to reduce to "the next poll tick after an
+  unlock runs the work".
+
+  **That inference is wrong, and #115 is its consequence.** The unlock and
+  the poll tick happen in *different processes*: a sign-in opens the session
+  keyring in the API container's memory, while the jobs run in the worker
+  container, which has its own address space and can never observe it. So
+  the next tick after an unlock is locked exactly like the one before it,
+  and for a sealed household the work does not run at all — bank sync,
+  snapshots, imports, reports and idle study are off for as long as the
+  household stays sealed, not merely delayed. Phase 3's "queued background
+  work draining on session start" is therefore NOT implemented.
+
+  Until that is decided (#115 lists the options — drain from the API while
+  a session holds the key, give the worker its own key session and reword
+  ADR 0070's invariant, or keep the trade and state it), the UI and this
+  ADR say plainly that sealing turns unattended work off. Encrypted backups
+  are unaffected: they copy ciphertext and use the box-level backup key.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.

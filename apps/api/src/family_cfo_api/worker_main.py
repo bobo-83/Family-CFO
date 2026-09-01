@@ -55,9 +55,17 @@ def main() -> None:
     logger = logging.getLogger(__name__)
 
     def sealed_aware(job):
-        """ADR 0072 Phase 3: a sealed household with no live session key can't
-        be read or written — its background work waits for the next sign-in
-        (which reopens the keyring) instead of crashing the tick."""
+        """A sealed household with no live session key can't be read or written,
+        so the job is SKIPPED rather than allowed to crash the tick for every
+        other household.
+
+        Skipped, not deferred (#115). ADR 0072 Phase 3 intended this work to
+        queue and drain on the next sign-in, and that drain was never built:
+        `household_crypto._session_keyring` is a dict in the API process's
+        memory, and this worker is a separate container. A member signing in
+        opens the keyring over there, where no job runs. So for a sealed
+        household this job does not run again until the household is unsealed —
+        the UI now says so rather than implying a wait."""
         from functools import wraps
 
         from family_cfo_api import household_crypto
@@ -68,7 +76,8 @@ def main() -> None:
                 job()
             except household_crypto.HouseholdLockedError as exc:
                 logger.info(
-                    "job %s deferred: household %s is sealed and locked",
+                    "job %s skipped for household %s: sealed, and this worker "
+                    "holds no key for it — it will not retry while sealed (#115)",
                     job.__name__,
                     exc.household_id,
                 )

@@ -1392,9 +1392,13 @@
         <note priority="1" from="description">Whether the box keeps a spare of the household data key</note>
         <note priority="1" from="meaning">Step heading</note>
       </trans-unit>
-      <trans-unit id="3943843098077182442" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you. </source>
-        <target state="translated"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;" />Niêm phong<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;" /> — Chỉ mật khẩu của bạn, điện thoại của bạn và khóa phục hồi mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập — và các việc chạy ban đêm sẽ chờ bạn.</target>
+      <trans-unit id="6163247201371602884" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at all while you are sealed, not even while you are signed in. Encrypted backups still run. </source>
+        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Niêm phong<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Chỉ mật khẩu của bạn, điện thoại của bạn và khóa phục hồi mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — hoàn toàn không chạy khi đang niêm phong, kể cả lúc bạn đã đăng nhập. Bản sao lưu đã mã hóa vẫn chạy.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">185,188</context>
+        </context-group>
         <note priority="1" from="description">What sealed mode means for the household</note>
         <note priority="1" from="meaning">Privacy mode</note>
       </trans-unit>
@@ -1644,9 +1648,13 @@
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
-      <trans-unit id="6835130962576302188" datatype="html">
-        <source>Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.</source>
-        <target state="translated">Niêm phong hộ gia đình này? Sau khi khởi động lại, không gì đọc được — và việc đồng bộ ban đêm, ghi nhận số liệu, nghiên cứu đều phải chờ — cho đến khi có người đăng nhập.</target>
+      <trans-unit id="824633199426482863" datatype="html">
+        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run.</source>
+        <target state="needs-review-translation">Niêm phong hộ gia đình này? Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Việc đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền sẽ dừng suốt thời gian còn niêm phong — đăng nhập cũng không khởi động lại chúng. Bản sao lưu đã mã hóa vẫn chạy.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">358</context>
+        </context-group>
         <note priority="1" from="description">Browser confirm before the household is sealed</note>
         <note priority="1" from="meaning">Confirmation</note>
       </trans-unit>
@@ -7086,9 +7094,13 @@
         <note priority="1" from="description">Which threats sealing protects against</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="2553210445921615004" datatype="html">
-        <source> It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
-        <target state="translated"> Mặc định nó tắt vì cái giá phải trả là có thật. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập, nên đồng bộ ngân hàng và các việc chạy ban đêm sẽ chờ bạn. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp. </target>
+      <trans-unit id="5968296417799220854" datatype="html">
+        <source> It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
+        <target state="needs-review-translation">Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền sẽ dừng suốt thời gian còn niêm phong: đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo và nghiên cứu khi rảnh đều cần khóa của bạn, mà tiến trình chạy nền không bao giờ giữ khóa đó — đăng nhập cũng không khởi động lại chúng. Bản sao lưu đã mã hóa vẫn chạy. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">186,190</context>
+        </context-group>
         <note priority="1" from="description">Why sealed mode is not the default</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>

@@ -9594,14 +9594,14 @@ public enum Components {
             public var hasRecoveryKey: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/recovery_key_created_at`.
             public var recoveryKeyCreatedAt: Foundation.Date?
-            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — does not run while sealed, and a sign-in does not resume it: the session key lives in the API process and the worker is a separate one (#115). Encrypted backups are unaffected; they copy ciphertext.
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
             @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case convenient = "convenient"
                 case sealed = "sealed"
             }
-            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — does not run while sealed, and a sign-in does not resume it: the session key lives in the API process and the worker is a separate one (#115). Encrypted backups are unaffected; they copy ciphertext.
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
             public var mode: Components.Schemas.HouseholdKeyStatus.ModePayload?
@@ -9617,7 +9617,7 @@ public enum Components {
             ///   - deviceWraps:
             ///   - hasRecoveryKey:
             ///   - recoveryKeyCreatedAt:
-            ///   - mode: "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in; background work waits for a live session.
+            ///   - mode: "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — does not run while sealed, and a sign-in does not resume it: the session key lives in the API process and the worker is a separate one (#115). Encrypted backups are unaffected; they copy ciphertext.
             ///   - unlocked: Whether this household's content is readable right now.
             public init(
                 encryptionEnabled: Swift.Bool,

@@ -355,7 +355,7 @@ export class Backups implements OnInit {
     if (this.busy()) return;
     const consequence =
       mode === 'sealed'
-        ? $localize`:Confirmation|Browser confirm before the household is sealed:Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.`
+        ? $localize`:Confirmation|Browser confirm before the household is sealed:Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run.`
         : $localize`:Confirmation|Browser confirm before the household leaves sealed mode:Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.`;
     if (!confirm(consequence)) return;
     this.busy.set(true);

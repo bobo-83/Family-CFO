@@ -538,7 +538,7 @@ struct SettingsView: View {
                 "It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box."
             )
             Text(
-                "It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that."
+                "It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that."
             )
             if offer.needsRecoveryKey {
                 Text("Before you can seal: create a recovery key.")

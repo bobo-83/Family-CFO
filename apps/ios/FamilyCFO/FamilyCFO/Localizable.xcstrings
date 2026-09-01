@@ -2347,18 +2347,18 @@
         }
       }
     },
-    "After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.": {
+    "After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Po perkrovimo niekas neįskaitoma — o naktinis sinchronizavimas, įrašai ir mokymasis laukia — kol kas nors prisijungs."
+            "value": "Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas sustos, kol namų ūkis lieka užsandarintas — prisijungimas jų neatnaujins. Šifruotos atsarginės kopijos vis tiek daromos."
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Sau khi khởi động lại, không gì đọc được — và đồng bộ ban đêm, ghi nhận số liệu, tự học đều phải chờ — cho đến khi có người đăng nhập."
+            "state": "needs_review",
+            "value": "Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Việc đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền sẽ dừng suốt thời gian còn niêm phong — đăng nhập cũng không khởi động lại chúng. Bản sao lưu đã mã hóa vẫn chạy."
           }
         }
       }
@@ -7420,18 +7420,18 @@
         }
       }
     },
-    "It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that.": {
+    "It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia, todėl banko sinchronizavimas ir kiti naktiniai darbai laukia jūsų. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti."
+            "value": "Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai sustoja, kol namų ūkis lieka užsandarintas: banko sinchronizavimui, momentinėms kopijoms, importams, ataskaitoms ir nagrinėjimui reikia jūsų rakto, o foninis procesas jo niekada neturi — prisijungimas jų neatnaujins. Šifruotos atsarginės kopijos toliau daromos. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti."
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Mặc định nó tắt vì cái giá phải trả là có thật. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập, nên đồng bộ ngân hàng và các việc chạy ban đêm sẽ chờ bạn. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp."
+            "state": "needs_review",
+            "value": "Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền sẽ dừng suốt thời gian còn niêm phong: đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo và nghiên cứu khi rảnh đều cần khóa của bạn, mà tiến trình chạy nền không bao giờ giữ khóa đó — đăng nhập cũng không khởi động lại chúng. Bản sao lưu đã mã hóa vẫn chạy. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp."
           }
         }
       }
@@ -9823,18 +9823,18 @@
         }
       }
     },
-    "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you.": {
+    "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at all while you are sealed, not even while you are signed in. Encrypted backups still run.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Jūsų duomenis atrakinti gali tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia — o naktiniai darbai laukia jūsų."
+            "value": "Jūsų duomenis atrakinti gali tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — visiškai neveikia, kol namų ūkis užsandarintas, net ir jums prisijungus. Šifruotos atsarginės kopijos vis tiek daromos."
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Chỉ mật khẩu của bạn, điện thoại của bạn và khóa khôi phục mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập — và các việc chạy ban đêm sẽ chờ bạn."
+            "state": "needs_review",
+            "value": "Chỉ mật khẩu của bạn, điện thoại của bạn và khóa khôi phục mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — hoàn toàn không chạy khi đang niêm phong, kể cả lúc bạn đã đăng nhập. Bản sao lưu đã mã hóa vẫn chạy."
           }
         }
       }

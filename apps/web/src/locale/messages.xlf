@@ -795,7 +795,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">322</context>
+          <context context-type="linenumber">330</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6211503919849700409" datatype="html">
@@ -1188,7 +1188,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">291,294</context>
+          <context context-type="linenumber">293,296</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/bills/bills.html</context>
@@ -2312,7 +2312,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">397,400</context>
+          <context context-type="linenumber">399,402</context>
         </context-group>
         <note priority="1" from="description">No backup has ever run</note>
         <note priority="1" from="meaning">Empty state</note>
@@ -2502,11 +2502,11 @@
         <note priority="1" from="description">Whether the box keeps a spare of the household data key</note>
         <note priority="1" from="meaning">Step heading</note>
       </trans-unit>
-      <trans-unit id="3943843098077182442" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you. </source>
+      <trans-unit id="6163247201371602884" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at all while you are sealed, not even while you are signed in. Encrypted backups still run. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">185,187</context>
+          <context context-type="linenumber">185,188</context>
         </context-group>
         <note priority="1" from="description">What sealed mode means for the household</note>
         <note priority="1" from="meaning">Privacy mode</note>
@@ -2515,7 +2515,7 @@
         <source>Locked — sign in again to unlock</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">190,192</context>
+          <context context-type="linenumber">192,194</context>
         </context-group>
         <note priority="1" from="description">The sealed household is locked until somebody signs in</note>
         <note priority="1" from="meaning">Lock state</note>
@@ -2524,7 +2524,7 @@
         <source> Switch back to convenient… </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">201,205</context>
+          <context context-type="linenumber">203,207</context>
         </context-group>
         <note priority="1" from="description">Leaves sealed mode and lets the box keep a spare data key again</note>
         <note priority="1" from="meaning">Button</note>
@@ -2533,7 +2533,7 @@
         <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Convenient<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — The box keeps a spare of your data key: overnight sync, snapshots, and idle study keep working. Your content is protected against stolen disks and backups — the box itself can still read it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">206,208</context>
+          <context context-type="linenumber">208,210</context>
         </context-group>
         <note priority="1" from="description">What convenient mode means for the household</note>
         <note priority="1" from="meaning">Privacy mode</note>
@@ -2542,7 +2542,7 @@
         <source> Seal this household… </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">223,226</context>
+          <context context-type="linenumber">225,228</context>
         </context-group>
         <note priority="1" from="description">Switches the household into sealed mode</note>
         <note priority="1" from="meaning">Button</note>
@@ -2551,7 +2551,7 @@
         <source>Recovery key</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">239,242</context>
+          <context context-type="linenumber">241,244</context>
         </context-group>
         <note priority="1" from="description">The household&apos;s recovery key, pasted to unlock it</note>
         <note priority="1" from="meaning">Form field label</note>
@@ -2560,7 +2560,7 @@
         <source> Unlock </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">257,261</context>
+          <context context-type="linenumber">259,263</context>
         </context-group>
         <note priority="1" from="description">Unlocks the household with the recovery key entered</note>
         <note priority="1" from="meaning">Button</note>
@@ -2569,7 +2569,7 @@
         <source> Unlock with recovery key… </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">268,272</context>
+          <context context-type="linenumber">270,274</context>
         </context-group>
         <note priority="1" from="description">Reveals the input that unlocks a locked household</note>
         <note priority="1" from="meaning">Button</note>
@@ -2578,7 +2578,7 @@
         <source>Your data</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">278,279</context>
+          <context context-type="linenumber">280,281</context>
         </context-group>
         <note priority="1" from="description">Downloading the household&apos;s own data</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -2587,7 +2587,7 @@
         <source> Download everything in this household — accounts, transactions, advisor history, and documents — as a zip you can keep or take elsewhere. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">280,283</context>
+          <context context-type="linenumber">282,285</context>
         </context-group>
         <note priority="1" from="description">What the export zip contains</note>
         <note priority="1" from="meaning">Section hint</note>
@@ -2596,14 +2596,14 @@
         <source>{VAR_SELECT, select, true {Preparing export…} other {Export my data}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">291,292</context>
+          <context context-type="linenumber">293,294</context>
         </context-group>
       </trans-unit>
       <trans-unit id="4823547853531124245" datatype="html">
         <source>Restore from Synology</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">303,304</context>
+          <context context-type="linenumber">305,306</context>
         </context-group>
         <note priority="1" from="description">Restoring from a snapshot stored on the Synology</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -2612,7 +2612,7 @@
         <source>Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">304,306</context>
+          <context context-type="linenumber">306,308</context>
         </context-group>
         <note priority="1" from="description">How the off-box snapshot list is arranged and what restoring does</note>
         <note priority="1" from="meaning">Section hint</note>
@@ -2621,7 +2621,7 @@
         <source>{VAR_PLURAL, plural, =1 {1 backup} other {<x id="INTERPOLATION"/> backups}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">309,311</context>
+          <context context-type="linenumber">311,313</context>
         </context-group>
         <note priority="1" from="description">How many snapshots were taken on this day</note>
         <note priority="1" from="meaning">Backup day summary</note>
@@ -2630,7 +2630,7 @@
         <source>Time</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">313,314</context>
+          <context context-type="linenumber">315,316</context>
         </context-group>
         <note priority="1" from="description">Time of day the snapshot was taken</note>
         <note priority="1" from="meaning">Table column</note>
@@ -2639,11 +2639,11 @@
         <source>Version</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">314,315</context>
+          <context context-type="linenumber">316,317</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">361,362</context>
+          <context context-type="linenumber">363,364</context>
         </context-group>
         <note priority="1" from="description">App version that made the snapshot</note>
         <note priority="1" from="meaning">Table column</note>
@@ -2652,11 +2652,11 @@
         <source>Size (bytes)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">315,318</context>
+          <context context-type="linenumber">317,320</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">362,366</context>
+          <context context-type="linenumber">364,368</context>
         </context-group>
         <note priority="1" from="description">Snapshot file size; bytes is the unit</note>
         <note priority="1" from="meaning">Table column</note>
@@ -2665,11 +2665,11 @@
         <source>version unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">330,333</context>
+          <context context-type="linenumber">332,335</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">385,388</context>
+          <context context-type="linenumber">387,390</context>
         </context-group>
         <note priority="1" from="description">The snapshot does not record which app version made it</note>
         <note priority="1" from="meaning">Backup version</note>
@@ -2678,11 +2678,11 @@
         <source>Restore</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">335,336</context>
+          <context context-type="linenumber">337,338</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">391,393</context>
+          <context context-type="linenumber">393,395</context>
         </context-group>
         <note priority="1" from="description">Restores the household from this off-box snapshot</note>
         <note priority="1" from="meaning">Button</note>
@@ -2691,11 +2691,11 @@
         <source>Delete</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">336,339</context>
+          <context context-type="linenumber">338,341</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">393,395</context>
+          <context context-type="linenumber">395,397</context>
         </context-group>
         <note priority="1" from="description">Deletes this snapshot from the Synology</note>
         <note priority="1" from="meaning">Button</note>
@@ -2704,7 +2704,7 @@
         <source>On-box backups</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">350,352</context>
+          <context context-type="linenumber">352,354</context>
         </context-group>
         <note priority="1" from="description">Backups kept on the box itself</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -2713,7 +2713,7 @@
         <source>Loading backups…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">352,354</context>
+          <context context-type="linenumber">354,356</context>
         </context-group>
         <note priority="1" from="description">While the on-box backup list is being fetched</note>
         <note priority="1" from="meaning">Loading placeholder</note>
@@ -2722,7 +2722,7 @@
         <source>Created</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">359,360</context>
+          <context context-type="linenumber">361,362</context>
         </context-group>
         <note priority="1" from="description">When the backup was made</note>
         <note priority="1" from="meaning">Table column</note>
@@ -2731,7 +2731,7 @@
         <source>Status</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">360,361</context>
+          <context context-type="linenumber">362,363</context>
         </context-group>
         <note priority="1" from="description">How the backup ended</note>
         <note priority="1" from="meaning">Table column</note>
@@ -2740,7 +2740,7 @@
         <source><x id="INTERPOLATION" equiv-text="{{ backup.status }}"/> (pruned)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">372,373</context>
+          <context context-type="linenumber">374,375</context>
         </context-group>
         <note priority="1" from="description">A finished backup whose file has since been pruned</note>
         <note priority="1" from="meaning">Backup state</note>
@@ -2749,7 +2749,7 @@
         <source>Only the household owner can manage backups.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">405,407</context>
+          <context context-type="linenumber">407,409</context>
         </context-group>
         <note priority="1" from="description">Shown to members who are not the household owner</note>
         <note priority="1" from="meaning">Permission notice</note>
@@ -2909,8 +2909,8 @@
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
-      <trans-unit id="6835130962576302188" datatype="html">
-        <source>Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.</source>
+      <trans-unit id="824633199426482863" datatype="html">
+        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
           <context context-type="linenumber">358</context>
@@ -3081,7 +3081,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">374,375</context>
+          <context context-type="linenumber">375,376</context>
         </context-group>
         <note priority="1" from="description">Explains that the figure is the issuer&apos;s exact amount due</note>
         <note priority="1" from="meaning">Amount provenance tooltip</note>
@@ -3094,7 +3094,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">377,381</context>
+          <context context-type="linenumber">378,382</context>
         </context-group>
         <note priority="1" from="description">Marks a due figure that comes from a recorded statement rather than an estimate</note>
         <note priority="1" from="meaning">Amount provenance</note>
@@ -7600,28 +7600,28 @@
         <source>Failed to load loans.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">136</context>
+          <context context-type="linenumber">144</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5286701243146613160" datatype="html">
         <source>Failed to save the loan.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">242</context>
+          <context context-type="linenumber">250</context>
         </context-group>
       </trans-unit>
       <trans-unit id="2848212412325256353" datatype="html">
         <source>Saved, but recording the balance failed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">253</context>
+          <context context-type="linenumber">261</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3470050581550087247" datatype="html">
         <source>Delete <x id="name" equiv-text="loan.name"/>?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">262</context>
+          <context context-type="linenumber">270</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before a loan is deleted</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -7630,7 +7630,7 @@
         <source>Failed to delete the loan.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.ts</context>
-          <context context-type="linenumber">268</context>
+          <context context-type="linenumber">276</context>
         </context-group>
       </trans-unit>
       <trans-unit id="8970269124361727564" datatype="html">
@@ -8090,8 +8090,8 @@
         <note priority="1" from="description">Which threats sealing protects against</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="2553210445921615004" datatype="html">
-        <source> It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
+      <trans-unit id="5968296417799220854" datatype="html">
+        <source> It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
           <context context-type="linenumber">186,190</context>
@@ -8103,7 +8103,7 @@
         <source> Before you can seal: create a recovery key. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">193,196</context>
+          <context context-type="linenumber">194,197</context>
         </context-group>
         <note priority="1" from="description">The missing precondition: the household has no recovery key yet</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
@@ -8112,7 +8112,7 @@
         <source> Before you can seal: sign in with your password once — pairing a phone does not make a member key. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">198,202</context>
+          <context context-type="linenumber">199,203</context>
         </context-group>
         <note priority="1" from="description">The missing precondition: nobody has signed in with a password yet</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
@@ -8121,7 +8121,7 @@
         <source>Privacy mode…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">203,206</context>
+          <context context-type="linenumber">204,207</context>
         </context-group>
         <note priority="1" from="description">Link to the privacy mode setting on the backups page</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
@@ -8130,7 +8130,7 @@
         <source>Hides this offer on this device</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">207,208</context>
+          <context context-type="linenumber">208,209</context>
         </context-group>
         <note priority="1" from="description">Explains that dismissing the sealed mode offer only affects this device</note>
         <note priority="1" from="meaning">Tooltip</note>
@@ -8139,7 +8139,7 @@
         <source> Dismiss </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">212,215</context>
+          <context context-type="linenumber">213,216</context>
         </context-group>
         <note priority="1" from="description">Hides the offer for good on this device</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
@@ -8148,7 +8148,7 @@
         <source>Language</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">221,223</context>
+          <context context-type="linenumber">222,224</context>
         </context-group>
         <note priority="1" from="description">Label of the answer-language picker</note>
         <note priority="1" from="meaning">Household language field</note>
@@ -8157,7 +8157,7 @@
         <source> Language: <x id="INTERPOLATION" equiv-text="{{ languageLabel(context) }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">237,238</context>
+          <context context-type="linenumber">238,239</context>
         </context-group>
         <note priority="1" from="description">Shows the answer language to members who cannot change it. The language&apos;s own name is never translated.</note>
         <note priority="1" from="meaning">Household language readonly</note>
@@ -8166,7 +8166,7 @@
         <source> Time zone: <x id="INTERPOLATION" equiv-text="{{ timezoneLabel(context) }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">260,261</context>
+          <context context-type="linenumber">261,262</context>
         </context-group>
         <note priority="1" from="description">Shows the time zone to members who cannot change it. A zone ID such as Europe/London is an identifier and is never translated.</note>
         <note priority="1" from="meaning">Household timezone readonly</note>
@@ -8175,7 +8175,7 @@
         <source> Reserve committed savings </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">278,281</context>
+          <context context-type="linenumber">279,282</context>
         </context-group>
         <note priority="1" from="description">Subtracts committed savings from Safe to Spend like a bill</note>
         <note priority="1" from="meaning">Committed savings toggle</note>
@@ -8184,7 +8184,7 @@
         <source>Committed savings:</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">282,284</context>
+          <context context-type="linenumber">283,285</context>
         </context-group>
         <note priority="1" from="description">Labels the committed savings setting for members who cannot change it</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
@@ -8193,7 +8193,7 @@
         <source>reserved like a bill</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">284,286</context>
+          <context context-type="linenumber">285,287</context>
         </context-group>
         <note priority="1" from="description">The setting is on, savings are subtracted like a bill</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
@@ -8202,7 +8202,7 @@
         <source>shown beside Safe to Spend</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">286,290</context>
+          <context context-type="linenumber">287,291</context>
         </context-group>
         <note priority="1" from="description">The setting is off, savings are only displayed</note>
         <note priority="1" from="meaning">Committed savings readonly</note>
@@ -8211,7 +8211,7 @@
         <source> Off: shown beside Safe to Spend. On: subtracted like a bill. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">294,299</context>
+          <context context-type="linenumber">295,300</context>
         </context-group>
         <note priority="1" from="description">Explains both positions of the committed savings switch</note>
         <note priority="1" from="meaning">Committed savings hint</note>
@@ -8220,7 +8220,7 @@
         <source>Cash outlook</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">300,302</context>
+          <context context-type="linenumber">301,303</context>
         </context-group>
         <note priority="1" from="description">Projection of cash over the next 30 days</note>
         <note priority="1" from="meaning">Cash outlook card header</note>
@@ -8229,7 +8229,7 @@
         <source> ⚠ <x id="INTERPOLATION" equiv-text="{{ runwayActionLabel(cash) }}"/> by <x id="INTERPOLATION_1" equiv-text="{{ sellBy | date: &apos;EEE, MMM d&apos; }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">314,316</context>
+          <context context-type="linenumber">315,317</context>
         </context-group>
         <note priority="1" from="description">The date by which a sale or transfer must start to avoid a shortfall</note>
         <note priority="1" from="meaning">Cash outlook headline</note>
@@ -8238,7 +8238,7 @@
         <source> cash runs short <x id="INTERPOLATION" equiv-text="{{ cash.first_shortfall_date | date: &apos;MMM d&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (cash.shortfall; as gap) {"/> — raise at least <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(gap) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">318,322</context>
+          <context context-type="linenumber">319,323</context>
         </context-group>
         <note priority="1" from="description">When cash runs out and how much must be raised</note>
         <note priority="1" from="meaning">Cash outlook headline detail</note>
@@ -8247,7 +8247,7 @@
         <source> ⚠ Your cash runs short over the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">325,326</context>
+          <context context-type="linenumber">326,327</context>
         </context-group>
         <note priority="1" from="description">The projected balance goes negative within the horizon</note>
         <note priority="1" from="meaning">Cash outlook verdict</note>
@@ -8256,7 +8256,7 @@
         <source> ✓ Cash covers everything due in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">329,330</context>
+          <context context-type="linenumber">330,331</context>
         </context-group>
         <note priority="1" from="description">The projected balance stays positive over the horizon</note>
         <note priority="1" from="meaning">Cash outlook verdict</note>
@@ -8265,7 +8265,7 @@
         <source>lowest your cash reaches in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days · <x id="INTERPOLATION_1" equiv-text="{{ cash.lowest_date | date: &apos;MMM d&apos; }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">340,342</context>
+          <context context-type="linenumber">341,343</context>
         </context-group>
         <note priority="1" from="description">Explains the lowest projected balance and its date</note>
         <note priority="1" from="meaning">Cash outlook context</note>
@@ -8274,7 +8274,7 @@
         <source>no payments or paydays expected in the next <x id="INTERPOLATION" equiv-text="{{ cash.horizon_days }}"/> days</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">343,344</context>
+          <context context-type="linenumber">344,345</context>
         </context-group>
         <note priority="1" from="description">Nothing is scheduled inside the horizon</note>
         <note priority="1" from="meaning">Cash outlook context</note>
@@ -8283,7 +8283,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cash.starting_cash) }}"/> cash + <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cash.expected_income) }}"/> expected paychecks − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(cash.obligations) }}"/> payments = <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(cash.ending_cash) }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">347,351</context>
+          <context context-type="linenumber">348,352</context>
         </context-group>
         <note priority="1" from="description">How the projected ending cash is worked out</note>
         <note priority="1" from="meaning">Cash outlook math</note>
@@ -8292,7 +8292,7 @@
         <source>Day by day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">354,356</context>
+          <context context-type="linenumber">355,357</context>
         </context-group>
         <note priority="1" from="description">Opens the day-by-day projection table</note>
         <note priority="1" from="meaning">Cash outlook drill-down</note>
@@ -8301,7 +8301,7 @@
         <source> Paydays come from your recurring deposits; payments from the Bills timeline. Rows marked from statement are exact; the rest are estimates — a card without a statement shows today&apos;s balance, which may be lower than the final figure. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">393,397</context>
+          <context context-type="linenumber">394,398</context>
         </context-group>
         <note priority="1" from="description">Says where the projected paydays and payments come from</note>
         <note priority="1" from="meaning">Cash outlook footnote</note>
@@ -8310,7 +8310,7 @@
         <source>Left to spend this month</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">405,408</context>
+          <context context-type="linenumber">406,409</context>
         </context-group>
         <note priority="1" from="description">What is still free to spend this month</note>
         <note priority="1" from="meaning">Spending plan card header</note>
@@ -8319,7 +8319,7 @@
         <source>about <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.per_day) }}"/>/day for the remaining <x id="ICU" equiv-text="{month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}" xid="1035153266238401995"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">414,416</context>
+          <context context-type="linenumber">415,417</context>
         </context-group>
         <note priority="1" from="description">Daily allowance for the rest of the month</note>
         <note priority="1" from="meaning">Spending plan context</note>
@@ -8328,14 +8328,14 @@
         <source>{VAR_PLURAL, plural, =1 {1 day} other {<x id="INTERPOLATION"/> days}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">415</context>
+          <context context-type="linenumber">416</context>
         </context-group>
       </trans-unit>
       <trans-unit id="1010426685925880468" datatype="html">
         <source>this month&apos;s spending has outrun this month&apos;s income — the gap is drawing on cash you already had</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">417,421</context>
+          <context context-type="linenumber">418,422</context>
         </context-group>
         <note priority="1" from="description">Spending has exceeded this month&apos;s income</note>
         <note priority="1" from="meaning">Spending plan context</note>
@@ -8344,7 +8344,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(month.expected_income) }}"/> expected income (<x id="INTERPOLATION_1" equiv-text="{{ formatMoney(month.income_received) }}"/> received + <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(month.income_projected) }}"/> to come) − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(month.spent) }}"/> spent − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(month.bills_remaining) }}"/> bills still due − <x id="INTERPOLATION_5" equiv-text="{{ formatMoney(month.account_obligations) }}"/> loan &amp; lease payments <x id="START_BLOCK_IF" equiv-text="@if (month.planned_savings.amount_minor &gt; 0) {"/> − <x id="INTERPOLATION_6" equiv-text="{{ formatMoney(month.planned_savings) }}"/> planned savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">422,431</context>
+          <context context-type="linenumber">423,432</context>
         </context-group>
         <note priority="1" from="description">How the money left to spend this month is worked out</note>
         <note priority="1" from="meaning">Spending plan math</note>
@@ -8353,7 +8353,7 @@
         <source>Stress test</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">437,439</context>
+          <context context-type="linenumber">438,440</context>
         </context-group>
         <note priority="1" from="description">Worst-case cash left if every commitment were called today</note>
         <note priority="1" from="meaning">Stress test card header</note>
@@ -8362,7 +8362,7 @@
         <source> If every commitment were called today — full card balances, all bills, the emergency fund held back — with no paycheck counted. Deliberately worst-case; the cash outlook counts income. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">440,444</context>
+          <context context-type="linenumber">441,445</context>
         </context-group>
         <note priority="1" from="description">Says what the worst-case figure assumes</note>
         <note priority="1" from="meaning">Stress test explanation</note>
@@ -8371,7 +8371,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.liquid_balance) }}"/> liquid − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(sts.emergency_fund_reserved) }}"/> emergency fund − <x id="INTERPOLATION_2" equiv-text="{{ formatMoney(sts.bills_due) }}"/> bills due − <x id="INTERPOLATION_3" equiv-text="{{ formatMoney(sts.minimum_debt_payments) }}"/> min. debt payments <x id="START_BLOCK_IF" equiv-text="@if (sts.committed_savings_reserved &amp;&amp; sts.committed_savings; as committed) {"/> − <x id="INTERPOLATION_4" equiv-text="{{ formatMoney(committed) }}"/> committed savings <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">445,452</context>
+          <context context-type="linenumber">446,453</context>
         </context-group>
         <note priority="1" from="description">How the worst-case figure is worked out</note>
         <note priority="1" from="meaning">Stress test math</note>
@@ -8380,7 +8380,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(sts.total_debt) }}"/> total debt </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">455,456</context>
+          <context context-type="linenumber">456,457</context>
         </context-group>
         <note priority="1" from="description">Everything the household owes</note>
         <note priority="1" from="meaning">Stress test detail</note>
@@ -8389,7 +8389,7 @@
         <source> 📈 Ready to sell: <x id="INTERPOLATION" equiv-text="{{ formatMoney(rsu.value) }}"/> in vested RSUs — about <x id="ICU" equiv-text="{rsu.sale_notice_business_days, plural, =1 {1 business day} other {{{ rsu.sale_notice_business_days }} business days}}" xid="8995566437640065214"/> to become cash </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">465,468</context>
+          <context context-type="linenumber">466,469</context>
         </context-group>
         <note priority="1" from="description">Vested stock that could be turned into cash, and how long that takes</note>
         <note priority="1" from="meaning">Ready to sell line</note>
@@ -8398,14 +8398,14 @@
         <source>{VAR_PLURAL, plural, =1 {1 business day} other {<x id="INTERPOLATION"/> business days}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">466</context>
+          <context context-type="linenumber">467</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6888849955209487751" datatype="html">
         <source>Not part of the number above.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">469,471</context>
+          <context context-type="linenumber">470,472</context>
         </context-group>
         <note priority="1" from="description">The vested stock is not inside the stress-test figure</note>
         <note priority="1" from="meaning">Ready to sell footnote</note>
@@ -8414,7 +8414,7 @@
         <source>Committed savings, reserved like a bill:</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">482,483</context>
+          <context context-type="linenumber">483,484</context>
         </context-group>
         <note priority="1" from="description">Lists the savings that are subtracted like a bill</note>
         <note priority="1" from="meaning">Committed savings drill-down</note>
@@ -8423,7 +8423,7 @@
         <source> 🏦 Committed savings (shown, not subtracted): <x id="INTERPOLATION" equiv-text="{{ formatMoney(committed) }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">493,495</context>
+          <context context-type="linenumber">494,496</context>
         </context-group>
         <note priority="1" from="description">Savings shown beside the stress-test figure but not subtracted from it</note>
         <note priority="1" from="meaning">Committed savings line</note>
@@ -8432,7 +8432,7 @@
         <source>Not part of the number above.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">497,499</context>
+          <context context-type="linenumber">498,500</context>
         </context-group>
         <note priority="1" from="description">The committed savings are not inside the stress-test figure</note>
         <note priority="1" from="meaning">Committed savings footnote</note>
@@ -8441,7 +8441,7 @@
         <source>Net worth</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">509,510</context>
+          <context context-type="linenumber">510,511</context>
         </context-group>
         <note priority="1" from="description">Everything owned minus everything owed</note>
         <note priority="1" from="meaning">Net worth card header</note>
@@ -8450,7 +8450,7 @@
         <source>Net worth trend</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">519,522</context>
+          <context context-type="linenumber">520,523</context>
         </context-group>
         <note priority="1" from="description">Screen-reader name for the net worth trend line</note>
         <note priority="1" from="meaning">Net worth sparkline</note>
@@ -8459,7 +8459,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ change.amount_minor &gt;= 0 ? &apos;▲&apos; : &apos;▼&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(change) }}"/> over <x id="INTERPOLATION_2" equiv-text="{{ history.length }}"/> snapshots </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">530,532</context>
+          <context context-type="linenumber">531,533</context>
         </context-group>
         <note priority="1" from="description">How much net worth moved across the recorded snapshots</note>
         <note priority="1" from="meaning">Net worth change</note>
@@ -8468,7 +8468,7 @@
         <source>Monthly cash flow</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">540,543</context>
+          <context context-type="linenumber">541,544</context>
         </context-group>
         <note priority="1" from="description">Money in against money out this month</note>
         <note priority="1" from="meaning">Cash flow card header</note>
@@ -8477,7 +8477,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(cashFlow.income) }}"/> in − <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(cashFlow.spending) }}"/> spent </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">549,550</context>
+          <context context-type="linenumber">550,551</context>
         </context-group>
         <note priority="1" from="description">Income minus spending for the month</note>
         <note priority="1" from="meaning">Cash flow math</note>
@@ -8486,7 +8486,7 @@
         <source>No income sources recorded yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">552,555</context>
+          <context context-type="linenumber">553,556</context>
         </context-group>
         <note priority="1" from="description">No income has been recorded for the household</note>
         <note priority="1" from="meaning">Cash flow empty state</note>
@@ -8495,7 +8495,7 @@
         <source> Saving <x id="INTERPOLATION" equiv-text="{{ savings.percent }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (savings.total_saved; as saved) {"/> — <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(saved) }}"/>/mo saved <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">565,569</context>
+          <context context-type="linenumber">566,570</context>
         </context-group>
         <note priority="1" from="description">Share of income the household saves, and the monthly amount</note>
         <note priority="1" from="meaning">Savings rate</note>
@@ -8504,7 +8504,7 @@
         <source> · <x id="INTERPOLATION" equiv-text="{{ formatMoney(savings.average_monthly_spending) }}"/>/mo avg spend (last 3 mo) </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">580,581</context>
+          <context context-type="linenumber">581,582</context>
         </context-group>
         <note priority="1" from="description">Average monthly spending over the last three months</note>
         <note priority="1" from="meaning">Savings rate context</note>
@@ -8513,7 +8513,7 @@
         <source> Payroll 401(k)/HSA not declared — add it on the <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/income-tax&quot;&gt;"/>Income page<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> for a complete rate; the rate may understate your saving. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">584,586</context>
+          <context context-type="linenumber">585,587</context>
         </context-group>
         <note priority="1" from="description">Pre-tax payroll saving is missing so the rate is understated</note>
         <note priority="1" from="meaning">Savings rate warning</note>
@@ -8522,7 +8522,7 @@
         <source>What you&apos;re saving</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">598,601</context>
+          <context context-type="linenumber">599,602</context>
         </context-group>
         <note priority="1" from="description">Recurring money the household puts aside</note>
         <note priority="1" from="meaning">Savings card header</note>
@@ -8531,7 +8531,7 @@
         <source>you told us</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">607,609</context>
+          <context context-type="linenumber">608,610</context>
         </context-group>
         <note priority="1" from="description">The household stated this contribution itself</note>
         <note priority="1" from="meaning">Savings row marker</note>
@@ -8540,7 +8540,7 @@
         <source>inferred</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">610,612</context>
+          <context context-type="linenumber">611,613</context>
         </context-group>
         <note priority="1" from="description">Matched from the money leaving the account only</note>
         <note priority="1" from="meaning">Savings row marker</note>
@@ -8549,7 +8549,7 @@
         <source>funds <x id="INTERPOLATION" equiv-text="{{ linkedName }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">617,618</context>
+          <context context-type="linenumber">618,619</context>
         </context-group>
         <note priority="1" from="description">Tooltip naming the goal this contribution funds</note>
         <note priority="1" from="meaning">Savings row goal link</note>
@@ -8558,7 +8558,7 @@
         <source> Fund <x id="INTERPOLATION" equiv-text="{{ suggestedName }}"/>? </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">654,655</context>
+          <context context-type="linenumber">655,656</context>
         </context-group>
         <note priority="1" from="description">Offers to link this contribution to the matching goal</note>
         <note priority="1" from="meaning">Savings row suggestion</note>
@@ -8567,7 +8567,7 @@
         <source> Stop tracking </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">667,669</context>
+          <context context-type="linenumber">668,670</context>
         </context-group>
         <note priority="1" from="description">Forgets a contribution the household declared</note>
         <note priority="1" from="meaning">Savings row action</note>
@@ -8576,7 +8576,7 @@
         <source> Not saving </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">678,680</context>
+          <context context-type="linenumber">679,681</context>
         </context-group>
         <note priority="1" from="description">Says a detected transfer is not saving after all</note>
         <note priority="1" from="meaning">Savings row action</note>
@@ -8585,7 +8585,7 @@
         <source>About <x id="INTERPOLATION" equiv-text="{{ formatMoney(total) }}"/> a month</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">687,688</context>
+          <context context-type="linenumber">688,689</context>
         </context-group>
         <note priority="1" from="description">Everything the household saves each month</note>
         <note priority="1" from="meaning">Savings total</note>
@@ -8594,7 +8594,7 @@
         <source> Add a contribution </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">699,703</context>
+          <context context-type="linenumber">700,704</context>
         </context-group>
         <note priority="1" from="description">Opens the form for declaring a savings transfer</note>
         <note priority="1" from="meaning">Savings action</note>
@@ -8603,7 +8603,7 @@
         <source> Nothing detected. Money moved into an account we don&apos;t sync — a 529, a workplace plan — never reaches the ledger, so tell us about it here. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">705,710</context>
+          <context context-type="linenumber">706,711</context>
         </context-group>
         <note priority="1" from="description">Explains why no savings were detected and invites a declaration</note>
         <note priority="1" from="meaning">Savings empty state</note>
@@ -8612,7 +8612,7 @@
         <source>Loading accounts…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">715,718</context>
+          <context context-type="linenumber">716,719</context>
         </context-group>
         <note priority="1" from="description">Shown while the account list is fetched</note>
         <note priority="1" from="meaning">Savings form loading</note>
@@ -8621,7 +8621,7 @@
         <source>From</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">722,723</context>
+          <context context-type="linenumber">723,724</context>
         </context-group>
         <note priority="1" from="description">The account the money leaves</note>
         <note priority="1" from="meaning">Savings form field</note>
@@ -8630,7 +8630,7 @@
         <source>Into</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">730,731</context>
+          <context context-type="linenumber">731,732</context>
         </context-group>
         <note priority="1" from="description">The account the money arrives in</note>
         <note priority="1" from="meaning">Savings form field</note>
@@ -8639,7 +8639,7 @@
         <source><x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> each time</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">740,741</context>
+          <context context-type="linenumber">741,742</context>
         </context-group>
         <note priority="1" from="description">How much moves on each transfer, in the household currency</note>
         <note priority="1" from="meaning">Savings form field</note>
@@ -8648,7 +8648,7 @@
         <source>How often</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">744,745</context>
+          <context context-type="linenumber">745,746</context>
         </context-group>
         <note priority="1" from="description">How often the transfer repeats</note>
         <note priority="1" from="meaning">Savings form field</note>
@@ -8657,7 +8657,7 @@
         <source> Save </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">758,760</context>
+          <context context-type="linenumber">759,761</context>
         </context-group>
         <note priority="1" from="description">Submits the declared contribution</note>
         <note priority="1" from="meaning">Savings form action</note>
@@ -8666,7 +8666,7 @@
         <source> Cancel </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">766,768</context>
+          <context context-type="linenumber">767,769</context>
         </context-group>
         <note priority="1" from="description">Closes the form without saving</note>
         <note priority="1" from="meaning">Savings form action</note>
@@ -8675,7 +8675,7 @@
         <source>Emergency fund</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">790,791</context>
+          <context context-type="linenumber">791,792</context>
         </context-group>
         <note priority="1" from="description">Cash held back for emergencies</note>
         <note priority="1" from="meaning">Emergency fund card header</note>
@@ -8684,7 +8684,7 @@
         <source><x id="INTERPOLATION" equiv-text="{{ fund.months | number: &apos;1.1-1&apos; }}"/> months</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">797,798</context>
+          <context context-type="linenumber">798,799</context>
         </context-group>
         <note priority="1" from="description">How many months of expenses the fund covers</note>
         <note priority="1" from="meaning">Emergency fund cover</note>
@@ -8693,7 +8693,7 @@
         <source>of <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> recommended</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">798,799</context>
+          <context context-type="linenumber">799,800</context>
         </context-group>
         <note priority="1" from="description">The recommended number of months of cover</note>
         <note priority="1" from="meaning">Emergency fund cover</note>
@@ -8702,7 +8702,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(fund.reserved) }}"/> set aside <x id="START_BLOCK_IF" equiv-text="@if (fund.using_designations) {"/> (designated accounts) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> (all cash — <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/accounts&quot;&gt;"/>designate accounts<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to be precise) <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · expenses <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(fund.monthly_expenses) }}"/>/month </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">801,808</context>
+          <context context-type="linenumber">802,809</context>
         </context-group>
         <note priority="1" from="description">What is set aside, where it was counted, and monthly expenses</note>
         <note priority="1" from="meaning">Emergency fund detail</note>
@@ -8711,7 +8711,7 @@
         <source> Your goal: <x id="INTERPOLATION" equiv-text="{{ formatMoney(goalTarget) }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">811,812</context>
+          <context context-type="linenumber">812,813</context>
         </context-group>
         <note priority="1" from="description">The household&apos;s own target for the fund</note>
         <note priority="1" from="meaning">Emergency fund detail</note>
@@ -8720,7 +8720,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(gap) }}"/> more to reach the <x id="INTERPOLATION_1" equiv-text="{{ fund.target_months_recommended }}"/>-month goal </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">817,819</context>
+          <context context-type="linenumber">818,820</context>
         </context-group>
         <note priority="1" from="description">How much more is needed to reach the recommended months of cover</note>
         <note priority="1" from="meaning">Emergency fund gap</note>
@@ -8729,7 +8729,7 @@
         <source> ✓ Target met </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">822,825</context>
+          <context context-type="linenumber">823,826</context>
         </context-group>
         <note priority="1" from="description">The recommended months of cover are reached</note>
         <note priority="1" from="meaning">Emergency fund gap</note>
@@ -8738,7 +8738,7 @@
         <source><x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Add your recurring bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> so coverage can be measured against your <x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/>-month target. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">829,831</context>
+          <context context-type="linenumber">830,832</context>
         </context-group>
         <note priority="1" from="description">Bills are needed before months of cover can be worked out</note>
         <note priority="1" from="meaning">Emergency fund empty state</note>
@@ -8747,7 +8747,7 @@
         <source>Target months</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">838,841</context>
+          <context context-type="linenumber">839,842</context>
         </context-group>
         <note priority="1" from="description">How many months of expenses the fund should cover</note>
         <note priority="1" from="meaning">Emergency fund target field</note>
@@ -8756,7 +8756,7 @@
         <source>Saving…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">850,852</context>
+          <context context-type="linenumber">851,853</context>
         </context-group>
         <note priority="1" from="description">Shown while the new target is saved</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
@@ -8765,7 +8765,7 @@
         <source>Save</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">852,855</context>
+          <context context-type="linenumber">853,856</context>
         </context-group>
         <note priority="1" from="description">Stores the new target months</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
@@ -8774,7 +8774,7 @@
         <source> Cancel </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">862,864</context>
+          <context context-type="linenumber">863,865</context>
         </context-group>
         <note priority="1" from="description">Leaves the target unchanged</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
@@ -8783,7 +8783,7 @@
         <source> Adjust target (<x id="INTERPOLATION" equiv-text="{{ fund.target_months_recommended }}"/> months) </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">872,873</context>
+          <context context-type="linenumber">873,874</context>
         </context-group>
         <note priority="1" from="description">Opens the editor for the months of cover target</note>
         <note priority="1" from="meaning">Emergency fund target action</note>
@@ -8792,7 +8792,7 @@
         <source>Assets</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">882,884</context>
+          <context context-type="linenumber">883,885</context>
         </context-group>
         <note priority="1" from="description">Everything the household owns, by category</note>
         <note priority="1" from="meaning">Assets card header</note>
@@ -8801,7 +8801,7 @@
         <source>Total debt</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">896,898</context>
+          <context context-type="linenumber">897,899</context>
         </context-group>
         <note priority="1" from="description">Everything the household owes</note>
         <note priority="1" from="meaning">Debt card header</note>
@@ -8810,7 +8810,7 @@
         <source>Top goal</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">907,909</context>
+          <context context-type="linenumber">908,910</context>
         </context-group>
         <note priority="1" from="description">The savings goal closest to being reached</note>
         <note priority="1" from="meaning">Top goal card header</note>
@@ -8819,7 +8819,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(goal.current) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(goal.target) }}"/> · <x id="INTERPOLATION_2" equiv-text="{{ goal.percent_complete }}"/>% <x id="START_BLOCK_IF" equiv-text="@if (goal.target_date) {"/> · by <x id="INTERPOLATION_3" equiv-text="{{ goal.target_date | date: &apos;MMM y&apos; }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">921,926</context>
+          <context context-type="linenumber">922,927</context>
         </context-group>
         <note priority="1" from="description">How much is saved against the target, and the target date</note>
         <note priority="1" from="meaning">Top goal progress</note>
@@ -8828,7 +8828,7 @@
         <source> No goals yet. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/goals&quot;&gt;"/>Set a savings goal<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> to track progress. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">929,930</context>
+          <context context-type="linenumber">930,931</context>
         </context-group>
         <note priority="1" from="description">No savings goal has been created yet</note>
         <note priority="1" from="meaning">Top goal empty state</note>
@@ -8837,7 +8837,7 @@
         <source>Spending this month</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">937,938</context>
+          <context context-type="linenumber">938,939</context>
         </context-group>
         <note priority="1" from="description">What the household has spent so far this month</note>
         <note priority="1" from="meaning">Spending card header</note>
@@ -8846,7 +8846,7 @@
         <source>vs same period last month</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">938,940</context>
+          <context context-type="linenumber">939,941</context>
         </context-group>
         <note priority="1" from="description">The comparison is against the same days of last month</note>
         <note priority="1" from="meaning">Spending card header note</note>
@@ -8855,7 +8855,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ spending.change_percent &gt; 0 ? &apos;▲&apos; : spending.change_percent &lt; 0 ? &apos;▼&apos; : &apos;&apos; }}"/> <x id="INTERPOLATION_1" equiv-text="{{ absPercent(spending.change_percent) }}"/>% vs last month (<x id="INTERPOLATION_2" equiv-text="{{ formatMoney(spending.last_month) }}"/>) </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">948,951</context>
+          <context context-type="linenumber">949,952</context>
         </context-group>
         <note priority="1" from="description">How this month&apos;s spending compares with the same period last month</note>
         <note priority="1" from="meaning">Spending change</note>
@@ -8864,7 +8864,7 @@
         <source>No spending in the same period last month.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">953,955</context>
+          <context context-type="linenumber">954,956</context>
         </context-group>
         <note priority="1" from="description">There is nothing to compare against last month</note>
         <note priority="1" from="meaning">Spending change empty state</note>
@@ -8873,7 +8873,7 @@
         <source>Budgets</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">970,972</context>
+          <context context-type="linenumber">971,973</context>
         </context-group>
         <note priority="1" from="description">Spending envelopes and how they are doing</note>
         <note priority="1" from="meaning">Budgets card header</note>
@@ -8882,7 +8882,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ budgets.over_count }}"/> over budget </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">973,974</context>
+          <context context-type="linenumber">974,975</context>
         </context-group>
         <note priority="1" from="description">How many envelopes have been overspent</note>
         <note priority="1" from="meaning">Budget verdict</note>
@@ -8891,7 +8891,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ budgets.warning_count }}"/> almost at the limit </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">977,978</context>
+          <context context-type="linenumber">978,979</context>
         </context-group>
         <note priority="1" from="description">How many envelopes are close to their limit</note>
         <note priority="1" from="meaning">Budget verdict</note>
@@ -8900,7 +8900,7 @@
         <source>All on track</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">980,982</context>
+          <context context-type="linenumber">981,983</context>
         </context-group>
         <note priority="1" from="description">No envelope is over or near its limit</note>
         <note priority="1" from="meaning">Budget verdict</note>
@@ -8909,7 +8909,7 @@
         <source> <x id="INTERPOLATION" equiv-text="{{ formatMoney(budgets.total_spent) }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ formatMoney(budgets.total_budgeted) }}"/> across <x id="INTERPOLATION_2" equiv-text="{{ budgets.envelope_count }}"/> budgets · <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/budgets&quot;&gt;"/>manage<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">983,987</context>
+          <context context-type="linenumber">984,988</context>
         </context-group>
         <note priority="1" from="description">Spent against budgeted across all envelopes</note>
         <note priority="1" from="meaning">Budget detail</note>
@@ -8918,7 +8918,7 @@
         <source>Upcoming bills</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">993,994</context>
+          <context context-type="linenumber">994,995</context>
         </context-group>
         <note priority="1" from="description">Bills falling due soon</note>
         <note priority="1" from="meaning">Bills card header</note>
@@ -8927,7 +8927,7 @@
         <source>next 14 days</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">994,996</context>
+          <context context-type="linenumber">995,997</context>
         </context-group>
         <note priority="1" from="description">The window the listed bills fall in</note>
         <note priority="1" from="meaning">Bills card header note</note>
@@ -8936,7 +8936,7 @@
         <source> Nothing due in the next two weeks. <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/bills&quot;&gt;"/>Manage bills<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">1013,1015</context>
+          <context context-type="linenumber">1014,1016</context>
         </context-group>
         <note priority="1" from="description">No bill falls due inside the window</note>
         <note priority="1" from="meaning">Bills empty state</note>
@@ -11213,7 +11213,7 @@
         <source>Overview</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">99</context>
+          <context context-type="linenumber">109</context>
         </context-group>
         <note priority="1" from="description">Link to the household overview page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11222,7 +11222,7 @@
         <source>Advisor</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">103</context>
+          <context context-type="linenumber">113</context>
         </context-group>
         <note priority="1" from="description">Link to the AI advisor chat page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11231,7 +11231,7 @@
         <source>Money</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">109</context>
+          <context context-type="linenumber">119</context>
         </context-group>
         <note priority="1" from="description">Heading over the money pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -11240,7 +11240,7 @@
         <source>Accounts</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">113</context>
+          <context context-type="linenumber">123</context>
         </context-group>
         <note priority="1" from="description">Link to the bank and asset accounts page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11249,7 +11249,7 @@
         <source>Transactions</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">117</context>
+          <context context-type="linenumber">127</context>
         </context-group>
         <note priority="1" from="description">Link to the transactions ledger page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11258,7 +11258,7 @@
         <source>Bills</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">121</context>
+          <context context-type="linenumber">131</context>
         </context-group>
         <note priority="1" from="description">Link to the recurring bills page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11267,7 +11267,7 @@
         <source>Debts &amp; loans</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">125</context>
+          <context context-type="linenumber">135</context>
         </context-group>
         <note priority="1" from="description">Link to the debts and loans page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11276,7 +11276,7 @@
         <source>Income &amp; tax</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">129</context>
+          <context context-type="linenumber">139</context>
         </context-group>
         <note priority="1" from="description">Link to the income and tax page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11285,7 +11285,7 @@
         <source>Budgets</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">133</context>
+          <context context-type="linenumber">143</context>
         </context-group>
         <note priority="1" from="description">Link to the budget envelopes page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11294,7 +11294,7 @@
         <source>Categories</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">137</context>
+          <context context-type="linenumber">147</context>
         </context-group>
         <note priority="1" from="description">Link to the spending categories page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11303,7 +11303,7 @@
         <source>Goals</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">141</context>
+          <context context-type="linenumber">151</context>
         </context-group>
         <note priority="1" from="description">Link to the savings goals page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11312,7 +11312,7 @@
         <source>AI</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">146</context>
+          <context context-type="linenumber">156</context>
         </context-group>
         <note priority="1" from="description">Heading over the AI advisor pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -11321,7 +11321,7 @@
         <source>Advisor memory</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">150</context>
+          <context context-type="linenumber">160</context>
         </context-group>
         <note priority="1" from="description">Link to what the advisor remembers</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11330,7 +11330,7 @@
         <source>AI runtime</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">155</context>
+          <context context-type="linenumber">165</context>
         </context-group>
         <note priority="1" from="description">Link to the AI model runtime settings</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11339,7 +11339,7 @@
         <source>Admin</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">161</context>
+          <context context-type="linenumber">171</context>
         </context-group>
         <note priority="1" from="description">Heading over the administration pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -11348,7 +11348,7 @@
         <source>Imports</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">165</context>
+          <context context-type="linenumber">175</context>
         </context-group>
         <note priority="1" from="description">Link to the statement imports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11357,7 +11357,7 @@
         <source>Reports</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">170</context>
+          <context context-type="linenumber">180</context>
         </context-group>
         <note priority="1" from="description">Link to the reports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11366,7 +11366,7 @@
         <source>Backups</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">175</context>
+          <context context-type="linenumber">185</context>
         </context-group>
         <note priority="1" from="description">Link to the backups page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11375,7 +11375,7 @@
         <source>Users</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">180</context>
+          <context context-type="linenumber">190</context>
         </context-group>
         <note priority="1" from="description">Link to the household members page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11384,7 +11384,7 @@
         <source>Roles</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">185</context>
+          <context context-type="linenumber">195</context>
         </context-group>
         <note priority="1" from="description">Link to the roles and rights page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11393,7 +11393,7 @@
         <source>Devices</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">190</context>
+          <context context-type="linenumber">200</context>
         </context-group>
         <note priority="1" from="description">Link to the paired devices page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11402,7 +11402,7 @@
         <source>Change password</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">195</context>
+          <context context-type="linenumber">205</context>
         </context-group>
         <note priority="1" from="description">Link to the change-your-password page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -11411,7 +11411,7 @@
         <source>Households</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">200</context>
+          <context context-type="linenumber">210</context>
         </context-group>
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>

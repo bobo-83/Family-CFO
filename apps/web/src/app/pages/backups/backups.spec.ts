@@ -223,7 +223,11 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Sealed');
     expect(text).toContain('Only your passwords, your phones, and your recovery key');
-    expect(text).toContain('overnight work waits for you');
+    // #115: the sealed note must not imply the work merely waits — it never
+    // runs while sealed, because the worker cannot see the API's session key.
+    expect(text).toContain('does not run at all while you are sealed');
+    expect(text).toContain('Encrypted backups still run');
+    expect(text).not.toContain('waits for you');
     expect(text).toContain('Switch back to convenient…');
     expect(text).toContain('Locked — sign in again to unlock');
     // The rescue lives right beneath the locked line.

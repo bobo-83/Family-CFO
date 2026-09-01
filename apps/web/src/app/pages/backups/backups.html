@@ -183,8 +183,10 @@
           @if (mode === 'sealed') {
             <p class="backups-note" i18n="Privacy mode|What sealed mode means for the household">
               <strong>Sealed</strong> — Only your passwords, your phones, and your recovery key can
-              open your data. After a restart, nothing is readable until someone signs in — and
-              overnight work waits for you.
+              open your data. After a restart, nothing is readable until someone signs in.
+              Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at
+              all while you are sealed, not even while you are signed in. Encrypted backups still
+              run.
             </p>
             @if (status.unlocked === false) {
               <p class="backups-caption" i18n="Lock state|The sealed household is locked until somebody signs in">Locked — sign in again to unlock</p>

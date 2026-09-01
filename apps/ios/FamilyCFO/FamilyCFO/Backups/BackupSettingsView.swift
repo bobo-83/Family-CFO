@@ -71,7 +71,7 @@ struct BackupSettingsView: View {
             // One sentence restating the consequence (ADR 0072 Phase 3).
             Text(
                 sealed
-                    ? "After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in."
+                    ? "After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run."
                     : "The box keeps a spare of your data key again, so overnight work runs without anyone signed in."
             )
         }
@@ -306,7 +306,7 @@ struct BackupSettingsView: View {
                 .font(.caption.weight(.semibold))
             Text(
                 mode == .sealed
-                    ? "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you."
+                    ? "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at all while you are sealed, not even while you are signed in. Encrypted backups still run."
                     : "The box keeps a spare of your data key: overnight sync, snapshots, and idle study keep working. Your content is protected against stolen disks and backups — the box itself can still read it."
             )
             .font(.caption)
