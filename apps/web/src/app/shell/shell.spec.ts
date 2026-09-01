@@ -91,11 +91,21 @@ describe('Shell', () => {
     const stubVersions = (options: {
       box?: string | null;
       app?: string | null;
+      /** A raw health body, for malformed or non-string version cases. */
+      boxBody?: unknown;
+      /** Override the health response status without changing its body. */
+      boxOk?: boolean;
       /** A raw 200 body, for the case where /VERSION answers with something else. */
       appBody?: string;
     }) => {
       vi.stubGlobal('fetch', (url: string) => {
         if (url === '/api/v1/health') {
+          if (options.boxOk === false) {
+            return Promise.resolve({ ok: false, json: () => Promise.resolve(options.boxBody) });
+          }
+          if (options.boxBody !== undefined) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve(options.boxBody) });
+          }
           return options.box === null || options.box === undefined
             ? Promise.reject(new Error('unreachable'))
             : Promise.resolve({ ok: true, json: () => Promise.resolve({ version: options.box }) });
@@ -186,6 +196,35 @@ describe('Shell', () => {
       const host = fixture.nativeElement as HTMLElement;
       expect(host.querySelector('.shell__version-app')).toBeNull();
       expect(host.querySelector('.shell__version-warning')).toBeNull();
+    });
+
+    const expectBoxVersionIgnored = async (boxResponse: {
+      boxBody?: unknown;
+      boxOk?: boolean;
+    }) => {
+      stubVersions({ app: '0.157.2', ...boxResponse });
+      const fixture = TestBed.createComponent(Shell);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['serverVersion']()).toBeNull();
+      expect(fixture.componentInstance['versionMismatch']()).toBe(false);
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.shell__version-app')?.textContent).toContain('v0.157.2');
+      expect(host.querySelector('.shell__version-box')).toBeNull();
+      expect(host.querySelector('.shell__version-warning')).toBeNull();
+    };
+
+    it('ignores a non-success health response', async () => {
+      await expectBoxVersionIgnored({ boxOk: false, boxBody: { version: '0.158.0' } });
+    });
+
+    it('ignores a malformed health version', async () => {
+      await expectBoxVersionIgnored({ boxBody: { version: 'not-a-version' } });
+    });
+
+    it('ignores a non-string health version', async () => {
+      await expectBoxVersionIgnored({ boxBody: { version: 157 } });
     });
 
     it('survives an unreachable box', async () => {

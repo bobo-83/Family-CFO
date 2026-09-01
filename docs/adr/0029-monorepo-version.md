@@ -50,16 +50,18 @@ Since this is a monorepo everything ships with the same version."
      deploy-ios-ota.sh" when the backend has moved past the bundle. This is the
      "OTA is always on the most current code" enforcement: drift is caught the
      moment it is created, at the terminal that created it.
-3. **Matching, not freshness, is the invariant.** A version match means the app
-   and backend were built from the same tree — the actual guarantee that
-   matters. The health check is best-effort everywhere (a failed fetch shows
-   nothing rather than breaking a screen).
+3. **Compatibility, not build equality, is the invariant.** A contract match
+   means the app and backend remain compatible even when their independent
+   build numbers differ. Exact versions identify the artifacts; they are not
+   the cross-component compatibility signal. The health check is best-effort
+   everywhere (a failed fetch shows nothing rather than breaking a screen).
 
 ## Invariant
 
-> Every deployable reports the same `/VERSION` it was built from. Any
-> app↔backend mismatch is surfaced automatically — on the OTA page, in the
-> app, and in the deploy terminal — never discovered by debugging.
+> Superseded by ADR 0074: every versioned deployable reports
+> `<contract>.<build>`. Cross-component checks must compare the shared
+> `MAJOR.MINOR` contract, not exact artifact identity; a contract mismatch is
+> actionable, while build-number differences alone are expected.
 
 ## Rejected
 

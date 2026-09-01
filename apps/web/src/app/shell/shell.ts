@@ -30,6 +30,15 @@ export class Shell {
    */
   private static readonly VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
+  /** Accept only a composed version, regardless of which endpoint supplied it. */
+  private static parseVersion(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return Shell.VERSION_PATTERN.test(trimmed) ? trimmed : null;
+  }
+
   /**
    * The compatibility contract — the MAJOR.MINOR prefix. Two deployables that
    * agree here can talk to each other whatever their build numbers are.
@@ -54,9 +63,13 @@ export class Shell {
 
   private loadVersion(): void {
     void fetch('/api/v1/health')
-      .then((response) => response.json())
-      .then((health: { version?: string }) => {
-        this.serverVersion.set(health.version ?? null);
+      .then((response) => (response.ok ? response.json() : null))
+      .then((health: unknown) => {
+        const value =
+          typeof health === 'object' && health !== null && 'version' in health
+            ? (health as { version?: unknown }).version
+            : null;
+        this.serverVersion.set(Shell.parseVersion(value));
       })
       .catch(() => this.serverVersion.set(null));
 
@@ -64,10 +77,7 @@ export class Shell {
     // serve` and in tests, where the badge simply does not render.
     void fetch('/VERSION')
       .then((response) => (response.ok ? response.text() : null))
-      .then((text) => {
-        const trimmed = text?.trim() ?? '';
-        this.appVersion.set(Shell.VERSION_PATTERN.test(trimmed) ? trimmed : null);
-      })
+      .then((text) => this.appVersion.set(Shell.parseVersion(text)))
       .catch(() => this.appVersion.set(null));
   }
 
