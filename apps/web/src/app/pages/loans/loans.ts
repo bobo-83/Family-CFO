@@ -59,7 +59,15 @@ function emptyForm(): LoanForm {
 
 /** N monthly payments from today, as "yyyy-MM-dd" (M115's dateAfter). */
 export function dateAfterPayments(payments: number, from = new Date()): string {
-  const d = new Date(from.getFullYear(), from.getMonth() + Math.max(payments, 0), from.getDate());
+  const year = from.getFullYear();
+  const month = from.getMonth() + Math.max(payments, 0);
+  // Clamp to the last day the target month actually has. `new Date(y, m, 31)`
+  // does not fail on a 30-day month, it rolls FORWARD — from 31 Aug one
+  // payment landed on 1 Oct and from 31 Jan on 3 Mar, which monthsLeft() then
+  // read back as two payments rather than one. Day 0 of the following month
+  // is the last day of this one.
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  const d = new Date(year, month, Math.min(from.getDate(), lastDayOfMonth));
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
