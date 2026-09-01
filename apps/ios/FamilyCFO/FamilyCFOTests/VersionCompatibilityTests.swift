@@ -20,34 +20,31 @@ struct VersionContractTests {
         #expect(OverviewViewModel.contract(of: "1.2.3") == "1.2")
     }
 
-    /// The composed form is what ships, but the shell helper is deliberately
-    /// safe to apply to a bare contract too — so this must be as well, or a box
-    /// reporting `0.157` would read as a different contract than `0.157.0`.
-    @Test func aBareContractIsReturnedUnchanged() {
-        #expect(OverviewViewModel.contract(of: "0.157") == "0.157")
-    }
-
-    /// `appVersion` falls back to "?" when the Info.plist key is missing, and a
-    /// box can answer with anything. Neither may crash the comparison.
-    @Test func aMalformedVersionDegradesRatherThanCrashing() {
-        #expect(OverviewViewModel.contract(of: "?") == "?")
-        #expect(OverviewViewModel.contract(of: "") == "")
-        #expect(OverviewViewModel.contract(of: "0.157.4.9") == "0.157")
+    /// Every product artifact must report the complete shape from ADR 0074.
+    /// Invalid values are unknown rather than compatible with a valid prefix.
+    @Test func malformedArtifactVersionsAreRejected() {
+        for version in ["?", "", "0.157", "0.157.4.9", "0..157.bad", "0.157.corrupt", "0.157."] {
+            #expect(OverviewViewModel.contract(of: version) == nil)
+        }
     }
 
     /// The regression this whole issue exists for: `scripts/patch.sh api` bumps
     /// only `apps/api/BUILD`, and the phone must stay quiet about it.
     @Test func aBuildOnlyDifferenceIsNotAMismatch() {
-        #expect(!OverviewViewModel.versionsDiffer(app: "0.157.1", box: "0.157.4"))
-        #expect(!OverviewViewModel.versionsDiffer(app: "0.157.9", box: "0.157.0"))
-        #expect(!OverviewViewModel.versionsDiffer(app: "0.157.1", box: "0.157"))
+        #expect(OverviewViewModel.versionsDiffer(app: "0.157.1", box: "0.157.4") == false)
+        #expect(OverviewViewModel.versionsDiffer(app: "0.157.9", box: "0.157.0") == false)
     }
 
     /// A contract bump still means every component must ship — that case warns
     /// exactly as loudly as it did before ADR 0074.
     @Test func aContractDifferenceIsAMismatch() {
-        #expect(OverviewViewModel.versionsDiffer(app: "0.157.4", box: "0.158.0"))
-        #expect(OverviewViewModel.versionsDiffer(app: "0.157.0", box: "1.157.0"))
+        #expect(OverviewViewModel.versionsDiffer(app: "0.157.4", box: "0.158.0") == true)
+        #expect(OverviewViewModel.versionsDiffer(app: "0.157.0", box: "1.157.0") == true)
+    }
+
+    @Test func anInvalidVersionIsUnverifiableRatherThanCompatible() {
+        #expect(OverviewViewModel.versionsDiffer(app: "0.157.1", box: "0.157.corrupt") == nil)
+        #expect(OverviewViewModel.versionsDiffer(app: "0..157.bad", box: "0.157.1") == nil)
     }
 }
 
@@ -85,19 +82,29 @@ struct OverviewVersionMismatchTests {
 
         #expect(viewModel.serverVersion == nil)
         #expect(!viewModel.versionMismatch)
+        #expect(!viewModel.versionUnverifiable)
     }
 
-    @Test func aBoxOnTheSameContractShowsNoBanner() async {
-        let contract = OverviewViewModel.contract(of: OverviewViewModel.appVersion)
+    @Test func aBoxOnTheSameContractShowsNoBanner() async throws {
+        let contract = try #require(OverviewViewModel.contract(of: OverviewViewModel.appVersion))
         let viewModel = await loaded(boxVersion: "\(contract).999")
 
         #expect(viewModel.serverVersion == "\(contract).999")
         #expect(!viewModel.versionMismatch)
+        #expect(!viewModel.versionUnverifiable)
     }
 
     @Test func aBoxOnAnotherContractShowsTheBanner() async {
         let viewModel = await loaded(boxVersion: "999999.0.0")
 
         #expect(viewModel.versionMismatch)
+        #expect(!viewModel.versionUnverifiable)
+    }
+
+    @Test func aMalformedBoxVersionShowsTheUnverifiableWarning() async {
+        let viewModel = await loaded(boxVersion: "0.157.corrupt")
+
+        #expect(!viewModel.versionMismatch)
+        #expect(viewModel.versionUnverifiable)
     }
 }

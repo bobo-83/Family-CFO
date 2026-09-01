@@ -200,27 +200,42 @@ final class OverviewViewModel {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
-    /// The compatibility contract - the MAJOR.MINOR prefix of a version string
-    /// (ADR 0074). "0.157.4" -> "0.157"; a bare "0.157" is returned unchanged,
-    /// so this is safe to apply to either form. Mirrors `contract_of` in
-    /// scripts/lib/version.sh and `Shell.contractOf` in the dashboard.
-    static func contract(of version: String) -> String {
-        version.split(separator: ".").prefix(2).joined(separator: ".")
+    /// The compatibility contract - the MAJOR.MINOR prefix of a complete
+    /// MAJOR.MINOR.BUILD artifact version (ADR 0074). Invalid runtime values
+    /// are unverifiable, never compatible. Mirrors the dashboard's strict
+    /// parser rather than the shell helper, which also accepts bare contracts
+    /// because it operates on the repository's /VERSION file.
+    static func contract(of version: String) -> String? {
+        guard version.wholeMatch(of: /^[0-9]+\.[0-9]+\.[0-9]+$/) != nil else { return nil }
+        return version.split(separator: ".").prefix(2).joined(separator: ".")
     }
 
-    /// True only when app and box name DIFFERENT contracts. A differing build
-    /// number is the normal, healthy case now - the api ships on its own and
-    /// warning about that was the whole problem ADR 0074 set out to fix.
-    static func versionsDiffer(app: String, box: String) -> Bool {
-        contract(of: app) != contract(of: box)
+    /// Whether two valid artifact versions name different contracts. nil means
+    /// at least one value is malformed and compatibility cannot be verified.
+    static func versionsDiffer(app: String, box: String) -> Bool? {
+        guard let appContract = contract(of: app), let boxContract = contract(of: box) else {
+            return nil
+        }
+        return appContract != boxContract
+    }
+
+    private var versionDifference: Bool? {
+        guard let serverVersion else { return nil }
+        return Self.versionsDiffer(app: Self.appVersion, box: serverVersion)
     }
 
     /// True when the box speaks a different contract than this build - the app
     /// is stale (or the box is), and the OTA page has the fix. The guard keeps
     /// a half-known pair (box unreachable) from being called a mismatch.
     var versionMismatch: Bool {
-        guard let serverVersion else { return false }
-        return Self.versionsDiffer(app: Self.appVersion, box: serverVersion)
+        versionDifference == true
+    }
+
+    /// A responding box supplied a malformed version (or this build was
+    /// stamped incorrectly). Unlike an unreachable box, that is actionable and
+    /// must be surfaced rather than silently treated as compatible.
+    var versionUnverifiable: Bool {
+        serverVersion != nil && versionDifference == nil
     }
 
     /// "Last synced 3 hours ago" for the freshness line, or nil when never synced.

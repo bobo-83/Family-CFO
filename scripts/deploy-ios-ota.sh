@@ -248,10 +248,21 @@ cat > "$EXPORT_DIR/index.html" <<HTML
   (function () {
     var el = document.getElementById('versionCheck');
     var appVersion = '${APP_VERSION}';
-    function contractOf(v) { return String(v).split('.').slice(0, 2).join('.'); }
-    fetch('/api/v1/health').then(function (r) { return r.json(); }).then(function (h) {
-      var box = String(h.version);
-      if (contractOf(box) === contractOf(appVersion)) {
+    function contractOf(v) {
+      if (typeof v !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+\$/.test(v)) return null;
+      return v.split('.').slice(0, 2).join('.');
+    }
+    fetch('/api/v1/health').then(function (r) {
+      if (!r.ok) throw new Error('health request failed');
+      return r.json();
+    }).then(function (h) {
+      var box = h && typeof h.version === 'string' ? h.version : null;
+      var appContract = contractOf(appVersion);
+      var boxContract = contractOf(box);
+      if (appContract === null || boxContract === null) {
+        el.textContent = '⚠ Could not verify compatibility because the app or box reported an invalid version.';
+        el.style.color = '#c04a00';
+      } else if (boxContract === appContract) {
         el.textContent = '✓ Matches the box (app v' + appVersion + ', box v' + box + ')';
         el.style.color = '#248a3d';
       } else {

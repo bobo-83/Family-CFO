@@ -140,10 +140,14 @@ struct OverviewView: View {
                         }
                     } else {
                     monthPicker(viewModel)
-                    // M120 (ADR 0029): the box and the app ship one monorepo
-                    // version - say so loudly when they have drifted apart.
-                    if viewModel.versionMismatch, let server = viewModel.serverVersion {
-                        versionMismatchBanner(server: server)
+                    // M120 (ADR 0074): compatible builds may differ, but a
+                    // contract mismatch or malformed runtime version is loud.
+                    if let server = viewModel.serverVersion {
+                        if viewModel.versionMismatch {
+                            versionMismatchBanner(server: server)
+                        } else if viewModel.versionUnverifiable {
+                            versionUnverifiableBanner(server: server)
+                        }
                     }
                     // A failed edit (#203's declare/stop/dismiss, a sync) has to
                     // say so: the numbers below are still the last good load, so
@@ -239,20 +243,35 @@ struct OverviewView: View {
     /// them is genuinely stale - point at the OTA page. A build-only
     /// difference never reaches here.
     private func versionMismatchBanner(server: String) -> some View {
+        versionWarningBanner(
+            server: server,
+            message: String(
+                localized: """
+                    App and box are on different versions — some screens may \
+                    not match the server. Install the update from your box's \
+                    OTA page.
+                    """))
+    }
+
+    /// A malformed artifact version cannot prove compatibility.
+    private func versionUnverifiableBanner(server: String) -> some View {
+        versionWarningBanner(
+            server: server,
+            message: String(
+                localized: """
+                    Could not verify whether this app matches the box because one \
+                    reported version is invalid. Check for an update before continuing.
+                    """))
+    }
+
+    private func versionWarningBanner(server: String, message: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(
                 "App v\(OverviewViewModel.appVersion) · box v\(server)",
                 systemImage: "exclamationmark.arrow.triangle.2.circlepath"
             )
             .font(.subheadline.weight(.semibold))
-            Text(
-                String(
-                    localized: """
-                        App and box are on different versions — some screens may \
-                        not match the server. Install the update from your box's \
-                        OTA page.
-                        """)
-            )
+            Text(message)
             .font(.caption)
             if let base = model.server?.apiBaseURL,
                 let ota = URL(string: "/ota/", relativeTo: base) {
