@@ -2619,6 +2619,22 @@
         }
       }
     },
+    "App and box are on different versions — some screens may not match the server. Install the update from your box's OTA page.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Programėlės ir serverio versijos skiriasi — kai kurie ekranai gali neatitikti serverio. Įdiekite atnaujinimą iš serverio OTA puslapio."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ứng dụng và máy đang ở phiên bản khác nhau — một số màn hình có thể khác với máy. Hãy cài bản cập nhật từ trang OTA của máy."
+          }
+        }
+      }
+    },
     "App v%@ · box v%@": {
       "localizations": {
         "en": {
@@ -3277,6 +3293,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ô 2 — thuế liên bang đã khấu trừ"
+          }
+        }
+      }
+    },
+    "Box version": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serverio versija"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Phiên bản máy"
           }
         }
       }
@@ -4503,6 +4535,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Có thể cải thiện"
+          }
+        }
+      }
+    },
+    "Could not verify whether this app matches the box because one reported version is invalid. Check for an update before continuing.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko patikrinti, ar ši programėlė atitinka serverį, nes viena nurodyta versija yra netinkama. Prieš tęsdami patikrinkite, ar yra naujinys."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không thể xác minh ứng dụng này có khớp với máy hay không vì một phiên bản được báo cáo không hợp lệ. Hãy kiểm tra bản cập nhật trước khi tiếp tục."
           }
         }
       }
@@ -15916,22 +15964,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Xe cộ"
-          }
-        }
-      }
-    },
-    "Versions differ, so screens may not match the server. Install the update from your box's OTA page.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Versijos skiriasi, tad ekranai gali neatitikti serverio. Įdiekite atnaujinimą iš serverio OTA puslapio."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phiên bản không khớp nên màn hình có thể khác với máy. Hãy cài bản cập nhật từ trang OTA của máy."
           }
         }
       }

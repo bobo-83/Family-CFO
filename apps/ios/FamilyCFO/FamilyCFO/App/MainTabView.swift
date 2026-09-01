@@ -199,6 +199,11 @@ struct SettingsView: View {
     @State private var timezoneModel: HouseholdTimezoneViewModel?
     // #96: the sealed-mode offer, beside the language and time-zone rows.
     @State private var sealOfferModel: SealedModeOfferViewModel?
+    // ADR 0074: the box's own version, shown beside this build's. Builds now
+    // move independently, so "App version" alone no longer says what the phone
+    // is talking to. Best-effort — nil (shown as "—") when the box is
+    // unreachable, exactly like the Overview banner's guard.
+    @State private var boxVersion: String?
     @AppStorage("family-cfo.showAdvisorDisclaimer") private var showDisclaimer = true
     // Per-device (deliberately NOT a household setting — it's about this
     // phone's speaker, battery, and taste): speak English answers in the
@@ -314,9 +319,13 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    // M120 (ADR 0029): one monorepo version everywhere; the app
-                    // knows its own and shows it beside the server address.
+                    // M120 (ADR 0029, amended by ADR 0074): both sides report
+                    // "<contract>.<build>", and they are compatible when the
+                    // contract — the leading MAJOR.MINOR — matches. A differing
+                    // build here is normal and is not warned about; the Overview
+                    // banner fires only on a contract difference.
                     LabeledContent("App version", value: OverviewViewModel.appVersion)
+                    LabeledContent("Box version", value: boxVersion ?? "—")
                     LabeledContent("Address", value: model.server?.apiBaseURL.absoluteString ?? "—")
                     if let fingerprint = model.server?.certificateSHA256 {
                         VStack(alignment: .leading, spacing: 4) {
@@ -460,6 +469,14 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            // Its own task, not a step in the one below: a /health round-trip
+            // must not delay the language, reserve and time-zone loads that
+            // actually render rows.
+            .task {
+                if boxVersion == nil, let api = model.household {
+                    boxVersion = await api.serverVersion()
+                }
+            }
             .task {
                 if languageModel == nil, let api = model.household {
                     languageModel = HouseholdLanguageViewModel(api: api)

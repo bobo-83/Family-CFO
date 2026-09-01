@@ -235,18 +235,39 @@ cat > "$EXPORT_DIR/index.html" <<HTML
 </small>
 
 <script>
-  // M120 (ADR 0029): verify this build matches the backend actually running on
-  // the box — same origin, so /api/v1/health is one fetch away. A mismatch
-  // means someone patched the box without republishing the app (or vice versa).
+  // M120 (ADR 0029, amended by ADR 0074): verify this build can talk to the
+  // backend actually running on the box — same origin, so /api/v1/health is one
+  // fetch away. Both report '<contract>.<build>' and they are compatible when
+  // the CONTRACT (the leading MAJOR.MINOR) matches; the api ships on its own
+  // now, so comparing full strings would warn on every backend-only patch.
+  //
+  // NOTE: this whole file is inside an UNQUOTED heredoc, so every \$ and
+  // backtick below would be expanded by the shell. Only \${APP_VERSION} is
+  // meant to interpolate — keep it that way (no template literals here).
+  // h.version comes off the wire, so it is only ever written via textContent.
   (function () {
     var el = document.getElementById('versionCheck');
-    fetch('/api/v1/health').then(function (r) { return r.json(); }).then(function (h) {
-      if (h.version === '${APP_VERSION}') {
-        el.textContent = '✓ Matches the box (v' + h.version + ')';
+    var appVersion = '${APP_VERSION}';
+    function contractOf(v) {
+      if (typeof v !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+\$/.test(v)) return null;
+      return v.split('.').slice(0, 2).join('.');
+    }
+    fetch('/api/v1/health').then(function (r) {
+      if (!r.ok) throw new Error('health request failed');
+      return r.json();
+    }).then(function (h) {
+      var box = h && typeof h.version === 'string' ? h.version : null;
+      var appContract = contractOf(appVersion);
+      var boxContract = contractOf(box);
+      if (appContract === null || boxContract === null) {
+        el.textContent = '⚠ Could not verify compatibility because the app or box reported an invalid version.';
+        el.style.color = '#c04a00';
+      } else if (boxContract === appContract) {
+        el.textContent = '✓ Matches the box (app v' + appVersion + ', box v' + box + ')';
         el.style.color = '#248a3d';
       } else {
-        el.innerHTML = '⚠ This build is v${APP_VERSION} but the box runs v' + h.version +
-          ' — versions differ. Re-run scripts/deploy-ios-ota.sh (or patch the box) so they match.';
+        el.textContent = '⚠ This build is v' + appVersion + ' but the box runs v' + box +
+          ' — different versions. Re-run scripts/deploy-ios-ota.sh (or patch the box) so they match.';
         el.style.color = '#c04a00';
       }
     }).catch(function () {
