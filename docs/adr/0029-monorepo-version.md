@@ -28,8 +28,13 @@ Since this is a monorepo everything ships with the same version."
      xcodebuild, plus `CURRENT_PROJECT_VERSION=$(date -u +%Y%m%d%H%M)` — a
      monotonic build number, so over-the-top installs never fight a stale
      manual counter again.
-   - **Web**: served from the same rsynced tree by the same box; the shell
-     footer shows the running version (one `/health` fetch).
+   - **Web**: its own published image (ADR 0074), stamped the way the api's is
+     — the contract plus `apps/web/BUILD` composed into `VERSION` at the nginx
+     root, served from an exact-match location. The shell footer therefore
+     names TWO versions, its own and the box's from `/health`, and warns only
+     when their contracts differ. Before that the dashboard had no identity of
+     its own and could only report the API's, so a dashboard and a box on
+     different contracts looked identical on screen.
    - **OTA**: the page shows its build's version, and a published
      `ota/VERSION` marker records it machine-readably.
 2. **Every seam verifies, none assumes.**
@@ -45,16 +50,18 @@ Since this is a monorepo everything ships with the same version."
      deploy-ios-ota.sh" when the backend has moved past the bundle. This is the
      "OTA is always on the most current code" enforcement: drift is caught the
      moment it is created, at the terminal that created it.
-3. **Matching, not freshness, is the invariant.** A version match means the app
-   and backend were built from the same tree — the actual guarantee that
-   matters. The health check is best-effort everywhere (a failed fetch shows
-   nothing rather than breaking a screen).
+3. **Compatibility, not build equality, is the invariant.** A contract match
+   means the app and backend remain compatible even when their independent
+   build numbers differ. Exact versions identify the artifacts; they are not
+   the cross-component compatibility signal. The health check is best-effort
+   everywhere (a failed fetch shows nothing rather than breaking a screen).
 
 ## Invariant
 
-> Every deployable reports the same `/VERSION` it was built from. Any
-> app↔backend mismatch is surfaced automatically — on the OTA page, in the
-> app, and in the deploy terminal — never discovered by debugging.
+> Superseded by ADR 0074: every versioned deployable reports
+> `<contract>.<build>`. Cross-component checks must compare the shared
+> `MAJOR.MINOR` contract, not exact artifact identity; a contract mismatch is
+> actionable, while build-number differences alone are expected.
 
 ## Rejected
 

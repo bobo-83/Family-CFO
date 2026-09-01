@@ -50,13 +50,22 @@
       @if (role(); as currentRole) {
         <span class="shell__role">{{ currentRole }}</span>
       }
-      @if (serverVersion(); as version) {
+      @if (appVersion() || serverVersion()) {
         <span
           class="shell__version"
-          i18n-title="Sidebar version badge|Tooltip explaining the version number in the footer"
-          title="The monorepo version this box runs (ADR 0029)"
+          i18n-title="Sidebar version badge|Tooltip explaining the two version numbers in the footer"
+          title="This dashboard's build, and the box it is talking to. They share a compatibility contract, so only the last number differing is normal."
         >
-          v{{ version }}
+          @if (appVersion(); as dashboardVersion) {
+            <span class="shell__version-app">v{{ dashboardVersion }}</span>
+          }
+          @if (serverVersion(); as boxVersion) {
+            <span
+              class="shell__version-box"
+              i18n="Sidebar version badge|The API's version shown beside the dashboard's own. 'box' is the machine running the backend."
+              >box v{{ boxVersion }}</span
+            >
+          }
         </span>
       }
       <button
@@ -67,6 +76,19 @@
       >
         Log out
       </button>
+      <!-- LAST in the footer, after the button. The warning is full-width, so
+           wherever it sits it takes a row of its own: placed before Log out it
+           wedges itself between the version pair and the action and pushes the
+           button to a third row. Kept last, the footer reads role/version →
+           Log out → warning, with the sentence as a closing full-width note. -->
+      @if (versionMismatch()) {
+        <span
+          class="shell__version-warning"
+          i18n="Sidebar version warning|Shown when the dashboard and the API are on different compatibility contracts"
+          >Dashboard and box are on different versions — some screens may not
+          match the server.</span
+        >
+      }
     </div>
   </aside>
 

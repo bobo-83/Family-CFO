@@ -144,6 +144,11 @@ $breakpoint: 820px;
 .shell__footer {
   margin-top: auto;
   display: flex;
+  // The row holds the role pill, the version pair and Log out inside a 240px
+  // sidebar. The mismatch warning below is a sentence, not a chip: without
+  // wrapping it would shrink its siblings to fit one line — in the one state
+  // where the footer most needs to stay readable.
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -235,8 +240,42 @@ $breakpoint: 820px;
   }
 }
 
-// M120: the running monorepo version, quiet in the footer.
+// M120: the running version, quiet in the footer. ADR 0074 added the box's
+// version beside the dashboard's own, so the pair reads as one line.
 .shell__version {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.55);
+}
+
+// Dimmer than the dashboard's own version: this is context, not identity.
+.shell__version-box {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+// The separator is punctuation between two numbers, not language, so it lives
+// here rather than inside the translated string. It also only makes sense
+// BETWEEN them: when /VERSION is unavailable the box version renders alone and
+// must not open with a stray dot.
+.shell__version-app + .shell__version-box::before {
+  content: ' · ';
+}
+
+// A CONTRACT mismatch, which is the only version difference worth interrupting
+// for — matching contracts with different builds are the normal case.
+.shell__version-warning {
+  // Its own line: a full sentence cannot share a 240px row with two other
+  // controls, and squeezing them is worse than the wrap.
+  flex-basis: 100%;
+  // Type comes from the Material scale (ADR 0035); body-small is 0.75rem, so
+  // this is the same size the sidebar already used, now expressed as a token.
+  font-size: var(--mat-sys-body-small-size);
+  line-height: var(--mat-sys-body-small-line-height);
+  // The COLOUR cannot come from the same place, and that is not an oversight.
+  // mat.theme() is configured `theme-type: light` while this sidebar is a dark
+  // navy surface, so the on-surface tokens are near-invisible on it: measured
+  // against the chrome gradient, --mat-sys-on-surface-variant is 1.9:1 and
+  // --mat-sys-error 2.8:1, both below the 4.5:1 WCAG AA needs. This amber is
+  // 10.2:1. Giving the chrome real tokens means giving it a dark-context
+  // theme, which belongs to the shell's own Material conversion — see ADR 0035.
+  color: #ffb37a;
 }
