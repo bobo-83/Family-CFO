@@ -227,7 +227,7 @@ describe('Backups', () => {
     // runs while a session holds the key and pauses when the last one goes.
     // Both of the wrong answers are pinned out: "waits for you" (it does not
     // resume by itself once everyone is signed out) and "does not run at all"
-    // (it does, which is the whole point of the API-side drain).
+    // (it does — the API runs it while a session holds the key).
     expect(text).toContain('catches up while a member is signed in');
     expect(text).toContain('pauses when everyone signs out');
     expect(text).not.toContain('waits for you');

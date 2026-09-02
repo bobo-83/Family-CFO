@@ -60,8 +60,8 @@ def main() -> None:
         Every household that is NOT sealed: those keep a box wrap, so this
         container can open them on its own. A sealed household's key exists
         only in the API's session keyring — a dict in that process's memory —
-        so the API drains its work while a member is signed in
-        (`sealed_drain.py`). The two sets are disjoint by construction, which
+        so the API runs its work while a member is signed in
+        (`sealed_worker.py`). The two sets are disjoint by construction, which
         is what keeps the work from being done twice or dropped.
 
         Queried each tick rather than cached: sealing is a live setting, and a
@@ -89,7 +89,7 @@ def main() -> None:
             except household_crypto.HouseholdLockedError as exc:
                 logger.info(
                     "job %s skipped for household %s: sealed between the "
-                    "ownership query and the read — the API drains it while a "
+                    "ownership query and the read — the API runs it while a "
                     "member session holds the key (#115)",
                     job.__name__,
                     exc.household_id,
@@ -149,7 +149,7 @@ def main() -> None:
     def rebuild_vector_index() -> None:
         # M69: daily wipe-and-rebuild prunes vectors of deleted rows. The wipe
         # clears the WHOLE collection, including sealed households this process
-        # cannot re-index; the API's drain restores those additively (#115).
+        # cannot re-index; the API's sealed-household pass restores those additively (#115).
         vector_indexing.run_indexing_once(engine, settings, wipe=True)
 
     @sealed_aware

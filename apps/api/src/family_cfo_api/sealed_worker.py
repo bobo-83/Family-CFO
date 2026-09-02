@@ -5,8 +5,8 @@ session keyring — a dict in this process's memory, opened when a member signs
 in, a paired device posts its unwrapped key, or the recovery key is used. The
 worker is a separate container with its own address space and can never see
 that, which is why ADR 0072 Phase 3's "queued background work drains during the
-next active session" never actually drained: the unlock happened here and the
-jobs ran there.
+next active session" was never true: the unlock happened here and the jobs ran
+there.
 
 So the work moves to where the key is. This module runs the same job functions
 the worker runs, restricted to the sealed households THIS process currently
@@ -17,12 +17,15 @@ dropped:
     worker  ->  households NOT sealed          (box wrap opens them)
     API     ->  sealed households unlocked here (session keyring opens them)
 
-What this does not do: recover work whose moment has passed. Cadence-gated jobs
-self-heal — a report skips periods it already wrote, a bank sync is due or it
-is not — but a net-worth snapshot is stamped for the day it runs, so days when
-nobody signed in leave gaps in a sealed household's trend. Sealed mode trades
-unattended completeness for the box holding no usable key at rest; this closes
-the gap to "runs whenever someone is here", not to "runs like convenient mode".
+Deliberately NOT named a "drain", despite the ADR's phrase. A drain empties a
+queue that filled while you were away; there is no queue here and nothing
+accumulates. These are the worker's own pollers, relocated: each looks at
+current state and runs what is due NOW. Cadence-gated jobs self-heal — a report
+skips periods it already wrote, a bank sync is due or it is not — but a
+net-worth snapshot is stamped for the day it runs, so days when nobody signed
+in leave gaps in a sealed household's trend. Sealed mode trades unattended
+completeness for the box holding no usable key at rest; this closes the gap to
+"runs whenever someone is here", not to "runs like convenient mode".
 """
 
 from __future__ import annotations
@@ -51,33 +54,34 @@ logger = logging.getLogger(__name__)
 # day, a report skips a period it already wrote, study yields while the advisor
 # is busy), so the tick only has to be frequent enough that a signed-in member
 # gets their work done inside a session — not frequent enough to drive it.
-DRAIN_INTERVAL_SECONDS = 300
+WORK_INTERVAL_SECONDS = 300
 
-# One drain at a time. An unlock fires a drain immediately, and the periodic
+# One pass at a time. An unlock fires a pass immediately, and the periodic
 # tick keeps running; without this a member signing in mid-tick would start a
 # second pass over the same households.
-_drain_lock = threading.Lock()
+_work_lock = threading.Lock()
 
 
 def _guarded(name: str, run: Callable[[], object]) -> None:
-    """One job must not take the rest of the drain down with it. The worker gets
+    """One job must not take the rest of the pass down with it. The worker gets
     this from its scheduler; here the jobs run in one pass, so it is explicit."""
     try:
         run()
     except household_crypto.HouseholdLockedError:
-        # The session expired mid-drain (30-minute sliding TTL) or the key was
-        # retired by a rotation. Not an error: the next unlock drains again.
-        logger.info("sealed drain: %s stopped, household locked again", name)
+        # The session expired mid-pass (30-minute sliding TTL) or the key was
+        # retired by a rotation. Not an error: the next unlock runs it again.
+        logger.info("sealed-household work: %s stopped, household locked again", name)
     except Exception:
-        logger.exception("sealed drain: %s failed", name)
+        logger.exception("sealed-household work: %s failed", name)
 
 
-def drain_once(
+def run_due_work_once(
     engine: Engine, settings: Settings, *, households: Collection[str] | None = None
 ) -> set[str]:
-    """Run every unattended job for the sealed households this process can open.
+    """Run every unattended job that is due for the sealed households this
+    process can open.
 
-    Returns the households drained, so callers (and tests) can assert on the
+    Returns the households covered, so callers (and tests) can assert on the
     set rather than on log output. Never raises.
     """
     targets = (
@@ -88,11 +92,11 @@ def drain_once(
     if not targets:
         return set()
 
-    if not _drain_lock.acquire(blocking=False):
-        logger.debug("sealed drain: already running, skipping this pass")
+    if not _work_lock.acquire(blocking=False):
+        logger.debug("sealed-household work: a pass is already running, skipping")
         return set()
     try:
-        logger.info("sealed drain: starting for %d household(s)", len(targets))
+        logger.info("sealed-household work: starting for %d household(s)", len(targets))
 
         _guarded(
             "imports",
@@ -140,22 +144,24 @@ def drain_once(
             lambda: ai_study.run_study_tick(engine, settings, households=targets),
         )
 
-        logger.info("sealed drain: finished for %d household(s)", len(targets))
+        logger.info("sealed-household work: finished for %d household(s)", len(targets))
         return targets
     finally:
-        _drain_lock.release()
+        _work_lock.release()
 
 
-def drain_in_background(engine: Engine, settings: Settings, household_id: str) -> threading.Thread:
-    """Drain one household without making the caller wait — used by the unlock
-    endpoints so "signing in starts the work" is literal rather than "within
-    five minutes". Daemon, so it never holds up a shutdown."""
+def run_due_work_in_background(
+    engine: Engine, settings: Settings, household_id: str
+) -> threading.Thread:
+    """Run one household's due work without making the caller wait — used by
+    the unlock listener so "signing in starts the work" is literal rather than
+    "within five minutes". Daemon, so it never holds up a shutdown."""
 
     def run() -> None:
-        drain_once(engine, settings, households={household_id})
+        run_due_work_once(engine, settings, households={household_id})
 
     thread = threading.Thread(
-        target=run, name=f"sealed-drain-{household_id[:8]}", daemon=True
+        target=run, name=f"sealed-work-{household_id[:8]}", daemon=True
     )
     thread.start()
     return thread

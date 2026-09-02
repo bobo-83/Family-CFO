@@ -45,8 +45,8 @@ def record_snapshot_once(
         except household_crypto.HouseholdLockedError:
             # #181: one sealed+locked household must never stall the others.
             # In the worker this is a sealed household it does not own; in the
-            # API it is a session that expired mid-pass. Either way the API's
-            # drain takes it at the next unlock (#115).
+            # API it is a session that expired mid-pass. Either way the API
+            # takes it again at the next unlock (#115).
             logger.info("net-worth snapshot skipped: household %s locked", household_id)
     logger.info("net-worth snapshot captured for %s household(s)", captured)
     return captured

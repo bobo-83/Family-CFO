@@ -350,7 +350,7 @@ def run_scheduled_reports_once(
             generated += 1
         except household_crypto.HouseholdLockedError:
             # #181: a sealed+locked household is skipped; the rest still
-            # report. The API drains it while a member session holds the key,
+            # report. The API runs it while a member session holds the key,
             # so this is a skip here rather than work that is lost (#115).
             logger.info("report skipped: household %s locked", household_id)
         finally:

@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import household_crypto, localization, sealed_drain
+from family_cfo_api import household_crypto, localization, sealed_worker
 from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
@@ -43,36 +43,43 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         Started from the lifespan rather than at import: the ASGI server runs
         this, while the test suite builds apps over ASGITransport, which does
         not. So constructing an app in a test never spawns a scheduler thread,
-        and `sealed_drain.drain_once` stays directly callable instead.
+        and `sealed_worker.run_due_work_once` stays directly callable instead.
+
+        No off switch, deliberately: skipping this while encryption is on
+        would silently reinstate #115 — sealed households owned by nobody —
+        while the UI keeps promising the work catches up on sign-in.
         """
-        drain_scheduler: Scheduler | None = None
-        if household_crypto.enabled() and settings.sealed_drain_enabled:
-            drain_scheduler = Scheduler()
-            drain_scheduler.add_job(
+        work_scheduler: Scheduler | None = None
+        if household_crypto.enabled():
+            work_scheduler = Scheduler()
+            work_scheduler.add_job(
                 Job(
-                    name="sealed-drain",
-                    func=lambda: sealed_drain.drain_once(app.state.db_engine, settings),
-                    interval_seconds=sealed_drain.DRAIN_INTERVAL_SECONDS,
+                    name="sealed-household-work",
+                    func=lambda: sealed_worker.run_due_work_once(
+                        app.state.db_engine, settings
+                    ),
+                    interval_seconds=sealed_worker.WORK_INTERVAL_SECONDS,
                 )
             )
-            drain_scheduler.start()
+            work_scheduler.start()
             # And immediately when a member signs in, a device posts its key,
             # or the recovery key is used — so the work starts with the session
             # rather than up to a tick later.
             household_crypto.set_unlock_listener(
-                lambda household_id: sealed_drain.drain_in_background(
+                lambda household_id: sealed_worker.run_due_work_in_background(
                     app.state.db_engine, settings, household_id
                 )
             )
             logging.getLogger(__name__).info(
-                "sealed-household drain running every %ss", sealed_drain.DRAIN_INTERVAL_SECONDS
+                "sealed-household work runs here every %ss and on each unlock",
+                sealed_worker.WORK_INTERVAL_SECONDS,
             )
         try:
             yield
         finally:
             household_crypto.set_unlock_listener(None)
-            if drain_scheduler is not None:
-                drain_scheduler.shutdown(wait=False)
+            if work_scheduler is not None:
+                work_scheduler.shutdown(wait=False)
 
     # Swagger UI and the OpenAPI schema are disabled in production to avoid
     # exposing the API surface (ADR 0010); they remain on in dev/test.

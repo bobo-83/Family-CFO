@@ -325,9 +325,10 @@ def _keyring_put(engine: Engine, household_id: str, dek: bytes) -> None:
 # #115: every way a sealed household opens — a member signing in, a paired
 # device posting its unwrapped key, the recovery key — lands in _keyring_put
 # above. The API registers a listener here so "the work starts when you sign
-# in" is literal rather than "within the next drain tick". A hook rather than a
-# direct call because sealed_drain imports this module, not the other way
-# round, and because the worker registers nothing: it has no keys to announce.
+# in" is literal rather than "within the next periodic pass". A hook rather
+# than a direct call because sealed_worker imports this module, not the other
+# way round, and because the worker registers nothing: it has no keys to
+# announce.
 _unlock_listener: Callable[[str], None] | None = None
 
 

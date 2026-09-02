@@ -95,9 +95,10 @@ def index_household_data(
 
     NOTE the interaction with `wipe`: the wipe clears the whole collection, not
     one household's slice, so a filtered pass must never wipe — it would delete
-    every other household's vectors and re-index only its own. The API's drain
-    therefore runs additively, which also repairs the sealed households the
-    worker's nightly wipe drops (it cannot re-index what it cannot decrypt).
+    every other household's vectors and re-index only its own. The API's
+    sealed-household pass therefore runs additively, which also repairs the
+    sealed households the worker's nightly wipe drops (it cannot re-index what
+    it cannot decrypt).
     """
     if wipe and households is not None:
         raise ValueError("a household-filtered indexing pass must not wipe the collection")

@@ -266,7 +266,7 @@ def sync_due_connections(
             continue
         except household_crypto.HouseholdLockedError:
             # #181: sealed and not open in THIS process. In the worker that is
-            # every sealed household; the API drains them while a member's
+            # every sealed household; the API runs them while a member's
             # session holds the key (#115). Every other household syncs on time.
             continue
     return synced

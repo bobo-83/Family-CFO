@@ -217,7 +217,7 @@ where decryption slots in.
   next tick after an unlock was locked exactly like the one before it, and a
   sealed household got no unattended work at all — not delayed, never.
 
-  **Resolved by moving the work to the key** (#115, `sealed_drain.py`). The
+  **Resolved by moving the work to the key** (#115, `sealed_worker.py`). The
   API runs the jobs for the sealed households it currently holds keys for; the
   worker is handed the households it can open on its own and no longer
   attempts sealed ones. Ownership is disjoint by construction, so nothing runs
@@ -228,18 +228,24 @@ where decryption slots in.
   | worker | not sealed | the box wrap |
   | API | sealed, unlocked in this process | the session keyring |
 
-  A drain fires when a household unlocks — a member signing in, a device
+  A pass runs when a household unlocks — a member signing in, a device
   posting its key, the recovery key — via an unlock listener on the keyring,
-  and on a periodic tick for work that comes due mid-session. Sealed mode
-  still costs something, and the honest form of it is narrower than "waits":
-  cadence-gated jobs self-heal, but a net-worth snapshot is stamped for the day
-  it runs, so days when nobody signs in stay missing from a sealed household's
-  trend. Encrypted backups were never affected: they copy ciphertext under the
-  box-level backup key.
+  and on a periodic tick for work that comes due mid-session. The
+  implementation deliberately does NOT use this ADR's own word "drain": a
+  drain empties a queue that filled while you were away, and there is no
+  queue — these are the worker's pollers relocated, each running what is due
+  now. Sealed mode still costs something, and the honest form of it is
+  narrower than "waits": cadence-gated jobs self-heal, but a net-worth
+  snapshot is stamped for the day it runs, so days when nobody signs in stay
+  missing from a sealed household's trend. Encrypted backups were never
+  affected: they copy ciphertext under the box-level backup key.
 
-  The load moves with the work: a sealed household's indexing and study now run
-  in the request-serving process. `FAMILY_CFO_SEALED_DRAIN_ENABLED=0` turns
-  that off for a box under strain, at the cost of the work not running at all.
+  The load moves with the work, and it is CPU, not GPU: embedding is a small
+  CPU-only ONNX model (ADR 0017) and study is an HTTP call the API waits on,
+  so nothing new competes with vLLM. What is new is the timing — this work
+  now runs while a member is present, because that is the only time the key
+  exists. There is no off switch: disabling it while encryption is on would
+  silently reinstate #115 under a config flag.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.
