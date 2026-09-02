@@ -19,7 +19,6 @@ from family_cfo_api import (
     net_worth_history,
     repository,
     sealed_worker,
-    vector_indexing,
 )
 from family_cfo_api.config import Settings, get_settings
 
@@ -187,9 +186,10 @@ def test_a_pass_runs_every_job_for_the_unlocked_sealed_household(
     assert calls["sync"] == [{hh}]
     assert calls["reports"] == ["weekly", "monthly", "annual"]
     assert calls["study"] == [{hh}]
-    # Never a wipe from here: the wipe clears the whole collection and this pass
-    # only covers sealed households, so it would delete everyone else's vectors.
-    assert calls["index"] == [(False, {hh})]
+    # wipe=True is safe from here because the wipe is household-scoped (#115
+    # review): only the covered sealed households are cleared and rebuilt, so
+    # they get the same deleted-row pruning convenient households do.
+    assert calls["index"] == [(True, {hh})]
 
 
 def test_no_pass_runs_when_no_sealed_household_is_open(
@@ -288,8 +288,115 @@ def test_a_job_honours_the_household_filter(demo_engine, monkeypatch) -> None:
     assert net_worth_history.record_snapshot_once(demo_engine, households=households[:1]) == 1
 
 
-def test_a_filtered_index_pass_refuses_to_wipe() -> None:
-    """The wipe clears the entire collection. Combined with a filter it would
-    delete every household's vectors and rebuild only the filtered ones."""
-    with pytest.raises(ValueError, match="must not wipe"):
-        vector_indexing.index_household_data(None, None, wipe=True, households={"hh"})
+# The old guard here ("a filtered pass must not wipe") is gone with the global
+# wipe itself: pruning is household-scoped now, so filter+wipe is the normal,
+# safe combination. test_vector_retrieval.py::test_wipe_is_household_scoped
+# pins the property that replaced it.
+
+
+# --- the TTL is member activity, not polling (#115 review) --------------------
+
+
+def _frozen_clock(monkeypatch):
+    """Controllable time, plus a pinned key generation. The 300s jumps here put
+    every read past the revalidation window, and these households have no DEK
+    row for the real generation query to agree with — that check has its own
+    tests; these are about the deadline."""
+    clock = {"t": 1_000_000.0}
+    monkeypatch.setattr(household_crypto, "_now", lambda: clock["t"])
+    monkeypatch.setattr(household_crypto, "_current_generation", lambda engine, hh: 7)
+    return clock
+
+
+def test_background_polling_never_keeps_a_session_alive(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """The review scenario: one sign-in, member walks away, the five-minute
+    tick polls forever. Before the fix the key was still alive four hours
+    later; the sliding TTL treated every read as activity."""
+    hh = repository.list_households(demo_engine)[0]
+    _seal(demo_engine, hh)
+    clock = _frozen_clock(monkeypatch)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+
+    ticks = 0
+    while household_crypto.unlocked_sealed_household_ids(demo_engine):
+        clock["t"] += 300  # the scheduler's interval
+        ticks += 1
+        assert ticks < 50, "the key outlived its TTL under background polling"
+
+    # Dead at exactly the TTL the sign-in granted, ticks notwithstanding.
+    assert ticks == household_crypto.SESSION_KEYRING_TTL_SECONDS // 300 + 1
+
+
+def test_a_member_read_still_slides_the_deadline(_master_key, demo_engine, monkeypatch) -> None:
+    """Foreground reads are the activity the sliding TTL exists for."""
+    hh = repository.list_households(demo_engine)[0]
+    _seal(demo_engine, hh)
+    clock = _frozen_clock(monkeypatch)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+
+    # Read a minute before each expiry, twice: alive well past one bare TTL.
+    for _ in range(2):
+        clock["t"] += household_crypto.SESSION_KEYRING_TTL_SECONDS - 60
+        assert household_crypto._keyring_get(demo_engine, hh) is not None
+    # Then walk away for real.
+    clock["t"] += household_crypto.SESSION_KEYRING_TTL_SECONDS + 1
+    assert household_crypto._keyring_get(demo_engine, hh) is None
+
+
+def test_a_passive_read_leaves_the_deadline_where_it_was(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    clock = _frozen_clock(monkeypatch)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    deadline = household_crypto._session_keyring[hh].expires
+
+    clock["t"] += 300
+    with household_crypto.without_extending_sessions():
+        assert household_crypto._keyring_get(demo_engine, hh) is not None
+    assert household_crypto._session_keyring[hh].expires == deadline
+
+    # The same read outside the context slides it — the contrast that matters.
+    assert household_crypto._keyring_get(demo_engine, hh) is not None
+    assert household_crypto._session_keyring[hh].expires > deadline
+
+
+def test_a_passive_revalidation_records_the_check_but_not_activity(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """Past the revalidation window a passive read still re-checks the key
+    generation against the database; recording that must not move the
+    deadline."""
+    hh = repository.list_households(demo_engine)[0]
+    clock = _frozen_clock(monkeypatch)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    deadline = household_crypto._session_keyring[hh].expires
+    checked = household_crypto._session_keyring[hh].checked_at
+
+    clock["t"] += household_crypto.DEK_CACHE_REVALIDATE_SECONDS + 1
+    with household_crypto.without_extending_sessions():
+        assert household_crypto._keyring_get(demo_engine, hh) is not None
+
+    entry = household_crypto._session_keyring[hh]
+    assert entry.checked_at > checked, "the generation check was recorded"
+    assert entry.expires == deadline, "the deadline did not move"
+
+
+def test_nested_passive_contexts_restore_the_outer_flag(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """An inner context exiting must not switch extension back on for the rest
+    of an enclosing background pass — discovery nests inside the pass."""
+    hh = repository.list_households(demo_engine)[0]
+    clock = _frozen_clock(monkeypatch)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    deadline = household_crypto._session_keyring[hh].expires
+
+    with household_crypto.without_extending_sessions():
+        with household_crypto.without_extending_sessions():
+            pass
+        clock["t"] += 300
+        assert household_crypto._keyring_get(demo_engine, hh) is not None
+    assert household_crypto._session_keyring[hh].expires == deadline

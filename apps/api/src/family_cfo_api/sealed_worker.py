@@ -83,7 +83,21 @@ def run_due_work_once(
 
     Returns the households covered, so callers (and tests) can assert on the
     set rather than on log output. Never raises.
+
+    The whole pass — discovery and jobs — runs under
+    `without_extending_sessions()`: these reads must not count as member
+    activity, or this very scheduler becomes the "activity" that keeps a
+    sealed household's key alive forever after one sign-in. Expiry and the
+    generation re-check still apply; a session that ends mid-pass ends the
+    pass for that household.
     """
+    with household_crypto.without_extending_sessions():
+        return _run_due_work_once_passive(engine, settings, households)
+
+
+def _run_due_work_once_passive(
+    engine: Engine, settings: Settings, households: Collection[str] | None
+) -> set[str]:
     targets = (
         set(households)
         if households is not None
@@ -129,14 +143,14 @@ def run_due_work_once(
                 ),
             )
 
-        # Additive, never a wipe: the wipe clears the whole collection and this
-        # pass only covers sealed households. It also repairs what the worker's
-        # nightly wipe drops, since the worker cannot re-index what it cannot
-        # decrypt.
+        # wipe=True is household-scoped (#115 review): each target household is
+        # cleared and rebuilt individually, so sealed households get the same
+        # deleted-row pruning convenient ones do, and this pass can never touch
+        # a household the worker owns.
         _guarded(
             "vector index",
             lambda: vector_indexing.run_indexing_once(
-                engine, settings, wipe=False, households=targets
+                engine, settings, wipe=True, households=targets
             ),
         )
         _guarded(

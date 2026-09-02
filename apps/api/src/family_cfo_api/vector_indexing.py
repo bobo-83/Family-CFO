@@ -93,24 +93,24 @@ def index_household_data(
 
     `households` restricts the pass to the ones this process owns (#115).
 
-    NOTE the interaction with `wipe`: the wipe clears the whole collection, not
-    one household's slice, so a filtered pass must never wipe — it would delete
-    every other household's vectors and re-index only its own. The API's
-    sealed-household pass therefore runs additively, which also repairs the
-    sealed households the worker's nightly wipe drops (it cannot re-index what
-    it cannot decrypt).
+    `wipe` prunes vectors of deleted rows, and it is HOUSEHOLD-scoped: each
+    household this pass can actually read is cleared and rebuilt individually,
+    immediately before its re-upsert. It is deliberately NOT a collection-wide
+    wipe (#115 review): the worker and the API each index only the households
+    they own, on independent five-minute schedules, so a global wipe from
+    either side would destroy the other's households — the worker's wipe used
+    to delete an unlocked sealed household's vectors and leave the advisor
+    ungrounded until the API's next pass happened to rebuild them. Scoped
+    deletion also means a locked household's vectors are left in place rather
+    than destroyed-and-unrebuildable, and clearing only AFTER its points were
+    collected means a household that turns out to be unreadable loses nothing.
     """
-    if wipe and households is not None:
-        raise ValueError("a household-filtered indexing pass must not wipe the collection")
     settings = settings or get_settings()
     if not settings.qdrant_url:
         return 0
     store = store or QdrantVectorStore(settings.qdrant_url)
     embedder = embedder or get_default_embedder()
-    if wipe:
-        store.wipe_collection(embedder.dim)
-    else:
-        store.ensure_collection(embedder.dim)
+    store.ensure_collection(embedder.dim)
 
     total = 0
     for household_id in repository.list_households(engine):
@@ -121,6 +121,8 @@ def index_household_data(
         except household_crypto.HouseholdLockedError:
             # #181: a sealed+locked household defers; the others still index.
             continue
+        if wipe:
+            store.delete_household(household_id)
         for start in range(0, len(collected), _BATCH):
             batch = collected[start : start + _BATCH]
             vectors = embedder.embed([text for _id, text, _payload in batch])

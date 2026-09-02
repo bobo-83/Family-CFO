@@ -36,6 +36,8 @@ class VectorStoreAdapter(Protocol):
 
     def wipe_collection(self, dim: int) -> None: ...
 
+    def delete_household(self, household_id: str) -> None: ...
+
     def upsert(self, points: list[VectorPoint]) -> None: ...
 
     def search(self, vector: list[float], household_id: str, limit: int) -> list[VectorHit]: ...
@@ -62,6 +64,21 @@ class QdrantVectorStore:
     def wipe_collection(self, dim: int) -> None:
         self._client.delete(self._url(""))
         self.ensure_collection(dim)
+
+    def delete_household(self, household_id: str) -> None:
+        # Scoped delete (#115 review): pruning one household's stale points
+        # must not touch anyone else's. The old global wipe deleted sealed
+        # households' vectors that only the API process could rebuild, leaving
+        # a cross-process race where the two five-minute schedulers fought.
+        response = self._client.post(
+            self._url("/points/delete?wait=true"),
+            json={
+                "filter": {
+                    "must": [{"key": "household_id", "match": {"value": household_id}}]
+                }
+            },
+        )
+        response.raise_for_status()
 
     def upsert(self, points: list[VectorPoint]) -> None:
         if not points:
@@ -106,6 +123,13 @@ class InMemoryVectorStore:
 
     def wipe_collection(self, dim: int) -> None:
         self.points.clear()
+
+    def delete_household(self, household_id: str) -> None:
+        self.points = {
+            point_id: point
+            for point_id, point in self.points.items()
+            if point.payload.get("household_id") != household_id
+        }
 
     def upsert(self, points: list[VectorPoint]) -> None:
         for point in points:

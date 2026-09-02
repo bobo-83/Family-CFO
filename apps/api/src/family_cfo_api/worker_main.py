@@ -147,10 +147,16 @@ def main() -> None:
 
     @sealed_aware
     def rebuild_vector_index() -> None:
-        # M69: daily wipe-and-rebuild prunes vectors of deleted rows. The wipe
-        # clears the WHOLE collection, including sealed households this process
-        # cannot re-index; the API's sealed-household pass restores those additively (#115).
-        vector_indexing.run_indexing_once(engine, settings, wipe=True)
+        # M69: wipe-and-rebuild prunes vectors of deleted rows. The wipe is
+        # household-scoped (#115 review): this process clears and rebuilds only
+        # the households it owns, so a sealed household's vectors — which only
+        # the API can rebuild — are never collateral of this job. Before that,
+        # the global wipe here and the API's rebuild ran on independent
+        # five-minute clocks, and the advisor could stay ungrounded for most of
+        # every cycle.
+        vector_indexing.run_indexing_once(
+            engine, settings, wipe=True, households=worker_households()
+        )
 
     @sealed_aware
     def run_study_tick() -> None:
@@ -241,14 +247,21 @@ def main() -> None:
         Job(
             name="capture-net-worth-snapshot",
             func=capture_net_worth_snapshot,
-            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+            # Polled every few minutes; one-snapshot-per-day is enforced by the
+            # job itself, not by this interval.
+            interval_seconds=BACKUP_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(
         Job(
             name="rebuild-vector-index",
             func=rebuild_vector_index,
-            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+            # NOT daily, despite M69's original sketch: this fires every few
+            # minutes and re-embeds owned households each time. Household-scoped
+            # pruning makes that safe for sealed households; the cost of the
+            # cadence itself is a pre-existing question, deliberately unchanged
+            # here.
+            interval_seconds=BACKUP_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(
