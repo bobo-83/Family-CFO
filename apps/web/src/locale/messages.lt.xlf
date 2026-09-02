@@ -1393,9 +1393,9 @@
         <note priority="1" from="description">Whether the box keeps a spare of the household data key</note>
         <note priority="1" from="meaning">Step heading</note>
       </trans-unit>
-      <trans-unit id="6163247201371602884" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work — bank sync, snapshots, imports, reports, idle study — does not run at all while you are sealed, not even while you are signed in. Encrypted backups still run. </source>
-        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Užsandarinta<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — jūsų duomenis atrakina tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neperskaitoma, kol kas nors neprisijungia. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — visiškai neveikia, kol namų ūkis užsandarintas, net ir jums prisijungus. Šifruotos atsarginės kopijos vis tiek daromos.</target>
+      <trans-unit id="2367081942521782763" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while a member is signed in and pauses when everyone signs out; encrypted backups keep running either way. </source>
+        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Užsandarinta<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — jūsų duomenis atrakina tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neperskaitoma, kol kas nors neprisijungia. Foniniai darbai pasivys, kol narys prisijungęs, ir sustos, kai visi atsijungs; šifruotos atsarginės kopijos daromos bet kuriuo atveju.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
           <context context-type="linenumber">185,188</context>
@@ -1649,9 +1649,9 @@
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
-      <trans-unit id="824633199426482863" datatype="html">
-        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study stop for as long as you stay sealed — signing in does not resume them. Encrypted backups still run.</source>
-        <target state="needs-review-translation">Užsandarinti šį namų ūkį? Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas sustos, kol namų ūkis lieka užsandarintas — prisijungimas jų neatnaujins. Šifruotos atsarginės kopijos vis tiek daromos.</target>
+      <trans-unit id="6134366806709120677" datatype="html">
+        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run only while someone is signed in, and pause when everyone signs out.</source>
+        <target state="needs-review-translation">Užsandarinti šį namų ūkį? Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas tada veiks tik tada, kai kas nors prisijungęs, ir sustos, kai visi atsijungs.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
           <context context-type="linenumber">358</context>
@@ -7110,12 +7110,12 @@
         <note priority="1" from="description">Which threats sealing protects against</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="5968296417799220854" datatype="html">
-        <source> It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
-        <target state="needs-review-translation">Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai sustoja, kol namų ūkis lieka užsandarintas: banko sinchronizavimui, momentinėms kopijoms, importams, ataskaitoms ir nagrinėjimui reikia jūsų rakto, o foninis procesas jo niekada neturi — prisijungimas jų neatnaujins. Šifruotos atsarginės kopijos toliau daromos. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti.</target>
+      <trans-unit id="3221644640475225086" datatype="html">
+        <source> It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while someone is signed in, because the box holds no key of its own. It catches up when you sign in and pauses when the last of you signs out, so a day nobody visits leaves a gap in the trend. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
+        <target state="needs-review-translation">Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — tada veikia tik tada, kai kas nors prisijungęs, nes dėžutė neturi savo rakto. Jie pasivys jums prisijungus ir sustos, kai paskutinis atsijungs, todėl diena, kai niekas neužsuko, paliks tarpą tendencijoje. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
-          <context context-type="linenumber">186,190</context>
+          <context context-type="linenumber">186,191</context>
         </context-group>
         <note priority="1" from="description">Why sealed mode is not the default</note>
         <note priority="1" from="meaning">Sealed mode offer</note>

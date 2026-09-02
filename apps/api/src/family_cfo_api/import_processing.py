@@ -5,6 +5,7 @@ import io
 import logging
 import os
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -407,14 +408,23 @@ def _process_one_import(
         raise ValueError(f"no processor for source_type {import_record.source_type!r}")
 
 
-def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
+def run_pending_imports_once(
+    engine: Engine, staging_dir: str, *, households: Collection[str] | None = None
+) -> int:
     """Process every pending, file-uploaded import once. Returns the number processed successfully.
 
     Called directly by tests (synchronous, deterministic) and wrapped by
     ``family_cfo_scheduler.Job`` for real background polling.
+
+    `households` restricts the pass to the ones this process owns (#115).
     """
     processed = 0
     for import_record, file_record in repository.list_processable_imports(engine):
+        # #115: leave other processes' households alone — importantly BEFORE the
+        # status flip, so a skipped import stays pending rather than being
+        # parked in "processing" by a process that will not finish it.
+        if households is not None and import_record.household_id not in households:
+            continue
         repository.update_import_status(engine, import_record.id, status="processing")
 
         def attempt(

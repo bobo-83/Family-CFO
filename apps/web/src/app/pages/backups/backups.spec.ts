@@ -223,11 +223,15 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Sealed');
     expect(text).toContain('Only your passwords, your phones, and your recovery key');
-    // #115: the sealed note must not imply the work merely waits — it never
-    // runs while sealed, because the worker cannot see the API's session key.
-    expect(text).toContain('does not run at all while you are sealed');
-    expect(text).toContain('Encrypted backups still run');
+    // #115: the sealed note has to describe the real bargain — unattended work
+    // runs while a session holds the key and pauses when the last one goes.
+    // Both of the wrong answers are pinned out: "waits for you" (it does not
+    // resume by itself once everyone is signed out) and "does not run at all"
+    // (it does, which is the whole point of the API-side drain).
+    expect(text).toContain('catches up while a member is signed in');
+    expect(text).toContain('pauses when everyone signs out');
     expect(text).not.toContain('waits for you');
+    expect(text).not.toContain('does not run at all');
     expect(text).toContain('Switch back to convenient…');
     expect(text).toContain('Locked — sign in again to unlock');
     // The rescue lives right beneath the locked line.

@@ -18,6 +18,7 @@ import binascii
 import hashlib
 import logging
 import re
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -238,28 +239,37 @@ def due_for_sync(connection: repository.InstitutionConnectionRecord) -> bool:
     return datetime.now(UTC) - connection.last_synced_at >= SCHEDULED_SYNC_INTERVAL
 
 
-def sync_due_connections(engine: Engine, settings: Settings) -> set[str]:
+def sync_due_connections(
+    engine: Engine, settings: Settings, *, households: Collection[str] | None = None
+) -> set[str]:
     """The scheduled poller's unit of work: sync every connection that's due (at
     most once/day each), returning the household ids that were synced so the caller
     can auto-file. One connection failing is recorded and never stops the rest.
 
+    `households` restricts the pass to the ones this process owns (#115).
+
     Kept here (not inline in the worker) so the once-a-day cadence is directly
     testable — the regression guard for the old un-gated 5-minute poll (ADR 0019)."""
-    households: set[str] = set()
+    synced: set[str] = set()
     for connection in repository.list_all_institution_connections(engine):
+        # #115: only this process's households (worker = openable, API = sealed
+        # and currently unlocked here).
+        if households is not None and connection.household_id not in households:
+            continue
         if not due_for_sync(connection):
             continue
         try:
             sync_connection(engine, settings, connection)
-            households.add(connection.household_id)
+            synced.add(connection.household_id)
         except BankSyncError:
             # Error already recorded on the connection; keep syncing others.
             continue
         except household_crypto.HouseholdLockedError:
-            # #181: this household is sealed+locked — its sync waits for a
-            # session; every other household still syncs on time.
+            # #181: sealed and not open in THIS process. In the worker that is
+            # every sealed household; the API drains them while a member's
+            # session holds the key (#115). Every other household syncs on time.
             continue
-    return households
+    return synced
 
 
 def sync_connection(

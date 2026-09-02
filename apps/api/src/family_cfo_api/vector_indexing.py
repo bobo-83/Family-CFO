@@ -9,6 +9,7 @@ The store is rebuildable from PostgreSQL, so backups deliberately exclude it.
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import date, timedelta
 
 from family_cfo_financial_engine import Money
@@ -86,8 +87,20 @@ def index_household_data(
     embedder: EmbeddingAdapter | None = None,
     store: VectorStoreAdapter | None = None,
     wipe: bool = False,
+    households: Collection[str] | None = None,
 ) -> int:
-    """Embed and upsert every household's records; returns points indexed."""
+    """Embed and upsert every household's records; returns points indexed.
+
+    `households` restricts the pass to the ones this process owns (#115).
+
+    NOTE the interaction with `wipe`: the wipe clears the whole collection, not
+    one household's slice, so a filtered pass must never wipe — it would delete
+    every other household's vectors and re-index only its own. The API's drain
+    therefore runs additively, which also repairs the sealed households the
+    worker's nightly wipe drops (it cannot re-index what it cannot decrypt).
+    """
+    if wipe and households is not None:
+        raise ValueError("a household-filtered indexing pass must not wipe the collection")
     settings = settings or get_settings()
     if not settings.qdrant_url:
         return 0
@@ -100,6 +113,8 @@ def index_household_data(
 
     total = 0
     for household_id in repository.list_households(engine):
+        if households is not None and household_id not in households:
+            continue
         try:
             collected = _collect_points(engine, household_id)
         except household_crypto.HouseholdLockedError:
@@ -118,10 +133,16 @@ def index_household_data(
     return total
 
 
-def run_indexing_once(engine: Engine, settings: Settings | None = None, *, wipe: bool = False) -> None:
+def run_indexing_once(
+    engine: Engine,
+    settings: Settings | None = None,
+    *,
+    wipe: bool = False,
+    households: Collection[str] | None = None,
+) -> None:
     """Worker entry point: never raises."""
     try:
-        indexed = index_household_data(engine, settings, wipe=wipe)
+        indexed = index_household_data(engine, settings, wipe=wipe, households=households)
         if indexed:
             logger.info("vector index updated: %s points (wipe=%s)", indexed, wipe)
     except Exception:

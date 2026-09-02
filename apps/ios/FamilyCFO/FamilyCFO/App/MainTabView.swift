@@ -538,7 +538,7 @@ struct SettingsView: View {
                 "It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box."
             )
             Text(
-                "It is off by default because the price is real. Unattended work stops for as long as you stay sealed: bank sync, snapshots, imports, reports and idle study all need your key, and the background worker never holds it — signing in does not start them again. Encrypted backups keep running. And losing the recovery key with nobody signed in loses the data — no one can override that."
+                "It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while someone is signed in, because the box holds no key of its own. It catches up when you sign in and pauses when the last of you signs out, so a day nobody visits leaves a gap in the trend. And losing the recovery key with nobody signed in loses the data — no one can override that."
             )
             if offer.needsRecoveryKey {
                 Text("Before you can seal: create a recovery key.")

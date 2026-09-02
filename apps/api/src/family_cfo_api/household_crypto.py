@@ -29,6 +29,7 @@ import os
 import secrets
 import threading
 import time
+from collections.abc import Callable
 from typing import NamedTuple
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -318,6 +319,36 @@ def _keyring_put(engine: Engine, household_id: str, dek: bytes) -> None:
         _session_keyring[household_id] = _SessionKey(
             dek, now + SESSION_KEYRING_TTL_SECONDS, generation or 0, now
         )
+    _notify_unlocked(household_id)
+
+
+# #115: every way a sealed household opens — a member signing in, a paired
+# device posting its unwrapped key, the recovery key — lands in _keyring_put
+# above. The API registers a listener here so "the work starts when you sign
+# in" is literal rather than "within the next drain tick". A hook rather than a
+# direct call because sealed_drain imports this module, not the other way
+# round, and because the worker registers nothing: it has no keys to announce.
+_unlock_listener: Callable[[str], None] | None = None
+
+
+def set_unlock_listener(listener: Callable[[str], None] | None) -> None:
+    """Register (or clear, with None) the callback fired when a household is
+    unlocked in this process. Not thread-safe by design — it is set once during
+    application startup, before any request can unlock anything."""
+    global _unlock_listener
+    _unlock_listener = listener
+
+
+def _notify_unlocked(household_id: str) -> None:
+    listener = _unlock_listener
+    if listener is None:
+        return
+    try:
+        listener(household_id)
+    except Exception:
+        # An unlock must never fail because the follow-on work could not be
+        # started — the member is signing in, and that has to succeed.
+        logger.exception("unlock listener failed household=%s", household_id)
 
 
 def _box_wrap_row(engine: Engine, household_id: str):
@@ -873,6 +904,43 @@ def on_password_changed(
         logger.error("re-minted member wrap failed the canary household=%s", household_id)
         return False
     return True
+
+
+def sealed_household_ids(engine: Engine) -> set[str]:
+    """Households in sealed mode. Empty when encryption is off — nothing is
+    sealed then, so every household is the worker's to run (#115)."""
+    if not enabled():
+        return set()
+
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(models.households.c.id).where(models.households.c.sealed_mode.is_(True))
+        )
+        return {row[0] for row in rows}
+
+
+def unlocked_sealed_household_ids(engine: Engine) -> set[str]:
+    """Sealed households whose key is live in THIS process's keyring, so this
+    process can do their unattended work right now (#115).
+
+    Deliberately asks `_keyring_get` rather than reading `_session_keyring`
+    directly: that path enforces the TTL and re-checks the key generation, so a
+    household whose key was retired by a rotation or a re-seal is not reported
+    as workable. Writing under a superseded key is the failure that produced
+    the August incident, and background work is exactly where it happened.
+
+    Empty in the worker container by construction — it never unlocks anything,
+    which is what makes the split unambiguous rather than a race.
+    """
+    if not enabled():
+        return set()
+    return {
+        household_id
+        for household_id in sealed_household_ids(engine)
+        if _keyring_get(engine, household_id) is not None
+    }
 
 
 def households_missing_member_wraps(engine: Engine) -> list[str]:

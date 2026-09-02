@@ -57,6 +57,12 @@ class Settings:
     # before the worker prunes them. Generous defaults; 0 disables a prune.
     auth_session_retention_days: int = 7
     revoked_device_retention_days: int = 90
+    # #115: the API runs a sealed household's unattended work while a member's
+    # session holds its key, because the worker never can. On by default —
+    # without it a sealed household gets no background work at all. The switch
+    # exists so an operator can turn the extra in-process load off on a box
+    # under strain, at the cost of that work not running.
+    sealed_drain_enabled: bool = True
     backup_encryption_key: str | None = None
     # ADR 0072: box master key wrapping each household's data key. Empty = the
     # per-household envelope encryption is off (dev/test default).
@@ -151,6 +157,9 @@ class Settings:
             chat_hourly_limit=int(os.getenv("FAMILY_CFO_CHAT_HOURLY_LIMIT", cls.chat_hourly_limit)),
             auth_session_retention_days=int(
                 os.getenv("FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS", cls.auth_session_retention_days)
+            ),
+            sealed_drain_enabled=_env_bool(
+                "FAMILY_CFO_SEALED_DRAIN_ENABLED", cls.sealed_drain_enabled
             ),
             revoked_device_retention_days=int(
                 os.getenv(

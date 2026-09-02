@@ -1773,7 +1773,7 @@ export type HouseholdKeyStatus = {
     has_recovery_key: boolean;
     recovery_key_created_at?: string | null;
     /**
-     * "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — does not run while sealed, and a sign-in does not resume it: the session key lives in the API process and the worker is a separate one (#115). Encrypted backups are unaffected; they copy ciphertext.
+     * "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while a member session holds the key and pauses when the last one expires; the worker never runs it, because the key never leaves this process (#115). Encrypted backups are unaffected; they copy ciphertext.
      */
     mode?: 'convenient' | 'sealed';
     /**

@@ -183,11 +183,12 @@
                 its disks, its backups, another household sharing the box.
               </p>
               <p class="overview__seal-text" i18n="Sealed mode offer|Why sealed mode is not the default">
-                It is off by default because the price is real. Unattended work stops for as long as
-                you stay sealed: bank sync, snapshots, imports, reports and idle study all need your
-                key, and the background worker never holds it — signing in does not start them
-                again. Encrypted backups keep running. And losing the recovery key with nobody
-                signed in loses the data — no one can override that.
+                It is off by default because the price is real. Unattended work — bank sync,
+                snapshots, imports, reports, idle study — then runs only while someone is signed in,
+                because the box holds no key of its own. It catches up when you sign in and pauses
+                when the last of you signs out, so a day nobody visits leaves a gap in the trend.
+                And losing the recovery key with nobody signed in loses the data — no one can
+                override that.
               </p>
               @if (seal.needsRecoveryKey) {
                 <p class="overview__seal-todo" i18n="Sealed mode offer|The missing precondition: the household has no recovery key yet">
