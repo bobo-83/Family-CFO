@@ -77,6 +77,7 @@ final class ChatViewModel {
         outgoing.attachmentName = attachment?.displayName
         messages.append(outgoing)
         isSending = true
+        progressDetail = nil
         defer {
             isSending = false
             progressDetail = nil

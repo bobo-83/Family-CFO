@@ -42,9 +42,11 @@ Saved-answer recovery on Apple clients is deliberately bounded to about two
 minutes beyond the failed request. Only a timeout or lost stream enters that
 poll; authentication, server, and offline failures surface immediately. If the
 answer appears during the poll, the client shows it and no error. If the poll
-expires, a lost stream is described as a connection that dropped while the
-advisor was working, with a prompt to reopen the conversation later — never as
-proof that Local Network access or Wi-Fi is misconfigured (issue #124).
+expires, a lost or timed-out stream is described as a connection that dropped
+(or a request that timed out) while the advisor was working, with a prompt to
+reopen the conversation later — never as proof that Local Network access or
+Wi-Fi is misconfigured, and never as an invitation to immediately resend a
+turn the box may have saved (issue #124).
 
 ## Rejected options
 

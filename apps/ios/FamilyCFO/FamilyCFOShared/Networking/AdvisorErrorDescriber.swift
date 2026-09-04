@@ -30,6 +30,12 @@ enum AdvisorErrorDescriber {
                     "The server's certificate doesn't match the pinned fingerprint from pairing. If the box's certificate changed, re-pair from the dashboard's Devices page."
             )
         case NSURLErrorTimedOut:
+            if context == .streamedTurn {
+                return String(
+                    localized:
+                        "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute."
+                )
+            }
             return String(
                 localized:
                     "The server didn't answer in time — it may be busy loading the model. Try again in a minute."

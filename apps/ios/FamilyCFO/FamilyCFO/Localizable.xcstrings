@@ -14519,6 +14519,22 @@
         }
       }
     },
+    "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užklausos laikas baigėsi, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
     "The server didn't answer in time — it may be busy loading the model. Try again in a minute.": {
       "localizations": {
         "lt": {

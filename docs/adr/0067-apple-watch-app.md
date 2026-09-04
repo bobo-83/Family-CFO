@@ -152,10 +152,11 @@ retry like the other pages, and keeps clear of the page dots.
 The shared advisor error describer now distinguishes plain requests from
 streamed turns. Text chat, hands-free voice, and Watch chat all use the same
 recoverability rule: only a timeout or lost connection polls for a saved
-answer, a recovered answer suppresses the error, and an exhausted lost-stream
-poll says the advisor may still save the answer instead of blaming Wi-Fi or
-Local Network permission. The Watch carries the same localized failure strings
-as the phone so this shared behavior does not fall back to different copy.
+answer, a recovered answer suppresses the error, and an exhausted poll after a
+lost or timed-out stream says the advisor may still save the answer instead of
+blaming Wi-Fi or Local Network permission or inviting an immediate retry. The
+Watch carries the same localized failure strings as the phone so this shared
+behavior does not fall back to different copy.
 
 ## Rejected options
 

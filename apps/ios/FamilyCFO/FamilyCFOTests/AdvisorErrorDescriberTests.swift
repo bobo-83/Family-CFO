@@ -18,6 +18,18 @@ struct AdvisorErrorDescriberTests {
         #expect(!streamed.contains("Local Network"))
     }
 
+    @Test func aTimedOutStreamUsesTheRequestContext() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+
+        let plain = AdvisorErrorDescriber.describe(error)
+        let streamed = AdvisorErrorDescriber.describe(error, during: .streamedTurn)
+
+        #expect(plain.contains("Try again in a minute"))
+        #expect(!plain.contains("advisor was still working"))
+        #expect(streamed.contains("advisor was still working"))
+        #expect(!streamed.contains("Try again"))
+    }
+
     @Test func onlyTimeoutsAndLostConnectionsAttemptSavedAnswerRecovery() async {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         let lost = NSError(
