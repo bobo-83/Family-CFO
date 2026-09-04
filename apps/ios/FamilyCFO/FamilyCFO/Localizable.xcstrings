@@ -14295,6 +14295,22 @@
         }
       }
     },
+    "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ryšys nutrūko, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối bị gián đoạn khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
     "The full amount this closed cycle asks for — not today's running balance.": {
       "localizations": {
         "lt": {

@@ -4,7 +4,14 @@ import OpenAPIRuntime
 /// Turns transport/client failures into actionable words. Shared so the phone
 /// and the watch describe the same failure the same way (ADR 0067 v4).
 enum AdvisorErrorDescriber {
-    static func describe(_ error: Error) -> String {
+    enum RequestContext: Equatable {
+        case plainRequest
+        case streamedTurn
+    }
+
+    static func describe(
+        _ error: Error, during context: RequestContext = .plainRequest
+    ) -> String {
         if let apiError = error as? APIError {
             return apiError.errorDescription ?? "\(apiError)"
         }
@@ -27,12 +34,17 @@ enum AdvisorErrorDescriber {
                 localized:
                     "The server didn't answer in time — it may be busy loading the model. Try again in a minute."
             )
-        case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
-            NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
-            return String(
-                localized:
-                    "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network."
-            )
+        case NSURLErrorNetworkConnectionLost:
+            if context == .streamedTurn {
+                return String(
+                    localized:
+                        "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute."
+                )
+            }
+            return unreachableMessage
+        case NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost,
+            NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed:
+            return unreachableMessage
         case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted,
             NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateNotYetValid:
             return String(
@@ -42,5 +54,12 @@ enum AdvisorErrorDescriber {
         default:
             return String(localized: "Network error \(nsError.code): \(nsError.localizedDescription)")
         }
+    }
+
+    private static var unreachableMessage: String {
+        String(
+            localized:
+                "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network."
+        )
     }
 }

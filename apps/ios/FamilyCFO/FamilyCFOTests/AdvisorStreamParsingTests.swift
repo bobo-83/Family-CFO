@@ -66,7 +66,7 @@ struct AdvisorStreamParsingTests {
                 HTTPBody(stream), onProgress: { _ in })
             Issue.record("expected a throw")
         } catch {
-            #expect(ChatViewModel.mightStillBeGenerating(error))
+            #expect(SavedAnswerRecovery.isRecoverableStreamFailure(error))
         }
     }
 

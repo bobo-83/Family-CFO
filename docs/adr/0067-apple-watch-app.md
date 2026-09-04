@@ -147,6 +147,16 @@ bar (orange from 80%, red at the cap), percent, and "spent of limit" —
 read-only; edits stay on phone and web. Uses the v6 stale-credential
 retry like the other pages, and keeps clear of the page dots.
 
+## Amendment (2026-09-03, v11): truthful dropped-stream failures
+
+The shared advisor error describer now distinguishes plain requests from
+streamed turns. Text chat, hands-free voice, and Watch chat all use the same
+recoverability rule: only a timeout or lost connection polls for a saved
+answer, a recovered answer suppresses the error, and an exhausted lost-stream
+poll says the advisor may still save the answer instead of blaming Wi-Fi or
+Local Network permission. The Watch carries the same localized failure strings
+as the phone so this shared behavior does not fall back to different copy.
+
 ## Rejected options
 
 - **Independent watch pairing (QR/login on the watch)** — no camera, painful

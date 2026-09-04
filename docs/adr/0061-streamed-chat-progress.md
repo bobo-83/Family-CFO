@@ -36,6 +36,16 @@ endpoint, which remains for compatibility:
 Both clients (iOS + Angular, ADR 0025) consume the stream: live progress in
 the thinking bubble / voice status line, answer handling unchanged.
 
+## Amendment (2026-09-03): bounded recovery tells the truth when it expires
+
+Saved-answer recovery on Apple clients is deliberately bounded to about two
+minutes beyond the failed request. Only a timeout or lost stream enters that
+poll; authentication, server, and offline failures surface immediately. If the
+answer appears during the poll, the client shows it and no error. If the poll
+expires, a lost stream is described as a connection that dropped while the
+advisor was working, with a prompt to reopen the conversation later — never as
+proof that Local Network access or Wi-Fi is misconfigured (issue #124).
+
 ## Rejected options
 
 - **Raw token streaming** — puts ungrounded numbers on screen before

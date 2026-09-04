@@ -1,0 +1,54 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko pasiekti serverio — patikrinkite, ar šis įrenginys yra namų ūkio tinkle (arba tailnet) ir ar Nustatymai → Privatumas ir sauga → Vietinis tinklas leidžia prieigą prie vietinio tinklo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không kết nối được tới máy chủ — hãy kiểm tra thiết bị này có đang ở trong mạng của hộ gia đình (hoặc tailnet) không, và quyền truy cập Mạng cục bộ đã được bật trong Cài đặt → Quyền riêng tư & Bảo mật → Mạng cục bộ."
+          }
+        }
+      }
+    },
+    "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ryšys nutrūko, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối bị gián đoạn khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
+    "The server didn't answer in time — it may be busy loading the model. Try again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serveris neatsakė laiku — jis gali būti užimtas įkeliant modelį. Pabandykite po minutės."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ không trả lời kịp — có thể đang bận tải mô hình. Hãy thử lại sau một phút."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

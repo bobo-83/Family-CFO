@@ -38,6 +38,7 @@ final class VoiceSessionViewModel: Identifiable {
     private let api: AdvisorAPI
     private let engine: SpeechEngine
     private let synthesizer: SpeechSynthesizing
+    private let recoveryPolicy: SavedAnswerRecovery.PollingPolicy
     /// The household's advisor language, read fresh per utterance (#10 phase 1):
     /// the session can outlive a language change in Settings, so it is a
     /// closure over live state (AppModel), not a value captured at init.
@@ -52,13 +53,15 @@ final class VoiceSessionViewModel: Identifiable {
         conversationID: String? = nil,
         engine: SpeechEngine,
         synthesizer: SpeechSynthesizing,
-        language: @escaping @MainActor () -> String = { "en" }
+        language: @escaping @MainActor () -> String = { "en" },
+        recoveryPolicy: SavedAnswerRecovery.PollingPolicy = .standard
     ) {
         self.api = api
         self.conversationID = conversationID
         self.engine = engine
         self.synthesizer = synthesizer
         self.language = language
+        self.recoveryPolicy = recoveryPolicy
     }
 
     func begin() async {
@@ -166,27 +169,35 @@ final class VoiceSessionViewModel: Identifiable {
             let response = try await api.sendMessage(
                 utterance, conversationID: conversationID, attachment: nil,
                 onProgress: { [weak self] detail in
-                    Task { @MainActor in self?.thinkingDetail = detail }
+                    Task { @MainActor in
+                        guard self?.phase == .thinking else { return }
+                        self?.thinkingDetail = detail
+                    }
                 })
+            guard !Task.isCancelled, phase == .thinking else { return }
             conversationID = response.conversationId
             await speakAndResume(response.recommendation.answer)
         } catch is CancellationError {
             // The session was ended mid-request; nothing to report.
         } catch {
+            guard !Task.isCancelled, phase == .thinking else { return }
             // A long grounded answer can outlast the HTTP connection — the box
             // finishes and SAVES it. Shared recovery with the text chat, or
             // hands-free turns die on exactly the questions that need the most
             // thinking (user report, 2026-07-21). Works for the first turn of
             // a fresh conversation too (no id yet — the newest conversation
             // is matched by utterance instead).
-            if ChatViewModel.mightStillBeGenerating(error),
-                let recovered = await SavedAnswerRecovery(api: api).poll(
-                    utterance: utterance, conversationID: conversationID)
-            {
+            let recovered = await SavedAnswerRecovery(api: api).poll(
+                after: error,
+                utterance: utterance,
+                conversationID: conversationID,
+                policy: recoveryPolicy)
+            guard !Task.isCancelled, phase == .thinking else { return }
+            if let recovered {
                 conversationID = recovered.conversationID
                 await speakAndResume(recovered.answer.content)
             } else {
-                phase = .failed(ChatViewModel.describe(error))
+                phase = .failed(ChatViewModel.describe(error, during: .streamedTurn))
             }
         }
     }

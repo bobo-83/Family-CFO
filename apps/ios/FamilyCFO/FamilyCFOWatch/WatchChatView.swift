@@ -237,7 +237,7 @@ struct WatchChatView: View {
         } catch {
             // Same recovery as the phone: the box may have finished and saved.
             if let recovered = await SavedAnswerRecovery(api: advisor).poll(
-                utterance: message, conversationID: conversationID)
+                after: error, utterance: message, conversationID: conversationID)
             {
                 conversationID = recovered.conversationID
                 turns.append(("assistant", recovered.answer.content))
@@ -246,7 +246,7 @@ struct WatchChatView: View {
                     await speaker.speak(recovered.answer.content, api: model.speech)
                 }
             } else {
-                errorMessage = "Couldn't get an answer — try again on WiFi."
+                errorMessage = AdvisorErrorDescriber.describe(error, during: .streamedTurn)
             }
         }
     }
