@@ -9,6 +9,7 @@ The store is rebuildable from PostgreSQL, so backups deliberately exclude it.
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import date, timedelta
 
 from family_cfo_financial_engine import Money
@@ -86,25 +87,42 @@ def index_household_data(
     embedder: EmbeddingAdapter | None = None,
     store: VectorStoreAdapter | None = None,
     wipe: bool = False,
+    households: Collection[str] | None = None,
 ) -> int:
-    """Embed and upsert every household's records; returns points indexed."""
+    """Embed and upsert every household's records; returns points indexed.
+
+    `households` restricts the pass to the ones this process owns (#115).
+
+    `wipe` prunes vectors of deleted rows, and it is HOUSEHOLD-scoped: each
+    household this pass can actually read is cleared and rebuilt individually,
+    immediately before its re-upsert. It is deliberately NOT a collection-wide
+    wipe (#115 review): the worker and the API each index only the households
+    they own, on independent five-minute schedules, so a global wipe from
+    either side would destroy the other's households — the worker's wipe used
+    to delete an unlocked sealed household's vectors and leave the advisor
+    ungrounded until the API's next pass happened to rebuild them. Scoped
+    deletion also means a locked household's vectors are left in place rather
+    than destroyed-and-unrebuildable, and clearing only AFTER its points were
+    collected means a household that turns out to be unreadable loses nothing.
+    """
     settings = settings or get_settings()
     if not settings.qdrant_url:
         return 0
     store = store or QdrantVectorStore(settings.qdrant_url)
     embedder = embedder or get_default_embedder()
-    if wipe:
-        store.wipe_collection(embedder.dim)
-    else:
-        store.ensure_collection(embedder.dim)
+    store.ensure_collection(embedder.dim)
 
     total = 0
     for household_id in repository.list_households(engine):
+        if households is not None and household_id not in households:
+            continue
         try:
             collected = _collect_points(engine, household_id)
         except household_crypto.HouseholdLockedError:
             # #181: a sealed+locked household defers; the others still index.
             continue
+        if wipe:
+            store.delete_household(household_id)
         for start in range(0, len(collected), _BATCH):
             batch = collected[start : start + _BATCH]
             vectors = embedder.embed([text for _id, text, _payload in batch])
@@ -118,10 +136,16 @@ def index_household_data(
     return total
 
 
-def run_indexing_once(engine: Engine, settings: Settings | None = None, *, wipe: bool = False) -> None:
+def run_indexing_once(
+    engine: Engine,
+    settings: Settings | None = None,
+    *,
+    wipe: bool = False,
+    households: Collection[str] | None = None,
+) -> None:
     """Worker entry point: never raises."""
     try:
-        indexed = index_household_data(engine, settings, wipe=wipe)
+        indexed = index_household_data(engine, settings, wipe=wipe, households=households)
         if indexed:
             logger.info("vector index updated: %s points (wipe=%s)", indexed, wipe)
     except Exception:

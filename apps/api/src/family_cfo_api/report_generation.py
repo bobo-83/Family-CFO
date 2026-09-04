@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -314,7 +315,11 @@ def generate_report(
 
 
 def run_scheduled_reports_once(
-    engine: Engine, report_type: str, reference_date: date | None = None
+    engine: Engine,
+    report_type: str,
+    reference_date: date | None = None,
+    *,
+    households: Collection[str] | None = None,
 ) -> int:
     """Generate `report_type` for every household whose current period isn't generated yet.
 
@@ -329,6 +334,10 @@ def run_scheduled_reports_once(
 
     generated = 0
     for household_id in repository.list_households(engine):
+        # #115: only the households this process owns — the worker skips sealed
+        # ones outright, the API runs the sealed ones it holds keys for.
+        if households is not None and household_id not in households:
+            continue
         if (
             repository.get_report_by_period(engine, household_id, report_type, period.start)
             is not None
@@ -340,8 +349,10 @@ def run_scheduled_reports_once(
             generate_report(engine, household_id, report_type, explanation_adapter, reference)
             generated += 1
         except household_crypto.HouseholdLockedError:
-            # #181: sealed+locked household defers; the rest still report.
-            logger.info("report deferred: household %s locked", household_id)
+            # #181: a sealed+locked household is skipped; the rest still
+            # report. The API runs it while its in-memory key session is open,
+            # so this is a skip here rather than work that is lost (#115).
+            logger.info("report skipped: household %s locked", household_id)
         finally:
             if runtime_client is not None:
                 runtime_client.close()

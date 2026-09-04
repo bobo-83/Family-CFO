@@ -181,10 +181,12 @@
         @if (status.mode; as mode) {
           <h3 class="backups-step" i18n="Step heading|Whether the box keeps a spare of the household data key">Privacy mode</h3>
           @if (mode === 'sealed') {
-            <p class="backups-note" i18n="Privacy mode|What sealed mode means for the household">
+            <p class="backups-note" i18n="Privacy mode|What sealed mode means for the household@@sealedPrivacyModeDescription">
               <strong>Sealed</strong> — Only your passwords, your phones, and your recovery key can
-              open your data. After a restart, nothing is readable until someone signs in — and
-              overnight work waits for you.
+              open your data. After a restart, nothing is readable until someone signs in.
+              Unattended work catches up while the in-memory key session is open. It expires 30
+              minutes after its last member-driven use; signing out does not close it immediately.
+              Encrypted backups keep running either way.
             </p>
             @if (status.unlocked === false) {
               <p class="backups-caption" i18n="Lock state|The sealed household is locked until somebody signs in">Locked — sign in again to unlock</p>

@@ -1393,9 +1393,13 @@
         <note priority="1" from="description">Whether the box keeps a spare of the household data key</note>
         <note priority="1" from="meaning">Step heading</note>
       </trans-unit>
-      <trans-unit id="3943843098077182442" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in — and overnight work waits for you. </source>
-        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Užsandarinta<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — jūsų duomenis atrakina tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neperskaitoma, kol kas nors neprisijungia, o nakties darbai palaukia jūsų. </target>
+      <trans-unit id="sealedPrivacyModeDescription" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately. Encrypted backups keep running either way. </source>
+        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Užsandarinta<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — jūsų duomenis atrakina tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neperskaitoma, kol kas nors neprisijungia. Foniniai darbai pasivys, kol atmintyje atidaryta rakto sesija. Ji baigsis po 30 minučių nuo paskutinio nario inicijuoto naudojimo; atsijungimas jos neuždaro iš karto. Šifruotos atsarginės kopijos daromos bet kuriuo atveju.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">185,188</context>
+        </context-group>
         <note priority="1" from="description">What sealed mode means for the household</note>
         <note priority="1" from="meaning">Privacy mode</note>
       </trans-unit>
@@ -1645,9 +1649,13 @@
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
-      <trans-unit id="6835130962576302188" datatype="html">
-        <source>Seal this household? After a restart, nothing is readable — and overnight sync, snapshots, and study wait — until someone signs in.</source>
-        <target state="needs-review-translation">Užsandarinti šį namų ūkį? Po perkrovimo niekas nebus perskaitoma, o naktinė sinchronizacija, kopijos ir nagrinėjimas lauks, kol kas nors prisijungs.</target>
+      <trans-unit id="sealHouseholdConfirmation" datatype="html">
+        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.</source>
+        <target state="needs-review-translation">Užsandarinti šį namų ūkį? Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas veiks, kol atmintyje bus atidaryta rakto sesija. Ji baigsis po 30 minučių nuo paskutinio nario inicijuoto rakto naudojimo; atsijungimas jos neuždaro iš karto.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">358</context>
+        </context-group>
         <note priority="1" from="description">Browser confirm before the household is sealed</note>
         <note priority="1" from="meaning">Confirmation</note>
       </trans-unit>
@@ -7090,9 +7098,9 @@
         <note priority="1" from="description">Heading of the offer to seal the household&apos;s data</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="1088570610188396491" datatype="html">
-        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
-        <target state="needs-review-translation"> Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas egzistuoja tik tol, kol narys yra prisijungęs, todėl neprisijungusi kopija — pavogtas diskas, atsarginė kopija, momentinė kopija — tampa neįskaitoma. </target>
+      <trans-unit id="sealedModeKeyDescription" datatype="html">
+        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only in memory after a member unlocks it, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
+        <target state="needs-review-translation"> Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas atmintyje atsiranda tik nariui jį atrakinus, todėl neprisijungus pasiekta kopija — pavogtas diskas, atsarginės kopijos archyvas ar momentinė kopija — yra neperskaitoma. </target>
         <note priority="1" from="description">What sealing does to the household&apos;s key</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
@@ -7102,9 +7110,13 @@
         <note priority="1" from="description">Which threats sealing protects against</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="2553210445921615004" datatype="html">
-        <source> It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
-        <target state="needs-review-translation"> Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia, todėl banko sinchronizavimas ir kiti naktiniai darbai laukia jūsų. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti. </target>
+      <trans-unit id="sealedModeTradeoffDescription" datatype="html">
+        <source> It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while that in-memory key session is open, because the box holds no key of its own. It catches up when you unlock the household. The key session expires 30 minutes after its last member-driven use; signing out does not close it immediately, so a day nobody visits leaves a gap in the trend. And losing the recovery key with no key session open loses the data — no one can override that. </source>
+        <target state="needs-review-translation">Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — veikia tik tol, kol atmintyje atidaryta ši rakto sesija, nes serveris neturi savo rakto. Jie pasivys atrakinus namų ūkį. Rakto sesija baigsis po 30 minučių nuo paskutinio nario inicijuoto naudojimo; atsijungimas jos neuždaro iš karto, todėl diena, kai niekas neužsuko, paliks tarpą tendencijoje. O praradus atkūrimo raktą, kai nėra atidarytos rakto sesijos, duomenys prarandami — niekas to negali apeiti.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
+          <context context-type="linenumber">186,191</context>
+        </context-group>
         <note priority="1" from="description">Why sealed mode is not the default</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>

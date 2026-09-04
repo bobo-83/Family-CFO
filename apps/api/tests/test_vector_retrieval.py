@@ -87,6 +87,65 @@ def test_wipe_prunes_stale_points(demo_engine: Engine) -> None:
     assert "stale" not in store.points
 
 
+def test_wipe_is_household_scoped(demo_engine: Engine) -> None:
+    """#115 review: the prune must clear one household at a time, never the
+    collection. The worker and the API each rebuild only the households they
+    own, on independent five-minute schedules — a global wipe from either side
+    destroys the other's households, and the sealed household whose vectors the
+    worker deleted could sit ungrounded until the API's next pass."""
+    _seed(demo_engine)
+    store = InMemoryVectorStore()
+    store.upsert(
+        [
+            # A household THIS pass does not cover — the other process's.
+            VectorPoint(
+                id="foreign",
+                vector=[1.0] * 32,
+                payload={"household_id": "someone-elses-household", "kind": "memory"},
+            ),
+            VectorPoint(
+                id="stale", vector=[1.0] * 32, payload={"household_id": _HH, "kind": "x"}
+            ),
+        ]
+    )
+
+    vector_indexing.index_household_data(
+        demo_engine,
+        _settings(),
+        embedder=HashEmbedder(),
+        store=store,
+        wipe=True,
+        households={_HH},
+    )
+
+    assert "stale" not in store.points, "the covered household is pruned"
+    assert "foreign" in store.points, "the other process's household is untouched"
+
+
+def test_wipe_leaves_an_unreadable_household_grounded(demo_engine: Engine, monkeypatch) -> None:
+    """A household that turns out to be locked mid-pass must lose nothing: its
+    old vectors keep grounding the advisor until a pass that can actually
+    rebuild them. The delete deliberately happens only after collection
+    succeeds."""
+    store = InMemoryVectorStore()
+    store.upsert(
+        [VectorPoint(id="old", vector=[1.0] * 32, payload={"household_id": _HH, "kind": "memory"})]
+    )
+
+    from family_cfo_api import household_crypto
+
+    def locked(engine, household_id):
+        raise household_crypto.HouseholdLockedError(household_id)
+
+    monkeypatch.setattr(vector_indexing, "_collect_points", locked)
+
+    vector_indexing.index_household_data(
+        demo_engine, _settings(), embedder=HashEmbedder(), store=store, wipe=True
+    )
+
+    assert "old" in store.points
+
+
 def test_search_records_tool_finds_the_swim_school(demo_engine: Engine, monkeypatch) -> None:
     _seed(demo_engine)
     store = InMemoryVectorStore()

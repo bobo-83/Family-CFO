@@ -55,14 +55,15 @@ A three-level envelope hierarchy, and two per-household operating modes.
   exactly as today — 6 a.m. syncs, snapshots, idle study, scheduled backups.
   Honest claim: *your data is sealed against database dumps, stolen disks,
   and other households' backups — not against the box operator.*
-- **Sealed**: no box-service wrap. The DEK exists in server MEMORY only while
-  a member session (or paired device session) is active; background work for
-  that household queues and drains during the next active session ("sync on
-  open"). Scheduled backups still run — the backup subkey is derived ahead
+- **Sealed**: no box-service wrap. A member, paired device, or recovery unlock
+  puts the DEK in server memory until a separate 30-minute sliding key-session
+  TTL expires. Member-driven reads extend it; background work and auth-session
+  lifetime do not. Background work runs only while that key session is open.
+  Scheduled backups still run — the backup subkey is derived ahead
   under the DEK and held as an ENCRYPT-ONLY key (write new archives, cannot
   read rows), so off-box copies continue even when sealed. Honest claim:
-  *the operator can read your data only while you are logged in and only by
-  modifying the running software — not from disk, dumps, or backups.*
+  *the operator can read your data only while an in-memory key session is open
+  and only by modifying the running software — not from disk, dumps, or backups.*
 
 The invariant from ADR 0070 carries forward and sharpens: UI and docs must
 state exactly the claim of the household's mode, and never more.
@@ -196,19 +197,60 @@ where decryption slots in.
   session keyring with a 30-minute sliding TTL, opened by a proven member
   password (login), a device key-session (the phone unwraps its ECIES wrap
   locally and posts the key), or — operationally — the recovery key.
+  Foreground member reads extend that TTL; background reads do not. The auth
+  session and key session have separate lifetimes: signing out revokes the
+  bearer token but does not erase the key immediately.
 - A stored canary (rows-subkey ciphertext of a fixed plaintext) validates
   every posted or unwrapped key before it is trusted, so a wrong key can
   never silently poison new writes.
 - Sealing preconditions: at least one member wrap AND a recovery key. The
   sealing session keeps its key; a box restart locks the household until
   the next sign-in. Locked reads/writes surface as HTTP 423
-  (`household_locked`); worker jobs defer their tick for locked households
-  instead of crashing. Whole-box backups keep running — the dump carries
+  (`household_locked`); worker jobs skip locked households instead of
+  crashing the tick for everyone else (skip, not defer — see below). Whole-box backups keep running — the dump carries
   the sealed household's ciphertext, which is the point.
 - Deviation from the sketch: no durable background-work queue — every
   worker job already polls on minutes-scale intervals, so "queue and drain
-  on next session" reduces to "the next poll tick after an unlock runs the
-  work". Revisit if a job ever becomes event-driven.
+  on next session" was taken to reduce to "the next poll tick after an
+  unlock runs the work".
+
+  **That inference was wrong, and #115 is its consequence.** The unlock and
+  the poll tick happen in *different processes*: a sign-in opens the session
+  keyring in the API container's memory, while the jobs ran in the worker
+  container, which has its own address space and can never observe it. So the
+  next tick after an unlock was locked exactly like the one before it, and a
+  sealed household got no unattended work at all — not delayed, never.
+
+  **Resolved by moving the work to the key** (#115, `sealed_worker.py`). The
+  API runs the jobs for the sealed households it currently holds keys for; the
+  worker is handed the households it can open on its own and no longer
+  attempts sealed ones. Ownership is disjoint by construction, so nothing runs
+  twice and nothing is dropped:
+
+  | process | households | opened by |
+  | --- | --- | --- |
+  | worker | not sealed | the box wrap |
+  | API | sealed, unlocked in this process | the session keyring |
+
+  A pass runs when a household unlocks — a member signing in, a device
+  posting its key, the recovery key — via an unlock listener on the keyring,
+  and on a periodic tick for work that comes due mid-session. The
+  implementation deliberately does NOT use this ADR's own word "drain": a
+  drain empties a queue that filled while you were away, and there is no
+  queue — these are the worker's pollers relocated, each running what is due
+  now. Sealed mode still costs something, and the honest form of it is
+  narrower than "waits": cadence-gated jobs self-heal, but a net-worth
+  snapshot is stamped for the day it runs, so days when nobody signs in stay
+  missing from a sealed household's trend. Encrypted backups were never
+  affected: they copy ciphertext under the box-level backup key.
+
+  The load moves with the work, and it is CPU, not GPU: embedding is a small
+  CPU-only ONNX model (ADR 0017) and study is an HTTP call the API waits on,
+  so nothing new competes with vLLM. What is new is the timing — this work
+  now runs while the separate in-memory key session is open, even briefly after
+  sign-out, and never extends that session itself. There is no off switch:
+  disabling it while encryption is on would
+  silently reinstate #115 under a config flag.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare
   and high-stakes; a guided flow is future work if hosting demands it.

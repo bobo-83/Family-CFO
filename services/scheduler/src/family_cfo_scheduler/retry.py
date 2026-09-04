@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TypeVar
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
 class RetryPolicy:
     max_attempts: int = 3
+
+
+DEFAULT_RETRY_POLICY = RetryPolicy()
 
 
 class RetryExhaustedError(RuntimeError):
@@ -21,10 +21,11 @@ class RetryExhaustedError(RuntimeError):
         self.last_error = last_error
 
 
-def run_with_retry(
+def run_with_retry[T](
     func: Callable[[], T],
-    policy: RetryPolicy = RetryPolicy(),
+    policy: RetryPolicy = DEFAULT_RETRY_POLICY,
     on_attempt_failure: Callable[[Exception, int], None] | None = None,
+    should_retry: Callable[[Exception], bool] | None = None,
 ) -> T:
     """Call ``func`` up to ``policy.max_attempts`` times, retrying immediately on failure.
 
@@ -32,13 +33,16 @@ def run_with_retry(
     attempts are exhausted. ``on_attempt_failure(error, attempt_number)``
     runs after every failed attempt, including the last, so callers can
     persist progress (e.g. incrementing a retry counter) without duplicating
-    retry bookkeeping themselves.
+    retry bookkeeping themselves. When ``should_retry`` rejects an exception,
+    that exception is raised unchanged and the failure callback is not run.
     """
     last_error: Exception | None = None
     for attempt in range(1, policy.max_attempts + 1):
         try:
             return func()
-        except Exception as exc:  # noqa: BLE001 - any job failure should be retried
+        except Exception as exc:
+            if should_retry is not None and not should_retry(exc):
+                raise
             last_error = exc
             if on_attempt_failure is not None:
                 on_attempt_failure(exc, attempt)

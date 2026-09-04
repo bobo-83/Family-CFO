@@ -5,6 +5,7 @@ import io
 import logging
 import os
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -13,7 +14,7 @@ from family_cfo_ocr_worker import PdfTextExtractionAdapter
 from family_cfo_scheduler import RetryExhaustedError, RetryPolicy, run_with_retry
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, ofx_parsing, repository, undo_actions
+from family_cfo_api import audit, household_crypto, ofx_parsing, repository, undo_actions
 
 logger = logging.getLogger(__name__)
 
@@ -281,21 +282,32 @@ def apply_statement_fields_to_account(
         # same statement rewrites the same values, and "updated" rows for a no-op
         # are exactly the noise that makes a trail unreadable.
         moved = sorted(f for f, value in updates.items() if getattr(account, f) != value)
-        repository.update_account(engine, import_record.household_id, account_id, **updates)
         if moved:
             changed = " and ".join(_FIELD_LABELS[field] for field in moved)
-            audit.write_audit(
-                engine,
-                import_record.household_id,
-                None,
-                "account.updated",
-                "account",
-                account_id,
-                f"Statement import updated the {changed} on “{account.name}”",
-                # Restores the account as it stood before the parse — `account`
-                # was read above, i.e. before update_account ran.
-                undo_token=undo_actions.account_updated(account),
-            )
+            # A sealed key can expire while the audit payload is encrypted. Keep
+            # the mutation and its audit row in one transaction so a paused
+            # import cannot commit an unaudited account change.
+            with engine.begin() as conn:
+                repository.update_account(
+                    engine,
+                    import_record.household_id,
+                    account_id,
+                    **updates,
+                    connection=conn,
+                )
+                audit.write_audit(
+                    engine,
+                    import_record.household_id,
+                    None,
+                    "account.updated",
+                    "account",
+                    account_id,
+                    f"Statement import updated the {changed} on “{account.name}”",
+                    # Restores the account as it stood before the parse — `account`
+                    # was read above, i.e. before update_account ran.
+                    undo_token=undo_actions.account_updated(account),
+                    connection=conn,
+                )
 
     if fields.statement_balance_minor is not None and fields.statement_balance_minor > 0:
         # A liability's balance is what is owed — stored negative (assets positive).
@@ -316,40 +328,52 @@ def apply_statement_fields_to_account(
                 if fields.statement_date is not None
                 else None
             )
-            balance_id = repository.record_account_balance(
-                engine, account_id, new_balance, as_of=as_of
-            )
-            audit.write_audit(
-                engine,
-                import_record.household_id,
-                None,
-                "account.balance_recorded",
-                "account",
-                account_id,
-                f"Statement import recorded a new balance for “{account.name}”",
-                undo_token=undo_actions.balance_recorded(balance_id),
-            )
+            # As above, the snapshot and the row that makes it auditable are a
+            # single unit when an expiring sealed session interrupts the pass.
+            with engine.begin() as conn:
+                balance_id = repository.record_account_balance(
+                    engine, account_id, new_balance, as_of=as_of, connection=conn
+                )
+                audit.write_audit(
+                    engine,
+                    import_record.household_id,
+                    None,
+                    "account.balance_recorded",
+                    "account",
+                    account_id,
+                    f"Statement import recorded a new balance for “{account.name}”",
+                    undo_token=undo_actions.balance_recorded(balance_id),
+                    connection=conn,
+                )
 
 
 def _process_pdf(engine: Engine, import_record: repository.ImportRecord, file_bytes: bytes) -> None:
     result = _pdf_adapter.extract(file_bytes, "application/pdf")
 
-    document = repository.create_document(
-        engine,
-        household_id=import_record.household_id,
-        content_type="application/pdf",
-        storage_path="",
-        import_id=import_record.id,
+    # Processing may pause at any encrypted write when a sealed key expires.
+    # Resume the artifact already tied to this import so retries cannot create a
+    # new document/extraction each time the session ends midway through the PDF.
+    document = repository.get_document_for_import(
+        engine, import_record.household_id, import_record.id
     )
-    repository.create_document_extraction(
-        engine,
-        document_id=document.id,
-        extraction_type="pdf_text",
-        text=result.text,
-        structured_fields=result.structured_fields,
-        confidence=result.confidence,
-        warnings=result.warnings,
-    )
+    if document is None:
+        document = repository.create_document(
+            engine,
+            household_id=import_record.household_id,
+            content_type="application/pdf",
+            storage_path="",
+            import_id=import_record.id,
+        )
+    if not repository.document_has_extraction(engine, document.id):
+        repository.create_document_extraction(
+            engine,
+            document_id=document.id,
+            extraction_type="pdf_text",
+            text=result.text,
+            structured_fields=result.structured_fields,
+            confidence=result.confidence,
+            warnings=result.warnings,
+        )
 
     # ADR 0033: fold a loan/card statement's summary (due date, minimum payment,
     # new balance) into the account this import belongs to.
@@ -407,14 +431,23 @@ def _process_one_import(
         raise ValueError(f"no processor for source_type {import_record.source_type!r}")
 
 
-def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
+def run_pending_imports_once(
+    engine: Engine, staging_dir: str, *, households: Collection[str] | None = None
+) -> int:
     """Process every pending, file-uploaded import once. Returns the number processed successfully.
 
     Called directly by tests (synchronous, deterministic) and wrapped by
     ``family_cfo_scheduler.Job`` for real background polling.
+
+    `households` restricts the pass to the ones this process owns (#115).
     """
     processed = 0
     for import_record, file_record in repository.list_processable_imports(engine):
+        # #115: leave other processes' households alone — importantly BEFORE the
+        # status flip, so a skipped import stays pending rather than being
+        # parked in "processing" by a process that will not finish it.
+        if households is not None and import_record.household_id not in households:
+            continue
         repository.update_import_status(engine, import_record.id, status="processing")
 
         def attempt(
@@ -439,9 +472,23 @@ def run_pending_imports_once(engine: Engine, staging_dir: str) -> int:
 
         try:
             run_with_retry(
-                attempt, RetryPolicy(max_attempts=MAX_IMPORT_ATTEMPTS), on_attempt_failure
+                attempt,
+                RetryPolicy(max_attempts=MAX_IMPORT_ATTEMPTS),
+                on_attempt_failure,
+                should_retry=lambda error: (
+                    not isinstance(error, household_crypto.HouseholdLockedError)
+                ),
             )
             processed += 1
+        except household_crypto.HouseholdLockedError:
+            # A sealed key can expire midway through a batch. This is session
+            # loss, not a bad file: restore the queue state without spending the
+            # processing-error budget so the next unlock can try again.
+            repository.update_import_status(engine, import_record.id, status="pending")
+            logger.info(
+                "import processing paused because household locked import_id=%s",
+                import_record.id,
+            )
         except RetryExhaustedError as exc:
             repository.update_import_status(
                 engine,

@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -218,10 +219,19 @@ def _next_month_to_study(
     return None
 
 
-def run_study_tick(engine: Engine, settings: Settings | None = None) -> None:
+def run_study_tick(
+    engine: Engine,
+    settings: Settings | None = None,
+    *,
+    households: Collection[str] | None = None,
+) -> None:
     """One scheduler tick: while the advisor is idle, distill any pending 👍/👎
-    feedback and study at most ONE month, per household. Never raises."""
+    feedback and study at most ONE month, per household. Never raises.
+
+    `households` restricts the tick to the ones this process owns (#115)."""
     for household_id in repository.list_households(engine):
+        if households is not None and household_id not in households:
+            continue
         try:
             config = resolve_ai_config(engine, household_id, settings)
             if not config.is_usable:

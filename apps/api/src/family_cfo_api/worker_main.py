@@ -54,10 +54,30 @@ def main() -> None:
     engine = create_database_engine(settings.database_url)
     logger = logging.getLogger(__name__)
 
+    def worker_households() -> set[str]:
+        """The households this process owns (#115).
+
+        Every household that is NOT sealed: those keep a box wrap, so this
+        container can open them on its own. A sealed household's key exists
+        only in the API's session keyring — a dict in that process's memory —
+        so the API runs its work while a member is signed in
+        (`sealed_worker.py`). The two sets are disjoint by construction, which
+        is what keeps the work from being done twice or dropped.
+
+        Queried each tick rather than cached: sealing is a live setting, and a
+        household that seals mid-day must stop being this process's business
+        immediately, not at the next restart."""
+        return set(repository.list_households(engine)) - household_crypto.sealed_household_ids(
+            engine
+        )
+
     def sealed_aware(job):
-        """ADR 0072 Phase 3: a sealed household with no live session key can't
-        be read or written — its background work waits for the next sign-in
-        (which reopens the keyring) instead of crashing the tick."""
+        """A safety net, no longer the mechanism.
+
+        Jobs are now handed the households this process owns, so a sealed one
+        is not attempted at all. This still catches the narrow race where a
+        household is sealed between that query and the row being read: one
+        household's lock must never crash the tick for everyone else (#181)."""
         from functools import wraps
 
         from family_cfo_api import household_crypto
@@ -68,7 +88,9 @@ def main() -> None:
                 job()
             except household_crypto.HouseholdLockedError as exc:
                 logger.info(
-                    "job %s deferred: household %s is sealed and locked",
+                    "job %s skipped for household %s: sealed between the "
+                    "ownership query and the read — the API runs it while its "
+                    "in-memory key session is open (#115)",
                     job.__name__,
                     exc.household_id,
                 )
@@ -77,19 +99,27 @@ def main() -> None:
 
     @sealed_aware
     def process_pending_imports() -> None:
-        import_processing.run_pending_imports_once(engine, settings.import_staging_dir)
+        import_processing.run_pending_imports_once(
+            engine, settings.import_staging_dir, households=worker_households()
+        )
 
     @sealed_aware
     def generate_weekly_reports() -> None:
-        report_generation.run_scheduled_reports_once(engine, "weekly")
+        report_generation.run_scheduled_reports_once(
+            engine, "weekly", households=worker_households()
+        )
 
     @sealed_aware
     def generate_monthly_reports() -> None:
-        report_generation.run_scheduled_reports_once(engine, "monthly")
+        report_generation.run_scheduled_reports_once(
+            engine, "monthly", households=worker_households()
+        )
 
     @sealed_aware
     def generate_annual_reports() -> None:
-        report_generation.run_scheduled_reports_once(engine, "annual")
+        report_generation.run_scheduled_reports_once(
+            engine, "annual", households=worker_households()
+        )
 
     @sealed_aware
     def sync_bank_connections() -> None:
@@ -99,7 +129,9 @@ def main() -> None:
         # syncs.
         from family_cfo_api import banksync, finance_service
 
-        households = banksync.sync_due_connections(engine, settings)
+        households = banksync.sync_due_connections(
+            engine, settings, households=worker_households()
+        )
         # M96: auto-file what was just imported (transfers, income, taxes, known
         # merchants) so a nightly sync doesn't leave the Categorize queue full.
         for household_id in households:
@@ -111,17 +143,25 @@ def main() -> None:
     @sealed_aware
     def capture_net_worth_snapshot() -> None:
         # M40: one snapshot per household per day for the Overview trend.
-        net_worth_history.record_snapshot_once(engine)
+        net_worth_history.record_snapshot_once(engine, households=worker_households())
 
     @sealed_aware
     def rebuild_vector_index() -> None:
-        # M69: daily wipe-and-rebuild prunes vectors of deleted rows.
-        vector_indexing.run_indexing_once(engine, settings, wipe=True)
+        # M69: wipe-and-rebuild prunes vectors of deleted rows. The wipe is
+        # household-scoped (#115 review): this process clears and rebuilds only
+        # the households it owns, so a sealed household's vectors — which only
+        # the API can rebuild — are never collateral of this job. Before that,
+        # the global wipe here and the API's rebuild ran on independent
+        # five-minute clocks, and the advisor could stay ungrounded for most of
+        # every cycle.
+        vector_indexing.run_indexing_once(
+            engine, settings, wipe=True, households=worker_households()
+        )
 
     @sealed_aware
     def run_study_tick() -> None:
         # ADR 0040: distill one month of history into advisor memories while idle.
-        ai_study.run_study_tick(engine, settings)
+        ai_study.run_study_tick(engine, settings, households=worker_households())
 
     def run_daily_backup() -> None:
         # M98/M101: fires every few minutes; each household backs up once its cadence
@@ -207,14 +247,21 @@ def main() -> None:
         Job(
             name="capture-net-worth-snapshot",
             func=capture_net_worth_snapshot,
-            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+            # Polled every few minutes; one-snapshot-per-day is enforced by the
+            # job itself, not by this interval.
+            interval_seconds=BACKUP_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(
         Job(
             name="rebuild-vector-index",
             func=rebuild_vector_index,
-            interval_seconds=BACKUP_INTERVAL_SECONDS,  # daily
+            # NOT daily, despite M69's original sketch: this fires every few
+            # minutes and re-embeds owned households each time. Household-scoped
+            # pruning makes that safe for sealed households; the cost of the
+            # cadence itself is a pre-existing question, deliberately unchanged
+            # here.
+            interval_seconds=BACKUP_INTERVAL_SECONDS,
         )
     )
     scheduler.add_job(

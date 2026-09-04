@@ -532,13 +532,13 @@ struct SettingsView: View {
             Label("Seal this household", systemImage: "lock.shield")
                 .font(.subheadline.weight(.semibold))
             Text(
-                "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable."
+                "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only in memory after a member unlocks it, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable."
             )
             Text(
                 "It guards against anything that reaches your data without a session: the machine, its disks, its backups, another household sharing the box."
             )
             Text(
-                "It is off by default because the price is real. After a restart nothing is readable until someone signs in, so bank sync and other overnight work wait for you. And losing the recovery key with nobody signed in loses the data — no one can override that."
+                "It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while that in-memory key session is open, because the box holds no key of its own. It catches up when you unlock the household. The key session expires 30 minutes after its last member-driven use; signing out does not close it immediately, so a day nobody visits leaves a gap in the trend. And losing the recovery key with no key session open loses the data — no one can override that."
             )
             if offer.needsRecoveryKey {
                 Text("Before you can seal: create a recovery key.")

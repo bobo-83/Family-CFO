@@ -29,6 +29,8 @@ import os
 import secrets
 import threading
 import time
+from collections.abc import Callable
+from contextlib import contextmanager
 from typing import NamedTuple
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -88,6 +90,16 @@ class _SessionKey(NamedTuple):
 
 
 _session_keyring: dict[str, _SessionKey] = {}
+
+# #115 review: the sliding TTL below treats every read as member activity. The
+# API's sealed-household pass reads keys every few minutes, and treating THAT
+# as activity would keep a sealed household's key alive in this process
+# forever after one sign-in — turning "session-bound" into "process-bound",
+# which is the August-incident shape all over again. Background work therefore
+# reads keys through `without_extending_sessions()`: expiry and the generation
+# re-check still apply in full; only the deadline extension is withheld.
+# Thread-scoped because the pass runs synchronously in its own thread.
+_key_access = threading.local()
 
 CANARY_PLAINTEXT = b"family-cfo-canary-v1"
 
@@ -282,6 +294,26 @@ def _cache_get(engine: Engine, household_id: str) -> bytes | None:
     return entry.dek
 
 
+@contextmanager
+def without_extending_sessions():
+    """Key reads inside this context do not count as member activity.
+
+    The TTL check and the generation re-check still run — an expired or
+    superseded key is refused exactly as before — but the sliding deadline is
+    left where the last FOREGROUND read put it. Every background pass must
+    wrap itself in this, or its own polling becomes the "activity" that keeps
+    a sealed household open indefinitely (#115 review).
+    """
+    previous = getattr(_key_access, "passive", False)
+    _key_access.passive = True
+    try:
+        yield
+    finally:
+        # Restore rather than clear: a nested use must not switch extension
+        # back on for the remainder of an enclosing background pass.
+        _key_access.passive = previous
+
+
 def _keyring_get(engine: Engine, household_id: str) -> bytes | None:
     with _cache_lock:
         entry = _session_keyring.get(household_id)
@@ -290,6 +322,7 @@ def _keyring_get(engine: Engine, household_id: str) -> bytes | None:
         if _now() > entry.expires:
             del _session_keyring[household_id]
             return None
+    revalidated = False
     if _now() - entry.checked_at >= DEK_CACHE_REVALIDATE_SECONDS:
         # The generation read happens OUTSIDE the lock (it hits the database),
         # so another thread may invalidate or expire this entry meanwhile.
@@ -297,17 +330,27 @@ def _keyring_get(engine: Engine, household_id: str) -> bytes | None:
             _invalidate(household_id)
             return None
         entry = entry._replace(checked_at=_now())
-    # Sliding TTL: activity keeps the household unlocked. Only extend the entry
-    # we actually read — writing back blindly would resurrect a key that a
+        revalidated = True
+    # Sliding TTL: MEMBER activity keeps the household unlocked; a background
+    # read must not (see without_extending_sessions). Only extend the entry we
+    # actually read — writing back blindly would resurrect a key that a
     # concurrent seal or rotation had just dropped, which is the whole failure
     # this module now exists to prevent.
+    passive = getattr(_key_access, "passive", False)
     with _cache_lock:
         current = _session_keyring.get(household_id)
         if current is None or current.dek != entry.dek:
             return None
-        _session_keyring[household_id] = entry._replace(
-            expires=_now() + SESSION_KEYRING_TTL_SECONDS
-        )
+        if not passive:
+            _session_keyring[household_id] = entry._replace(
+                expires=_now() + SESSION_KEYRING_TTL_SECONDS
+            )
+        elif revalidated:
+            # Record the generation check so it is not repeated on every read,
+            # but keep the deadline wherever foreground activity last put it
+            # (`current`, not `entry` — a concurrent member read may have
+            # extended it, and this write must never shorten that).
+            _session_keyring[household_id] = current._replace(checked_at=entry.checked_at)
     return entry.dek
 
 
@@ -318,6 +361,37 @@ def _keyring_put(engine: Engine, household_id: str, dek: bytes) -> None:
         _session_keyring[household_id] = _SessionKey(
             dek, now + SESSION_KEYRING_TTL_SECONDS, generation or 0, now
         )
+    _notify_unlocked(household_id)
+
+
+# #115: every way a sealed household opens — a member signing in, a paired
+# device posting its unwrapped key, the recovery key — lands in _keyring_put
+# above. The API registers a listener here so "the work starts when you sign
+# in" is literal rather than "within the next periodic pass". A hook rather
+# than a direct call because sealed_worker imports this module, not the other
+# way round, and because the worker registers nothing: it has no keys to
+# announce.
+_unlock_listener: Callable[[str], None] | None = None
+
+
+def set_unlock_listener(listener: Callable[[str], None] | None) -> None:
+    """Register (or clear, with None) the callback fired when a household is
+    unlocked in this process. Not thread-safe by design — it is set once during
+    application startup, before any request can unlock anything."""
+    global _unlock_listener
+    _unlock_listener = listener
+
+
+def _notify_unlocked(household_id: str) -> None:
+    listener = _unlock_listener
+    if listener is None:
+        return
+    try:
+        listener(household_id)
+    except Exception:
+        # An unlock must never fail because the follow-on work could not be
+        # started — the member is signing in, and that has to succeed.
+        logger.exception("unlock listener failed household=%s", household_id)
 
 
 def _box_wrap_row(engine: Engine, household_id: str):
@@ -873,6 +947,48 @@ def on_password_changed(
         logger.error("re-minted member wrap failed the canary household=%s", household_id)
         return False
     return True
+
+
+def sealed_household_ids(engine: Engine) -> set[str]:
+    """Households in sealed mode. Empty when encryption is off — nothing is
+    sealed then, so every household is the worker's to run (#115)."""
+    if not enabled():
+        return set()
+
+    from family_cfo_api import models
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(models.households.c.id).where(models.households.c.sealed_mode.is_(True))
+        )
+        return {row[0] for row in rows}
+
+
+def unlocked_sealed_household_ids(engine: Engine) -> set[str]:
+    """Sealed households whose key is live in THIS process's keyring, so this
+    process can do their unattended work right now (#115).
+
+    Deliberately asks `_keyring_get` rather than reading `_session_keyring`
+    directly: that path enforces the TTL and re-checks the key generation, so a
+    household whose key was retired by a rotation or a re-seal is not reported
+    as workable. Writing under a superseded key is the failure that produced
+    the August incident, and background work is exactly where it happened.
+
+    Wrapped in `without_extending_sessions()` here as well as in the caller:
+    a discovery poll is not member activity, and without this the poll itself
+    would keep every unlocked key alive forever (#115 review).
+
+    Empty in the worker container by construction — it never unlocks anything,
+    which is what makes the split unambiguous rather than a race.
+    """
+    if not enabled():
+        return set()
+    with without_extending_sessions():
+        return {
+            household_id
+            for household_id in sealed_household_ids(engine)
+            if _keyring_get(engine, household_id) is not None
+        }
 
 
 def households_missing_member_wraps(engine: Engine) -> list[str]:

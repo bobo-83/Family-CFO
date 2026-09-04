@@ -223,7 +223,13 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Sealed');
     expect(text).toContain('Only your passwords, your phones, and your recovery key');
-    expect(text).toContain('overnight work waits for you');
+    // #115: the sealed note names the actual in-memory key-session boundary.
+    // Auth sessions and this 30-minute sliding TTL are deliberately separate:
+    // background reads never extend it, and sign-out does not evict it.
+    expect(text).toContain('catches up while the in-memory key session is open');
+    expect(text).toContain('expires 30 minutes after its last member-driven use');
+    expect(text).toContain('signing out does not close it immediately');
+    expect(text).not.toContain('pauses when everyone signs out');
     expect(text).toContain('Switch back to convenient…');
     expect(text).toContain('Locked — sign in again to unlock');
     // The rescue lives right beneath the locked line.
