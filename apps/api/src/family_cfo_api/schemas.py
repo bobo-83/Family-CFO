@@ -1786,7 +1786,8 @@ class HouseholdKeyStatus(BaseModel):
     recovery_key_created_at: datetime | None = None
     # "convenient": the box also holds a wrap (unattended jobs work; sealed
     # against offline artifacts). "sealed": member/device/recovery keys are the
-    # ONLY ways in; background work waits for a live session.
+    # ONLY ways in; background work runs only while the in-memory key session
+    # is open.
     mode: Literal["convenient", "sealed"] = "convenient"
     unlocked: bool = True
 

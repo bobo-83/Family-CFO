@@ -1,9 +1,11 @@
 import os
 from datetime import date
+from types import SimpleNamespace
 
+import pytest
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, import_processing, repository
+from family_cfo_api import fixtures, household_crypto, import_processing, repository
 
 
 def _stage_file(staging_dir: str, import_id: str, filename: str, content: bytes) -> str:
@@ -157,6 +159,88 @@ def test_import_processing_error_fails_after_retries(demo_engine: Engine, tmp_pa
     assert updated.error_message is not None
 
 
+def test_household_lock_restores_import_to_pending_without_spending_retries(
+    demo_engine: Engine, tmp_path, monkeypatch
+) -> None:
+    staging_dir = str(tmp_path)
+    import_record = _create_pending_import_with_file(
+        demo_engine,
+        staging_dir,
+        b"date,amount,description\n2026-01-05,-42.50,Grocery Store\n",
+    )
+    attempts = 0
+
+    def locked(*args, **kwargs) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise household_crypto.HouseholdLockedError(fixtures.DEMO_HOUSEHOLD_ID)
+
+    monkeypatch.setattr(import_processing, "_process_one_import", locked)
+
+    processed = import_processing.run_pending_imports_once(demo_engine, staging_dir)
+
+    assert processed == 0
+    assert attempts == 1
+    updated = repository.get_import(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id)
+    assert updated is not None
+    assert updated.status == "pending"
+    assert updated.retry_count == 0
+    assert updated.error_message is None
+
+
+def test_pdf_import_resumes_after_lock_without_duplicate_artifacts(
+    demo_engine: Engine, tmp_path, monkeypatch
+) -> None:
+    staging_dir = str(tmp_path)
+    import_record = _create_pending_import_with_file(
+        demo_engine,
+        staging_dir,
+        b"synthetic pdf bytes",
+        filename="statement.pdf",
+        source_type="pdf",
+    )
+    monkeypatch.setattr(
+        import_processing._pdf_adapter,
+        "extract",
+        lambda *_args: SimpleNamespace(
+            text="No statement fields",
+            structured_fields={},
+            confidence=1.0,
+            warnings=[],
+        ),
+    )
+    apply_attempts = 0
+    real_apply = import_processing.apply_statement_fields_to_account
+
+    def lock_after_extraction(engine, record, text) -> None:
+        nonlocal apply_attempts
+        apply_attempts += 1
+        if apply_attempts == 1:
+            raise household_crypto.HouseholdLockedError(record.household_id)
+        real_apply(engine, record, text)
+
+    monkeypatch.setattr(
+        import_processing, "apply_statement_fields_to_account", lock_after_extraction
+    )
+
+    assert import_processing.run_pending_imports_once(demo_engine, staging_dir) == 0
+    paused = repository.get_import(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id
+    )
+    assert paused is not None and paused.status == "pending"
+
+    assert import_processing.run_pending_imports_once(demo_engine, staging_dir) == 1
+    completed = repository.get_import(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, import_record.id
+    )
+    assert completed is not None and completed.status == "needs_review"
+    documents = repository.list_documents_with_extractions(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID
+    )
+    assert len(documents) == 1
+    assert documents[0][1] is not None
+
+
 # --- ADR 0033: statement summary -> account (due date, min payment, balance) ---
 
 
@@ -209,6 +293,81 @@ def test_statement_import_folds_summary_into_the_liability_account(
         for b in repository.list_account_balances(demo_engine, fixtures.DEMO_HOUSEHOLD_ID)
     }
     assert balances[loan.id].balance_minor == -950_000  # owed, stored negative
+
+
+def test_statement_account_change_rolls_back_when_audit_loses_the_key(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    loan = repository.create_account(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        name="Student loan",
+        account_type="student_loan",
+        currency="USD",
+        minimum_payment_minor=5_000,
+    )
+    import_record = repository.create_import(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        account_id=loan.id,
+        source_type="pdf",
+        filename="loan.pdf",
+    )
+
+    def lock_during_audit(*args, **kwargs):
+        raise household_crypto.HouseholdLockedError(fixtures.DEMO_HOUSEHOLD_ID)
+
+    monkeypatch.setattr(import_processing.audit, "write_audit", lock_during_audit)
+
+    with pytest.raises(household_crypto.HouseholdLockedError):
+        import_processing.apply_statement_fields_to_account(
+            demo_engine,
+            import_record,
+            "Payment Due Date: 08/08/2026\nMinimum Payment Due: $81.53\n",
+        )
+
+    unchanged = repository.get_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, loan.id
+    )
+    assert unchanged is not None
+    assert unchanged.next_payment_due_date is None
+    assert unchanged.minimum_payment_minor == 5_000
+
+
+def test_statement_balance_rolls_back_when_audit_loses_the_key(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    loan = repository.create_account(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        name="Student loan",
+        account_type="student_loan",
+        currency="USD",
+    )
+    import_record = repository.create_import(
+        demo_engine,
+        household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        account_id=loan.id,
+        source_type="pdf",
+        filename="loan.pdf",
+    )
+
+    def lock_during_audit(*args, **kwargs):
+        raise household_crypto.HouseholdLockedError(fixtures.DEMO_HOUSEHOLD_ID)
+
+    monkeypatch.setattr(import_processing.audit, "write_audit", lock_during_audit)
+
+    with pytest.raises(household_crypto.HouseholdLockedError):
+        import_processing.apply_statement_fields_to_account(
+            demo_engine,
+            import_record,
+            "Statement Closing Date: 07/10/2026\nNew Balance: $9,500.00\n",
+        )
+
+    balances = repository.list_account_balances(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID
+    )
+    assert all(balance.account_id != loan.id for balance in balances)
 
 
 def test_statement_import_leaves_asset_accounts_untouched(demo_engine: Engine) -> None:

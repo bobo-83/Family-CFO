@@ -223,15 +223,13 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Sealed');
     expect(text).toContain('Only your passwords, your phones, and your recovery key');
-    // #115: the sealed note has to describe the real bargain — unattended work
-    // runs while a session holds the key and pauses when the last one goes.
-    // Both of the wrong answers are pinned out: "waits for you" (it does not
-    // resume by itself once everyone is signed out) and "does not run at all"
-    // (it does — the API runs it while a session holds the key).
-    expect(text).toContain('catches up while a member is signed in');
-    expect(text).toContain('pauses when everyone signs out');
-    expect(text).not.toContain('waits for you');
-    expect(text).not.toContain('does not run at all');
+    // #115: the sealed note names the actual in-memory key-session boundary.
+    // Auth sessions and this 30-minute sliding TTL are deliberately separate:
+    // background reads never extend it, and sign-out does not evict it.
+    expect(text).toContain('catches up while the in-memory key session is open');
+    expect(text).toContain('expires 30 minutes after its last member-driven use');
+    expect(text).toContain('signing out does not close it immediately');
+    expect(text).not.toContain('pauses when everyone signs out');
     expect(text).toContain('Switch back to convenient…');
     expect(text).toContain('Locked — sign in again to unlock');
     // The rescue lives right beneath the locked line.

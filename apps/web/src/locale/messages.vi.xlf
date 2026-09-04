@@ -1392,9 +1392,9 @@
         <note priority="1" from="description">Whether the box keeps a spare of the household data key</note>
         <note priority="1" from="meaning">Step heading</note>
       </trans-unit>
-      <trans-unit id="2367081942521782763" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while a member is signed in and pauses when everyone signs out; encrypted backups keep running either way. </source>
-        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Niêm phong<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Chỉ mật khẩu của bạn, điện thoại của bạn và khóa phục hồi mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền sẽ chạy bù khi có thành viên đăng nhập và tạm dừng khi mọi người đăng xuất; bản sao lưu đã mã hóa vẫn chạy trong cả hai trường hợp.</target>
+      <trans-unit id="sealedPrivacyModeDescription" datatype="html">
+        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Sealed<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately. Encrypted backups keep running either way. </source>
+        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Niêm phong<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> — Chỉ mật khẩu của bạn, điện thoại của bạn và khóa phục hồi mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền sẽ chạy bù khi phiên khóa trong bộ nhớ đang mở. Phiên này hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức. Bản sao lưu đã mã hóa vẫn chạy trong cả hai trường hợp.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
           <context context-type="linenumber">185,188</context>
@@ -1648,9 +1648,9 @@
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
-      <trans-unit id="6134366806709120677" datatype="html">
-        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run only while someone is signed in, and pause when everyone signs out.</source>
-        <target state="needs-review-translation">Niêm phong hộ gia đình này? Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Việc đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền khi đó chỉ chạy trong lúc có người đăng nhập, và tạm dừng khi mọi người đăng xuất.</target>
+      <trans-unit id="sealHouseholdConfirmation" datatype="html">
+        <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.</source>
+        <target state="needs-review-translation">Niêm phong hộ gia đình này? Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền khi phiên khóa trong bộ nhớ đang mở. Phiên này hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
           <context context-type="linenumber">358</context>
@@ -7082,9 +7082,9 @@
         <note priority="1" from="description">Heading of the offer to seal the household&apos;s data</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="1088570610188396491" datatype="html">
-        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
-        <target state="translated"> Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong lúc có thành viên đang đăng nhập, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được. </target>
+      <trans-unit id="sealedModeKeyDescription" datatype="html">
+        <source> The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only in memory after a member unlocks it, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable. </source>
+        <target state="needs-review-translation"> Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong bộ nhớ sau khi một thành viên mở khóa, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được. </target>
         <note priority="1" from="description">What sealing does to the household&apos;s key</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
@@ -7094,9 +7094,9 @@
         <note priority="1" from="description">Which threats sealing protects against</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
-      <trans-unit id="3221644640475225086" datatype="html">
-        <source> It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while someone is signed in, because the box holds no key of its own. It catches up when you sign in and pauses when the last of you signs out, so a day nobody visits leaves a gap in the trend. And losing the recovery key with nobody signed in loses the data — no one can override that. </source>
-        <target state="needs-review-translation">Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — khi đó chỉ chạy trong lúc có người đăng nhập, vì chiếc hộp không tự giữ khóa nào. Chúng chạy bù khi bạn đăng nhập và tạm dừng khi người cuối cùng đăng xuất, nên ngày nào không ai ghé thăm sẽ để lại khoảng trống trong biểu đồ. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp.</target>
+      <trans-unit id="sealedModeTradeoffDescription" datatype="html">
+        <source> It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while that in-memory key session is open, because the box holds no key of its own. It catches up when you unlock the household. The key session expires 30 minutes after its last member-driven use; signing out does not close it immediately, so a day nobody visits leaves a gap in the trend. And losing the recovery key with no key session open loses the data — no one can override that. </source>
+        <target state="needs-review-translation">Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — chỉ chạy khi phiên khóa trong bộ nhớ đó đang mở, vì chiếc máy không tự giữ khóa. Chúng chạy bù khi bạn mở khóa hộ gia đình. Phiên khóa hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức, nên ngày nào không ai ghé thăm sẽ để lại khoảng trống trong biểu đồ. Và mất khóa khôi phục khi không có phiên khóa nào mở là mất dữ liệu — không ai có thể can thiệp.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.html</context>
           <context context-type="linenumber">186,191</context>

@@ -2347,18 +2347,18 @@
         }
       }
     },
-    "After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run only while someone is signed in, and pause when everyone signs out.": {
+    "After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas tada veiks tik tada, kai kas nors prisijungęs, ir sustos, kai visi atsijungs."
+            "value": "Po perkrovimo niekas nebus perskaitoma, kol kas nors prisijungs. Foninė sinchronizacija, momentinės kopijos ir nagrinėjimas veiks, kol atmintyje bus atidaryta rakto sesija. Ji baigsis po 30 minučių nuo paskutinio nario inicijuoto rakto naudojimo; atsijungimas jos neuždaro iš karto."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Việc đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền khi đó chỉ chạy trong lúc có người đăng nhập, và tạm dừng khi mọi người đăng xuất."
+            "value": "Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Đồng bộ, ghi nhận số liệu và nghiên cứu chạy nền khi phiên khóa trong bộ nhớ đang mở. Phiên này hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức."
           }
         }
       }
@@ -7420,18 +7420,18 @@
         }
       }
     },
-    "It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while someone is signed in, because the box holds no key of its own. It catches up when you sign in and pauses when the last of you signs out, so a day nobody visits leaves a gap in the trend. And losing the recovery key with nobody signed in loses the data — no one can override that.": {
+    "It is off by default because the price is real. Unattended work — bank sync, snapshots, imports, reports, idle study — then runs only while that in-memory key session is open, because the box holds no key of its own. It catches up when you unlock the household. The key session expires 30 minutes after its last member-driven use; signing out does not close it immediately, so a day nobody visits leaves a gap in the trend. And losing the recovery key with no key session open loses the data — no one can override that.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — tada veikia tik tada, kai kas nors prisijungęs, nes dėžutė neturi savo rakto. Jie pasivys jums prisijungus ir sustos, kai paskutinis atsijungs, todėl diena, kai niekas neužsuko, paliks tarpą tendencijoje. O praradus atkūrimo raktą, kai niekas neprisijungęs, duomenys prarandami — niekas to negali apeiti."
+            "value": "Pagal numatytuosius nustatymus jis išjungtas, nes kaina reali. Foniniai darbai — banko sinchronizavimas, momentinės kopijos, importai, ataskaitos, nagrinėjimas — veikia tik tol, kol atmintyje atidaryta ši rakto sesija, nes serveris neturi savo rakto. Jie pasivys atrakinus namų ūkį. Rakto sesija baigsis po 30 minučių nuo paskutinio nario inicijuoto naudojimo; atsijungimas jos neuždaro iš karto, todėl diena, kai niekas neužsuko, paliks tarpą tendencijoje. O praradus atkūrimo raktą, kai nėra atidarytos rakto sesijos, duomenys prarandami — niekas to negali apeiti."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — khi đó chỉ chạy trong lúc có người đăng nhập, vì chiếc hộp không tự giữ khóa nào. Chúng chạy bù khi bạn đăng nhập và tạm dừng khi người cuối cùng đăng xuất, nên ngày nào không ai ghé thăm sẽ để lại khoảng trống trong biểu đồ. Và mất khóa khôi phục khi không ai đang đăng nhập là mất dữ liệu — không ai có thể can thiệp."
+            "value": "Mặc định nó tắt vì cái giá phải trả là có thật. Các việc chạy nền — đồng bộ ngân hàng, ghi nhận số liệu, nhập dữ liệu, báo cáo, nghiên cứu khi rảnh — chỉ chạy khi phiên khóa trong bộ nhớ đó đang mở, vì chiếc máy không tự giữ khóa. Chúng chạy bù khi bạn mở khóa hộ gia đình. Phiên khóa hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức, nên ngày nào không ai ghé thăm sẽ để lại khoảng trống trong biểu đồ. Và mất khóa khôi phục khi không có phiên khóa nào mở là mất dữ liệu — không ai có thể can thiệp."
           }
         }
       }
@@ -9823,18 +9823,18 @@
         }
       }
     },
-    "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while a member is signed in and pauses when everyone signs out; encrypted backups keep running either way.": {
+    "Only your passwords, your phones, and your recovery key can open your data. After a restart, nothing is readable until someone signs in. Unattended work catches up while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately. Encrypted backups keep running either way.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Jūsų duomenis atrakinti gali tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia. Foniniai darbai pasivys, kol narys prisijungęs, ir sustos, kai visi atsijungs; šifruotos atsarginės kopijos daromos bet kuriuo atveju."
+            "value": "Jūsų duomenis atrakinti gali tik jūsų slaptažodžiai, jūsų telefonai ir atkūrimo raktas. Po perkrovimo niekas neįskaitoma, kol kas nors prisijungia. Foniniai darbai pasivys, kol atmintyje atidaryta rakto sesija. Ji baigsis po 30 minučių nuo paskutinio nario inicijuoto naudojimo; atsijungimas jos neuždaro iš karto. Šifruotos atsarginės kopijos daromos bet kuriuo atveju."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Chỉ mật khẩu của bạn, điện thoại của bạn và khóa khôi phục mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền sẽ chạy bù khi có thành viên đăng nhập và tạm dừng khi mọi người đăng xuất; bản sao lưu đã mã hóa vẫn chạy trong cả hai trường hợp."
+            "value": "Chỉ mật khẩu của bạn, điện thoại của bạn và khóa khôi phục mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền sẽ chạy bù khi phiên khóa trong bộ nhớ đang mở. Phiên này hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức. Bản sao lưu đã mã hóa vẫn chạy trong cả hai trường hợp."
           }
         }
       }
@@ -14231,18 +14231,18 @@
         }
       }
     },
-    "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only while a member is signed in, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable.": {
+    "The box keeps a spare of your household key so it can work while nobody is here. Sealing removes that spare: your key then exists only in memory after a member unlocks it, so an offline copy — a stolen disk, a backup archive, a snapshot — is unreadable.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas egzistuoja tik tol, kol narys yra prisijungęs, todėl neprisijungusi kopija — pavogtas diskas, atsarginė kopija, momentinė kopija — tampa neįskaitoma."
+            "value": "Serveris saugo atsarginę jūsų namų ūkio rakto kopiją, kad galėtų dirbti niekam nesant. Užsandarinus ta kopija pašalinama: raktas atmintyje atsiranda tik nariui jį atrakinus, todėl neprisijungus pasiekta kopija — pavogtas diskas, atsarginės kopijos archyvas ar momentinė kopija — yra neperskaitoma."
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong lúc có thành viên đang đăng nhập, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được."
+            "state": "needs_review",
+            "value": "Máy giữ một bản dự phòng khóa của hộ gia đình để làm việc khi không có ai. Niêm phong sẽ xóa bản dự phòng đó: khóa chỉ còn tồn tại trong bộ nhớ sau khi một thành viên mở khóa, nên một bản sao ngoại tuyến — ổ đĩa bị đánh cắp, tệp sao lưu, ảnh chụp hệ thống — không đọc được."
           }
         }
       }

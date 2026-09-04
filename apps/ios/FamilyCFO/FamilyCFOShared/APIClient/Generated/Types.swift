@@ -9594,14 +9594,14 @@ public enum Components {
             public var hasRecoveryKey: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/recovery_key_created_at`.
             public var recoveryKeyCreatedAt: Foundation.Date?
-            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while a member session holds the key and pauses when the last one expires; the worker never runs it, because the key never leaves this process (#115). Encrypted backups are unaffected; they copy ciphertext.
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while its in-memory key session is open. That key session has a 30-minute sliding TTL extended only by member-driven reads; signing out does not close it immediately. The worker never runs this work, because the key never leaves the API process (#115). Encrypted backups copy ciphertext.
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
             @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case convenient = "convenient"
                 case sealed = "sealed"
             }
-            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while a member session holds the key and pauses when the last one expires; the worker never runs it, because the key never leaves this process (#115). Encrypted backups are unaffected; they copy ciphertext.
+            /// "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while its in-memory key session is open. That key session has a 30-minute sliding TTL extended only by member-driven reads; signing out does not close it immediately. The worker never runs this work, because the key never leaves the API process (#115). Encrypted backups copy ciphertext.
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus/mode`.
             public var mode: Components.Schemas.HouseholdKeyStatus.ModePayload?
@@ -9617,7 +9617,7 @@ public enum Components {
             ///   - deviceWraps:
             ///   - hasRecoveryKey:
             ///   - recoveryKeyCreatedAt:
-            ///   - mode: "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while a member session holds the key and pauses when the last one expires; the worker never runs it, because the key never leaves this process (#115). Encrypted backups are unaffected; they copy ciphertext.
+            ///   - mode: "convenient": the box also holds a key wrap — unattended sync, snapshots, and study keep working; content is sealed against offline artifacts (dumps, disks, backups), not the box operator. "sealed": member passwords, paired devices, and the recovery key are the ONLY ways in. Unattended work that reads household content — bank sync, snapshots, imports, reports, idle study — runs in the API while its in-memory key session is open. That key session has a 30-minute sliding TTL extended only by member-driven reads; signing out does not close it immediately. The worker never runs this work, because the key never leaves the API process (#115). Encrypted backups copy ciphertext.
             ///   - unlocked: Whether this household's content is readable right now.
             public init(
                 encryptionEnabled: Swift.Bool,

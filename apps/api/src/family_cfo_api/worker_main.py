@@ -89,8 +89,8 @@ def main() -> None:
             except household_crypto.HouseholdLockedError as exc:
                 logger.info(
                     "job %s skipped for household %s: sealed between the "
-                    "ownership query and the read — the API runs it while a "
-                    "member session holds the key (#115)",
+                    "ownership query and the read — the API runs it while its "
+                    "in-memory key session is open (#115)",
                     job.__name__,
                     exc.household_id,
                 )

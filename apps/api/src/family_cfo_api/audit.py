@@ -10,7 +10,7 @@ contents): audit rows are ``Internal`` per the security model.
 
 from __future__ import annotations
 
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from family_cfo_api import repository, undo_actions
 
@@ -24,6 +24,8 @@ def write_audit(
     entity_id: str | None,
     summary: str,
     undo_token: str | None = None,
+    *,
+    connection: Connection | None = None,
 ) -> str:
     """Record an audit row. ``undo_token`` (JSON) makes the action reversible from
     the Activity/History screen (M101); leave it None for actions that can't be
@@ -48,4 +50,5 @@ def write_audit(
         entity_id=entity_id,
         summary=summary,
         undo_token=undo_token,
+        connection=connection,
     )

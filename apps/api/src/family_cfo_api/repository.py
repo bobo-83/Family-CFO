@@ -9,7 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import delete, func, insert, select, update
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from family_cfo_api import household_crypto, models
@@ -3509,6 +3509,51 @@ def create_document(
     )
 
 
+def get_document_for_import(
+    engine: Engine, household_id: str, import_id: str
+) -> DocumentRecord | None:
+    """Return the PDF document already materialized for an import, if any.
+
+    Import processing can pause when a sealed household's session key expires.
+    Looking up the committed artifact makes the next unlock resume the same
+    document instead of creating a duplicate.
+    """
+    query = (
+        select(
+            models.documents.c.id,
+            models.documents.c.household_id,
+            models.documents.c.content_type,
+            models.documents.c.storage_path,
+            models.documents.c.created_at,
+        )
+        .where(
+            models.documents.c.household_id == household_id,
+            models.documents.c.import_id == import_id,
+        )
+        .order_by(models.documents.c.created_at)
+        .limit(1)
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    if row is None:
+        return None
+    return DocumentRecord(
+        id=row["id"],
+        household_id=row["household_id"],
+        content_type=row["content_type"],
+        storage_path=row["storage_path"],
+        created_at=row["created_at"],
+    )
+
+
+def document_has_extraction(engine: Engine, document_id: str) -> bool:
+    query = select(models.document_extractions.c.id).where(
+        models.document_extractions.c.document_id == document_id
+    )
+    with engine.connect() as conn:
+        return conn.execute(query).first() is not None
+
+
 def create_document_extraction(
     engine: Engine,
     document_id: str,
@@ -4090,25 +4135,29 @@ def record_audit_event(
     entity_id: str | None,
     summary: str,
     undo_token: str | None = None,
+    *,
+    connection: Connection | None = None,
 ) -> str:
     audit_id = new_id()
-    with engine.begin() as conn:
-        conn.execute(
-            insert(models.audit_events).values(
-                id=audit_id,
-                household_id=household_id,
-                actor_user_id=actor_user_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                # Summaries name entities and undo tokens snapshot their values —
-                # sealing them keeps the audit trail from leaking what the
-                # content columns hide (ADR 0072).
-                summary=household_crypto.encrypt_text(engine, household_id, summary),
-                created_at=utcnow(),
-                undo_token=household_crypto.encrypt_text(engine, household_id, undo_token),
-            )
-        )
+    statement = insert(models.audit_events).values(
+        id=audit_id,
+        household_id=household_id,
+        actor_user_id=actor_user_id,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        # Summaries name entities and undo tokens snapshot their values —
+        # sealing them keeps the audit trail from leaking what the
+        # content columns hide (ADR 0072).
+        summary=household_crypto.encrypt_text(engine, household_id, summary),
+        created_at=utcnow(),
+        undo_token=household_crypto.encrypt_text(engine, household_id, undo_token),
+    )
+    if connection is not None:
+        connection.execute(statement)
+    else:
+        with engine.begin() as conn:
+            conn.execute(statement)
     return audit_id
 
 
@@ -5124,6 +5173,8 @@ def update_account(
     emergency_fund_minor: int | None = None,
     clear_emergency_fund: bool = False,
     rsu_ready_to_sell: bool | None = None,
+    *,
+    connection: Connection | None = None,
 ) -> bool:
     values: dict[str, Any] = {"updated_at": utcnow()}
     if name is not None:
@@ -5150,14 +5201,19 @@ def update_account(
     elif emergency_fund_minor is not None:
         values["emergency_fund_minor"] = emergency_fund_minor
         values["emergency_fund_percent"] = None
-    with engine.begin() as conn:
-        result = conn.execute(
-            update(models.accounts)
-            .where(
-                models.accounts.c.household_id == household_id, models.accounts.c.id == account_id
-            )
-            .values(**values)
+    statement = (
+        update(models.accounts)
+        .where(
+            models.accounts.c.household_id == household_id,
+            models.accounts.c.id == account_id,
         )
+        .values(**values)
+    )
+    if connection is not None:
+        result = connection.execute(statement)
+    else:
+        with engine.begin() as conn:
+            result = conn.execute(statement)
     return result.rowcount > 0
 
 
@@ -5288,22 +5344,26 @@ def record_account_balance(
     balance_minor: int,
     as_of: datetime | None = None,
     balance_id: str | None = None,
+    *,
+    connection: Connection | None = None,
 ) -> str:
     balance_id = balance_id or new_id()
     now = utcnow()
-    with engine.begin() as conn:
-        conn.execute(
-            insert(models.account_balances).values(
-                id=balance_id,
-                account_id=account_id,
-                balance_minor=balance_minor,
-                # A statement dates its balance by its closing date, so an old
-                # statement can't clobber a newer balance (list_account_balances
-                # keeps the latest by as_of). Defaults to now for live updates.
-                as_of=as_of or now,
-                created_at=now,
-            )
-        )
+    statement = insert(models.account_balances).values(
+        id=balance_id,
+        account_id=account_id,
+        balance_minor=balance_minor,
+        # A statement dates its balance by its closing date, so an old
+        # statement can't clobber a newer balance (list_account_balances
+        # keeps the latest by as_of). Defaults to now for live updates.
+        as_of=as_of or now,
+        created_at=now,
+    )
+    if connection is not None:
+        connection.execute(statement)
+    else:
+        with engine.begin() as conn:
+            conn.execute(statement)
     return balance_id
 
 

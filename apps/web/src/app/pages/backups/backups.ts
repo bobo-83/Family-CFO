@@ -355,7 +355,7 @@ export class Backups implements OnInit {
     if (this.busy()) return;
     const consequence =
       mode === 'sealed'
-        ? $localize`:Confirmation|Browser confirm before the household is sealed:Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run only while someone is signed in, and pause when everyone signs out.`
+        ? $localize`:Confirmation|Browser confirm before the household is sealed@@sealHouseholdConfirmation:Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.`
         : $localize`:Confirmation|Browser confirm before the household leaves sealed mode:Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.`;
     if (!confirm(consequence)) return;
     this.busy.set(true);

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable, Collection
 
 from sqlalchemy.engine import Engine
@@ -56,10 +57,23 @@ logger = logging.getLogger(__name__)
 # gets their work done inside a session — not frequent enough to drive it.
 WORK_INTERVAL_SECONDS = 300
 
+# Discovery is the one unguarded database step in an unlock-triggered pass. A
+# transient database failure must retain the one-shot notification, but retrying
+# it in a tight loop would amplify an outage. Back off to a bounded cadence.
+UNLOCK_RETRY_INITIAL_SECONDS = 1.0
+UNLOCK_RETRY_MAX_SECONDS = 30.0
+
 # One pass at a time. An unlock fires a pass immediately, and the periodic
 # tick keeps running; without this a member signing in mid-tick would start a
 # second pass over the same households.
 _work_lock = threading.Lock()
+
+# Unlocks can arrive while a long pass owns `_work_lock`. The periodic caller
+# may skip that overlap, but an unlock is a one-shot notification: retain and
+# coalesce those household ids until a single runner can take the work lock.
+_pending_lock = threading.Lock()
+_pending_households: set[str] = set()
+_pending_thread: threading.Thread | None = None
 
 
 def _guarded(name: str, run: Callable[[], object]) -> None:
@@ -92,24 +106,29 @@ def run_due_work_once(
     pass for that household.
     """
     with household_crypto.without_extending_sessions():
-        return _run_due_work_once_passive(engine, settings, households)
+        return _run_due_work_once_passive(engine, settings, households, wait_for_lock=False)
 
 
 def _run_due_work_once_passive(
-    engine: Engine, settings: Settings, households: Collection[str] | None
+    engine: Engine,
+    settings: Settings,
+    households: Collection[str] | None,
+    *,
+    wait_for_lock: bool,
 ) -> set[str]:
-    targets = (
-        set(households)
-        if households is not None
-        else household_crypto.unlocked_sealed_household_ids(engine)
-    )
-    if not targets:
-        return set()
-
-    if not _work_lock.acquire(blocking=False):
+    if not _work_lock.acquire(blocking=wait_for_lock):
         logger.debug("sealed-household work: a pass is already running, skipping")
         return set()
     try:
+        # Explicit unlock notifications are only hints. `_keyring_put` also
+        # announces valid convenient-mode unlocks and a queued notification can
+        # outlive its key, so intersect every supplied set with current sealed
+        # ownership and current key availability before dispatch.
+        available = household_crypto.unlocked_sealed_household_ids(engine)
+        targets = available if households is None else set(households) & available
+        if not targets:
+            return set()
+
         logger.info("sealed-household work: starting for %d household(s)", len(targets))
 
         _guarded(
@@ -167,15 +186,56 @@ def _run_due_work_once_passive(
 def run_due_work_in_background(
     engine: Engine, settings: Settings, household_id: str
 ) -> threading.Thread:
-    """Run one household's due work without making the caller wait — used by
-    the unlock listener so "signing in starts the work" is literal rather than
-    "within five minutes". Daemon, so it never holds up a shutdown."""
+    """Queue an unlock-triggered pass without making the caller wait.
 
-    def run() -> None:
-        run_due_work_once(engine, settings, households={household_id})
+    One daemon drains all pending household ids. Unlike the periodic tick it
+    waits behind an active pass, because an unlock notification is not repeated
+    and must not be discarded merely because another household is still busy.
+    """
+    global _pending_thread
 
-    thread = threading.Thread(
-        target=run, name=f"sealed-work-{household_id[:8]}", daemon=True
-    )
-    thread.start()
-    return thread
+    def run_pending() -> None:
+        global _pending_thread
+
+        retry_delay = UNLOCK_RETRY_INITIAL_SECONDS
+        while True:
+            with _pending_lock:
+                if not _pending_households:
+                    # Clear while holding the same lock producers use. An unlock
+                    # arriving after this point starts the next runner itself.
+                    _pending_thread = None
+                    return
+                targets = set(_pending_households)
+                _pending_households.clear()
+
+            try:
+                with household_crypto.without_extending_sessions():
+                    _run_due_work_once_passive(engine, settings, targets, wait_for_lock=True)
+            except Exception:
+                # Discovery can fail before the per-job guards are reached. The
+                # unlock notification is one-shot, so put its targets back and
+                # retry with bounded backoff rather than silently losing them.
+                logger.exception(
+                    "sealed-household work: queued unlock pass failed; retrying in %.1fs",
+                    retry_delay,
+                )
+                with _pending_lock:
+                    _pending_households.update(targets)
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, UNLOCK_RETRY_MAX_SECONDS)
+            else:
+                retry_delay = UNLOCK_RETRY_INITIAL_SECONDS
+
+    with _pending_lock:
+        _pending_households.add(household_id)
+        if _pending_thread is not None:
+            return _pending_thread
+
+        thread = threading.Thread(target=run_pending, name="sealed-work-unlocks", daemon=True)
+        _pending_thread = thread
+        try:
+            thread.start()
+        except Exception:
+            _pending_thread = None
+            raise
+        return thread

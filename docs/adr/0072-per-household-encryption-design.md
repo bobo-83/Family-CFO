@@ -55,14 +55,15 @@ A three-level envelope hierarchy, and two per-household operating modes.
   exactly as today — 6 a.m. syncs, snapshots, idle study, scheduled backups.
   Honest claim: *your data is sealed against database dumps, stolen disks,
   and other households' backups — not against the box operator.*
-- **Sealed**: no box-service wrap. The DEK exists in server MEMORY only while
-  a member session (or paired device session) is active; background work for
-  that household queues and drains during the next active session ("sync on
-  open"). Scheduled backups still run — the backup subkey is derived ahead
+- **Sealed**: no box-service wrap. A member, paired device, or recovery unlock
+  puts the DEK in server memory until a separate 30-minute sliding key-session
+  TTL expires. Member-driven reads extend it; background work and auth-session
+  lifetime do not. Background work runs only while that key session is open.
+  Scheduled backups still run — the backup subkey is derived ahead
   under the DEK and held as an ENCRYPT-ONLY key (write new archives, cannot
   read rows), so off-box copies continue even when sealed. Honest claim:
-  *the operator can read your data only while you are logged in and only by
-  modifying the running software — not from disk, dumps, or backups.*
+  *the operator can read your data only while an in-memory key session is open
+  and only by modifying the running software — not from disk, dumps, or backups.*
 
 The invariant from ADR 0070 carries forward and sharpens: UI and docs must
 state exactly the claim of the household's mode, and never more.
@@ -196,6 +197,9 @@ where decryption slots in.
   session keyring with a 30-minute sliding TTL, opened by a proven member
   password (login), a device key-session (the phone unwraps its ECIES wrap
   locally and posts the key), or — operationally — the recovery key.
+  Foreground member reads extend that TTL; background reads do not. The auth
+  session and key session have separate lifetimes: signing out revokes the
+  bearer token but does not erase the key immediately.
 - A stored canary (rows-subkey ciphertext of a fixed plaintext) validates
   every posted or unwrapped key before it is trusted, so a wrong key can
   never silently poison new writes.
@@ -243,8 +247,9 @@ where decryption slots in.
   The load moves with the work, and it is CPU, not GPU: embedding is a small
   CPU-only ONNX model (ADR 0017) and study is an HTTP call the API waits on,
   so nothing new competes with vLLM. What is new is the timing — this work
-  now runs while a member is present, because that is the only time the key
-  exists. There is no off switch: disabling it while encryption is on would
+  now runs while the separate in-memory key session is open, even briefly after
+  sign-out, and never extends that session itself. There is no off switch:
+  disabling it while encryption is on would
   silently reinstate #115 under a config flag.
 - The recovery key currently unlocks via operational tooling (unwrap +
   key-session), not a self-serve UI flow — deliberate: recovery is rare

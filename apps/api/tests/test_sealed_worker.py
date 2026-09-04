@@ -261,18 +261,92 @@ def test_only_one_pass_runs_at_a_time(_master_key, demo_engine, monkeypatch) -> 
     assert second == [set()]  # the overlapping pass declined rather than doubling up
 
 
-def test_background_pass_targets_just_that_household(
+def test_unlock_waits_behind_an_active_pass_instead_of_being_dropped(
     _master_key, demo_engine, monkeypatch
 ) -> None:
     hh = repository.list_households(demo_engine)[0]
     _seal(demo_engine, hh)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
     calls = _stub_jobs(monkeypatch)
 
-    # No keyring entry: an explicit household set is honoured as given, which is
-    # what the unlock hook passes before the caller's key is visible elsewhere.
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_imports(engine, staging, households=None):
+        started.set()
+        release.wait(timeout=5)
+
+    monkeypatch.setattr(sealed_worker.import_processing, "run_pending_imports_once", slow_imports)
+
+    first = threading.Thread(
+        target=lambda: sealed_worker.run_due_work_once(demo_engine, _settings())
+    )
+    first.start()
+    assert started.wait(timeout=5)
+
+    queued = sealed_worker.run_due_work_in_background(demo_engine, _settings(), hh)
+    assert queued.is_alive()
+    release.set()
+    first.join(timeout=5)
+    queued.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not queued.is_alive()
+    assert calls["snapshot"] == [{hh}, {hh}]
+
+
+def test_queued_unlock_retries_after_transient_discovery_failure(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    _seal(demo_engine, hh)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    calls = _stub_jobs(monkeypatch)
+    discover = household_crypto.unlocked_sealed_household_ids
+    attempts = 0
+
+    def fail_once(engine):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("database briefly unavailable")
+        return discover(engine)
+
+    monkeypatch.setattr(household_crypto, "unlocked_sealed_household_ids", fail_once)
+    monkeypatch.setattr(sealed_worker, "UNLOCK_RETRY_INITIAL_SECONDS", 0)
+    monkeypatch.setattr(sealed_worker, "UNLOCK_RETRY_MAX_SECONDS", 0)
+
+    queued = sealed_worker.run_due_work_in_background(demo_engine, _settings(), hh)
+    queued.join(timeout=5)
+
+    assert not queued.is_alive()
+    assert attempts == 2
+    assert calls["snapshot"] == [{hh}]
+
+
+def test_background_pass_targets_just_that_household(_master_key, demo_engine, monkeypatch) -> None:
+    hh = repository.list_households(demo_engine)[0]
+    _seal(demo_engine, hh)
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    calls = _stub_jobs(monkeypatch)
+
     sealed_worker.run_due_work_in_background(demo_engine, _settings(), hh).join(timeout=5)
 
     assert calls["snapshot"] == [{hh}]
+
+
+def test_background_pass_revalidates_explicit_target_ownership(
+    _master_key, demo_engine, monkeypatch
+) -> None:
+    """A valid convenient-mode unlock is announced too, but remains the
+    standalone worker's responsibility and must not start the API job suite."""
+    hh = repository.list_households(demo_engine)[0]
+    household_crypto._keyring_put(demo_engine, hh, Fernet.generate_key())
+    calls = _stub_jobs(monkeypatch)
+
+    sealed_worker.run_due_work_in_background(demo_engine, _settings(), hh).join(timeout=5)
+
+    assert all(recorded == [] for recorded in calls.values())
 
 
 # --- the filter the jobs grew -------------------------------------------------

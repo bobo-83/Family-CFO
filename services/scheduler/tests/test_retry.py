@@ -55,3 +55,27 @@ def test_on_attempt_failure_called_for_every_failed_attempt() -> None:
         run_with_retry(job, RetryPolicy(max_attempts=3), on_attempt_failure=on_failure)
 
     assert failures == [1, 2, 3]
+
+
+def test_non_retryable_error_is_raised_without_callback_or_retry() -> None:
+    failures: list[int] = []
+    attempts = 0
+
+    class StopNowError(RuntimeError):
+        pass
+
+    def job() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise StopNowError("the caller must restore external state")
+
+    with pytest.raises(StopNowError):
+        run_with_retry(
+            job,
+            RetryPolicy(max_attempts=3),
+            on_attempt_failure=lambda _error, attempt: failures.append(attempt),
+            should_retry=lambda error: not isinstance(error, StopNowError),
+        )
+
+    assert attempts == 1
+    assert failures == []
