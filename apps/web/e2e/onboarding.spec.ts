@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+import { DEMO_EMAIL, DEMO_PASSWORD } from './support';
+
 // Demo credentials come from apps/api's family_cfo_api.fixtures.seed_demo_household —
 // this test requires a running API server seeded with those fixtures (see README).
-const DEMO_EMAIL = 'demo@family-cfo.local';
-const DEMO_PASSWORD = 'demo-password-123';
 
 test('health endpoint is reachable through the dev server proxy', async ({ request }) => {
   const response = await request.get('/api/v1/health');
@@ -14,6 +14,7 @@ test('health endpoint is reachable through the dev server proxy', async ({ reque
 
 test('onboarding: login redirects to overview and renders household data', async ({ page }) => {
   await page.goto('/login');
+  // The product name is not a translated string, so it stays a text assertion.
   await expect(page.getByText('Family CFO', { exact: true })).toBeVisible();
 
   await page.fill('input[type="email"]', DEMO_EMAIL);
@@ -21,9 +22,9 @@ test('onboarding: login redirects to overview and renders household data', async
   await page.click('button[type="submit"]');
 
   await page.waitForURL('**/overview');
-  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
-  await expect(page.getByText('Household', { exact: true })).toBeVisible();
-  await expect(page.getByText('Net worth', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('overview-title')).toBeVisible();
+  await expect(page.getByTestId('overview-household-card')).toBeVisible();
+  await expect(page.getByTestId('overview-net-worth-card')).toBeVisible();
 });
 
 test('an invalid login shows an error and does not navigate away', async ({ page }) => {

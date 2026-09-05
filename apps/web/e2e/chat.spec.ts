@@ -1,23 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { login } from './support';
+
 // M68 chat + vision smoke tests. Opt-in like the other e2e specs: they need a
 // running stack seeded with the demo fixtures (E2E_BASE_URL). They are
 // runtime-tolerant by design: against a deterministic-only stack they assert
 // the deterministic caption; against a full AI stack they assert model
 // attribution — either way the HONEST outcome must render.
-const DEMO_EMAIL = 'demo@family-cfo.local';
-const DEMO_PASSWORD = 'demo-password-123';
 
 // A live 80B answer takes ~30s; the photo path adds a describe round.
 const ANSWER_TIMEOUT_MS = 120_000;
-
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.fill('input[type="email"]', DEMO_EMAIL);
-  await page.fill('input[type="password"]', DEMO_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/overview');
-}
 
 async function sendMessage(page: Page, message: string): Promise<void> {
   await page.locator('.chat__input input[formcontrolname="message"]').fill(message);
@@ -39,8 +31,13 @@ test('chat: a question renders a grounded, attributed answer', async ({ page }) 
   // (or the deterministic engine) is done.
   await expect(page.locator('.chat__bubble').first()).toBeVisible();
   await expect(lastSource(page)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS });
-  await expect(lastSource(page)).toContainText(/Answered by|Deterministic calculation/);
-  await expect(page.locator('.chat__confidence').last()).toContainText('Confidence:');
+
+  // Attribution is asserted through the data attribute rather than the
+  // sentence, which is translated; the attribute mirrors the same condition.
+  await expect(lastSource(page)).toHaveAttribute('data-answer-source', /^(model|deterministic)$/);
+  await expect(page.locator('.chat__confidence').last()).toHaveClass(
+    /chat__confidence--(high|medium|low)/,
+  );
 });
 
 test('chat: an attached photo flows through the vision path', async ({ page }) => {
@@ -70,9 +67,10 @@ test('chat: an attached photo flows through the vision path', async ({ page }) =
   // reports which model read the photo; without one, the answer carries the
   // not-analyzed warning (rendered inside the recommendation details/warnings).
   await expect(lastSource(page)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS });
-  const source = await lastSource(page).textContent();
-  const photoRead = /photo read by/i.test(source ?? '');
+  const photoRead = (await lastSource(page).getAttribute('data-photo-read')) === 'true';
   if (!photoRead) {
+    // This warning is API-authored text rendered as data, not a web catalog
+    // string, so matching on it does not depend on the build's locale.
     const warning = page
       .locator('.chat__bubble')
       .last()
