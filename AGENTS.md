@@ -40,6 +40,34 @@ Each feature should include:
 - Documentation updates
 - A clear commit message
 
+## Tests Run Everywhere
+
+Every test must be able to run — and pass — on a contributor's machine and in
+CI. Operator directive (2026-09-04):
+
+- **No test may assert a tool's absence.** A test of a fallback path selects
+  the fallback explicitly (patch the seam); it must not assert whichever
+  engine the host happens to have. Reference case: the OCR stub test asserted
+  the "no tesseract" warning, so it passed on CI runners and failed inside the
+  very Docker image that ships.
+- **Skips must be loud where the tool is guaranteed.** An environment-dependent
+  test may skip on a machine missing its tool, but CI installs the tool and
+  sets the matching `FAMILY_CFO_REQUIRE_*` variable so the same test FAILS
+  rather than silently skips if the tool ever disappears from a runner.
+- **Declare every tool.** A test that needs a system binary or runtime must
+  have it (a) installed in the CI workflow, (b) listed below, and (c) called
+  out to the operator when introduced — never assumed onto a machine.
+
+### System tools for the full test matrix
+
+- Python ≥ 3.12 — `uv venv --python 3.12 --seed apps/api/.venv`, then
+  `make install` in `apps/api` (installs the API plus every sibling service
+  editable, so workspace changes are what run).
+- Node 22 + npm — web unit tests, generated-client checks, Playwright e2e.
+- tesseract (`brew install tesseract` / `apt-get install tesseract-ocr`) —
+  real-OCR tests; also present in the production API image.
+- Xcode with the iOS and watchOS platforms — Apple targets.
+
 ## One Input, Not Two — Minimize Duplicate User Entry
 
 **When the user tells the system something, don't make them tell it again for a

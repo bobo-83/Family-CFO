@@ -38,6 +38,13 @@ jobs:
             services/financial-engine/pyproject.toml
             services/ai-orchestrator/pyproject.toml
 
+      # The production image ships tesseract, so the suite must pass WITH it
+      # present — asserting a tool's absence is how the OCR stub test once
+      # passed CI while failing in the shipped container (AGENTS.md: Tests
+      # Run Everywhere).
+      - name: Install tesseract (match the production image)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+
       - name: Install API test dependencies
         run: make install
 

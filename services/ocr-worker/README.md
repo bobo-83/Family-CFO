@@ -25,7 +25,7 @@ callers (see `apps/api/src/family_cfo_api/import_processing.py` and
 
 ## Assumptions and Limitations
 
-- In the Docker image, `apps/api`'s document upload route uses the Tesseract adapter for images; in tests it uses the deterministic adapter (no fabricated guesses).
+- In the Docker image — and on any machine with `tesseract` on `PATH` — `apps/api`'s document upload route uses the Tesseract adapter for images. Tests that pin the deterministic adapter's contract select it explicitly rather than relying on the binary being absent, so the suites pass with or without tesseract installed; CI installs it (and `FAMILY_CFO_REQUIRE_TESSERACT=1` turns this package's real-OCR test's skip into a failure there) to match the shipped image.
 - `PdfTextExtractionAdapter` handles text-based PDFs directly; a scanned (image-only) PDF falls to OCR via Tesseract.
 - Confidence values are fixed constants (`0.4` for PDF text with a regex hint, `0.0` for no result), not a calibrated score — there's no model to calibrate against yet.
 
