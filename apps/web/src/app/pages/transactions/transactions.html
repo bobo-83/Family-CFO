@@ -13,7 +13,7 @@
       }
       <mat-form-field appearance="outline">
         <mat-label i18n="Form field label|Account the transaction belongs to">Account</mat-label>
-        <mat-select formControlName="accountId">
+        <mat-select formControlName="accountId" data-testid="txn-account-select">
           @for (account of accounts.value() ?? []; track account.id) {
             <mat-option [value]="account.id">{{ account.name }}</mat-option>
           }

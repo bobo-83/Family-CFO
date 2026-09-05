@@ -87,7 +87,7 @@ Standalone components (no `NgModule`s), Angular signals and the built-in `resour
 
 ```bash
 cd apps/web
-npm install
+npm ci
 npx playwright install chromium
 ```
 
@@ -119,7 +119,15 @@ npx prettier --write .
 npm run e2e
 ```
 
-Runs `e2e/onboarding.spec.ts` and `e2e/data-entry.spec.ts` (M11: login → create account → add transaction → generate report) against a running dev server (`npm start`) and a running, fixture-seeded API backend on `http://localhost:8000` — they are not part of `npm test` and do not start either server themselves. Override the target with `E2E_BASE_URL`.
+Runs all six browser tests in `e2e/*.spec.ts`: onboarding/health, data entry/report generation, grounded chat rendering, and photo upload. Direct `npm run e2e` expects a running web server and fixture-seeded API (the development defaults are `http://localhost:4200` and `http://localhost:8000`); override the web target with `E2E_BASE_URL`.
+
+To run the exact isolated deployment path used by GitHub CI, install the web dependencies and Chromium as shown in **Setup**, then run this from the repository root:
+
+```bash
+E2E_PLAYWRIGHT=1 scripts/e2e-deploy-test.sh
+```
+
+That command builds and starts the real PostgreSQL/API/worker/web Compose stack on isolated ports, seeds the synthetic demo household, runs the HTTP smoke checks and all Playwright specs over its self-signed TLS endpoint, then removes the containers and volumes. Its E2E override replaces the production `/mnt` host bind with a disposable volume, so tests cannot touch off-box backup data and the same command works with Docker Desktop. Like CI, it disables the GPU-backed AI services and exercises the deterministic grounded-answer path. Playwright uses one Chromium worker and no retries when `CI` is set; failure traces/screenshots are written under `apps/web/test-results`, the HTML report under `apps/web/playwright-report`, and pre-teardown Compose diagnostics under `artifacts/deploy-e2e`.
 
 ## Generated API Client
 

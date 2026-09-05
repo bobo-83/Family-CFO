@@ -1,4 +1,4 @@
-<h1 i18n="Overview page title|Heading of the household overview page">Overview</h1>
+<h1 data-testid="overview-title" i18n="Overview page title|Heading of the household overview page">Overview</h1>
 
 <div
   class="overview__mode"
@@ -163,7 +163,11 @@
   @default {
     @if (household.value(); as context) {
       <div class="overview__cards">
-        <div class="overview__card" [class.overview__card--wide]="!!sealOffer()">
+        <div
+          class="overview__card"
+          data-testid="overview-household-card"
+          [class.overview__card--wide]="!!sealOffer()"
+        >
           <span class="overview__label" i18n="Household card header|The family this app tracks">Household</span>
           <span class="overview__value">{{ context.display_name }}</span>
 
@@ -508,7 +512,7 @@
           </div>
         }
 
-        <div class="overview__card">
+        <div class="overview__card" data-testid="overview-net-worth-card">
           <span class="overview__label" i18n="Net worth card header|Everything owned minus everything owed">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
           @if (context.net_worth_history; as history) {

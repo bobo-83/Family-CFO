@@ -41,9 +41,11 @@
       </mat-form-field>
       <mat-form-field appearance="outline">
         <mat-label i18n="Form field label|Kind of account (checking, savings, …)">Type</mat-label>
-        <mat-select formControlName="type">
+        <mat-select formControlName="type" data-testid="account-type-select">
           @for (type of accountTypes; track type) {
-            <mat-option [value]="type">{{ accountTypeLabel(type) }}</mat-option>
+            <mat-option [value]="type" [attr.data-testid]="'account-type-option-' + type">
+              {{ accountTypeLabel(type) }}
+            </mat-option>
           }
         </mat-select>
       </mat-form-field>

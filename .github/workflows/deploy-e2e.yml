@@ -1,8 +1,8 @@
 name: Deploy E2E
 
-# M72: the real thing — build the images, boot the core stack (db + api +
-# worker + web; no GPU services), and exercise it over HTTP: migrations,
-# demo login, a grounded chat answer, and the TLS-served dashboard.
+# M72 + issue #148: build the images, boot the core stack (db + api +
+# worker + web; no GPU services), exercise its HTTP smoke checks, then run the
+# Playwright browser suite against the same seeded TLS deployment.
 on:
   pull_request:
     paths:
@@ -13,6 +13,7 @@ on:
       - 'docker/**'
       - 'docker-compose.yml'
       - 'docker-compose.dev.yml'
+      - 'docker-compose.e2e.yml'
       - 'shared/**'
       - 'scripts/deploy.sh'
       - 'scripts/e2e-deploy-test.sh'
@@ -28,6 +29,7 @@ on:
       - 'docker/**'
       - 'docker-compose.yml'
       - 'docker-compose.dev.yml'
+      - 'docker-compose.e2e.yml'
       - 'shared/**'
       - 'scripts/deploy.sh'
       - 'scripts/e2e-deploy-test.sh'
@@ -36,7 +38,7 @@ on:
 jobs:
   build-boot-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -50,5 +52,36 @@ jobs:
           sudo docker image prune -af
           df -h /
 
-      - name: Build, boot, and smoke-test the deployment
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Install Playwright Chromium and Linux dependencies
+        working-directory: apps/web
+        run: |
+          df -h /
+          npx playwright install --with-deps chromium
+          df -h /
+
+      - name: Build, boot, and test the deployment
         run: scripts/e2e-deploy-test.sh
+        env:
+          E2E_PLAYWRIGHT: "1"
+
+      - name: Upload browser and stack diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-e2e-diagnostics
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            artifacts/deploy-e2e/
+          if-no-files-found: warn
+          retention-days: 14

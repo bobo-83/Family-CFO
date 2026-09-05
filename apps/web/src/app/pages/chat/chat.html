@@ -256,7 +256,16 @@
                   <p class="chat__refs" i18n="Reasoning footnote|How many calculations back the answer">{rec.calculation_refs.length, plural, =1 {Backed by 1 calculation.} other {Backed by {{ rec.calculation_refs.length }} calculations.}}</p>
                 </details>
 
-                <p class="chat__source">
+                <!--
+                  The provenance copy is translated, so the specs read these
+                  attributes instead of the sentence (apps/web/e2e/support.ts).
+                  They mirror the @if below — no extra state.
+                -->
+                <p
+                  class="chat__source"
+                  [attr.data-answer-source]="rec.answered_by ? 'model' : 'deterministic'"
+                  [attr.data-photo-read]="rec.photo_described_by ? 'true' : null"
+                >
                   @if (rec.answered_by) {
                     <ng-container i18n="Answer provenance|Which model wrote the answer">🤖 Answered by <strong>{{ rec.answered_by }}</strong></ng-container>
                     @if (rec.photo_described_by) {
