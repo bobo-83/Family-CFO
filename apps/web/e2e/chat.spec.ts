@@ -56,7 +56,7 @@ test('chat: an attached photo flows through the vision path', async ({ page }) =
 
   await login(page);
   await page.goto('/chat');
-  await page.locator('input.chat__file').setInputFiles({
+  await page.locator('input.chat__file[accept*="image"]:not([disabled])').setInputFiles({
     name: 'receipt.png',
     mimeType: 'image/png',
     buffer: receipt,
@@ -71,9 +71,13 @@ test('chat: an attached photo flows through the vision path', async ({ page }) =
   // not-analyzed warning (rendered inside the recommendation details/warnings).
   await expect(lastSource(page)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS });
   const source = await lastSource(page).textContent();
-  const bubble = await page.locator('.chat__bubble').last().textContent();
-  const photoRead = /photo read by/.test(source ?? '');
-  const notAnalyzed = /not.{0,20}analyz/i.test(bubble ?? '');
-  const deterministic = /Deterministic calculation/.test(source ?? '');
-  expect(photoRead || notAnalyzed || deterministic).toBe(true);
+  const photoRead = /photo read by/i.test(source ?? '');
+  if (!photoRead) {
+    const warning = page
+      .locator('.chat__bubble')
+      .last()
+      .locator('.chat__details li')
+      .filter({ hasText: /could not be analyzed/i });
+    await expect(warning).toBeAttached();
+  }
 });

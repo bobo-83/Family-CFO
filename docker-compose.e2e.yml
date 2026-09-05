@@ -1,0 +1,16 @@
+# E2E-only overrides for the isolated synthetic stack.
+#
+# Production exposes the host's /mnt tree to API/worker for off-box backups.
+# Browser/deployment tests neither need nor should touch that host data, and
+# Docker Desktop does not share /mnt by default. Replace both bind mounts with
+# one disposable project-scoped volume; the script removes it during teardown.
+services:
+  api:
+    volumes:
+      - e2e_mnt:/mnt
+  worker:
+    volumes:
+      - e2e_mnt:/mnt
+
+volumes:
+  e2e_mnt:

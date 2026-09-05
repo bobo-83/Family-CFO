@@ -14,15 +14,16 @@ test('health endpoint is reachable through the dev server proxy', async ({ reque
 
 test('onboarding: login redirects to overview and renders household data', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.locator('h1')).toHaveText('Family CFO');
+  await expect(page.getByText('Family CFO', { exact: true })).toBeVisible();
 
   await page.fill('input[type="email"]', DEMO_EMAIL);
   await page.fill('input[type="password"]', DEMO_PASSWORD);
   await page.click('button[type="submit"]');
 
   await page.waitForURL('**/overview');
-  await expect(page.locator('h1')).toHaveText('Overview');
-  await expect(page.locator('.overview__card')).toHaveCount(3);
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  await expect(page.getByText('Household', { exact: true })).toBeVisible();
+  await expect(page.getByText('Net worth', { exact: true })).toBeVisible();
 });
 
 test('an invalid login shows an error and does not navigate away', async ({ page }) => {
@@ -31,6 +32,6 @@ test('an invalid login shows an error and does not navigate away', async ({ page
   await page.fill('input[type="password"]', 'wrong-password');
   await page.click('button[type="submit"]');
 
-  await expect(page.locator('.login__error--banner')).toBeVisible();
+  await expect(page.locator('.login__error-banner')).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
