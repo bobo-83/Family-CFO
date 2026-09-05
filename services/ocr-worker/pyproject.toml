@@ -15,6 +15,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "fpdf2>=2.8,<3",
+  # Renders the synthetic image for the real-tesseract test; previously an
+  # undeclared dependency that only worked where Pillow happened to exist.
+  "pillow>=10,<13",
   "pytest>=9.0.3,<10",
   "ruff>=0.6,<0.16",
 ]

@@ -1,3 +1,4 @@
+import os
 import shutil
 from unittest.mock import patch
 
@@ -29,10 +30,21 @@ def test_adapter_reports_failure_as_warning_not_exception() -> None:
     assert any("failed" in w for w in result.warnings)
 
 
-@pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract not installed")
+# A machine without the binary may skip this test; CI installs tesseract and
+# sets FAMILY_CFO_REQUIRE_TESSERACT=1 so that there the test FAILS instead of
+# silently skipping if the tool ever disappears from the runner (AGENTS.md:
+# Tests Run Everywhere).
+_may_skip = (
+    shutil.which("tesseract") is None
+    and os.environ.get("FAMILY_CFO_REQUIRE_TESSERACT") != "1"
+)
+
+
+@pytest.mark.skipif(_may_skip, reason="tesseract not installed")
 def test_real_tesseract_reads_an_image() -> None:  # pragma: no cover - env dependent
-    from PIL import Image, ImageDraw
     import io
+
+    from PIL import Image, ImageDraw
 
     img = Image.new("RGB", (300, 60), "white")
     ImageDraw.Draw(img).text((10, 10), "TOTAL 42.50", fill="black")
