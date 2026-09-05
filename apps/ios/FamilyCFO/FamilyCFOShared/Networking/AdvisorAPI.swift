@@ -182,16 +182,20 @@ struct LiveAdvisorAPI: AdvisorAPI {
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse {
         let request = chatRequest(message, conversationID: conversationID, attachment: attachment)
-        switch try await client.createChatMessage(.init(body: .json(request))) {
-        case .ok(let response):
+        let output = try await client.createChatMessage(.init(body: .json(request)))
+        if case .ok(let response) = output {
             return try response.body.json
-        case .unauthorized:
+        }
+        if case .unauthorized = output {
             throw APIError.unauthorized
-        case .gatewayTimeout:
-            throw APIError.server(504)
-        case .undocumented(let status, _):
+        }
+        if case .undocumented(let status, _) = output {
             throw APIError.server(status)
         }
+        // Newer contracts document 504, while the oldest compatible contract
+        // reports it as undocumented. Pattern checks keep this shared source
+        // compilable against both generated enum shapes.
+        throw APIError.server(504)
     }
 
     func sendMessage(
@@ -203,9 +207,6 @@ struct LiveAdvisorAPI: AdvisorAPI {
         let request = chatRequest(message, conversationID: conversationID, attachment: attachment)
         switch try await client.createChatMessageStream(.init(body: .json(request))) {
         case .ok(let response):
-            let deadline = response.headers.xAdvisorRecoveryHorizonSeconds.flatMap { seconds in
-                seconds > 0 ? ContinuousClock.now + .seconds(seconds) : nil
-            }
             do {
                 return try await Self.consumeEventStream(
                     try response.body.textEventStream, onProgress: onProgress
@@ -213,8 +214,11 @@ struct LiveAdvisorAPI: AdvisorAPI {
             } catch let error as APIError {
                 throw error
             } catch {
+                // The recovery policy's 10-minute fallback matches the server
+                // horizon. Avoid depending here on a response-header accessor
+                // absent from the frozen oldest compatible API contract.
                 throw AdvisorStreamFailure(
-                    underlyingError: error, recoveryDeadline: deadline)
+                    underlyingError: error, recoveryDeadline: nil)
             }
         case .unauthorized:
             throw APIError.unauthorized
