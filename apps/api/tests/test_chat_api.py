@@ -1,5 +1,5 @@
 import pytest
-from family_cfo_ai_orchestrator import ExecutionDeadline
+from family_cfo_ai_orchestrator import ExecutionDeadline, ExecutionDeadlineExceeded
 from sqlalchemy import select
 
 from family_cfo_api import models
@@ -151,6 +151,59 @@ async def test_whole_turn_deadline_is_terminal_for_plain_and_stream(
     assert streamed.status_code == 200
     assert '"code": "advisor_turn_deadline_exceeded"' in streamed.text
     assert '"type": "answer"' not in streamed.text
+
+
+class _HandExpiredDeadline:
+    """Deadline double the test expires at an exact moment, not by the clock."""
+
+    def __init__(self) -> None:
+        self.expired = False
+
+    def remaining_seconds(self) -> float:
+        return 0.0 if self.expired else 600.0
+
+    def raise_if_expired(self) -> None:
+        if self.expired:
+            raise ExecutionDeadlineExceeded("execution deadline exceeded")
+
+
+@pytest.mark.anyio
+async def test_deadline_lapsing_mid_persistence_never_tears_the_turn(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    # M95 persistence boundary: the deadline gates the START of persistence.
+    # Once the recommendation write lands, the conversation turn must land too
+    # and the whole answer must be returned — a deadline lapsing between the
+    # writes must not orphan a recommendation while the client is told nothing
+    # was saved (a torn state SavedAnswerRecovery could never resolve).
+    fake = _HandExpiredDeadline()
+    monkeypatch.setattr(
+        chat_module.ExecutionDeadline, "after", classmethod(lambda _cls, _seconds: fake)
+    )
+    real_create = chat_module.repository.create_recommendation
+
+    def create_then_expire(*args, **kwargs):
+        recommendation_id = real_create(*args, **kwargs)
+        fake.expired = True
+        return recommendation_id
+
+    monkeypatch.setattr(chat_module.repository, "create_recommendation", create_then_expire)
+    headers = {"Authorization": f"Bearer {demo_token}"}
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages", headers=headers, json={"message": "Slow but saved"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert fake.expired  # the deadline really did lapse mid-persistence
+    detail = await demo_client.get(
+        f"/api/v1/conversations/{body['conversation_id']}", headers=headers
+    )
+    assert detail.status_code == 200
+    messages = detail.json()["messages"]
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert messages[1]["recommendation_id"] == body["recommendation"]["id"]
 
 
 @pytest.mark.anyio

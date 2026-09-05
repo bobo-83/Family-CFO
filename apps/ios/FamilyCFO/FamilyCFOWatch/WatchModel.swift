@@ -16,17 +16,24 @@ final class WatchModel {
 
     var isPaired: Bool { apiBaseURL != nil && token != nil }
 
+    /// M95: the streamed chat response's advertised recovery horizon,
+    /// captured by the middleware and read back when a stream fails mid-turn.
+    private let advisorRecoveryHorizon = AdvisorRecoveryHorizon()
+
     var client: Client? {
         guard let apiBaseURL, let token else { return nil }
         let captured = token
         return APIClientFactory.makeClient(
             baseURL: apiBaseURL,
             pinnedCertificateSHA256: certificateSHA256,
-            token: { captured }
+            token: { captured },
+            advisorRecoveryHorizon: advisorRecoveryHorizon
         )
     }
 
-    var advisor: AdvisorAPI? { client.map { LiveAdvisorAPI(client: $0) } }
+    var advisor: AdvisorAPI? {
+        client.map { LiveAdvisorAPI(client: $0, recoveryHorizon: advisorRecoveryHorizon) }
+    }
     var speech: SpeechAudioAPI? { client.map { LiveSpeechAudioAPI(client: $0) } }
 
     private let connectivity = WatchConnectivityReceiver()

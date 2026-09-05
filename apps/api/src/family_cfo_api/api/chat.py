@@ -566,6 +566,12 @@ def _chat_turn(
             ]
         )
 
+    # M95: the FINAL deadline gate. Persistence is one unit: checking again
+    # between the writes below could commit the recommendation, then tell the
+    # client "no answer was saved" (and, for a first message, strand a new
+    # empty conversation) — a torn state SavedAnswerRecovery can never
+    # resolve. Either nothing has been written when the deadline fires here,
+    # or every write lands, even if the deadline lapses mid-write.
     deadline.raise_if_expired()
     recommendation_id = repository.create_recommendation(
         engine,
@@ -586,7 +592,6 @@ def _chat_turn(
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new
     # conversation titled from the first message; an existing one is appended to.
-    deadline.raise_if_expired()
     if conversation is None:
         title = payload.message.strip()[:_TITLE_MAX_LENGTH] or "Conversation"
         conversation = repository.create_conversation(
@@ -601,7 +606,6 @@ def _chat_turn(
         stored_user_content = (
             f"{stored_user_content}\n\n[Data file: {payload.data_file_name or 'attachment'}]"
         )
-    deadline.raise_if_expired()
     repository.append_conversation_turn(
         engine,
         conversation_id=conversation.id,

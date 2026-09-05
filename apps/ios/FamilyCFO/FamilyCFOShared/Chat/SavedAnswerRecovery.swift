@@ -49,19 +49,32 @@ struct SavedAnswerRecovery {
         }
     }
 
+    /// Time seam (M95 test expectations): production reads the continuous
+    /// clock and really sleeps; tests substitute virtual time so backoff,
+    /// the deadline cap, and the final lookup are covered without waits.
+    struct Scheduler: Sendable {
+        var now: @Sendable () -> ContinuousClock.Instant
+        var sleep: @Sendable (Duration) async throws -> Void
+
+        static let live = Scheduler(
+            now: { ContinuousClock.now },
+            sleep: { try await Task.sleep(for: $0) }
+        )
+    }
+
     let api: AdvisorAPI
 
     func poll(
         after error: Error,
         utterance: String,
         conversationID: String?,
-        policy: PollingPolicy = .standard
+        policy: PollingPolicy = .standard,
+        scheduler: Scheduler = .live
     ) async -> (conversationID: String, answer: Components.Schemas.ConversationMessage)? {
         guard Self.isRecoverableStreamFailure(error) else { return nil }
 
-        let clock = ContinuousClock()
-        let serverDeadline = Self.streamFailure(error)?.recoveryDeadline
-        let deadline = serverDeadline ?? clock.now.advanced(by: policy.fallbackHorizon)
+        let serverDeadline = AdvisorStreamFailure.find(in: error)?.recoveryDeadline
+        let deadline = serverDeadline ?? scheduler.now().advanced(by: policy.fallbackHorizon)
         var interval = policy.initialInterval
         var attempts = 0
 
@@ -79,12 +92,12 @@ struct SavedAnswerRecovery {
                 return nil
             }
 
-            let now = clock.now
+            let now = scheduler.now()
             if now >= deadline { return nil }
             let remaining = now.duration(to: deadline)
             let sleepFor = min(interval, remaining)
             do {
-                try await Task.sleep(for: sleepFor)
+                try await scheduler.sleep(sleepFor)
             } catch {
                 return nil
             }
@@ -124,29 +137,10 @@ struct SavedAnswerRecovery {
     /// the box. Authentication, server, and genuinely-offline failures surface
     /// immediately instead of polling in vain.
     static func isRecoverableStreamFailure(_ error: Error) -> Bool {
-        let underlying = transportError(error)
-        let nsError = underlying as NSError
+        let nsError = AdvisorStreamFailure.rootTransportError(of: error) as NSError
         guard nsError.domain == NSURLErrorDomain else { return false }
         return nsError.code == NSURLErrorTimedOut
             || nsError.code == NSURLErrorNetworkConnectionLost
-    }
-
-    private static func streamFailure(_ error: Error) -> AdvisorStreamFailure? {
-        if let failure = error as? AdvisorStreamFailure { return failure }
-        if let clientError = error as? ClientError {
-            return streamFailure(clientError.underlyingError)
-        }
-        return nil
-    }
-
-    static func transportError(_ error: Error) -> Error {
-        if let failure = error as? AdvisorStreamFailure {
-            return transportError(failure.underlyingError)
-        }
-        if let clientError = error as? ClientError {
-            return transportError(clientError.underlyingError)
-        }
-        return error
     }
 
     private func candidateIDs(_ known: String?) async -> [String] {

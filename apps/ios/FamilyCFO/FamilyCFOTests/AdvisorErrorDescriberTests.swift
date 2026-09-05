@@ -30,6 +30,39 @@ struct AdvisorErrorDescriberTests {
         #expect(!streamed.contains("Try again"))
     }
 
+    /// M95 truthful exhaustion: this copy is shown only after
+    /// SavedAnswerRecovery polled past the server's own advertised bound, so
+    /// the turn provably saved nothing — say so, and make resending safe.
+    @Test func exhaustionAgainstAnAdvertisedHorizonSaysTheTurnDidNotComplete() {
+        let failure = AdvisorStreamFailure(
+            underlyingError: NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut),
+            recoveryDeadline: ContinuousClock.now)
+
+        let text = AdvisorErrorDescriber.describe(failure, during: .streamedTurn)
+
+        #expect(text.contains("advisor was still working"))
+        #expect(text.contains("didn't complete"))
+        #expect(text.contains("safe to send your message again"))
+        #expect(!text.contains("may still finish"))
+    }
+
+    /// Without an advertised horizon (older server, or the drop preceded the
+    /// response headers) the box may genuinely still be working — keep issue
+    /// #124's caution against resending a turn that may yet be saved.
+    @Test func exhaustionWithoutAnAdvertisedHorizonStaysCautious() {
+        let failure = AdvisorStreamFailure(
+            underlyingError: NSError(
+                domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost),
+            recoveryDeadline: nil)
+
+        let text = AdvisorErrorDescriber.describe(failure, during: .streamedTurn)
+
+        #expect(text.contains("advisor was still working"))
+        #expect(text.contains("may still finish"))
+        #expect(text.contains("before resending"))
+        #expect(!text.contains("didn't complete"))
+    }
+
     @Test func onlyTimeoutsAndLostConnectionsAttemptSavedAnswerRecovery() async {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         let lost = NSError(

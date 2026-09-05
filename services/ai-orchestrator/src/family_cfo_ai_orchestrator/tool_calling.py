@@ -65,7 +65,7 @@ def run_tool_calling_loop(
             tools,
             temperature=temperature,
             max_tokens=max_tokens,
-            **({"deadline": deadline} if deadline is not None else {}),
+            deadline=deadline,
         )
         if deadline is not None:
             deadline.raise_if_expired()
