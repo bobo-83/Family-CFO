@@ -20,6 +20,17 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -53,6 +64,8 @@ class Settings:
     # #181: per-household advisor fair-use cap (chat turns/hour). 0 = off —
     # the single-family default; arm when hosting multiple households.
     chat_hourly_limit: int = 0
+    # M95/#125: one bound shared by every phase of an advisor turn.
+    chat_turn_timeout_seconds: int = 600
     # Issue #48/#3: how long dead auth sessions and long-revoked devices linger
     # before the worker prunes them. Generous defaults; 0 disables a prune.
     auth_session_retention_days: int = 7
@@ -149,6 +162,9 @@ class Settings:
                 )
             ),
             chat_hourly_limit=int(os.getenv("FAMILY_CFO_CHAT_HOURLY_LIMIT", cls.chat_hourly_limit)),
+            chat_turn_timeout_seconds=_env_positive_int(
+                "FAMILY_CFO_CHAT_TURN_TIMEOUT_SECONDS", cls.chat_turn_timeout_seconds
+            ),
             auth_session_retention_days=int(
                 os.getenv("FAMILY_CFO_AUTH_SESSION_RETENTION_DAYS", cls.auth_session_retention_days)
             ),
@@ -183,7 +199,9 @@ class Settings:
                 "FAMILY_CFO_AUTH_RATE_LIMIT_ENABLED", cls.auth_rate_limit_enabled
             ),
             auth_rate_limit_max_attempts=int(
-                os.getenv("FAMILY_CFO_AUTH_RATE_LIMIT_MAX_ATTEMPTS", str(cls.auth_rate_limit_max_attempts))
+                os.getenv(
+                    "FAMILY_CFO_AUTH_RATE_LIMIT_MAX_ATTEMPTS", str(cls.auth_rate_limit_max_attempts)
+                )
             ),
             auth_rate_limit_window_seconds=int(
                 os.getenv(
@@ -197,7 +215,9 @@ class Settings:
                     str(cls.auth_rate_limit_lockout_seconds),
                 )
             ),
-            max_upload_bytes=int(os.getenv("FAMILY_CFO_MAX_UPLOAD_BYTES", str(cls.max_upload_bytes))),
+            max_upload_bytes=int(
+                os.getenv("FAMILY_CFO_MAX_UPLOAD_BYTES", str(cls.max_upload_bytes))
+            ),
             model_manager_url=os.getenv("FAMILY_CFO_MODEL_MANAGER_URL", cls.model_manager_url),
             hf_hub_url=os.getenv("FAMILY_CFO_HF_HUB_URL", cls.hf_hub_url),
             live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),

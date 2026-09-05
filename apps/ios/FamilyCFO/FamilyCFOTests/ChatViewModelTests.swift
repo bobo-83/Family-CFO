@@ -197,6 +197,25 @@ struct ChatViewModelTests {
         #expect(viewModel.errorMessage != nil)  // no server to have saved anything
     }
 
+    @Test func serverRecoveryDeadlineOverridesTheLegacyHorizon() async {
+        let api = MockAdvisorAPI()
+        api.detail = .init(
+            id: "conv-1", title: "Still working", createdAt: .now,
+            updatedAt: .now, messages: [])
+        let error = AdvisorStreamFailure(
+            underlyingError: NSError(
+                domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost),
+            recoveryDeadline: ContinuousClock.now - .seconds(1))
+
+        let recovered = await SavedAnswerRecovery(api: api).poll(
+            after: error,
+            utterance: "take your time",
+            conversationID: "conv-1")
+
+        #expect(recovered == nil)
+        #expect(api.conversationRequests == ["conv-1"])
+    }
+
     @Test func aDroppedConnectionAfterRecoveryExhaustsDescribesTheStreamNotTheLAN() async {
         let api = MockAdvisorAPI()
         api.sendError = NSError(

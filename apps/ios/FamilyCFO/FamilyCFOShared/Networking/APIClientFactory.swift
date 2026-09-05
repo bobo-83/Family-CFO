@@ -73,7 +73,8 @@ enum APIClientFactory {
         pinnedCertificateSHA256: String?,
         token: (@Sendable () -> String?)? = nil,
         devicePrivateKey: (@Sendable () -> Data?)? = nil,
-        language: (@Sendable () -> String?)? = nil
+        language: (@Sendable () -> String?)? = nil,
+        advisorRecoveryHorizon: AdvisorRecoveryHorizon? = nil
     ) -> Client {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 180  // grounded answers can take a while on home hardware
@@ -93,6 +94,12 @@ enum APIClientFactory {
         }
         if let language {
             middlewares.append(AcceptLanguageMiddleware(language: language))
+        }
+        // M95: innermost, so an unlock-and-replay above still records the
+        // replayed stream's horizon. Pass the same box to LiveAdvisorAPI.
+        if let advisorRecoveryHorizon {
+            middlewares.append(
+                AdvisorRecoveryHorizonMiddleware(horizon: advisorRecoveryHorizon))
         }
         return Client(
             serverURL: baseURL,

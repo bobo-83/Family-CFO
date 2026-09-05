@@ -5,6 +5,8 @@ import json
 import httpx
 
 from family_cfo_ai_orchestrator.runtime import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
     RuntimeCompletion,
     RuntimeMessage,
     RuntimeToolCompletion,
@@ -47,6 +49,7 @@ class VLLMAdapter:
         temperature: float = 0.2,
         max_tokens: int = 400,
         thinking: bool = True,
+        deadline: ExecutionDeadline | None = None,
     ) -> RuntimeCompletion:
         payload = {
             "model": self._model,
@@ -63,8 +66,13 @@ class VLLMAdapter:
 
         last_error: Exception | None = None
         for attempt in range(self._max_retries + 1):
+            request_timeout, deadline_limited = self._request_timeout(deadline)
             try:
-                response = self._client.post(f"{self._base_url}/v1/chat/completions", json=payload)
+                response = self._client.post(
+                    f"{self._base_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=request_timeout,
+                )
                 response.raise_for_status()
                 data = response.json()
                 # Reasoning-parsed models return content: null when the whole
@@ -73,10 +81,10 @@ class VLLMAdapter:
                 model = data.get("model", self._model)
                 return RuntimeCompletion(text=text, model=model, raw=data)
             except httpx.TimeoutException as exc:
-                # Not transient: the request was not lost, it was too slow, and
-                # an identical retry is too slow the same way. Retrying turned a
-                # 90s overrun into a five-minute wait before the caller could
-                # fall back (#126). Fail now and let the caller decide.
+                # A timeout at the outer deadline is terminal for the whole
+                # turn; an ordinary per-call timeout retains #126's fallback.
+                if deadline_limited:
+                    raise ExecutionDeadlineExceeded("advisor turn deadline exceeded") from exc
                 raise RuntimeUnavailableError(
                     f"vLLM runtime timed out after {self._timeout_seconds:.0f}s"
                 ) from exc
@@ -115,6 +123,7 @@ class VLLMAdapter:
         *,
         temperature: float = 0.2,
         max_tokens: int = 400,
+        deadline: ExecutionDeadline | None = None,
     ) -> RuntimeToolCompletion:
         payload = {
             "model": self._model,
@@ -136,8 +145,13 @@ class VLLMAdapter:
 
         last_error: Exception | None = None
         for _ in range(self._max_retries + 1):
+            request_timeout, deadline_limited = self._request_timeout(deadline)
             try:
-                response = self._client.post(f"{self._base_url}/v1/chat/completions", json=payload)
+                response = self._client.post(
+                    f"{self._base_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=request_timeout,
+                )
                 response.raise_for_status()
                 data = response.json()
                 message = data["choices"][0]["message"]
@@ -158,7 +172,8 @@ class VLLMAdapter:
                     raw=data,
                 )
             except httpx.TimeoutException as exc:
-                # See the note on the completion path: a timeout is not retried.
+                if deadline_limited:
+                    raise ExecutionDeadlineExceeded("advisor turn deadline exceeded") from exc
                 raise RuntimeUnavailableError(
                     f"vLLM runtime timed out after {self._timeout_seconds:.0f}s"
                 ) from exc
@@ -168,6 +183,14 @@ class VLLMAdapter:
         raise RuntimeUnavailableError(
             f"vLLM runtime unavailable after {self._max_retries + 1} attempts"
         ) from last_error
+
+    def _request_timeout(self, deadline: ExecutionDeadline | None) -> tuple[float, bool]:
+        if deadline is None:
+            return self._timeout_seconds, False
+        remaining = deadline.remaining_seconds()
+        if remaining <= 0:
+            raise ExecutionDeadlineExceeded("advisor turn deadline exceeded")
+        return min(self._timeout_seconds, remaining), remaining < self._timeout_seconds
 
     def close(self) -> None:
         if self._owns_client:

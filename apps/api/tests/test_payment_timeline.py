@@ -79,10 +79,13 @@ def test_variable_utility_matches_within_tolerance_and_reports_actual(
 
 def test_unpaid_recent_due_date_is_overdue_not_hidden(demo_engine: Engine) -> None:
     _checking(demo_engine)
-    due = TODAY - timedelta(days=5)
+    # Keep the fixture recent while avoiding month-end dates, where monthly
+    # recurrence clamping can intentionally move the displayed occurrence.
+    recent_dates = (TODAY - timedelta(days=days_ago) for days_ago in range(1, 8))
+    due = next(candidate for candidate in recent_dates if 2 <= candidate.day <= 27)
     repository.create_bill(
         demo_engine, HH, name="Water Bill", amount_minor=6_000, currency="USD",
-        frequency="monthly", next_due_date=due,  # five days late, no matching charge
+        frequency="monthly", next_due_date=due,  # recently late, no matching charge
     )
 
     item = _items(demo_engine)["Water Bill"]

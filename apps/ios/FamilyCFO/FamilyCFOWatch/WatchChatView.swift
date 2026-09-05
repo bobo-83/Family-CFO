@@ -202,7 +202,7 @@ struct WatchChatView: View {
     private func runConversation() async {
         inConversation = true
         defer { inConversation = false }
-        while inConversation {
+        while inConversation && !Task.isCancelled {
             guard let utterance = await WatchDictation.ask(),
                 !utterance.trimmingCharacters(in: .whitespaces).isEmpty
             else { break }  // cancelled — the conversation is over
@@ -228,6 +228,7 @@ struct WatchChatView: View {
                 onProgress: { detail in
                     Task { @MainActor in progress = detail }
                 })
+            guard !Task.isCancelled else { return }
             conversationID = response.conversationId
             turns.append(("assistant", response.recommendation.answer))
             errorMessage = nil
@@ -239,6 +240,7 @@ struct WatchChatView: View {
             if let recovered = await SavedAnswerRecovery(api: advisor).poll(
                 after: error, utterance: message, conversationID: conversationID)
             {
+                guard !Task.isCancelled else { return }
                 conversationID = recovered.conversationID
                 turns.append(("assistant", recovered.answer.content))
                 errorMessage = nil
@@ -246,6 +248,7 @@ struct WatchChatView: View {
                     await speaker.speak(recovered.answer.content, api: model.speech)
                 }
             } else {
+                guard !Task.isCancelled else { return }
                 errorMessage = AdvisorErrorDescriber.describe(error, during: .streamedTurn)
             }
         }

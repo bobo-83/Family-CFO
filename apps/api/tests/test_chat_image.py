@@ -15,7 +15,9 @@ class _ScriptedRuntime:
         self.seen_messages = []
         self._i = 0
 
-    def complete_with_tools(self, messages, tools, *, temperature=0.2, max_tokens=400):
+    def complete_with_tools(
+        self, messages, tools, *, temperature=0.2, max_tokens=400, deadline=None
+    ):
         self.seen_messages.append(list(messages))
         turn = self._turns[self._i]
         self._i += 1
@@ -46,7 +48,9 @@ async def test_image_described_and_numbers_grounded(demo_client, demo_token, mon
     monkeypatch.setattr(
         chat_module,
         "describe_image",
-        lambda runtime, url, user_context="": "A price tag showing $999.99 for a smartphone.",
+        lambda runtime, url, user_context="", **kwargs: (
+            "A price tag showing $999.99 for a smartphone."
+        ),
     )
     runtime = _ScriptedRuntime(
         [
@@ -65,7 +69,9 @@ async def test_image_described_and_numbers_grounded(demo_client, demo_token, mon
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
 
     resp = await _post(demo_client, demo_token, image_base64=_IMG, image_media_type="image/jpeg")
 
@@ -150,12 +156,20 @@ async def test_photo_response_tags_both_models(demo_engine, monkeypatch) -> None
         chat_module, "select_vision_describer", lambda e, h, s: (_Describer(), "describer")
     )
     monkeypatch.setattr(
-        chat_module, "describe_image", lambda runtime, url, user_context="": "A receipt for $42.00."
+        chat_module,
+        "describe_image",
+        lambda runtime, url, user_context="", **kwargs: "A receipt for $42.00.",
     )
     runtime = _ScriptedRuntime(
-        [RuntimeToolCompletion(tool_calls=[], text="That $42.00 fits your budget.", model="m", raw={})]
+        [
+            RuntimeToolCompletion(
+                tool_calls=[], text="That $42.00 fits your budget.", model="m", raw={}
+            )
+        ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
 
     settings = Settings(
         version="0.1.0",
@@ -214,7 +228,7 @@ async def test_pdf_attachment_is_rasterized_for_the_describer(
         def close(self) -> None:
             pass
 
-    def _fake_describe(describer, image_data_url, user_context=""):
+    def _fake_describe(describer, image_data_url, user_context="", deadline=None):
         captured["data_url"] = image_data_url
         return "A statement PDF showing a total due of $123.45."
 
@@ -265,7 +279,9 @@ async def test_data_file_preview_reaches_the_model_and_grounds_its_numbers(
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
 
     csv_bytes = (
         b"Date,Merchant,Amount\n"

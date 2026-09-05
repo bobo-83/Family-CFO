@@ -8,7 +8,7 @@ grounded by the caller, since they trace to a real source (the photo).
 
 from __future__ import annotations
 
-from family_cfo_ai_orchestrator.runtime import RuntimeAdapter, RuntimeMessage
+from family_cfo_ai_orchestrator.runtime import ExecutionDeadline, RuntimeAdapter, RuntimeMessage
 
 DESCRIBE_PROMPT_VERSION = "v1"
 
@@ -27,6 +27,7 @@ def describe_image(
     *,
     user_context: str = "",
     max_tokens: int = 300,
+    deadline: ExecutionDeadline | None = None,
 ) -> str:
     """One multimodal completion turning a photo into grounded-able text.
 
@@ -46,5 +47,6 @@ def describe_image(
         temperature=0.1,
         max_tokens=max_tokens,
         thinking=False,
+        deadline=deadline,
     )
     return completion.text.strip()

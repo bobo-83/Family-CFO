@@ -15,6 +15,8 @@ from family_cfo_ai_orchestrator.prompts import (
     build_report_explanation_prompt,
 )
 from family_cfo_ai_orchestrator.runtime import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
     RuntimeAdapter,
     RuntimeCompletion,
     RuntimeMessage,
@@ -36,6 +38,8 @@ __all__ = [
     "PURCHASE_EXPLANATION_PROMPT_VERSION",
     "REPORT_EXPLANATION_PROMPT_VERSION",
     "GuardrailResult",
+    "ExecutionDeadline",
+    "ExecutionDeadlineExceeded",
     "PurchaseFacts",
     "ReportFacts",
     "RuntimeAdapter",

@@ -17,8 +17,7 @@ enum AdvisorErrorDescriber {
         }
         // The generated client wraps transport failures; unwrap to say
         // precisely what went wrong instead of a catch-all guess.
-        let underlying = (error as? ClientError)?.underlyingError ?? error
-        let nsError = underlying as NSError
+        let nsError = AdvisorStreamFailure.rootTransportError(of: error) as NSError
         guard nsError.domain == NSURLErrorDomain else {
             return String(localized: "Couldn't talk to your CFO: \(nsError.localizedDescription)")
         }
@@ -31,10 +30,9 @@ enum AdvisorErrorDescriber {
             )
         case NSURLErrorTimedOut:
             if context == .streamedTurn {
-                return String(
-                    localized:
-                        "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute."
-                )
+                return streamedExhaustionMessage(
+                    for: error,
+                    lead: "The request timed out while the advisor was still working")
             }
             return String(
                 localized:
@@ -42,10 +40,9 @@ enum AdvisorErrorDescriber {
             )
         case NSURLErrorNetworkConnectionLost:
             if context == .streamedTurn {
-                return String(
-                    localized:
-                        "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute."
-                )
+                return streamedExhaustionMessage(
+                    for: error,
+                    lead: "The connection dropped while the advisor was still working")
             }
             return unreachableMessage
         case NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost,
@@ -60,6 +57,26 @@ enum AdvisorErrorDescriber {
         default:
             return String(localized: "Network error \(nsError.code): \(nsError.localizedDescription)")
         }
+    }
+
+    /// Shown only after SavedAnswerRecovery exhausted its polling horizon
+    /// (M95: truthful exhaustion). When the failure carries the server's
+    /// advertised recovery deadline, polling ran PAST the bounded turn's own
+    /// limit — no answer was or ever will be saved, so resending is safe and
+    /// waiting is pointless. Without the advertisement (an older server, or a
+    /// drop before response headers) the box may genuinely still be working,
+    /// so the copy keeps issue #124's "check before resending" caution.
+    private static func streamedExhaustionMessage(for error: Error, lead: String) -> String {
+        if AdvisorStreamFailure.find(in: error)?.recoveryDeadline != nil {
+            return String(
+                localized:
+                    "\(lead), and no saved answer appeared within the server's recovery window — the turn didn't complete. It's safe to send your message again."
+            )
+        }
+        return String(
+            localized:
+                "\(lead) and no saved answer has appeared yet. The advisor may still finish — check this conversation again before resending."
+        )
     }
 
     private static var unreachableMessage: String {

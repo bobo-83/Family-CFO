@@ -1576,6 +1576,10 @@ export type ChatStreamEvent = {
     detail?: string | null;
     response?: ChatResponse;
     message?: string | null;
+    /**
+     * Machine-readable cause for actionable streamed errors.
+     */
+    code?: string | null;
 };
 
 export type ImportCreateRequest = {
@@ -5836,6 +5840,10 @@ export type CreateChatMessageErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * Error response
+     */
+    504: ErrorResponse;
 };
 
 export type CreateChatMessageError = CreateChatMessageErrors[keyof CreateChatMessageErrors];

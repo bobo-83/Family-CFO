@@ -278,6 +278,10 @@ Finishes the M3-deferred debt/retirement backlog.
 
 Not implemented in M14: an open-ended scenario-planning API ("should we refinance?") and inflation/tax/drawdown modeling in the retirement projection — see the M14 non-goals in the roadmap.
 
+## M95 Advisor Turn Deadline and Recovery
+
+A complete advisor turn has a 600-second default wall-clock ceiling, configurable with `FAMILY_CFO_CHAT_TURN_TIMEOUT_SECONDS`. It is separate from the token-derived timeout for one healthy model call: every attachment/model/tool/guardrail phase shares the outer monotonic deadline, and each vLLM request is capped to its remaining time. Plain chat returns 504 on expiry; an open stream emits `advisor_turn_deadline_exceeded`. Successful SSE responses advertise `X-Advisor-Recovery-Horizon-Seconds` so clients can recover a detached turn until the last moment it may persist an answer.
+
 ## M16 Scope (Agentic Tool-Calling)
 
 `POST /api/v1/chat/messages` becomes an open-ended conversational advisor when a tool-calling runtime is enabled — the answer to a per-question API that doesn't scale (ADR 0009). The local model orchestrates the deterministic engine instead of guessing.

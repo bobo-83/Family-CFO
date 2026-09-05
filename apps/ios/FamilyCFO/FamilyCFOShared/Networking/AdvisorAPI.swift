@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 
 /// Attachment ready to ride along on a chat message: raw bytes plus how the
@@ -27,6 +28,105 @@ struct ChatAttachment: Equatable {
         case .visual: return "photo"
         case .dataFile: return "tablecells"
         }
+    }
+}
+
+struct AdvisorStreamFailure: Error {
+    let underlyingError: Error
+    let recoveryDeadline: ContinuousClock.Instant?
+}
+
+extension AdvisorStreamFailure {
+    /// The wrapper chain — this type and the generated client's `ClientError`
+    /// both wrap causes — flattened outermost-first, ending at the root
+    /// transport error. One walk shared by `SavedAnswerRecovery` and
+    /// `AdvisorErrorDescriber`, so a future wrapper type cannot be unwrapped
+    /// in one place and forgotten in the other (the drift that once made the
+    /// describer mis-describe wrapped transport errors, issue #124).
+    static func unwrapChain(of error: Error) -> [Error] {
+        var chain = [error]
+        while true {
+            switch chain[chain.count - 1] {
+            case let failure as AdvisorStreamFailure:
+                chain.append(failure.underlyingError)
+            case let clientError as ClientError:
+                chain.append(clientError.underlyingError)
+            default:
+                return chain
+            }
+        }
+    }
+
+    /// The stream-failure wrapper inside `error`, if the failure came from a
+    /// consumed stream (it carries the server-advertised recovery deadline).
+    static func find(in error: Error) -> AdvisorStreamFailure? {
+        for element in unwrapChain(of: error) {
+            if let failure = element as? AdvisorStreamFailure { return failure }
+        }
+        return nil
+    }
+
+    /// The root transport error beneath every wrapper.
+    static func rootTransportError(of error: Error) -> Error {
+        unwrapChain(of: error).last ?? error
+    }
+}
+
+/// M95: a successful streamed chat response advertises the remaining lifetime
+/// of the server's bounded turn in `X-Advisor-Recovery-Horizon-Seconds`. The
+/// frozen oldest compatible contract (ADR 0074) generates no accessor for
+/// that header, so `AdvisorRecoveryHorizonMiddleware` captures it from the
+/// raw response fields into this box — converted at receipt into the local
+/// monotonic deadline `SavedAnswerRecovery` polls against (ADR 0061).
+final class AdvisorRecoveryHorizon: @unchecked Sendable {
+    private let lock = NSLock()
+    private var deadline: ContinuousClock.Instant?
+
+    /// Called when a stream request starts: a failure before response headers
+    /// arrive must fall back to the compatibility horizon, not inherit the
+    /// previous turn's deadline.
+    func clear() {
+        lock.withLock { deadline = nil }
+    }
+
+    func record(secondsRemaining: Int) {
+        let instant = ContinuousClock.now.advanced(by: .seconds(secondsRemaining))
+        lock.withLock { deadline = instant }
+    }
+
+    /// The most recent stream's recovery deadline, or nil when the server
+    /// sent none (an older box, or the request died before headers).
+    func currentDeadline() -> ContinuousClock.Instant? {
+        lock.withLock { deadline }
+    }
+}
+
+/// Reads the recovery-horizon header off the streamed chat response without
+/// touching the generated accessor, keeping this shared source compilable
+/// against every supported contract (`scripts/check-client-compatibility.sh`).
+struct AdvisorRecoveryHorizonMiddleware: ClientMiddleware {
+    static let headerName = HTTPField.Name("X-Advisor-Recovery-Horizon-Seconds")!
+
+    let horizon: AdvisorRecoveryHorizon
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        guard operationID == Operations.CreateChatMessageStream.id else {
+            return try await next(request, body, baseURL)
+        }
+        horizon.clear()
+        let (response, responseBody) = try await next(request, body, baseURL)
+        if let value = response.headerFields[Self.headerName],
+            let seconds = Int(value), seconds > 0
+        {
+            horizon.record(secondsRemaining: seconds)
+        }
+        return (response, responseBody)
     }
 }
 
@@ -106,6 +206,9 @@ extension AdvisorAPI {
 /// Production implementation backed by the generated OpenAPI client.
 struct LiveAdvisorAPI: AdvisorAPI {
     let client: Client
+    /// Present when the client stack includes `AdvisorRecoveryHorizonMiddleware`
+    /// (M95); nil keeps mocks and older wiring on the compatibility fallback.
+    var recoveryHorizon: AdvisorRecoveryHorizon? = nil
 
     func listConversations() async throws -> [Components.Schemas.Conversation] {
         switch try await client.listConversations(.init()) {
@@ -177,14 +280,20 @@ struct LiveAdvisorAPI: AdvisorAPI {
         attachment: ChatAttachment?
     ) async throws -> Components.Schemas.ChatResponse {
         let request = chatRequest(message, conversationID: conversationID, attachment: attachment)
-        switch try await client.createChatMessage(.init(body: .json(request))) {
-        case .ok(let response):
+        let output = try await client.createChatMessage(.init(body: .json(request)))
+        if case .ok(let response) = output {
             return try response.body.json
-        case .unauthorized:
+        }
+        if case .unauthorized = output {
             throw APIError.unauthorized
-        case .undocumented(let status, _):
+        }
+        if case .undocumented(let status, _) = output {
             throw APIError.server(status)
         }
+        // Newer contracts document 504, while the oldest compatible contract
+        // reports it as undocumented. Pattern checks keep this shared source
+        // compilable against both generated enum shapes.
+        throw APIError.server(504)
     }
 
     func sendMessage(
@@ -196,9 +305,24 @@ struct LiveAdvisorAPI: AdvisorAPI {
         let request = chatRequest(message, conversationID: conversationID, attachment: attachment)
         switch try await client.createChatMessageStream(.init(body: .json(request))) {
         case .ok(let response):
-            return try await Self.consumeEventStream(
-                try response.body.textEventStream, onProgress: onProgress
-            )
+            do {
+                return try await Self.consumeEventStream(
+                    try response.body.textEventStream, onProgress: onProgress
+                )
+            } catch let error as APIError {
+                throw error
+            } catch {
+                // The server-advertised horizon — already converted to a local
+                // monotonic deadline by AdvisorRecoveryHorizonMiddleware —
+                // rides the failure, so SavedAnswerRecovery polls exactly as
+                // long as the box can still save the answer (M95), including
+                // when the operator raised FAMILY_CFO_CHAT_TURN_TIMEOUT_SECONDS
+                // beyond the client's 10-minute compatibility fallback. nil
+                // (older server, or no middleware) means that fallback.
+                throw AdvisorStreamFailure(
+                    underlyingError: error,
+                    recoveryDeadline: recoveryHorizon?.currentDeadline())
+            }
         case .unauthorized:
             throw APIError.unauthorized
         case .undocumented(let status, _):

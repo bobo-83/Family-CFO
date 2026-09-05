@@ -1,7 +1,12 @@
 import httpx
 import pytest
 
-from family_cfo_ai_orchestrator.runtime import RuntimeMessage, RuntimeUnavailableError
+from family_cfo_ai_orchestrator.runtime import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
+    RuntimeMessage,
+    RuntimeUnavailableError,
+)
 from family_cfo_ai_orchestrator.vllm_adapter import VLLMAdapter
 
 MESSAGES = [RuntimeMessage(role="user", content="hello")]
@@ -78,6 +83,36 @@ def test_complete_raises_runtime_unavailable_on_timeout() -> None:
         adapter.complete(MESSAGES)
 
 
+def test_expired_turn_deadline_makes_no_request() -> None:
+    called = False
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200)
+
+    adapter = VLLMAdapter("http://vllm.local:8000", "test-model", client=_client(handler))
+    with pytest.raises(ExecutionDeadlineExceeded):
+        adapter.complete(MESSAGES, deadline=ExecutionDeadline(expires_at=0))
+    assert called is False
+
+
+def test_turn_deadline_caps_request_timeout_and_is_terminal() -> None:
+    seen_timeout = 0.0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal seen_timeout
+        seen_timeout = request.extensions["timeout"]["read"]
+        raise httpx.TimeoutException("timed out")
+
+    adapter = VLLMAdapter(
+        "http://vllm.local:8000", "test-model", timeout_seconds=30, client=_client(handler)
+    )
+    with pytest.raises(ExecutionDeadlineExceeded):
+        adapter.complete(MESSAGES, deadline=ExecutionDeadline.after(1))
+    assert 0 < seen_timeout <= 1
+
+
 def test_complete_raises_runtime_unavailable_on_malformed_response() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"unexpected": "shape"})
@@ -129,9 +164,7 @@ def test_complete_coerces_null_content_to_empty_string() -> None:
             200,
             json={
                 "model": "test-model",
-                "choices": [
-                    {"message": {"content": None, "reasoning_content": "hmm..."}}
-                ],
+                "choices": [{"message": {"content": None, "reasoning_content": "hmm..."}}],
             },
         )
 

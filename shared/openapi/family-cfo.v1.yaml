@@ -2708,6 +2708,8 @@ paths:
                 $ref: "#/components/schemas/ChatResponse"
         "401":
           $ref: "#/components/responses/Error"
+        "504":
+          $ref: "#/components/responses/Error"
   /chat/messages/stream:
     post:
       tags:
@@ -2732,6 +2734,15 @@ paths:
       responses:
         "200":
           description: Stream of ChatStreamEvent objects as SSE `data:` lines
+          headers:
+            X-Advisor-Recovery-Horizon-Seconds:
+              description: >
+                Maximum remaining duration during which a disconnected turn
+                may still persist an answer. Clients should use a local
+                monotonic deadline; the header may be absent on older servers.
+              schema:
+                type: integer
+                minimum: 1
           content:
             text/event-stream:
               schema:
@@ -6923,6 +6934,11 @@ components:
         response:
           $ref: "#/components/schemas/ChatResponse"
         message:
+          type:
+            - string
+            - "null"
+        code:
+          description: Machine-readable cause for actionable streamed errors.
           type:
             - string
             - "null"

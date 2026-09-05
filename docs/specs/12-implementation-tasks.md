@@ -1207,6 +1207,24 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 - [x] Add a `calculate_retirement_projection` calculation to the financial engine. (M14.)
 - [x] Open-ended scenario questions ("should we refinance?", "how many years of retirement does this purchase cost me?") are **not** a per-question API — that does not scale. The accepted direction is **agentic tool-calling** ([ADR 0009](../adr/0009-agentic-tool-calling.md)), delivered by **M16**: the local model orchestrates the deterministic engine calculations (exposed as tools) and narrates grounded results.
 
+## M95: Bounded Advisor Turns and Saved-Answer Recovery
+
+### Spec Gate
+
+- [x] Define the 600-second monotonic whole-turn limit, streamed recovery header, Apple compatibility horizon/backoff, terminal expiry behavior, and no-data-domain non-goal in the roadmap and ADR 0061.
+
+### Implementation
+
+- [x] Add and propagate the shared execution deadline through model, tool, vision, fallback, and persistence boundaries.
+- [x] Cap each runtime request by the whole-turn time remaining while preserving the #126 per-call token-budget timeout.
+- [x] Return plain 504 / coded SSE expiry and advertise the recovery horizon through OpenAPI.
+- [x] Regenerate the Swift client and make text, voice, and Watch recovery deadline-based with capped backoff.
+- [x] Add orchestrator, API, contract, and Swift tests; update component documentation.
+- [x] Run verification and open the focused PR.
+
+Advisor tool access: not applicable—this reliability fix adds no family-visible financial data domain.
+
+
 ## Backlog: Annual Report
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.

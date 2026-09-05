@@ -48,6 +48,14 @@ reopen the conversation later — never as proof that Local Network access or
 Wi-Fi is misconfigured, and never as an invitation to immediately resend a
 turn the box may have saved (issue #124).
 
+## Amendment (2026-09-04): recovery follows a bounded whole turn
+
+Issue #125 replaces the arbitrary two-minute recovery window with one server/client contract. An advisor turn has a 600-second default monotonic deadline (`FAMILY_CFO_CHAT_TURN_TIMEOUT_SECONDS`): attachment analysis, every model/tool round, the grounding retry, fallback selection, and persistence share it. The healthy per-model token-budget timeout remains independent but is capped by the turn time remaining. Expiry is terminal (HTTP 504 before a plain response, or `advisor_turn_deadline_exceeded` on an open stream); no new fallback or persistence stage starts after it.
+
+A successful streamed response advertises its remaining `X-Advisor-Recovery-Horizon-Seconds`. Apple clients capture the header from the raw response fields through a client middleware — the frozen oldest compatible contract (ADR 0074) generates no accessor for it — and convert that duration—not a cross-device timestamp—to a local monotonic deadline, check immediately, then back off to a 15-second polling cap until one final lookup at the deadline. The same 600-second horizon is the compatibility fallback for an older server or a failure before response headers arrive. The detached worker remains detached, but it is no longer unbounded; post-response memory extraction remains outside this contract.
+
+Exhaustion is described truthfully. When recovery polled past a server-advertised horizon, the bounded turn provably persisted nothing — the copy says the turn didn't complete and that resending is safe, which no longer conflicts with the issue-#124 rule because nothing can have been saved. Without an advertised horizon the server may be an unbounded pre-M95 box still working, so the copy keeps the "check this conversation before resending" caution. Server-side, the deadline gates the *start* of persistence: once the recommendation write begins, the conversation turn is committed with it even if the deadline lapses mid-write, so a 504 or terminal stream error always means nothing was saved.
+
 ## Rejected options
 
 - **Raw token streaming** — puts ungrounded numbers on screen before

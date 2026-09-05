@@ -87,6 +87,12 @@ final class AppModel {
     nonisolated static let serverDefaultsKey = "family-cfo.server"
     nonisolated static let credentialAccount = "device-credential"
 
+    /// M95: one per app shell — the streamed chat response's advertised
+    /// recovery horizon, captured from raw headers by the middleware in every
+    /// client this shell builds and read back by the advisor API when a
+    /// stream fails mid-turn.
+    private let advisorRecoveryHorizon = AdvisorRecoveryHorizon()
+
     /// The generated client for the paired server, or nil before pairing.
     /// The token is captured by value: the credential only changes at
     /// pairing/unpairing, which tears down and rebuilds the whole shell.
@@ -103,12 +109,13 @@ final class AppModel {
             // #10 phase 4: the API writes its own prose (error details) in this
             // language. Read live from the cached household setting, so a
             // mid-session change applies to the next request.
-            language: { UserDefaults.standard.string(forKey: AppModel.languageKey) }
+            language: { UserDefaults.standard.string(forKey: AppModel.languageKey) },
+            advisorRecoveryHorizon: advisorRecoveryHorizon
         )
     }
 
     var api: AdvisorAPI? {
-        client.map { LiveAdvisorAPI(client: $0) }
+        client.map { LiveAdvisorAPI(client: $0, recoveryHorizon: advisorRecoveryHorizon) }
     }
 
     /// The on-box natural voice (M87); nil before pairing, and 503-degrading to
