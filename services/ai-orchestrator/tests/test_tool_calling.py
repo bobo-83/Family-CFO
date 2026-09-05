@@ -1,4 +1,8 @@
+import pytest
+
 from family_cfo_ai_orchestrator import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
     RuntimeMessage,
     RuntimeToolCompletion,
     ToolCall,
@@ -16,7 +20,9 @@ class ScriptedRuntime:
         self.seen_messages: list[list[RuntimeMessage]] = []
         self.seen_max_tokens: list[int] = []
 
-    def complete_with_tools(self, messages, tools, *, temperature=0.2, max_tokens=500):
+    def complete_with_tools(
+        self, messages, tools, *, temperature=0.2, max_tokens=500, deadline=None
+    ):
         self.seen_messages.append(list(messages))
         self.seen_max_tokens.append(max_tokens)
         turn = self._turns[self.calls]
@@ -25,6 +31,21 @@ class ScriptedRuntime:
 
 
 _TOOLS = [ToolSpec(name="future_value", description="", parameters={})]
+
+
+def test_expired_deadline_starts_no_model_round() -> None:
+    runtime = ScriptedRuntime(
+        [RuntimeToolCompletion(tool_calls=[], text="late", model="m", raw={})]
+    )
+    with pytest.raises(ExecutionDeadlineExceeded):
+        run_tool_calling_loop(
+            runtime,
+            [RuntimeMessage(role="user", content="q")],
+            _TOOLS,
+            lambda _name, _args: {},
+            deadline=ExecutionDeadline(expires_at=0),
+        )
+    assert runtime.calls == 0
 
 
 def test_loop_executes_tool_then_returns_final_answer() -> None:
@@ -47,16 +68,16 @@ def test_loop_executes_tool_then_returns_final_answer() -> None:
         executed.append((name, args))
         return {"future_value": 3207}
 
-    result = run_tool_calling_loop(runtime, [RuntimeMessage(role="user", content="q")], _TOOLS, execute)
+    result = run_tool_calling_loop(
+        runtime, [RuntimeMessage(role="user", content="q")], _TOOLS, execute
+    )
 
     assert result.completed is True
     assert result.answer == "It would grow to $3,207."
     assert executed == [("future_value", {"amount": 1000})]
     assert [record.name for record in result.tool_calls] == ["future_value"]
     # The tool result was fed back to the model before the final turn.
-    assert any(
-        m.role == "tool" and "3207" in m.content for m in runtime.seen_messages[-1]
-    )
+    assert any(m.role == "tool" and "3207" in m.content for m in runtime.seen_messages[-1])
 
 
 def test_loop_returns_final_answer_immediately_when_no_tools_needed() -> None:
@@ -147,11 +168,15 @@ def test_a_raised_iteration_cap_lets_a_many_tool_plan_converge() -> None:
         turns = [
             RuntimeToolCompletion(
                 tool_calls=[ToolCall(id=f"c{i}", name="future_value", arguments={})],
-                text="", model="m", raw={},
+                text="",
+                model="m",
+                raw={},
             )
             for i in range(8)
         ]
-        turns.append(RuntimeToolCompletion(tool_calls=[], text="Here is your plan.", model="m", raw={}))
+        turns.append(
+            RuntimeToolCompletion(tool_calls=[], text="Here is your plan.", model="m", raw={})
+        )
         return turns
 
     msgs = [RuntimeMessage(role="user", content="make me a detailed plan")]
@@ -191,9 +216,7 @@ def test_an_empty_final_answer_is_nudged_not_returned() -> None:
     assert result.completed is True
     assert result.answer == "You can rely on it partially."
     # The retry turn saw the corrective nudge.
-    assert any(
-        m.role == "user" and "empty" in m.content for m in runtime.seen_messages[-1]
-    )
+    assert any(m.role == "user" and "empty" in m.content for m in runtime.seen_messages[-1])
 
 
 def test_persistently_empty_answers_end_as_not_converged() -> None:

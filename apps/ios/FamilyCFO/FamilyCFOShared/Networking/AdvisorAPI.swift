@@ -30,6 +30,11 @@ struct ChatAttachment: Equatable {
     }
 }
 
+struct AdvisorStreamFailure: Error {
+    let underlyingError: Error
+    let recoveryDeadline: ContinuousClock.Instant?
+}
+
 enum APIError: Error, LocalizedError, Equatable {
     case unauthorized
     case server(Int)
@@ -182,6 +187,8 @@ struct LiveAdvisorAPI: AdvisorAPI {
             return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
+        case .gatewayTimeout:
+            throw APIError.server(504)
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -196,9 +203,19 @@ struct LiveAdvisorAPI: AdvisorAPI {
         let request = chatRequest(message, conversationID: conversationID, attachment: attachment)
         switch try await client.createChatMessageStream(.init(body: .json(request))) {
         case .ok(let response):
-            return try await Self.consumeEventStream(
-                try response.body.textEventStream, onProgress: onProgress
-            )
+            let deadline = response.headers.xAdvisorRecoveryHorizonSeconds.flatMap { seconds in
+                seconds > 0 ? ContinuousClock.now + .seconds(seconds) : nil
+            }
+            do {
+                return try await Self.consumeEventStream(
+                    try response.body.textEventStream, onProgress: onProgress
+                )
+            } catch let error as APIError {
+                throw error
+            } catch {
+                throw AdvisorStreamFailure(
+                    underlyingError: error, recoveryDeadline: deadline)
+            }
         case .unauthorized:
             throw APIError.unauthorized
         case .undocumented(let status, _):

@@ -5,11 +5,14 @@ import base64
 import binascii
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from family_cfo_ai_orchestrator import (
+    ExecutionDeadline,
+    ExecutionDeadlineExceeded,
     RuntimeMessage,
     RuntimeUnavailableError,
     ToolCallRecord,
@@ -87,6 +90,7 @@ _TOOL_PROGRESS_LABELS = {
 def _tool_progress_label(name: str) -> str:
     return _TOOL_PROGRESS_LABELS.get(name, f"Checking {name.replace('_', ' ')}")
 
+
 _NO_VISION_WARNING = (
     "An attached photo could not be analyzed because no vision-capable AI model "
     "is configured; the answer does not consider the image."
@@ -144,9 +148,15 @@ def _data_file_preview(payload: ChatRequest, settings: Settings) -> str | None:
 
 
 def _analyze_image(
-    engine: Engine, household_id: str, settings: Settings, image_data_url: str, message: str
+    engine: Engine,
+    household_id: str,
+    settings: Settings,
+    image_data_url: str,
+    message: str,
+    deadline: ExecutionDeadline | None = None,
 ) -> _ImageAnalysis:
     """Describe the photo per ADR 0011; degrade to a warning, never an error."""
+    deadline = deadline or ExecutionDeadline.after(600)
     describer, source = select_vision_describer(engine, household_id, settings)
     if describer is None:
         return _ImageAnalysis(description=None, warning=_NO_VISION_WARNING, source="none")
@@ -156,7 +166,9 @@ def _analyze_image(
         else resolve_ai_config(engine, household_id, settings).model
     )
     try:
-        description = describe_image(describer, image_data_url, user_context=message)
+        description = describe_image(
+            describer, image_data_url, user_context=message, deadline=deadline
+        )
     except RuntimeUnavailableError:
         logger.warning("vision describer unavailable; continuing without image analysis")
         return _ImageAnalysis(
@@ -198,11 +210,18 @@ class _Answer:
     answered_by: str | None = None
 
 
-def _deterministic_answer(engine: Engine, household: repository.HouseholdRecord) -> _Answer:
-    """The always-available fallback: a snapshot of net worth and emergency-fund coverage."""
+def _deterministic_answer(
+    engine: Engine,
+    household: repository.HouseholdRecord,
+    deadline: ExecutionDeadline | None = None,
+) -> _Answer:
+    """The always-available fallback, bounded by the same whole-turn deadline."""
+    deadline = deadline or ExecutionDeadline.after(600)
+    deadline.raise_if_expired()
     net_worth_result, net_worth_calculation_id = finance_service.compute_net_worth_with_ref(
         engine, household.id, household.base_currency
     )
+    deadline.raise_if_expired()
     emergency_result, emergency_calculation_id = finance_service.compute_emergency_fund_with_ref(
         engine, household.id, household.base_currency
     )
@@ -256,6 +275,7 @@ def _try_agentic_answer(
     conversation_summary: str | None = None,
     household_context: str | None = None,
     on_event: ChatEventSink | None = None,
+    deadline: ExecutionDeadline | None = None,
 ) -> _Answer | None:
     """Attempt an agentic tool-calling answer; return None to signal a deterministic fallback.
 
@@ -263,6 +283,7 @@ def _try_agentic_answer(
     unavailable, the loop does not converge within its iteration cap, or the
     final answer contains a number not grounded in a tool result (ADR 0009).
     """
+    deadline = deadline or ExecutionDeadline.after(600)
     # Pass the budget so the runtime's timeout is derived from it rather than
     # hand-set alongside it — the two contradicted each other before (#126).
     runtime = select_tool_runtime(engine, household.id, answer_max_tokens=_ANSWER_MAX_TOKENS)
@@ -275,13 +296,23 @@ def _try_agentic_answer(
         inner_executor = executor
 
         def executor(name: str, arguments: dict):  # type: ignore[no-redef]
-            on_event({"type": "progress", "stage": "tool", "tool": name, "detail": _tool_progress_label(name)})
+            on_event(
+                {
+                    "type": "progress",
+                    "stage": "tool",
+                    "tool": name,
+                    "detail": _tool_progress_label(name),
+                }
+            )
             return inner_executor(name, arguments)
+
     # ADR 0011: the photo enters the loop as its text description only; the
     # description's numbers are grounded below since they trace to the image.
     user_content = message
     if image_description:
-        user_content = f"{message}\n\n[Attached photo, as described by the vision model: {image_description}]"
+        user_content = (
+            f"{message}\n\n[Attached photo, as described by the vision model: {image_description}]"
+        )
     if data_file_preview:
         # M85: the file summary is the user's own data — grounded context.
         user_content = f"{user_content}\n\n[Attached data file summary:\n{data_file_preview}\n]"
@@ -300,15 +331,13 @@ def _try_agentic_answer(
     if household_context:
         system_sections.append(household_context)
     if memories:
-        facts = "\n".join(f"- {value}" for value in memories[:ai_memory.MAX_INJECTED_MEMORIES])
+        facts = "\n".join(f"- {value}" for value in memories[: ai_memory.MAX_INJECTED_MEMORIES])
         system_sections.append(
             "Known household facts, remembered from previous conversations "
             f"(each individually deletable by the family):\n{facts}"
         )
     if conversation_summary:
-        system_sections.append(
-            f"Earlier in this conversation (summary): {conversation_summary}"
-        )
+        system_sections.append(f"Earlier in this conversation (summary): {conversation_summary}")
     messages = [
         RuntimeMessage(role="system", content="\n\n".join(system_sections)),
         *history_messages,
@@ -340,6 +369,7 @@ def _try_agentic_answer(
             executor,
             max_tokens=_ANSWER_MAX_TOKENS,
             max_iterations=_ANSWER_MAX_ITERATIONS,
+            deadline=deadline,
         )
         if not result.completed or not result.answer:
             logger.warning(
@@ -353,12 +383,19 @@ def _try_agentic_answer(
             # M56: one corrective retry before failing closed — told which
             # figures were the problem, the model can usually restate with
             # tool-derived numbers or call a tool to compute them.
+            deadline.raise_if_expired()
             logger.warning(
                 "agentic chat answer had ungrounded numbers %s; retrying once",
                 guardrail.violations,
             )
             if on_event is not None:
-                on_event({"type": "progress", "stage": "revising", "detail": "Double-checking the figures"})
+                on_event(
+                    {
+                        "type": "progress",
+                        "stage": "revising",
+                        "detail": "Double-checking the figures",
+                    }
+                )
             retry_messages = [
                 *messages,
                 RuntimeMessage(role="assistant", content=result.answer),
@@ -378,6 +415,7 @@ def _try_agentic_answer(
                 executor,
                 max_tokens=_ANSWER_MAX_TOKENS,
                 max_iterations=_ANSWER_MAX_ITERATIONS,
+                deadline=deadline,
             )
             if not retry.completed or not retry.answer:
                 logger.warning(
@@ -435,6 +473,7 @@ def _chat_turn(
     *,
     schedule: Callable[..., None],
     on_event: ChatEventSink | None = None,
+    deadline: ExecutionDeadline | None = None,
 ) -> ChatResponse:
     """One full advisor turn: analyze attachments, run the grounded loop,
     persist, and build the response. Shared by the plain and streaming
@@ -443,6 +482,8 @@ def _chat_turn(
     # Felt latency: wall-clock from question to persisted answer, tool loop
     # and photo analysis included — medians per model feed the runtime page.
     turn_started = time.monotonic()
+    deadline = deadline or ExecutionDeadline.after(600)
+    deadline.raise_if_expired()
     household = repository.get_household(engine, session.household_id)
     if household is None:
         raise HTTPException(status_code=404, detail="Household not found")
@@ -452,7 +493,9 @@ def _chat_turn(
     conversation = None
     history: list[tuple[str, str]] = []
     if payload.conversation_id is not None:
-        conversation = repository.get_conversation(engine, household.id, payload.conversation_id, session.user_id)
+        conversation = repository.get_conversation(
+            engine, household.id, payload.conversation_id, session.user_id
+        )
         if conversation is not None:
             history = [
                 (m.role, m.content)
@@ -461,15 +504,17 @@ def _chat_turn(
 
     # ADR 0011: an attached photo is described (never stored) before the loop.
     analysis = None
+    deadline.raise_if_expired()
     image_data_url = _validate_image(payload, settings)
     if image_data_url is not None:
         if on_event is not None:
             on_event({"type": "progress", "stage": "photo", "detail": "Reading the attached photo"})
         analysis = _analyze_image(
-            engine, household.id, settings, image_data_url, payload.message
+            engine, household.id, settings, image_data_url, payload.message, deadline
         )
 
     # M85: an attached data file becomes a bounded, grounded prompt summary.
+    deadline.raise_if_expired()
     data_file_preview = _data_file_preview(payload, settings)
 
     # M57: facts remembered across all conversations + this thread's summary.
@@ -478,6 +523,7 @@ def _chat_turn(
     me = repository.get_member(engine, household.id, session.user_id)
     first_name = me.display_name.split()[0] if me and me.display_name else None
     earliest_month, latest_month = repository.transaction_month_range(engine, household.id)
+    deadline.raise_if_expired()
     household_context = ai_tools.build_household_context(
         currency=household.base_currency,
         first_name=first_name,
@@ -487,6 +533,7 @@ def _chat_turn(
         language=household.language,
     )
 
+    deadline.raise_if_expired()
     if on_event is not None:
         on_event({"type": "progress", "stage": "thinking", "detail": "Thinking with your numbers"})
     answer = _try_agentic_answer(
@@ -501,7 +548,11 @@ def _chat_turn(
         conversation_summary=conversation.summary if conversation else None,
         household_context=household_context,
         on_event=on_event,
-    ) or _deterministic_answer(engine, household)
+        deadline=deadline,
+    )
+    if answer is None:
+        deadline.raise_if_expired()
+        answer = _deterministic_answer(engine, household, deadline)
 
     if analysis and analysis.warning:
         answer.warnings = _dedupe([*answer.warnings, analysis.warning])
@@ -509,9 +560,13 @@ def _chat_turn(
     if photo_described_by:
         # Persisted in assumptions_json so attribution survives in the audit trail.
         answer.assumptions = _dedupe(
-            [*answer.assumptions, f"Attached photo was read by the vision model {photo_described_by}."]
+            [
+                *answer.assumptions,
+                f"Attached photo was read by the vision model {photo_described_by}.",
+            ]
         )
 
+    deadline.raise_if_expired()
     recommendation_id = repository.create_recommendation(
         engine,
         household_id=household.id,
@@ -531,6 +586,7 @@ def _chat_turn(
 
     # M10: persist the thread. A missing/unknown conversation_id starts a new
     # conversation titled from the first message; an existing one is appended to.
+    deadline.raise_if_expired()
     if conversation is None:
         title = payload.message.strip()[:_TITLE_MAX_LENGTH] or "Conversation"
         conversation = repository.create_conversation(
@@ -542,7 +598,10 @@ def _chat_turn(
         note = analysis.description or "photo attached (not analyzed)"
         stored_user_content = f"{payload.message}\n\n[Photo: {note}]"
     if data_file_preview is not None:
-        stored_user_content = f"{stored_user_content}\n\n[Data file: {payload.data_file_name or 'attachment'}]"
+        stored_user_content = (
+            f"{stored_user_content}\n\n[Data file: {payload.data_file_name or 'attachment'}]"
+        )
+    deadline.raise_if_expired()
     repository.append_conversation_turn(
         engine,
         conversation_id=conversation.id,
@@ -612,7 +671,10 @@ def _enforce_chat_quota(household_id: str, settings: Settings) -> None:
     "/chat/messages",
     operation_id="createChatMessage",
     response_model=ChatResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        504: {"description": "Advisor turn deadline exceeded", "model": ErrorResponse},
+    },
     summary="Send a message to the financial advisor",
 )
 async def create_chat_message(
@@ -628,9 +690,21 @@ async def create_chat_message(
     # run. Checking first costs one query and saves a doomed minute of GPU.
     if not household_crypto.dek_available(engine, session.household_id):
         raise household_crypto.HouseholdLockedError(session.household_id)
-    return _chat_turn(
-        payload, session, engine, settings, schedule=background_tasks.add_task
-    )
+    deadline = ExecutionDeadline.after(settings.chat_turn_timeout_seconds)
+    try:
+        return _chat_turn(
+            payload,
+            session,
+            engine,
+            settings,
+            schedule=background_tasks.add_task,
+            deadline=deadline,
+        )
+    except ExecutionDeadlineExceeded as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="The advisor reached its time limit before an answer could be saved.",
+        ) from exc
 
 
 @router.post(
@@ -645,6 +719,12 @@ async def create_chat_message(
                 "`error` event. Comment lines keep the socket alive."
             ),
             "content": {"text/event-stream": {"schema": ChatStreamEvent.model_json_schema()}},
+            "headers": {
+                "X-Advisor-Recovery-Horizon-Seconds": {
+                    "description": "Maximum remaining seconds in which a detached turn may persist an answer.",
+                    "schema": {"type": "integer", "minimum": 1},
+                }
+            },
         },
         401: {"description": "Unauthorized", "model": ErrorResponse},
     },
@@ -675,6 +755,7 @@ async def create_chat_message_stream(
     # It also stops a doomed turn from spending a minute of model time first.
     if not household_crypto.dek_available(engine, session.household_id):
         raise household_crypto.HouseholdLockedError(session.household_id)
+    deadline = ExecutionDeadline.after(settings.chat_turn_timeout_seconds)
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
@@ -684,16 +765,29 @@ async def create_chat_message_stream(
     def schedule(func: Callable, /, *args) -> None:
         # Post-response work must not hold the stream open; run it after the
         # answer event, detached, mirroring BackgroundTasks semantics.
-        loop.call_soon_threadsafe(
-            lambda: loop.run_in_executor(None, lambda: func(*args))
-        )
+        loop.call_soon_threadsafe(lambda: loop.run_in_executor(None, lambda: func(*args)))
 
     def run_turn() -> None:
         try:
             response = _chat_turn(
-                payload, session, engine, settings, schedule=schedule, on_event=emit
+                payload,
+                session,
+                engine,
+                settings,
+                schedule=schedule,
+                on_event=emit,
+                deadline=deadline,
             )
             emit({"type": "answer", "response": response.model_dump(mode="json", by_alias=True)})
+        except ExecutionDeadlineExceeded:
+            logger.warning("advisor turn deadline exceeded household=%s", session.household_id)
+            emit(
+                {
+                    "type": "error",
+                    "code": "advisor_turn_deadline_exceeded",
+                    "message": "The advisor reached its time limit before an answer could be saved.",
+                }
+            )
         except HTTPException as exc:
             emit({"type": "error", "message": str(exc.detail)})
         except household_crypto.HouseholdLockedError as exc:
@@ -733,7 +827,13 @@ async def create_chat_message_stream(
     return StreamingResponse(
         sse(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Advisor-Recovery-Horizon-Seconds": str(
+                max(1, math.ceil(deadline.remaining_seconds()))
+            ),
+        },
     )
 
 

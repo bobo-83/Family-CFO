@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import time
 from typing import Any, Protocol
 
 
@@ -60,6 +61,30 @@ class RuntimeUnavailableError(RuntimeError):
     """Raised when a runtime adapter cannot produce a completion after retries."""
 
 
+class ExecutionDeadlineExceeded(RuntimeError):
+    """Raised when the shared wall-clock budget for an operation is exhausted."""
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionDeadline:
+    """One monotonic deadline shared across every phase of a bounded operation."""
+
+    expires_at: float
+
+    @classmethod
+    def after(cls, seconds: float) -> "ExecutionDeadline":
+        if seconds <= 0:
+            raise ValueError("deadline duration must be positive")
+        return cls(time.monotonic() + seconds)
+
+    def remaining_seconds(self) -> float:
+        return max(0.0, self.expires_at - time.monotonic())
+
+    def raise_if_expired(self) -> None:
+        if self.remaining_seconds() <= 0:
+            raise ExecutionDeadlineExceeded("execution deadline exceeded")
+
+
 class RuntimeAdapter(Protocol):
     """The replaceable seam between the API and any local reasoning model (ADR 0004, ADR 0007).
 
@@ -75,6 +100,7 @@ class RuntimeAdapter(Protocol):
         temperature: float = 0.2,
         max_tokens: int = 400,
         thinking: bool = True,
+        deadline: ExecutionDeadline | None = None,
     ) -> RuntimeCompletion: ...
 
     def complete_with_tools(
@@ -84,4 +110,5 @@ class RuntimeAdapter(Protocol):
         *,
         temperature: float = 0.2,
         max_tokens: int = 400,
+        deadline: ExecutionDeadline | None = None,
     ) -> RuntimeToolCompletion: ...

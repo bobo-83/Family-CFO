@@ -17,8 +17,7 @@ enum AdvisorErrorDescriber {
         }
         // The generated client wraps transport failures; unwrap to say
         // precisely what went wrong instead of a catch-all guess.
-        let underlying = (error as? ClientError)?.underlyingError ?? error
-        let nsError = underlying as NSError
+        let nsError = SavedAnswerRecovery.transportError(error) as NSError
         guard nsError.domain == NSURLErrorDomain else {
             return String(localized: "Couldn't talk to your CFO: \(nsError.localizedDescription)")
         }

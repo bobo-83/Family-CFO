@@ -1,7 +1,9 @@
 import pytest
+from family_cfo_ai_orchestrator import ExecutionDeadline
 from sqlalchemy import select
 
 from family_cfo_api import models
+from family_cfo_api.api import chat as chat_module
 
 
 @pytest.mark.anyio
@@ -111,9 +113,10 @@ async def test_chat_stream_emits_progress_then_one_validated_answer(
     ) as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
+        assert int(response.headers["x-advisor-recovery-horizon-seconds"]) > 0
         async for line in response.aiter_lines():
             if line.startswith("data: "):
-                events.append(jsonlib.loads(line[len("data: "):]))
+                events.append(jsonlib.loads(line[len("data: ") :]))
 
     assert [e["type"] for e in events[:-1]] == ["progress"] * (len(events) - 1)
     assert events[0]["stage"] == "thinking"
@@ -124,6 +127,30 @@ async def test_chat_stream_emits_progress_then_one_validated_answer(
     assert body["conversation_id"]
     assert body["recommendation"]["answer"]
     assert body["recommendation"]["calculation_refs"]
+
+
+@pytest.mark.anyio
+async def test_whole_turn_deadline_is_terminal_for_plain_and_stream(
+    demo_client, demo_token, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        chat_module.ExecutionDeadline,
+        "after",
+        classmethod(lambda _cls, _seconds: ExecutionDeadline(expires_at=0)),
+    )
+    headers = {"Authorization": f"Bearer {demo_token}"}
+
+    plain = await demo_client.post(
+        "/api/v1/chat/messages", headers=headers, json={"message": "Too late"}
+    )
+    assert plain.status_code == 504
+
+    streamed = await demo_client.post(
+        "/api/v1/chat/messages/stream", headers=headers, json={"message": "Too late"}
+    )
+    assert streamed.status_code == 200
+    assert '"code": "advisor_turn_deadline_exceeded"' in streamed.text
+    assert '"type": "answer"' not in streamed.text
 
 
 @pytest.mark.anyio
@@ -142,7 +169,7 @@ async def test_chat_stream_persists_the_turn_like_the_plain_endpoint(
     ) as response:
         async for line in response.aiter_lines():
             if line.startswith("data: "):
-                event = jsonlib.loads(line[len("data: "):])
+                event = jsonlib.loads(line[len("data: ") :])
                 if event["type"] == "answer":
                     answer = event["response"]
 

@@ -8720,6 +8720,10 @@ public enum Components {
             public var response: Components.Schemas.ChatResponse?
             /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/message`.
             public var message: Swift.String?
+            /// Machine-readable cause for actionable streamed errors.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatStreamEvent/code`.
+            public var code: Swift.String?
             /// Creates a new `ChatStreamEvent`.
             ///
             /// - Parameters:
@@ -8729,13 +8733,15 @@ public enum Components {
             ///   - detail:
             ///   - response:
             ///   - message:
+            ///   - code: Machine-readable cause for actionable streamed errors.
             public init(
                 _type: Components.Schemas.ChatStreamEvent._TypePayload,
                 stage: Swift.String? = nil,
                 tool: Swift.String? = nil,
                 detail: Swift.String? = nil,
                 response: Components.Schemas.ChatResponse? = nil,
-                message: Swift.String? = nil
+                message: Swift.String? = nil,
+                code: Swift.String? = nil
             ) {
                 self._type = _type
                 self.stage = stage
@@ -8743,6 +8749,7 @@ public enum Components {
                 self.detail = detail
                 self.response = response
                 self.message = message
+                self.code = code
             }
             public enum CodingKeys: String, CodingKey {
                 case _type = "type"
@@ -8751,6 +8758,7 @@ public enum Components {
                 case detail
                 case response
                 case message
+                case code
             }
         }
         /// - Remark: Generated from `#/components/schemas/ImportCreateRequest`.
@@ -31517,6 +31525,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//chat/messages/post(createChatMessage)/responses/504`.
+            ///
+            /// HTTP response code: `504 gatewayTimeout`.
+            case gatewayTimeout(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.gatewayTimeout`.
+            ///
+            /// - Throws: An error if `self` is not `.gatewayTimeout`.
+            /// - SeeAlso: `.gatewayTimeout`.
+            public var gatewayTimeout: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .gatewayTimeout(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gatewayTimeout",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -31591,6 +31622,23 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Maximum remaining duration during which a disconnected turn may still persist an answer. Clients should use a local monotonic deadline; the header may be absent on older servers.
+                    ///
+                    ///
+                    /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/headers/X-Advisor-Recovery-Horizon-Seconds`.
+                    public var xAdvisorRecoveryHorizonSeconds: Swift.Int?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - xAdvisorRecoveryHorizonSeconds: Maximum remaining duration during which a disconnected turn may still persist an answer. Clients should use a local monotonic deadline; the header may be absent on older servers.
+                    public init(xAdvisorRecoveryHorizonSeconds: Swift.Int? = nil) {
+                        self.xAdvisorRecoveryHorizonSeconds = xAdvisorRecoveryHorizonSeconds
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.CreateChatMessageStream.Output.Ok.Headers
                 /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/chat/messages/stream/POST/responses/200/content/text\/event-stream`.
@@ -31613,8 +31661,13 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.CreateChatMessageStream.Output.Ok.Body) {
+                public init(
+                    headers: Operations.CreateChatMessageStream.Output.Ok.Headers = .init(),
+                    body: Operations.CreateChatMessageStream.Output.Ok.Body
+                ) {
+                    self.headers = headers
                     self.body = body
                 }
             }

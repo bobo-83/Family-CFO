@@ -113,6 +113,7 @@ final class ChatViewModel {
                 messages.append(ChatMessage.from(recovered.answer))
                 errorMessage = nil
             } else {
+                guard !Task.isCancelled else { return }
                 errorMessage = Self.describe(error, during: .streamedTurn)
             }
         }

@@ -12620,6 +12620,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unauthorized(.init(body: body))
+                case 504:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .gatewayTimeout(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,
@@ -12671,6 +12693,11 @@ public struct Client: APIProtocol {
             deserializer: { response, responseBody in
                 switch response.status.code {
                 case 200:
+                    let headers: Operations.CreateChatMessageStream.Output.Ok.Headers = .init(xAdvisorRecoveryHorizonSeconds: try converter.getOptionalHeaderFieldAsURI(
+                        in: response.headerFields,
+                        name: "X-Advisor-Recovery-Horizon-Seconds",
+                        as: Swift.Int.self
+                    ))
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.CreateChatMessageStream.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
@@ -12691,7 +12718,10 @@ public struct Client: APIProtocol {
                     default:
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
-                    return .ok(.init(body: body))
+                    return .ok(.init(
+                        headers: headers,
+                        body: body
+                    ))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Components.Responses._Error.Body

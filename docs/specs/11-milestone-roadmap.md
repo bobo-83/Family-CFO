@@ -1401,6 +1401,35 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 
 - ADR 0015; guides (imports/bank sync section); `.env.example` note (backup key doubles as credential key); acceptance state.
 
+## M95: Bounded Advisor Turns and Saved-Answer Recovery
+
+- Bound every advisor turn as one unit and keep Apple clients looking for a detached turn's saved answer for the whole period in which the server can still produce it.
+
+> Context: issue #125 showed `SavedAnswerRecovery` stopping after about two minutes while a valid server turn continued. Issue #126 bounded individual model calls, but a multi-round tool loop still had no whole-turn ceiling.
+
+### Scope
+
+- A 600-second default monotonic whole-turn deadline, configurable with `FAMILY_CFO_CHAT_TURN_TIMEOUT_SECONDS`, spans attachment analysis, model/tool rounds, the grounding retry, fallback selection, and persistence.
+- The existing per-model-call token-budget timeout remains, but every outbound model request is capped by the whole-turn time remaining.
+- Successful streamed responses advertise `X-Advisor-Recovery-Horizon-Seconds`; OpenAPI is the source of truth and the Swift client is regenerated.
+- Apple text, voice, and Watch recovery replace the fixed 20 × 6-second policy with an immediate lookup followed by capped exponential backoff until the advertised monotonic deadline. Older servers use the same 600-second compatibility horizon.
+- Deadline expiry is terminal: plain chat returns 504; an open stream emits `advisor_turn_deadline_exceeded`; no ungrounded or late fallback answer starts after expiry.
+
+### Non-Goals
+
+- No database migration, financial calculation, new family-visible data domain, or advisor tool. Post-response memory extraction remains outside the deadline.
+
+### Test Expectations
+
+- Orchestrator tests prove deadline propagation, per-request timeout clamping, and no new round after expiry.
+- API tests prove 504/SSE terminal behavior, persistence boundaries, the recovery header, and unchanged locked-household preflight.
+- Swift tests use injected clock/sleep seams to cover backoff, recovery beyond the old two-minute window, cancellation, and truthful exhaustion without real waits. API/contract and generated-client checks pass; Apple targets pass macOS CI.
+
+### Documentation Impact
+
+- ADR 0061, API/iOS READMEs, OpenAPI, acceptance state, and implementation tasks.
+
+
 ## M32: Single-Household Lockout, Full Audit Coverage & v0.2.0
 
 - Close the two remaining security follow-ups from the post-M8 backlog, then cut the second release.

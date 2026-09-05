@@ -182,6 +182,10 @@ reach, since the QR embeds the dashboard's own origin.
   M18 upload cap enforced client-side too.
 - Grounded metadata (confidence, warnings) renders under each answer.
 
+## Saved-answer recovery (M95)
+
+If a streamed advisor connection times out or drops, text chat, voice, and Watch check for the answer the detached server turn may still save. The stream's generated OpenAPI response header supplies a monotonic recovery horizon; older servers use the matching 600-second fallback. Recovery checks immediately and then backs off from 2 seconds to a 15-second cap, with one final lookup at the deadline. Cancellation remains silent, and an answer found during recovery replaces the transport error.
+
 ## Voice (M86)
 
 Two ways to talk to the advisor, both fully on-device (ADR 0018):

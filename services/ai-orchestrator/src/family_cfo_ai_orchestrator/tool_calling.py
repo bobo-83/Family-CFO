@@ -5,7 +5,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from family_cfo_ai_orchestrator.runtime import RuntimeAdapter, RuntimeMessage, ToolSpec
+from family_cfo_ai_orchestrator.runtime import (
+    ExecutionDeadline,
+    RuntimeAdapter,
+    RuntimeMessage,
+    ToolSpec,
+)
 
 # An app-supplied callback that executes a validated tool and returns a
 # JSON-serializable result. It should NEVER raise for bad arguments or missing
@@ -39,6 +44,7 @@ def run_tool_calling_loop(
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     temperature: float = 0.2,
     max_tokens: int = 500,
+    deadline: ExecutionDeadline | None = None,
 ) -> ToolCallingResult:
     """Drive a bounded model <-> tool exchange.
 
@@ -52,9 +58,17 @@ def run_tool_calling_loop(
     trace: list[ToolCallRecord] = []
 
     for _ in range(max_iterations):
+        if deadline is not None:
+            deadline.raise_if_expired()
         completion = runtime.complete_with_tools(
-            conversation, tools, temperature=temperature, max_tokens=max_tokens
+            conversation,
+            tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **({"deadline": deadline} if deadline is not None else {}),
         )
+        if deadline is not None:
+            deadline.raise_if_expired()
         if not completion.wants_tools:
             answer = (completion.text or "").strip()
             if answer:
@@ -81,7 +95,11 @@ def run_tool_calling_loop(
             )
         )
         for call in completion.tool_calls:
+            if deadline is not None:
+                deadline.raise_if_expired()
             result = execute_tool(call.name, call.arguments)
+            if deadline is not None:
+                deadline.raise_if_expired()
             trace.append(ToolCallRecord(name=call.name, arguments=call.arguments, result=result))
             conversation.append(
                 RuntimeMessage(role="tool", content=json.dumps(result), tool_call_id=call.id)

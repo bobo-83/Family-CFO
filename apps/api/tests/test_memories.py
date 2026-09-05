@@ -105,7 +105,9 @@ async def test_memories_survive_conversation_deletion(
         source_conversation_id=conversation.id,
     )
 
-    assert repository.delete_conversation(demo_engine, demo_household_id, conversation.id, demo_user_id)
+    assert repository.delete_conversation(
+        demo_engine, demo_household_id, conversation.id, demo_user_id
+    )
 
     memories = repository.list_household_memories(demo_engine, demo_household_id)
     assert [m.value for m in memories] == ["Lives in San Jose."]
@@ -146,7 +148,9 @@ async def test_summary_written_past_history_window(
 
     assert ai_memory.refresh_conversation_summary(runtime, demo_engine, conversation.id)
 
-    stored = repository.get_conversation(demo_engine, demo_household_id, conversation.id, demo_user_id)
+    stored = repository.get_conversation(
+        demo_engine, demo_household_id, conversation.id, demo_user_id
+    )
     assert stored is not None
     assert stored.summary == "Discussed a laptop purchase for USD 1,500.00."
     # Only the messages OLDER than the window were summarized.
@@ -203,7 +207,9 @@ class _RecordingScriptedRuntime:
         self._i = 0
         self.seen_messages: list[list] = []
 
-    def complete_with_tools(self, messages, tools, *, temperature=0.2, max_tokens=400):
+    def complete_with_tools(
+        self, messages, tools, *, temperature=0.2, max_tokens=400, deadline=None
+    ):
         self.seen_messages.append(list(messages))
         turn = self._turns[self._i]
         self._i += 1
@@ -231,7 +237,9 @@ async def test_chat_injects_and_grounds_memories(
             )
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
     monkeypatch.setattr(ai_memory, "select_tool_runtime", lambda *a, **k: None)
 
     response = await demo_client.post(
@@ -273,7 +281,9 @@ async def test_chat_injects_and_grounds_conversation_summary(
             )
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
     monkeypatch.setattr(ai_memory, "select_tool_runtime", lambda *a, **k: None)
 
     response = await demo_client.post(

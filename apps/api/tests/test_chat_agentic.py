@@ -10,8 +10,12 @@ class _ScriptedRuntime:
     def __init__(self, turns):
         self._turns = turns
         self._i = 0
+        self.deadlines = []
 
-    def complete_with_tools(self, messages, tools, *, temperature=0.2, max_tokens=400):
+    def complete_with_tools(
+        self, messages, tools, *, temperature=0.2, max_tokens=400, deadline=None
+    ):
+        self.deadlines.append(deadline)
         turn = self._turns[self._i]
         self._i += 1
         return turn
@@ -22,7 +26,9 @@ class _ScriptedRuntime:
 
 def _install_runtime(monkeypatch, turns):
     runtime = _ScriptedRuntime(turns)
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
     return runtime
 
 
@@ -128,7 +134,7 @@ async def test_corrective_retry_rescues_ungrounded_answer(
     demo_client, demo_engine, demo_token, monkeypatch
 ) -> None:
     """M56: a guardrail violation triggers one retry; a grounded restatement is used."""
-    _install_runtime(
+    runtime = _install_runtime(
         monkeypatch,
         [
             RuntimeToolCompletion(
@@ -171,6 +177,8 @@ async def test_corrective_retry_rescues_ungrounded_answer(
     )
 
     assert response.status_code == 200
+    assert len(runtime.deadlines) == 3
+    assert all(deadline is runtime.deadlines[0] for deadline in runtime.deadlines)
     recommendation = response.json()["recommendation"]
     assert recommendation["answer"] == "Invested for 20 years it could grow to USD 3,207.14."
     assert recommendation["calculation_refs"]
@@ -259,14 +267,16 @@ async def test_follow_up_includes_conversation_history(
     class _Recorder(_ScriptedRuntime):
         pass
 
-    def complete_with_tools(messages, tools, *, temperature=0.2, max_tokens=400):
+    def complete_with_tools(messages, tools, *, temperature=0.2, max_tokens=400, deadline=None):
         runtime.seen_messages.append(list(messages))
         turn = runtime._turns[runtime._i]
         runtime._i += 1
         return turn
 
     runtime.complete_with_tools = complete_with_tools
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
 
     headers = {"Authorization": f"Bearer {demo_token}"}
     first = await demo_client.post(
@@ -328,7 +338,9 @@ async def test_history_numbers_are_grounded_in_follow_ups(
             ),
         ]
     )
-    monkeypatch.setattr(chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime)
+    monkeypatch.setattr(
+        chat_module, "select_tool_runtime", lambda engine, household_id, *args, **kwargs: runtime
+    )
 
     headers = {"Authorization": f"Bearer {demo_token}"}
     first = await demo_client.post(
