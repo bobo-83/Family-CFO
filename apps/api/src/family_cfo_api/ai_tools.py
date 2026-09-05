@@ -141,7 +141,11 @@ GROUNDING_RULES = (
     "specific purchase also call project_purchase_impact for the cash-flow view, "
     "and never treat net worth as spendable — see get_net_worth's asset_breakdown, "
     "where retirement and education funds are NOT available (taxable investments "
-    "only with a tax caveat). For currency "
+    "only with a tax caveat). To name the accounts behind any total — which "
+    "accounts exist, what is in each, which account a withdrawal should come "
+    "from — call get_accounts: the app already holds every account by name, type "
+    "and balance, so NEVER say you cannot see them and never send the family to a "
+    "plan administrator or a bank login for a figure a tool returns. For currency "
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
@@ -324,6 +328,82 @@ def _currency_arg(
 _CATEGORY_BY_TYPE = finance_service.ASSET_CATEGORY_BY_TYPE
 
 
+# What each spendability category means, and — the part that matters — that
+# none of it is an affordability answer. M33 keeps retirement and education
+# money out of "what can we spend"; the rule that stops the model doing its own
+# subtraction (GROUNDING_RULES) has to travel with the categories, especially
+# now that get_accounts hands over per-account balances.
+_SPENDABILITY_NOTE = (
+    "Only 'liquid' is readily spendable. 'investments' can be sold but may "
+    "trigger taxes. 'retirement' and 'education' are NOT available for "
+    "purchases (early-withdrawal penalties / different purpose). 'property' "
+    "is illiquid. 'emergency_fund_reserved' is money the family set aside for "
+    "emergencies — never suggest spending it on a purchase. These figures are "
+    "an INVENTORY of what the household holds, not spendable money: never add "
+    "them up or subtract one from another to judge whether something is "
+    "affordable — call get_safe_to_spend, which already nets out the emergency "
+    "fund, the bills falling due, and the minimum debt payments."
+)
+
+
+def _get_accounts(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
+    """#130: the accounts behind the totals, so the advisor can name them.
+
+    Asked which accounts make up an asset total, the advisor used to send the
+    household to their plan administrator — for something the Accounts tab was
+    showing one screen away. This is that same list (one shared assembler), and
+    because it comes back through a tool its figures are quotable under the
+    grounding guardrail.
+    """
+    accounts = []
+    outside_base_currency = 0
+    for view in finance_service.list_account_views(engine, household_id):
+        in_base_currency = view.currency == currency
+        if not in_base_currency:
+            outside_base_currency += 1
+        accounts.append(
+            {
+                "name": view.name,
+                "type": view.account_type,
+                # Liabilities have no spendability category by design; they get
+                # their own so every row in the inventory is classified.
+                "category": "debts" if view.is_liability else view.spendability_category,
+                "is_liability": view.is_liability,
+                "balance": _money_out(Money(view.balance_minor, view.currency)),
+                "institution": view.institution,
+                "emergency_fund_reserved": (
+                    None
+                    if view.emergency_fund_reserved_minor is None
+                    else _money_out(Money(view.emergency_fund_reserved_minor, view.currency))
+                ),
+                "rsu_ready_to_sell": view.rsu_ready_to_sell,
+                # A foreign-currency account is listed like any other — an
+                # inventory that silently drops an account the family can see is
+                # worse than no inventory. It is only base-currency ARITHMETIC
+                # (net worth, safe-to-spend) that leaves it out.
+                "included_in_base_currency_totals": in_base_currency,
+            }
+        )
+    return {
+        "base_currency": currency,
+        "account_count": len(accounts),
+        "accounts_outside_base_currency": outside_base_currency,
+        "accounts": accounts,
+        "spendability_note": _SPENDABILITY_NOTE,
+        "note": (
+            "Every account the household holds, exactly as the app's Accounts tab "
+            "lists them (an account with no balance recorded yet appears in neither). "
+            "This is an inventory, not an authority on spending or debt: for what "
+            "the family can afford call get_safe_to_spend, and for the amount owed "
+            "on a debt, its interest rate, minimum payment, payoff and strategy call "
+            "get_debt_outlook. Liability balances here are NEGATIVE, as recorded. "
+            "Accounts with included_in_base_currency_totals=false are real accounts "
+            f"the family holds, but they are not part of the {currency} totals that "
+            "get_net_worth and get_safe_to_spend report."
+        ),
+    }
+
+
 def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     today, err = _month_to_today(args)
     if err:
@@ -371,13 +451,10 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
         category: _money_out(_Money(minor, currency)) for category, minor in totals.items()
     }
     payload["emergency_fund_reserved"] = _money_out(_Money(emergency_reserved, currency))
-    payload["spendability_note"] = (
-        "Only 'liquid' is readily spendable. 'investments' can be sold but may "
-        "trigger taxes. 'retirement' and 'education' are NOT available for "
-        "purchases (early-withdrawal penalties / different purpose). 'property' "
-        "is illiquid. 'emergency_fund_reserved' is money the family set aside "
-        "for emergencies — subtract it from liquid funds before judging "
-        "affordability; never suggest spending it on a purchase."
+    payload["spendability_note"] = _SPENDABILITY_NOTE
+    payload["accounts_note"] = (
+        "For the individual accounts behind these totals — each one's name, type, "
+        "balance, and institution — call get_accounts."
     )
     return payload
 
@@ -1225,6 +1302,7 @@ def _find_savings(engine: Engine, household_id: str, currency: str, args: dict[s
 
 _HANDLERS = {
     "get_net_worth": _get_net_worth,
+    "get_accounts": _get_accounts,
     "get_emergency_fund": _get_emergency_fund,
     "get_safe_to_spend": _get_safe_to_spend,
     "get_debt_outlook": _get_debt_outlook,
@@ -1261,10 +1339,26 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             name="get_net_worth",
             description=(
                 "Household net worth, total assets, and total liabilities. Defaults to now "
-                "(with an asset breakdown); pass `month` (YYYY-MM) for the net worth at that "
-                "past month's end."
+                "(with an asset breakdown by spendability category); pass `month` (YYYY-MM) "
+                "for the net worth at that past month's end. For the individual accounts "
+                "behind those totals, call get_accounts."
             ),
             parameters=_MONTH_PARAM,
+        ),
+        ToolSpec(
+            name="get_accounts",
+            description=(
+                "THE tool for 'which accounts do we have', 'what makes up that total', "
+                "'which account should this come out of', or any question about a specific "
+                "account. Returns an `accounts` array giving EACH account's name, type, "
+                "spendability category, balance, institution, emergency-fund reservation and "
+                "vested-RSU flag — the same list the app's Accounts tab shows. ALWAYS call "
+                "this before saying you cannot see the household's accounts or telling them "
+                "to look the balances up elsewhere. It is an inventory only: for what the "
+                "family can spend call get_safe_to_spend, and for amounts owed, rates, "
+                "minimum payments and payoff call get_debt_outlook."
+            ),
+            parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
         ToolSpec(
             name="get_emergency_fund",

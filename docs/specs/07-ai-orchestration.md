@@ -78,6 +78,38 @@ Every AI recommendation must expose:
 - Confidence
 - Missing information
 
+## Grounded Read Tools Cover Every Visible Data Domain
+
+A data domain the family can see in the app must have a matching read-only
+grounded tool (ADR 0009; the rule is restated in `AGENTS.md`). Without one the
+advisor has to say it cannot see something the app is displaying one screen
+away, and sends the household elsewhere for a figure the box already holds.
+
+Two properties make such a tool safe to add:
+
+- **The tool is the grounding.** Every figure in an answer must come from a tool
+  result, so itemising a record through a tool is what makes it quotable. A
+  detail the model is not given is a detail it must refuse to state.
+- **The payload carries its own guardrail.** Detail that could be misread has to
+  travel with the rule that governs it, not just with the data. An account
+  inventory therefore carries each account's spendability category (M33) and the
+  rule that spendable money comes from `get_safe_to_spend` alone — it never
+  invites the model to add balances up or subtract one from another.
+
+Applied to accounts (`get_accounts`, M122):
+
+- The tool returns EACH account's name, type, spendability category, signed
+  balance, institution, emergency-fund reservation and vested-RSU flag.
+- Liabilities are included, categorised `debts`, with balances signed as stored;
+  `get_debt_outlook` stays the authority on the amount owed, rate, minimum
+  payment, payoff and strategy.
+- An account outside the household base currency is listed like any other and
+  flagged `included_in_base_currency_totals: false`. An inventory that silently
+  omits an account the family can see recreates the problem it exists to solve;
+  only base-currency arithmetic excludes it.
+- The tool and the `GET /accounts` endpoint project one shared assembler, so the
+  Accounts tab and the advisor can never name different accounts.
+
 ## Guardrails
 
 - The LLM must not invent account balances, debt terms, or investment performance.

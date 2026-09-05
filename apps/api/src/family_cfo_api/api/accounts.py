@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, repository, rights, undo_actions
+from family_cfo_api import audit, finance_service, repository, rights, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
     Account,
@@ -551,38 +551,33 @@ async def list_accounts(
     session: repository.SessionContext = Depends(get_current_session),
     engine: Engine = Depends(get_engine),
 ) -> AccountListResponse:
-    balances = repository.list_account_balances(engine, session.household_id)
-    connections = repository.account_connection_map(engine, session.household_id)
-    # Prefer the real per-account institution (SimpleFIN's org, e.g. "Charles
-    # Schwab") over the generic connection name ("SimpleFin (multiple banks)").
-    institutions = repository.account_institution_map(engine, session.household_id)
+    # M122: the same assembler the advisor's get_accounts tool reads, so the
+    # Accounts tab and the chat answer can never name different accounts.
     return AccountListResponse(
         accounts=[
             Account(
-                id=balance.account_id,
-                name=balance.name,
-                type=balance.account_type,
-                balance=MoneySchema(amount_minor=balance.balance_minor, currency=balance.currency),
-                annual_interest_rate=balance.annual_interest_rate,
-                minimum_payment=_min_payment(balance.currency, balance.minimum_payment_minor),
-                maturity_date=balance.maturity_date,
-                next_payment_due_date=balance.next_payment_due_date,
-                institution=(
-                    institutions.get(balance.account_id)
-                    or ((info := connections.get(balance.account_id)) and info.institution)
+                id=view.account_id,
+                name=view.name,
+                type=view.account_type,
+                balance=MoneySchema(amount_minor=view.balance_minor, currency=view.currency),
+                annual_interest_rate=view.annual_interest_rate,
+                minimum_payment=_min_payment(view.currency, view.minimum_payment_minor),
+                maturity_date=view.maturity_date,
+                next_payment_due_date=view.next_payment_due_date,
+                institution=view.institution,
+                last_synced_at=view.last_synced_at,
+                emergency_fund_percent=view.emergency_fund_percent,
+                emergency_fund_amount=_min_payment(view.currency, view.emergency_fund_minor),
+                emergency_fund_reserved=(
+                    None
+                    if view.emergency_fund_reserved_minor is None
+                    else MoneySchema(
+                        amount_minor=view.emergency_fund_reserved_minor, currency=view.currency
+                    )
                 ),
-                last_synced_at=(
-                    (info2 := connections.get(balance.account_id)) and info2.last_synced_at
-                ),
-                **_emergency_fund_fields(
-                    balance.currency,
-                    balance.emergency_fund_percent,
-                    balance.emergency_fund_minor,
-                    balance.balance_minor,
-                ),
-                rsu_ready_to_sell=balance.rsu_ready_to_sell,
+                rsu_ready_to_sell=view.rsu_ready_to_sell,
             )
-            for balance in balances
+            for view in finance_service.list_account_views(engine, session.household_id)
         ]
     )
 

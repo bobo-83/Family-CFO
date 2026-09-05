@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
@@ -204,6 +205,246 @@ def test_net_worth_tool_breaks_assets_into_spendability_categories(demo_engine: 
         assert money["amount_minor"] >= 0, category
     assert "NOT available for purchases" in result["spendability_note"]
     assert "retirement" in result["spendability_note"]
+
+
+# --- M122 (#130): the accounts behind the totals ---
+
+
+def _seed_accounts_for_inventory(engine: Engine):
+    """A household with one of each interesting shape: a designated emergency
+    fund, an RSU-tagged brokerage, and a 401(k) loan."""
+    from family_cfo_api import repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    brokerage = repository.create_account(engine, hh, "Vested RSUs", "brokerage", "USD")
+    repository.record_account_balance(engine, brokerage.id, 2_500_000)
+    repository.update_account(engine, hh, brokerage.id, rsu_ready_to_sell=True)
+
+    retirement = repository.create_account(engine, hh, "401k", "retirement", "USD")
+    repository.record_account_balance(engine, retirement.id, 12_000_000)
+
+    loan = repository.create_account(engine, hh, "401k Loan", "401k_loan", "USD")
+    repository.record_account_balance(engine, loan.id, -800_000)
+
+    # M36: the demo savings account IS the emergency fund.
+    savings = next(b for b in repository.list_account_balances(engine, hh) if b.name == "Savings")
+    repository.update_account(engine, hh, savings.account_id, emergency_fund_percent=100.0)
+    return {"brokerage": brokerage, "loan": loan, "savings": savings}
+
+
+def _seed_foreign_currency_account(engine: Engine):
+    """POST /accounts accepts any ISO code without comparing it to the household
+    base currency, so an account the family can see may sit outside it."""
+    from family_cfo_api import repository
+
+    euro = repository.create_account(engine, fixtures.DEMO_HOUSEHOLD_ID, "Euro Savings", "savings", "EUR")
+    repository.record_account_balance(engine, euro.id, 400_000)
+    return euro
+
+
+def test_accounts_tool_itemises_every_account_behind_the_totals(demo_engine: Engine) -> None:
+    """#130: asked which accounts make up a total, the advisor must be able to
+    answer from a tool instead of sending the family to look it up elsewhere."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+
+    by_name = {a["name"]: a for a in result["accounts"]}
+    assert {"Checking", "Savings", "Mortgage", "401k", "Vested RSUs"} <= set(by_name)
+    assert result["account_count"] == len(result["accounts"])
+
+    checking = by_name["Checking"]
+    assert checking["type"] == "checking"
+    assert checking["category"] == "liquid"
+    assert checking["is_liability"] is False
+    assert checking["balance"]["amount_minor"] == 500_000
+    assert checking["balance"]["currency"] == "USD"
+    assert "5,000.00" in checking["balance"]["display"]
+
+    # M33 categories travel with each row, so a balance can never be read as
+    # spendable just because the model can see it.
+    assert by_name["401k"]["category"] == "retirement"
+    assert by_name["Vested RSUs"]["category"] == "investments"
+
+
+def test_accounts_tool_marks_liabilities_including_a_401k_loan(demo_engine: Engine) -> None:
+    """Liabilities have no spendability category by design; they get their own,
+    and their balances stay signed exactly as the app records them."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    by_name = {a["name"]: a for a in _execute(demo_engine, "get_accounts", {})["accounts"]}
+
+    for name in ("Mortgage", "401k Loan"):
+        assert by_name[name]["category"] == "debts", name
+        assert by_name[name]["is_liability"] is True, name
+        assert by_name[name]["balance"]["amount_minor"] < 0, name
+    # get_debt_outlook stays the authority on the positive amount owed and terms.
+    assert "get_debt_outlook" in _execute(demo_engine, "get_accounts", {})["note"]
+
+
+def test_accounts_tool_surfaces_emergency_reservation_and_rsu_flag(demo_engine: Engine) -> None:
+    """The per-account designations the record already holds (M36, RSU tag)."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    by_name = {a["name"]: a for a in _execute(demo_engine, "get_accounts", {})["accounts"]}
+
+    # 100% of the $15,000 savings balance is designated emergency money.
+    assert by_name["Savings"]["emergency_fund_reserved"]["amount_minor"] == 1_500_000
+    assert by_name["Vested RSUs"]["rsu_ready_to_sell"] is True
+    # An undesignated account says so with null, not a zero reservation.
+    assert by_name["Checking"]["emergency_fund_reserved"] is None
+    assert by_name["Checking"]["rsu_ready_to_sell"] is False
+
+
+def test_accounts_tool_lists_foreign_currency_accounts_rather_than_dropping_them(
+    demo_engine: Engine,
+) -> None:
+    """An inventory that silently omits an account the family can see on screen
+    recreates the very bug this tool fixes — flag it, never hide it."""
+    _seed_accounts_for_inventory(demo_engine)
+    _seed_foreign_currency_account(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    by_name = {a["name"]: a for a in result["accounts"]}
+
+    euro = by_name["Euro Savings"]
+    assert euro["balance"]["currency"] == "EUR"
+    assert euro["balance"]["amount_minor"] == 400_000
+    assert euro["included_in_base_currency_totals"] is False
+    assert by_name["Checking"]["included_in_base_currency_totals"] is True
+    assert result["accounts_outside_base_currency"] == 1
+
+
+def test_accounts_tool_routes_spending_and_debt_questions_elsewhere(demo_engine: Engine) -> None:
+    """The payload must carry the guardrail, not just the data: per-account
+    balances are exactly the input that invites re-deriving a spendable total."""
+    result = _execute(demo_engine, "get_accounts", {})
+
+    note = result["note"] + result["spendability_note"]
+    assert "get_safe_to_spend" in note
+    assert "get_debt_outlook" in note
+    assert "NOT available for purchases" in result["spendability_note"]
+
+
+def test_net_worth_keeps_its_categories_and_points_at_the_accounts_tool(
+    demo_engine: Engine,
+) -> None:
+    """Regression: M33's guarantee survives the addition — the breakdown and its
+    non-spendability warning are unchanged, and affordability still routes to
+    get_safe_to_spend rather than inviting the model to subtract."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_net_worth", {})
+
+    breakdown = result["asset_breakdown"]
+    assert breakdown["liquid"]["amount_minor"] == 500_000 + 1_500_000
+    assert breakdown["retirement"]["amount_minor"] == 12_000_000
+    assert breakdown["investments"]["amount_minor"] == 2_500_000
+    note = result["spendability_note"]
+    assert "NOT available for purchases" in note and "retirement" in note
+    # The old note told the model to subtract the emergency fund itself, which
+    # the invariant rules forbid; affordability comes from one tool only.
+    assert "get_safe_to_spend" in note
+    assert "subtract it from liquid funds" not in note
+    assert "get_accounts" in result["accounts_note"]
+
+
+@pytest.mark.anyio
+async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
+    demo_engine: Engine, demo_client, demo_token
+) -> None:
+    """The Accounts tab and the advisor must never name different accounts.
+
+    Both read `finance_service.list_account_views`; this pins the shared fields —
+    including the preferred real institution over the generic connection name,
+    the emergency-fund reservation and the RSU flag — so a change to one surface
+    cannot drift from the other.
+    """
+    from family_cfo_api import repository
+
+    _seed_accounts_for_inventory(demo_engine)
+    _seed_foreign_currency_account(demo_engine)
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    connection = repository.create_institution_connection(
+        demo_engine, hh, "simplefin", "SimpleFin (multiple banks)", "enc"
+    )
+    synced_id = repository.get_or_create_connection_account(
+        demo_engine,
+        hh,
+        connection.id,
+        external_account_id="ext-1",
+        name="Brokerage (synced)",
+        currency="USD",
+        account_type="brokerage",
+        institution="Charles Schwab",
+    )
+    repository.record_account_balance(demo_engine, synced_id, 100_000)
+
+    listed = await demo_client.get(
+        "/api/v1/accounts", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    assert listed.status_code == 200
+    from_endpoint = {
+        a["name"]: (
+            a["type"],
+            a["balance"]["amount_minor"],
+            a["balance"]["currency"],
+            a["institution"],
+            (a["emergency_fund_reserved"] or {}).get("amount_minor"),
+            a["rsu_ready_to_sell"],
+        )
+        for a in listed.json()["accounts"]
+    }
+    from_tool = {
+        a["name"]: (
+            a["type"],
+            a["balance"]["amount_minor"],
+            a["balance"]["currency"],
+            a["institution"],
+            (a["emergency_fund_reserved"] or {}).get("amount_minor"),
+            a["rsu_ready_to_sell"],
+        )
+        for a in _execute(demo_engine, "get_accounts", {})["accounts"]
+    }
+
+    assert from_tool == from_endpoint
+    # The provider's own org name wins over the generic connection display name.
+    assert from_tool["Brokerage (synced)"][3] == "Charles Schwab"
+    assert from_tool["Euro Savings"][2] == "EUR"
+
+
+def test_accounts_tool_is_advertised_and_dispatches_by_name(demo_engine: Engine) -> None:
+    names = [tool.name for tool in ai_tools.build_tools()]
+
+    assert "get_accounts" in names
+    spec = next(t for t in ai_tools.build_tools() if t.name == "get_accounts")
+    assert "get_safe_to_spend" in spec.description
+    assert _execute(demo_engine, "get_accounts", {})["accounts"]
+
+
+def test_per_account_balances_are_quotable_by_the_grounding_guardrail(
+    demo_engine: Engine,
+) -> None:
+    """The point of the issue: itemised balances become quotable, so naming an
+    account's balance in an answer no longer trips the invented-figure check."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    _seed_accounts_for_inventory(demo_engine)
+    payload = _execute(demo_engine, "get_accounts", {})
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(name="get_accounts", arguments={}, result=payload)
+            ],
+        )
+    )
+    assert "120000.00" in values  # the 401k's $120,000, as the display shows it
+    assert "25000.00" in values  # the vested RSUs
 
 
 # --- M64: income/tax, bills, budgets, spending tools ---

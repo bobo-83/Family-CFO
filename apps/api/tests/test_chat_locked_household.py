@@ -151,6 +151,26 @@ async def test_a_mid_turn_lock_reports_a_code_rather_than_unexpected(
     assert "unexpected" not in errors[0]["message"].lower()
 
 
+def test_the_accounts_tool_refuses_a_locked_household_like_every_other_tool(
+    _master_key, demo_engine
+) -> None:
+    """#130's get_accounts reads sealed account names, so it must fail the same
+    way get_net_worth and get_debt_outlook do — raise, never hand back ciphertext
+    or a placeholder the advisor would read out as an account name."""
+    from family_cfo_api import ai_tools
+
+    hh = repository.list_households(demo_engine)[0]
+    # Created while the key is available, so its name is genuinely sealed.
+    account = repository.create_account(demo_engine, hh, "Vanguard Brokerage", "brokerage", "USD")
+    repository.record_account_balance(demo_engine, account.id, 1_000_000)
+    _seal_and_lock(demo_engine, hh)
+    executor = ai_tools.build_executor(demo_engine, hh, "USD")
+
+    for tool in ("get_accounts", "get_net_worth", "get_debt_outlook"):
+        with pytest.raises(household_crypto.HouseholdLockedError):
+            executor(tool, {})
+
+
 @pytest.mark.anyio
 async def test_an_unlocked_household_streams_normally(
     _master_key, demo_client, demo_token
