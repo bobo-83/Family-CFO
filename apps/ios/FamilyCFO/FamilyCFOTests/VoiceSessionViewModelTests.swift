@@ -68,6 +68,67 @@ final class BlockingMockSynthesizer: SpeechSynthesizing {
     }
 }
 
+/// Deliberately ignores task cancellation and returns only when the test says
+/// so, matching transports that can finish a response after their owner ends.
+actor CancellationIgnoringAdvisorAPI: AdvisorAPI {
+    private var responseContinuation:
+        CheckedContinuation<Components.Schemas.ChatResponse, Never>?
+    private var conversationContinuation:
+        CheckedContinuation<Components.Schemas.ConversationDetail, Never>?
+    private var sendStarted = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var conversationStarted = false
+    private var conversationWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func waitUntilSendStarts() async {
+        if sendStarted { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func complete(with response: Components.Schemas.ChatResponse) {
+        responseContinuation?.resume(returning: response)
+        responseContinuation = nil
+    }
+
+    func waitUntilConversationStarts() async {
+        if conversationStarted { return }
+        await withCheckedContinuation { conversationWaiters.append($0) }
+    }
+
+    func completeConversation(with detail: Components.Schemas.ConversationDetail) {
+        conversationContinuation?.resume(returning: detail)
+        conversationContinuation = nil
+    }
+
+    func listConversations() async throws -> [Components.Schemas.Conversation] { [] }
+
+    func conversation(id: String) async throws -> Components.Schemas.ConversationDetail {
+        conversationStarted = true
+        conversationWaiters.forEach { $0.resume() }
+        conversationWaiters.removeAll()
+        return await withCheckedContinuation { conversationContinuation = $0 }
+    }
+
+    func sendMessage(
+        _ message: String,
+        conversationID: String?,
+        attachment: ChatAttachment?
+    ) async throws -> Components.Schemas.ChatResponse {
+        sendStarted = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+        return await withCheckedContinuation { responseContinuation = $0 }
+    }
+
+    func deleteConversation(id: String) async throws {}
+
+    func submitFeedback(
+        recommendationId: String,
+        rating: Components.Schemas.AdvisorFeedbackRequest.RatingPayload,
+        note: String?
+    ) async throws {}
+}
+
 @MainActor
 struct VoiceSessionViewModelTests {
     private func makeModel(
@@ -243,6 +304,97 @@ struct VoiceSessionViewModelTests {
         #expect(synth.spoken == ["Then it changes the outlook."])
         #expect(model.lastAnswer == "Then it changes the outlook.")
         #expect(model.phase == .listening)
+    }
+
+    @Test func aDroppedConnectionAfterRecoveryExhaustsDescribesTheStreamNotTheLAN() async {
+        let api = MockAdvisorAPI()
+        api.sendError = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        api.detail = .init(
+            id: "conv-voice",
+            title: "Still working",
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: [
+                .init(
+                    id: "m1", role: .user, content: "think carefully", sequence: 1,
+                    createdAt: .now)
+            ]
+        )
+        let engine = MockSpeechEngine()
+        let model = VoiceSessionViewModel(
+            api: api,
+            conversationID: "conv-voice",
+            engine: engine,
+            synthesizer: MockSynthesizer(),
+            recoveryPolicy: .init(maximumAttempts: 1, interval: .seconds(0)))
+
+        await model.begin()
+        engine.hear("think carefully")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        await model.sendCurrentUtterance()
+
+        #expect(api.conversationRequests == ["conv-voice"])
+        guard case .failed(let message) = model.phase else {
+            Issue.record("expected .failed, got \(model.phase)")
+            return
+        }
+        #expect(message.contains("advisor was still working"))
+        #expect(!message.contains("Local Network"))
+    }
+
+    @Test func endingWhileAnIgnoringRequestCompletesDoesNotSpeakOrRestart() async {
+        let api = CancellationIgnoringAdvisorAPI()
+        let engine = MockSpeechEngine()
+        let synth = MockSynthesizer()
+        let model = VoiceSessionViewModel(
+            api: api, conversationID: nil, engine: engine, synthesizer: synth)
+
+        await model.begin()
+        engine.hear("tell me everything")
+        for _ in 0..<1000 where model.transcript.isEmpty { await Task.yield() }
+        let send = Task { await model.sendCurrentUtterance() }
+        await api.waitUntilSendStarts()
+
+        model.end()
+        await api.complete(with: groundedResponse("This arrived too late."))
+        await send.value
+
+        #expect(model.phase == .idle)
+        #expect(synth.spoken.isEmpty)
+        #expect(engine.startCount == 1)
+    }
+
+    @Test func cancellingRecoveryRejectsALateConversationResponse() async {
+        let api = CancellationIgnoringAdvisorAPI()
+        let lost = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        let recovery = Task {
+            await SavedAnswerRecovery(api: api).poll(
+                after: lost,
+                utterance: "tell me everything",
+                conversationID: "conv-voice",
+                policy: .init(maximumAttempts: 1, interval: .seconds(0)))
+        }
+        await api.waitUntilConversationStarts()
+
+        recovery.cancel()
+        await api.completeConversation(
+            with: .init(
+                id: "conv-voice",
+                title: "Late",
+                createdAt: .now,
+                updatedAt: .now,
+                messages: [
+                    .init(
+                        id: "u1", role: .user, content: "tell me everything",
+                        sequence: 1, createdAt: .now),
+                    .init(
+                        id: "a1", role: .assistant, content: "Too late.",
+                        sequence: 2, createdAt: .now),
+                ]))
+
+        #expect(await recovery.value == nil)
     }
 
     @Test func emptyTranscriptIsNeverSent() async {

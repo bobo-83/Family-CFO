@@ -12,14 +12,18 @@ final class MockAdvisorAPI: AdvisorAPI, @unchecked Sendable {
     /// A failure specific to sendMessage — lets a test drop the send while the
     /// conversation reload still succeeds (the timeout-recovery path).
     var sendError: Error?
+    private(set) var listConversationCallCount = 0
+    private(set) var conversationRequests: [String] = []
     private(set) var sentMessages: [(message: String, conversationID: String?, attachment: ChatAttachment?)] = []
 
     func listConversations() async throws -> [Components.Schemas.Conversation] {
+        listConversationCallCount += 1
         if let error { throw error }
         return conversations
     }
 
     func conversation(id: String) async throws -> Components.Schemas.ConversationDetail {
+        conversationRequests.append(id)
         if let error { throw error }
         return detail!
     }
@@ -191,6 +195,45 @@ struct ChatViewModelTests {
         await viewModel.send("hello")
 
         #expect(viewModel.errorMessage != nil)  // no server to have saved anything
+    }
+
+    @Test func aDroppedConnectionAfterRecoveryExhaustsDescribesTheStreamNotTheLAN() async {
+        let api = MockAdvisorAPI()
+        api.sendError = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+        api.detail = .init(
+            id: "conv-1", title: "Still working", createdAt: .now, updatedAt: .now,
+            messages: [
+                .init(
+                    id: "u1", role: .user, content: "take your time", sequence: 1,
+                    createdAt: .now)
+            ]
+        )
+        let viewModel = ChatViewModel(
+            api: api,
+            conversationID: "conv-1",
+            recoveryPolicy: .init(maximumAttempts: 1, interval: .seconds(0)))
+
+        await viewModel.send("take your time")
+
+        #expect(api.conversationRequests == ["conv-1"])  // one fast, deterministic attempt
+        #expect(viewModel.errorMessage?.contains("advisor was still working") == true)
+        #expect(viewModel.errorMessage?.contains("Local Network") == false)
+    }
+
+    @Test func aDroppedRatingRequestKeepsThePlainConnectivityMessage() async {
+        let api = MockAdvisorAPI()
+        api.response = .init(
+            conversationId: "conv-1", recommendation: recommendation(answer: "A grounded answer."))
+        let viewModel = ChatViewModel(api: api)
+        await viewModel.send("hello")
+        api.feedbackError = NSError(
+            domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)
+
+        await viewModel.rate(viewModel.messages.last!, .up)
+
+        #expect(viewModel.errorMessage?.contains("Local Network") == true)
+        #expect(viewModel.errorMessage?.contains("advisor was still working") == false)
     }
 
     @Test func loadHistoryOrdersBySequence() async {

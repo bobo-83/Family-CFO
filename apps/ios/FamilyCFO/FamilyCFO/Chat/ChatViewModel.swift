@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import OpenAPIRuntime
 
 @MainActor
 @Observable
@@ -18,10 +17,16 @@ final class ChatViewModel {
     /// A message staged by another screen — the M89 receipt capture opens chat
     /// with the receipt already asked about — sent once the view appears.
     var queuedMessage: String?
+    private let recoveryPolicy: SavedAnswerRecovery.PollingPolicy
 
-    init(api: AdvisorAPI, conversationID: String? = nil) {
+    init(
+        api: AdvisorAPI,
+        conversationID: String? = nil,
+        recoveryPolicy: SavedAnswerRecovery.PollingPolicy = .standard
+    ) {
         self.api = api
         self.conversationID = conversationID
+        self.recoveryPolicy = recoveryPolicy
     }
 
     func sendQueuedMessageIfNeeded() async {
@@ -72,6 +77,7 @@ final class ChatViewModel {
         outgoing.attachmentName = attachment?.displayName
         messages.append(outgoing)
         isSending = true
+        progressDetail = nil
         defer {
             isSending = false
             progressDetail = nil
@@ -96,29 +102,20 @@ final class ChatViewModel {
             // answer back (shared with voice mode; works even for the FIRST
             // message of a conversation, where the box mints the conversation
             // the phone never heard about). A truly offline phone errors at
-            // once — mightStillBeGenerating filters that out.
-            if Self.mightStillBeGenerating(error),
-                let recovered = await SavedAnswerRecovery(api: api).poll(
-                    utterance: trimmed, conversationID: conversationID)
+            // once — SavedAnswerRecovery filters that out.
+            if let recovered = await SavedAnswerRecovery(api: api).poll(
+                after: error,
+                utterance: trimmed,
+                conversationID: conversationID,
+                policy: recoveryPolicy)
             {
                 conversationID = recovered.conversationID
                 messages.append(ChatMessage.from(recovered.answer))
                 errorMessage = nil
             } else {
-                errorMessage = Self.describe(error)
+                errorMessage = Self.describe(error, during: .streamedTurn)
             }
         }
-    }
-
-    /// True for failures where the box may still be generating and will save the
-    /// answer (a slow response the socket gave up on), vs a phone that genuinely
-    /// can't reach the server (nothing will be saved).
-    static func mightStillBeGenerating(_ error: Error) -> Bool {
-        let underlying = (error as? ClientError)?.underlyingError ?? error
-        let nsError = underlying as NSError
-        guard nsError.domain == NSURLErrorDomain else { return false }
-        return nsError.code == NSURLErrorTimedOut
-            || nsError.code == NSURLErrorNetworkConnectionLost
     }
 
     /// ADR 0044: rate an advisor answer. The rating shows immediately and
@@ -146,7 +143,10 @@ final class ChatViewModel {
         }
     }
 
-    static func describe(_ error: Error) -> String {
-        AdvisorErrorDescriber.describe(error)
+    static func describe(
+        _ error: Error,
+        during context: AdvisorErrorDescriber.RequestContext = .plainRequest
+    ) -> String {
+        AdvisorErrorDescriber.describe(error, during: context)
     }
 }
