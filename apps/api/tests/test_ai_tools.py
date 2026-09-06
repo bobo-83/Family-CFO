@@ -513,6 +513,128 @@ def test_minor_units_never_ground_a_hundredfold_overstatement() -> None:
     assert "6" in values
 
 
+def _money_rows(value) -> list[tuple[int, str]]:
+    """Every serialized Money in a payload, as (amount_minor, display)."""
+    rows: list[tuple[int, str]] = []
+    if isinstance(value, dict):
+        if "amount_minor" in value and "display" in value:
+            rows.append((value["amount_minor"], value["display"]))
+        for item in value.values():
+            rows.extend(_money_rows(item))
+    elif isinstance(value, list):
+        for item in value:
+            rows.extend(_money_rows(item))
+    return rows
+
+
+# Every tool that returns money, with arguments that reach a real payload on the
+# demo household. Dropping the minor-unit twin must not cost ANY of them a
+# figure the model is meant to quote.
+_MONEY_TOOL_CALLS = [
+    ("get_net_worth", {}),
+    ("get_accounts", {}),
+    ("get_emergency_fund", {}),
+    ("get_safe_to_spend", {}),
+    ("get_debt_outlook", {}),
+    ("get_debt_history", {}),
+    ("get_income_and_tax", {}),
+    ("get_bills", {}),
+    ("get_budgets", {}),
+    ("get_savings_contributions", {}),
+    ("get_spending_insights", {}),
+    ("get_spending_by_category", {}),
+    ("find_savings", {}),
+    ("project_purchase_impact", {"price": 1200.0}),
+    ("future_value", {"present_value": 10_000.0, "annual_return_rate": 0.06, "years": 20}),
+    ("when_can_i_retire", {"current_age": 43}),
+    ("project_retirement", {"current_age": 43, "retirement_age": 65}),
+    (
+        "debt_payoff",
+        {"balance": 5_000.0, "annual_interest_rate": 0.199, "minimum_payment": 150.0},
+    ),
+]
+
+
+def _seed_money_for_every_tool(engine: Engine) -> None:
+    """Enough of a household that every money tool returns real figures: the
+    demo mortgage has no terms (so `get_debt_outlook` itemises nothing) and no
+    envelope exists (so `get_budgets` is empty)."""
+    from family_cfo_api import repository
+
+    _seed_accounts_for_inventory(engine)
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    mortgage = next(b for b in repository.list_account_balances(engine, hh) if b.name == "Mortgage")
+    repository.update_account(
+        engine,
+        hh,
+        mortgage.account_id,
+        annual_interest_rate=0.0625,
+        minimum_payment_minor=180_000,
+    )
+    category = repository.create_category(engine, hh, "Groceries Envelope")
+    repository.create_budget(
+        engine, household_id=hh, category_id=category.id, limit_minor=50_000, currency="USD"
+    )
+
+
+@pytest.mark.parametrize(("tool", "args"), _MONEY_TOOL_CALLS)
+def test_dropping_minor_units_costs_no_tool_a_quotable_figure(
+    demo_engine: Engine, tool: str, args: dict
+) -> None:
+    """The guardrail change is subtractive, so the risk is a TRUE answer failing
+    it and falling back to the deterministic snapshot. Sweep every money tool:
+    each displayed amount must still ground, in the forms a model actually says
+    ($5,000.00 written as "5,000.00", "5000.00" or "5,000")."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import extract_numbers
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    _seed_money_for_every_tool(demo_engine)
+    payload = _execute(demo_engine, tool, args)
+    assert "error" not in payload, payload
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name=tool, arguments=args, result=payload)],
+        )
+    )
+
+    rows = _money_rows(payload)
+    assert rows, f"{tool} returned no money to check"
+    for minor, display in rows:
+        for spoken in extract_numbers(display):
+            assert spoken in values, f"{tool}: {display} lost its grounding"
+        major = abs(minor) / 100
+        assert f"{major:.2f}" in values, f"{tool}: {display}"
+        if major == int(major):
+            # "$5,000.00" read aloud as "5,000".
+            assert str(int(major)) in values, f"{tool}: {display}"
+
+
+def test_minor_unit_filter_only_drops_the_twin_of_a_displayed_amount() -> None:
+    """A minor-unit field with no display beside it is the only way the model can
+    state that figure (`_get_safe_to_spend` reports vested RSUs that way), so it
+    must survive; nesting and every other value must come through untouched."""
+    payload = {
+        "outputs": {"safe_to_spend": {"amount_minor": 250_000, "currency": "USD", "display": "$2,500.00"}},
+        "vested_rsus_ready_to_sell_not_cash": [{"account": "Vested RSUs", "value_minor": 2_500_000}],
+        "warnings": ["one debt has no recorded minimum payment"],
+        "months_of_runway": 6,
+    }
+
+    filtered = ai_tools._without_minor_units(payload)
+
+    assert filtered["outputs"]["safe_to_spend"] == {"currency": "USD", "display": "$2,500.00"}
+    # No display twin: still the only quotable form of that figure.
+    assert filtered["vested_rsus_ready_to_sell_not_cash"][0]["value_minor"] == 2_500_000
+    assert filtered["warnings"] == payload["warnings"]
+    assert filtered["months_of_runway"] == 6
+    # Non-destructive: the caller's payload is untouched.
+    assert payload["outputs"]["safe_to_spend"]["amount_minor"] == 250_000
+
+
 # --- M64: income/tax, bills, budgets, spending tools ---
 
 

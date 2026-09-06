@@ -1350,6 +1350,14 @@ no change to `asset_breakdown`'s shape, so the Overview endpoint is untouched.
       every money tool; itemised per-account balances made it worth closing now.
       The dollar form always travels alongside, so no legitimate quotation is
       lost.
+- [x] Proved that last claim rather than asserting it: a sweep over EVERY
+      money-returning tool checks each displayed amount still grounds in the
+      forms a model says it (display string, two-decimal major form, whole-number
+      reading), and a structural test pins that a minor-unit field with no
+      display beside it survives — `_get_safe_to_spend` reports vested RSUs that
+      way, so it is the only quotable form of that figure. The change is
+      subtractive, so the risk it carries is a TRUE answer failing the guardrail
+      and falling back to the deterministic snapshot, silently.
 - [x] `apps/api/README.md` no longer claims every tool persists a
       `financial_calculations` row and returns a `calculation_ref`. An inventory
       read has nothing to persist; it is grounded by its own tool-call trace.
