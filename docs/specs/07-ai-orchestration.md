@@ -99,10 +99,14 @@ Two properties make such a tool safe to add:
 Applied to accounts (`get_accounts`, M122):
 
 - The tool returns EACH account's name, type, spendability category, signed
-  balance, institution, emergency-fund reservation and vested-RSU flag.
+  balance, institution, last sync time, emergency-fund reservation and
+  vested-RSU flag.
 - Liabilities are included, categorised `debts`, with balances signed as stored;
   `get_debt_outlook` stays the authority on the amount owed, rate, minimum
-  payment, payoff and strategy.
+  payment, payoff and strategy. The sign is a reading of the balance, not a
+  property of the account type: negative is owed, zero is clear, and a positive
+  liability balance is a credit (an overpayment or refund) that must never be
+  reported as a debt.
 - An account outside the household base currency is listed like any other and
   flagged `included_in_base_currency_totals: false`. An inventory that silently
   omits an account the family can see recreates the problem it exists to solve;
@@ -114,6 +118,9 @@ Applied to accounts (`get_accounts`, M122):
 
 - The LLM must not invent account balances, debt terms, or investment performance.
 - The LLM must cite calculation outputs when making numeric claims.
+- Grounding is unit-aware: money travels as minor units plus a display string,
+  and only the display form grounds an answer. Accepting the minor-unit twin
+  would let a hundredfold overstatement of a real balance pass the guardrail.
 - Financial advice must be framed as educational guidance unless a future legal review changes this policy.
 - The system must not autonomously move money or make trades.
 

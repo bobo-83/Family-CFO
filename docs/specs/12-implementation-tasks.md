@@ -1313,7 +1313,10 @@ category sums reached the model. Liabilities were already itemised by
       `build_tools` and dispatched by name; the payload routing spending and debt
       questions to the right tools.
 - [x] Parity: `GET /accounts` and `get_accounts` return identical shared fields,
-      including the preferred real institution over the generic connection name.
+      including the preferred real institution over the generic connection name
+      and the connection's last sync time. Rows are compared as a sorted
+      sequence, not keyed by name, so two accounts sharing a name cannot mask a
+      missing or mismatched row.
 - [x] Regression: `asset_breakdown` keeps its M33 categories and the note routes
       affordability to `get_safe_to_spend`.
 - [x] A per-account balance appears in `grounded_values` — the behaviour the
@@ -1325,6 +1328,31 @@ ADR 0009 gap for the accounts domain.
 
 Out of scope: no OpenAPI change (advisor tools are internal to the chat loop) and
 no change to `asset_breakdown`'s shape, so the Overview endpoint is untouched.
+
+### Review Follow-Ups (PR #154)
+
+- [x] The tool returns `last_synced_at` per account. The shared assembler and the
+      Accounts tab already carried it; without it the advisor could quote a
+      synced balance with no idea how stale it was, while the screen beside it
+      says "as of".
+- [x] The payload no longer asserts that liability balances are negative. A
+      liability's sign is a reading of the balance, not a property of the type:
+      a paid-off card sits at zero and an overpaid or refunded one goes
+      positive (`POST /accounts/{id}/balances` accepts it, and
+      `count_liabilities_without_terms` already treats `>= 0` as nothing owed).
+      The note now explains the convention — negative owed, zero clear, positive
+      a credit, never reported as a debt.
+- [x] Guardrail tightened: `grounded_values` no longer grounds the
+      `amount_minor` twin of a displayed amount. `_money_out` emits cents and
+      `display` for the same figure, so grounding the cents let an answer
+      claiming "$12,000,000" pass for a $120,000 balance — a hundredfold
+      overstatement tracing to nothing the family holds. Pre-existing across
+      every money tool; itemised per-account balances made it worth closing now.
+      The dollar form always travels alongside, so no legitimate quotation is
+      lost.
+- [x] `apps/api/README.md` no longer claims every tool persists a
+      `financial_calculations` row and returns a `calculation_ref`. An inventory
+      read has nothing to persist; it is grounded by its own tool-call trace.
 
 Noted, not fixed here (issue #152): `compute_net_worth_with_ref`,
 `compute_emergency_fund` and `compute_safe_to_spend` feed every balance to the

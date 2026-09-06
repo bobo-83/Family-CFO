@@ -377,6 +377,12 @@ def _get_accounts(engine: Engine, household_id: str, currency: str, args: dict[s
                     else _money_out(Money(view.emergency_fund_reserved_minor, view.currency))
                 ),
                 "rsu_ready_to_sell": view.rsu_ready_to_sell,
+                # When the balance was last refreshed from the bank, so the
+                # advisor can say "as of" for a synced account exactly as the
+                # Accounts tab does. None for a manual account.
+                "last_synced_at": (
+                    None if view.last_synced_at is None else view.last_synced_at.isoformat()
+                ),
                 # A foreign-currency account is listed like any other — an
                 # inventory that silently drops an account the family can see is
                 # worse than no inventory. It is only base-currency ARITHMETIC
@@ -396,7 +402,10 @@ def _get_accounts(engine: Engine, household_id: str, currency: str, args: dict[s
             "This is an inventory, not an authority on spending or debt: for what "
             "the family can afford call get_safe_to_spend, and for the amount owed "
             "on a debt, its interest rate, minimum payment, payoff and strategy call "
-            "get_debt_outlook. Liability balances here are NEGATIVE, as recorded. "
+            "get_debt_outlook. A liability's balance is signed as recorded: negative "
+            "means that much is owed, zero means nothing is owed, and a POSITIVE "
+            "balance on a liability account is a credit (an overpayment or a refund) "
+            "— never report it as a debt. "
             "Accounts with included_in_base_currency_totals=false are real accounts "
             f"the family holds, but they are not part of the {currency} totals that "
             "get_net_worth and get_safe_to_spend report."
@@ -1712,18 +1721,38 @@ def _rounded_variants(number: str) -> set[str]:
     return variants
 
 
+def _without_minor_units(value: Any) -> Any:
+    """The tool trace with serialized-money CENTS dropped, keeping `display`.
+
+    `_money_out` emits both `amount_minor` (1200000) and `display` ($12,000.00)
+    for the same figure. Grounding on the cents would let an answer claiming
+    "$1,200,000" pass for a $12,000 balance — a hundredfold overstatement that
+    traces to nothing the family holds. The dollar form is always present
+    alongside it, so the model never loses a legitimate way to quote the figure.
+    """
+    if isinstance(value, dict):
+        pairs = value.items()
+        if "amount_minor" in value and "display" in value:
+            pairs = ((key, item) for key, item in pairs if key != "amount_minor")
+        return {key: _without_minor_units(item) for key, item in pairs}
+    if isinstance(value, list):
+        return [_without_minor_units(item) for item in value]
+    return value
+
+
 def grounded_values(result: ToolCallingResult) -> set[str]:
     """Numbers the model was allowed to use: everything in the tool call trace.
 
     Both tool inputs (echoing a user-supplied figure is legitimate) and tool
     outputs (the engine's computed figures) count as grounded — including their
-    rounded forms. Any number in the final answer outside this set is an
-    invented figure and fails the guardrail.
+    rounded forms, but NOT the minor-unit twin of a displayed amount. Any number
+    in the final answer outside this set is an invented figure and fails the
+    guardrail.
     """
     known: set[str] = set()
     for record in result.tool_calls:
-        for number in extract_numbers(json.dumps(record.arguments)) | extract_numbers(
-            json.dumps(record.result)
-        ):
+        for number in extract_numbers(
+            json.dumps(_without_minor_units(record.arguments))
+        ) | extract_numbers(json.dumps(_without_minor_units(record.result))):
             known |= _rounded_variants(number)
     return known

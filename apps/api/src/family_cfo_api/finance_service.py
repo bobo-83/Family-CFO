@@ -109,9 +109,12 @@ def next_bill_occurrence(next_due_date: date, frequency: str, today: date) -> da
 class AccountView:
     """One account as both the Accounts tab and the advisor see it.
 
-    `balance_minor` is the stored balance, SIGNED: a liability is negative,
-    exactly as the account list shows it. `get_debt_outlook` stays the
-    authority on the positive amount owed, rates, minimums, and payoff.
+    `balance_minor` is the stored balance, SIGNED and unmodified: a liability
+    owing money is negative, exactly as the account list shows it — but a paid-
+    off card sits at zero and an overpaid or refunded one goes positive, so the
+    sign is a reading of the balance, not a promise about the account type.
+    `get_debt_outlook` stays the authority on the positive amount owed, rates,
+    minimums, and payoff.
     """
 
     account_id: str

@@ -282,6 +282,29 @@ def test_accounts_tool_marks_liabilities_including_a_401k_loan(demo_engine: Engi
     assert "get_debt_outlook" in _execute(demo_engine, "get_accounts", {})["note"]
 
 
+def test_accounts_tool_does_not_call_an_overpaid_card_a_debt(demo_engine: Engine) -> None:
+    """A liability's sign is a reading of the balance, not a property of the
+    account type: an overpaid or refunded card is a credit, and the note must
+    not tell the model every liability row is negative."""
+    from family_cfo_api import repository
+
+    card = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Overpaid Card", "credit_card", "USD"
+    )
+    repository.record_account_balance(demo_engine, card.id, 7_500)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    row = next(a for a in result["accounts"] if a["name"] == "Overpaid Card")
+
+    assert row["is_liability"] is True
+    assert row["category"] == "debts"
+    # Listed as recorded, not flipped or hidden — and explained, so a credit is
+    # never reported as money owed.
+    assert row["balance"]["amount_minor"] == 7_500
+    assert "credit" in result["note"]
+    assert "never report it as a debt" in result["note"]
+
+
 def test_accounts_tool_surfaces_emergency_reservation_and_rsu_flag(demo_engine: Engine) -> None:
     """The per-account designations the record already holds (M36, RSU tag)."""
     _seed_accounts_for_inventory(demo_engine)
@@ -357,9 +380,13 @@ async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
 
     Both read `finance_service.list_account_views`; this pins the shared fields —
     including the preferred real institution over the generic connection name,
-    the emergency-fund reservation and the RSU flag — so a change to one surface
-    cannot drift from the other.
+    the last sync time, the emergency-fund reservation and the RSU flag — so a
+    change to one surface cannot drift from the other. Rows are compared as a
+    sorted sequence rather than keyed by name, so two accounts sharing a name
+    cannot hide a missing or mismatched row.
     """
+    from datetime import datetime
+
     from family_cfo_api import repository
 
     _seed_accounts_for_inventory(demo_engine)
@@ -380,38 +407,40 @@ async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
         institution="Charles Schwab",
     )
     repository.record_account_balance(demo_engine, synced_id, 100_000)
+    # A real sync stamps the connection; both surfaces must report the same one.
+    repository.record_connection_sync(demo_engine, connection.id, None)
 
     listed = await demo_client.get(
         "/api/v1/accounts", headers={"Authorization": f"Bearer {demo_token}"}
     )
     assert listed.status_code == 200
-    from_endpoint = {
-        a["name"]: (
-            a["type"],
-            a["balance"]["amount_minor"],
-            a["balance"]["currency"],
-            a["institution"],
-            (a["emergency_fund_reserved"] or {}).get("amount_minor"),
-            a["rsu_ready_to_sell"],
+    def _stamp(value: str | None) -> datetime | None:
+        """One datetime from either wire form (the endpoint may render UTC as Z)."""
+        return None if value is None else datetime.fromisoformat(value)
+
+    def _row(account: dict) -> tuple:
+        return (
+            account["name"],
+            account["type"],
+            account["balance"]["amount_minor"],
+            account["balance"]["currency"],
+            account["institution"],
+            _stamp(account["last_synced_at"]),
+            (account["emergency_fund_reserved"] or {}).get("amount_minor"),
+            account["rsu_ready_to_sell"],
         )
-        for a in listed.json()["accounts"]
-    }
-    from_tool = {
-        a["name"]: (
-            a["type"],
-            a["balance"]["amount_minor"],
-            a["balance"]["currency"],
-            a["institution"],
-            (a["emergency_fund_reserved"] or {}).get("amount_minor"),
-            a["rsu_ready_to_sell"],
-        )
-        for a in _execute(demo_engine, "get_accounts", {})["accounts"]
-    }
+
+    from_endpoint = sorted(_row(a) for a in listed.json()["accounts"])
+    from_tool = sorted(_row(a) for a in _execute(demo_engine, "get_accounts", {})["accounts"])
 
     assert from_tool == from_endpoint
+    synced = next(row for row in from_tool if row[0] == "Brokerage (synced)")
     # The provider's own org name wins over the generic connection display name.
-    assert from_tool["Brokerage (synced)"][3] == "Charles Schwab"
-    assert from_tool["Euro Savings"][2] == "EUR"
+    assert synced[4] == "Charles Schwab"
+    # A synced account carries its "as of", a manual one has none.
+    assert synced[5] is not None
+    assert next(row for row in from_tool if row[0] == "Checking")[5] is None
+    assert next(row for row in from_tool if row[0] == "Euro Savings")[3] == "EUR"
 
 
 def test_accounts_tool_is_advertised_and_dispatches_by_name(demo_engine: Engine) -> None:
@@ -445,6 +474,43 @@ def test_per_account_balances_are_quotable_by_the_grounding_guardrail(
     )
     assert "120000.00" in values  # the 401k's $120,000, as the display shows it
     assert "25000.00" in values  # the vested RSUs
+    # ...but the cents twin of the same figure is NOT quotable: grounding it
+    # would let "$12,000,000" pass for a $120,000 account, a hundredfold
+    # overstatement tracing to nothing the family holds.
+    assert "12000000" not in values
+    assert "2500000" not in values
+
+
+def test_minor_units_never_ground_a_hundredfold_overstatement() -> None:
+    """Every money figure ships as cents + display; only the display grounds."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(
+                    name="get_net_worth",
+                    arguments={},
+                    result={
+                        "net_worth": {
+                            "amount_minor": 4_200_000,
+                            "currency": "USD",
+                            "display": "$42,000.00",
+                        },
+                        "months_of_runway": 6,
+                    },
+                )
+            ],
+        )
+    )
+
+    assert {"42000.00", "42000"} <= values
+    assert "4200000" not in values
+    # Plain integers that are not a money twin still ground normally.
+    assert "6" in values
 
 
 # --- M64: income/tax, bills, budgets, spending tools ---
