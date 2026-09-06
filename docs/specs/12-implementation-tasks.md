@@ -1230,6 +1230,182 @@ The PRD (`docs/specs/01-prd.md`) promises "deterministic projections for cash fl
 Advisor tool access: not applicable—this reliability fix adds no family-visible financial data domain.
 
 
+## M122: The Advisor Can Name the Accounts Behind a Total (#130)
+
+Asked to break an asset total into the accounts behind it, the advisor said it
+could not and suggested checking with the plan administrator or logging into the
+accounts directly — for a list the Accounts tab was showing one screen away.
+`_get_net_worth` loaded the per-account records and aggregated them away, so only
+category sums reached the model. Liabilities were already itemised by
+`get_debt_outlook`, so the advisor could name every debt and no asset.
+
+### Spec Gate
+
+- [x] Record the ADR 0009 / `AGENTS.md` obligation this satisfies in the AI
+      orchestration contract (`docs/specs/07-ai-orchestration.md`, ahead of the
+      task log per the Spec Kit order): a data domain the family can see gets a
+      matching read-only grounded tool, and such a tool's payload must carry the
+      guardrail that governs its detail, not only the data.
+- [x] Decide the shape: a separate `get_accounts` tool, not an `accounts` array
+      hung off `get_net_worth`. Tool names are how the model routes intent —
+      "which account should this come out of" is not a net-worth question — and
+      `get_net_worth(month=…)` already returns a reduced payload whose breakdown
+      is current-month only.
+
+### Implementation
+
+- [x] Extract one shared account-read assembler, `finance_service.AccountView` /
+      `list_account_views`, and project BOTH `GET /accounts` and the new tool
+      from it (institution preference, connection sync time, M36 emergency
+      reservation, RSU flag), so the Accounts tab and the advisor cannot drift.
+- [x] Add `_get_accounts` returning each account's name, type, spendability
+      category, signed balance, institution, emergency-fund reservation and
+      vested-RSU flag, and register it in `build_tools` with routing rules.
+- [x] Include liabilities, categorised `debts` (covering `401k_loan`), balances
+      signed as stored; the payload names `get_debt_outlook` as the authority on
+      the amount owed, rate, minimum payment, payoff and strategy.
+- [x] List foreign-currency accounts rather than dropping them, flagged
+      `matches_base_currency: false`. `POST /accounts` accepts any ISO
+      code without comparing it to the base currency, so such an account is real
+      and visible; returning only a held-back count would recreate the bug.
+- [x] Cross-reference the tool from `get_net_worth`'s description and payload,
+      and add the routing rule to `GROUNDING_RULES`: never claim the accounts
+      cannot be seen, never send the family to a plan administrator or a bank
+      login for a figure a tool returns.
+
+### The M33 Guarantee, Kept and Tightened
+
+- [x] `asset_breakdown` is unchanged and additive; retirement and education money
+      is still marked NOT available for purchases, per account as well as in the
+      totals.
+- [x] The spendability note (shared by `get_net_worth` and `get_accounts`) no
+      longer tells the model to "subtract [the emergency fund] from liquid funds
+      before judging affordability". That instruction contradicted the invariant
+      rule forbidding derived spendable amounts, and per-account balances make it
+      more dangerous. Affordability routes to `get_safe_to_spend` alone.
+
+### Documented Blind Spot
+
+- [x] `list_account_balances` inner-joins the latest balance snapshot, so an
+      account with no balance row yet is invisible to the tool. `GET /accounts`
+      has the same blind spot, so the advisor sees exactly the inventory the
+      household sees; the tool's note says so rather than implying completeness.
+      Deliberate, not accidental (`savings_detection.py` works around the same
+      join where it needs every account).
+
+### Exposure
+
+- [x] This puts account names into advisor answers and into stored
+      recommendations at scale for the first time. Account names are sealed
+      content columns decrypted at request time (ADR 0072), and
+      `create_recommendation` seals the stored `answer` the same way, so nothing
+      new is written at rest in plaintext. Precedent: `_get_safe_to_spend`
+      already returns `{"account": name, …}` for RSU accounts — only the breadth
+      is new. A locked household raises `HouseholdLockedError` from the tool
+      exactly as it does from `get_net_worth` and `get_debt_outlook`.
+
+### Tests
+
+- [x] Accounts itemised with name, type, category, balance, currency; liabilities
+      (including a 401(k) loan) categorised `debts` with signed balances; the
+      emergency reservation and RSU flag surfaced per account; a foreign-currency
+      account listed and flagged rather than dropped; the tool advertised by
+      `build_tools` and dispatched by name; the payload routing spending and debt
+      questions to the right tools.
+- [x] Parity: `GET /accounts` and `get_accounts` return identical shared fields,
+      including the preferred real institution over the generic connection name
+      and the connection's last sync time. Rows are compared as a sorted
+      sequence, not keyed by name, so two accounts sharing a name cannot mask a
+      missing or mismatched row.
+- [x] Regression: `asset_breakdown` keeps its M33 categories and the note routes
+      affordability to `get_safe_to_spend`.
+- [x] A per-account balance appears in `grounded_values` — the behaviour the
+      issue is about: itemised balances are quotable, not invented.
+- [x] Locked/sealed household behaves like the other tools.
+
+Advisor tool access: this milestone IS the advisor tool access — it closes the
+ADR 0009 gap for the accounts domain.
+
+Out of scope: no OpenAPI change (advisor tools are internal to the chat loop) and
+no change to `asset_breakdown`'s shape, so the Overview endpoint is untouched.
+
+### Second Review Round (PR #154)
+
+- [x] **Digits in household text no longer ground a figure.** `grounded_values`
+      scanned the whole payload, so an account named "Fidelity Brokerage 9876"
+      holding USD 100.00 made an invented "USD 9,876.00" pass the guardrail.
+      Account, institution, merchant, category, description and label strings —
+      and the model's own search `query` — are excluded. Text the app itself
+      wrote still grounds, including `web_search` snippets, because quoting a
+      public price out of a snippet is what that tool is for.
+- [x] **The answer side gained the mirror rule**, in the shared guardrail:
+      digits that name a thing (`401k`, `529 plan`, `1099-DIV`) are not money
+      claims. Those digits previously grounded only as a side effect of an
+      account's name, so without this the fix above would have made the advisor
+      fail closed for saying "401k" out loud. A bare identifier only — `USD
+      529.00` is still a money claim and still checked.
+- [x] **No tool ships a bare minor-unit amount.** `get_safe_to_spend`'s vested
+      RSUs and `when_can_i_retire`'s retirement-source rows returned raw
+      `value_minor` / `balance_minor`, which the first filter did not recognise,
+      so a $25,000 holding still permitted "$2,500,000". Both now go through
+      `_money_out`, the filter drops every `*_minor` key in a RESULT (a new one
+      fails closed instead of reopening the hole), and a test asserts no tool
+      payload contains one. Arguments keep theirs: `_money_arg` still accepts
+      the legacy `<field>_minor` input form.
+- [x] **`get_accounts` marks itself current-only** (`as_of: "current"`, note,
+      and both tool descriptions). It takes no `month` and reads today's
+      balances, while `get_net_worth(month=…)` answers for a past month — an
+      account opened since would otherwise be presented as part of that total.
+      `last_synced_at` does not help: it is null for manual accounts and speaks
+      to refresh time, not historical membership.
+- [x] **`included_in_base_currency_totals` renamed `matches_base_currency`.** It
+      only ever tested `view.currency == currency`, so a base-currency 401(k)
+      loan reported `true` although `calculate_net_worth` skips retirement loans
+      outright and safe-to-spend counts only liquid types. The note now says a
+      match is necessary but never sufficient, and points at the tool that owns
+      each total.
+
+### Review Follow-Ups (PR #154)
+
+- [x] The tool returns `last_synced_at` per account. The shared assembler and the
+      Accounts tab already carried it; without it the advisor could quote a
+      synced balance with no idea how stale it was, while the screen beside it
+      says "as of".
+- [x] The payload no longer asserts that liability balances are negative. A
+      liability's sign is a reading of the balance, not a property of the type:
+      a paid-off card sits at zero and an overpaid or refunded one goes
+      positive (`POST /accounts/{id}/balances` accepts it, and
+      `count_liabilities_without_terms` already treats `>= 0` as nothing owed).
+      The note now explains the convention — negative owed, zero clear, positive
+      a credit, never reported as a debt.
+- [x] Guardrail tightened: `grounded_values` no longer grounds the
+      `amount_minor` twin of a displayed amount. `_money_out` emits cents and
+      `display` for the same figure, so grounding the cents let an answer
+      claiming "$12,000,000" pass for a $120,000 balance — a hundredfold
+      overstatement tracing to nothing the family holds. Pre-existing across
+      every money tool; itemised per-account balances made it worth closing now.
+      The dollar form always travels alongside, so no legitimate quotation is
+      lost.
+- [x] Proved that last claim rather than asserting it: a sweep over EVERY
+      money-returning tool checks each displayed amount still grounds in the
+      forms a model says it (display string, two-decimal major form, whole-number
+      reading), and a structural test pins that a minor-unit field with no
+      display beside it survives — `_get_safe_to_spend` reports vested RSUs that
+      way, so it is the only quotable form of that figure. The change is
+      subtractive, so the risk it carries is a TRUE answer failing the guardrail
+      and falling back to the deterministic snapshot, silently.
+- [x] `apps/api/README.md` no longer claims every tool persists a
+      `financial_calculations` row and returns a `calculation_ref`. An inventory
+      read has nothing to persist; it is grounded by its own tool-call trace.
+
+Noted, not fixed here (issue #152): `compute_net_worth_with_ref`,
+`compute_emergency_fund` and `compute_safe_to_spend` feed every balance to the
+engine regardless of currency, so one foreign-currency account raises
+`CurrencyMismatchError` from `GET /household` and from those three tools. A
+pre-existing defect in a different code path; `get_accounts` is unaffected and
+lists such accounts correctly, which is why it is flagged rather than hidden.
+
+
 ## Backlog: Annual Report
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.

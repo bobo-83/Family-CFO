@@ -3,7 +3,7 @@ from __future__ import annotations
 import calendar
 import logging
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from family_cfo_financial_engine import (
@@ -95,6 +95,105 @@ def next_bill_occurrence(next_due_date: date, frequency: str, today: date) -> da
         return occurrence
 
     return next_due_date
+
+
+# --- shared account read (M122) ---------------------------------------------
+#
+# ONE assembler behind every account inventory the household can see: the
+# Accounts tab (`GET /accounts`) and the advisor's `get_accounts` tool project
+# the same view, so the two can never drift into showing different accounts,
+# institutions, or emergency-fund reservations.
+
+
+@dataclass(frozen=True, slots=True)
+class AccountView:
+    """One account as both the Accounts tab and the advisor see it.
+
+    `balance_minor` is the stored balance, SIGNED and unmodified: a liability
+    owing money is negative, exactly as the account list shows it — but a paid-
+    off card sits at zero and an overpaid or refunded one goes positive, so the
+    sign is a reading of the balance, not a promise about the account type.
+    `get_debt_outlook` stays the authority on the positive amount owed, rates,
+    minimums, and payoff.
+    """
+
+    account_id: str
+    name: str
+    account_type: str
+    currency: str
+    balance_minor: int
+    # Spendability category (M33) for assets; None for liabilities, which have
+    # no entry in ASSET_CATEGORY_BY_TYPE by design.
+    spendability_category: str | None
+    is_liability: bool
+    annual_interest_rate: float | None
+    minimum_payment_minor: int | None
+    maturity_date: date | None
+    next_payment_due_date: date | None
+    # M36: the designation (percent XOR fixed) and the reservation derived from
+    # it. `emergency_fund_reserved_minor` is None when nothing is designated —
+    # "no reservation" and "a reservation of zero" are different facts.
+    emergency_fund_percent: float | None
+    emergency_fund_minor: int | None
+    emergency_fund_reserved_minor: int | None
+    rsu_ready_to_sell: bool
+    institution: str | None
+    last_synced_at: datetime | None
+
+
+def list_account_views(engine: Engine, household_id: str) -> list[AccountView]:
+    """Every account with a balance, assembled once for the app and the advisor.
+
+    Inherited blind spot, deliberate (M122): `list_account_balances` joins the
+    latest balance snapshot, so an account that has never had a balance recorded
+    is absent here — as it is from `GET /accounts`. The advisor therefore sees
+    exactly the inventory the household sees on the Accounts tab, rather than a
+    second, differently-incomplete list.
+    """
+    balances = repository.list_account_balances(engine, household_id)
+    connections = repository.account_connection_map(engine, household_id)
+    # Prefer the real per-account institution (SimpleFIN's org, e.g. "Charles
+    # Schwab") over the generic connection name ("SimpleFin (multiple banks)").
+    institutions = repository.account_institution_map(engine, household_id)
+    views: list[AccountView] = []
+    for balance in balances:
+        connection = connections.get(balance.account_id)
+        designated = (
+            balance.emergency_fund_percent is not None or balance.emergency_fund_minor is not None
+        )
+        views.append(
+            AccountView(
+                account_id=balance.account_id,
+                name=balance.name,
+                account_type=balance.account_type,
+                currency=balance.currency,
+                balance_minor=balance.balance_minor,
+                spendability_category=ASSET_CATEGORY_BY_TYPE.get(balance.account_type),
+                is_liability=balance.account_type in repository.LIABILITY_ACCOUNT_TYPES,
+                annual_interest_rate=balance.annual_interest_rate,
+                minimum_payment_minor=balance.minimum_payment_minor,
+                maturity_date=balance.maturity_date,
+                next_payment_due_date=balance.next_payment_due_date,
+                emergency_fund_percent=balance.emergency_fund_percent,
+                emergency_fund_minor=balance.emergency_fund_minor,
+                emergency_fund_reserved_minor=(
+                    repository.emergency_fund_reserved_minor(
+                        balance.emergency_fund_percent,
+                        balance.emergency_fund_minor,
+                        balance.balance_minor,
+                    )
+                    if designated
+                    else None
+                ),
+                rsu_ready_to_sell=balance.rsu_ready_to_sell,
+                institution=(
+                    institutions.get(balance.account_id)
+                    or (connection.institution if connection else None)
+                ),
+                last_synced_at=connection.last_synced_at if connection else None,
+            )
+        )
+    return views
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
@@ -97,7 +98,7 @@ def test_retirement_grounds_savings_and_expenses_from_household_data(
     assumptions = result["grounded_defaults"]
     funded = assumptions["current_savings_from_accounts"]
     assert any("401k" in a["name"] for a in funded)
-    assert sum(a["balance_minor"] for a in funded) >= 28_500_000
+    assert sum(a["balance"]["amount_minor"] for a in funded) >= 28_500_000
     assert assumptions["monthly_contribution_assumed_zero"] is True
     assert assumptions["annual_return_rate_default"] == 0.05
     assert "essentials" in assumptions["annual_expenses_basis"]
@@ -204,6 +205,582 @@ def test_net_worth_tool_breaks_assets_into_spendability_categories(demo_engine: 
         assert money["amount_minor"] >= 0, category
     assert "NOT available for purchases" in result["spendability_note"]
     assert "retirement" in result["spendability_note"]
+
+
+# --- M122 (#130): the accounts behind the totals ---
+
+
+def _seed_accounts_for_inventory(engine: Engine):
+    """A household with one of each interesting shape: a designated emergency
+    fund, an RSU-tagged brokerage, and a 401(k) loan."""
+    from family_cfo_api import repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    brokerage = repository.create_account(engine, hh, "Vested RSUs", "brokerage", "USD")
+    repository.record_account_balance(engine, brokerage.id, 2_500_000)
+    repository.update_account(engine, hh, brokerage.id, rsu_ready_to_sell=True)
+
+    retirement = repository.create_account(engine, hh, "401k", "retirement", "USD")
+    repository.record_account_balance(engine, retirement.id, 12_000_000)
+
+    loan = repository.create_account(engine, hh, "401k Loan", "401k_loan", "USD")
+    repository.record_account_balance(engine, loan.id, -800_000)
+
+    # M36: the demo savings account IS the emergency fund.
+    savings = next(b for b in repository.list_account_balances(engine, hh) if b.name == "Savings")
+    repository.update_account(engine, hh, savings.account_id, emergency_fund_percent=100.0)
+    return {"brokerage": brokerage, "loan": loan, "savings": savings}
+
+
+def _seed_foreign_currency_account(engine: Engine):
+    """POST /accounts accepts any ISO code without comparing it to the household
+    base currency, so an account the family can see may sit outside it."""
+    from family_cfo_api import repository
+
+    euro = repository.create_account(engine, fixtures.DEMO_HOUSEHOLD_ID, "Euro Savings", "savings", "EUR")
+    repository.record_account_balance(engine, euro.id, 400_000)
+    return euro
+
+
+def test_accounts_tool_itemises_every_account_behind_the_totals(demo_engine: Engine) -> None:
+    """#130: asked which accounts make up a total, the advisor must be able to
+    answer from a tool instead of sending the family to look it up elsewhere."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+
+    by_name = {a["name"]: a for a in result["accounts"]}
+    assert {"Checking", "Savings", "Mortgage", "401k", "Vested RSUs"} <= set(by_name)
+    assert result["account_count"] == len(result["accounts"])
+
+    checking = by_name["Checking"]
+    assert checking["type"] == "checking"
+    assert checking["category"] == "liquid"
+    assert checking["is_liability"] is False
+    assert checking["balance"]["amount_minor"] == 500_000
+    assert checking["balance"]["currency"] == "USD"
+    assert "5,000.00" in checking["balance"]["display"]
+
+    # M33 categories travel with each row, so a balance can never be read as
+    # spendable just because the model can see it.
+    assert by_name["401k"]["category"] == "retirement"
+    assert by_name["Vested RSUs"]["category"] == "investments"
+
+
+def test_accounts_tool_marks_liabilities_including_a_401k_loan(demo_engine: Engine) -> None:
+    """Liabilities have no spendability category by design; they get their own,
+    and their balances stay signed exactly as the app records them."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    by_name = {a["name"]: a for a in _execute(demo_engine, "get_accounts", {})["accounts"]}
+
+    for name in ("Mortgage", "401k Loan"):
+        assert by_name[name]["category"] == "debts", name
+        assert by_name[name]["is_liability"] is True, name
+        assert by_name[name]["balance"]["amount_minor"] < 0, name
+    # get_debt_outlook stays the authority on the positive amount owed and terms.
+    assert "get_debt_outlook" in _execute(demo_engine, "get_accounts", {})["note"]
+
+
+def test_accounts_tool_does_not_call_an_overpaid_card_a_debt(demo_engine: Engine) -> None:
+    """A liability's sign is a reading of the balance, not a property of the
+    account type: an overpaid or refunded card is a credit, and the note must
+    not tell the model every liability row is negative."""
+    from family_cfo_api import repository
+
+    card = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Overpaid Card", "credit_card", "USD"
+    )
+    repository.record_account_balance(demo_engine, card.id, 7_500)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    row = next(a for a in result["accounts"] if a["name"] == "Overpaid Card")
+
+    assert row["is_liability"] is True
+    assert row["category"] == "debts"
+    # Listed as recorded, not flipped or hidden — and explained, so a credit is
+    # never reported as money owed.
+    assert row["balance"]["amount_minor"] == 7_500
+    assert "credit" in result["note"]
+    assert "never report it as a debt" in result["note"]
+
+
+def test_accounts_tool_surfaces_emergency_reservation_and_rsu_flag(demo_engine: Engine) -> None:
+    """The per-account designations the record already holds (M36, RSU tag)."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    by_name = {a["name"]: a for a in _execute(demo_engine, "get_accounts", {})["accounts"]}
+
+    # 100% of the $15,000 savings balance is designated emergency money.
+    assert by_name["Savings"]["emergency_fund_reserved"]["amount_minor"] == 1_500_000
+    assert by_name["Vested RSUs"]["rsu_ready_to_sell"] is True
+    # An undesignated account says so with null, not a zero reservation.
+    assert by_name["Checking"]["emergency_fund_reserved"] is None
+    assert by_name["Checking"]["rsu_ready_to_sell"] is False
+
+
+def test_accounts_tool_lists_foreign_currency_accounts_rather_than_dropping_them(
+    demo_engine: Engine,
+) -> None:
+    """An inventory that silently omits an account the family can see on screen
+    recreates the very bug this tool fixes — flag it, never hide it."""
+    _seed_accounts_for_inventory(demo_engine)
+    _seed_foreign_currency_account(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    by_name = {a["name"]: a for a in result["accounts"]}
+
+    euro = by_name["Euro Savings"]
+    assert euro["balance"]["currency"] == "EUR"
+    assert euro["balance"]["amount_minor"] == 400_000
+    assert euro["matches_base_currency"] is False
+    assert by_name["Checking"]["matches_base_currency"] is True
+    assert result["accounts_outside_base_currency"] == 1
+
+
+def test_accounts_flag_claims_currency_match_not_membership_of_a_total(
+    demo_engine: Engine,
+) -> None:
+    """The flag tests the currency and nothing else. A base-currency 401(k) loan
+    matches, yet net worth skips retirement loans entirely and safe-to-spend
+    counts only checking and savings — so the payload must not let the model read
+    a match as "this is in that total"."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    by_name = {a["name"]: a for a in result["accounts"]}
+
+    assert by_name["401k Loan"]["matches_base_currency"] is True
+    assert "included_in_base_currency_totals" not in by_name["401k Loan"]
+    assert "does NOT mean a given total includes the account" in result["note"]
+    assert "401(k) loans" in result["note"]
+
+
+def test_accounts_tool_marks_itself_current_only(demo_engine: Engine) -> None:
+    """`get_net_worth(month=...)` answers for a past month; this tool always reads
+    today's balances. Without an as-of marker the advisor can present today's
+    accounts as the components of a historical total."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    assert result["as_of"] == "current"
+    assert "TODAY" in result["note"]
+    assert "get_net_worth(month=...)" in result["note"]
+
+    historical = _execute(demo_engine, "get_net_worth", {"month": "2026-01"})
+    assert "TODAY's accounts" in historical["note"]
+    assert "Do not itemise this total" in historical["note"]
+
+    spec = next(t for t in ai_tools.build_tools() if t.name == "get_accounts")
+    assert "CURRENT balances only" in spec.description
+    net_worth_spec = next(t for t in ai_tools.build_tools() if t.name == "get_net_worth")
+    assert "cannot break down a past month" in net_worth_spec.description
+
+
+def test_accounts_tool_routes_spending_and_debt_questions_elsewhere(demo_engine: Engine) -> None:
+    """The payload must carry the guardrail, not just the data: per-account
+    balances are exactly the input that invites re-deriving a spendable total."""
+    result = _execute(demo_engine, "get_accounts", {})
+
+    note = result["note"] + result["spendability_note"]
+    assert "get_safe_to_spend" in note
+    assert "get_debt_outlook" in note
+    assert "NOT available for purchases" in result["spendability_note"]
+
+
+def test_net_worth_keeps_its_categories_and_points_at_the_accounts_tool(
+    demo_engine: Engine,
+) -> None:
+    """Regression: M33's guarantee survives the addition — the breakdown and its
+    non-spendability warning are unchanged, and affordability still routes to
+    get_safe_to_spend rather than inviting the model to subtract."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_net_worth", {})
+
+    breakdown = result["asset_breakdown"]
+    assert breakdown["liquid"]["amount_minor"] == 500_000 + 1_500_000
+    assert breakdown["retirement"]["amount_minor"] == 12_000_000
+    assert breakdown["investments"]["amount_minor"] == 2_500_000
+    note = result["spendability_note"]
+    assert "NOT available for purchases" in note and "retirement" in note
+    # The old note told the model to subtract the emergency fund itself, which
+    # the invariant rules forbid; affordability comes from one tool only.
+    assert "get_safe_to_spend" in note
+    assert "subtract it from liquid funds" not in note
+    assert "get_accounts" in result["accounts_note"]
+
+
+@pytest.mark.anyio
+async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
+    demo_engine: Engine, demo_client, demo_token
+) -> None:
+    """The Accounts tab and the advisor must never name different accounts.
+
+    Both read `finance_service.list_account_views`; this pins the shared fields —
+    including the preferred real institution over the generic connection name,
+    the last sync time, the emergency-fund reservation and the RSU flag — so a
+    change to one surface cannot drift from the other. Rows are compared as a
+    sorted sequence rather than keyed by name, so two accounts sharing a name
+    cannot hide a missing or mismatched row.
+    """
+    from datetime import datetime
+
+    from family_cfo_api import repository
+
+    _seed_accounts_for_inventory(demo_engine)
+    _seed_foreign_currency_account(demo_engine)
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    connection = repository.create_institution_connection(
+        demo_engine, hh, "simplefin", "SimpleFin (multiple banks)", "enc"
+    )
+    synced_id = repository.get_or_create_connection_account(
+        demo_engine,
+        hh,
+        connection.id,
+        external_account_id="ext-1",
+        name="Brokerage (synced)",
+        currency="USD",
+        account_type="brokerage",
+        institution="Charles Schwab",
+    )
+    repository.record_account_balance(demo_engine, synced_id, 100_000)
+    # A real sync stamps the connection; both surfaces must report the same one.
+    repository.record_connection_sync(demo_engine, connection.id, None)
+
+    listed = await demo_client.get(
+        "/api/v1/accounts", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    assert listed.status_code == 200
+    def _stamp(value: str | None) -> datetime | None:
+        """One datetime from either wire form (the endpoint may render UTC as Z)."""
+        return None if value is None else datetime.fromisoformat(value)
+
+    def _row(account: dict) -> tuple:
+        return (
+            account["name"],
+            account["type"],
+            account["balance"]["amount_minor"],
+            account["balance"]["currency"],
+            account["institution"],
+            _stamp(account["last_synced_at"]),
+            (account["emergency_fund_reserved"] or {}).get("amount_minor"),
+            account["rsu_ready_to_sell"],
+        )
+
+    from_endpoint = sorted(_row(a) for a in listed.json()["accounts"])
+    from_tool = sorted(_row(a) for a in _execute(demo_engine, "get_accounts", {})["accounts"])
+
+    assert from_tool == from_endpoint
+    synced = next(row for row in from_tool if row[0] == "Brokerage (synced)")
+    # The provider's own org name wins over the generic connection display name.
+    assert synced[4] == "Charles Schwab"
+    # A synced account carries its "as of", a manual one has none.
+    assert synced[5] is not None
+    assert next(row for row in from_tool if row[0] == "Checking")[5] is None
+    assert next(row for row in from_tool if row[0] == "Euro Savings")[3] == "EUR"
+
+
+def test_accounts_tool_is_advertised_and_dispatches_by_name(demo_engine: Engine) -> None:
+    names = [tool.name for tool in ai_tools.build_tools()]
+
+    assert "get_accounts" in names
+    spec = next(t for t in ai_tools.build_tools() if t.name == "get_accounts")
+    assert "get_safe_to_spend" in spec.description
+    assert _execute(demo_engine, "get_accounts", {})["accounts"]
+
+
+def test_per_account_balances_are_quotable_by_the_grounding_guardrail(
+    demo_engine: Engine,
+) -> None:
+    """The point of the issue: itemised balances become quotable, so naming an
+    account's balance in an answer no longer trips the invented-figure check."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    _seed_accounts_for_inventory(demo_engine)
+    payload = _execute(demo_engine, "get_accounts", {})
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(name="get_accounts", arguments={}, result=payload)
+            ],
+        )
+    )
+    assert "120000.00" in values  # the 401k's $120,000, as the display shows it
+    assert "25000.00" in values  # the vested RSUs
+    # ...but the cents twin of the same figure is NOT quotable: grounding it
+    # would let "$12,000,000" pass for a $120,000 account, a hundredfold
+    # overstatement tracing to nothing the family holds.
+    assert "12000000" not in values
+    assert "2500000" not in values
+
+
+def test_minor_units_never_ground_a_hundredfold_overstatement() -> None:
+    """Every money figure ships as cents + display; only the display grounds."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(
+                    name="get_net_worth",
+                    arguments={},
+                    result={
+                        "net_worth": {
+                            "amount_minor": 4_200_000,
+                            "currency": "USD",
+                            "display": "$42,000.00",
+                        },
+                        "months_of_runway": 6,
+                    },
+                )
+            ],
+        )
+    )
+
+    assert {"42000.00", "42000"} <= values
+    assert "4200000" not in values
+    # Plain integers that are not a money twin still ground normally.
+    assert "6" in values
+
+
+def _money_rows(value) -> list[tuple[int, str]]:
+    """Every serialized Money in a payload, as (amount_minor, display)."""
+    rows: list[tuple[int, str]] = []
+    if isinstance(value, dict):
+        if "amount_minor" in value and "display" in value:
+            rows.append((value["amount_minor"], value["display"]))
+        for item in value.values():
+            rows.extend(_money_rows(item))
+    elif isinstance(value, list):
+        for item in value:
+            rows.extend(_money_rows(item))
+    return rows
+
+
+# Every tool that returns money, with arguments that reach a real payload on the
+# demo household. Dropping the minor-unit twin must not cost ANY of them a
+# figure the model is meant to quote.
+_MONEY_TOOL_CALLS = [
+    ("get_net_worth", {}),
+    ("get_accounts", {}),
+    ("get_emergency_fund", {}),
+    ("get_safe_to_spend", {}),
+    ("get_debt_outlook", {}),
+    ("get_debt_history", {}),
+    ("get_income_and_tax", {}),
+    ("get_bills", {}),
+    ("get_budgets", {}),
+    ("get_savings_contributions", {}),
+    ("get_spending_insights", {}),
+    ("get_spending_by_category", {}),
+    ("find_savings", {}),
+    ("project_purchase_impact", {"price": 1200.0}),
+    ("future_value", {"present_value": 10_000.0, "annual_return_rate": 0.06, "years": 20}),
+    ("when_can_i_retire", {"current_age": 43}),
+    ("project_retirement", {"current_age": 43, "retirement_age": 65}),
+    (
+        "debt_payoff",
+        {"balance": 5_000.0, "annual_interest_rate": 0.199, "minimum_payment": 150.0},
+    ),
+]
+
+
+def _seed_money_for_every_tool(engine: Engine) -> None:
+    """Enough of a household that every money tool returns real figures: the
+    demo mortgage has no terms (so `get_debt_outlook` itemises nothing) and no
+    envelope exists (so `get_budgets` is empty)."""
+    from family_cfo_api import repository
+
+    _seed_accounts_for_inventory(engine)
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    mortgage = next(b for b in repository.list_account_balances(engine, hh) if b.name == "Mortgage")
+    repository.update_account(
+        engine,
+        hh,
+        mortgage.account_id,
+        annual_interest_rate=0.0625,
+        minimum_payment_minor=180_000,
+    )
+    category = repository.create_category(engine, hh, "Groceries Envelope")
+    repository.create_budget(
+        engine, household_id=hh, category_id=category.id, limit_minor=50_000, currency="USD"
+    )
+
+
+@pytest.mark.parametrize(("tool", "args"), _MONEY_TOOL_CALLS)
+def test_dropping_minor_units_costs_no_tool_a_quotable_figure(
+    demo_engine: Engine, tool: str, args: dict
+) -> None:
+    """The guardrail change is subtractive, so the risk is a TRUE answer failing
+    it and falling back to the deterministic snapshot. Sweep every money tool:
+    each displayed amount must still ground, in the forms a model actually says
+    ($5,000.00 written as "5,000.00", "5000.00" or "5,000")."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import extract_numbers
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    _seed_money_for_every_tool(demo_engine)
+    payload = _execute(demo_engine, tool, args)
+    assert "error" not in payload, payload
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name=tool, arguments=args, result=payload)],
+        )
+    )
+
+    rows = _money_rows(payload)
+    assert rows, f"{tool} returned no money to check"
+    for minor, display in rows:
+        for spoken in extract_numbers(display):
+            assert spoken in values, f"{tool}: {display} lost its grounding"
+        major = abs(minor) / 100
+        assert f"{major:.2f}" in values, f"{tool}: {display}"
+        if major == int(major):
+            # "$5,000.00" read aloud as "5,000".
+            assert str(int(major)) in values, f"{tool}: {display}"
+
+
+def test_no_result_field_ships_a_bare_minor_unit_amount(demo_engine: Engine) -> None:
+    """Every money figure must leave a tool through `_money_out`. A raw
+    `*_minor` int beside a real holding is what lets an answer overstate it a
+    hundredfold, and the filter can only protect what it can recognise."""
+    import json
+    import re
+
+    _seed_money_for_every_tool(demo_engine)
+    for tool, args in _MONEY_TOOL_CALLS:
+        payload = _execute(demo_engine, tool, args)
+        bare = re.findall(r'"(\w*_minor)":', json.dumps(payload, default=str))
+        assert set(bare) <= {"amount_minor"}, f"{tool} ships raw minor units: {set(bare)}"
+
+
+def test_grounding_filter_drops_minor_units_and_household_text() -> None:
+    """Results lose every minor-unit field (a new one fails closed rather than
+    reopening the hole) and every household-supplied identity string; arguments
+    keep their minor units, because `_money_arg` still accepts the legacy
+    `<field>_minor` form and echoing the user's own figure is legitimate."""
+    payload = {
+        "outputs": {
+            "safe_to_spend": {"amount_minor": 250_000, "currency": "USD", "display": "$2,500.00"}
+        },
+        "vested_rsus_ready_to_sell_not_cash": [
+            {"account": "Vested RSUs 9876", "value": {"amount_minor": 2_500_000, "display": "$25,000.00"}}
+        ],
+        "warnings": ["one debt has no recorded minimum payment"],
+        "months_of_runway": 6,
+    }
+
+    filtered = ai_tools._groundable(payload, drop_minor_units=True)
+
+    assert filtered["outputs"]["safe_to_spend"] == {"currency": "USD", "display": "$2,500.00"}
+    rsu = filtered["vested_rsus_ready_to_sell_not_cash"][0]
+    assert "account" not in rsu  # the name's digits are an identifier, not money
+    assert rsu["value"] == {"display": "$25,000.00"}
+    assert filtered["warnings"] == payload["warnings"]  # our own text still grounds
+    assert filtered["months_of_runway"] == 6
+    # Non-destructive: the caller's payload is untouched.
+    assert payload["outputs"]["safe_to_spend"]["amount_minor"] == 250_000
+
+    args = ai_tools._groundable(
+        {"present_value_minor": 100_000, "query": "roof costs 9876"}, drop_minor_units=False
+    )
+    assert args["present_value_minor"] == 100_000
+    assert "query" not in args  # a number the model typed is not a fact
+
+
+def test_digits_in_an_account_name_are_not_a_quotable_figure(demo_engine: Engine) -> None:
+    """Last-four identifiers are everywhere in account names. Grounding them let
+    an invented figure that happened to match the digits pass the guardrail."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import validate_recommendation
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    from family_cfo_api import repository
+
+    account = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Fidelity Brokerage 9876", "brokerage", "USD"
+    )
+    repository.record_account_balance(demo_engine, account.id, 10_000)  # USD 100.00
+
+    payload = _execute(demo_engine, "get_accounts", {})
+    assert any(a["name"] == "Fidelity Brokerage 9876" for a in payload["accounts"])
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name="get_accounts", arguments={}, result=payload)],
+        )
+    )
+
+    assert "9876" not in values
+    assert "9876.00" not in values
+    assert not validate_recommendation("That brokerage holds USD 9,876.00 today.", values).passed
+    # The real balance is still quotable, so the answer that IS true still passes.
+    assert validate_recommendation("That brokerage holds USD 100.00 today.", values).passed
+
+
+def test_naming_an_account_type_out_loud_is_not_a_violation(demo_engine: Engine) -> None:
+    """Account names used to ground their own digits as a side effect, so a
+    household with a "401k" account made 401 quotable. Now that names ground
+    nothing, saying "401k" or "529 plan" must not fail the guardrail — otherwise
+    the fix trades an invented-figure hole for a mute advisor."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import validate_recommendation
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    fixtures.seed_showcase_data(demo_engine)
+    payload = _execute(demo_engine, "when_can_i_retire", {"current_age": 43})
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name="when_can_i_retire", arguments={}, result=payload)],
+        )
+    )
+
+    balance = payload["grounded_defaults"]["current_savings_from_accounts"][0]["balance"]
+    answer = f"Your 401k holds {balance['display']}, and the 529 plan stays untouched."
+    assert validate_recommendation(answer, values).passed
+
+
+def test_public_prices_found_by_web_search_stay_quotable() -> None:
+    """The text filter must not reach `web_search`: a price the model found on
+    the web lives in the snippet, and quoting it is the point of the tool."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(
+                    name="web_search",
+                    arguments={"query": "average cost of a new roof"},
+                    result={
+                        "results": [
+                            {"title": "Roof costs", "snippet": "A new asphalt roof runs 12,500.00"}
+                        ]
+                    },
+                )
+            ],
+        )
+    )
+
+    assert "12500.00" in values
 
 
 # --- M64: income/tax, bills, budgets, spending tools ---

@@ -78,10 +78,69 @@ Every AI recommendation must expose:
 - Confidence
 - Missing information
 
+## Grounded Read Tools Cover Every Visible Data Domain
+
+A data domain the family can see in the app must have a matching read-only
+grounded tool (ADR 0009; the rule is restated in `AGENTS.md`). Without one the
+advisor has to say it cannot see something the app is displaying one screen
+away, and sends the household elsewhere for a figure the box already holds.
+
+Two properties make such a tool safe to add:
+
+- **The tool is the grounding.** Every figure in an answer must come from a tool
+  result, so itemising a record through a tool is what makes it quotable. A
+  detail the model is not given is a detail it must refuse to state.
+- **The payload carries its own guardrail.** Detail that could be misread has to
+  travel with the rule that governs it, not just with the data. An account
+  inventory therefore carries each account's spendability category (M33) and the
+  rule that spendable money comes from `get_safe_to_spend` alone — it never
+  invites the model to add balances up or subtract one from another.
+
+Applied to accounts (`get_accounts`, M122):
+
+- The tool returns EACH account's name, type, spendability category, signed
+  balance, institution, last sync time, emergency-fund reservation and
+  vested-RSU flag.
+- Liabilities are included, categorised `debts`, with balances signed as stored;
+  `get_debt_outlook` stays the authority on the amount owed, rate, minimum
+  payment, payoff and strategy. The sign is a reading of the balance, not a
+  property of the account type: negative is owed, zero is clear, and a positive
+  liability balance is a credit (an overpayment or refund) that must never be
+  reported as a debt.
+- An account outside the household base currency is listed like any other and
+  flagged `matches_base_currency: false`. An inventory that silently omits an
+  account the family can see recreates the problem it exists to solve; only
+  base-currency arithmetic excludes it. The flag claims currency equality and
+  nothing more: matching is necessary for a total to include an account, never
+  sufficient (net worth skips 401(k) loans; safe-to-spend counts only liquid
+  types), so the tool that owns a total remains the authority on what is in it.
+- The inventory is CURRENT (`as_of: "current"`). `get_net_worth(month=…)`
+  answers for a past month, and today's accounts are not that month's — so both
+  tools' descriptions and payloads say so rather than leaving the model to
+  itemise a historical total with a present-day list.
+- The tool and the `GET /accounts` endpoint project one shared assembler, so the
+  Accounts tab and the advisor can never name different accounts.
+
 ## Guardrails
 
 - The LLM must not invent account balances, debt terms, or investment performance.
 - The LLM must cite calculation outputs when making numeric claims.
+- Grounding is unit-aware: money travels as minor units plus a display string,
+  and only the display form grounds an answer. Accepting the minor-unit twin
+  would let a hundredfold overstatement of a real balance pass the guardrail.
+  Every tool therefore emits money through the shared serializer; a raw
+  `<field>_minor` output field grounds nothing at all.
+- Grounding comes from figures, not from names. Household- and bank-supplied
+  text (account, institution, merchant, category, description, label — and the
+  model's own search `query`) is excluded from the grounded set: an account
+  called "Fidelity Brokerage 9876" must not make USD 9,876.00 quotable. Free
+  text the app itself produced — notes, warnings, and `web_search` snippets —
+  still grounds, because quoting a public price out of a snippet is the point
+  of that tool.
+- The mirror of that rule on the answer side: digits that name a thing rather
+  than an amount (`401k`, `529 plan`, `1099-DIV`) are not money claims. Without
+  this the advisor would fail closed for saying an account type out loud, since
+  those digits used to ground only as a side effect of the account's name.
 - Financial advice must be framed as educational guidance unless a future legal review changes this policy.
 - The system must not autonomously move money or make trades.
 
