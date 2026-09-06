@@ -171,3 +171,33 @@ def test_figure_matching_no_pair_still_fails() -> None:
     violations = find_unattributed_numbers(text, known)
 
     assert violations == ["4900.00"]
+
+
+# --- M122: digits glued to a letter name a thing, not an amount ---
+
+
+def test_account_type_names_are_not_money_claims() -> None:
+    """"401k", "529", "1099-DIV" are names. The advisor must be able to say them
+    without the guardrail reading 401 or 529 as an invented figure — account
+    names no longer ground numbers, so nothing else would rescue them."""
+    text = "Your 401k and the 529 plan stay untouched; a 1099-DIV arrives in February."
+
+    violations = find_unattributed_numbers(text, set())
+
+    assert violations == []
+
+
+def test_a_figure_next_to_a_name_is_still_checked() -> None:
+    """The tolerance is for digits INSIDE a name, not for money beside one."""
+    text = "Your 401k holds USD 12,000,000.00 today."
+
+    violations = find_unattributed_numbers(text, {"120000.00"})
+
+    assert violations == ["12000000.00"]
+
+
+def test_a_plan_identifier_written_as_an_amount_is_still_checked() -> None:
+    """Only the bare identifier is a name; with decimals it is money again."""
+    violations = find_unattributed_numbers("It cost USD 529.00 to open.", set())
+
+    assert violations == ["529.00"]

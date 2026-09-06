@@ -69,6 +69,22 @@ def _matches_pair_arithmetic(value: float, sorted_knowns: list[float], tolerance
     return False
 
 
+# "401k", "529", "1099-DIV", "24h", "25x": digits glued to a letter name a
+# THING, not an amount of money. They are never a figure the family could act
+# on, and treating them as claims made the advisor fail closed for naming an
+# account type out loud (the household's own account called "401k" used to
+# ground 401 as a side effect; account names no longer ground figures).
+_GLUED_TO_LETTER = re.compile(r"[A-Za-z]")
+# The same thing where no letter is touching the digits: US account-type and
+# tax-form identifiers the advisor has to be able to say out loud ("the 529
+# plan", "a 1099-DIV arrives in February"). Bare integers ONLY — an amount is
+# written with decimals or separators, so "USD 529.00" is still a money claim
+# and still checked.
+_NAME_LIKE_IDENTIFIERS = frozenset(
+    {"401", "403", "457", "529", "1040", "1095", "1098", "1099", "2555", "4868", "8606"}
+)
+
+
 def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
     """Return numeric substrings in ``text`` not traceable to ``known_values``.
 
@@ -101,12 +117,20 @@ def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
             return False
         if abs(value) <= _MATERIAL_THRESHOLD or _is_year_like(number):
             return False
+        if number in _NAME_LIKE_IDENTIFIERS:
+            return False
         tolerance = _RELATIVE_TOLERANCE * max(abs(value), 1.0)
         if any(abs(value - known) <= tolerance for known in known_floats):
             return False
         return not _matches_pair_arithmetic(value, known_floats, tolerance)
 
-    return sorted(number for number in extract_numbers(text) if is_violation(number))
+    claimed: set[str] = set()
+    for match in _NUMBER_PATTERN.finditer(text):
+        tail = text[match.end() : match.end() + 1]
+        if tail and _GLUED_TO_LETTER.match(tail):
+            continue
+        claimed.add(match.group(0).replace(",", ""))
+    return sorted(number for number in claimed if is_violation(number))
 
 
 def validate_recommendation(text: str, known_values: set[str]) -> GuardrailResult:

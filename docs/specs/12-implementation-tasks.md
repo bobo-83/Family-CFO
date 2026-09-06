@@ -1265,7 +1265,7 @@ category sums reached the model. Liabilities were already itemised by
       signed as stored; the payload names `get_debt_outlook` as the authority on
       the amount owed, rate, minimum payment, payoff and strategy.
 - [x] List foreign-currency accounts rather than dropping them, flagged
-      `included_in_base_currency_totals: false`. `POST /accounts` accepts any ISO
+      `matches_base_currency: false`. `POST /accounts` accepts any ISO
       code without comparing it to the base currency, so such an account is real
       and visible; returning only a held-back count would recreate the bug.
 - [x] Cross-reference the tool from `get_net_worth`'s description and payload,
@@ -1328,6 +1328,42 @@ ADR 0009 gap for the accounts domain.
 
 Out of scope: no OpenAPI change (advisor tools are internal to the chat loop) and
 no change to `asset_breakdown`'s shape, so the Overview endpoint is untouched.
+
+### Second Review Round (PR #154)
+
+- [x] **Digits in household text no longer ground a figure.** `grounded_values`
+      scanned the whole payload, so an account named "Fidelity Brokerage 9876"
+      holding USD 100.00 made an invented "USD 9,876.00" pass the guardrail.
+      Account, institution, merchant, category, description and label strings —
+      and the model's own search `query` — are excluded. Text the app itself
+      wrote still grounds, including `web_search` snippets, because quoting a
+      public price out of a snippet is what that tool is for.
+- [x] **The answer side gained the mirror rule**, in the shared guardrail:
+      digits that name a thing (`401k`, `529 plan`, `1099-DIV`) are not money
+      claims. Those digits previously grounded only as a side effect of an
+      account's name, so without this the fix above would have made the advisor
+      fail closed for saying "401k" out loud. A bare identifier only — `USD
+      529.00` is still a money claim and still checked.
+- [x] **No tool ships a bare minor-unit amount.** `get_safe_to_spend`'s vested
+      RSUs and `when_can_i_retire`'s retirement-source rows returned raw
+      `value_minor` / `balance_minor`, which the first filter did not recognise,
+      so a $25,000 holding still permitted "$2,500,000". Both now go through
+      `_money_out`, the filter drops every `*_minor` key in a RESULT (a new one
+      fails closed instead of reopening the hole), and a test asserts no tool
+      payload contains one. Arguments keep theirs: `_money_arg` still accepts
+      the legacy `<field>_minor` input form.
+- [x] **`get_accounts` marks itself current-only** (`as_of: "current"`, note,
+      and both tool descriptions). It takes no `month` and reads today's
+      balances, while `get_net_worth(month=…)` answers for a past month — an
+      account opened since would otherwise be presented as part of that total.
+      `last_synced_at` does not help: it is null for manual accounts and speaks
+      to refresh time, not historical membership.
+- [x] **`included_in_base_currency_totals` renamed `matches_base_currency`.** It
+      only ever tested `view.currency == currency`, so a base-currency 401(k)
+      loan reported `true` although `calculate_net_worth` skips retirement loans
+      outright and safe-to-spend counts only liquid types. The note now says a
+      match is necessary but never sufficient, and points at the tool that owns
+      each total.
 
 ### Review Follow-Ups (PR #154)
 

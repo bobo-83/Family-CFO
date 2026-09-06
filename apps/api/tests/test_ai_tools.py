@@ -98,7 +98,7 @@ def test_retirement_grounds_savings_and_expenses_from_household_data(
     assumptions = result["grounded_defaults"]
     funded = assumptions["current_savings_from_accounts"]
     assert any("401k" in a["name"] for a in funded)
-    assert sum(a["balance_minor"] for a in funded) >= 28_500_000
+    assert sum(a["balance"]["amount_minor"] for a in funded) >= 28_500_000
     assert assumptions["monthly_contribution_assumed_zero"] is True
     assert assumptions["annual_return_rate_default"] == 0.05
     assert "essentials" in assumptions["annual_expenses_basis"]
@@ -333,9 +333,48 @@ def test_accounts_tool_lists_foreign_currency_accounts_rather_than_dropping_them
     euro = by_name["Euro Savings"]
     assert euro["balance"]["currency"] == "EUR"
     assert euro["balance"]["amount_minor"] == 400_000
-    assert euro["included_in_base_currency_totals"] is False
-    assert by_name["Checking"]["included_in_base_currency_totals"] is True
+    assert euro["matches_base_currency"] is False
+    assert by_name["Checking"]["matches_base_currency"] is True
     assert result["accounts_outside_base_currency"] == 1
+
+
+def test_accounts_flag_claims_currency_match_not_membership_of_a_total(
+    demo_engine: Engine,
+) -> None:
+    """The flag tests the currency and nothing else. A base-currency 401(k) loan
+    matches, yet net worth skips retirement loans entirely and safe-to-spend
+    counts only checking and savings — so the payload must not let the model read
+    a match as "this is in that total"."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    by_name = {a["name"]: a for a in result["accounts"]}
+
+    assert by_name["401k Loan"]["matches_base_currency"] is True
+    assert "included_in_base_currency_totals" not in by_name["401k Loan"]
+    assert "does NOT mean a given total includes the account" in result["note"]
+    assert "401(k) loans" in result["note"]
+
+
+def test_accounts_tool_marks_itself_current_only(demo_engine: Engine) -> None:
+    """`get_net_worth(month=...)` answers for a past month; this tool always reads
+    today's balances. Without an as-of marker the advisor can present today's
+    accounts as the components of a historical total."""
+    _seed_accounts_for_inventory(demo_engine)
+
+    result = _execute(demo_engine, "get_accounts", {})
+    assert result["as_of"] == "current"
+    assert "TODAY" in result["note"]
+    assert "get_net_worth(month=...)" in result["note"]
+
+    historical = _execute(demo_engine, "get_net_worth", {"month": "2026-01"})
+    assert "TODAY's accounts" in historical["note"]
+    assert "Do not itemise this total" in historical["note"]
+
+    spec = next(t for t in ai_tools.build_tools() if t.name == "get_accounts")
+    assert "CURRENT balances only" in spec.description
+    net_worth_spec = next(t for t in ai_tools.build_tools() if t.name == "get_net_worth")
+    assert "cannot break down a past month" in net_worth_spec.description
 
 
 def test_accounts_tool_routes_spending_and_debt_questions_elsewhere(demo_engine: Engine) -> None:
@@ -613,26 +652,135 @@ def test_dropping_minor_units_costs_no_tool_a_quotable_figure(
             assert str(int(major)) in values, f"{tool}: {display}"
 
 
-def test_minor_unit_filter_only_drops_the_twin_of_a_displayed_amount() -> None:
-    """A minor-unit field with no display beside it is the only way the model can
-    state that figure (`_get_safe_to_spend` reports vested RSUs that way), so it
-    must survive; nesting and every other value must come through untouched."""
+def test_no_result_field_ships_a_bare_minor_unit_amount(demo_engine: Engine) -> None:
+    """Every money figure must leave a tool through `_money_out`. A raw
+    `*_minor` int beside a real holding is what lets an answer overstate it a
+    hundredfold, and the filter can only protect what it can recognise."""
+    import json
+    import re
+
+    _seed_money_for_every_tool(demo_engine)
+    for tool, args in _MONEY_TOOL_CALLS:
+        payload = _execute(demo_engine, tool, args)
+        bare = re.findall(r'"(\w*_minor)":', json.dumps(payload, default=str))
+        assert set(bare) <= {"amount_minor"}, f"{tool} ships raw minor units: {set(bare)}"
+
+
+def test_grounding_filter_drops_minor_units_and_household_text() -> None:
+    """Results lose every minor-unit field (a new one fails closed rather than
+    reopening the hole) and every household-supplied identity string; arguments
+    keep their minor units, because `_money_arg` still accepts the legacy
+    `<field>_minor` form and echoing the user's own figure is legitimate."""
     payload = {
-        "outputs": {"safe_to_spend": {"amount_minor": 250_000, "currency": "USD", "display": "$2,500.00"}},
-        "vested_rsus_ready_to_sell_not_cash": [{"account": "Vested RSUs", "value_minor": 2_500_000}],
+        "outputs": {
+            "safe_to_spend": {"amount_minor": 250_000, "currency": "USD", "display": "$2,500.00"}
+        },
+        "vested_rsus_ready_to_sell_not_cash": [
+            {"account": "Vested RSUs 9876", "value": {"amount_minor": 2_500_000, "display": "$25,000.00"}}
+        ],
         "warnings": ["one debt has no recorded minimum payment"],
         "months_of_runway": 6,
     }
 
-    filtered = ai_tools._without_minor_units(payload)
+    filtered = ai_tools._groundable(payload, drop_minor_units=True)
 
     assert filtered["outputs"]["safe_to_spend"] == {"currency": "USD", "display": "$2,500.00"}
-    # No display twin: still the only quotable form of that figure.
-    assert filtered["vested_rsus_ready_to_sell_not_cash"][0]["value_minor"] == 2_500_000
-    assert filtered["warnings"] == payload["warnings"]
+    rsu = filtered["vested_rsus_ready_to_sell_not_cash"][0]
+    assert "account" not in rsu  # the name's digits are an identifier, not money
+    assert rsu["value"] == {"display": "$25,000.00"}
+    assert filtered["warnings"] == payload["warnings"]  # our own text still grounds
     assert filtered["months_of_runway"] == 6
     # Non-destructive: the caller's payload is untouched.
     assert payload["outputs"]["safe_to_spend"]["amount_minor"] == 250_000
+
+    args = ai_tools._groundable(
+        {"present_value_minor": 100_000, "query": "roof costs 9876"}, drop_minor_units=False
+    )
+    assert args["present_value_minor"] == 100_000
+    assert "query" not in args  # a number the model typed is not a fact
+
+
+def test_digits_in_an_account_name_are_not_a_quotable_figure(demo_engine: Engine) -> None:
+    """Last-four identifiers are everywhere in account names. Grounding them let
+    an invented figure that happened to match the digits pass the guardrail."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import validate_recommendation
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    from family_cfo_api import repository
+
+    account = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Fidelity Brokerage 9876", "brokerage", "USD"
+    )
+    repository.record_account_balance(demo_engine, account.id, 10_000)  # USD 100.00
+
+    payload = _execute(demo_engine, "get_accounts", {})
+    assert any(a["name"] == "Fidelity Brokerage 9876" for a in payload["accounts"])
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name="get_accounts", arguments={}, result=payload)],
+        )
+    )
+
+    assert "9876" not in values
+    assert "9876.00" not in values
+    assert not validate_recommendation("That brokerage holds USD 9,876.00 today.", values).passed
+    # The real balance is still quotable, so the answer that IS true still passes.
+    assert validate_recommendation("That brokerage holds USD 100.00 today.", values).passed
+
+
+def test_naming_an_account_type_out_loud_is_not_a_violation(demo_engine: Engine) -> None:
+    """Account names used to ground their own digits as a side effect, so a
+    household with a "401k" account made 401 quotable. Now that names ground
+    nothing, saying "401k" or "529 plan" must not fail the guardrail — otherwise
+    the fix trades an invented-figure hole for a mute advisor."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.guardrails import validate_recommendation
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    fixtures.seed_showcase_data(demo_engine)
+    payload = _execute(demo_engine, "when_can_i_retire", {"current_age": 43})
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name="when_can_i_retire", arguments={}, result=payload)],
+        )
+    )
+
+    balance = payload["grounded_defaults"]["current_savings_from_accounts"][0]["balance"]
+    answer = f"Your 401k holds {balance['display']}, and the 529 plan stays untouched."
+    assert validate_recommendation(answer, values).passed
+
+
+def test_public_prices_found_by_web_search_stay_quotable() -> None:
+    """The text filter must not reach `web_search`: a price the model found on
+    the web lives in the snippet, and quoting it is the point of the tool."""
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    values = ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[
+                ToolCallRecord(
+                    name="web_search",
+                    arguments={"query": "average cost of a new roof"},
+                    result={
+                        "results": [
+                            {"title": "Roof costs", "snippet": "A new asphalt roof runs 12,500.00"}
+                        ]
+                    },
+                )
+            ],
+        )
+    )
+
+    assert "12500.00" in values
 
 
 # --- M64: income/tax, bills, budgets, spending tools ---

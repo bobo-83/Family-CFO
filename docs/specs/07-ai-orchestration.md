@@ -108,9 +108,16 @@ Applied to accounts (`get_accounts`, M122):
   liability balance is a credit (an overpayment or refund) that must never be
   reported as a debt.
 - An account outside the household base currency is listed like any other and
-  flagged `included_in_base_currency_totals: false`. An inventory that silently
-  omits an account the family can see recreates the problem it exists to solve;
-  only base-currency arithmetic excludes it.
+  flagged `matches_base_currency: false`. An inventory that silently omits an
+  account the family can see recreates the problem it exists to solve; only
+  base-currency arithmetic excludes it. The flag claims currency equality and
+  nothing more: matching is necessary for a total to include an account, never
+  sufficient (net worth skips 401(k) loans; safe-to-spend counts only liquid
+  types), so the tool that owns a total remains the authority on what is in it.
+- The inventory is CURRENT (`as_of: "current"`). `get_net_worth(month=…)`
+  answers for a past month, and today's accounts are not that month's — so both
+  tools' descriptions and payloads say so rather than leaving the model to
+  itemise a historical total with a present-day list.
 - The tool and the `GET /accounts` endpoint project one shared assembler, so the
   Accounts tab and the advisor can never name different accounts.
 
@@ -121,6 +128,19 @@ Applied to accounts (`get_accounts`, M122):
 - Grounding is unit-aware: money travels as minor units plus a display string,
   and only the display form grounds an answer. Accepting the minor-unit twin
   would let a hundredfold overstatement of a real balance pass the guardrail.
+  Every tool therefore emits money through the shared serializer; a raw
+  `<field>_minor` output field grounds nothing at all.
+- Grounding comes from figures, not from names. Household- and bank-supplied
+  text (account, institution, merchant, category, description, label — and the
+  model's own search `query`) is excluded from the grounded set: an account
+  called "Fidelity Brokerage 9876" must not make USD 9,876.00 quotable. Free
+  text the app itself produced — notes, warnings, and `web_search` snippets —
+  still grounds, because quoting a public price out of a snippet is the point
+  of that tool.
+- The mirror of that rule on the answer side: digits that name a thing rather
+  than an amount (`401k`, `529 plan`, `1099-DIV`) are not money claims. Without
+  this the advisor would fail closed for saying an account type out loud, since
+  those digits used to ground only as a side effect of the account's name.
 - Financial advice must be framed as educational guidance unless a future legal review changes this policy.
 - The system must not autonomously move money or make trades.
 

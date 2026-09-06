@@ -141,11 +141,13 @@ GROUNDING_RULES = (
     "specific purchase also call project_purchase_impact for the cash-flow view, "
     "and never treat net worth as spendable — see get_net_worth's asset_breakdown, "
     "where retirement and education funds are NOT available (taxable investments "
-    "only with a tax caveat). To name the accounts behind any total — which "
+    "only with a tax caveat). To name the accounts behind a CURRENT total — which "
     "accounts exist, what is in each, which account a withdrawal should come "
     "from — call get_accounts: the app already holds every account by name, type "
     "and balance, so NEVER say you cannot see them and never send the family to a "
-    "plan administrator or a bank login for a figure a tool returns. For currency "
+    "plan administrator or a bank login for a figure a tool returns. get_accounts "
+    "is today's inventory only — never itemise a past month's net worth with it. "
+    "For currency "
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
@@ -386,19 +388,29 @@ def _get_accounts(engine: Engine, household_id: str, currency: str, args: dict[s
                 # A foreign-currency account is listed like any other — an
                 # inventory that silently drops an account the family can see is
                 # worse than no inventory. It is only base-currency ARITHMETIC
-                # (net worth, safe-to-spend) that leaves it out.
-                "included_in_base_currency_totals": in_base_currency,
+                # (net worth, safe-to-spend) that leaves it out. Named for what
+                # it actually tests: matching the base currency is necessary for
+                # a total to include an account, never sufficient (net worth
+                # skips 401(k) loans entirely; safe-to-spend counts only liquid
+                # types), so this must not be read as "is in the totals".
+                "matches_base_currency": in_base_currency,
             }
         )
     return {
         "base_currency": currency,
+        # Today's inventory at today's balances. The tool takes no `month`, so
+        # it can never describe what the household held in a past month.
+        "as_of": "current",
         "account_count": len(accounts),
         "accounts_outside_base_currency": outside_base_currency,
         "accounts": accounts,
         "spendability_note": _SPENDABILITY_NOTE,
         "note": (
-            "Every account the household holds, exactly as the app's Accounts tab "
-            "lists them (an account with no balance recorded yet appears in neither). "
+            "Every account the household holds TODAY, at today's balances, exactly as "
+            "the app's Accounts tab lists them (an account with no balance recorded yet "
+            "appears in neither). This is a current inventory: it does NOT say which "
+            "accounts existed in a past month or what they held then, so never present "
+            "it as the breakdown of a get_net_worth(month=...) figure. "
             "This is an inventory, not an authority on spending or debt: for what "
             "the family can afford call get_safe_to_spend, and for the amount owed "
             "on a debt, its interest rate, minimum payment, payoff and strategy call "
@@ -406,9 +418,11 @@ def _get_accounts(engine: Engine, household_id: str, currency: str, args: dict[s
             "means that much is owed, zero means nothing is owed, and a POSITIVE "
             "balance on a liability account is a credit (an overpayment or a refund) "
             "— never report it as a debt. "
-            "Accounts with included_in_base_currency_totals=false are real accounts "
-            f"the family holds, but they are not part of the {currency} totals that "
-            "get_net_worth and get_safe_to_spend report."
+            "matches_base_currency=false marks a real account the family holds whose "
+            f"currency is not {currency}, so no {currency} calculation includes it. "
+            "matches_base_currency=true does NOT mean a given total includes the "
+            "account: net worth leaves out 401(k) loans, and safe-to-spend counts only "
+            "checking and savings. Ask the tool that owns a total what is in it."
         ),
     }
 
@@ -430,7 +444,9 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
             "net_worth": _money_out(_Money(minor, currency)),
             "note": (
                 "Net worth from the snapshot at/near that month's end. The asset breakdown "
-                "and spendability detail are only available for the current month."
+                "and spendability detail are only available for the current month, and "
+                "get_accounts lists TODAY's accounts — not the ones behind this figure, "
+                "which may have opened or closed since. Do not itemise this total."
             ),
         }
 
@@ -462,8 +478,8 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
     payload["emergency_fund_reserved"] = _money_out(_Money(emergency_reserved, currency))
     payload["spendability_note"] = _SPENDABILITY_NOTE
     payload["accounts_note"] = (
-        "For the individual accounts behind these totals — each one's name, type, "
-        "balance, and institution — call get_accounts."
+        "For the individual accounts behind these CURRENT totals — each one's name, "
+        "type, balance, and institution — call get_accounts."
     )
     return payload
 
@@ -482,7 +498,10 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
     # tagged "vested RSUs, ready to sell". The advisor may mention them as one
     # sale away (~4 business days), never fold them into safe_to_spend.
     held = [
-        {"account": b.name, "value_minor": b.balance_minor}
+        # Money goes out as a serialized amount, never a bare minor-unit int:
+        # the guardrail grounds the display form, so a raw 2500000 beside a
+        # $25,000 holding would let an answer overstate it a hundredfold.
+        {"account": b.name, "value": _money_out(Money(b.balance_minor, currency))}
         for b in repository.list_account_balances(engine, household_id)
         if b.rsu_ready_to_sell and b.currency == currency and b.balance_minor > 0
     ]
@@ -664,11 +683,7 @@ def _grounded_retirement_inputs(
         ]
         current_savings_minor = sum(b.balance_minor for b in funded)
         assumptions["current_savings_from_accounts"] = [
-            {
-                "name": b.name,
-                "balance_minor": b.balance_minor,
-                "display": format_money(Money(b.balance_minor, resolved_currency)),
-            }
+            {"name": b.name, "balance": _money_out(Money(b.balance_minor, resolved_currency))}
             for b in funded
         ]
         assumptions["current_savings_total"] = _money_out(
@@ -1350,7 +1365,8 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "Household net worth, total assets, and total liabilities. Defaults to now "
                 "(with an asset breakdown by spendability category); pass `month` (YYYY-MM) "
                 "for the net worth at that past month's end. For the individual accounts "
-                "behind those totals, call get_accounts."
+                "behind the CURRENT totals, call get_accounts — it lists today's accounts "
+                "only, so it cannot break down a past month's figure."
             ),
             parameters=_MONTH_PARAM,
         ),
@@ -1363,9 +1379,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "spendability category, balance, institution, emergency-fund reservation and "
                 "vested-RSU flag — the same list the app's Accounts tab shows. ALWAYS call "
                 "this before saying you cannot see the household's accounts or telling them "
-                "to look the balances up elsewhere. It is an inventory only: for what the "
-                "family can spend call get_safe_to_spend, and for amounts owed, rates, "
-                "minimum payments and payoff call get_debt_outlook."
+                "to look the balances up elsewhere. CURRENT balances only: it takes no "
+                "month and cannot say which accounts existed in a past month or what they "
+                "held, so never use it to break down a past month's net worth. It is an "
+                "inventory only: for what the family can spend call get_safe_to_spend, and "
+                "for amounts owed, rates, minimum payments and payoff call get_debt_outlook."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
@@ -1721,22 +1739,56 @@ def _rounded_variants(number: str) -> set[str]:
     return variants
 
 
-def _without_minor_units(value: Any) -> Any:
-    """The tool trace with serialized-money CENTS dropped, keeping `display`.
+# Text the household or its bank supplied, not a figure this app computed. An
+# account called "Fidelity Brokerage 9876", a merchant "STORE 1234", a category
+# the family named "Trip 2027": the digits in them are IDENTIFIERS. Grounding
+# them would let an answer quote "$9,876.00" for a $100 account and pass. Also
+# `query`, which the model writes itself — a number it typed is not a fact.
+# Figures always travel in their own typed fields beside this text (`amount`,
+# `balance`, `display`), so nothing quotable is lost. Free text the app itself
+# produced — notes, warnings, `web_search` snippets, `display` — is NOT here:
+# a public price the model found on the web is quotable precisely from its text.
+_UNGROUNDED_TEXT_KEYS = frozenset(
+    {
+        "account",
+        "category",
+        "description",
+        "institution",
+        "label",
+        "merchant",
+        "name",
+        "query",
+    }
+)
 
-    `_money_out` emits both `amount_minor` (1200000) and `display` ($12,000.00)
-    for the same figure. Grounding on the cents would let an answer claiming
-    "$1,200,000" pass for a $12,000 balance — a hundredfold overstatement that
-    traces to nothing the family holds. The dollar form is always present
-    alongside it, so the model never loses a legitimate way to quote the figure.
+
+def _groundable(value: Any, *, drop_minor_units: bool) -> Any:
+    """The tool trace reduced to what may legitimately ground a figure.
+
+    Two things are removed. Household/bank identity text (above), whose digits
+    are identifiers rather than money. And, from RESULTS, every minor-unit
+    field: `_money_out` emits `amount_minor` (1200000) beside `display`
+    ($12,000.00) for one figure, so grounding the cents would let an answer
+    claiming "$1,200,000" pass — a hundredfold overstatement tracing to nothing
+    the family holds. The dollar form always travels alongside, so no legitimate
+    quotation is lost, and any NEW raw `*_minor` output field fails closed
+    (un-quotable) rather than opening this hole again.
+
+    Tool ARGUMENTS keep their minor units: `_money_arg` still accepts the legacy
+    `<field>_minor` integer form, and echoing back a figure the user supplied is
+    legitimate grounding.
     """
     if isinstance(value, dict):
-        pairs = value.items()
-        if "amount_minor" in value and "display" in value:
-            pairs = ((key, item) for key, item in pairs if key != "amount_minor")
-        return {key: _without_minor_units(item) for key, item in pairs}
+        kept = {}
+        for key, item in value.items():
+            if drop_minor_units and key.endswith("_minor"):
+                continue
+            if key in _UNGROUNDED_TEXT_KEYS and isinstance(item, str):
+                continue
+            kept[key] = _groundable(item, drop_minor_units=drop_minor_units)
+        return kept
     if isinstance(value, list):
-        return [_without_minor_units(item) for item in value]
+        return [_groundable(item, drop_minor_units=drop_minor_units) for item in value]
     return value
 
 
@@ -1745,14 +1797,15 @@ def grounded_values(result: ToolCallingResult) -> set[str]:
 
     Both tool inputs (echoing a user-supplied figure is legitimate) and tool
     outputs (the engine's computed figures) count as grounded — including their
-    rounded forms, but NOT the minor-unit twin of a displayed amount. Any number
-    in the final answer outside this set is an invented figure and fails the
-    guardrail.
+    rounded forms, but NOT the minor-unit twin of a displayed amount, and NOT
+    digits sitting inside an account name or any other household-supplied text.
+    Any number in the final answer outside this set is an invented figure and
+    fails the guardrail.
     """
     known: set[str] = set()
     for record in result.tool_calls:
         for number in extract_numbers(
-            json.dumps(_without_minor_units(record.arguments))
-        ) | extract_numbers(json.dumps(_without_minor_units(record.result))):
+            json.dumps(_groundable(record.arguments, drop_minor_units=False))
+        ) | extract_numbers(json.dumps(_groundable(record.result, drop_minor_units=True))):
             known |= _rounded_variants(number)
     return known
