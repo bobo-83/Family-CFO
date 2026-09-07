@@ -48,5 +48,13 @@ def record_snapshot_once(
             # API it is a session that expired mid-pass. Either way the API
             # takes it again at the next unlock (#115).
             logger.info("net-worth snapshot skipped: household %s locked", household_id)
+        except Exception:
+            # #152: the same rule for ANY per-household failure. One family's
+            # bad data (a foreign-currency account used to raise
+            # CurrencyMismatchError here) stopped the Overview trend for every
+            # household behind it in the loop. The failed household is logged
+            # with its id and a traceback so the operator can find it; the
+            # count stays honest — it is of households actually captured.
+            logger.exception("net-worth snapshot failed: household %s", household_id)
     logger.info("net-worth snapshot captured for %s household(s)", captured)
     return captured

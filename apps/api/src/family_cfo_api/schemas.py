@@ -451,6 +451,18 @@ class SafeToSpend(BaseModel):
     subscription_forecast_items: list[NamedAmount] = Field(default_factory=list)
 
 
+class AccountOutsideBaseCurrency(BaseModel):
+    """#152: an account the household holds in a currency other than its base.
+
+    It is real and listed on the Accounts tab, but no base-currency figure on the
+    Overview (net worth, emergency fund, safe-to-spend) includes it, and nothing
+    converts it. ``balance`` is in the account's OWN currency, so a client can
+    never show it as a base-currency amount."""
+
+    name: str
+    balance: Money
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -486,6 +498,13 @@ class HouseholdContext(BaseModel):
     earliest_month: str | None = None
     # M97: transactions awaiting duplicate review, for the Review tab's badge.
     review_count: int = 0
+    # #152: every account held outside the base currency — the same list the
+    # advisor's tools report under `excluded_accounts`, so the Overview, the
+    # phone and the advisor tell one story from one source. A list (empty for a
+    # single-currency household) whenever the response describes TODAY's
+    # accounts; None for a past month, whose accounts are not known — a null
+    # here means "unknown", never "none".
+    accounts_outside_base_currency: list[AccountOutsideBaseCurrency] | None = None
 
 
 class Account(BaseModel):

@@ -20,6 +20,7 @@ from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
+    AccountOutsideBaseCurrency,
     AssetCategoryTotal,
     BudgetSummary,
     CashOutlookResponse,
@@ -828,6 +829,10 @@ def _historical_context(
         ),
         spending_by_category=_spending_by_category(engine, household.id, currency, today=anchor),
         earliest_month=repository.earliest_transaction_month(engine, household.id),
+        # #152: deliberately None, not []. Past-month figures come from
+        # snapshots and today's accounts are not that month's (the #130 rule),
+        # so what a past total left out is unknown — and null says so.
+        accounts_outside_base_currency=None,
     )
 
 
@@ -859,6 +864,19 @@ def _build_household_context(
         engine, household.id, today.replace(day=1), today, currency
     )
     asset_breakdown, total_debt = _asset_and_debt_summary(engine, household.id, currency)
+    # #152: the global fact, no eligibility filter — every account the household
+    # holds outside its base currency, each with a balance in its OWN currency.
+    outside_base_currency = [
+        AccountOutsideBaseCurrency(
+            name=account.name,
+            balance=MoneySchema(
+                amount_minor=account.balance.amount_minor, currency=account.balance.currency
+            ),
+        )
+        for account in finance_service.partition_balances_by_currency(
+            repository.list_account_balances(engine, household.id), currency
+        ).excluded_accounts
+    ]
     upcoming = [
         UpcomingBill(
             id=bill.id,
@@ -934,6 +952,7 @@ def _build_household_context(
         last_synced_at=last_synced_at,
         earliest_month=repository.earliest_transaction_month(engine, household.id),
         review_count=repository.count_review_transactions(engine, household.id),
+        accounts_outside_base_currency=outside_base_currency,
     )
 
 

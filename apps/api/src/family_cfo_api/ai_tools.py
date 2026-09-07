@@ -151,7 +151,14 @@ GROUNDING_RULES = (
     "conversion use the get_exchange_rate tool; for live item prices or other "
     "public facts use web_search when available — search only for the item or "
     "fact, never include names, account details, or other household information "
-    "in a search query. Never NAME an employer, company, or institution unless that exact name appears in a tool result or the user's message — pay sources without names are described generically ('your employer, by name unknown'), never given an invented name. For income, salary, RSU vest, bonus, take-home, or tax "
+    "in a search query. Every total a tool returns is in the household's base "
+    "currency. An account held in another currency appears under a tool's "
+    "`excluded_accounts` with its balance in ITS currency: say that it exists and "
+    "was not counted, but NEVER add it back into a base-currency figure and never "
+    "present its balance as base-currency money. If the family wants it in the "
+    "base currency, an approximate conversion must come from get_exchange_rate and "
+    "be labelled approximate; without that tool, say it cannot be converted here. "
+    "Never NAME an employer, company, or institution unless that exact name appears in a tool result or the user's message — pay sources without names are described generically ('your employer, by name unknown'), never given an invented name. For income, salary, RSU vest, bonus, take-home, or tax "
     "questions ALWAYS call get_income_and_tax first — it carries the household's "
     "declared compensation profile including upcoming vest dates (quote its "
     "assumptions when giving a tax figure). For what the household EARNS or TAKES "
@@ -229,16 +236,31 @@ def _serialize(value: Any) -> Any:
         return _money_out(value)
     if isinstance(value, dict):
         return {key: _serialize(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_serialize(item) for item in value]
     return value
 
 
 def _result_payload(result: CalculationResult, calculation_id: str) -> dict[str, Any]:
-    return {
-        "outputs": {key: _serialize(value) for key, value in result.outputs.items()},
+    payload = {
+        "outputs": {
+            key: _serialize(value)
+            for key, value in result.outputs.items()
+            if key != "excluded_accounts"
+        },
         "assumptions": list(result.assumptions),
         "warnings": list(result.warnings),
         "calculation_ref": f"financial_calculations:{calculation_id}",
     }
+    excluded = result.outputs.get("excluded_accounts")
+    if excluded is not None:
+        # #152: beside `warnings`, so the advisor can NAME what a base-currency
+        # figure left out. `name` is household text and never grounds a number;
+        # `balance` is typed in the account's own currency, so it can be quoted
+        # but never read as base-currency money. The warning itself stays
+        # generic — see finance_service.foreign_currency_warning.
+        payload["excluded_accounts"] = _serialize(excluded)
+    return payload
 
 
 # --- argument validation helpers -------------------------------------------
@@ -442,11 +464,17 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
         return {
             "as_of_month": args.get("month"),
             "net_worth": _money_out(_Money(minor, currency)),
+            # #152: a snapshot is a base-currency figure with no record of what
+            # it left out, so this is "unknown" (null), never an empty list.
+            "excluded_accounts": None,
             "note": (
                 "Net worth from the snapshot at/near that month's end. The asset breakdown "
                 "and spendability detail are only available for the current month, and "
                 "get_accounts lists TODAY's accounts — not the ones behind this figure, "
-                "which may have opened or closed since. Do not itemise this total."
+                "which may have opened or closed since. Do not itemise this total. "
+                f"The figure is in {currency} only; whether the household then held an "
+                "account in another currency is not recorded, so excluded_accounts is "
+                "unknown for a past month."
             ),
         }
 
@@ -676,19 +704,37 @@ def _grounded_retirement_inputs(
         if error:
             return None, None, None, None, None, error
     else:
+        # #152: only base-currency balances are summed. A EUR pension used to be
+        # added as raw minor units and LABELLED in the base currency — a
+        # plausible wrong answer, worse than a crash. It is disclosed instead.
+        partition = finance_service.partition_balances_by_currency(
+            repository.list_account_balances(engine, household_id),
+            resolved_currency,
+            eligible=lambda b: b.account_type in _RETIREMENT_SAVINGS_TYPES and b.balance_minor > 0,
+        )
         funded = [
             b
-            for b in repository.list_account_balances(engine, household_id)
+            for b in partition.in_base
             if b.account_type in _RETIREMENT_SAVINGS_TYPES and b.balance_minor > 0
         ]
         current_savings_minor = sum(b.balance_minor for b in funded)
         assumptions["current_savings_from_accounts"] = [
-            {"name": b.name, "balance": _money_out(Money(b.balance_minor, resolved_currency))}
+            {"name": b.name, "balance": _money_out(Money(b.balance_minor, b.currency))}
             for b in funded
         ]
         assumptions["current_savings_total"] = _money_out(
             Money(current_savings_minor, resolved_currency)
         )
+        if partition.foreign:
+            assumptions["current_savings_excluded_accounts"] = [
+                {"name": a.name, "balance": _money_out(a.balance)}
+                for a in partition.excluded_accounts
+            ]
+            assumptions["current_savings_excluded_note"] = (
+                finance_service.foreign_currency_warning(
+                    partition.excluded_accounts, resolved_currency
+                )
+            )
 
     if _money_arg_present(args, "monthly_contribution"):
         monthly_contribution_minor, error = _money_arg(args, "monthly_contribution", minimum=0)
@@ -736,6 +782,14 @@ def _attach_grounded_defaults(payload, assumptions):
             "Figures the user did not supply were grounded in household data — "
             "state these defaults in the answer and invite corrections."
         )
+        # #152: the retirement/HSA accounts the grounding could NOT add up, in
+        # the same place every other total reports them.
+        excluded = assumptions.get("current_savings_excluded_accounts")
+        if excluded:
+            payload["excluded_accounts"] = excluded
+            note = assumptions["current_savings_excluded_note"]
+            if note not in payload.setdefault("warnings", []):
+                payload["warnings"].append(note)
     return payload
 
 
@@ -1366,7 +1420,9 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "(with an asset breakdown by spendability category); pass `month` (YYYY-MM) "
                 "for the net worth at that past month's end. For the individual accounts "
                 "behind the CURRENT totals, call get_accounts — it lists today's accounts "
-                "only, so it cannot break down a past month's figure."
+                "only, so it cannot break down a past month's figure. Totals are in the "
+                "household's base currency; an account held in another currency is listed "
+                "under `excluded_accounts` with its own balance and is never converted."
             ),
             parameters=_MONTH_PARAM,
         ),
@@ -1392,7 +1448,9 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
             description=(
                 "Months of essential expenses the household's liquid savings would cover. "
                 "Monthly essential expenses = recurring bills + debt minimum payments + "
-                "everyday spending above those bills (not bills alone)."
+                "everyday spending above those bills (not bills alone). The fund is in the "
+                "household's base currency; a liquid or designated account held in another "
+                "currency is listed under `excluded_accounts`, never converted or counted."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
@@ -1403,7 +1461,9 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "discretionary-spending question. Returns safe_to_spend: liquid cash MINUS the "
                 "designated emergency fund, MINUS bills falling due, MINUS minimum debt "
                 "payments. Never derive spendable money yourself — this figure already nets "
-                "out every obligation, and its warnings say when it is overstated."
+                "out every obligation, and its warnings say when it is overstated. Base "
+                "currency only: cash or debt held in another currency is listed under "
+                "`excluded_accounts` and is never converted into the figure."
             ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         ),
@@ -1432,7 +1492,11 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
         ),
         ToolSpec(
             name="project_purchase_impact",
-            description="How a one-off purchase of the given price affects net worth and cash buffers.",
+            description=(
+                "How a one-off purchase of the given price affects net worth and cash "
+                "buffers. Base-currency figures only; an account held in another currency "
+                "is listed under `excluded_accounts`, never converted."
+            ),
             parameters={
                 "type": "object",
                 "properties": {"price": _MONEY_FIELD, "currency": _CURRENCY_FIELD},
@@ -1467,7 +1531,8 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "essential monthly spending (the response lists every assumption for you to "
                 "state). NEVER ask the user for balances or spending — only their current "
                 "age and target retirement age require asking (and monthly contribution, "
-                "which bank data cannot see)."
+                "which bank data cannot see). A retirement account held in another currency "
+                "is not summed; it is listed under `excluded_accounts`, never converted."
             ),
             parameters={
                 "type": "object",
@@ -1504,7 +1569,9 @@ def build_tools(settings: Settings | None = None) -> list[ToolSpec]:
                 "current_age; do NOT ask the user for a target retirement age (they asked "
                 "you when). Like project_retirement, omitted savings/expenses figures are "
                 "grounded from the household's real accounts and essential spending, and "
-                "the response lists every default for you to state."
+                "the response lists every default for you to state. A retirement account "
+                "held in another currency is not summed; it is listed under "
+                "`excluded_accounts`, never converted."
             ),
             parameters={
                 "type": "object",

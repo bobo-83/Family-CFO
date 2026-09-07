@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -196,6 +197,163 @@ def list_account_views(engine: Engine, household_id: str) -> list[AccountView]:
     return views
 
 
+# --- base-currency partition (M123, ADR 0075, #152) ---------------------------
+#
+# The app is single-currency per household: every figure it computes is in the
+# household's base currency, and a balance held in another currency is EXCLUDED
+# from that figure and DISCLOSED — never converted (ADR 0003 keeps the engine
+# deterministic and offline; ADR 0014 keeps exchange rates a conversational
+# tool). Every path that adds balances together partitions them here, so the
+# aggregators that used to feed mixed currencies to `Money.__add__` — and take
+# the Overview down on the first foreign account — cannot drift apart again.
+# `Money.__add__` itself still raises on a mismatch: that is the engine's
+# invariant, and the bug was callers handing it mixed input.
+
+
+@dataclass(frozen=True, slots=True)
+class ExcludedAccount:
+    """An account a base-currency figure left out because it is held in another
+    currency. ``balance`` is typed Money in the account's OWN currency, so the
+    amount travels with its unit and can never be read as base-currency money."""
+
+    account_id: str
+    name: str
+    account_type: str
+    balance: Money
+
+
+@dataclass(frozen=True, slots=True)
+class CurrencyPartition:
+    """``list_account_balances`` split into what a base-currency figure may add
+    up (``in_base``) and what it must leave out and disclose (``foreign``).
+
+    ``foreign`` is eligibility-specific when the caller passes ``eligible``: it
+    holds only the out-of-base accounts that WOULD have been components of the
+    figure (net worth skips 401(k) loans regardless; safe-to-spend counts only
+    liquid types), so a disclosure never claims an account was left out of a
+    total it was never part of. Without a predicate it is the global fact —
+    every account outside the base currency — which is what the Overview lists.
+    """
+
+    currency: str
+    in_base: list[repository.AccountBalanceRecord]
+    foreign: list[repository.AccountBalanceRecord]
+
+    @property
+    def excluded_accounts(self) -> list[ExcludedAccount]:
+        return [
+            ExcludedAccount(
+                b.account_id, b.name, b.account_type, Money(b.balance_minor, b.currency)
+            )
+            for b in self.foreign
+        ]
+
+
+def partition_balances_by_currency(
+    balances: Iterable[repository.AccountBalanceRecord],
+    currency: str,
+    *,
+    eligible: Callable[[repository.AccountBalanceRecord], bool] | None = None,
+) -> CurrencyPartition:
+    in_base: list[repository.AccountBalanceRecord] = []
+    foreign: list[repository.AccountBalanceRecord] = []
+    for balance in balances:
+        if balance.currency == currency:
+            in_base.append(balance)
+        elif eligible is None or eligible(balance):
+            foreign.append(balance)
+    return CurrencyPartition(currency, in_base, foreign)
+
+
+def _currencies_of(excluded: Sequence[ExcludedAccount]) -> str:
+    return " and ".join(sorted({a.balance.currency for a in excluded}))
+
+
+def foreign_currency_warning(excluded: Sequence[ExcludedAccount], currency: str) -> str | None:
+    """One sentence saying that — and how many — accounts a figure left out.
+
+    Deliberately GENERIC: it counts accounts and names currencies, never the
+    accounts. Warnings are persisted in plaintext (`financial_calculations` and
+    `recommendations` ``warnings_json``) while account names are sealed content
+    (ADR 0072), and the grounding guardrail treats a warning as app-authored
+    text whose digits may ground a figure, while it strips the digits out of a
+    ``name``. Names and balances travel in the typed, live ``excluded_accounts``
+    field instead, where a name stays non-grounding and a balance keeps its own
+    currency.
+    """
+    if not excluded:
+        return None
+    count = len(excluded)
+    noun, verb = ("account", "is") if count == 1 else ("accounts", "are")
+    return (
+        f"{count} {noun} held in {_currencies_of(excluded)} {verb} not counted in this "
+        f"{currency} figure; a balance in another currency is never converted."
+    )
+
+
+def ignored_designation_warning(excluded: Sequence[ExcludedAccount], currency: str) -> str | None:
+    """M36 designations on an out-of-base account cannot join a base-currency
+    fund, so they are ignored — and, unlike before, said to be ignored."""
+    if not excluded:
+        return None
+    count = len(excluded)
+    noun = "account" if count == 1 else "accounts"
+    return (
+        f"An emergency-fund designation on {count} {noun} held in {_currencies_of(excluded)} "
+        f"is ignored; designations count only in {currency}."
+    )
+
+
+def _persist_disclosing(
+    engine: Engine,
+    household_id: str,
+    result: CalculationResult,
+    currency: str,
+    excluded: Sequence[ExcludedAccount],
+    *,
+    warnings: Iterable[str | None] = (),
+) -> str:
+    """Persist a calculation together with what it left out (ADR 0003: the row
+    must say so), then attach the typed disclosure to the LIVE result only.
+
+    The persisted row carries the generic warning and the count/currencies —
+    never an account name, because ``inputs_json`` / ``outputs_json`` /
+    ``warnings_json`` are plaintext columns while names are sealed content.
+    ``outputs["excluded_accounts"]`` is added after the write for exactly that
+    reason: it reaches the tool payload and the API, not the audit row.
+    """
+    for warning in (foreign_currency_warning(excluded, currency), *warnings):
+        if warning and warning not in result.warnings:
+            result.warnings.append(warning)
+    result.inputs["excluded_account_count"] = len(excluded)
+    result.inputs["excluded_currencies"] = sorted({a.balance.currency for a in excluded})
+    calculation_id = _persist(engine, household_id, result)
+    result.outputs["excluded_accounts"] = [
+        {"name": a.name, "type": a.account_type, "balance": a.balance} for a in excluded
+    ]
+    return calculation_id
+
+
+def _designated(balance: repository.AccountBalanceRecord) -> bool:
+    return balance.emergency_fund_percent is not None or balance.emergency_fund_minor is not None
+
+
+def _counts_toward_net_worth(balance: repository.AccountBalanceRecord) -> bool:
+    # Mirrors the engine's own rule: a 401(k) loan is net-worth-neutral and
+    # skipped whatever its currency, so it is never "excluded" from the total.
+    return balance.account_type not in repository.RETIREMENT_LOAN_TYPES
+
+
+def _touches_safe_to_spend(balance: repository.AccountBalanceRecord) -> bool:
+    # Liquid cash, a designated reservation, or a debt (reported beside the
+    # figure and, with terms, subtracted as a minimum payment).
+    return (
+        balance.account_type in LIQUID_ACCOUNT_TYPES
+        or _designated(balance)
+        or balance.balance_minor < 0
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class UpcomingBill:
     id: str
@@ -259,25 +417,44 @@ class EmergencyFundInputs:
 
     fund: Money
     using_designations: bool
+    # #152: the out-of-base accounts this fund would otherwise have counted, and
+    # the warnings that disclose them (generic — see foreign_currency_warning).
+    excluded_accounts: list[ExcludedAccount] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def emergency_fund_inputs(engine: Engine, household_id: str, currency: str) -> EmergencyFundInputs:
-    balances = repository.list_account_balances(engine, household_id)
+    partition = partition_balances_by_currency(
+        repository.list_account_balances(engine, household_id),
+        currency,
+        eligible=lambda b: b.account_type in LIQUID_ACCOUNT_TYPES or _designated(b),
+    )
     liquid_balance = Money.zero(currency)
     designated_minor = 0
-    for balance in balances:
+    for balance in partition.in_base:
         if balance.account_type in LIQUID_ACCOUNT_TYPES:
             liquid_balance += Money(balance.balance_minor, balance.currency)
         # M36: user-designated reservations, on any account type.
-        if balance.currency == currency:
-            designated_minor += repository.emergency_fund_reserved_minor(
-                balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
-            )
+        designated_minor += repository.emergency_fund_reserved_minor(
+            balance.emergency_fund_percent, balance.emergency_fund_minor, balance.balance_minor
+        )
     using_designations = designated_minor > 0
     # M36: once the family designates emergency-fund money, coverage measures
     # that fund — not the legacy "all liquid money" approximation.
     fund = Money(designated_minor, currency) if using_designations else liquid_balance
-    return EmergencyFundInputs(fund, using_designations)
+
+    # #152: disclose only what this fund would have counted. A designation on a
+    # foreign account is always ignored (and said to be); an undesignated
+    # foreign liquid account was part of the fund only in the all-liquid
+    # fallback, so once designations define the fund it is not "excluded".
+    foreign_designated = [
+        a
+        for a, b in zip(partition.excluded_accounts, partition.foreign, strict=True)
+        if _designated(b)
+    ]
+    excluded = foreign_designated if using_designations else partition.excluded_accounts
+    warnings = [w for w in (ignored_designation_warning(foreign_designated, currency),) if w]
+    return EmergencyFundInputs(fund, using_designations, excluded, warnings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,14 +654,21 @@ def debt_history(
 def compute_net_worth_with_ref(
     engine: Engine, household_id: str, currency: str
 ) -> tuple[CalculationResult, str]:
-    balances = repository.list_account_balances(engine, household_id)
+    # #152: only base-currency balances reach the engine; the rest are disclosed.
+    partition = partition_balances_by_currency(
+        repository.list_account_balances(engine, household_id),
+        currency,
+        eligible=_counts_toward_net_worth,
+    )
     engine_balances = [
         AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency))
-        for b in balances
+        for b in partition.in_base
     ]
 
     result = calculate_net_worth(engine_balances, currency)
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, currency, partition.excluded_accounts
+    )
     return result, calculation_id
 
 
@@ -503,7 +687,9 @@ def compute_emergency_fund_with_ref(
     inputs = emergency_fund_inputs(engine, household_id, currency)
     expenses = monthly_essential_expenses(engine, household_id, currency, today=today)
     result = calculate_emergency_fund_months(inputs.fund, expenses)
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, currency, inputs.excluded_accounts, warnings=inputs.warnings
+    )
     return result, calculation_id
 
 
@@ -1587,6 +1773,9 @@ def compute_safe_to_spend(
     overstated the answer by precisely the amount the family owed.
     """
     balances = repository.list_account_balances(engine, household_id)
+    # #152: every loop below already filters on `currency`; the partition exists
+    # so the figure can DISCLOSE the out-of-base accounts it would have counted.
+    partition = partition_balances_by_currency(balances, currency, eligible=_touches_safe_to_spend)
     liquid_balance = Money.zero(currency)
     for balance in balances:
         if balance.account_type in LIQUID_ACCOUNT_TYPES and balance.currency == currency:
@@ -1747,22 +1936,30 @@ def compute_safe_to_spend(
     # advisor). The drill-down items carry dates, so they stay OUT of outputs
     # and the API layer recomputes them via committed_savings_in_window.
     result.outputs["committed_savings_reserved"] = reserve_savings
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, currency, partition.excluded_accounts, warnings=fund.warnings
+    )
     return result, calculation_id
 
 
 def compute_purchase_impact(
     engine: Engine, household_id: str, currency: str, price: Money
 ) -> tuple[CalculationResult, str]:
-    balances = repository.list_account_balances(engine, household_id)
+    # #152: the same partition net worth uses — a foreign account is left out of
+    # the before/after net worth AND the liquid balance, and disclosed once.
+    partition = partition_balances_by_currency(
+        repository.list_account_balances(engine, household_id),
+        currency,
+        eligible=_counts_toward_net_worth,
+    )
     engine_balances = [
         AccountBalance(b.account_id, b.account_type, Money(b.balance_minor, b.currency))
-        for b in balances
+        for b in partition.in_base
     ]
     net_worth_result = calculate_net_worth(engine_balances, currency)
 
     liquid_balance = Money.zero(currency)
-    for balance in balances:
+    for balance in partition.in_base:
         if balance.account_type in LIQUID_ACCOUNT_TYPES:
             liquid_balance += Money(balance.balance_minor, balance.currency)
 
@@ -1800,7 +1997,9 @@ def compute_purchase_impact(
             top_goal=top_goal,
         )
     )
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, currency, partition.excluded_accounts
+    )
     return result, calculation_id
 
 
@@ -2436,6 +2635,8 @@ def _serialize_outputs(outputs: dict[str, Any]) -> dict[str, Any]:
             return value.to_dict()
         if isinstance(value, dict):
             return {key: serialize(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [serialize(item) for item in value]
         return value
 
     return {key: serialize(value) for key, value in outputs.items()}

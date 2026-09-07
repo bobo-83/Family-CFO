@@ -73,3 +73,56 @@ async def test_context_returns_the_history_series(demo_client, demo_token, demo_
     assert history[0]["as_of"] == base.isoformat()
     assert history[0]["net_worth"]["amount_minor"] == 100_000
     assert history[1]["net_worth"]["amount_minor"] == 110_000
+
+
+# --- #152: the daily pass must survive a mixed-currency household, and any other ---
+
+
+def test_snapshot_captures_a_mixed_currency_household_in_base_currency_only(
+    demo_engine, foreign_currency_account
+) -> None:
+    captured = net_worth_history.record_snapshot_once(demo_engine, today=date(2026, 7, 9))
+
+    assert captured == 1
+    snapshots = repository.list_net_worth_snapshots(demo_engine, _HH)
+    assert len(snapshots) == 1
+    assert snapshots[0].currency == "USD"
+    assert snapshots[0].net_worth_minor == 500_000 + 1_500_000 - 300_000_000
+
+
+def test_one_failing_household_does_not_stall_the_pass(demo_engine, monkeypatch, caplog) -> None:
+    """`record_snapshot_once` caught only HouseholdLockedError, so any other
+    per-household exception escaped the loop and every household behind it lost
+    its Overview trend — on a multi-household box, one family's EUR account
+    stopped the trend for all of them. The failure is logged with its id."""
+    import logging
+
+    from family_cfo_api import finance_service
+
+    other = repository.create_household_with_owner(
+        demo_engine,
+        display_name="Other",
+        base_currency="USD",
+        owner_email="other@example.com",
+        owner_password_hash="x",
+        owner_display_name="Other Owner",
+    )
+    real = finance_service.compute_net_worth
+
+    def failing(engine, household_id, currency):
+        if household_id == _HH:
+            raise RuntimeError("boom")
+        return real(engine, household_id, currency)
+
+    monkeypatch.setattr(finance_service, "compute_net_worth", failing)
+    with caplog.at_level(logging.ERROR, logger="family_cfo_api.net_worth_history"):
+        captured = net_worth_history.record_snapshot_once(demo_engine, today=date(2026, 7, 9))
+
+    # The count is of households actually captured.
+    assert captured == 1
+    assert repository.list_net_worth_snapshots(demo_engine, _HH) == []
+    assert len(repository.list_net_worth_snapshots(demo_engine, other.household_id)) == 1
+    failures = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(failures) == 1
+    assert _HH in failures[0].getMessage()
+    assert failures[0].exc_info is not None

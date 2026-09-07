@@ -996,6 +996,10 @@ export type HouseholdContext = {
      * M97: transactions awaiting duplicate review, for the Review tab badge.
      */
     review_count?: number;
+    /**
+     * "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
+     */
+    accounts_outside_base_currency?: Array<AccountOutsideBaseCurrency> | null;
 };
 
 export type Budget = {
@@ -1167,6 +1171,14 @@ export type ReadyToSellHoldings = {
 };
 
 export type LiquidAccountBalance = {
+    name: string;
+    balance: Money;
+};
+
+/**
+ * "#152: an account held in a currency other than the household's base. `balance` is in the account's own currency, so it can never be shown as a base-currency amount."
+ */
+export type AccountOutsideBaseCurrency = {
     name: string;
     balance: Money;
 };

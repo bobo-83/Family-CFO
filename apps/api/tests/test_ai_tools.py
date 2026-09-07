@@ -232,16 +232,6 @@ def _seed_accounts_for_inventory(engine: Engine):
     return {"brokerage": brokerage, "loan": loan, "savings": savings}
 
 
-def _seed_foreign_currency_account(engine: Engine):
-    """POST /accounts accepts any ISO code without comparing it to the household
-    base currency, so an account the family can see may sit outside it."""
-    from family_cfo_api import repository
-
-    euro = repository.create_account(engine, fixtures.DEMO_HOUSEHOLD_ID, "Euro Savings", "savings", "EUR")
-    repository.record_account_balance(engine, euro.id, 400_000)
-    return euro
-
-
 def test_accounts_tool_itemises_every_account_behind_the_totals(demo_engine: Engine) -> None:
     """#130: asked which accounts make up a total, the advisor must be able to
     answer from a tool instead of sending the family to look it up elsewhere."""
@@ -320,13 +310,11 @@ def test_accounts_tool_surfaces_emergency_reservation_and_rsu_flag(demo_engine: 
 
 
 def test_accounts_tool_lists_foreign_currency_accounts_rather_than_dropping_them(
-    demo_engine: Engine,
+    demo_engine: Engine, foreign_currency_account,
 ) -> None:
     """An inventory that silently omits an account the family can see on screen
     recreates the very bug this tool fixes — flag it, never hide it."""
     _seed_accounts_for_inventory(demo_engine)
-    _seed_foreign_currency_account(demo_engine)
-
     result = _execute(demo_engine, "get_accounts", {})
     by_name = {a["name"]: a for a in result["accounts"]}
 
@@ -413,7 +401,7 @@ def test_net_worth_keeps_its_categories_and_points_at_the_accounts_tool(
 
 @pytest.mark.anyio
 async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
-    demo_engine: Engine, demo_client, demo_token
+    demo_engine: Engine, foreign_currency_account, demo_client, demo_token
 ) -> None:
     """The Accounts tab and the advisor must never name different accounts.
 
@@ -429,7 +417,6 @@ async def test_accounts_tool_and_accounts_endpoint_project_the_same_assembler(
     from family_cfo_api import repository
 
     _seed_accounts_for_inventory(demo_engine)
-    _seed_foreign_currency_account(demo_engine)
 
     hh = fixtures.DEMO_HOUSEHOLD_ID
     connection = repository.create_institution_connection(
@@ -1179,3 +1166,211 @@ def test_household_context_directs_the_answer_language() -> None:
     # English is the default voice — no directive line at all.
     assert "Answer in" not in ai_tools.build_household_context(currency="USD", language="en")
     assert "Answer in" not in ai_tools.build_household_context(currency="USD")
+
+
+# --- #152: a foreign-currency account is excluded from every total, and disclosed ---
+
+_EUR_WARNING = (
+    "1 account held in EUR is not counted in this USD figure; a balance in another "
+    "currency is never converted."
+)
+
+
+def _grounded(tool: str, args: dict, payload: dict) -> set[str]:
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    return ai_tools.grounded_values(
+        ToolCallingResult(
+            answer="x",
+            completed=True,
+            tool_calls=[ToolCallRecord(name=tool, arguments=args, result=payload)],
+        )
+    )
+
+
+@pytest.mark.parametrize("tool", ["get_net_worth", "get_emergency_fund", "get_safe_to_spend"])
+def test_totals_survive_a_foreign_account_and_name_what_they_left_out(
+    demo_engine: Engine, foreign_currency_account, tool: str
+) -> None:
+    """#152 THE regression: these three raised CurrencyMismatchError, so the chat
+    turn failed on the questions a household asks most — what are we worth, what
+    can we spend, how long would our savings last."""
+    payload = _execute(demo_engine, tool, {})
+
+    assert "error" not in payload, payload
+    # Beside `warnings`, typed, in the account's OWN currency — never a USD figure.
+    assert payload["excluded_accounts"] == [
+        {
+            "name": "Euro Savings",
+            "type": "savings",
+            "balance": {"amount_minor": 400_000, "currency": "EUR", "display": "EUR 4,000.00"},
+        }
+    ]
+    assert _EUR_WARNING in payload["warnings"]
+    assert "excluded_accounts" not in payload["outputs"]
+    # The EUR balance is quotable (the guardrail strips thousands separators):
+    # the advisor can SAY what it could not add up.
+    assert "4000.00" in _grounded(tool, {}, payload)
+
+
+def test_net_worth_total_is_base_currency_only(demo_engine: Engine, foreign_currency_account) -> None:
+    payload = _execute(demo_engine, "get_net_worth", {})
+
+    # checking 500_000 + savings 1_500_000 - mortgage 300_000_000; the EUR 4,000
+    # is neither added as-is nor converted.
+    assert payload["outputs"]["net_worth"] == {
+        "amount_minor": -298_000_000,
+        "currency": "USD",
+        "display": "-USD 2,980,000.00",
+    }
+    assert payload["asset_breakdown"]["liquid"]["amount_minor"] == 2_000_000
+
+
+def test_excluded_account_name_digits_do_not_ground_a_figure(demo_engine: Engine) -> None:
+    """A warning is app-authored text whose digits ground a figure, so a warning
+    that NAMED the account would make "9876" quotable as money again — the #130
+    lesson. The name travels only in the typed field, where it is stripped."""
+    from family_cfo_api import repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    euro = repository.create_account(demo_engine, hh, "Euro Savings 9876", "savings", "EUR")
+    repository.record_account_balance(demo_engine, euro.id, 400_000)
+
+    payload = _execute(demo_engine, "get_net_worth", {})
+
+    assert payload["excluded_accounts"][0]["name"] == "Euro Savings 9876"
+    assert all("9876" not in warning for warning in payload["warnings"])
+    values = _grounded("get_net_worth", {}, payload)
+    assert "4000.00" in values
+    assert "9876" not in values
+    assert "9876.00" not in values
+
+
+def test_inventory_and_debt_tools_are_unchanged_by_the_fix(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """`get_accounts` (#130) already lists and flags the account; `get_debt_outlook`
+    already skipped foreign debts. Neither owns a total that left it out."""
+    accounts = _execute(demo_engine, "get_accounts", {})
+    assert "excluded_accounts" not in accounts
+    assert accounts["accounts_outside_base_currency"] == 1
+
+    debts = _execute(demo_engine, "get_debt_outlook", {})
+    assert "excluded_accounts" not in debts
+    assert set(debts) == {
+        "modeled_debts",
+        "unmodeled_debts",
+        "debts",
+        "total_interest_remaining",
+        "longest_payoff_months",
+        "warnings",
+    }
+
+
+def test_purchase_impact_survives_a_foreign_account(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """`compute_purchase_impact` rebuilt an unfiltered balance list of its own, so
+    it still raised after the three headline fixes (plan review, #152)."""
+    payload = _execute(demo_engine, "project_purchase_impact", {"price": 1000})
+
+    assert "error" not in payload, payload
+    assert payload["outputs"]["net_worth_before"]["currency"] == "USD"
+    assert payload["outputs"]["net_worth_before"]["amount_minor"] == -298_000_000
+    assert [a["name"] for a in payload["excluded_accounts"]] == ["Euro Savings"]
+    assert _EUR_WARNING in payload["warnings"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("project_retirement", {"current_age": 35, "retirement_age": 60}),
+        ("when_can_i_retire", {"current_age": 35}),
+    ],
+)
+def test_retirement_grounding_never_labels_a_foreign_pension_in_the_base_currency(
+    demo_engine: Engine, tool: str, args: dict
+) -> None:
+    """Worse than a 500: a EUR 9,000 pension was summed as raw minor units and
+    reported as USD 9,000 — a plausible wrong answer (plan review, #152)."""
+    from family_cfo_api import repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    pension = repository.create_account(demo_engine, hh, "Euro Pension", "retirement", "EUR")
+    repository.record_account_balance(demo_engine, pension.id, 900_000)
+    us = repository.create_account(demo_engine, hh, "401k", "retirement", "USD")
+    repository.record_account_balance(demo_engine, us.id, 5_000_000)
+
+    payload = _execute(demo_engine, tool, args)
+
+    assert "error" not in payload, payload
+    defaults = payload["grounded_defaults"]
+    assert defaults["current_savings_total"] == {
+        "amount_minor": 5_000_000,
+        "currency": "USD",
+        "display": "USD 50,000.00",
+    }
+    assert [a["name"] for a in defaults["current_savings_from_accounts"]] == ["401k"]
+    assert payload["excluded_accounts"] == [
+        {
+            "name": "Euro Pension",
+            "balance": {"amount_minor": 900_000, "currency": "EUR", "display": "EUR 9,000.00"},
+        }
+    ]
+    assert _EUR_WARNING in payload["warnings"]
+    # Nothing anywhere in the payload calls EUR 9,000 a USD figure.
+    assert (900_000, "USD 9,000.00") not in _money_rows(payload)
+
+
+def test_historical_net_worth_marks_exclusions_unknown(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """A snapshot is a base-currency figure with no record of what it left out.
+    An empty list would claim "nothing was excluded"; null says "not known"."""
+    payload = _execute(demo_engine, "get_net_worth", {"month": "2020-01"})
+
+    assert "error" not in payload, payload
+    assert payload["excluded_accounts"] is None
+    assert "unknown for a past month" in payload["note"]
+
+
+def test_designation_on_a_foreign_account_is_disclosed_to_the_advisor(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    from family_cfo_api import repository
+
+    repository.update_account(
+        demo_engine,
+        fixtures.DEMO_HOUSEHOLD_ID,
+        foreign_currency_account.id,
+        emergency_fund_percent=100.0,
+    )
+
+    payload = _execute(demo_engine, "get_emergency_fund", {})
+
+    assert "error" not in payload, payload
+    assert (
+        "An emergency-fund designation on 1 account held in EUR is ignored; designations "
+        "count only in USD."
+    ) in payload["warnings"]
+    # No USD designation exists, so the fund is still the all-liquid USD fallback.
+    assert payload["outputs"]["liquid_balance"] == {
+        "amount_minor": 2_000_000,
+        "currency": "USD",
+        "display": "USD 20,000.00",
+    }
+
+
+def test_total_owning_tools_advertise_the_exclusion_rule() -> None:
+    specs = {tool.name: tool for tool in ai_tools.build_tools()}
+    for name in (
+        "get_net_worth",
+        "get_emergency_fund",
+        "get_safe_to_spend",
+        "project_purchase_impact",
+        "project_retirement",
+        "when_can_i_retire",
+    ):
+        assert "excluded_accounts" in specs[name].description, name
+    assert "NEVER add it back into a base-currency figure" in ai_tools.GROUNDING_RULES

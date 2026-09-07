@@ -256,3 +256,24 @@ async def test_analyze_purchase_disabled_runtime_uses_deterministic_stub(
 
     assert response.status_code == 200
     assert "this should never be called" not in response.json()["answer"]
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_survives_a_foreign_currency_account(
+    demo_client, demo_token, foreign_currency_account
+) -> None:
+    """#152: compute_purchase_impact rebuilt an unfiltered balance list of its own,
+    so POST /advisor/purchase raised CurrencyMismatchError with one EUR account."""
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert any(impact["area"] == "net_worth" for impact in body["impacts"])
+    assert (
+        "1 account held in EUR is not counted in this USD figure; a balance in another "
+        "currency is never converted."
+    ) in body["warnings"]
