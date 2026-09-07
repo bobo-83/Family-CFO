@@ -15,10 +15,21 @@ function response(data: unknown, error?: unknown) {
 }
 
 describe('Goals', () => {
-  let apiMock: { listGoals: ReturnType<typeof vi.fn>; createGoal: ReturnType<typeof vi.fn> };
+  let apiMock: {
+    listGoals: ReturnType<typeof vi.fn>;
+    createGoal: ReturnType<typeof vi.fn>;
+    updateGoal: ReturnType<typeof vi.fn>;
+    getHouseholdContext: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
-    apiMock = { listGoals: vi.fn(), createGoal: vi.fn() };
+    apiMock = {
+      listGoals: vi.fn(),
+      createGoal: vi.fn(),
+      updateGoal: vi.fn().mockResolvedValue(response({})),
+      // #156: the page loads the household's base currency; USD unless a test says otherwise.
+      getHouseholdContext: vi.fn().mockResolvedValue(response({ currency: 'USD' })),
+    };
   });
 
   it('shows the create form for an owner and creates a goal', async () => {
@@ -223,5 +234,96 @@ describe('Goals', () => {
     expect(form).toBeFalsy();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Only the household owner or an adult member can add goals.');
+  });
+});
+
+
+// --- #156 (ADR 0075): new goals in the base currency, edits in the goal's own ---
+
+describe('Goals #156: currency', () => {
+  const EUR_GOAL = {
+    id: 'g-eur',
+    name: 'Paris',
+    type: 'vacation',
+    target: { amount_minor: 900_000, currency: 'EUR' },
+    current: { amount_minor: 0, currency: 'EUR' },
+    priority: 1,
+    monthly_contribution: { amount_minor: 10_000, currency: 'EUR' },
+  };
+
+  async function render(apiMock: Record<string, unknown>) {
+    TestBed.configureTestingModule({
+      imports: [Goals],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+    const fixture = TestBed.createComponent(Goals);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('creates a new goal in the household base currency, not a literal USD', async () => {
+    const apiMock = {
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [] })),
+      createGoal: vi.fn().mockResolvedValue(response({ ...EUR_GOAL, target: { amount_minor: 500_000, currency: 'VND' } })),
+      getHouseholdContext: vi.fn().mockResolvedValue(response({ currency: 'VND' })),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+    expect((fixture.nativeElement as HTMLElement).querySelector('.goal-form mat-label')?.closest('form')?.textContent).toContain('(VND)');
+
+    component['form'].setValue({ name: 'Tet trip', type: 'vacation', targetAmount: 5000, priority: 2, monthlyContribution: 100 });
+    await component['submit']();
+
+    expect(apiMock.createGoal).toHaveBeenCalledWith({
+      name: 'Tet trip',
+      type: 'vacation',
+      target: { amount_minor: 500_000, currency: 'VND' },
+      priority: 2,
+      monthly_contribution: { amount_minor: 10_000, currency: 'VND' },
+    });
+  });
+
+  it('refuses to create a goal while the base currency is unknown', async () => {
+    const apiMock = {
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [] })),
+      createGoal: vi.fn(),
+      getHouseholdContext: vi.fn().mockReturnValue(new Promise(() => undefined)),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+    component['form'].setValue({ name: 'Boat', type: 'other', targetAmount: 100, priority: 3, monthlyContribution: 0 });
+
+    await component['submit']();
+
+    expect(apiMock.createGoal).not.toHaveBeenCalled();
+    const button = (fixture.nativeElement as HTMLElement).querySelector('.goal-form button[type="submit"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it('edits the contribution of a EUR goal in EUR, whatever the household base', async () => {
+    const apiMock = {
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [EUR_GOAL] })),
+      createGoal: vi.fn(),
+      updateGoal: vi.fn().mockResolvedValue(response(EUR_GOAL)),
+      getHouseholdContext: vi.fn().mockResolvedValue(response({ currency: 'USD' })),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+
+    component['startEditContribution'](EUR_GOAL.id, 10_000);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.goal-list__contribution mat-label')?.textContent).toContain('EUR / month');
+
+    component['contributionInput'] = 150;
+    await component['saveContribution'](EUR_GOAL as never);
+
+    expect(apiMock.updateGoal).toHaveBeenCalledWith('g-eur', {
+      monthly_contribution: { amount_minor: 15_000, currency: 'EUR' },
+    });
   });
 });

@@ -423,3 +423,19 @@
   font-size: 0.82rem;
   max-width: 46rem;
 }
+
+/* #156: a foreign-currency account is listed like any other and marked as
+   outside the base-currency totals (ADR 0075). */
+.accounts-table__foreign {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--mat-sys-on-surface-variant, var(--color-text-muted));
+}
+
+.accounts-ef-total--foreign {
+  font-size: 0.85rem;
+}
+
+.account-form__currency-error {
+  color: var(--mat-sys-error, #b3261e);
+}

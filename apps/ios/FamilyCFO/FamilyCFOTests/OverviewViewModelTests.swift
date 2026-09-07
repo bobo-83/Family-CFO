@@ -151,11 +151,59 @@ final class MockGoalsAPI: GoalsAPI, @unchecked Sendable {
             return result
         }
     }
-    nonisolated func createGoal(_ request: Components.Schemas.GoalCreateRequest) async throws {}
+    /// #156: what was sent, so a test can pin the currency of a new goal and of an edit.
+    private(set) var created: [Components.Schemas.GoalCreateRequest] = []
+    private(set) var updated: [(id: String, request: Components.Schemas.GoalUpdateRequest)] = []
+    nonisolated func createGoal(_ request: Components.Schemas.GoalCreateRequest) async throws {
+        await MainActor.run { created.append(request) }
+    }
     nonisolated func updateGoal(
         id: String, _ request: Components.Schemas.GoalUpdateRequest
-    ) async throws {}
+    ) async throws {
+        await MainActor.run { updated.append((id, request)) }
+    }
     nonisolated func deleteGoal(id: String) async throws {}
+}
+
+
+/// #156 (ADR 0075): the note under the net-worth value names what the
+/// base-currency total left out, in each account's own currency — and nothing
+/// for an empty list (known, none) or a nil one (a past month, unknown).
+@MainActor
+struct OutsideBaseCurrencyNoteTests {
+    private func context(
+        _ outside: [Components.Schemas.AccountOutsideBaseCurrency]?
+    ) -> Components.Schemas.HouseholdContext {
+        .init(
+            householdId: "hh-1", displayName: "demo", currency: "USD",
+            netWorth: .init(amountMinor: -298_000_000, currency: "USD"),
+            emergencyFundMonths: 0, accountsOutsideBaseCurrency: outside)
+    }
+
+    @Test func namesEachExcludedAccountInItsOwnCurrency() {
+        let note = OverviewViewModel.outsideBaseCurrencyNote(
+            context([
+                .init(name: "Euro Savings", balance: .init(amountMinor: 400_000, currency: "EUR")),
+                .init(name: "Euro Pension", balance: .init(amountMinor: 900_000, currency: "EUR")),
+            ]))
+
+        let text = try! #require(note)
+        #expect(text.hasPrefix("Not counted in USD totals: "))
+        #expect(text.contains("Euro Savings"))
+        #expect(text.contains("Euro Pension"))
+        #expect(text.contains(" · "))
+        // EUR 4,000.00 formatted as euros, never as dollars.
+        #expect(text.contains("€4,000.00") || text.contains("4,000.00 €") || text.contains("EUR 4,000.00"))
+        #expect(!text.contains("$4,000.00"))
+    }
+
+    @Test func nothingForAnEmptyList() {
+        #expect(OverviewViewModel.outsideBaseCurrencyNote(context([])) == nil)
+    }
+
+    @Test func nothingForAPastMonthWhereTheListIsNil() {
+        #expect(OverviewViewModel.outsideBaseCurrencyNote(context(nil)) == nil)
+    }
 }
 
 @MainActor

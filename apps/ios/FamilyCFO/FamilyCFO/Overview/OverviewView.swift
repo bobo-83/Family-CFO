@@ -527,6 +527,13 @@ struct OverviewView: View {
                 LabeledContent("Total debt", value: debt.formatted)
                     .font(.subheadline)
             }
+            // #156 (ADR 0075): held in another currency — excluded from the
+            // figure above and disclosed, never converted.
+            if let note = OverviewViewModel.outsideBaseCurrencyNote(context) {
+                Label(note, systemImage: "globe")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -1004,7 +1011,7 @@ struct OverviewView: View {
         }
         if let api = model.goalsAPI {
             NavigationLink {
-                GoalsView(viewModel: GoalsViewModel(api: api))
+                GoalsView(viewModel: GoalsViewModel(api: api, currency: model.householdCurrency))
             } label: {
                 card
             }

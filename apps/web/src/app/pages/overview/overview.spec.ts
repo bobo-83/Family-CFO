@@ -1729,3 +1729,76 @@ describe('Overview', () => {
     });
   });
 });
+
+
+// --- #156 (ADR 0075): what the base-currency total leaves out -------------------
+
+describe('Overview #156: accounts outside the base currency', () => {
+  let apiMock: Record<string, ReturnType<typeof vi.fn>>;
+
+  function minimalContext(extra: Record<string, unknown>) {
+    return {
+      household_id: 'h1',
+      display_name: 'The Demo Family',
+      currency: 'USD',
+      net_worth: { amount_minor: -298_000_000, currency: 'USD' },
+      emergency_fund_months: 0,
+      ...extra,
+    };
+  }
+
+  async function render(context: Record<string, unknown>) {
+    apiMock = {
+      getHouseholdContext: vi.fn().mockResolvedValue(response(context)),
+      updateHousehold: vi.fn().mockResolvedValue(response({})),
+      getCashOutlook: vi.fn().mockResolvedValue(response(null)),
+      getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [] })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [Overview],
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  const note = (host: HTMLElement) => host.querySelector('[data-testid="overview-outside-base-currency"]');
+
+  it('names each excluded account with its own currency under the net worth', async () => {
+    const host = await render(
+      minimalContext({
+        accounts_outside_base_currency: [
+          { name: 'Euro Savings', balance: { amount_minor: 400_000, currency: 'EUR' } },
+          { name: 'Euro Pension', balance: { amount_minor: 900_000, currency: 'EUR' } },
+        ],
+      }),
+    );
+
+    const text = note(host)?.textContent ?? '';
+    expect(text).toContain('Not counted in USD totals');
+    expect(text).toContain('Euro Savings (EUR 4,000.00)');
+    expect(text).toContain('Euro Pension (EUR 9,000.00)');
+    // The EUR balances are never shown as USD.
+    expect(text).not.toContain('USD 4,000.00');
+  });
+
+  it('renders nothing for a single-currency household (an empty list)', async () => {
+    const host = await render(minimalContext({ accounts_outside_base_currency: [] }));
+    expect(note(host)).toBeNull();
+  });
+
+  it('renders nothing for a past month, where the list is null (unknown, not none)', async () => {
+    const host = await render(minimalContext({ accounts_outside_base_currency: null }));
+    expect(note(host)).toBeNull();
+  });
+});

@@ -25,6 +25,20 @@ final class OverviewViewModel {
     var errorMessage: String?
 
     var isCurrentMonth: Bool { selectedMonth == MonthKey.current() }
+
+    /// #156 (ADR 0075): the accounts a base-currency total leaves out, as one
+    /// line — "Not counted in USD totals: Euro Savings (€4,000.00) · …" — or
+    /// nil when there are none. `nil` on the wire is a past month whose
+    /// accounts are unknown and `[]` is known-and-none; neither gets a note.
+    static func outsideBaseCurrencyNote(
+        _ context: Components.Schemas.HouseholdContext
+    ) -> String? {
+        let outside = context.accountsOutsideBaseCurrency ?? []
+        guard !outside.isEmpty else { return nil }
+        let list = outside.map { "\($0.name) (\($0.balance.formattedExact))" }
+            .joined(separator: " · ")
+        return String(localized: "Not counted in \(context.currency) totals: \(list)")
+    }
     var monthLabel: String { MonthKey.label(selectedMonth) }
     /// Don't scroll past the oldest month with data ("YYYY-MM" compares lexically).
     /// False until a context has loaded, so you can't run past the cap mid-load.

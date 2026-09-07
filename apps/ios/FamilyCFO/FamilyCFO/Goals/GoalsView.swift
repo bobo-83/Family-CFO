@@ -36,25 +36,32 @@ struct GoalsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                // #156: a new goal needs the household's base currency — never guessed.
                 Button { addingGoal = true } label: {
                     Label("Add goal", systemImage: "plus")
                 }
+                .disabled(viewModel.baseCurrency == nil)
             }
         }
         .sheet(isPresented: $addingGoal) {
-            GoalFormSheet(existing: nil) { name, type, targetMinor, dueISO, priority, contribution in
-                await viewModel.create(
-                    .init(
-                        name: name, _type: type,
-                        target: .init(amountMinor: targetMinor, currency: "USD"),
-                        targetDate: dueISO, priority: priority,
-                        monthlyContribution: contribution.map {
-                            .init(amountMinor: $0, currency: "USD")
-                        }))
+            if let currency = viewModel.baseCurrency {
+                GoalFormSheet(existing: nil, currency: currency) {
+                    name, type, targetMinor, dueISO, priority, contribution in
+                    await viewModel.create(
+                        .init(
+                            name: name, _type: type,
+                            target: .init(amountMinor: targetMinor, currency: currency),
+                            targetDate: dueISO, priority: priority,
+                            monthlyContribution: contribution.map {
+                                .init(amountMinor: $0, currency: currency)
+                            }))
+                }
             }
         }
         .sheet(item: $editing) { goal in
-            GoalFormSheet(existing: goal) { name, _, targetMinor, dueISO, priority, contribution in
+            // An existing goal is edited in the currency it was declared in (#156 review).
+            GoalFormSheet(existing: goal, currency: goal.target.currency) {
+                name, _, targetMinor, dueISO, priority, contribution in
                 await viewModel.update(
                     id: goal.id,
                     .init(
@@ -66,7 +73,11 @@ struct GoalsView: View {
                         }))
             }
         }
-        .task { await viewModel.load() }
+        .task {
+            async let goals: () = viewModel.load()
+            async let currency: () = viewModel.loadCurrency()
+            _ = await (goals, currency)
+        }
     }
 
     private func goalRow(_ goal: Components.Schemas.Goal) -> some View {
@@ -163,6 +174,9 @@ struct GoalsView: View {
 /// The type is fixed once created (it drives progress semantics).
 private struct GoalFormSheet: View {
     let existing: Components.Schemas.Goal?
+    /// #156: the goal's currency — the base currency for a new goal, the
+    /// declared one for an edit. Both money fields are entered in it.
+    let currency: String
     let onSave: (
         String, Components.Schemas.GoalType, Int64, String?, Int, Int64?
     ) async -> Void
@@ -178,11 +192,13 @@ private struct GoalFormSheet: View {
 
     init(
         existing: Components.Schemas.Goal?,
+        currency: String,
         onSave: @escaping (
             String, Components.Schemas.GoalType, Int64, String?, Int, Int64?
         ) async -> Void
     ) {
         self.existing = existing
+        self.currency = currency
         self.onSave = onSave
         _name = State(initialValue: existing?.name ?? "")
         _type = State(initialValue: existing?._type ?? .other)
@@ -207,7 +223,7 @@ private struct GoalFormSheet: View {
                             }
                         }
                     }
-                    TextField("Target amount", value: $target, format: .currency(code: "USD"))
+                    TextField("Target amount", value: $target, format: .currency(code: currency))
                         .keyboardType(.decimalPad)
                     Picker("Priority", selection: $priority) {
                         ForEach(1...5, id: \.self) { p in
@@ -230,7 +246,7 @@ private struct GoalFormSheet: View {
                 Section {
                     TextField(
                         "Monthly contribution", value: $contribution,
-                        format: .currency(code: "USD")
+                        format: .currency(code: currency)
                     )
                     .keyboardType(.decimalPad)
                 } header: {
