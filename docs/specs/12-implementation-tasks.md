@@ -1615,11 +1615,15 @@ enforces. Not in this change:
       the form default, and base-currency-only reservation totals (both Accounts
       screens today add mixed-currency reservations as raw minor units or drop
       the rest silently).
-- [ ] `VERSION` → `0.158`; every `apps/*/BUILD` → `0` (rule 6);
-      `shared/openapi/compatibility/0.158.yaml` copied from the merged contract
-      (`0.157.yaml` is never edited). Release acts (`BUILD` bumps, tags,
-      deploys) stay in their own `chore(release)` PRs per the deployment guide;
-      the API component is `api` AND `worker`.
+- [x] Contract PR (#156, PR A): `VERSION` → `0.158`; every `apps/*/BUILD` → `0`
+      (rule 6); `shared/openapi/compatibility/0.158.yaml` copied byte-for-byte
+      from the merged contract (`0.157.yaml` is never edited). No code — the
+      first client to READ `accounts_outside_base_currency` needs the fixture
+      for its `VERSION` to carry the field, or the compatibility job cannot
+      compile it. Release acts stay separate and follow the guide's order: an
+      untagged `patch.sh api worker` deploy from the synced tree, verify
+      `/health` reports `0.158.0`, THEN `api-v0.158.0` and a pinned redeploy.
+      The API component is `api` AND `worker`.
 - [ ] Web Overview: "Not counted in {base} totals: {name} ({balance})" under the
       net-worth value from `context.accounts_outside_base_currency ?? []`,
       hidden when empty; `$localize` with `vi` and `lt` entries. Web Accounts:
