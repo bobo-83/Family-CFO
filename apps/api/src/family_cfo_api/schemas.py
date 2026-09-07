@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 HouseholdRole = Literal["owner", "adult", "viewer", "child"]
 AccountType = Literal[
@@ -57,6 +57,15 @@ class ErrorResponse(BaseModel):
 class Money(BaseModel):
     amount_minor: int
     currency: str = Field(min_length=3, max_length=3)
+
+    @field_validator("currency")
+    @classmethod
+    def _canonical_currency(cls, value: str) -> str:
+        # #152 review: the engine's Money canonicalises codes to upper case. A
+        # stored "usd" beside a USD base currency compared unequal and, once
+        # totals began excluding out-of-base balances, was left out of its own
+        # household's figures. Normalised here, at every money ingress.
+        return value.upper()
 
 
 class SessionInfo(BaseModel):
@@ -2040,6 +2049,13 @@ class AccountCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     type: AccountType
     currency: str = Field(min_length=3, max_length=3)
+
+    @field_validator("currency")
+    @classmethod
+    def _canonical_currency(cls, value: str) -> str:
+        # #152 review: see Money — an account's code must compare equal to the
+        # household's base currency when it IS the base currency.
+        return value.upper()
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
     maturity_date: date | None = None

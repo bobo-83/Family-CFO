@@ -255,14 +255,27 @@ def partition_balances_by_currency(
     *,
     eligible: Callable[[repository.AccountBalanceRecord], bool] | None = None,
 ) -> CurrencyPartition:
+    # Defensive (#152 review): the engine's Money canonicalises codes to upper
+    # case and ingress now does too, but a legacy "usd" row must never be read
+    # as foreign to its own USD household.
+    currency = currency.upper()
     in_base: list[repository.AccountBalanceRecord] = []
     foreign: list[repository.AccountBalanceRecord] = []
     for balance in balances:
-        if balance.currency == currency:
+        if balance.currency.upper() == currency:
             in_base.append(balance)
         elif eligible is None or eligible(balance):
             foreign.append(balance)
     return CurrencyPartition(currency, in_base, foreign)
+
+
+def _merge_excluded(*groups: Iterable[ExcludedAccount]) -> list[ExcludedAccount]:
+    """One disclosure per account, first mention wins, order preserved."""
+    merged: dict[str, ExcludedAccount] = {}
+    for group in groups:
+        for account in group:
+            merged.setdefault(account.account_id, account)
+    return list(merged.values())
 
 
 def _currencies_of(excluded: Sequence[ExcludedAccount]) -> str:
@@ -346,7 +359,11 @@ def _counts_toward_net_worth(balance: repository.AccountBalanceRecord) -> bool:
 
 def _touches_safe_to_spend(balance: repository.AccountBalanceRecord) -> bool:
     # Liquid cash, a designated reservation, or a debt (reported beside the
-    # figure and, with terms, subtracted as a minimum payment).
+    # figure and, with terms, subtracted as a minimum payment). A 401(k) loan
+    # is owed to yourself and repaid by payroll: neither the debt total nor the
+    # reserved payments ever count it, so it is never "excluded" from them.
+    if balance.account_type in repository.RETIREMENT_LOAN_TYPES:
+        return False
     return (
         balance.account_type in LIQUID_ACCOUNT_TYPES
         or _designated(balance)
@@ -523,18 +540,33 @@ def compute_debt_outlook(engine: Engine, household_id: str, currency: str) -> De
 
 
 def compute_retirement_projection(
-    engine: Engine, household_id: str, inputs: RetirementInput
+    engine: Engine,
+    household_id: str,
+    inputs: RetirementInput,
+    *,
+    excluded: Sequence[ExcludedAccount] = (),
 ) -> tuple[CalculationResult, str]:
+    """``excluded`` (#152 review): the retirement/HSA accounts the grounding could
+    not add up, so the audit row carries the same provenance as every other
+    base-currency figure instead of a reference that knows nothing of them."""
     result = calculate_retirement_projection(inputs)
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, inputs.current_savings.currency, excluded
+    )
     return result, calculation_id
 
 
 def compute_retirement_age_solve(
-    engine: Engine, household_id: str, inputs: RetirementAgeSolveInput
+    engine: Engine,
+    household_id: str,
+    inputs: RetirementAgeSolveInput,
+    *,
+    excluded: Sequence[ExcludedAccount] = (),
 ) -> tuple[CalculationResult, str]:
     result = solve_retirement_age(inputs)
-    calculation_id = _persist(engine, household_id, result)
+    calculation_id = _persist_disclosing(
+        engine, household_id, result, inputs.current_savings.currency, excluded
+    )
     return result, calculation_id
 
 
@@ -685,10 +717,19 @@ def compute_emergency_fund_with_ref(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> tuple[CalculationResult, str]:
     inputs = emergency_fund_inputs(engine, household_id, currency)
-    expenses = monthly_essential_expenses(engine, household_id, currency, today=today)
+    # #152 review: the denominator has account-derived inputs of its own (the
+    # liability minimums), so a foreign loan left out of it is disclosed too.
+    expenses, denominator_excluded = monthly_essential_expenses_with_exclusions(
+        engine, household_id, currency, today=today
+    )
     result = calculate_emergency_fund_months(inputs.fund, expenses)
     calculation_id = _persist_disclosing(
-        engine, household_id, result, currency, inputs.excluded_accounts, warnings=inputs.warnings
+        engine,
+        household_id,
+        result,
+        currency,
+        _merge_excluded(inputs.excluded_accounts, denominator_excluded),
+        warnings=inputs.warnings,
     )
     return result, calculation_id
 
@@ -1776,6 +1817,11 @@ def compute_safe_to_spend(
     # #152: every loop below already filters on `currency`; the partition exists
     # so the figure can DISCLOSE the out-of-base accounts it would have counted.
     partition = partition_balances_by_currency(balances, currency, eligible=_touches_safe_to_spend)
+    # The obligation loops below add what they skip (#152 review): a foreign
+    # lease with a recorded payment has no negative balance, so only the loop
+    # that would have reserved its payment knows it was left out.
+    excluded = {a.account_id: a for a in partition.excluded_accounts}
+    balance_by_id = {b.account_id: b.balance_minor for b in balances}
     liquid_balance = Money.zero(currency)
     for balance in balances:
         if balance.account_type in LIQUID_ACCOUNT_TYPES and balance.currency == currency:
@@ -1825,7 +1871,22 @@ def compute_safe_to_spend(
     minimum_debt_payments = Money.zero(currency)
     modeled_ids: set[str] = set(bill_covered_accounts)
     for debt in repository.list_debts_with_terms(engine, household_id):
-        if debt.currency != currency or debt.minimum_payment_minor is None:
+        if debt.minimum_payment_minor is None:
+            continue
+        if debt.currency != currency:
+            if (
+                debt.account_id not in bill_covered_accounts
+                and debt.account_type not in repository.RETIREMENT_LOAN_TYPES
+            ):
+                excluded.setdefault(
+                    debt.account_id,
+                    ExcludedAccount(
+                        debt.account_id,
+                        debt.name,
+                        debt.account_type,
+                        Money(-debt.balance_owed_minor, debt.currency),
+                    ),
+                )
             continue
         # Modeled either way, so it never trips the "no minimum recorded" warning.
         modeled_ids.add(debt.account_id)
@@ -1846,12 +1907,22 @@ def compute_safe_to_spend(
     # (payroll-deducted). Already-counted debts are in `modeled_ids`, so no double-count.
     for account in repository.list_liability_accounts(engine, household_id):
         if (
-            account.currency != currency
-            or account.minimum_payment_minor is None
+            account.minimum_payment_minor is None
             or account.id in modeled_ids
             or account.account_type == "credit_card"
             or account.account_type in repository.RETIREMENT_LOAN_TYPES
         ):
+            continue
+        if account.currency != currency:
+            excluded.setdefault(
+                account.id,
+                ExcludedAccount(
+                    account.id,
+                    account.name,
+                    account.account_type,
+                    Money(balance_by_id.get(account.id, 0), account.currency),
+                ),
+            )
             continue
         modeled_ids.add(account.id)
         minimum_debt_payments += Money(account.minimum_payment_minor, account.currency)
@@ -1937,7 +2008,7 @@ def compute_safe_to_spend(
     # and the API layer recomputes them via committed_savings_in_window.
     result.outputs["committed_savings_reserved"] = reserve_savings
     calculation_id = _persist_disclosing(
-        engine, household_id, result, currency, partition.excluded_accounts, warnings=fund.warnings
+        engine, household_id, result, currency, list(excluded.values()), warnings=fund.warnings
     )
     return result, calculation_id
 
@@ -1977,14 +2048,24 @@ def compute_purchase_impact(
 
     goals = repository.list_goals(engine, household_id)
     top_goal = None
+    top_goal_warning: str | None = None
     if goals:
         top = goals[0]
-        top_goal = GoalInput(
-            goal_id=top.id,
-            name=top.name,
-            target=Money(top.target_minor, top.currency),
-            current=Money(top.current_minor, top.currency),
-        )
+        if top.currency.upper() == currency.upper():
+            top_goal = GoalInput(
+                goal_id=top.id,
+                name=top.name,
+                target=Money(top.target_minor, top.currency),
+                current=Money(top.current_minor, top.currency),
+            )
+        else:
+            # #152 review: a goal declared in another currency cannot be measured
+            # against a base-currency price (the engine would raise), and
+            # skipping it silently would hide the household's top priority.
+            top_goal_warning = (
+                f"The household's top goal is held in {top.currency.upper()} and is not "
+                f"modeled in this {currency} figure; goal amounts are never converted."
+            )
 
     result = calculate_purchase_impact(
         PurchaseImpactInputs(
@@ -1998,7 +2079,12 @@ def compute_purchase_impact(
         )
     )
     calculation_id = _persist_disclosing(
-        engine, household_id, result, currency, partition.excluded_accounts
+        engine,
+        household_id,
+        result,
+        currency,
+        partition.excluded_accounts,
+        warnings=(top_goal_warning,),
     )
     return result, calculation_id
 
@@ -2388,7 +2474,11 @@ def goal_funding(
 
 
 def goal_current_minor(
-    engine: Engine, household_id: str, goal: repository.GoalRecord
+    engine: Engine,
+    household_id: str,
+    goal: repository.GoalRecord,
+    *,
+    base_currency: str | None = None,
 ) -> int:
     """A goal's real progress. An emergency-fund goal tracks the household's
     DESIGNATED emergency fund (the same figure the Overview's Emergency Fund card
@@ -2397,9 +2487,18 @@ def goal_current_minor(
     designation there's no live figure to trust, so it falls back to the stored
     current. Every other goal type uses its stored current."""
     if goal.goal_type == "emergency_fund":
-        ef = emergency_fund_inputs(engine, household_id, goal.currency)
-        if ef.using_designations:
-            return ef.fund.amount_minor
+        if base_currency is None:
+            household = repository.get_household(engine, household_id)
+            base_currency = household.base_currency if household is not None else goal.currency
+        # #152 review: the fund is a base-currency figure and goal amounts are
+        # never converted, so a goal declared in another currency has no live
+        # figure to trust — it keeps its stored current, like an undesignated
+        # one. (Partitioning by the goal's currency instead produced warnings
+        # about every base-currency account, with nowhere to send them.)
+        if goal.currency.upper() == base_currency.upper():
+            ef = emergency_fund_inputs(engine, household_id, base_currency)
+            if ef.using_designations:
+                return ef.fund.amount_minor
     return goal.current_minor
 
 
@@ -2559,8 +2658,21 @@ def _monthly_bill_total(engine: Engine, household_id: str, currency: str) -> Mon
 
 
 def _monthly_debt_minimums(engine: Engine, household_id: str, currency: str) -> Money:
+    total, _excluded = _monthly_debt_minimums_with_exclusions(engine, household_id, currency)
+    return total
+
+
+def _monthly_debt_minimums_with_exclusions(
+    engine: Engine, household_id: str, currency: str
+) -> tuple[Money, list[ExcludedAccount]]:
     """Monthly minimum payments on loans, cards, and other liabilities that make a
     recurring claim on liquid cash — for the emergency-fund denominator (ADR 0039).
+
+    Also returns the out-of-base liabilities that WOULD have contributed (#152
+    review): the same loops that build the figure record what they skipped, so
+    the disclosure is derived from the denominator's actual inputs rather than
+    guessed from account types. A 401(k) loan is never a contributor, so it is
+    never "excluded" either.
 
     Deduped against bills: a debt also modeled as an explicit bill is already in
     ``_monthly_bill_total``, so it is skipped here (``bill_covered_account_ids``).
@@ -2572,35 +2684,64 @@ def _monthly_debt_minimums(engine: Engine, household_id: str, currency: str) -> 
     bill_covered = bill_covered_account_ids(
         repository.list_bills(engine, household_id), liability_accounts
     )
+    balance_by_id = {
+        b.account_id: b.balance_minor for b in repository.list_account_balances(engine, household_id)
+    }
     total = Money.zero(currency)
     modeled_ids: set[str] = set(bill_covered)
+    excluded: dict[str, ExcludedAccount] = {}
     for debt in repository.list_debts_with_terms(engine, household_id):
-        if debt.currency != currency or debt.minimum_payment_minor is None:
+        if debt.minimum_payment_minor is None:
             continue
         modeled_ids.add(debt.account_id)
         if debt.account_id in bill_covered or debt.account_type in repository.RETIREMENT_LOAN_TYPES:
+            continue
+        if debt.currency != currency:
+            excluded[debt.account_id] = ExcludedAccount(
+                debt.account_id,
+                debt.name,
+                debt.account_type,
+                Money(-debt.balance_owed_minor, debt.currency),
+            )
             continue
         total += Money(debt.minimum_payment_minor, debt.currency)
     # Liabilities without a payoff balance (a lease, a card carried at its minimum)
     # never appear in list_debts_with_terms but still claim cash every month.
     for account in liability_accounts:
         if (
-            account.currency != currency
-            or account.minimum_payment_minor is None
+            account.minimum_payment_minor is None
             or account.id in modeled_ids
             or account.account_type in repository.RETIREMENT_LOAN_TYPES
         ):
             continue
         modeled_ids.add(account.id)
+        if account.currency != currency:
+            excluded[account.id] = ExcludedAccount(
+                account.id,
+                account.name,
+                account.account_type,
+                Money(balance_by_id.get(account.id, 0), account.currency),
+            )
+            continue
         total += Money(account.minimum_payment_minor, account.currency)
-    return total
+    return total, list(excluded.values())
 
 
 def monthly_essential_expenses(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
 ) -> Money:
+    expenses, _excluded = monthly_essential_expenses_with_exclusions(
+        engine, household_id, currency, today=today
+    )
+    return expenses
+
+
+def monthly_essential_expenses_with_exclusions(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> tuple[Money, list[ExcludedAccount]]:
     """The realistic monthly cash a household must cover if income stopped — the
-    emergency-fund coverage denominator (ADR 0039).
+    emergency-fund coverage denominator (ADR 0039) — and the out-of-base
+    liabilities it left out (#152 review).
 
     ``= recurring bills + debt minimum payments + everyday spending above bills``
 
@@ -2618,7 +2759,9 @@ def monthly_essential_expenses(
     window_end = this_month_start - timedelta(days=1)
 
     bills = _monthly_bill_total(engine, household_id, currency)
-    debt_minimums = _monthly_debt_minimums(engine, household_id, currency)
+    debt_minimums, excluded = _monthly_debt_minimums_with_exclusions(
+        engine, household_id, currency
+    )
 
     spending_3mo = repository.sum_spending(engine, household_id, window_start, window_end, currency)
     avg_spending_minor = max(0, round(spending_3mo / 3))
@@ -2626,7 +2769,7 @@ def monthly_essential_expenses(
     # part above the recurring bills so housing/utilities aren't counted twice.
     spending_above_bills = Money(max(0, avg_spending_minor - bills.amount_minor), currency)
 
-    return bills + debt_minimums + spending_above_bills
+    return bills + debt_minimums + spending_above_bills, excluded
 
 
 def _serialize_outputs(outputs: dict[str, Any]) -> dict[str, Any]:

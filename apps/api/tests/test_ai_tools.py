@@ -1315,12 +1315,37 @@ def test_retirement_grounding_never_labels_a_foreign_pension_in_the_base_currenc
     assert payload["excluded_accounts"] == [
         {
             "name": "Euro Pension",
+            "type": "retirement",
             "balance": {"amount_minor": 900_000, "currency": "EUR", "display": "EUR 9,000.00"},
         }
     ]
     assert _EUR_WARNING in payload["warnings"]
     # Nothing anywhere in the payload calls EUR 9,000 a USD figure.
     assert (900_000, "USD 9,000.00") not in _money_rows(payload)
+
+    # #152 review: the referenced audit row carries the same provenance as
+    # every other base-currency figure — count, currencies, generic warning —
+    # and no account name (the JSON columns are plaintext; names are sealed).
+    import json
+
+    calculation_id = payload["calculation_ref"].split(":", 1)[1]
+    with demo_engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.financial_calculations).where(
+                    models.financial_calculations.c.id == calculation_id
+                )
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    assert row["inputs_json"]["excluded_account_count"] == 1
+    assert row["inputs_json"]["excluded_currencies"] == ["EUR"]
+    assert _EUR_WARNING in row["warnings_json"]
+    assert "Euro Pension" not in json.dumps(
+        [row["inputs_json"], row["outputs_json"], row["warnings_json"]]
+    )
 
 
 def test_historical_net_worth_marks_exclusions_unknown(
@@ -1374,3 +1399,68 @@ def test_total_owning_tools_advertise_the_exclusion_rule() -> None:
     ):
         assert "excluded_accounts" in specs[name].description, name
     assert "NEVER add it back into a base-currency figure" in ai_tools.GROUNDING_RULES
+
+
+# --- #152 review: grounding is currency-bound, and identifiers never ground -------
+
+
+def test_grounded_money_binds_each_figure_to_its_currency(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """`grounded_values` reduces the trace to bare numbers; `grounded_money` keeps
+    the unit, so the guardrail can refuse "USD 4,000.00" for a EUR 4,000.00
+    balance instead of accepting a real figure in the wrong currency."""
+    from family_cfo_ai_orchestrator import ToolCallingResult, validate_recommendation
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    payload = _execute(demo_engine, "get_net_worth", {})
+    result = ToolCallingResult(
+        answer="x",
+        completed=True,
+        tool_calls=[ToolCallRecord(name="get_net_worth", arguments={}, result=payload)],
+    )
+
+    money = ai_tools.grounded_money(result)
+    assert money["4000.00"] == {"EUR"}
+    assert money["4000"] == {"EUR"}
+    assert money["2980000.00"] == {"USD"}
+
+    values = ai_tools.grounded_values(result)
+    assert validate_recommendation(
+        "Euro Savings holds USD 4,000.00.", values, known_money=money
+    ).violations == ["USD 4,000.00 is grounded only in EUR"]
+    assert validate_recommendation(
+        "Euro Savings holds EUR 4,000.00, not counted in the -USD 2,980,000.00 net worth.",
+        values,
+        known_money=money,
+    ).passed
+
+
+def test_an_account_type_never_grounds_a_figure(demo_engine: Engine) -> None:
+    """A foreign "529" account listed under excluded_accounts carries `type:
+    "529"`; that digit string is an identifier, not USD 529.00."""
+    from family_cfo_api import repository
+
+    plan = repository.create_account(
+        demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "Euro College Plan", "529", "EUR"
+    )
+    repository.record_account_balance(demo_engine, plan.id, 100_000)
+
+    payload = _execute(demo_engine, "get_net_worth", {})
+    assert payload["excluded_accounts"][0]["type"] == "529"
+
+    values = _grounded("get_net_worth", {}, payload)
+    assert "529" not in values
+    assert "1000.00" in values  # the EUR balance itself still grounds
+
+
+def test_retirement_tools_with_only_base_currency_accounts_record_zero_exclusions(
+    demo_engine: Engine,
+) -> None:
+    fixtures.seed_showcase_data(demo_engine)
+
+    payload = _execute(demo_engine, "when_can_i_retire", {"current_age": 35})
+
+    assert "error" not in payload, payload
+    assert payload["excluded_accounts"] == []
+    assert not any("held in" in w for w in payload["warnings"])

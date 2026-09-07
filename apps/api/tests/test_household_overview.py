@@ -373,3 +373,60 @@ async def test_past_month_survives_a_foreign_account_and_marks_exclusions_unknow
     body = resp.json()
     assert body["net_worth"]["currency"] == "USD"
     assert body["accounts_outside_base_currency"] is None
+
+
+@pytest.mark.anyio
+async def test_a_lower_case_currency_code_joins_its_own_household(
+    demo_client, demo_token
+) -> None:
+    """#152 review: "usd" in a USD household is the base currency, not a foreign one."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    created = await demo_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={"name": "Lower Case Savings", "type": "savings", "currency": "usd"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["balance"]["currency"] == "USD"
+    balance = await demo_client.post(
+        f"/api/v1/accounts/{created.json()['id']}/balances",
+        headers=headers,
+        json={"balance": {"amount_minor": 100_000, "currency": "usd"}},
+    )
+    assert balance.status_code in (200, 201), balance.text
+
+    body = await _context(demo_client, demo_token)
+    assert body["net_worth"] == {"amount_minor": -298_000_000 + 100_000, "currency": "USD"}
+    assert body["accounts_outside_base_currency"] == []
+    assert not any("held in" in w for w in body["safe_to_spend"]["warnings"])
+
+
+@pytest.mark.anyio
+async def test_a_foreign_goal_is_shown_as_declared_never_relabelled(
+    demo_client, demo_token, demo_engine
+) -> None:
+    """#152 review: a EUR 90,000 emergency goal used to become `goal_target =
+    USD 90,000` on the fund card while the top-goal card said EUR 90,000."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    for goal in repository.list_goals(demo_engine, hh):
+        repository.update_goal(demo_engine, hh, goal.id, priority=2)
+    repository.create_goal(
+        demo_engine,
+        hh,
+        "Euro emergency fund",
+        "emergency_fund",
+        target_minor=9_000_000,
+        currency="EUR",
+        target_date=None,
+        priority=1,
+    )
+
+    body = await _context(demo_client, demo_token)
+
+    # The fund's target is the base-currency goal (the demo's USD 18,000 one)...
+    assert body["emergency_fund"]["goal_target"] == {"amount_minor": 1_800_000, "currency": "USD"}
+    # ...while the top goal is shown in its own currency, current untouched.
+    assert body["top_goal"]["target"] == {"amount_minor": 9_000_000, "currency": "EUR"}
+    assert body["top_goal"]["current"] == {"amount_minor": 0, "currency": "EUR"}

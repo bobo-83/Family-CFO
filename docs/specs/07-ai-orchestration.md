@@ -154,6 +154,13 @@ what it left out, and the model must not add it back.
 - Grounding is unit-aware: money travels as minor units plus a display string,
   and only the display form grounds an answer. Accepting the minor-unit twin
   would let a hundredfold overstatement of a real balance pass the guardrail.
+- Grounding is currency-aware (#152 review): each money figure is bound to the
+  currencies the tools reported it in, and a claim that names a currency — an
+  ISO code beside the number, or a symbol — must match one of them. An excluded
+  EUR 9,000.00 pension grounds "EUR 9,000.00" and "€9,000", never "USD
+  9,000.00" or "$9,000": a real figure in the wrong unit is the same harm as an
+  invented one. A bare number is still the number check's business. Account
+  `type` values (a "529") are identifiers and never ground a figure.
   Every tool therefore emits money through the shared serializer; a raw
   `<field>_minor` output field grounds nothing at all.
 - Grounding comes from figures, not from names. Household- and bank-supplied

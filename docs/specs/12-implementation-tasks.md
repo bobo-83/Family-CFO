@@ -1562,6 +1562,48 @@ convert, never refuse.
 - [x] `test_advisor_api.py`: `POST /advisor/purchase` is 200 and discloses.
 - [x] Engine: `test_money.py`'s mismatch test stays — that behaviour is kept.
 
+### Review Round (PR #155)
+
+Five findings, each reproduced against the PR head by the maintainer.
+
+- [x] **Currency codes canonicalised.** `POST /accounts` stored "usd" verbatim,
+      so a usd account in a USD household was excluded from its own totals as
+      "held in USD". `Money` and `AccountCreateRequest` upper-case at ingress,
+      `create_account` / `create_goal` do too (bank sync included), migration
+      `0092_uppercase_currency_codes` fixes existing rows on households,
+      accounts, goals, bills, income sources and budgets, and the partition
+      compares defensively. Tests: a "usd" account via `POST /accounts` and a
+      legacy lower-case row both join the USD net worth with no warning.
+- [x] **Grounding bound to currency.** `grounded_values` reduced the trace to
+      bare numbers, so "USD 9,000.00" passed for an excluded EUR 9,000.00
+      pension. `ai_tools.grounded_money` maps each display figure (and its
+      rounded forms) to its currency; `validate_recommendation(known_money=…)`
+      refuses a claim naming a currency the figure was never reported in
+      (`find_currency_mismatches`, orchestrator). `type` joined the
+      non-grounding keys so a foreign "529" cannot ground $529. Tests on the
+      validator, on the API's binding, and end-to-end through the chat turn
+      (the wrong unit fails to the deterministic floor; the right one passes).
+- [x] **Goal semantics resolved.** The fund's `goal_target` takes only
+      base-currency emergency goals (a EUR 90,000 goal was relabelled USD);
+      `compute_purchase_impact` skips a foreign top goal with a warning instead
+      of raising; `goal_current_minor` tracks the live fund only for a
+      base-currency goal (a foreign one keeps its stored current, the M41
+      rule), taking `base_currency` from the caller or the household. Not
+      refused on write: both clients still send a literal "USD" for goals
+      until the follow-up PR.
+- [x] **Provenance from the real inputs.** `_monthly_debt_minimums` and
+      `monthly_essential_expenses` gained `_with_exclusions` variants that
+      return the foreign loans and leases their own loops skipped, merged into
+      the emergency fund's disclosure; safe-to-spend's obligation loops add the
+      foreign debts and zero-balance leases they would have reserved. A foreign
+      401(k) loan is never a component and never disclosed. Tests: a EUR auto
+      loan with a EUR 500 minimum (months unchanged, loan named), a foreign
+      zero-balance lease, the 401(k) loan across all three figures.
+- [x] **Retirement provenance persisted.** `compute_retirement_projection` and
+      `compute_retirement_age_solve` take the grounded exclusions and persist
+      through `_persist_disclosing`, so the referenced row carries the count,
+      currencies and generic warning — and no name.
+
 ### Follow-Up PR — Clients, Contract `0.157 → 0.158`
 
 The first client that reads `accounts_outside_base_currency` moves the contract

@@ -10,7 +10,8 @@ A household has ONE base currency (ADR 0075, #152). Every total the app computes
 for it — net worth, the emergency fund, safe-to-spend, a purchase's impact, a
 retirement projection's grounded savings — is in that currency and only that
 currency. Multi-currency households remain deferred; this rule holds instead of
-crashing.
+crashing. Currency codes are canonical upper-case ISO 4217 wherever they are
+stored or compared; "usd" and "USD" are the same currency, never two.
 
 ### User
 
@@ -68,6 +69,11 @@ Income includes salary, bonus, RSUs, stock options, side income, and other recur
 ### Goal
 
 A target with a purpose, amount, date, priority, and funding source.
+
+A goal is declared in a currency and shown in that currency. One declared outside
+the household's base currency is never relabelled: it is not the emergency
+fund's target, purchase impact skips it and says so, and only a base-currency
+emergency-fund goal tracks the live designated fund (ADR 0075).
 
 Examples:
 

@@ -696,13 +696,15 @@ def _grounded_retirement_inputs(
     household data; every default is reported back — WITH display strings, which
     the guardrail's grounded-number set is built from — so the model narrates
     them. Returns (savings_minor, contribution_minor, rate, annual_expenses,
-    defaults, error)."""
+    defaults, excluded, error). ``excluded`` is the retirement/HSA accounts the
+    grounding could not add up (#152), for the calculation to persist and disclose."""
     assumptions: dict[str, Any] = {}
+    excluded: list[finance_service.ExcludedAccount] = []
 
     if _money_arg_present(args, "current_savings"):
         current_savings_minor, error = _money_arg(args, "current_savings", minimum=0)
         if error:
-            return None, None, None, None, None, error
+            return None, None, None, None, None, None, error
     else:
         # #152: only base-currency balances are summed. A EUR pension used to be
         # added as raw minor units and LABELLED in the base currency — a
@@ -725,21 +727,12 @@ def _grounded_retirement_inputs(
         assumptions["current_savings_total"] = _money_out(
             Money(current_savings_minor, resolved_currency)
         )
-        if partition.foreign:
-            assumptions["current_savings_excluded_accounts"] = [
-                {"name": a.name, "balance": _money_out(a.balance)}
-                for a in partition.excluded_accounts
-            ]
-            assumptions["current_savings_excluded_note"] = (
-                finance_service.foreign_currency_warning(
-                    partition.excluded_accounts, resolved_currency
-                )
-            )
+        excluded = partition.excluded_accounts
 
     if _money_arg_present(args, "monthly_contribution"):
         monthly_contribution_minor, error = _money_arg(args, "monthly_contribution", minimum=0)
         if error:
-            return None, None, None, None, None, error
+            return None, None, None, None, None, None, error
     else:
         # Payroll 401k deferrals never appear in bank transactions, so this is
         # unknowable from data — assume 0 and say so (an undercount, not a guess).
@@ -749,7 +742,7 @@ def _grounded_retirement_inputs(
     if args.get("annual_return_rate") is not None:
         rate, error = _rate_arg(args, "annual_return_rate")
         if error:
-            return None, None, None, None, None, error
+            return None, None, None, None, None, None, error
     else:
         rate = _DEFAULT_RETIREMENT_RETURN
         assumptions["annual_return_rate_default"] = rate
@@ -757,7 +750,7 @@ def _grounded_retirement_inputs(
     if _money_arg_present(args, "annual_expenses"):
         expenses_minor, error = _money_arg(args, "annual_expenses", minimum=0)
         if error:
-            return None, None, None, None, None, error
+            return None, None, None, None, None, None, error
         annual_expenses = Money(expenses_minor, resolved_currency)
     else:
         essential = finance_service.monthly_essential_expenses(
@@ -770,7 +763,15 @@ def _grounded_retirement_inputs(
         assumptions["annual_expenses"] = _money_out(annual_expenses)
         assumptions["monthly_essentials"] = _money_out(essential)
 
-    return current_savings_minor, monthly_contribution_minor, rate, annual_expenses, assumptions, None
+    return (
+        current_savings_minor,
+        monthly_contribution_minor,
+        rate,
+        annual_expenses,
+        assumptions,
+        excluded,
+        None,
+    )
 
 
 def _attach_grounded_defaults(payload, assumptions):
@@ -782,14 +783,6 @@ def _attach_grounded_defaults(payload, assumptions):
             "Figures the user did not supply were grounded in household data — "
             "state these defaults in the answer and invite corrections."
         )
-        # #152: the retirement/HSA accounts the grounding could NOT add up, in
-        # the same place every other total reports them.
-        excluded = assumptions.get("current_savings_excluded_accounts")
-        if excluded:
-            payload["excluded_accounts"] = excluded
-            note = assumptions["current_savings_excluded_note"]
-            if note not in payload.setdefault("warnings", []):
-                payload["warnings"].append(note)
     return payload
 
 
@@ -806,7 +799,7 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
     if retirement_age <= current_age:
         return _invalid("retirement_age must be greater than current_age")
 
-    savings_minor, contribution_minor, rate, annual_expenses, assumptions, error = (
+    savings_minor, contribution_minor, rate, annual_expenses, assumptions, excluded, error = (
         _grounded_retirement_inputs(engine, household_id, resolved_currency, args)
     )
     if error:
@@ -823,6 +816,7 @@ def _project_retirement(engine: Engine, household_id: str, currency: str, args: 
             annual_return_rate=rate,
             annual_expenses=annual_expenses,
         ),
+        excluded=excluded,
     )
     return _attach_grounded_defaults(_result_payload(result, calc_id), assumptions)
 
@@ -837,7 +831,7 @@ def _when_can_i_retire(engine: Engine, household_id: str, currency: str, args: d
     if error:
         return error
 
-    savings_minor, contribution_minor, rate, annual_expenses, assumptions, error = (
+    savings_minor, contribution_minor, rate, annual_expenses, assumptions, excluded, error = (
         _grounded_retirement_inputs(engine, household_id, resolved_currency, args)
     )
     if error:
@@ -853,6 +847,7 @@ def _when_can_i_retire(engine: Engine, household_id: str, currency: str, args: d
             annual_return_rate=rate,
             annual_expenses=annual_expenses,
         ),
+        excluded=excluded,
     )
     return _attach_grounded_defaults(_result_payload(result, calc_id), assumptions)
 
@@ -1825,6 +1820,9 @@ _UNGROUNDED_TEXT_KEYS = frozenset(
         "merchant",
         "name",
         "query",
+        # An account TYPE is an identifier too: a foreign "529" account listed
+        # under excluded_accounts must not ground a fabricated $529 (#152 review).
+        "type",
     }
 )
 
@@ -1857,6 +1855,37 @@ def _groundable(value: Any, *, drop_minor_units: bool) -> Any:
     if isinstance(value, list):
         return [_groundable(item, drop_minor_units=drop_minor_units) for item in value]
     return value
+
+
+def grounded_money(result: ToolCallingResult) -> dict[str, set[str]]:
+    """Each grounded money figure, bound to the currencies the tools reported it in.
+
+    `grounded_values` reduces the trace to bare numbers — right for counts and
+    months, but it let a money figure change units: an excluded EUR 9,000.00
+    pension grounded "9000.00" for any currency, so "USD 9,000.00" passed the
+    guardrail (#152 review). Every `_money_out` dict carries `currency` beside
+    `display`; this maps the display's numbers (and the rounded forms a model
+    says) to that currency, and `validate_recommendation` refuses a claim that
+    names a currency the figure was never reported in.
+    """
+    known: dict[str, set[str]] = {}
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            display, currency = value.get("display"), value.get("currency")
+            if isinstance(display, str) and isinstance(currency, str):
+                for number in extract_numbers(display):
+                    for variant in _rounded_variants(number):
+                        known.setdefault(variant, set()).add(currency.upper())
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    for record in result.tool_calls:
+        walk(_groundable(record.result, drop_minor_units=True))
+    return known
 
 
 def grounded_values(result: ToolCallingResult) -> set[str]:

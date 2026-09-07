@@ -277,3 +277,29 @@ async def test_analyze_purchase_survives_a_foreign_currency_account(
         "1 account held in EUR is not counted in this USD figure; a balance in another "
         "currency is never converted."
     ) in body["warnings"]
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_survives_a_foreign_top_goal(
+    demo_client, demo_token, demo_engine
+) -> None:
+    """#152 review: a top goal declared in EUR used to raise from the engine when
+    measured against a USD price."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    for goal in repository.list_goals(demo_engine, hh):
+        repository.update_goal(demo_engine, hh, goal.id, priority=2)
+    repository.create_goal(
+        demo_engine, hh, "Paris", "vacation", target_minor=9_000_000, currency="EUR",
+        target_date=None, priority=1,
+    )
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"item": "a new laptop", "price": {"amount_minor": 150_000, "currency": "USD"}},
+    )
+
+    assert response.status_code == 200, response.text
+    assert any("top goal is held in EUR" in w for w in response.json()["warnings"])

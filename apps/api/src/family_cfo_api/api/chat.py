@@ -378,7 +378,10 @@ def _try_agentic_answer(
             return None
         tool_call_records.extend(result.tool_calls)
         known_values = context_values | ai_tools.grounded_values(result)
-        guardrail = validate_recommendation(result.answer, known_values)
+        # #152 review: money figures also carry their currency, so a real
+        # figure restated in the wrong unit fails like an invented one.
+        known_money = ai_tools.grounded_money(result)
+        guardrail = validate_recommendation(result.answer, known_values, known_money=known_money)
         if not guardrail.passed:
             # M56: one corrective retry before failing closed — told which
             # figures were the problem, the model can usually restate with
@@ -426,7 +429,9 @@ def _try_agentic_answer(
             # restate those figures without re-calling the tools.
             tool_call_records.extend(retry.tool_calls)
             known_values |= ai_tools.grounded_values(retry)
-            guardrail = validate_recommendation(retry.answer, known_values)
+            for number, currencies in ai_tools.grounded_money(retry).items():
+                known_money.setdefault(number, set()).update(currencies)
+            guardrail = validate_recommendation(retry.answer, known_values, known_money=known_money)
             if not guardrail.passed:
                 logger.warning(
                     "agentic chat retry still had ungrounded numbers %s; falling back",

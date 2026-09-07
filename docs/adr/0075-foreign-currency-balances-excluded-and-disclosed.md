@@ -98,6 +98,47 @@ currency and, in `compute_debt_outlook`'s case, counted what it skipped as
    a traceback; the returned count is of households actually captured. The
    currency fix removes today's trigger; the loop's fragility was its own bug.
 
+Refined in the review of PR #155 (2026-09-07):
+
+8. **A currency code is canonical upper case everywhere it is stored or
+   compared.** `POST /accounts` accepted "usd" verbatim while the engine's
+   `Money` upper-cases, so a usd account in a USD household compared unequal to
+   its own base currency and — under decision 1 — was excluded from its own
+   household's totals as "held in USD". Every money ingress (`Money`,
+   `AccountCreateRequest`, `create_account`, `create_goal`) canonicalises,
+   migration 0092 brings existing rows in line, and the partition compares
+   defensively.
+
+9. **A disclosure is derived from the figure's actual inputs, not guessed from
+   account types.** The emergency-fund denominator subtracts liability minimums
+   and safe-to-spend reserves lease payments, so the loops that build those
+   figures record the foreign loans and leases they skip — a EUR auto loan with
+   a EUR 500 minimum is named as left out of the months figure, and a foreign
+   zero-balance lease with a recorded payment as left out of safe-to-spend. A
+   401(k) loan is never a component of any of them, so it is never "excluded".
+
+10. **A money claim carries its currency through the guardrail.** Grounding
+    bare numbers let an excluded EUR 9,000.00 pension ground "USD 9,000.00" —
+    a real figure in the wrong unit, the same harm as an invented one.
+    `grounded_money` binds each figure to the currencies the tools reported it
+    in, and `validate_recommendation` refuses a claim that names a currency the
+    figure was never reported in. An account `type` (a foreign "529") is an
+    identifier and never grounds a number.
+
+11. **Goal amounts follow the same rule.** A goal declared in another currency
+    is shown as declared and never relabelled: it is not the emergency fund's
+    `goal_target`, it is skipped (and said to be skipped) by purchase impact
+    instead of crashing it, and only a base-currency emergency-fund goal tracks
+    the live fund — a foreign one keeps its stored current, exactly like an
+    undesignated one. Goals are not refused on write for the same reason
+    accounts are not: both clients still default the form to a literal "USD"
+    until the follow-up PR, so a EUR household could not create a goal at all.
+
+12. **Retirement projections persist their provenance.** The retirement tools
+    route their grounded exclusions through the same persistence envelope as
+    every other base-currency figure, so a `financial_calculations` row never
+    references a calculation that knows nothing of what its grounding left out.
+
 ## Invariant
 
 No base-currency figure — on the Overview, in a tool payload, in a persisted

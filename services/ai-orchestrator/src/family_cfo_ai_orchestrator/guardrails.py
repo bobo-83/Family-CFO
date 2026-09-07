@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 
 from family_cfo_ai_orchestrator.prompts import PurchaseFacts, ReportFacts, purchase_fact_lines, report_fact_lines
@@ -133,6 +134,95 @@ def find_unattributed_numbers(text: str, known_values: set[str]) -> list[str]:
     return sorted(number for number in claimed if is_violation(number))
 
 
-def validate_recommendation(text: str, known_values: set[str]) -> GuardrailResult:
+# --- currency-aware money claims (#152 review) ----------------------------------
+#
+# `find_unattributed_numbers` grounds NUMBERS, which is right for counts and
+# months but lets a money figure change units: a tool that discloses an
+# excluded EUR 9,000.00 pension grounded "9000.00" for any currency, so
+# "USD 9,000.00" passed — a real figure in the wrong unit is the same harm as
+# an invented one. `known_money` binds each money figure to the currencies the
+# tools reported it in, and a claim that NAMES a currency must match one of
+# them. A bare number stays the number check's business.
+
+_CURRENCY_SYMBOLS: dict[str, frozenset[str]] = {
+    "$": frozenset({"USD", "CAD", "AUD", "NZD", "SGD", "HKD", "MXN", "TWD"}),
+    "€": frozenset({"EUR"}),
+    "£": frozenset({"GBP"}),
+    "¥": frozenset({"JPY", "CNY"}),
+    "₫": frozenset({"VND"}),
+    "₹": frozenset({"INR"}),
+    "₩": frozenset({"KRW"}),
+}
+_MONEY_CLAIM_PATTERN = re.compile(
+    r"(?P<code_before>\b[A-Z]{3})\s?(?P<n1>\d[\d,]*\.?\d*)"
+    r"|(?P<symbol>[$€£¥₫₹₩])\s?(?P<n2>\d[\d,]*\.?\d*)"
+    r"|(?P<n3>\d[\d,]*\.?\d*)\s?(?P<code_after>[A-Z]{3})\b"
+)
+
+
+def find_currency_mismatches(
+    text: str, known_money: Mapping[str, Collection[str]]
+) -> list[str]:
+    """Money claims in ``text`` whose named currency contradicts every grounding
+    of that figure.
+
+    ``known_money`` maps a grounded number (as `extract_numbers` writes it) to
+    the ISO codes the tools reported it in. Only a claim that names a currency —
+    an ISO code beside the number, or a symbol — is checked, against the figures
+    grounded exactly or within the same ±1% the number check allows. A figure
+    grounded in none of them is left to `find_unattributed_numbers`; one grounded
+    only in other currencies is a violation, worded so a corrective retry can
+    fix the unit rather than the number.
+    """
+    if not known_money:
+        return []
+    known: list[tuple[float, str, frozenset[str]]] = []
+    for number, currencies in known_money.items():
+        try:
+            known.append((float(number), number, frozenset(c.upper() for c in currencies)))
+        except ValueError:
+            continue
+
+    violations: list[str] = []
+    for match in _MONEY_CLAIM_PATTERN.finditer(text):
+        if match.group("symbol"):
+            claimed = _CURRENCY_SYMBOLS[match.group("symbol")]
+            raw = match.group("n2")
+        elif match.group("code_before"):
+            claimed = frozenset({match.group("code_before")})
+            raw = match.group("n1")
+        else:
+            claimed = frozenset({match.group("code_after")})
+            raw = match.group("n3")
+        number = raw.replace(",", "")
+        try:
+            value = float(number)
+        except ValueError:
+            continue
+        if abs(value) <= _MATERIAL_THRESHOLD:
+            continue
+        tolerance = _RELATIVE_TOLERANCE * max(abs(value), 1.0)
+        groundings = [
+            currencies
+            for known_value, known_number, currencies in known
+            if known_number == number or abs(known_value - value) <= tolerance
+        ]
+        if not groundings or any(currencies & claimed for currencies in groundings):
+            continue
+        actual = " / ".join(sorted(set().union(*groundings)))
+        violation = f"{match.group(0).strip()} is grounded only in {actual}"
+        if violation not in violations:
+            violations.append(violation)
+    return violations
+
+
+def validate_recommendation(
+    text: str,
+    known_values: set[str],
+    *,
+    known_money: Mapping[str, Collection[str]] | None = None,
+) -> GuardrailResult:
     violations = find_unattributed_numbers(text, known_values)
+    if known_money:
+        violations = [*violations, *find_currency_mismatches(text, known_money)]
     return GuardrailResult(passed=not violations, violations=violations)

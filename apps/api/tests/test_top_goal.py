@@ -49,4 +49,4 @@ def test_percent_math_caps_and_guards_zero_target() -> None:
 
 def test_top_goal_is_none_when_household_has_no_goals(demo_engine) -> None:
     # A household id with no goals resolves to None (the "no goals yet" case).
-    assert _top_goal(demo_engine, "household-with-no-goals") is None
+    assert _top_goal(demo_engine, "household-with-no-goals", "USD") is None

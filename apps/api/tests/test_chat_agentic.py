@@ -358,3 +358,66 @@ async def test_history_numbers_are_grounded_in_follow_ups(
     rec = second.json()["recommendation"]
     # Without history grounding this would have fallen back deterministically.
     assert "3,207.14" in rec["answer"]
+
+
+# --- #152 review: the FINAL answer is checked for currency, not only the payload ---
+
+
+def _net_worth_then(text: str, *, retry_text: str | None = None):
+    turns = [
+        RuntimeToolCompletion(
+            tool_calls=[ToolCall(id="c1", name="get_net_worth", arguments={})],
+            text="",
+            model="stub",
+            raw={},
+        ),
+        RuntimeToolCompletion(tool_calls=[], text=text, model="stub", raw={}),
+    ]
+    if retry_text is not None:
+        turns.append(RuntimeToolCompletion(tool_calls=[], text=retry_text, model="stub", raw={}))
+    return turns
+
+
+@pytest.mark.anyio
+async def test_an_excluded_balance_restated_in_the_base_currency_fails_the_guardrail(
+    demo_client, demo_engine, demo_token, monkeypatch, foreign_currency_account
+) -> None:
+    """The tool discloses EUR 4,000.00. "USD 4,000.00" is a real figure in the wrong
+    unit — it must fail like an invented one, on the answer the family would read."""
+    wrong = "Your Euro Savings holds USD 4,000.00 on top of a -USD 2,980,000.00 net worth."
+    runtime = _install_runtime(monkeypatch, _net_worth_then(wrong, retry_text=wrong))
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "What is in the euro account?"},
+    )
+
+    assert response.status_code == 200, response.text
+    recommendation = response.json()["recommendation"]
+    assert runtime._i == 3  # first answer, one corrective retry, then the floor
+    assert "4,000.00" not in recommendation["answer"]
+    assert await _explanation_source(demo_engine, recommendation["id"]) == "deterministic_stub"
+
+
+@pytest.mark.anyio
+async def test_an_excluded_balance_in_its_own_currency_passes_the_guardrail(
+    demo_client, demo_engine, demo_token, monkeypatch, foreign_currency_account
+) -> None:
+    right = (
+        "Net worth is -USD 2,980,000.00. Euro Savings holds EUR 4,000.00 and is not "
+        "counted in that figure."
+    )
+    runtime = _install_runtime(monkeypatch, _net_worth_then(right))
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "What is in the euro account?"},
+    )
+
+    assert response.status_code == 200, response.text
+    recommendation = response.json()["recommendation"]
+    assert runtime._i == 2
+    assert recommendation["answer"] == right
+    assert await _explanation_source(demo_engine, recommendation["id"]) == "agentic_tool_calling"
