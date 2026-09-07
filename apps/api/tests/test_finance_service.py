@@ -387,3 +387,407 @@ def test_debt_that_is_also_a_bill_is_reserved_once_not_twice(demo_engine: Engine
         before.outputs["minimum_debt_payments"] - Money(8_153, "USD")
     )
     assert after.outputs["bills_due"] == before.outputs["bills_due"] + Money(8_153, "USD")
+
+
+# --- #152: a foreign-currency account is excluded from base-currency figures and disclosed ---
+
+_HH = fixtures.DEMO_HOUSEHOLD_ID
+_EUR_WARNING = (
+    "1 account held in EUR is not counted in this USD figure; a balance in another "
+    "currency is never converted."
+)
+_EUR_DESIGNATION_WARNING = (
+    "An emergency-fund designation on 1 account held in EUR is ignored; designations "
+    "count only in USD."
+)
+
+
+def _persisted_rows(engine: Engine, calculation_type: str):
+    with engine.connect() as conn:
+        return (
+            conn.execute(
+                select(models.financial_calculations).where(
+                    models.financial_calculations.c.calculation_type == calculation_type
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+
+def _demo_savings(engine: Engine):
+    return next(b for b in repository.list_account_balances(engine, _HH) if b.name == "Savings")
+
+
+def test_partition_splits_on_currency_and_honours_eligibility(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    balances = repository.list_account_balances(demo_engine, _HH)
+
+    everything = finance_service.partition_balances_by_currency(balances, "USD")
+    assert {b.currency for b in everything.in_base} == {"USD"}
+    assert [b.name for b in everything.foreign] == ["Euro Savings"]
+    # Typed in the account's OWN currency, so it can never read as USD.
+    assert everything.excluded_accounts[0].balance == Money(400_000, "EUR")
+
+    # Eligibility-specific: a foreign account a figure never counted is not
+    # "excluded" from it — the disclosure must not claim otherwise.
+    none = finance_service.partition_balances_by_currency(
+        balances, "USD", eligible=lambda b: b.account_type == "brokerage"
+    )
+    assert none.foreign == []
+    assert len(none.in_base) == len(everything.in_base)
+
+
+def test_net_worth_excludes_the_foreign_account_and_discloses_it(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """THE regression: this raised CurrencyMismatchError (USD vs EUR)."""
+    result = finance_service.compute_net_worth(demo_engine, _HH, "USD")
+
+    assert result.outputs["net_worth"] == Money(500_000 + 1_500_000 - 300_000_000, "USD")
+    assert result.outputs["excluded_accounts"] == [
+        {"name": "Euro Savings", "type": "savings", "balance": Money(400_000, "EUR")}
+    ]
+    assert result.warnings == [_EUR_WARNING]
+    assert result.inputs["excluded_account_count"] == 1
+    assert result.inputs["excluded_currencies"] == ["EUR"]
+
+
+def test_persisted_calculation_records_the_exclusion_without_the_account_name(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """ADR 0003 wants the row to say what was left out. ADR 0072 keeps account
+    names sealed — and the calculation's JSON columns are plaintext, so the row
+    carries the count, the currencies and a generic warning, never a name."""
+    import json
+
+    finance_service.compute_net_worth(demo_engine, _HH, "USD")
+
+    rows = _persisted_rows(demo_engine, "net_worth")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["inputs_json"]["excluded_account_count"] == 1
+    assert row["inputs_json"]["excluded_currencies"] == ["EUR"]
+    assert row["warnings_json"] == [_EUR_WARNING]
+    assert "excluded_accounts" not in row["outputs_json"]  # live disclosure only
+    stored = json.dumps([row["inputs_json"], row["outputs_json"], row["warnings_json"]])
+    assert "Euro Savings" not in stored
+
+
+def test_single_currency_household_records_zero_exclusions(demo_engine: Engine) -> None:
+    result = finance_service.compute_net_worth(demo_engine, _HH, "USD")
+
+    assert result.outputs["excluded_accounts"] == []
+    assert result.warnings == []
+    assert result.inputs["excluded_account_count"] == 0
+    assert result.inputs["excluded_currencies"] == []
+
+
+def test_emergency_fund_all_liquid_fallback_leaves_out_the_foreign_savings(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    inputs = finance_service.emergency_fund_inputs(demo_engine, _HH, "USD")
+    assert inputs.fund == Money(2_000_000, "USD")
+    assert inputs.using_designations is False
+    assert [a.name for a in inputs.excluded_accounts] == ["Euro Savings"]
+    assert inputs.warnings == []  # nothing designated, so nothing ignored
+
+    result = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    assert result.outputs["liquid_balance"] == Money(2_000_000, "USD")
+    assert result.outputs["emergency_fund_months"] == 2_000_000 / 208_000
+    assert result.warnings == [_EUR_WARNING]
+
+
+def test_designation_on_a_foreign_account_is_ignored_and_disclosed(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """The designation loop already filtered on currency — silently. Silent was
+    the bug: a family that earmarked its EUR savings for emergencies saw a fund
+    that ignored it and was given no reason."""
+    repository.update_account(
+        demo_engine, _HH, _demo_savings(demo_engine).account_id, emergency_fund_percent=50.0
+    )
+    repository.update_account(
+        demo_engine, _HH, foreign_currency_account.id, emergency_fund_percent=100.0
+    )
+
+    inputs = finance_service.emergency_fund_inputs(demo_engine, _HH, "USD")
+    assert inputs.using_designations is True
+    assert inputs.fund == Money(750_000, "USD")
+    assert [a.name for a in inputs.excluded_accounts] == ["Euro Savings"]
+    assert inputs.warnings == [_EUR_DESIGNATION_WARNING]
+
+    result = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    assert result.outputs["liquid_balance"] == Money(750_000, "USD")
+    assert result.warnings == [_EUR_WARNING, _EUR_DESIGNATION_WARNING]
+
+
+def test_undesignated_foreign_liquid_account_is_not_excluded_from_a_designated_fund(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """Once designations define the fund, an undesignated foreign savings account
+    was never part of it — so it is not reported as excluded from it."""
+    repository.update_account(
+        demo_engine, _HH, _demo_savings(demo_engine).account_id, emergency_fund_percent=50.0
+    )
+
+    inputs = finance_service.emergency_fund_inputs(demo_engine, _HH, "USD")
+    assert inputs.using_designations is True
+    assert inputs.excluded_accounts == []
+    assert inputs.warnings == []
+
+
+def test_safe_to_spend_survives_a_foreign_account_and_discloses_it(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """Its own liquid loop filtered correctly; it inherited the crash through
+    emergency_fund_inputs."""
+    result, _ = finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")
+
+    assert result.outputs["liquid_balance"] == Money(2_000_000, "USD")
+    assert [a["name"] for a in result.outputs["excluded_accounts"]] == ["Euro Savings"]
+    assert _EUR_WARNING in result.warnings
+
+
+def test_safe_to_spend_discloses_a_foreign_debt_but_not_a_foreign_brokerage(
+    demo_engine: Engine,
+) -> None:
+    """Disclosure is per figure. Safe-to-spend touches cash, reservations and
+    debts, so a foreign card is reported as left out of it — while a foreign
+    brokerage account, which it never counted, is not. Net worth reports both."""
+    before, _ = finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")
+    card = repository.create_account(demo_engine, _HH, "Euro Card", "credit_card", "EUR")
+    repository.record_account_balance(demo_engine, card.id, -50_000)
+    brokerage = repository.create_account(demo_engine, _HH, "Euro Brokerage", "brokerage", "EUR")
+    repository.record_account_balance(demo_engine, brokerage.id, 1_000_000)
+
+    after, _ = finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")
+    assert [a["name"] for a in after.outputs["excluded_accounts"]] == ["Euro Card"]
+    # Neither added nor converted: every USD figure is exactly what it was.
+    assert after.outputs["total_debt"] == before.outputs["total_debt"]
+    assert after.outputs["safe_to_spend"] == before.outputs["safe_to_spend"]
+
+    net_worth = finance_service.compute_net_worth(demo_engine, _HH, "USD")
+    assert sorted(a["name"] for a in net_worth.outputs["excluded_accounts"]) == [
+        "Euro Brokerage",
+        "Euro Card",
+    ]
+    assert net_worth.warnings == [
+        (
+            "2 accounts held in EUR are not counted in this USD figure; a balance in another "
+            "currency is never converted."
+        )
+    ]
+
+
+def test_purchase_impact_survives_a_foreign_account(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    result, _ = finance_service.compute_purchase_impact(
+        demo_engine, _HH, "USD", Money(100_000, "USD")
+    )
+
+    assert result.outputs["net_worth_before"] == Money(-298_000_000, "USD")
+    assert result.outputs["net_worth_after"] == Money(-298_100_000, "USD")
+    # liquid 2_000_000 - 100_000 over 208_000/month of essentials — USD only.
+    assert result.outputs["emergency_fund_months_after"] == 1_900_000 / 208_000
+    assert [a["name"] for a in result.outputs["excluded_accounts"]] == ["Euro Savings"]
+    assert _EUR_WARNING in result.warnings
+
+
+def test_goal_current_for_an_emergency_fund_goal_survives_a_foreign_account(
+    demo_engine: Engine, foreign_currency_account
+) -> None:
+    """`goal_current_minor` reads the fund through emergency_fund_inputs, so the
+    Overview's top-goal card and GET /goals went down with the home screen."""
+    goal = next(
+        g for g in repository.list_goals(demo_engine, _HH) if g.goal_type == "emergency_fund"
+    )
+    # No designation: the stored current (the M41 rule), and no crash.
+    assert finance_service.goal_current_minor(demo_engine, _HH, goal) == 1_500_000
+
+    # Designations in the goal's currency define the fund; the EUR one is ignored.
+    repository.update_account(
+        demo_engine, _HH, _demo_savings(demo_engine).account_id, emergency_fund_percent=50.0
+    )
+    repository.update_account(
+        demo_engine, _HH, foreign_currency_account.id, emergency_fund_percent=100.0
+    )
+    assert finance_service.goal_current_minor(demo_engine, _HH, goal) == 750_000
+
+
+# --- #152 review: normalisation, provenance from the real inputs, goal semantics ---
+
+
+def test_a_lower_case_code_is_the_base_currency_not_a_foreign_one(demo_engine: Engine) -> None:
+    """`POST /accounts` stored "usd" verbatim while the engine's Money upper-cases,
+    so a usd account in a USD household compared unequal to its own base currency
+    and was left out of net worth as "held in USD". Ingress now canonicalises; the
+    partition is defensive for rows that predate it."""
+    from sqlalchemy import update
+
+    stored = repository.create_account(demo_engine, _HH, "Lower Case", "savings", "usd")
+    repository.record_account_balance(demo_engine, stored.id, 100_000)
+    assert repository.get_account(demo_engine, _HH, stored.id).currency == "USD"
+
+    # A legacy row that bypassed ingress.
+    legacy = repository.create_account(demo_engine, _HH, "Legacy", "savings", "USD")
+    repository.record_account_balance(demo_engine, legacy.id, 200_000)
+    with demo_engine.begin() as conn:
+        conn.execute(
+            update(models.accounts).where(models.accounts.c.id == legacy.id).values(currency="usd")
+        )
+
+    result = finance_service.compute_net_worth(demo_engine, _HH, "USD")
+    assert result.outputs["net_worth"] == Money(-298_000_000 + 100_000 + 200_000, "USD")
+    assert result.outputs["excluded_accounts"] == []
+    assert result.warnings == []
+    # ...and the household's own code may be lower case too.
+    partition = finance_service.partition_balances_by_currency(
+        repository.list_account_balances(demo_engine, _HH), "usd"
+    )
+    assert partition.currency == "USD"
+    assert partition.foreign == []
+
+
+def test_emergency_fund_discloses_a_foreign_loan_left_out_of_its_denominator(
+    demo_engine: Engine,
+) -> None:
+    """The denominator subtracts liability minimums, so a EUR auto loan with a EUR
+    500 minimum silently inflated the months figure with no disclosure. The loop
+    that builds the denominator now records what it skipped."""
+    before = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    loan = repository.create_account(
+        demo_engine,
+        _HH,
+        "Euro Auto Loan",
+        "auto_loan",
+        "EUR",
+        annual_interest_rate=0.05,
+        minimum_payment_minor=50_000,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -1_000_000)
+
+    after = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    # Never converted: the months figure is exactly what it was...
+    assert after.outputs["emergency_fund_months"] == before.outputs["emergency_fund_months"]
+    # ...and the loan the USD twin would have subtracted is named as left out.
+    assert after.outputs["excluded_accounts"] == [
+        {"name": "Euro Auto Loan", "type": "auto_loan", "balance": Money(-1_000_000, "EUR")}
+    ]
+    assert _EUR_WARNING in after.warnings
+    assert after.inputs["excluded_account_count"] == 1
+
+    # The USD twin is a component, so it changes the figure and is not excluded.
+    twin = repository.create_account(
+        demo_engine,
+        _HH,
+        "Dollar Auto Loan",
+        "auto_loan",
+        "USD",
+        annual_interest_rate=0.05,
+        minimum_payment_minor=50_000,
+    )
+    repository.record_account_balance(demo_engine, twin.id, -1_000_000)
+    with_twin = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    assert with_twin.outputs["emergency_fund_months"] < before.outputs["emergency_fund_months"]
+    assert [a["name"] for a in with_twin.outputs["excluded_accounts"]] == ["Euro Auto Loan"]
+
+
+def test_safe_to_spend_discloses_a_foreign_lease_with_no_balance_to_owe(
+    demo_engine: Engine,
+) -> None:
+    """A lease has a recorded payment and no negative balance, so no balance-based
+    predicate can see it; only the loop that would have reserved its payment can."""
+    before, _ = finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")
+    lease = repository.create_account(
+        demo_engine, _HH, "Euro Car Lease", "other_liability", "EUR", minimum_payment_minor=30_000
+    )
+    repository.record_account_balance(demo_engine, lease.id, 0)
+
+    after, _ = finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")
+    assert after.outputs["minimum_debt_payments"] == before.outputs["minimum_debt_payments"]
+    assert after.outputs["excluded_accounts"] == [
+        {"name": "Euro Car Lease", "type": "other_liability", "balance": Money(0, "EUR")}
+    ]
+    assert _EUR_WARNING in after.warnings
+
+    # The emergency-fund denominator reserves the same payment, so it discloses too.
+    fund = finance_service.compute_emergency_fund(demo_engine, _HH, "USD")
+    assert [a["name"] for a in fund.outputs["excluded_accounts"]] == ["Euro Car Lease"]
+
+
+def test_a_foreign_401k_loan_is_never_a_component_so_never_excluded(demo_engine: Engine) -> None:
+    """Net worth skips retirement loans outright, safe-to-spend and the emergency
+    fund treat their repayment as payroll-deducted: the loan is not in any of
+    those figures, so a disclosure claiming it was left out would be false."""
+    loan = repository.create_account(
+        demo_engine,
+        _HH,
+        "Euro 401k Loan",
+        "401k_loan",
+        "EUR",
+        annual_interest_rate=0.04,
+        minimum_payment_minor=10_000,
+    )
+    repository.record_account_balance(demo_engine, loan.id, -500_000)
+
+    for result in (
+        finance_service.compute_net_worth(demo_engine, _HH, "USD"),
+        finance_service.compute_emergency_fund(demo_engine, _HH, "USD"),
+        finance_service.compute_safe_to_spend(demo_engine, _HH, "USD")[0],
+    ):
+        assert result.outputs["excluded_accounts"] == [], result.calculation_type
+        assert not any("held in" in w for w in result.warnings), result.calculation_type
+
+
+def _eur_top_goal(engine: Engine, goal_type: str = "vacation"):
+    for goal in repository.list_goals(engine, _HH):
+        repository.update_goal(engine, _HH, goal.id, priority=2)
+    return repository.create_goal(
+        engine,
+        _HH,
+        "Paris",
+        goal_type,
+        target_minor=9_000_000,
+        currency="eur",  # ingress canonicalises this too
+        target_date=None,
+        priority=1,
+    )
+
+
+def test_purchase_impact_skips_a_foreign_top_goal_and_says_so(demo_engine: Engine) -> None:
+    """A EUR goal measured against a USD price used to raise from the engine."""
+    goal = _eur_top_goal(demo_engine)
+    assert goal.currency == "EUR"
+
+    result, _ = finance_service.compute_purchase_impact(
+        demo_engine, _HH, "USD", Money(100_000, "USD")
+    )
+
+    assert result.inputs["has_top_goal"] is False
+    assert result.outputs["top_goal_impact_percent"] is None
+    assert (
+        "The household's top goal is held in EUR and is not modeled in this USD figure; "
+        "goal amounts are never converted."
+    ) in result.warnings
+
+
+def test_a_foreign_emergency_fund_goal_keeps_its_stored_current(demo_engine: Engine) -> None:
+    """The live fund is a base-currency figure and goal amounts are never
+    converted, so a EUR emergency goal has no live figure to trust — exactly the
+    M41 rule for an undesignated one."""
+    repository.update_account(
+        demo_engine, _HH, _demo_savings(demo_engine).account_id, emergency_fund_percent=50.0
+    )
+    usd_goal = next(
+        g for g in repository.list_goals(demo_engine, _HH) if g.goal_type == "emergency_fund"
+    )
+    eur_goal = _eur_top_goal(demo_engine, "emergency_fund")
+
+    assert finance_service.goal_current_minor(demo_engine, _HH, usd_goal) == 750_000
+    assert finance_service.goal_current_minor(demo_engine, _HH, eur_goal) == 0
+    assert (
+        finance_service.goal_current_minor(demo_engine, _HH, eur_goal, base_currency="USD") == 0
+    )

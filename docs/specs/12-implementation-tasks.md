@@ -1398,12 +1398,247 @@ no change to `asset_breakdown`'s shape, so the Overview endpoint is untouched.
       `financial_calculations` row and returns a `calculation_ref`. An inventory
       read has nothing to persist; it is grounded by its own tool-call trace.
 
-Noted, not fixed here (issue #152): `compute_net_worth_with_ref`,
-`compute_emergency_fund` and `compute_safe_to_spend` feed every balance to the
-engine regardless of currency, so one foreign-currency account raises
-`CurrencyMismatchError` from `GET /household` and from those three tools. A
-pre-existing defect in a different code path; `get_accounts` is unaffected and
-lists such accounts correctly, which is why it is flagged rather than hidden.
+Noted here, fixed in M123 (issue #152): the base-currency totals behind
+`GET /household` and the `get_net_worth` / `get_emergency_fund` /
+`get_safe_to_spend` tools raised `CurrencyMismatchError` on one foreign-currency
+account. `get_accounts` was unaffected and already listed such accounts flagged
+rather than hidden, which M123 generalises to every total.
+
+## M123: A Foreign-Currency Account Is Excluded From Every Total, and Disclosed (#152)
+
+Create one account in any currency other than the household's base currency and
+`GET /api/v1/household` — the Overview, the home screen on both clients — raised
+an unhandled `CurrencyMismatchError`. The three advisor tools a household uses
+most (`get_net_worth`, `get_safe_to_spend`, `get_emergency_fund`) went with it,
+as did `project_purchase_impact`, the chat turn's deterministic fallback,
+`GET /goals` and the top-goal card (an emergency-fund goal reads the fund), and
+the daily net-worth snapshot pass for every household after the broken one. The
+write side (`POST /accounts`, bank sync) never checked; the read side assumed it
+could not happen. ADR 0075 records the decision: exclude and disclose, never
+convert, never refuse.
+
+### Spec Gate
+
+- [x] ADR 0075 — foreign-currency balances are excluded from base-currency
+      totals and disclosed, never converted; relates to ADR 0003 (engine stays
+      deterministic) and ADR 0014 (exchange rates remain a conversational tool).
+      Indexed in `docs/specs/02-adrs.md`.
+- [x] `docs/specs/03-domain-model.md`: the rule at the Household/Account level —
+      one base currency; an account in another currency is real, listed, never
+      summed, never converted, never silently dropped.
+- [x] `docs/specs/07-ai-orchestration.md`: the tool that owns a total discloses
+      what it left out (`excluded_accounts` + a generic warning) and the model
+      must not add it back.
+- [x] Scope: API fix, the additive Overview field, the advisor, the snapshot
+      pass. Non-goals: converting balances or a per-household FX table
+      (multi-currency households remain deferred); refusing foreign currencies
+      on `POST /accounts` or in sync; any OpenAPI change beyond the one additive
+      `HouseholdContext` field; translating engine warning text (existing
+      safe-to-spend warnings are already English on every client, and that gap
+      is separate). Client rendering and the `0.157 → 0.158` contract bump are
+      the follow-up PR (below).
+
+### Implementation — One Partition, One Disclosure
+
+- [x] `finance_service.partition_balances_by_currency(balances, currency,
+      eligible=…)` splits `list_account_balances` into base-currency and
+      foreign; `CurrencyPartition.excluded_accounts` types each foreign balance
+      as `Money` in its OWN currency. The `eligible` predicate makes the
+      disclosure eligibility-specific: net worth (`_counts_toward_net_worth`,
+      the engine's own 401(k)-loan rule), the emergency fund (liquid or
+      designated), safe-to-spend (`_touches_safe_to_spend`: cash, reservations,
+      debts), retirement grounding (retirement/HSA with a positive balance). A
+      disclosure never claims an account was left out of a total it was never
+      part of.
+- [x] `foreign_currency_warning` renders ONE generic sentence — a count and the
+      currencies, never a name. `ignored_designation_warning` says when an M36
+      designation on a foreign account was ignored (the designation loop had
+      filtered silently; silent was the bug).
+- [x] `_persist_disclosing` records the exclusion on the audit row (ADR 0003:
+      `inputs.excluded_account_count`, `inputs.excluded_currencies`, the generic
+      warning), persists, and only THEN attaches the typed
+      `outputs["excluded_accounts"]` to the live result — so a name never
+      reaches `financial_calculations.outputs_json`, which is plaintext while
+      account names are sealed (ADR 0072). Both serializers (`_serialize_outputs`,
+      `ai_tools._serialize`) recurse into lists.
+- [x] `compute_net_worth_with_ref`: only `in_base` reaches `calculate_net_worth`.
+- [x] `emergency_fund_inputs`: the liquid loop filters the way the designation
+      loop below it already did; `EmergencyFundInputs` carries
+      `excluded_accounts` and `warnings`. Once designations define the fund, an
+      undesignated foreign liquid account is not "excluded" from it.
+- [x] `compute_safe_to_spend` and `compute_emergency_fund_with_ref` surface the
+      same disclosure; safe-to-spend's lands in `SafeToSpend.warnings`, which is
+      on the wire today and rendered by both clients.
+- [x] `compute_purchase_impact` (found in plan review): rebuilt an unfiltered
+      balance list of its own and still raised after the three headline fixes —
+      routed through the same partition; `POST /advisor/purchase` and
+      `project_purchase_impact` survive and disclose.
+- [x] `Money.__add__` is untouched. Raising on a mismatch is the engine's
+      invariant; the bug was callers feeding it mixed input.
+
+### Advisor
+
+- [x] `_result_payload` hoists `excluded_accounts` beside `warnings` for
+      `get_net_worth`, `get_emergency_fund`, `get_safe_to_spend` and
+      `project_purchase_impact`. `name` stays non-grounding; the balance's
+      display grounds, in its own currency.
+- [x] `_grounded_retirement_inputs` (found in plan review): summed every
+      positive retirement/HSA balance as raw minor units and labelled the sum in
+      the base currency — a EUR 9,000 pension reported as USD 9,000, a plausible
+      wrong answer. Base-currency balances only; the foreign ones are disclosed
+      under `grounded_defaults.current_savings_excluded_accounts` and hoisted to
+      `excluded_accounts` + a warning by `_attach_grounded_defaults`, for both
+      `project_retirement` and `when_can_i_retire`.
+- [x] `get_net_worth(month=…)` returns `excluded_accounts: null` and says why:
+      a snapshot has no record of what it left out, and `[]` would claim
+      "nothing".
+- [x] Descriptions of all six total-owning tools carry one clause: base
+      currency only; another currency appears under `excluded_accounts`, never
+      converted. `GROUNDING_RULES`: never add an excluded balance back into a
+      base-currency figure or present it as base-currency money; an approximate
+      conversion must be labelled approximate and come from `get_exchange_rate`.
+
+### The Overview Field (contract `0.157`, additive)
+
+- [x] `AccountOutsideBaseCurrency {name, balance: Money}` and
+      `HouseholdContext.accounts_outside_base_currency`, filled in
+      `_build_household_context` from the same partition helper with no
+      eligibility filter (the global fact), each balance in its own currency.
+      `list | null`: a list (empty for a single-currency household) whenever the
+      response describes today's accounts; `null` for a past month, whose
+      accounts are not known — null means unknown, never none.
+- [x] `shared/openapi/family-cfo.v1.yaml` edited first (CONTRIBUTING), then
+      BOTH clients regenerated (`npm run generate:client`,
+      `scripts/generate-swift-client.sh`) — types only, no client reads the
+      field yet, so `scripts/check-client-compatibility.sh` still passes against
+      the immutable `0.157` fixture and the contract does not move (ADR 0074
+      rule 5). `make check-openapi` clean.
+
+### Snapshot Pass Hardened
+
+- [x] `net_worth_history.record_snapshot_once` catches `Exception` per household
+      with `logger.exception` (the household id and traceback), generalising the
+      existing `HouseholdLockedError` branch, which stays the quiet
+      `logger.info` case. The returned count is of households actually captured.
+      Kept in this change rather than split out: this is the change whose
+      regression test proves the pass survives a broken household.
+
+### Tests
+
+- [x] `_seed_foreign_currency_account` promoted to the conftest fixture
+      `foreign_currency_account` (the demo USD household plus EUR 4,000.00 in a
+      savings account).
+- [x] `test_household_overview.py`: `GET /household` is 200; `net_worth` is the
+      base-currency-only total; `accounts_outside_base_currency` lists the EUR
+      account with its EUR balance and is `[]` for the plain demo household and
+      `null` for a past month; `safe_to_spend.warnings` carries the generic
+      disclosure; the past-month path still works.
+- [x] `test_ai_tools.py`: the three tools succeed, each with `excluded_accounts`
+      and the warning; the EUR display is in `grounded_values`; an account named
+      "Euro Savings 9876" grounds `4000.00` and NOT `9876`; `get_accounts` and
+      `get_debt_outlook` payloads are unchanged; `project_purchase_impact`,
+      `project_retirement` and `when_can_i_retire` survive and never label the
+      EUR pension as USD; the historical branch reports `null`; a designation on
+      the foreign account is disclosed as ignored; every total-owning tool's
+      description names `excluded_accounts`.
+- [x] `test_finance_service.py`: the partition and its eligibility filter; the
+      persisted row records count, currencies and the generic warning and
+      contains no account name and no live `excluded_accounts`; zero exclusions
+      for a single-currency household; the all-liquid fallback; a percent
+      designation on the foreign account ignored and disclosed; an undesignated
+      foreign liquid account not "excluded" from a designated fund; a foreign
+      card disclosed by safe-to-spend while a foreign brokerage is not (net
+      worth discloses both, "2 accounts held in EUR"); purchase impact;
+      `goal_current_minor` for the emergency-fund goal.
+- [x] `test_net_worth_history.py`: a mixed household is captured with a
+      base-currency-only figure; a household whose computation raises is logged
+      and does not stop the next one from being captured, and the count is
+      honest.
+- [x] `test_chat_api.py`: the deterministic fallback answers a mixed household
+      and forwards the warning; `recommendations.warnings_json` holds no name.
+- [x] `test_goals_api.py`: `GET /goals` and the Overview's top-goal card compute
+      the emergency-fund goal with the foreign account present and its
+      designation ignored.
+- [x] `test_advisor_api.py`: `POST /advisor/purchase` is 200 and discloses.
+- [x] Engine: `test_money.py`'s mismatch test stays — that behaviour is kept.
+
+### Review Round (PR #155)
+
+Five findings, each reproduced against the PR head by the maintainer.
+
+- [x] **Currency codes canonicalised.** `POST /accounts` stored "usd" verbatim,
+      so a usd account in a USD household was excluded from its own totals as
+      "held in USD". `Money` and `AccountCreateRequest` upper-case at ingress,
+      `create_account` / `create_goal` do too (bank sync included), migration
+      `0092_uppercase_currency_codes` fixes existing rows on households,
+      accounts, goals, bills, income sources and budgets, and the partition
+      compares defensively. Tests: a "usd" account via `POST /accounts` and a
+      legacy lower-case row both join the USD net worth with no warning.
+- [x] **Grounding bound to currency.** `grounded_values` reduced the trace to
+      bare numbers, so "USD 9,000.00" passed for an excluded EUR 9,000.00
+      pension. `ai_tools.grounded_money` maps each display figure (and its
+      rounded forms) to its currency; `validate_recommendation(known_money=…)`
+      refuses a claim naming a currency the figure was never reported in
+      (`find_currency_mismatches`, orchestrator). `type` joined the
+      non-grounding keys so a foreign "529" cannot ground $529. Tests on the
+      validator, on the API's binding, and end-to-end through the chat turn
+      (the wrong unit fails to the deterministic floor; the right one passes).
+- [x] **Goal semantics resolved.** The fund's `goal_target` takes only
+      base-currency emergency goals (a EUR 90,000 goal was relabelled USD);
+      `compute_purchase_impact` skips a foreign top goal with a warning instead
+      of raising; `goal_current_minor` tracks the live fund only for a
+      base-currency goal (a foreign one keeps its stored current, the M41
+      rule), taking `base_currency` from the caller or the household. Not
+      refused on write: both clients still send a literal "USD" for goals
+      until the follow-up PR.
+- [x] **Provenance from the real inputs.** `_monthly_debt_minimums` and
+      `monthly_essential_expenses` gained `_with_exclusions` variants that
+      return the foreign loans and leases their own loops skipped, merged into
+      the emergency fund's disclosure; safe-to-spend's obligation loops add the
+      foreign debts and zero-balance leases they would have reserved. A foreign
+      401(k) loan is never a component and never disclosed. Tests: a EUR auto
+      loan with a EUR 500 minimum (months unchanged, loan named), a foreign
+      zero-balance lease, the 401(k) loan across all three figures.
+- [x] **Retirement provenance persisted.** `compute_retirement_projection` and
+      `compute_retirement_age_solve` take the grounded exclusions and persist
+      through `_persist_disclosing`, so the referenced row carries the count,
+      currencies and generic warning — and no name.
+
+### Follow-Up PR — Clients, Contract `0.157 → 0.158`
+
+The first client that reads `accounts_outside_base_currency` moves the contract
+(ADR 0074 rule 5), API side first, in the order `docs/guides/deployment.md`
+enforces. Not in this change:
+
+- [ ] Specs first: `docs/specs/08-mobile-spec.md` and
+      `09-angular-dashboard-spec.md` — the Overview note, the Accounts-tab chip,
+      the form default, and base-currency-only reservation totals (both Accounts
+      screens today add mixed-currency reservations as raw minor units or drop
+      the rest silently).
+- [ ] `VERSION` → `0.158`; every `apps/*/BUILD` → `0` (rule 6);
+      `shared/openapi/compatibility/0.158.yaml` copied from the merged contract
+      (`0.157.yaml` is never edited). Release acts (`BUILD` bumps, tags,
+      deploys) stay in their own `chore(release)` PRs per the deployment guide;
+      the API component is `api` AND `worker`.
+- [ ] Web Overview: "Not counted in {base} totals: {name} ({balance})" under the
+      net-worth value from `context.accounts_outside_base_currency ?? []`,
+      hidden when empty; `$localize` with `vi` and `lt` entries. Web Accounts:
+      default the form's currency to the household base (loaded explicitly, no
+      `'USD'` fallback, a late load never overwriting an explicit choice), a chip
+      on a foreign row, reservation totals base-currency-only with an ignored
+      foreign reservation disclosed.
+- [ ] iOS Overview: the same note in `netWorthCard`; iOS Accounts:
+      `defaultCurrency` from the household context, the Add Account sheet's unit
+      from that currency (not a literal `$`), the row disclosure, reservation
+      totals base-currency-only. `Localizable.xcstrings` entries. The watch
+      glance shows the base-currency figure, now correct, untouched.
+- [ ] `overview.spec.ts`, `accounts.spec.ts`, `OverviewViewModelTests`,
+      `AccountsViewModel` tests; `scripts/check-client-compatibility.sh web|ios`
+      green against the `0.158` fixture; the real i18n gates.
+- [ ] `docs/RELEASE-CHECKLIST.md` and this entry record the bump and why.
+
+Advisor tool access: the six total-owning tools disclose what they leave out;
+`get_accounts` (#130) already listed and flagged the account. No new domain.
 
 
 ## Backlog: Annual Report

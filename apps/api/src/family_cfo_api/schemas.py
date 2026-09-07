@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 HouseholdRole = Literal["owner", "adult", "viewer", "child"]
 AccountType = Literal[
@@ -57,6 +57,15 @@ class ErrorResponse(BaseModel):
 class Money(BaseModel):
     amount_minor: int
     currency: str = Field(min_length=3, max_length=3)
+
+    @field_validator("currency")
+    @classmethod
+    def _canonical_currency(cls, value: str) -> str:
+        # #152 review: the engine's Money canonicalises codes to upper case. A
+        # stored "usd" beside a USD base currency compared unequal and, once
+        # totals began excluding out-of-base balances, was left out of its own
+        # household's figures. Normalised here, at every money ingress.
+        return value.upper()
 
 
 class SessionInfo(BaseModel):
@@ -451,6 +460,18 @@ class SafeToSpend(BaseModel):
     subscription_forecast_items: list[NamedAmount] = Field(default_factory=list)
 
 
+class AccountOutsideBaseCurrency(BaseModel):
+    """#152: an account the household holds in a currency other than its base.
+
+    It is real and listed on the Accounts tab, but no base-currency figure on the
+    Overview (net worth, emergency fund, safe-to-spend) includes it, and nothing
+    converts it. ``balance`` is in the account's OWN currency, so a client can
+    never show it as a base-currency amount."""
+
+    name: str
+    balance: Money
+
+
 class HouseholdContext(BaseModel):
     household_id: str
     display_name: str
@@ -486,6 +507,13 @@ class HouseholdContext(BaseModel):
     earliest_month: str | None = None
     # M97: transactions awaiting duplicate review, for the Review tab's badge.
     review_count: int = 0
+    # #152: every account held outside the base currency — the same list the
+    # advisor's tools report under `excluded_accounts`, so the Overview, the
+    # phone and the advisor tell one story from one source. A list (empty for a
+    # single-currency household) whenever the response describes TODAY's
+    # accounts; None for a past month, whose accounts are not known — a null
+    # here means "unknown", never "none".
+    accounts_outside_base_currency: list[AccountOutsideBaseCurrency] | None = None
 
 
 class Account(BaseModel):
@@ -2021,6 +2049,13 @@ class AccountCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     type: AccountType
     currency: str = Field(min_length=3, max_length=3)
+
+    @field_validator("currency")
+    @classmethod
+    def _canonical_currency(cls, value: str) -> str:
+        # #152 review: see Money — an account's code must compare equal to the
+        # household's base currency when it IS the base currency.
+        return value.upper()
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
     maturity_date: date | None = None

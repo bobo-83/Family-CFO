@@ -2550,7 +2550,7 @@ def create_goal(
                 type=goal_type,
                 target_minor=target_minor,
                 current_minor=current_minor,
-                currency=currency,
+                currency=currency.upper(),  # #152 review: canonical code
                 target_date=target_date,
                 priority=priority,
                 monthly_contribution_minor=monthly_contribution_minor,
@@ -5132,7 +5132,9 @@ def create_account(
                 household_id=household_id,
                 name=household_crypto.encrypt_text(engine, household_id, name),
                 type=account_type,
-                currency=currency,
+                # #152 review: canonical ISO code, whatever the client or the bank
+                # sync provider sent — the engine's Money upper-cases, so must we.
+                currency=currency.upper(),
                 annual_interest_rate=annual_interest_rate,
                 minimum_payment_minor=minimum_payment_minor,
                 maturity_date=maturity_date,
@@ -5148,7 +5150,7 @@ def create_account(
         id=account_id,
         name=name,
         account_type=account_type,
-        currency=currency,
+        currency=currency.upper(),
         annual_interest_rate=annual_interest_rate,
         minimum_payment_minor=minimum_payment_minor,
         maturity_date=maturity_date,

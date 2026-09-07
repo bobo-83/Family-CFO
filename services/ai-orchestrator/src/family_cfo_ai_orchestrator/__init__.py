@@ -1,6 +1,7 @@
 from family_cfo_ai_orchestrator.guardrails import (
     GuardrailResult,
     extract_numbers,
+    find_currency_mismatches,
     find_unattributed_numbers,
     known_values_from_facts,
     known_values_from_report_facts,
@@ -57,6 +58,7 @@ __all__ = [
     "describe_image",
     "build_report_explanation_prompt",
     "find_unattributed_numbers",
+    "find_currency_mismatches",
     "known_values_from_facts",
     "known_values_from_report_facts",
     "run_tool_calling_loop",

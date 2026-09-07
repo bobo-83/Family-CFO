@@ -20,6 +20,7 @@ from family_cfo_api.api.budgets import _month_window, budgets_with_progress
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
 from family_cfo_api.schemas import (
+    AccountOutsideBaseCurrency,
     AssetCategoryTotal,
     BudgetSummary,
     CashOutlookResponse,
@@ -512,13 +513,17 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
     ]
 
 
-def _top_goal(engine: Engine, household_id: str) -> GoalProgress | None:
-    """M41: the highest-priority goal (list_goals is priority-ordered) with progress."""
+def _top_goal(engine: Engine, household_id: str, currency: str) -> GoalProgress | None:
+    """M41: the highest-priority goal (list_goals is priority-ordered) with progress.
+    Typed in the goal's OWN currency: a goal declared outside the base currency is
+    shown as declared, never relabelled (#152 review)."""
     goals = repository.list_goals(engine, household_id)
     if not goals:
         return None
     goal = goals[0]
-    current_minor = finance_service.goal_current_minor(engine, household_id, goal)
+    current_minor = finance_service.goal_current_minor(
+        engine, household_id, goal, base_currency=currency
+    )
     percent = 0
     if goal.target_minor > 0:
         percent = min(100, round(current_minor / goal.target_minor * 100))
@@ -828,6 +833,10 @@ def _historical_context(
         ),
         spending_by_category=_spending_by_category(engine, household.id, currency, today=anchor),
         earliest_month=repository.earliest_transaction_month(engine, household.id),
+        # #152: deliberately None, not []. Past-month figures come from
+        # snapshots and today's accounts are not that month's (the #130 rule),
+        # so what a past total left out is unknown — and null says so.
+        accounts_outside_base_currency=None,
     )
 
 
@@ -859,6 +868,19 @@ def _build_household_context(
         engine, household.id, today.replace(day=1), today, currency
     )
     asset_breakdown, total_debt = _asset_and_debt_summary(engine, household.id, currency)
+    # #152: the global fact, no eligibility filter — every account the household
+    # holds outside its base currency, each with a balance in its OWN currency.
+    outside_base_currency = [
+        AccountOutsideBaseCurrency(
+            name=account.name,
+            balance=MoneySchema(
+                amount_minor=account.balance.amount_minor, currency=account.balance.currency
+            ),
+        )
+        for account in finance_service.partition_balances_by_currency(
+            repository.list_account_balances(engine, household.id), currency
+        ).excluded_accounts
+    ]
     upcoming = [
         UpcomingBill(
             id=bill.id,
@@ -894,11 +916,13 @@ def _build_household_context(
             household.emergency_fund_target_months,
             # M75: the family's own emergency-fund goal is the target of
             # record; with several, the LARGEST target is the conservative one.
+            # #152 review: a goal declared in another currency is never relabelled
+            # in the base currency — its target cannot be the fund's target.
             goal_target_minor=max(
                 (
                     g.target_minor
                     for g in repository.list_goals(engine, household.id)
-                    if g.goal_type == "emergency_fund"
+                    if g.goal_type == "emergency_fund" and g.currency.upper() == currency
                 ),
                 default=None,
             ),
@@ -924,7 +948,7 @@ def _build_household_context(
         total_debt=total_debt,
         upcoming_bills=upcoming,
         net_worth_history=history,
-        top_goal=_top_goal(engine, household.id),
+        top_goal=_top_goal(engine, household.id, currency),
         spending_insights=_spending_insights(engine, household.id, currency),
         savings_rate=_savings_rate(engine, household.id, currency),
         savings_contributions=_savings_contributions(engine, household.id),
@@ -934,6 +958,7 @@ def _build_household_context(
         last_synced_at=last_synced_at,
         earliest_month=repository.earliest_transaction_month(engine, household.id),
         review_count=repository.count_review_transactions(engine, household.id),
+        accounts_outside_base_currency=outside_base_currency,
     )
 
 

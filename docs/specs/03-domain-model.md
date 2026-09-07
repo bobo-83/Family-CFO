@@ -6,6 +6,13 @@
 
 A household owns financial context, users, accounts, goals, reports, and settings.
 
+A household has ONE base currency (ADR 0075, #152). Every total the app computes
+for it — net worth, the emergency fund, safe-to-spend, a purchase's impact, a
+retirement projection's grounded savings — is in that currency and only that
+currency. Multi-currency households remain deferred; this rule holds instead of
+crashing. Currency codes are canonical upper-case ISO 4217 wherever they are
+stored or compared; "usd" and "USD" are the same currency, never two.
+
 ### User
 
 A person who can authenticate and access the household according to a role.
@@ -20,6 +27,16 @@ Roles:
 ### Account
 
 An account represents a financial container.
+
+An account carries its own currency, which may differ from the household's base
+currency (`POST /accounts` accepts any ISO code, and bank sync creates accounts
+in whatever currency the provider reports). Such an account is real: it is
+listed on the Accounts tab and by the advisor's `get_accounts`, with its balance
+in its own currency. It is never summed into a base-currency total, never
+converted, and never silently dropped — each total that would otherwise have
+counted it discloses it (`excluded_accounts` in a tool payload, the generic
+warning on a calculation, `accounts_outside_base_currency` on the Overview), and
+an emergency-fund designation on it is ignored and said to be ignored.
 
 Types:
 
@@ -52,6 +69,11 @@ Income includes salary, bonus, RSUs, stock options, side income, and other recur
 ### Goal
 
 A target with a purpose, amount, date, priority, and funding source.
+
+A goal is declared in a currency and shown in that currency. One declared outside
+the household's base currency is never relabelled: it is not the emergency
+fund's target, purchase impact skips it and says so, and only a base-currency
+emergency-fund goal tracks the live designated fund (ADR 0075).
 
 Examples:
 

@@ -313,3 +313,120 @@ async def test_emergency_fund_goal_tracks_the_reserved_fund(
     # Progress reflects the reserved fund ($1,500), not the stored $0.
     assert goal["current"]["amount_minor"] == 150_000
     assert goal["percent_complete"] == round(150_000 / 9_000_000 * 100)
+
+
+# --- #152: one foreign-currency account must not take the Overview down ---------
+
+_EUR_WARNING = (
+    "1 account held in EUR is not counted in this USD figure; a balance in another "
+    "currency is never converted."
+)
+
+
+@pytest.mark.anyio
+async def test_overview_survives_a_foreign_currency_account_and_lists_it(
+    demo_client, demo_token, foreign_currency_account
+) -> None:
+    """THE regression: one EUR savings account made GET /household — the home
+    screen on both clients — raise CurrencyMismatchError. The total is now
+    base-currency only, and the account it left out is disclosed, never converted."""
+    body = await _context(demo_client, demo_token)
+
+    # checking 500_000 + savings 1_500_000 - mortgage 300_000_000; EUR 4,000 absent.
+    assert body["net_worth"] == {"amount_minor": -298_000_000, "currency": "USD"}
+    assert body["accounts_outside_base_currency"] == [
+        {"name": "Euro Savings", "balance": {"amount_minor": 400_000, "currency": "EUR"}}
+    ]
+    assert body["emergency_fund"]["reserved"] == {"amount_minor": 2_000_000, "currency": "USD"}
+    assert body["safe_to_spend"]["liquid_balance"] == {"amount_minor": 2_000_000, "currency": "USD"}
+    # Already on the wire and rendered by both clients — the one channel that
+    # reaches the Overview today without a contract bump.
+    assert _EUR_WARNING in body["safe_to_spend"]["warnings"]
+    liquid = next(e for e in body["asset_breakdown"] if e["category"] == "liquid")
+    assert liquid["total"] == {"amount_minor": 2_000_000, "currency": "USD"}
+
+
+@pytest.mark.anyio
+async def test_single_currency_household_lists_no_accounts_outside_its_base(
+    demo_client, demo_token
+) -> None:
+    body = await _context(demo_client, demo_token)
+
+    # An empty list, not null: today's accounts are known and none is foreign.
+    assert body["accounts_outside_base_currency"] == []
+    assert not any("held in" in w for w in body["safe_to_spend"]["warnings"])
+
+
+@pytest.mark.anyio
+async def test_past_month_survives_a_foreign_account_and_marks_exclusions_unknown(
+    demo_client, demo_token, foreign_currency_account
+) -> None:
+    """Past-month net worth comes from snapshots or a base-currency
+    reconstruction; today's accounts are not that month's (the #130 rule), so
+    what it left out is unknown — null, never an empty list."""
+    resp = await demo_client.get(
+        "/api/v1/household?month=2020-01",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["net_worth"]["currency"] == "USD"
+    assert body["accounts_outside_base_currency"] is None
+
+
+@pytest.mark.anyio
+async def test_a_lower_case_currency_code_joins_its_own_household(
+    demo_client, demo_token
+) -> None:
+    """#152 review: "usd" in a USD household is the base currency, not a foreign one."""
+    headers = {"Authorization": f"Bearer {demo_token}"}
+    created = await demo_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={"name": "Lower Case Savings", "type": "savings", "currency": "usd"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["balance"]["currency"] == "USD"
+    balance = await demo_client.post(
+        f"/api/v1/accounts/{created.json()['id']}/balances",
+        headers=headers,
+        json={"balance": {"amount_minor": 100_000, "currency": "usd"}},
+    )
+    assert balance.status_code in (200, 201), balance.text
+
+    body = await _context(demo_client, demo_token)
+    assert body["net_worth"] == {"amount_minor": -298_000_000 + 100_000, "currency": "USD"}
+    assert body["accounts_outside_base_currency"] == []
+    assert not any("held in" in w for w in body["safe_to_spend"]["warnings"])
+
+
+@pytest.mark.anyio
+async def test_a_foreign_goal_is_shown_as_declared_never_relabelled(
+    demo_client, demo_token, demo_engine
+) -> None:
+    """#152 review: a EUR 90,000 emergency goal used to become `goal_target =
+    USD 90,000` on the fund card while the top-goal card said EUR 90,000."""
+    from family_cfo_api import fixtures, repository
+
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    for goal in repository.list_goals(demo_engine, hh):
+        repository.update_goal(demo_engine, hh, goal.id, priority=2)
+    repository.create_goal(
+        demo_engine,
+        hh,
+        "Euro emergency fund",
+        "emergency_fund",
+        target_minor=9_000_000,
+        currency="EUR",
+        target_date=None,
+        priority=1,
+    )
+
+    body = await _context(demo_client, demo_token)
+
+    # The fund's target is the base-currency goal (the demo's USD 18,000 one)...
+    assert body["emergency_fund"]["goal_target"] == {"amount_minor": 1_800_000, "currency": "USD"}
+    # ...while the top goal is shown in its own currency, current untouched.
+    assert body["top_goal"]["target"] == {"amount_minor": 9_000_000, "currency": "EUR"}
+    assert body["top_goal"]["current"] == {"amount_minor": 0, "currency": "EUR"}

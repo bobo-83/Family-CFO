@@ -5925,6 +5925,19 @@ components:
         review_count:
           description: "M97: transactions awaiting duplicate review, for the Review tab badge."
           type: integer
+        accounts_outside_base_currency:
+          description: >-
+            "#152 (ADR 0075): every account the household holds in a currency other
+            than its base — real, listed on the Accounts tab, but counted in no
+            base-currency total and never converted. Each balance is in the
+            account's OWN currency. A list (empty for a single-currency household)
+            whenever the response describes today's accounts; null for a past
+            month, whose accounts are not known — null means unknown, never none."
+          type:
+            - array
+            - "null"
+          items:
+            $ref: "#/components/schemas/AccountOutsideBaseCurrency"
     Budget:
       type: object
       required:
@@ -6162,6 +6175,20 @@ components:
           description: "ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH)."
           type: integer
     LiquidAccountBalance:
+      type: object
+      required:
+        - name
+        - balance
+      properties:
+        name:
+          type: string
+        balance:
+          $ref: "#/components/schemas/Money"
+    AccountOutsideBaseCurrency:
+      description: >-
+        "#152: an account held in a currency other than the household's base.
+        `balance` is in the account's own currency, so it can never be shown as
+        a base-currency amount."
       type: object
       required:
         - name

@@ -201,3 +201,79 @@ def test_a_plan_identifier_written_as_an_amount_is_still_checked() -> None:
     violations = find_unattributed_numbers("It cost USD 529.00 to open.", set())
 
     assert violations == ["529.00"]
+
+
+# --- #152 review: a money claim carries its currency ---
+
+import pytest  # noqa: E402
+from family_cfo_ai_orchestrator import find_currency_mismatches  # noqa: E402
+
+_EUR_ONLY = {"9000.00": {"EUR"}, "9000.0": {"EUR"}, "9000": {"EUR"}}
+
+
+def test_a_grounded_figure_in_the_wrong_currency_is_a_violation() -> None:
+    """An excluded EUR 9,000.00 pension grounds "9000.00"; restating it as USD is a
+    real figure in the wrong unit — the same harm as an invented one."""
+    result = validate_recommendation(
+        "Your pension holds USD 9,000.00.", {"9000.00"}, known_money=_EUR_ONLY
+    )
+
+    assert result.passed is False
+    assert result.violations == ["USD 9,000.00 is grounded only in EUR"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Your pension holds EUR 9,000.00.",
+        "Your pension holds 9,000.00 EUR, not counted in the USD total.",
+        "Your pension holds €9,000.",
+    ],
+)
+def test_the_same_figure_in_its_own_currency_passes(text: str) -> None:
+    assert validate_recommendation(text, {"9000.00"}, known_money=_EUR_ONLY).passed is True
+
+
+def test_a_dollar_sign_is_a_dollar_claim() -> None:
+    assert find_currency_mismatches("That is $9,000 today.", _EUR_ONLY) == [
+        "$9,000 is grounded only in EUR"
+    ]
+    assert find_currency_mismatches("That is $9,000 today.", {"9000": {"USD"}}) == []
+
+
+def test_a_figure_grounded_in_both_currencies_may_be_said_in_either() -> None:
+    both = {"9000.00": {"EUR", "USD"}}
+
+    assert find_currency_mismatches("USD 9,000.00 here, EUR 9,000.00 there.", both) == []
+
+
+def test_a_bare_number_is_left_to_the_number_check() -> None:
+    """No currency named, no currency to contradict — the number check still owns it."""
+    assert find_currency_mismatches("about 9,000 sits in the pension", _EUR_ONLY) == []
+    assert validate_recommendation(
+        "about 9,000 sits in the pension", {"9000"}, known_money=_EUR_ONLY
+    ).passed
+
+
+def test_a_rounded_claim_in_the_wrong_currency_still_fails() -> None:
+    """The ±1% rounding tolerance must not become a currency loophole."""
+    assert find_currency_mismatches("USD 9,050", _EUR_ONLY) == [
+        "USD 9,050 is grounded only in EUR"
+    ]
+
+
+def test_an_ungrounded_figure_is_not_this_checks_business() -> None:
+    """A claim matching no grounded money is the number check's violation, not a
+    currency one — reported once, as an invented figure."""
+    result = validate_recommendation("USD 123,456.00", {"9000.00"}, known_money=_EUR_ONLY)
+
+    assert result.violations == ["123456.00"]
+
+
+def test_immaterial_amounts_are_never_currency_violations() -> None:
+    assert find_currency_mismatches("USD 50", {"50": {"EUR"}}) == []
+
+
+def test_without_known_money_the_number_check_is_unchanged() -> None:
+    assert validate_recommendation("USD 9,000.00", {"9000.00"}).passed is True
+    assert validate_recommendation("USD 9,000.00", {"9000.00"}, known_money={}).passed is True

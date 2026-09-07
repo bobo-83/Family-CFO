@@ -121,6 +121,32 @@ Applied to accounts (`get_accounts`, M122):
 - The tool and the `GET /accounts` endpoint project one shared assembler, so the
   Accounts tab and the advisor can never name different accounts.
 
+Applied to totals (M123, ADR 0075, #152): the tool that OWNS a total discloses
+what it left out, and the model must not add it back.
+
+- `get_net_worth`, `get_emergency_fund`, `get_safe_to_spend`,
+  `project_purchase_impact`, `project_retirement` and `when_can_i_retire` are
+  base-currency figures. Each returns `excluded_accounts` beside `warnings`: the
+  accounts held in another currency that WOULD have been components of that
+  figure (eligibility-specific — net worth skips 401(k) loans regardless, the
+  emergency fund counts liquid or designated accounts, safe-to-spend touches
+  cash, reservations and debts), as `{name, balance}` with `balance` typed in the
+  account's OWN currency. `name` is household text and never grounds a number;
+  the balance's display string does, so the advisor can SAY what it could not add
+  up and quote it in its own currency.
+- The warning that travels with the figure — and is persisted in the
+  calculation row — is generic ("1 account held in EUR is not counted in this
+  USD figure; a balance in another currency is never converted"). It never
+  names the account: a warning is app-authored text whose digits ground, and
+  account names are sealed content while `warnings_json` is plaintext.
+- `GROUNDING_RULES` forbid adding an excluded balance back into a base-currency
+  figure or presenting it as base-currency money. An approximate conversion, if
+  the family asks for one, must come from `get_exchange_rate` and be labelled
+  approximate; without that tool the advisor says it cannot convert here.
+- A past-month `get_net_worth(month=…)` reports `excluded_accounts: null`: a
+  snapshot has no record of what it left out, and an empty list would claim
+  "nothing".
+
 ## Guardrails
 
 - The LLM must not invent account balances, debt terms, or investment performance.
@@ -128,6 +154,13 @@ Applied to accounts (`get_accounts`, M122):
 - Grounding is unit-aware: money travels as minor units plus a display string,
   and only the display form grounds an answer. Accepting the minor-unit twin
   would let a hundredfold overstatement of a real balance pass the guardrail.
+- Grounding is currency-aware (#152 review): each money figure is bound to the
+  currencies the tools reported it in, and a claim that names a currency — an
+  ISO code beside the number, or a symbol — must match one of them. An excluded
+  EUR 9,000.00 pension grounds "EUR 9,000.00" and "€9,000", never "USD
+  9,000.00" or "$9,000": a real figure in the wrong unit is the same harm as an
+  invented one. A bare number is still the number check's business. Account
+  `type` values (a "529") are identifiers and never ground a figure.
   Every tool therefore emits money through the shared serializer; a raw
   `<field>_minor` output field grounds nothing at all.
 - Grounding comes from figures, not from names. Household- and bank-supplied

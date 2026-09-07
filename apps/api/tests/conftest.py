@@ -151,3 +151,35 @@ def _reset_backup_cooldown():
 
     backups_api.reset_backup_cooldown_for_tests()
     yield
+
+
+def seed_foreign_currency_account(
+    engine: Engine,
+    *,
+    name: str = "Euro Savings",
+    account_type: str = "savings",
+    currency: str = "EUR",
+    balance_minor: int = 400_000,
+):
+    """#152: an account outside the demo household's USD base currency.
+
+    `POST /accounts` accepts any ISO code without comparing it to the base
+    currency, and bank sync creates accounts in whatever currency the provider
+    reports — so an account the family can see may sit outside it. One such
+    account used to raise `CurrencyMismatchError` out of every base-currency
+    total and 500 the Overview; it is now excluded from those totals and
+    disclosed. Returns the created account record.
+    """
+    from family_cfo_api import repository
+
+    account = repository.create_account(
+        engine, fixtures.DEMO_HOUSEHOLD_ID, name, account_type, currency
+    )
+    repository.record_account_balance(engine, account.id, balance_minor)
+    return account
+
+
+@pytest.fixture
+def foreign_currency_account(demo_engine: Engine):
+    """The demo (USD) household with one EUR savings account: EUR 4,000.00."""
+    return seed_foreign_currency_account(demo_engine)

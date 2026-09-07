@@ -6598,6 +6598,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/review_count`.
             public var reviewCount: Swift.Int?
+            /// "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
+            ///
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/accounts_outside_base_currency`.
+            public var accountsOutsideBaseCurrency: [Components.Schemas.AccountOutsideBaseCurrency]?
             /// Creates a new `HouseholdContext`.
             ///
             /// - Parameters:
@@ -6625,6 +6629,7 @@ public enum Components {
             ///   - lastSyncedAt: M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
             ///   - earliestMonth: M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
             ///   - reviewCount: M97: transactions awaiting duplicate review, for the Review tab badge.
+            ///   - accountsOutsideBaseCurrency: "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
@@ -6649,7 +6654,8 @@ public enum Components {
                 spendingByCategory: Components.Schemas.SpendingByCategory? = nil,
                 lastSyncedAt: Foundation.Date? = nil,
                 earliestMonth: Swift.String? = nil,
-                reviewCount: Swift.Int? = nil
+                reviewCount: Swift.Int? = nil,
+                accountsOutsideBaseCurrency: [Components.Schemas.AccountOutsideBaseCurrency]? = nil
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
@@ -6675,6 +6681,7 @@ public enum Components {
                 self.lastSyncedAt = lastSyncedAt
                 self.earliestMonth = earliestMonth
                 self.reviewCount = reviewCount
+                self.accountsOutsideBaseCurrency = accountsOutsideBaseCurrency
             }
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
@@ -6701,6 +6708,7 @@ public enum Components {
                 case lastSyncedAt = "last_synced_at"
                 case earliestMonth = "earliest_month"
                 case reviewCount = "review_count"
+                case accountsOutsideBaseCurrency = "accounts_outside_base_currency"
             }
         }
         /// - Remark: Generated from `#/components/schemas/Budget`.
@@ -7241,6 +7249,31 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/LiquidAccountBalance/balance`.
             public var balance: Components.Schemas.Money
             /// Creates a new `LiquidAccountBalance`.
+            ///
+            /// - Parameters:
+            ///   - name:
+            ///   - balance:
+            public init(
+                name: Swift.String,
+                balance: Components.Schemas.Money
+            ) {
+                self.name = name
+                self.balance = balance
+            }
+            public enum CodingKeys: String, CodingKey {
+                case name
+                case balance
+            }
+        }
+        /// "#152: an account held in a currency other than the household's base. `balance` is in the account's own currency, so it can never be shown as a base-currency amount."
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountOutsideBaseCurrency`.
+        public struct AccountOutsideBaseCurrency: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AccountOutsideBaseCurrency/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AccountOutsideBaseCurrency/balance`.
+            public var balance: Components.Schemas.Money
+            /// Creates a new `AccountOutsideBaseCurrency`.
             ///
             /// - Parameters:
             ///   - name:

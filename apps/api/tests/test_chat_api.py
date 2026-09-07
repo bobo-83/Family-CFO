@@ -235,3 +235,41 @@ async def test_chat_stream_persists_the_turn_like_the_plain_endpoint(
     assert messages[0]["content"] == "Snapshot please"
     assert messages[1]["role"] == "assistant"
     assert messages[1]["content"] == answer["recommendation"]["answer"]
+
+
+@pytest.mark.anyio
+async def test_deterministic_fallback_answers_a_mixed_currency_household(
+    demo_client, demo_token, demo_engine, foreign_currency_account
+) -> None:
+    """#152: the no-model fallback calls the same two totals, so with one EUR
+    account the floor under the advisor itself raised. It answers in the base
+    currency and forwards the disclosure — without the account's name, because
+    `recommendations.warnings_json` is plaintext while names are sealed."""
+    import json
+
+    response = await demo_client.post(
+        "/api/v1/chat/messages",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"message": "How are we doing?"},
+    )
+
+    assert response.status_code == 200, response.text
+    recommendation = response.json()["recommendation"]
+    assert "USD 2,980,000.00" in recommendation["answer"]
+    assert (
+        "1 account held in EUR is not counted in this USD figure; a balance in another "
+        "currency is never converted."
+    ) in recommendation["warnings"]
+
+    with demo_engine.connect() as conn:
+        stored = (
+            conn.execute(
+                select(models.recommendations).where(
+                    models.recommendations.c.id == recommendation["id"]
+                )
+            )
+            .mappings()
+            .first()
+        )
+    assert stored is not None
+    assert "Euro Savings" not in json.dumps(stored["warnings_json"])

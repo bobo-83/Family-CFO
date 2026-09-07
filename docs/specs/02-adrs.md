@@ -31,6 +31,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0033: Read a loan/card statement's summary onto the account](../adr/0033-statement-summary-to-account.md)
 - [0034: Rights-based roles — custom roles per household, screens guarded by rights](../adr/0034-rights-based-roles.md)
 - [0074: A shared contract, independent per-component builds](../adr/0074-per-component-build-numbers.md)
+- [0075: A balance outside the base currency is excluded from every total, and disclosed — never converted](../adr/0075-foreign-currency-balances-excluded-and-disclosed.md)
 
 ## ADR Rules
 
