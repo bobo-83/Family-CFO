@@ -187,3 +187,32 @@ models from a web page. The native iOS app should prefer describing the photo
 **on the device** (Vision framework / Foundation Models where available) and
 sending only the text description to `POST /chat/messages` — less data leaves
 the phone and the server needs no vision model for iOS users.
+
+## Foreign-currency accounts on iOS (M123 follow-up, #156, ADR 0075)
+
+Parity with the dashboard (ADR 0025): the same rule, the same three places.
+
+- **Overview.** `netWorthCard` shows "Not counted in {base} totals: {name}
+  ({balance}) · …" below the value when `accountsOutsideBaseCurrency` is a
+  non-empty list, each balance formatted in its own currency; nothing for `[]`
+  or `nil`. The watch glance is untouched — it shows the base-currency figure.
+- **Base currency, loaded and never guessed.** `AppModel.householdCurrency`
+  (`HouseholdCurrencyProvider`) is seeded by every live context fetch through
+  `LiveHouseholdAPI.onContext` — the callback that already seeds the household
+  language — and resolved once by a screen opened first. Keyed by household id,
+  device id and access token, invalidated whenever the credential's token
+  changes (sign-in, pairing, sign-out; a rights refresh keeps the token and the
+  value), single-flight, successes only cached, a late completion for an old
+  session discarded.
+- **Accounts.** The Add button is disabled until the currency is known; the Add
+  Account sheet enters the balance in that currency (no literal `$`). A manual
+  account is created in the base currency; with it unknown nothing is saved and
+  the error says so. A row held in another currency carries "Held in {currency}
+  · not counted in {base} totals". The Emergency fund section totals
+  base-currency reservations only and lists a foreign reservation beneath it,
+  unadded, with a footer that says so.
+- **Goals.** The Add button waits for the base currency; a new goal is declared
+  in it. The shared form sheet formats both money fields in the goal's currency —
+  the base for a new goal, the declared currency for an edit — and an edit is
+  sent in the declared currency.
+- Strings live in `Localizable.xcstrings` with `vi` and `lt` values.

@@ -7,13 +7,34 @@ import UIKit
 @Observable
 final class AccountsViewModel {
     private let api: AccountsAPI
+    /// #156: the household's base currency, resolved and cached per session.
+    /// nil (an older preview or mock) leaves the Add button closed.
+    private let currencyProvider: HouseholdCurrencyProvider?
 
     private(set) var accounts: [Components.Schemas.Account] = []
     private(set) var isLoading = false
     private(set) var isScanning = false
     var errorMessage: String?
 
-    init(api: AccountsAPI) { self.api = api }
+    init(api: AccountsAPI, currency: HouseholdCurrencyProvider? = nil) {
+        self.api = api
+        self.currencyProvider = currency
+    }
+
+    /// #156 (ADR 0075): the base currency — nil until known, never a default.
+    var baseCurrency: String? { currencyProvider?.current }
+    var currencyError: String? { currencyProvider?.errorMessage }
+
+    func loadCurrency() async {
+        _ = try? await currencyProvider?.resolve()
+    }
+
+    /// Real and listed like any other account; counted in no base-currency
+    /// total and never converted (#156, ADR 0075).
+    func isOutsideBaseCurrency(_ account: Components.Schemas.Account) -> Bool {
+        guard let base = baseCurrency else { return false }
+        return account.balance.currency != base
+    }
 
     struct Group: Identifiable {
         let id: String
@@ -50,14 +71,29 @@ final class AccountsViewModel {
         return result
     }
 
-    /// Total emergency fund reserved across all accounts, in the base currency.
+    /// Total emergency fund reserved across all accounts, in the base currency
+    /// ONLY — the same number the Overview's emergency-fund card shows (#156,
+    /// ADR 0075). This used to take the first reservation's currency and drop
+    /// the rest silently. nil until the base currency is known or when nothing
+    /// in it is reserved.
     var emergencyFundTotal: Components.Schemas.Money? {
-        let reserved = accounts.compactMap(\.emergencyFundReserved)
-        guard let currency = reserved.first?.currency else { return nil }
-        let total = reserved.filter { $0.currency == currency }.reduce(Int64(0)) {
-            $0 + $1.amountMinor
+        guard let base = baseCurrency else { return nil }
+        let total = accounts.compactMap(\.emergencyFundReserved)
+            .filter { $0.currency == base }
+            .reduce(Int64(0)) { $0 + $1.amountMinor }
+        return total > 0 ? .init(amountMinor: total, currency: base) : nil
+    }
+
+    /// #156: reservations held in another currency — disclosed beside the
+    /// total, never added to it.
+    var foreignReservations: [(name: String, reserved: Components.Schemas.Money)] {
+        guard let base = baseCurrency else { return [] }
+        return accounts.compactMap { account in
+            guard let reserved = account.emergencyFundReserved, reserved.currency != base else {
+                return nil
+            }
+            return (account.name, reserved)
         }
-        return .init(amountMinor: total, currency: currency)
     }
 
     /// Only asset accounts can hold the emergency fund (a card/loan can't).
@@ -105,9 +141,6 @@ final class AccountsViewModel {
         await load()
     }
 
-    /// Currency for a new manual account — match what's already here, else USD.
-    var defaultCurrency: String { accounts.first?.balance.currency ?? "USD" }
-
     /// #11: only a credit card has statement cycles — a checking account's
     /// balance is just its balance.
     static func hasStatements(_ account: Components.Schemas.Account) -> Bool {
@@ -119,12 +152,20 @@ final class AccountsViewModel {
         CardStatementsViewModel(api: api, account: account)
     }
 
+    /// A manual account is created in the household's base currency (#156):
+    /// the first account's currency, or a literal "USD", was how a EUR
+    /// household got USD accounts. With the currency unknown nothing is saved.
     func addAccount(
         name: String, type: Components.Schemas.AccountType, balanceMinor: Int64
     ) async {
+        guard let provider = currencyProvider, let currency = try? await provider.resolve() else {
+            errorMessage = String(
+                localized: "The household currency isn't known yet, so nothing was saved.")
+            return
+        }
         do {
             try await api.createManualAccount(
-                name: name, type: type, currency: defaultCurrency, balanceMinor: balanceMinor)
+                name: name, type: type, currency: currency, balanceMinor: balanceMinor)
             await load()
         } catch {
             errorMessage = ChatViewModel.describe(error)

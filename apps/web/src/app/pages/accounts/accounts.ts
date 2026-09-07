@@ -1,4 +1,4 @@
-import { Component, HostListener, computed, inject, resource, signal } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, resource, signal } from '@angular/core';
 import { ACCOUNT_TYPE_LABELS, labelFor } from '../../shared/enum-labels';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -20,6 +20,7 @@ import type {
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { HouseholdCurrencyService } from '../../core/household-currency.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { statementMatchLabel, statementMatchState } from '../../shared/enum-labels';
 import { formatMoney } from '../../shared/format-money';
@@ -64,6 +65,38 @@ export class Accounts {
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly householdCurrency = inject(HouseholdCurrencyService);
+
+  /** #156: the household's base currency — null until known, never a default. */
+  protected readonly baseCurrency = this.householdCurrency.currency;
+  protected readonly baseCurrencyError = this.householdCurrency.error;
+
+  constructor() {
+    void this.householdCurrency.load();
+    // The currency field follows the base currency until the user touches it:
+    // disabled while unknown (so it cannot be submitted), then set once — a
+    // late response never overwrites a value the user typed (#156 review).
+    effect(() => {
+      const base = this.baseCurrency();
+      const control = this.form.controls.currency;
+      if (!base) {
+        control.disable({ emitEvent: false });
+        return;
+      }
+      if (control.disabled) {
+        control.enable({ emitEvent: false });
+      }
+      if (control.pristine) {
+        control.setValue(base, { emitEvent: false });
+      }
+    });
+  }
+
+  /** #156 (ADR 0075): real, listed, and counted in no base-currency total. */
+  protected isOutsideBaseCurrency(account: Account): boolean {
+    const base = this.baseCurrency();
+    return base !== null && account.balance.currency !== base;
+  }
 
   protected readonly accountTypes = ACCOUNT_TYPES;
   protected readonly formatMoney = formatMoney;
@@ -154,7 +187,10 @@ export class Accounts {
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
     type: ['checking' as AccountType, Validators.required],
-    currency: ['USD', [Validators.required, Validators.minLength(3), Validators.maxLength(3)]],
+    // Empty and disabled until the household's base currency is known (#156);
+    // the constructor's effect fills it in. Never a literal default: that is
+    // how a EUR household got USD accounts (#152).
+    currency: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(3)]],
     openingBalance: [0],
   });
 
@@ -227,13 +263,19 @@ export class Accounts {
   }
 
   protected async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) {
+    // The button is disabled while the currency is unknown, but `ngSubmit`
+    // fires on Enter and a disabled control is excluded from validity while
+    // still present in getRawValue() — so the guard lives here too (#156).
+    const base = this.baseCurrency();
+    if (!base || this.form.invalid || this.submitting()) {
       this.form.markAllAsTouched();
       return;
     }
     this.submitting.set(true);
     this.submitError.set(null);
-    const { name, type, currency, openingBalance } = this.form.getRawValue();
+    const raw = this.form.getRawValue();
+    const { name, type, openingBalance } = raw;
+    const currency = (raw.currency || base).toUpperCase();
     const created = await this.api.createAccount({ name, type, currency });
     if (created.error || !created.data) {
       this.submitting.set(false);
@@ -248,22 +290,40 @@ export class Accounts {
       );
     }
     this.submitting.set(false);
-    this.form.reset({ name: '', type: 'checking', currency: 'USD', openingBalance: 0 });
+    this.form.reset({ name: '', type: 'checking', currency: base, openingBalance: 0 });
     this.accounts.reload();
   }
 
-  /** M36: total money reserved for emergencies across all accounts. */
+  /**
+   * M36: total money reserved for emergencies — in the base currency only, the
+   * same number the Overview's emergency-fund card shows (#156, ADR 0075).
+   * This used to add every reservation's raw minor units and label the sum
+   * with the first currency it met.
+   */
   protected readonly emergencyFundTotal = computed(() => {
-    const list = this.accounts.value() ?? [];
+    const base = this.baseCurrency();
+    if (!base) {
+      return null;
+    }
     let minor = 0;
-    let currency: string | null = null;
-    for (const account of list) {
-      if (account.emergency_fund_reserved) {
-        minor += account.emergency_fund_reserved.amount_minor;
-        currency ??= account.emergency_fund_reserved.currency;
+    for (const account of this.accounts.value() ?? []) {
+      const reserved = account.emergency_fund_reserved;
+      if (reserved && reserved.currency === base) {
+        minor += reserved.amount_minor;
       }
     }
-    return currency ? formatMoney({ amount_minor: minor, currency }) : null;
+    return minor > 0 ? formatMoney({ amount_minor: minor, currency: base }) : null;
+  });
+
+  /** #156: reservations held in another currency — disclosed, never added. */
+  protected readonly foreignReservations = computed(() => {
+    const base = this.baseCurrency();
+    if (!base) {
+      return [];
+    }
+    return (this.accounts.value() ?? [])
+      .filter((account) => account.emergency_fund_reserved && account.emergency_fund_reserved.currency !== base)
+      .map((account) => `${account.name} (${formatMoney(account.emergency_fund_reserved!)})`);
   });
 
   protected efModeOf(account: Account): 'none' | 'percent' | 'amount' {

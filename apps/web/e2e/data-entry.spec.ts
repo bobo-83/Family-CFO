@@ -9,8 +9,11 @@ import { login, selectMatOption } from './support';
 test('data entry: create an account, add a transaction, generate a report', async ({ page }) => {
   await login(page);
 
-  // Create an account.
+  // Create an account. A full navigation, so the page fetches the household's
+  // base currency itself (no Overview seed survives a reload) and prefills the
+  // field with it; the submit button stays disabled until it has (#156).
   await page.goto('/accounts');
+  await expect(page.getByTestId('account-currency-input')).toHaveValue('USD');
   await page.locator('.account-form input[formcontrolname="name"]').fill('E2E Brokerage');
   await selectMatOption(page, 'account-type-select', { testId: 'account-type-option-brokerage' });
   await page.locator('.account-form input[formcontrolname="openingBalance"]').fill('1000');

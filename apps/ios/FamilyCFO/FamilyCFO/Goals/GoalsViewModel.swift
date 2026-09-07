@@ -10,9 +10,21 @@ final class GoalsViewModel {
     var errorMessage: String?
 
     private let api: GoalsAPI
+    /// #156: the household's base currency, for NEW goals. nil (an older
+    /// preview or mock) leaves the Add button closed.
+    private let currencyProvider: HouseholdCurrencyProvider?
 
-    init(api: GoalsAPI) {
+    init(api: GoalsAPI, currency: HouseholdCurrencyProvider? = nil) {
         self.api = api
+        self.currencyProvider = currency
+    }
+
+    /// #156 (ADR 0075): a new goal is declared in the base currency — never a
+    /// literal "USD". An existing goal keeps the currency it was declared in.
+    var baseCurrency: String? { currencyProvider?.current }
+
+    func loadCurrency() async {
+        _ = try? await currencyProvider?.resolve()
     }
 
     func load() async {

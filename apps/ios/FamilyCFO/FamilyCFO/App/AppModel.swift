@@ -38,7 +38,34 @@ final class AppModel {
 
     private(set) var phase: Phase = .loading
     private(set) var server: ServerConfig?
-    private(set) var credential: StoredCredential?
+    private(set) var credential: StoredCredential? {
+        didSet {
+            // #156: a new token is a new session — sign-in, pairing, sign-out —
+            // and possibly a different household. Rights refreshes keep the
+            // token and must not drop the cached currency.
+            if oldValue?.accessToken != credential?.accessToken {
+                householdCurrency.invalidate()
+            }
+        }
+    }
+
+    /// #156 (ADR 0075): the household's base currency for the screens that must
+    /// not guess it (Accounts and Goals forms). Seeded by every live context
+    /// fetch through `LiveHouseholdAPI.onContext`, fetched once otherwise, and
+    /// keyed to the paired household + session so it can never outlive them.
+    @ObservationIgnored
+    lazy var householdCurrency = HouseholdCurrencyProvider(
+        sessionKey: { [weak self] in self?.currencySessionKey },
+        fetch: { [weak self] in
+            guard let household = self?.household else { throw APIError.unauthorized }
+            return try await household.context(month: nil).currency
+        }
+    )
+
+    private var currencySessionKey: String? {
+        guard let server, let credential else { return nil }
+        return "\(server.householdID):\(credential.deviceID):\(credential.accessToken)"
+    }
 
     /// Shared bank-data freshness, shown identically on every synced screen (M103).
     let syncStatus = SyncStatusModel()
@@ -132,6 +159,8 @@ final class AppModel {
         client.map { client in
             LiveHouseholdAPI(client: client) { [weak self] context in
                 self?.householdLanguage = context.language ?? "en"
+                // #156: the same fetch carries the base currency.
+                self?.householdCurrency.seed(context.currency)
             }
         }
     }

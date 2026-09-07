@@ -43,7 +43,8 @@ struct MainTabView: View {
             }
             if let accounts = model.accounts {
                 Tab("Accounts", systemImage: "building.columns", value: MainTab.accounts) {
-                    AccountsView(viewModel: AccountsViewModel(api: accounts))
+                    AccountsView(
+                        viewModel: AccountsViewModel(api: accounts, currency: model.householdCurrency))
                 }
             }
             if model.rolePolicy.canManageBills, let billsModel {
@@ -96,7 +97,7 @@ struct MainTabView: View {
                 budgetsModel = BudgetsViewModel(api: api)
             }
             if goalsModel == nil, let api = model.goalsAPI {
-                goalsModel = GoalsViewModel(api: api)
+                goalsModel = GoalsViewModel(api: api, currency: model.householdCurrency)
             }
             // M98: notify once if the latest backup (or its Synology copy) failed.
             if model.rolePolicy.isOperator, let backups = model.backups {
