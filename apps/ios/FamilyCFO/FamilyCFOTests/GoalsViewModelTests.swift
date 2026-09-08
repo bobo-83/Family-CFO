@@ -18,6 +18,22 @@ struct GoalsViewModelTests {
         #expect(viewModel.baseCurrency == "VND")
     }
 
+    /// Review of #158: the screen can show why the currency is unknown and retry.
+    @Test func aFailedCurrencyFetchIsExposedAndRetried() async {
+        let flaky = AccountsViewModelTests.Flaky(failuresLeft: 1)
+        let provider = HouseholdCurrencyProvider(
+            sessionKey: { "hh-1:device:token" }, fetch: { try flaky.fetch() })
+        let viewModel = GoalsViewModel(api: MockGoalsAPI(), currency: provider)
+
+        await viewModel.loadCurrency()
+        #expect(viewModel.baseCurrency == nil)
+        #expect(viewModel.currencyError != nil)
+
+        await viewModel.loadCurrency()
+        #expect(viewModel.baseCurrency == "USD")
+        #expect(viewModel.currencyError == nil)
+    }
+
     @Test func withoutAProviderTheBaseCurrencyStaysUnknown() async {
         let viewModel = GoalsViewModel(api: MockGoalsAPI())
         await viewModel.loadCurrency()

@@ -22,6 +22,8 @@ final class GoalsViewModel {
     /// #156 (ADR 0075): a new goal is declared in the base currency — never a
     /// literal "USD". An existing goal keeps the currency it was declared in.
     var baseCurrency: String? { currencyProvider?.current }
+    /// #158 review: why the currency is unknown, so the screen can offer a retry.
+    var currencyError: String? { currencyProvider?.errorMessage }
 
     func loadCurrency() async {
         _ = try? await currencyProvider?.resolve()

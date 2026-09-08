@@ -87,6 +87,9 @@ never converted. The dashboard renders that rule; it never re-derives a figure.
   household id and access token, so a logout or a login as another household
   drops it and a late completion for the old session is discarded; single-flight;
   successes only cached, a failure reported and cleared so the next call retries.
+  A seed from the Overview carries the session key captured BEFORE its request
+  started and the context's `household_id`, and is refused when either no longer
+  matches — a delayed response must never become another household's currency.
   No literal `'USD'` anywhere.
 - **Accounts.** The form's currency control is empty and disabled until the base
   currency is known, then set once; a value the user typed is never overwritten
@@ -97,7 +100,8 @@ never converted. The dashboard renders that rule; it never re-derives a figure.
   base-currency reservations only — the Overview's number — and lists a foreign
   reservation under it, unadded.
 - **Goals.** A new goal is created in the base currency; the form waits for it the
-  same way. An existing goal is edited in the currency it was declared in: the
+  same way, and both the target and the planned-contribution labels name that
+  currency. An existing goal is edited in the currency it was declared in: the
   contribution editor labels and sends the goal's own currency.
 - Every string is a `$localize`/`i18n` message with `vi` and `lt` entries;
   currency codes are never translated.

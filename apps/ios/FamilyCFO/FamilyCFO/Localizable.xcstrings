@@ -4587,6 +4587,22 @@
         }
       }
     },
+    "Couldn't load the household currency: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko įkelti namų ūkio valiutos: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tải được đơn vị tiền tệ của hộ gia đình: %@"
+          }
+        }
+      }
+    },
     "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network.": {
       "localizations": {
         "lt": {

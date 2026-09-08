@@ -36,7 +36,7 @@ struct AccountsView: View {
                                 if let total = viewModel.emergencyFundTotal {
                                     LabeledContent("Emergency fund", value: total.formatted)
                                 }
-                                ForEach(viewModel.foreignReservations, id: \.name) { item in
+                                ForEach(viewModel.foreignReservations, id: \.id) { item in
                                     LabeledContent(item.name, value: item.reserved.formattedExact)
                                         .foregroundStyle(.secondary)
                                 }
@@ -79,6 +79,12 @@ struct AccountsView: View {
             .safeAreaInset(edge: .bottom) {
                 SyncStatusFooter(status: model.syncStatus)
                     .padding(.vertical, 6)
+            }
+            // #158 review: a failed currency fetch is shown, with the retry.
+            .safeAreaInset(edge: .top) {
+                if viewModel.baseCurrency == nil, let error = viewModel.currencyError {
+                    CurrencyUnavailableBanner(message: error) { await viewModel.loadCurrency() }
+                }
             }
             .task {
                 async let accounts: () = viewModel.load()

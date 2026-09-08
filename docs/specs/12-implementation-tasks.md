@@ -1651,6 +1651,15 @@ enforces. Not in this change:
       `GoalsViewModelTests`, `OutsideBaseCurrencyNoteTests`.
       `scripts/check-client-compatibility.sh web|ios` against `0.158.yaml`;
       `scripts/check-web-i18n.sh`; the Xcode test target.
+- [x] Review round (PR #158): a seed carries the session key captured before
+      its request started and is refused for another session or household
+      (web `seed(context, requestedIn)`, iOS `seed(_:requestedIn:)` with the
+      live API's callback bound to the session and household it was built for);
+      the contribution label follows the base currency too; iOS shows a banner
+      with a Retry when the currency fetch fails and pull-to-refresh retries it
+      on both screens; foreign reservations are keyed by account id. Tests for
+      each: the delayed-Overview session switch (web), the stale-session seed
+      (iOS), the VND label, the flaky-fetch retry, duplicate names.
 - [ ] Release (after PR A's API is on the box): untagged `patch.sh web` and
       `release-testflight.sh`, use both, then `web-v0.158.0` + pinned redeploy
       and `ios-v0.158.0`; `docs/RELEASE-CHECKLIST.md` records the bump.

@@ -5,6 +5,8 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { authMock } from '../../shared/testing-auth';
 import { Overview } from './overview';
+import { HouseholdCurrencyService } from '../../core/household-currency.service';
+import { clearAuthState, setAuthState } from '../../core/token-store';
 import { TIMEZONE_BOX_DEFAULT } from '../../shared/timezones';
 
 function response(data: unknown, error?: unknown) {
@@ -1800,5 +1802,54 @@ describe('Overview #156: accounts outside the base currency', () => {
   it('renders nothing for a past month, where the list is null (unknown, not none)', async () => {
     const host = await render(minimalContext({ accounts_outside_base_currency: null }));
     expect(note(host)).toBeNull();
+  });
+});
+
+
+// --- #158 review: a delayed Overview response must not cross a session switch ---
+
+describe('Overview #156: seeding the currency across a session switch', () => {
+  afterEach(() => clearAuthState());
+
+  it('does not seed household A\'s currency into household B\'s session', async () => {
+    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    let release!: (value: unknown) => void;
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockReturnValue(new Promise((r) => (release = r))),
+      updateHousehold: vi.fn().mockResolvedValue(response({})),
+      getCashOutlook: vi.fn().mockResolvedValue(response(null)),
+      getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [] })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [Overview],
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    const service = TestBed.inject(HouseholdCurrencyService);
+
+    // A's Overview request is still in flight when A logs out and B logs in.
+    clearAuthState();
+    setAuthState({ accessToken: 'token-b', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    release(
+      response({
+        household_id: 'hh-a',
+        display_name: 'A',
+        currency: 'EUR',
+        net_worth: { amount_minor: 0, currency: 'EUR' },
+        emergency_fund_months: 0,
+      }),
+    );
+    await fixture.whenStable();
+
+    // B's Accounts and Goals forms must not inherit EUR from A's response.
+    expect(service.currency()).toBeNull();
   });
 });

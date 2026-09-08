@@ -203,14 +203,19 @@ Parity with the dashboard (ADR 0025): the same rule, the same three places.
   device id and access token, invalidated whenever the credential's token
   changes (sign-in, pairing, sign-out; a rights refresh keeps the token and the
   value), single-flight, successes only cached, a late completion for an old
-  session discarded.
+  session discarded. The live API's context callback carries the session and
+  household it was built for and is dropped for any other, so a response that
+  lands after a sign-out and a pairing as another household seeds nothing.
+  A failed fetch shows a banner with the reason and a Retry on both screens;
+  pull-to-refresh retries it too.
 - **Accounts.** The Add button is disabled until the currency is known; the Add
   Account sheet enters the balance in that currency (no literal `$`). A manual
   account is created in the base currency; with it unknown nothing is saved and
   the error says so. A row held in another currency carries "Held in {currency}
   · not counted in {base} totals". The Emergency fund section totals
   base-currency reservations only and lists a foreign reservation beneath it,
-  unadded, with a footer that says so.
+  unadded, with a footer that says so; the rows are keyed by account id, since
+  names are not unique.
 - **Goals.** The Add button waits for the base currency; a new goal is declared
   in it. The shared form sheet formats both money fields in the goal's currency —
   the base for a new goal, the declared currency for an edit — and an edit is

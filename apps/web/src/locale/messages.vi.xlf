@@ -7176,6 +7176,12 @@
         <note priority="1" from="description">Accounts held in another currency that the base-currency total leaves out; the currency code stays untranslated</note>
         <note priority="1" from="meaning">Net worth footnote</note>
       </trans-unit>
+      <trans-unit id="6933936083715211101" datatype="html">
+        <source>Planned monthly contribution (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>, optional)</source>
+        <target state="translated">Khoản đóng góp hàng tháng dự kiến (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>, tùy chọn)</target>
+        <note priority="1" from="description">Optional monthly savings plan, in the household&apos;s base currency; the code stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

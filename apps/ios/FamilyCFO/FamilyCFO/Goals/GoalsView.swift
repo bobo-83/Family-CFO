@@ -34,6 +34,17 @@ struct GoalsView: View {
         }
         .navigationTitle("Goals")
         .navigationBarTitleDisplayMode(.inline)
+        // #158 review: a failed currency fetch is shown, with the retry.
+        .safeAreaInset(edge: .top) {
+            if viewModel.baseCurrency == nil, let error = viewModel.currencyError {
+                CurrencyUnavailableBanner(message: error) { await viewModel.loadCurrency() }
+            }
+        }
+        .refreshable {
+            async let goals: () = viewModel.load()
+            async let currency: () = viewModel.loadCurrency()
+            _ = await (goals, currency)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 // #156: a new goal needs the household's base currency — never guessed.

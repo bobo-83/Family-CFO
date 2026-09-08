@@ -54,9 +54,13 @@ final class HouseholdCurrencyProvider {
         return cached.currency
     }
 
-    /// A screen that already holds the live context hands it over — no second fetch.
-    func seed(_ currency: String) {
-        guard let key = sessionKey() else { return }
+    /// A screen that already holds the live context hands it over — no second
+    /// fetch. `requestedIn` is the session key captured when that request was
+    /// STARTED: a live-context response that lands after a sign-out and a
+    /// pairing as another household would otherwise be stored under the new
+    /// session (review of #158). Anything else is dropped.
+    func seed(_ currency: String, requestedIn key: String) {
+        guard key == sessionKey() else { return }
         cached = (key, currency)
         errorMessage = nil
     }

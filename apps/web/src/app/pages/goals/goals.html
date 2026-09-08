@@ -151,7 +151,7 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|Optional monthly savings plan; USD is an ISO currency code and stays untranslated">Planned monthly contribution (USD, optional)</mat-label>
+        <mat-label i18n="Form field label|Optional monthly savings plan, in the household's base currency; the code stays untranslated">Planned monthly contribution ({{ baseCurrency() ?? '…' }}, optional)</mat-label>
         <input matInput type="number" step="0.01" min="0" formControlName="monthlyContribution" />
       </mat-form-field>
 
