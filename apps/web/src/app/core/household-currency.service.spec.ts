@@ -41,7 +41,7 @@ describe('HouseholdCurrencyService (#156)', () => {
 
   it('is unknown until loaded, then caches the base currency for the session', async () => {
     session('hh-1');
-    getHouseholdContext.mockResolvedValue(response({ currency: 'EUR' }));
+    getHouseholdContext.mockResolvedValue(response({ household_id: 'hh-1', currency: 'EUR' }));
 
     expect(service.currency()).toBeNull();
     expect(await service.load()).toBe('EUR');
@@ -57,7 +57,7 @@ describe('HouseholdCurrencyService (#156)', () => {
 
     const first = service.load();
     const second = service.load();
-    pending.resolve(response({ currency: 'EUR' }));
+    pending.resolve(response({ household_id: 'hh-1', currency: 'EUR' }));
 
     expect(await Promise.all([first, second])).toEqual(['EUR', 'EUR']);
     expect(getHouseholdContext).toHaveBeenCalledTimes(1);
@@ -67,7 +67,7 @@ describe('HouseholdCurrencyService (#156)', () => {
     session('hh-1');
     getHouseholdContext
       .mockResolvedValueOnce(response(undefined, { error: { code: 'boom', message: 'down' } }))
-      .mockResolvedValueOnce(response({ currency: 'EUR' }));
+      .mockResolvedValueOnce(response({ household_id: 'hh-1', currency: 'EUR' }));
 
     expect(await service.load()).toBeNull();
     expect(service.currency()).toBeNull();
@@ -80,7 +80,7 @@ describe('HouseholdCurrencyService (#156)', () => {
 
   it('drops the value when the session ends or another household logs in', async () => {
     session('hh-1');
-    getHouseholdContext.mockResolvedValue(response({ currency: 'EUR' }));
+    getHouseholdContext.mockResolvedValue(response({ household_id: 'hh-1', currency: 'EUR' }));
     await service.load();
     expect(service.currency()).toBe('EUR');
 
@@ -89,7 +89,7 @@ describe('HouseholdCurrencyService (#156)', () => {
 
     session('hh-2', 'other-token');
     expect(service.currency()).toBeNull();
-    getHouseholdContext.mockResolvedValue(response({ currency: 'VND' }));
+    getHouseholdContext.mockResolvedValue(response({ household_id: 'hh-2', currency: 'VND' }));
     expect(await service.load()).toBe('VND');
     expect(getHouseholdContext).toHaveBeenCalledTimes(2);
   });
@@ -103,22 +103,45 @@ describe('HouseholdCurrencyService (#156)', () => {
     // The user logs out and someone else logs in before hh-1's answer arrives.
     clearAuthState();
     session('hh-2', 'other-token');
-    slow.resolve(response({ currency: 'EUR' }));
+    slow.resolve(response({ household_id: 'hh-1', currency: 'EUR' }));
 
     expect(await stale).toBeNull();
     expect(service.currency()).toBeNull();
     // The new session fetches its own.
-    getHouseholdContext.mockResolvedValueOnce(response({ currency: 'VND' }));
+    getHouseholdContext.mockResolvedValueOnce(response({ household_id: 'hh-2', currency: 'VND' }));
     expect(await service.load()).toBe('VND');
   });
 
   it('seeds from a context the Overview already loaded, for the current session only', () => {
     session('hh-1');
-    service.seed({ currency: 'EUR' } as never);
+    service.seed({ household_id: 'hh-1', currency: 'EUR' } as never, householdSessionKey());
     expect(service.currency()).toBe('EUR');
     expect(getHouseholdContext).not.toHaveBeenCalled();
 
     clearAuthState();
+    expect(service.currency()).toBeNull();
+  });
+
+  it('refuses a seed requested in a session that is no longer current', () => {
+    session('hh-1');
+    const requestedIn = householdSessionKey();
+    // The Overview's request was in flight while the user logged out and
+    // someone else logged in; its response must not become theirs.
+    clearAuthState();
+    session('hh-2', 'other-token');
+
+    service.seed({ household_id: 'hh-1', currency: 'EUR' } as never, requestedIn);
+
+    expect(service.currency()).toBeNull();
+  });
+
+  it("refuses a context that is not the session's household, even under the right key", async () => {
+    session('hh-2', 'other-token');
+    service.seed({ household_id: 'hh-1', currency: 'EUR' } as never, householdSessionKey());
+    expect(service.currency()).toBeNull();
+
+    getHouseholdContext.mockResolvedValue(response({ household_id: 'hh-1', currency: 'EUR' }));
+    expect(await service.load()).toBeNull();
     expect(service.currency()).toBeNull();
   });
 

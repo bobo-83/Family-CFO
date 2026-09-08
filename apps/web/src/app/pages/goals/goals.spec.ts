@@ -274,7 +274,11 @@ describe('Goals #156: currency', () => {
     };
     const fixture = await render(apiMock);
     const component = fixture.componentInstance;
-    expect((fixture.nativeElement as HTMLElement).querySelector('.goal-form mat-label')?.closest('form')?.textContent).toContain('(VND)');
+    const formText = (fixture.nativeElement as HTMLElement).querySelector('.goal-form')?.textContent ?? '';
+    expect(formText).toContain('Target amount (VND)');
+    // #158 review: the contribution label mislabelled the entered amount as USD.
+    expect(formText).toContain('Planned monthly contribution (VND, optional)');
+    expect(formText).not.toContain('USD');
 
     component['form'].setValue({ name: 'Tet trip', type: 'vacation', targetAmount: 5000, priority: 2, monthlyContribution: 100 });
     await component['submit']();

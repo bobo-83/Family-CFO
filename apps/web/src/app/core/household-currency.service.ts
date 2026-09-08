@@ -53,10 +53,27 @@ export class HouseholdCurrencyService {
     return failed && failed.key === householdSessionKey() ? failed.message : null;
   });
 
-  /** A screen that already holds the live context hands it over — no second fetch. */
-  seed(context: HouseholdContext): void {
-    this.cached.set({ key: householdSessionKey(), currency: context.currency });
+  /**
+   * A screen that already holds the live context hands it over — no second
+   * fetch. `requestedIn` is the session key captured BEFORE that screen's
+   * request started: a response that lands after a logout and a login as
+   * another household would otherwise be tagged with the new session (review
+   * of #158). A context for a different household is refused the same way.
+   */
+  seed(context: HouseholdContext, requestedIn: string): void {
+    if (!this.belongsToCurrentSession(context, requestedIn)) {
+      return;
+    }
+    this.cached.set({ key: requestedIn, currency: context.currency });
     this.failed.set(null);
+  }
+
+  private belongsToCurrentSession(context: HouseholdContext, requestedIn: string): boolean {
+    if (requestedIn !== householdSessionKey()) {
+      return false;
+    }
+    const householdId = authState()?.householdId;
+    return householdId == null || context.household_id === householdId;
   }
 
   /** Resolve the currency, fetching at most once per session at a time. */
@@ -85,6 +102,9 @@ export class HouseholdCurrencyService {
     if (key !== householdSessionKey()) {
       // Late completion for a session that is no longer current: not this
       // household's currency, so neither cached nor reported.
+      return null;
+    }
+    if (data && !this.belongsToCurrentSession(data, key)) {
       return null;
     }
     if (error || !data) {

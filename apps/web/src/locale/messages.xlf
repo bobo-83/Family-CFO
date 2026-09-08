@@ -6,7 +6,7 @@
         <source>Could not load the household currency.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/household-currency.service.ts</context>
-          <context context-type="linenumber">95</context>
+          <context context-type="linenumber">115</context>
         </context-group>
         <note priority="1" from="description">The household&apos;s base currency could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
@@ -5308,13 +5308,13 @@
         <note priority="1" from="description">Goal priority, 1 through 5</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
-      <trans-unit id="5236215855772872039" datatype="html">
-        <source>Planned monthly contribution (USD, optional)</source>
+      <trans-unit id="6933936083715211101" datatype="html">
+        <source>Planned monthly contribution (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>, optional)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/goals/goals.html</context>
           <context context-type="linenumber">154,155</context>
         </context-group>
-        <note priority="1" from="description">Optional monthly savings plan; USD is an ISO currency code and stays untranslated</note>
+        <note priority="1" from="description">Optional monthly savings plan, in the household&apos;s base currency; the code stays untranslated</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
       <trans-unit id="1760708847427196639" datatype="html">
@@ -9336,7 +9336,7 @@
         <source>Failed to load household overview.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">241</context>
+          <context context-type="linenumber">244</context>
         </context-group>
         <note priority="1" from="description">The overview page data could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9345,7 +9345,7 @@
         <source>Free up cash</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">357</context>
+          <context context-type="linenumber">360</context>
         </context-group>
         <note priority="1" from="description">Move money from savings into the current account</note>
         <note priority="1" from="meaning">Cash outlook action</note>
@@ -9354,7 +9354,7 @@
         <source>Sell RSUs (≈ <x id="units" equiv-text="cash.sell_units"/> <x id="ticker" equiv-text="cash.sell_ticker"/>)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">360</context>
+          <context context-type="linenumber">363</context>
         </context-group>
         <note priority="1" from="description">Sell vested stock, with the share count and ticker</note>
         <note priority="1" from="meaning">Cash outlook action</note>
@@ -9363,7 +9363,7 @@
         <source>Sell RSUs</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">361</context>
+          <context context-type="linenumber">364</context>
         </context-group>
         <note priority="1" from="description">Sell vested stock to cover the shortfall</note>
         <note priority="1" from="meaning">Cash outlook action</note>
@@ -9372,7 +9372,7 @@
         <source>Detected from transfers between your accounts. Payroll deductions like a 401(k) don&apos;t appear here.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">383</context>
+          <context context-type="linenumber">386</context>
         </context-group>
         <note priority="1" from="description">Only transfers between accounts are detected, payroll deductions are not</note>
         <note priority="1" from="meaning">Savings section footnote</note>
@@ -9381,7 +9381,7 @@
         <source>Rows marked inferred were matched from the money leaving your account — the destination isn&apos;t synced.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">389</context>
+          <context context-type="linenumber">392</context>
         </context-group>
         <note priority="1" from="description">Explains the inferred marker on a savings row</note>
         <note priority="1" from="meaning">Savings section footnote</note>
@@ -9390,7 +9390,7 @@
         <source>seen 1 time</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">410</context>
+          <context context-type="linenumber">413</context>
         </context-group>
         <note priority="1" from="description">The transfer was detected exactly once</note>
         <note priority="1" from="meaning">Savings row evidence</note>
@@ -9399,7 +9399,7 @@
         <source>seen <x id="count" equiv-text="contribution.occurrences"/> times</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">411</context>
+          <context context-type="linenumber">414</context>
         </context-group>
         <note priority="1" from="description">How many times the transfer was detected</note>
         <note priority="1" from="meaning">Savings row evidence</note>
@@ -9408,7 +9408,7 @@
         <source>transfers</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">440</context>
+          <context context-type="linenumber">443</context>
         </context-group>
         <note priority="1" from="description">Money saved by moving it between accounts</note>
         <note priority="1" from="meaning">Savings rate source</note>
@@ -9417,7 +9417,7 @@
         <source>payroll (401k/HSA)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">446</context>
+          <context context-type="linenumber">449</context>
         </context-group>
         <note priority="1" from="description">Money saved before pay lands, such as a 401k or HSA</note>
         <note priority="1" from="meaning">Savings rate source</note>
@@ -9426,7 +9426,7 @@
         <source>residual</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">452</context>
+          <context context-type="linenumber">455</context>
         </context-group>
         <note priority="1" from="description">Take-home pay left unspent and unmoved</note>
         <note priority="1" from="meaning">Savings rate source</note>
@@ -9435,7 +9435,7 @@
         <source>Failed to load accounts.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">486</context>
+          <context context-type="linenumber">489</context>
         </context-group>
         <note priority="1" from="description">The account list could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9444,7 +9444,7 @@
         <source>Failed to save the contribution.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">537</context>
+          <context context-type="linenumber">540</context>
         </context-group>
         <note priority="1" from="description">A declared savings contribution could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9453,7 +9453,7 @@
         <source>Failed to stop tracking that contribution.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">557</context>
+          <context context-type="linenumber">560</context>
         </context-group>
         <note priority="1" from="description">A tracked savings contribution could not be removed</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9462,7 +9462,7 @@
         <source>Failed to dismiss that transfer.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">589</context>
+          <context context-type="linenumber">592</context>
         </context-group>
         <note priority="1" from="description">A detected transfer could not be dismissed</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9471,7 +9471,7 @@
         <source>Unlink from <x id="goal" equiv-text="goalName"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">626</context>
+          <context context-type="linenumber">629</context>
         </context-group>
         <note priority="1" from="description">Screen-reader name for the button that unlinks a goal from a savings contribution</note>
         <note priority="1" from="meaning">Savings row goal link</note>
@@ -9480,7 +9480,7 @@
         <source>Failed to link the goal.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">654</context>
+          <context context-type="linenumber">657</context>
         </context-group>
         <note priority="1" from="description">A savings contribution could not be linked to a goal</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9489,7 +9489,7 @@
         <source>Failed to unlink the goal.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">655</context>
+          <context context-type="linenumber">658</context>
         </context-group>
         <note priority="1" from="description">A savings contribution could not be unlinked from a goal</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9498,7 +9498,7 @@
         <source>The advisor answers in this language. Screens follow in a later update.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">696</context>
+          <context context-type="linenumber">699</context>
         </context-group>
         <note priority="1" from="description">Explains what the language setting changes</note>
         <note priority="1" from="meaning">Household language hint</note>
@@ -9507,7 +9507,7 @@
         <source>Failed to change the language.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">725</context>
+          <context context-type="linenumber">728</context>
         </context-group>
         <note priority="1" from="description">The household answer language could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9516,7 +9516,7 @@
         <source>Not set — the box&apos;s own zone</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">740</context>
+          <context context-type="linenumber">743</context>
         </context-group>
         <note priority="1" from="description">Shown in place of a zone when the household has never chosen one</note>
         <note priority="1" from="meaning">Household timezone unset</note>
@@ -9525,7 +9525,7 @@
         <source>Failed to change the time zone.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">775</context>
+          <context context-type="linenumber">778</context>
         </context-group>
         <note priority="1" from="description">The household time zone could not be changed</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9534,7 +9534,7 @@
         <source>Failed to update committed savings.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">814</context>
+          <context context-type="linenumber">817</context>
         </context-group>
         <note priority="1" from="description">The committed savings setting could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
@@ -9543,7 +9543,7 @@
         <source>Due today</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">824</context>
+          <context context-type="linenumber">827</context>
         </context-group>
         <note priority="1" from="description">The bill is due today</note>
         <note priority="1" from="meaning">Bill due label</note>
@@ -9552,7 +9552,7 @@
         <source>Due tomorrow</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">827</context>
+          <context context-type="linenumber">830</context>
         </context-group>
         <note priority="1" from="description">The bill is due tomorrow</note>
         <note priority="1" from="meaning">Bill due label</note>
@@ -9561,7 +9561,7 @@
         <source>Due in <x id="days" equiv-text="daysUntil"/> days</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/overview/overview.ts</context>
-          <context context-type="linenumber">829</context>
+          <context context-type="linenumber">832</context>
         </context-group>
         <note priority="1" from="description">How many days until the bill is due</note>
         <note priority="1" from="meaning">Bill due label</note>

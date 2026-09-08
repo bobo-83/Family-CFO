@@ -156,11 +156,22 @@ final class AppModel {
     /// household-language cache, because the app launches into the Advisor
     /// tab where nothing else would have loaded it yet (#10).
     var household: HouseholdAPI? {
-        client.map { client in
-            LiveHouseholdAPI(client: client) { [weak self] context in
-                self?.householdLanguage = context.language ?? "en"
-                // #156: the same fetch carries the base currency.
-                self?.householdCurrency.seed(context.currency)
+        guard let client, let server else { return nil }
+        // #156 (review of #158): a live API built for THIS session may answer
+        // after a sign-out and a pairing as another household — the untracked
+        // language-seeding fetch on unlock makes that reachable with no view
+        // alive. The callback therefore carries the session and household it
+        // was built for and is dropped for any other.
+        let requestedIn = currencySessionKey
+        let householdID = server.householdID
+        return LiveHouseholdAPI(client: client) { [weak self] context in
+            guard let self, self.currencySessionKey == requestedIn,
+                context.householdId == householdID
+            else { return }
+            self.householdLanguage = context.language ?? "en"
+            // The same fetch carries the base currency.
+            if let requestedIn {
+                self.householdCurrency.seed(context.currency, requestedIn: requestedIn)
             }
         }
     }

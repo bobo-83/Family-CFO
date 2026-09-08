@@ -22,7 +22,7 @@ import type {
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { HouseholdCurrencyService } from '../../core/household-currency.service';
+import { HouseholdCurrencyService, householdSessionKey } from '../../core/household-currency.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT } from '../../shared/timezones';
@@ -235,15 +235,18 @@ export class Overview {
 
   protected readonly household = resource({
     loader: async () => {
+      // #156: captured BEFORE the request, so a response that lands after a
+      // logout and a login as another household is not seeded as theirs.
+      const requestedIn = householdSessionKey();
       const { data, error } = await this.api.getHouseholdContext();
       if (error) {
         throw new Error(
           apiErrorMessage(error, $localize`:Error message|The overview page data could not be loaded:Failed to load household overview.`),
         );
       }
-      // #156: the Accounts and Goals forms need the base currency and must
-      // never guess it; this is the common path that already has it.
-      this.householdCurrency.seed(data);
+      // The Accounts and Goals forms need the base currency and must never
+      // guess it; this is the common path that already has it.
+      this.householdCurrency.seed(data, requestedIn);
       return data;
     },
   });

@@ -118,7 +118,7 @@ struct HouseholdCurrencyProviderTests {
         let session = Session()
         let gate = Gate()
         let provider = make(session, gate)
-        provider.seed("EUR")
+        provider.seed("EUR", requestedIn: session.key!)
         #expect(provider.current == "EUR")
 
         // Sign out: no session, nothing to show, nothing to ask for.
@@ -155,8 +155,24 @@ struct HouseholdCurrencyProviderTests {
     @Test func invalidateForgetsTheValue() {
         let session = Session()
         let provider = make(session, Gate())
-        provider.seed("EUR")
+        provider.seed("EUR", requestedIn: session.key!)
         provider.invalidate()
         #expect(provider.current == nil)
+    }
+
+    /// Review of #158: the live-context callback that seeds the currency was
+    /// built for session A; its response lands after A signed out and B paired.
+    @Test func aSeedRequestedInAnOldSessionIsDropped() {
+        let session = Session()
+        let provider = make(session, Gate())
+        let requestedIn = session.key!
+
+        session.key = "hh-2:device:other-token"
+        provider.seed("EUR", requestedIn: requestedIn)
+
+        #expect(provider.current == nil)
+        // B's own seed, keyed to B's session, still lands.
+        provider.seed("VND", requestedIn: session.key!)
+        #expect(provider.current == "VND")
     }
 }

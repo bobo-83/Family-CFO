@@ -85,14 +85,15 @@ final class AccountsViewModel {
     }
 
     /// #156: reservations held in another currency — disclosed beside the
-    /// total, never added to it.
-    var foreignReservations: [(name: String, reserved: Components.Schemas.Money)] {
+    /// total, never added to it. Keyed by the account's id: names are not
+    /// unique, and two "Savings" rows must stay two rows (review of #158).
+    var foreignReservations: [(id: String, name: String, reserved: Components.Schemas.Money)] {
         guard let base = baseCurrency else { return [] }
         return accounts.compactMap { account in
             guard let reserved = account.emergencyFundReserved, reserved.currency != base else {
                 return nil
             }
-            return (account.name, reserved)
+            return (account.id, account.name, reserved)
         }
     }
 
@@ -130,6 +131,8 @@ final class AccountsViewModel {
 
     /// Pull-to-refresh: fetch fresh data from the banks first, so a newly-linked
     /// account appears here without hunting for a separate "Sync now" button.
+    /// #158 review: the currency is retried too, so one failed context fetch
+    /// never leaves Add disabled for as long as the tab stays open.
     func syncAndReload() async {
         do {
             try await api.syncBanks()
@@ -138,7 +141,9 @@ final class AccountsViewModel {
             // A sync failure shouldn't hide existing accounts — still reload below.
             errorMessage = ChatViewModel.describe(error)
         }
-        await load()
+        async let accounts: () = load()
+        async let currency: () = loadCurrency()
+        _ = await (accounts, currency)
     }
 
     /// #11: only a credit card has statement cycles — a checking account's
