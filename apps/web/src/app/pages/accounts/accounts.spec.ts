@@ -15,11 +15,16 @@ function response(data: unknown, error?: unknown) {
   } as never;
 }
 
+/** #156: the page loads the household's base currency; USD unless a test says otherwise. */
+function context(currency = 'USD') {
+  return vi.fn().mockResolvedValue(response({ currency }));
+}
+
 function configure(apiMock: Record<string, unknown>, role: string) {
   TestBed.configureTestingModule({
     imports: [Accounts],
     providers: [
-      { provide: ApiService, useValue: apiMock },
+      { provide: ApiService, useValue: { getHouseholdContext: context(), ...apiMock } },
       { provide: AuthService, useValue: authMock(role) },
       // #25 sends an unmatched statement line to the add-transaction form.
       provideRouter([]),
@@ -660,5 +665,154 @@ describe('Accounts #25: statement reconciliation', () => {
     expect(host.querySelector('.statement-recon__line--missing')).toBeTruthy();
     expect(host.querySelector('.statement-recon__add')).toBeFalsy();
     expect(host.querySelector('.statement-lines-offer')).toBeFalsy();
+  });
+});
+
+
+// --- #156 (ADR 0075): the base currency is loaded, never guessed -------------
+
+const EURO_SAVINGS = {
+  id: 'eu1',
+  name: 'Euro Savings',
+  type: 'savings',
+  balance: { amount_minor: 400_000, currency: 'EUR' },
+  emergency_fund_percent: 100,
+  emergency_fund_reserved: { amount_minor: 400_000, currency: 'EUR' },
+};
+const HY_SAVINGS = {
+  id: 'a2',
+  name: 'HY Savings',
+  type: 'savings',
+  balance: { amount_minor: 1_000_000, currency: 'USD' },
+  emergency_fund_percent: 50,
+  emergency_fund_reserved: { amount_minor: 500_000, currency: 'USD' },
+};
+
+async function render(apiMock: Record<string, unknown>, role = 'owner') {
+  configure(apiMock, role);
+  const fixture = TestBed.createComponent(Accounts);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+  return fixture;
+}
+
+describe('Accounts #156: currency comes from the household, not a literal', () => {
+  it('defaults the form to the loaded base currency and resets to it', async () => {
+    const apiMock = {
+      getHouseholdContext: context('EUR'),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      createAccount: vi.fn().mockResolvedValue(
+        response({ id: 'a9', name: 'Sparkonto', type: 'savings', balance: { amount_minor: 0, currency: 'EUR' } }),
+      ),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+    const currency = component['form'].controls.currency;
+
+    expect(currency.value).toBe('EUR');
+    expect(currency.enabled).toBe(true);
+
+    component['form'].controls.name.setValue('Sparkonto');
+    component['form'].controls.type.setValue('savings');
+    await component['submit']();
+
+    expect(apiMock.createAccount).toHaveBeenCalledWith({ name: 'Sparkonto', type: 'savings', currency: 'EUR' });
+    // The reset lands on the loaded base, not on 'USD'.
+    expect(currency.value).toBe('EUR');
+  });
+
+  it('never overwrites a currency the user typed when the context arrives late', async () => {
+    let resolveContext!: (value: unknown) => void;
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockReturnValue(new Promise((r) => (resolveContext = r))),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+    const currency = component['form'].controls.currency;
+
+    // Unknown: the control is closed and the button disabled.
+    expect(currency.disabled).toBe(true);
+    const button = (fixture.nativeElement as HTMLElement).querySelector('.account-form button[type="submit"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+
+    // The user types before the answer arrives.
+    currency.enable();
+    currency.setValue('GBP');
+    currency.markAsDirty();
+    resolveContext(response({ currency: 'EUR' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component['baseCurrency']()).toBe('EUR');
+    expect(currency.value).toBe('GBP');
+    expect(button.disabled).toBe(false);
+  });
+
+  it('refuses a direct submit while the base currency is unknown', async () => {
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockReturnValue(new Promise(() => undefined)),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      createAccount: vi.fn(),
+    };
+    const fixture = await render(apiMock);
+    const component = fixture.componentInstance;
+    component['form'].controls.name.setValue('Brokerage');
+    component['form'].controls.type.setValue('brokerage');
+
+    // Enter on the form: ngSubmit fires whatever the button says, and the
+    // disabled currency control is not part of `form.invalid`.
+    await component['submit']();
+
+    expect(apiMock.createAccount).not.toHaveBeenCalled();
+  });
+
+  it('shows the load error and keeps the form closed when the currency cannot be loaded', async () => {
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockResolvedValue(
+        response(undefined, { error: { code: 'unavailable', message: 'box offline' } }),
+      ),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      createAccount: vi.fn(),
+    };
+    const fixture = await render(apiMock);
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.account-form__currency-error')?.textContent).toContain('box offline');
+    expect((host.querySelector('.account-form button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
+    await fixture.componentInstance['submit']();
+    expect(apiMock.createAccount).not.toHaveBeenCalled();
+  });
+
+  it('marks a foreign-currency row and keeps it out of the reservation total', async () => {
+    const apiMock = {
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [HY_SAVINGS, EURO_SAVINGS] })),
+    };
+    const fixture = await render(apiMock, 'viewer');
+    const host = fixture.nativeElement as HTMLElement;
+
+    const chips = host.querySelectorAll('[data-testid="account-foreign-chip"]');
+    expect(chips.length).toBe(1);
+    expect(chips[0].textContent).toContain('Held in EUR');
+    expect(chips[0].textContent).toContain('not counted in USD totals');
+
+    // Base-currency reservations only — the Overview's number, not a mixed sum.
+    expect(host.querySelector('.accounts-ef-total')?.textContent).toContain('USD 5,000.00');
+    expect(host.querySelector('.accounts-ef-total')?.textContent).not.toContain('9,000.00');
+    const foreign = host.querySelector('[data-testid="accounts-foreign-reservations"]');
+    expect(foreign?.textContent).toContain('Euro Savings (EUR 4,000.00)');
+  });
+
+  it('shows no chip and no foreign line for a single-currency household', async () => {
+    const apiMock = {
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [HY_SAVINGS] })),
+    };
+    const fixture = await render(apiMock, 'viewer');
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('[data-testid="account-foreign-chip"]')).toBeNull();
+    expect(host.querySelector('[data-testid="accounts-foreign-reservations"]')).toBeNull();
+    expect(host.querySelector('.accounts-ef-total')?.textContent).toContain('USD 5,000.00');
   });
 });

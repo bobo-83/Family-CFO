@@ -7134,6 +7134,54 @@
         <note priority="1" from="description">Hides the offer for good on this device</note>
         <note priority="1" from="meaning">Sealed mode offer</note>
       </trans-unit>
+      <trans-unit id="1651710676209755374" datatype="html">
+        <source>Could not load the household currency.</source>
+        <target state="translated">Không tải được đơn vị tiền tệ của hộ gia đình.</target>
+        <note priority="1" from="description">The household&apos;s base currency could not be loaded</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="1907770957858638565" datatype="html">
+        <source> Held in another currency and not counted above: <x id="INTERPOLATION" equiv-text="{{ foreignReservations().join(&apos; · &apos;) }}"/> </source>
+        <target state="translated"> Giữ bằng đơn vị tiền tệ khác và không tính vào tổng ở trên: <x id="INTERPOLATION" equiv-text="{{ foreignReservations().join(&apos; · &apos;) }}"/> </target>
+        <note priority="1" from="description">Reservations held in another currency, listed but not added to the total</note>
+        <note priority="1" from="meaning">Emergency fund foreign reservations</note>
+      </trans-unit>
+      <trans-unit id="8811369796349128210" datatype="html">
+        <source>Loading the household currency…</source>
+        <target state="translated">Đang tải đơn vị tiền tệ của hộ gia đình…</target>
+        <note priority="1" from="description">Shown while the household&apos;s base currency is still loading</note>
+        <note priority="1" from="meaning">Form field hint</note>
+      </trans-unit>
+      <trans-unit id="4994054672702547150" datatype="html">
+        <source> Held in <x id="INTERPOLATION" equiv-text="{{ account.balance.currency }}"/> · not counted in <x id="INTERPOLATION_1" equiv-text="{{ baseCurrency() }}"/> totals </source>
+        <target state="translated"> Giữ bằng <x id="INTERPOLATION" equiv-text="{{ account.balance.currency }}"/> · không tính vào tổng <x id="INTERPOLATION_1" equiv-text="{{ baseCurrency() }}"/> </target>
+        <note priority="1" from="description">An account held in another currency than the household&apos;s base; the codes stay untranslated</note>
+        <note priority="1" from="meaning">Foreign currency chip</note>
+      </trans-unit>
+      <trans-unit id="190982304163269170" datatype="html">
+        <source><x id="INTERPOLATION" equiv-text="{{ goal.target.currency }}"/> / month</source>
+        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ goal.target.currency }}"/> / tháng</target>
+        <note priority="1" from="description">Planned contribution per month, in the goal&apos;s own currency; the code stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2645333150111778152" datatype="html">
+        <source>Target amount (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>)</source>
+        <target state="translated">Số tiền mục tiêu (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>)</target>
+        <note priority="1" from="description">Amount the goal is aiming for, in the household&apos;s base currency; the code stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="4526220815857823886" datatype="html">
+        <source> Not counted in <x id="INTERPOLATION" equiv-text="{{ context.currency }}"/> totals: <x id="INTERPOLATION_1" equiv-text="{{ outside }}"/> </source>
+        <target state="translated"> Không tính vào tổng <x id="INTERPOLATION" equiv-text="{{ context.currency }}"/>: <x id="INTERPOLATION_1" equiv-text="{{ outside }}"/> </target>
+        <note priority="1" from="description">Accounts held in another currency that the base-currency total leaves out; the currency code stays untranslated</note>
+        <note priority="1" from="meaning">Net worth footnote</note>
+      </trans-unit>
+      <trans-unit id="6933936083715211101" datatype="html">
+        <source>Planned monthly contribution (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>, optional)</source>
+        <target state="translated">Khoản đóng góp hàng tháng dự kiến (<x id="INTERPOLATION" equiv-text="{{ baseCurrency() ?? &apos;…&apos; }}"/>, tùy chọn)</target>
+        <note priority="1" from="description">Optional monthly savings plan, in the household&apos;s base currency; the code stays untranslated</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -515,6 +515,16 @@
         <div class="overview__card" data-testid="overview-net-worth-card">
           <span class="overview__label" i18n="Net worth card header|Everything owned minus everything owed">Net worth</span>
           <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
+          @if (outsideBaseCurrency(context); as outside) {
+            <!-- #156 (ADR 0075): held in another currency, excluded and disclosed, never converted. -->
+            <span
+              class="overview__value-context"
+              data-testid="overview-outside-base-currency"
+              i18n="Net worth footnote|Accounts held in another currency that the base-currency total leaves out; the currency code stays untranslated"
+            >
+              Not counted in {{ context.currency }} totals: {{ outside }}
+            </span>
+          }
           @if (context.net_worth_history; as history) {
             @if (sparklinePoints(history); as points) {
               <svg

@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import type { Goal, GoalFundingSource, GoalType, RecurringFrequency } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { HouseholdCurrencyService } from '../../core/household-currency.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
 
@@ -44,6 +45,16 @@ export class Goals {
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly locale = inject(LOCALE_ID);
+  private readonly householdCurrency = inject(HouseholdCurrencyService);
+
+  /** #156: a NEW goal is declared in the household's base currency — never a
+   * literal 'USD'. An existing goal keeps the currency it was declared in. */
+  protected readonly baseCurrency = this.householdCurrency.currency;
+  protected readonly baseCurrencyError = this.householdCurrency.error;
+
+  constructor() {
+    void this.householdCurrency.load();
+  }
 
   protected readonly goalTypes = GOAL_TYPES;
 
@@ -158,7 +169,7 @@ export class Goals {
     this.editingContributionId.set(goalId);
   }
 
-  protected async saveContribution(goalId: string): Promise<void> {
+  protected async saveContribution(goal: Goal): Promise<void> {
     if (this.savingContribution()) {
       return;
     }
@@ -166,13 +177,15 @@ export class Goals {
     const value = this.contributionInput;
     // null clears the plan; a value sets it. The generated type drops the
     // contract's nullability ($ref-sibling nullable), hence the cast — the
-    // API accepts and distinguishes an explicit null.
+    // API accepts and distinguishes an explicit null. The contribution is in
+    // the goal's OWN currency (#156 review): a EUR goal used to be sent a USD
+    // plan.
     const contribution = (
       value && value > 0
-        ? { amount_minor: Math.round(value * 100), currency: 'USD' }
+        ? { amount_minor: Math.round(value * 100), currency: goal.target.currency }
         : null
     ) as unknown as undefined;
-    const { error } = await this.api.updateGoal(goalId, {
+    const { error } = await this.api.updateGoal(goal.id, {
       monthly_contribution: contribution,
     });
     this.savingContribution.set(false);
@@ -188,7 +201,10 @@ export class Goals {
   protected readonly submitError = signal<string | null>(null);
 
   protected async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) {
+    // No base currency yet, no goal: the button is disabled too, but Enter
+    // submits the form regardless (#156 review).
+    const currency = this.baseCurrency();
+    if (!currency || this.form.invalid || this.submitting()) {
       this.form.markAllAsTouched();
       return;
     }
@@ -200,13 +216,13 @@ export class Goals {
     const { error } = await this.api.createGoal({
       name,
       type,
-      target: { amount_minor: Math.round(targetAmount * 100), currency: 'USD' },
+      target: { amount_minor: Math.round(targetAmount * 100), currency },
       priority,
       ...(monthlyContribution > 0
         ? {
             monthly_contribution: {
               amount_minor: Math.round(monthlyContribution * 100),
-              currency: 'USD',
+              currency,
             },
           }
         : {}),

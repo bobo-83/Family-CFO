@@ -4587,6 +4587,22 @@
         }
       }
     },
+    "Couldn't load the household currency: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko įkelti namų ūkio valiutos: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tải được đơn vị tiền tệ của hộ gia đình: %@"
+          }
+        }
+      }
+    },
     "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network.": {
       "localizations": {
         "lt": {
@@ -6882,6 +6898,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nhóm theo ngày, mới nhất trước — chạm vào một ngày để xem các bản sao lưu trong ngày đó. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện có trong ứng dụng."
+          }
+        }
+      }
+    },
+    "Held in %@ · not counted in %@ totals": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laikoma %@ · neįskaičiuota į %@ sumas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ bằng %@ · không tính vào tổng %@"
           }
         }
       }
@@ -9311,6 +9343,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không có"
+          }
+        }
+      }
+    },
+    "Not counted in %@ totals: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Neįskaičiuota į %@ sumas: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tính vào tổng %@: %@"
           }
         }
       }
@@ -13531,6 +13579,22 @@
         }
       }
     },
+    "The household currency isn't known yet, so nothing was saved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Namų ūkio valiuta dar nežinoma, todėl nieko neišsaugota."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa biết đơn vị tiền tệ của hộ gia đình, nên chưa lưu gì."
+          }
+        }
+      }
+    },
     "TLS handshake with the server failed (%lld). If the box uses a self-signed certificate, re-pair so the app can pin the current one.": {
       "localizations": {
         "lt": {
@@ -15355,6 +15419,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tổng số đã để riêng trên các tài khoản của bạn. An toàn để chi tiêu giữ lại khoản này."
+          }
+        }
+      }
+    },
+    "Total set aside in %@. Safe-to-spend holds this back. A reservation held in another currency is listed but not counted.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Iš viso atidėta %@. „Saugu išleisti“ šios sumos neįskaičiuoja. Kita valiuta laikomas rezervas rodomas, bet neįskaičiuojamas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng số đã để riêng bằng %@. An toàn để chi tiêu giữ lại khoản này. Khoản dự phòng bằng đơn vị tiền tệ khác được liệt kê nhưng không được tính."
           }
         }
       }

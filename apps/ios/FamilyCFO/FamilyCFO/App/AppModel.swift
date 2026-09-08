@@ -38,7 +38,34 @@ final class AppModel {
 
     private(set) var phase: Phase = .loading
     private(set) var server: ServerConfig?
-    private(set) var credential: StoredCredential?
+    private(set) var credential: StoredCredential? {
+        didSet {
+            // #156: a new token is a new session — sign-in, pairing, sign-out —
+            // and possibly a different household. Rights refreshes keep the
+            // token and must not drop the cached currency.
+            if oldValue?.accessToken != credential?.accessToken {
+                householdCurrency.invalidate()
+            }
+        }
+    }
+
+    /// #156 (ADR 0075): the household's base currency for the screens that must
+    /// not guess it (Accounts and Goals forms). Seeded by every live context
+    /// fetch through `LiveHouseholdAPI.onContext`, fetched once otherwise, and
+    /// keyed to the paired household + session so it can never outlive them.
+    @ObservationIgnored
+    lazy var householdCurrency = HouseholdCurrencyProvider(
+        sessionKey: { [weak self] in self?.currencySessionKey },
+        fetch: { [weak self] in
+            guard let household = self?.household else { throw APIError.unauthorized }
+            return try await household.context(month: nil).currency
+        }
+    )
+
+    private var currencySessionKey: String? {
+        guard let server, let credential else { return nil }
+        return "\(server.householdID):\(credential.deviceID):\(credential.accessToken)"
+    }
 
     /// Shared bank-data freshness, shown identically on every synced screen (M103).
     let syncStatus = SyncStatusModel()
@@ -129,9 +156,22 @@ final class AppModel {
     /// household-language cache, because the app launches into the Advisor
     /// tab where nothing else would have loaded it yet (#10).
     var household: HouseholdAPI? {
-        client.map { client in
-            LiveHouseholdAPI(client: client) { [weak self] context in
-                self?.householdLanguage = context.language ?? "en"
+        guard let client, let server else { return nil }
+        // #156 (review of #158): a live API built for THIS session may answer
+        // after a sign-out and a pairing as another household — the untracked
+        // language-seeding fetch on unlock makes that reachable with no view
+        // alive. The callback therefore carries the session and household it
+        // was built for and is dropped for any other.
+        let requestedIn = currencySessionKey
+        let householdID = server.householdID
+        return LiveHouseholdAPI(client: client) { [weak self] context in
+            guard let self, self.currencySessionKey == requestedIn,
+                context.householdId == householdID
+            else { return }
+            self.householdLanguage = context.language ?? "en"
+            // The same fetch carries the base currency.
+            if let requestedIn {
+                self.householdCurrency.seed(context.currency, requestedIn: requestedIn)
             }
         }
     }

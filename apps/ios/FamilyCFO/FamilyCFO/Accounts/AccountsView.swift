@@ -28,11 +28,24 @@ struct AccountsView: View {
                         description: Text("Link a bank from the dashboard, or add a loan from the Debts tab."))
                 } else {
                     List {
-                        if let total = viewModel.emergencyFundTotal, total.amountMinor > 0 {
+                        // #156 (ADR 0075): the total is base-currency only, like the
+                        // Overview's; a reservation in another currency is listed
+                        // beside it and never added to it.
+                        if viewModel.emergencyFundTotal != nil || !viewModel.foreignReservations.isEmpty {
                             Section {
-                                LabeledContent("Emergency fund", value: total.formatted)
+                                if let total = viewModel.emergencyFundTotal {
+                                    LabeledContent("Emergency fund", value: total.formatted)
+                                }
+                                ForEach(viewModel.foreignReservations, id: \.id) { item in
+                                    LabeledContent(item.name, value: item.reserved.formattedExact)
+                                        .foregroundStyle(.secondary)
+                                }
                             } footer: {
-                                Text("Total set aside across your accounts. Safe-to-spend holds this back.")
+                                if viewModel.foreignReservations.isEmpty {
+                                    Text("Total set aside across your accounts. Safe-to-spend holds this back.")
+                                } else if let base = viewModel.baseCurrency {
+                                    Text("Total set aside in \(base). Safe-to-spend holds this back. A reservation held in another currency is listed but not counted.")
+                                }
                             }
                         }
                         ForEach(viewModel.groups) { group in
@@ -47,12 +60,14 @@ struct AccountsView: View {
             }
             .navigationTitle("Accounts")
             .toolbar {
-                // ADR 0034: adding accounts needs accounts.manage.
+                // ADR 0034: adding accounts needs accounts.manage. #156: and the
+                // household's base currency must be known — never guessed.
                 if model.rolePolicy.canManageAccounts {
                     ToolbarItem(placement: .primaryAction) {
                         Button { addingAccount = true } label: {
                             Label("Add account", systemImage: "plus")
                         }
+                        .disabled(viewModel.baseCurrency == nil)
                     }
                 }
             }
@@ -65,7 +80,17 @@ struct AccountsView: View {
                 SyncStatusFooter(status: model.syncStatus)
                     .padding(.vertical, 6)
             }
-            .task { await viewModel.load() }
+            // #158 review: a failed currency fetch is shown, with the retry.
+            .safeAreaInset(edge: .top) {
+                if viewModel.baseCurrency == nil, let error = viewModel.currencyError {
+                    CurrencyUnavailableBanner(message: error) { await viewModel.loadCurrency() }
+                }
+            }
+            .task {
+                async let accounts: () = viewModel.load()
+                async let currency: () = viewModel.loadCurrency()
+                _ = await (accounts, currency)
+            }
             .sheet(item: $designating) { account in
                 AccountDetailSheet(
                     account: account,
@@ -79,13 +104,17 @@ struct AccountsView: View {
                 }
             }
             .sheet(isPresented: $addingAccount) {
-                AddAccountSheet(
-                    onScan: { image in await viewModel.scanStatement(image) },
-                    onScanFile: { data, isPDF in
-                        await viewModel.scanStatement(fileData: data, isPDF: isPDF)
+                // The button that opens this is disabled until the currency is known.
+                if let currency = viewModel.baseCurrency {
+                    AddAccountSheet(
+                        currency: currency,
+                        onScan: { image in await viewModel.scanStatement(image) },
+                        onScanFile: { data, isPDF in
+                            await viewModel.scanStatement(fileData: data, isPDF: isPDF)
+                        }
+                    ) { name, type, balanceMinor in
+                        Task { await viewModel.addAccount(name: name, type: type, balanceMinor: balanceMinor) }
                     }
-                ) { name, type, balanceMinor in
-                    Task { await viewModel.addAccount(name: name, type: type, balanceMinor: balanceMinor) }
                 }
             }
         }
@@ -115,6 +144,15 @@ struct AccountsView: View {
                         Label("Vested RSUs · ready to sell", systemImage: "chart.line.uptrend.xyaxis")
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.teal)
+                    }
+                    // #156 (ADR 0075): real and listed; in no base-currency total.
+                    if viewModel.isOutsideBaseCurrency(account), let base = viewModel.baseCurrency {
+                        Label(
+                            "Held in \(account.balance.currency) · not counted in \(base) totals",
+                            systemImage: "globe"
+                        )
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
@@ -308,6 +346,8 @@ private struct AccountDetailSheet: View {
 
 /// Add an account by hand — for holdings no bank feed reaches (e.g. an HSA).
 private struct AddAccountSheet: View {
+    /// #156: the household's base currency — the unit the balance is entered in.
+    let currency: String
     // ADR 0057: statement scan callbacks — the sheet prefills from the result.
     let onScan: (UIImage) async -> Components.Schemas.AccountScanResult?
     let onScanFile: (Data, Bool) async -> Components.Schemas.AccountScanResult?
@@ -369,12 +409,11 @@ private struct AddAccountSheet: View {
                     }
                 }
                 Section {
-                    HStack {
-                        Text(verbatim: "$")
-                        TextField("0.00", value: $amount, format: .number.precision(.fractionLength(0...2)))
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    // #156: the balance is entered in the household's currency,
+                    // not behind a literal "$".
+                    TextField("Current balance", value: $amount, format: .currency(code: currency))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
                 } header: {
                     Text("Current balance")
                 } footer: {

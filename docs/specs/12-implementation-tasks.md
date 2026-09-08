@@ -1610,11 +1610,6 @@ The first client that reads `accounts_outside_base_currency` moves the contract
 (ADR 0074 rule 5), API side first, in the order `docs/guides/deployment.md`
 enforces. Not in this change:
 
-- [ ] Specs first: `docs/specs/08-mobile-spec.md` and
-      `09-angular-dashboard-spec.md` — the Overview note, the Accounts-tab chip,
-      the form default, and base-currency-only reservation totals (both Accounts
-      screens today add mixed-currency reservations as raw minor units or drop
-      the rest silently).
 - [x] Contract PR (#156, PR A): `VERSION` → `0.158`; every `apps/*/BUILD` → `0`
       (rule 6); `shared/openapi/compatibility/0.158.yaml` copied byte-for-byte
       from the merged contract (`0.157.yaml` is never edited). No code — the
@@ -1624,22 +1619,50 @@ enforces. Not in this change:
       untagged `patch.sh api worker` deploy from the synced tree, verify
       `/health` reports `0.158.0`, THEN `api-v0.158.0` and a pinned redeploy.
       The API component is `api` AND `worker`.
-- [ ] Web Overview: "Not counted in {base} totals: {name} ({balance})" under the
-      net-worth value from `context.accounts_outside_base_currency ?? []`,
-      hidden when empty; `$localize` with `vi` and `lt` entries. Web Accounts:
-      default the form's currency to the household base (loaded explicitly, no
-      `'USD'` fallback, a late load never overwriting an explicit choice), a chip
-      on a foreign row, reservation totals base-currency-only with an ignored
-      foreign reservation disclosed.
-- [ ] iOS Overview: the same note in `netWorthCard`; iOS Accounts:
-      `defaultCurrency` from the household context, the Add Account sheet's unit
-      from that currency (not a literal `$`), the row disclosure, reservation
-      totals base-currency-only. `Localizable.xcstrings` entries. The watch
-      glance shows the base-currency figure, now correct, untouched.
-- [ ] `overview.spec.ts`, `accounts.spec.ts`, `OverviewViewModelTests`,
-      `AccountsViewModel` tests; `scripts/check-client-compatibility.sh web|ios`
-      green against the `0.158` fixture; the real i18n gates.
-- [ ] `docs/RELEASE-CHECKLIST.md` and this entry record the bump and why.
+- [x] Client PR (#156, PR B). Specs first: the rule and the three screens in
+      `09-angular-dashboard-spec.md` and `08-mobile-spec.md`.
+- [x] Web: `core/household-currency.service.ts` — the base currency for the
+      current session, keyed by household id + access token (a logout or a
+      login as another household drops it; a late completion for the old
+      session is discarded), single-flight, successes only cached, failures
+      reported and retried; seeded by the Overview's existing context fetch.
+      Overview: the note under the net-worth value for a non-empty list only.
+      Accounts: currency control empty and disabled until known, set once while
+      pristine, submit refused while unknown (the button is disabled too, but
+      Enter submits), reset to the loaded base; the foreign-row chip; the
+      reservation total base-currency-only with foreign reservations listed
+      beneath. Goals: new goals in the base currency, edits in the goal's own
+      currency (the contribution editor labels and sends it). `vi`/`lt` entries.
+- [x] iOS: `HouseholdCurrencyProvider` owned by `AppModel`, seeded through
+      `LiveHouseholdAPI.onContext`, invalidated when the credential's token
+      changes; Accounts (`defaultCurrency` gone, Add gated, the sheet enters the
+      balance in the household currency, the row chip, base-only reservation
+      total with the foreign ones listed), Goals (Add gated, new goals in the
+      base, the form sheet formats in the goal's currency, edits keep it), the
+      Overview note. `Localizable.xcstrings` `vi`/`lt` values.
+- [x] Tests: `household-currency.service.spec.ts` (concurrent share, retry,
+      logout/re-login, late completion dropped); `accounts.spec.ts` (default
+      and reset to the base, late load never overwriting a dirty control, direct
+      submit refused, load failure keeps it closed, the chip, mixed
+      reservations); `goals.spec.ts` (base for create, EUR goal edited in EUR,
+      create refused while unknown); `overview.spec.ts` (note for one and two
+      accounts, nothing for `[]`, nothing for `null`).
+      `HouseholdCurrencyProviderTests`, `AccountsViewModelTests`,
+      `GoalsViewModelTests`, `OutsideBaseCurrencyNoteTests`.
+      `scripts/check-client-compatibility.sh web|ios` against `0.158.yaml`;
+      `scripts/check-web-i18n.sh`; the Xcode test target.
+- [x] Review round (PR #158): a seed carries the session key captured before
+      its request started and is refused for another session or household
+      (web `seed(context, requestedIn)`, iOS `seed(_:requestedIn:)` with the
+      live API's callback bound to the session and household it was built for);
+      the contribution label follows the base currency too; iOS shows a banner
+      with a Retry when the currency fetch fails and pull-to-refresh retries it
+      on both screens; foreign reservations are keyed by account id. Tests for
+      each: the delayed-Overview session switch (web), the stale-session seed
+      (iOS), the VND label, the flaky-fetch retry, duplicate names.
+- [ ] Release (after PR A's API is on the box): untagged `patch.sh web` and
+      `release-testflight.sh`, use both, then `web-v0.158.0` + pinned redeploy
+      and `ios-v0.158.0`; `docs/RELEASE-CHECKLIST.md` records the bump.
 
 Advisor tool access: the six total-owning tools disclose what they leave out;
 `get_accounts` (#130) already listed and flagged the account. No new domain.

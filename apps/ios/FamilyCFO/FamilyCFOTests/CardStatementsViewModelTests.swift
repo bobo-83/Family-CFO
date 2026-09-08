@@ -38,9 +38,14 @@ final class MockAccountsAPI: AccountsAPI, @unchecked Sendable {
     nonisolated func setType(id: String, type: Components.Schemas.AccountType) async throws {}
     nonisolated func setRsuReadyToSell(id: String, _ readyToSell: Bool) async throws {}
     nonisolated func syncBanks() async throws {}
+    /// #156: every manual creation, so a test can pin the currency it was sent in.
+    private(set) var created:
+        [(name: String, type: Components.Schemas.AccountType, currency: String, balanceMinor: Int64)] = []
     nonisolated func createManualAccount(
         name: String, type: Components.Schemas.AccountType, currency: String, balanceMinor: Int64
-    ) async throws {}
+    ) async throws {
+        await MainActor.run { created.append((name, type, currency, balanceMinor)) }
+    }
 
     nonisolated func cardStatements(
         accountID: String

@@ -22,6 +22,7 @@ import type {
 } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { HouseholdCurrencyService, householdSessionKey } from '../../core/household-currency.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT } from '../../shared/timezones';
@@ -230,17 +231,39 @@ export class Overview {
     void this.router.navigate(['/chat'], { queryParams: { ask } });
   }
 
+  private readonly householdCurrency = inject(HouseholdCurrencyService);
+
   protected readonly household = resource({
     loader: async () => {
+      // #156: captured BEFORE the request, so a response that lands after a
+      // logout and a login as another household is not seeded as theirs.
+      const requestedIn = householdSessionKey();
       const { data, error } = await this.api.getHouseholdContext();
       if (error) {
         throw new Error(
           apiErrorMessage(error, $localize`:Error message|The overview page data could not be loaded:Failed to load household overview.`),
         );
       }
+      // The Accounts and Goals forms need the base currency and must never
+      // guess it; this is the common path that already has it.
+      this.householdCurrency.seed(data, requestedIn);
       return data;
     },
   });
+
+  /**
+   * #156 (ADR 0075): the accounts a base-currency total leaves out, as one
+   * line — "Euro Savings (EUR 4,000.00) · …" — or null when there are none.
+   * `null` on the wire means a past month whose accounts are unknown and `[]`
+   * means known and none; neither shows a note, so the two read the same here.
+   */
+  protected outsideBaseCurrency(context: HouseholdContext): string | null {
+    const outside = context.accounts_outside_base_currency ?? [];
+    if (outside.length === 0) {
+      return null;
+    }
+    return outside.map((account) => `${account.name} (${formatMoney(account.balance)})`).join(' · ');
+  }
 
   // M112 (ADR 0026): the 30-day cash outlook. Degrades gracefully — the rest
   // of the overview renders without it.
