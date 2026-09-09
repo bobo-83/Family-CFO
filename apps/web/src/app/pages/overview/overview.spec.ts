@@ -5,8 +5,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { authMock } from '../../shared/testing-auth';
 import { Overview } from './overview';
+import { handleSessionResponse } from '../../core/api-client-setup';
 import { HouseholdCurrencyService } from '../../core/household-currency.service';
-import { clearAuthState, setAuthState } from '../../core/token-store';
+import { authState, clearAuthState, setAuthState } from '../../core/token-store';
 import { TIMEZONE_BOX_DEFAULT } from '../../shared/timezones';
 import { qualifyApiFixture } from '../../shared/testing-qualified-fixtures';
 
@@ -87,8 +88,11 @@ describe('Overview', () => {
       getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
     };
     localStorage.removeItem('family-cfo.hideSealedModeOffer');
+    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     configure();
   });
+
+  afterEach(() => clearAuthState());
 
   it('renders the enriched summary cards (M38)', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
@@ -1736,6 +1740,8 @@ describe('Overview', () => {
 // --- #156 (ADR 0075): what the base-currency total leaves out -------------------
 
 describe('Overview #156: accounts outside the base currency', () => {
+  afterEach(() => clearAuthState());
+
   let apiMock: Record<string, ReturnType<typeof vi.fn>>;
 
   function minimalContext(extra: Record<string, unknown>) {
@@ -1750,6 +1756,7 @@ describe('Overview #156: accounts outside the base currency', () => {
   }
 
   async function render(context: Record<string, unknown>) {
+    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     apiMock = {
       getHouseholdContext: vi.fn().mockResolvedValue(response(context)),
       updateHousehold: vi.fn().mockResolvedValue(response({})),
@@ -1809,6 +1816,8 @@ describe('Overview #156: accounts outside the base currency', () => {
 // --- #158 review: a delayed Overview response must not cross a session switch ---
 
 describe('Overview qualified aggregate presentation', () => {
+  afterEach(() => clearAuthState());
+
   function yearOverview(year: number) {
     return {
       year,
@@ -1831,6 +1840,9 @@ describe('Overview qualified aggregate presentation', () => {
   }
 
   function configureQualified(apiMock: Record<string, unknown>) {
+    if (!authState()) {
+      setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    }
     TestBed.configureTestingModule({
       imports: [Overview],
       providers: [
@@ -2144,5 +2156,301 @@ describe('Overview #156: seeding the currency across a session switch', () => {
 
     // B's Accounts and Goals forms must not inherit EUR from A's response.
     expect(service.currency()).toBeNull();
+  });
+});
+
+describe('Overview session ownership', () => {
+  const sessionA = { accessToken: 'token-a', householdId: 'hh-a', userId: 'user-a', role: 'owner' };
+  const sessionB = { accessToken: 'token-b', householdId: 'hh-b', userId: 'user-b', role: 'owner' };
+
+  function deferred<T = unknown>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((resolver) => (resolve = resolver));
+    return { promise, resolve };
+  }
+
+  function context(householdId: string, displayName: string, currency = 'USD') {
+    return {
+      household_id: householdId,
+      display_name: displayName,
+      currency,
+      net_worth: { amount_minor: 0, currency },
+      emergency_fund_months: null,
+      savings_contributions: {
+        contributions: [],
+        detection: { status: 'complete', incomplete_count: 0 },
+      },
+    };
+  }
+
+  function yearOverview(year: number) {
+    return {
+      year,
+      months: [],
+      total_income: { value: { amount_minor: 0, currency: 'USD' }, incomplete_count: 0 },
+      total_spending: { value: { amount_minor: 0, currency: 'USD' }, incomplete_count: 0 },
+      total_net: { value: { amount_minor: 0, currency: 'USD' }, incomplete_count: 0 },
+      top_categories: [],
+      review: null,
+    };
+  }
+
+  function apiDefaults(overrides: Record<string, unknown> = {}) {
+    return {
+      getHouseholdContext: vi.fn().mockResolvedValue(response(context('hh-a', 'Household A'))),
+      updateHousehold: vi.fn().mockResolvedValue(response({})),
+      getCashOutlook: vi.fn().mockResolvedValue(response(null)),
+      getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
+      listAccounts: vi.fn().mockResolvedValue(response({ accounts: [] })),
+      declareSavingsContribution: vi.fn().mockResolvedValue(response({})),
+      deleteSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
+      dismissSavingsContribution: vi.fn().mockResolvedValue(response(undefined)),
+      updateSavingsContribution: vi.fn().mockResolvedValue(response({})),
+      listGoals: vi.fn().mockResolvedValue(response({ goals: [] })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
+      getYearlyOverview: vi.fn().mockResolvedValue(response(yearOverview(2026))),
+      generateYearlyReview: vi.fn().mockResolvedValue(response({})),
+      ...overrides,
+    };
+  }
+
+  function configureSession(apiMock: Record<string, unknown>) {
+    TestBed.configureTestingModule({
+      imports: [Overview],
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('owner') },
+      ],
+    });
+  }
+
+  async function stabilize(fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) {
+    for (let i = 0; i < 3; i++) {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  beforeEach(() => {
+    clearAuthState();
+    setAuthState(sessionA);
+    localStorage.removeItem('family-cfo.hideSealedModeOffer');
+  });
+
+  afterEach(() => clearAuthState());
+
+  it('clears settled owner resources synchronously on logout', async () => {
+    configureSession(apiDefaults());
+    const fixture = TestBed.createComponent(Overview);
+    await stabilize(fixture);
+    const component = fixture.componentInstance;
+    expect(component['household'].value()?.display_name).toBe('Household A');
+    expect(component['outlook'].value()).toBeNull();
+    expect(component['plan'].value()).toBeNull();
+
+    clearAuthState();
+
+    expect(component['household'].value()).toBeUndefined();
+    expect(component['outlook'].value()).toBeUndefined();
+    expect(component['plan'].value()).toBeUndefined();
+  });
+
+  it('clears the same settled state synchronously for an interceptor-driven 401', async () => {
+    configureSession(apiDefaults());
+    const fixture = TestBed.createComponent(Overview);
+    await stabilize(fixture);
+    const component = fixture.componentInstance;
+    component['yearData'].set(yearOverview(2025) as never);
+
+    const handling = handleSessionResponse(new Response('{}', { status: 401 }));
+
+    expect(component['household'].value()).toBeUndefined();
+    expect(component['outlook'].value()).toBeUndefined();
+    expect(component['plan'].value()).toBeUndefined();
+    expect(component['yearData']()).toBeNull();
+    await handling;
+  });
+
+  it('still clears Overview synchronously when 401 persistence removal throws', async () => {
+    configureSession(apiDefaults());
+    const fixture = TestBed.createComponent(Overview);
+    await stabilize(fixture);
+    const component = fixture.componentInstance;
+    expect(component['household'].value()?.display_name).toBe('Household A');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+
+    try {
+      const handling = handleSessionResponse(new Response('{}', { status: 401 }));
+      expect(component['household'].value()).toBeUndefined();
+      expect(component['outlook'].value()).toBeUndefined();
+      expect(component['plan'].value()).toBeUndefined();
+      await expect(handling).resolves.toBeInstanceOf(Response);
+    } finally {
+      removeItem.mockRestore();
+    }
+  });
+
+  it('clears settled A immediately on direct A to B replacement, then shows only B', async () => {
+    const getHouseholdContext = vi.fn().mockImplementation(() => {
+      const current = authState();
+      const isB = current?.householdId === 'hh-b';
+      return Promise.resolve(response(context(
+        current?.householdId ?? 'none',
+        isB ? 'Household B' : 'Household A',
+        isB ? 'EUR' : 'USD',
+      )));
+    });
+    configureSession(apiDefaults({ getHouseholdContext }));
+    const fixture = TestBed.createComponent(Overview);
+    await stabilize(fixture);
+    const component = fixture.componentInstance;
+    expect(component['household'].value()?.display_name).toBe('Household A');
+
+    setAuthState(sessionB);
+
+    expect(component['household'].value()).toBeUndefined();
+    expect(component['outlook'].value()).toBeUndefined();
+    expect(component['plan'].value()).toBeUndefined();
+    await stabilize(fixture);
+    expect(component['household'].value()?.display_name).toBe('Household B');
+    expect(TestBed.inject(HouseholdCurrencyService).currency()).toBe('EUR');
+  });
+
+  it('keeps B when in-flight A and B household loads complete in reverse order', async () => {
+    const pendingA = deferred();
+    const pendingB = deferred();
+    let call = 0;
+    const getHouseholdContext = vi.fn(() => (call++ === 0 ? pendingA.promise : pendingB.promise));
+    configureSession(apiDefaults({ getHouseholdContext }));
+    const fixture = TestBed.createComponent(Overview);
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getHouseholdContext).toHaveBeenCalledTimes(1);
+
+    setAuthState(sessionB);
+    expect(fixture.componentInstance['household'].value()).toBeUndefined();
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getHouseholdContext).toHaveBeenCalledTimes(2);
+
+    pendingB.resolve(response(context('hh-b', 'Household B', 'EUR')));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(fixture.componentInstance['household'].value()?.display_name).toBe('Household B');
+
+    pendingA.resolve(response(context('hh-a', 'Household A', 'USD')));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(fixture.componentInstance['household'].value()?.display_name).toBe('Household B');
+    expect(TestBed.inject(HouseholdCurrencyService).currency()).toBe('EUR');
+  });
+
+  it('resets the complete manual, lazy, edit, error, and loading inventory', () => {
+    configureSession(apiDefaults());
+    const component = TestBed.createComponent(Overview).componentInstance;
+    component['household'].set(context('hh-a', 'Household A') as never);
+    component['outlook'].set({ household: 'A' } as never);
+    component['plan'].set({ household: 'A' } as never);
+    component['keyStatus'].set({ household: 'A' } as never);
+    component['accounts'].set([{ id: 'account-a' }] as never);
+    component['goalNames'].set({ 'goal-a': 'A goal' });
+    component['yearMode'].set(true);
+    component['yearData'].set(yearOverview(2025) as never);
+    component['yearLoading'].set(true);
+    component['yearGenerating'].set(true);
+    component['yearError'].set('A year error');
+    component['yearFocusMonth'].set('2025-06');
+    component['editingTarget'].set(true);
+    component['targetInput'].set(9);
+    component['savingTarget'].set(true);
+    component['declaring'].set(true);
+    component['savingsSubmitting'].set(true);
+    component['savingsError'].set('A savings error');
+    component['declareForm'].setValue({
+      sourceAccountId: 'account-a',
+      destinationAccountId: 'account-b',
+      amount: 500,
+      frequency: 'weekly',
+    });
+    component['languageInput'].set('vi');
+    component['savingLanguage'].set(true);
+    component['languageError'].set('A language error');
+    component['timezoneInput'].set('Europe/London');
+    component['savingTimezone'].set(true);
+    component['timezoneError'].set('A timezone error');
+    component['committedReserveInput'].set(true);
+    component['savingCommittedReserve'].set(true);
+    component['committedReserveError'].set('A reserve error');
+    component['sealOfferDismissed'].set(true);
+
+    setAuthState(sessionB);
+
+    for (const resource of [
+      component['household'], component['outlook'], component['plan'], component['keyStatus'],
+      component['accounts'], component['goalNames'],
+    ]) {
+      expect(resource.value()).toBeUndefined();
+      expect(resource.error()).toBeUndefined();
+    }
+    expect(component['yearMode']()).toBe(false);
+    expect(component['yearData']()).toBeNull();
+    expect(component['yearLoading']()).toBe(false);
+    expect(component['yearGenerating']()).toBe(false);
+    expect(component['yearError']()).toBeNull();
+    expect(component['yearFocusMonth']()).toBeNull();
+    expect(component['editingTarget']()).toBe(false);
+    expect(component['targetInput']()).toBeNull();
+    expect(component['savingTarget']()).toBe(false);
+    expect(component['declaring']()).toBe(false);
+    expect(component['savingsSubmitting']()).toBe(false);
+    expect(component['savingsError']()).toBeNull();
+    expect(component['declareForm'].getRawValue()).toEqual({
+      sourceAccountId: '', destinationAccountId: '', amount: 0, frequency: 'monthly',
+    });
+    expect(component['languageInput']()).toBeNull();
+    expect(component['savingLanguage']()).toBe(false);
+    expect(component['languageError']()).toBeNull();
+    expect(component['timezoneInput']()).toBeNull();
+    expect(component['savingTimezone']()).toBe(false);
+    expect(component['timezoneError']()).toBeNull();
+    expect(component['committedReserveInput']()).toBeNull();
+    expect(component['savingCommittedReserve']()).toBe(false);
+    expect(component['committedReserveError']()).toBeNull();
+    expect(component['sealOfferDismissed']()).toBe(true);
+  });
+
+  it('does not let a stale A mutation clear B progress or reload B', async () => {
+    const pendingA = deferred();
+    const pendingB = deferred();
+    let call = 0;
+    const updateHousehold = vi.fn(() => (call++ === 0 ? pendingA.promise : pendingB.promise));
+    configureSession(apiDefaults({ updateHousehold }));
+    const component = TestBed.createComponent(Overview).componentInstance;
+    const reload = vi.spyOn(component['household'], 'reload');
+
+    const savingA = component['changeLanguage']('vi');
+    expect(component['savingLanguage']()).toBe(true);
+    setAuthState(sessionB);
+    expect(component['savingLanguage']()).toBe(false);
+    const savingB = component['changeLanguage']('lt');
+    expect(component['savingLanguage']()).toBe(true);
+    expect(component['languageInput']()).toBe('lt');
+
+    pendingA.resolve(response({}));
+    await savingA;
+    expect(component['savingLanguage']()).toBe(true);
+    expect(component['languageInput']()).toBe('lt');
+    expect(component['languageError']()).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+
+    pendingB.resolve(response({}));
+    await savingB;
+    expect(component['savingLanguage']()).toBe(false);
+    expect(component['languageInput']()).toBe('lt');
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
