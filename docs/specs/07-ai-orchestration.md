@@ -147,6 +147,49 @@ what it left out, and the model must not add it back.
   snapshot has no record of what it left out, and an empty list would claim
   "nothing".
 
+## Qualified Aggregate Tool Behavior (M124, ADR 0076)
+
+M124 adds no advisor data domain and no new parallel calculator. Existing M16
+read-only tools reuse the same qualification-aware service builders as their
+HTTP endpoints. Money serialization includes `value`, `incomplete_count`, and a
+display string derived only from `value`; `incomplete_count` is metadata and is
+excluded from `grounded_values`, `grounded_money`, and number-claim extraction.
+ADR 0075 currency exclusions remain separately typed.
+
+Grounding and response rules:
+
+- A partial descriptive value may be quoted only with the fact that stored
+  amounts were omitted; it is never described as exact or as a lower bound.
+- A null decision is not reconstructed from component leaves. The advisor does
+  not recommend spending, affordability, coverage, tax liability, budget
+  health, savings cuts, or runway from incomplete inputs.
+- `incomplete_data` directs the household to repair unreadable stored data. It
+  does not suggest signing in again; sign-in/locked guidance remains specific
+  to HTTP 423.
+- Net-worth and month/year tools return qualified descriptive totals but omit
+  derived net and ranking claims when unavailable. Emergency-fund tools return
+  components without coverage/status. Spending tools retain period totals but
+  null change and unstable merchant/category rankings.
+- Safe-to-spend and purchase-impact tools return structured
+  `error: "incomplete_data"` and no spend/affordability decision when required
+  inputs are incomplete. Budget tools return qualified spent with null affected
+  status. Income/tax reuses the endpoint builder so declared/profile tax may
+  survive while transaction-derived tax is unavailable. `find_savings` returns
+  no ranked cuts from incomplete ranking inputs.
+
+Study, review, and narrative consumers require complete dependencies. An
+incomplete monthly digest does not call the runtime, write memories, or update
+its digest hash; month selection continues forward so one damaged month cannot
+starve later complete work, and the damaged month remains pending for scheduled
+retry. Yearly review generation does not run its LLM or deterministic fallback
+and does not overwrite a cached review; GET suppresses that cache until current
+dependencies are complete.
+
+Strict report/index workers catch the known unreadable exception per
+household/job, emit a count-safe retryable skip, and continue. Vector indexing
+catches before any per-household wipe so existing vectors remain intact. No
+durable retry record is added; the next scheduled run retries naturally.
+
 ## Guardrails
 
 - The LLM must not invent account balances, debt terms, or investment performance.

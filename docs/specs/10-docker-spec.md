@@ -64,6 +64,19 @@ Persistent data:
 - Only intended UI/API ports are exposed.
 - vLLM should not be exposed publicly by default.
 
+## M124 Deployment Scope (ADR 0076)
+
+Qualified incomplete monetary aggregates require no Docker image, service,
+volume, network, environment variable, system-tool, runtime topology, or cloud
+dependency change. API, worker, web, local AI, PostgreSQL, and Qdrant retain their
+existing ownership and deployment boundaries. No Compose file or Dockerfile is
+part of M124.
+
+The API and generated clients nevertheless form one intentional breaking
+contract release. They are deployed and rolled back together under the existing
+version/compatibility process; mixed old/new artifacts are unsupported. No SQL
+migration or database rollback step is required.
+
 ## Acceptance Criteria
 
 - Compose file supports local development and home-server deployment profiles.

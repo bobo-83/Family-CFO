@@ -221,3 +221,45 @@ Parity with the dashboard (ADR 0025): the same rule, the same three places.
   the base for a new goal, the declared currency for an edit — and an edit is
   sent in the declared currency.
 - Strings live in `Localizable.xcstrings` with `vi` and `lt` values.
+
+## Qualified and Unavailable Aggregates on Apple Clients (M124, ADR 0076)
+
+The generated Swift client consumes the coordinated qualified-aggregate
+OpenAPI contract; generated files are never hand-edited. Implementation and
+validation require macOS, the Swift toolchain, Xcode, and installed iOS/watchOS
+platforms.
+
+Phone, iPad, Watch, widgets, Bills, Budgets, Income/Tax, and every Overview
+current/month/year detail follow the same server-owned semantics as the web
+client:
+
+- Render each qualified leaf from `value`, including partial zero, with adjacent
+  visible and VoiceOver-readable singular/plural omission copy.
+- Render unavailable decisions as “Unavailable”/an em dash without success or
+  danger coloring, percentages, progress, checkmarks, decision navigation, or a
+  reconstructed running-balance view.
+- Never sum qualified values or counts, derive net/remaining/coverage/rates,
+  rebuild rankings, or substitute zero on device. Spending consumes the server
+  `SpendingByCategory.total`; phone and Watch budgets consume the server
+  `BudgetListResponse.summary`.
+- Continue showing unaffected sibling cards. A qualified HTTP 200 is not a
+  transport failure. A strict operation's documented 409 maps to incomplete
+  stored data and remains distinct from 423/sign-in handling.
+- Map generated DTOs into existing primitive Watch/widget snapshots. New
+  completeness fields are optional for old-cache decoding; a successful 200
+  with a null safety decision clears any stale cached decision rather than
+  retaining it or coercing it to zero.
+
+`OverviewViewModel` owns each load by household/session identity, requested
+month, and monotonic generation. It cancels/replaces old optional tasks, commits
+context independently of optional outlook/plan failures, and rechecks ownership
+after every suspension and before state, loading, goal-name, notification,
+snapshot, or widget side effects. Only an owner-valid current-context success
+refreshes notifications/widgets; a late, cancelled, same-month, or prior-session
+response commits nothing.
+
+Acceptance covers exact count 0, partial nonzero, partial zero, pluralization,
+unavailable decisions, unaffected sibling survival, strict 409 versus locked
+423, stale-cache clearing, reverse completion/cancellation/session replacement,
+and parity across phone, Watch, and widgets. Localized catalog and accessibility
+assertions are required.

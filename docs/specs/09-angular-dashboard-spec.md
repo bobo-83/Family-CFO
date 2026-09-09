@@ -105,3 +105,35 @@ never converted. The dashboard renders that rule; it never re-derives a figure.
   contribution editor labels and sends the goal's own currency.
 - Every string is a `$localize`/`i18n` message with `vi` and `lt` entries;
   currency codes are never translated.
+
+## Qualified and Unavailable Aggregates (M124, ADR 0076)
+
+The dashboard regenerates its client from the coordinated OpenAPI contract and
+uses shared qualified-money presentation helpers rather than page-local
+arithmetic. Overview current/month/year, spending/category totals, savings,
+safe-to-spend, outlook, spending plan, Budgets and mutation refreshes, Bills
+payment timeline, and Income/Tax all follow these rules:
+
+- Render `QualifiedMoney.value`, including partial zero, and place localized,
+  accessible singular/plural omission copy next to every positive count. A
+  partial disclosure is a note/status; transport errors remain alerts.
+- Render null/unavailable decisions as an em dash or “Unavailable”; remove
+  success/danger styling, percentages, progress, checkmarks, and links that
+  imply a decision exists.
+- Never sum qualified values/counts or derive totals, net, remaining, coverage,
+  percentages, running outlook balances, forecasts, or rankings in the browser.
+  Category spending consumes `SpendingByCategory.total`; Budgets consumes the
+  required server `BudgetListResponse.summary`.
+- An incomplete cash outlook may show starting cash, readable events, and
+  qualified component leaves, but no running-balance/runway view. A partial
+  budget may show spent, but no remaining/percent/status.
+- Continue rendering unaffected sibling sections. Aggregate incompleteness in a
+  200 response is not a resource error, while a strict operation's documented
+  409 is surfaced as unreadable stored data and remains distinct from 423.
+- Preserve household/session/request ownership so a late prior-context response
+  cannot replace current qualified or unavailable state.
+
+Tests cover count 0, partial nonzero, partial zero, pluralization, unavailable
+copy, sibling survival, absence of misleading classes/labels and local
+arithmetic, each affected page fixture, generated-client drift, localization,
+and accessibility.
