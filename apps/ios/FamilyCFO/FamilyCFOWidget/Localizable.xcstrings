@@ -1,0 +1,48 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%.1f months covered": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Padengta %.1f mėn." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đủ chi trả %.1f tháng" } }
+      }
+    },
+    "Net worth": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Grynoji vertė" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Giá trị ròng" } }
+      }
+    },
+    "Open Family CFO to pair": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Atidarykite Family CFO, kad susietumėte" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Mở Family CFO để ghép nối" } }
+      }
+    },
+    "Partial total—%lld stored amounts could not be read and were left out.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính." } }
+      }
+    },
+    "Partial total—1 stored amount could not be read and was left out.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính." } }
+      }
+    },
+    "Your household net worth and emergency-fund status at a glance.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Jūsų namų ūkio grynoji vertė ir skubios pagalbos fondo būklė vienu žvilgsniu." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Xem nhanh giá trị ròng và tình trạng quỹ khẩn cấp của hộ gia đình." } }
+      }
+    },
+    "as of %@": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "%@ duomenimis" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "tính đến %@" } }
+      }
+    }
+  },
+  "version": "1.0"
+}

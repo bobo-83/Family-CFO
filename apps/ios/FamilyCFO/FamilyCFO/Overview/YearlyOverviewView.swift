@@ -141,11 +141,16 @@ struct YearlyOverviewView: View {
             HStack {
                 totalCell("In", month.income.formatted, .green)
                 totalCell("Out", month.spending.formatted, .orange)
-                totalCell("Kept", month.net.formatted, month.net.amountMinor >= 0 ? .green : .red)
+                if let net = month.net {
+                    totalCell("Kept", net.formatted, net.amountMinor >= 0 ? .green : .red)
+                } else {
+                    totalCell("Kept", unavailableValueText, .secondary)
+                }
                 if let netWorth = month.netWorthEom {
                     totalCell("Net worth", netWorth.formatted, .primary)
                 }
             }
+            qualificationNotes([month.income, month.spending] + [month.netWorthEom].compactMap { $0 })
             if model.rolePolicy.canChat {
                 HStack {
                     Button {
@@ -176,10 +181,17 @@ struct YearlyOverviewView: View {
     }
 
     private func totalsRow(_ overview: Components.Schemas.YearlyOverview) -> some View {
-        HStack {
-            totalCell("In", overview.totalIncome.formatted, .green)
-            totalCell("Out", overview.totalSpending.formatted, .orange)
-            totalCell("Kept", overview.totalNet.formatted, overview.totalNet.amountMinor >= 0 ? .green : .red)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                totalCell("In", overview.totalIncome.formatted, .green)
+                totalCell("Out", overview.totalSpending.formatted, .orange)
+                if let net = overview.totalNet {
+                    totalCell("Kept", net.formatted, net.amountMinor >= 0 ? .green : .red)
+                } else {
+                    totalCell("Kept", unavailableValueText, .secondary)
+                }
+            }
+            qualificationNotes([overview.totalIncome, overview.totalSpending])
         }
     }
 
@@ -213,7 +225,7 @@ struct YearlyOverviewView: View {
                     }
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.isGenerating)
+                .disabled(viewModel.isGenerating || overview.totalNet == nil)
             }
             if let review = overview.review {
                 Text(verbatim: review.summary).font(.callout)
@@ -235,18 +247,24 @@ struct YearlyOverviewView: View {
                         .foregroundStyle(.tertiary)
                 }
             } else if !viewModel.isGenerating {
-                Text("Ask the advisor to sum up the year and suggest improvements.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if overview.totalNet == nil {
+                    Text(verbatim: unavailableValueText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Ask the advisor to sum up the year and suggest improvements.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
 
     @ViewBuilder private func topCategories(_ overview: Components.Schemas.YearlyOverview) -> some View {
-        if !overview.topCategories.isEmpty {
+        if let categories = overview.topCategories, !categories.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Where it went").font(.subheadline.weight(.semibold))
-                ForEach(overview.topCategories, id: \.name) { entry in
+                ForEach(categories, id: \.name) { entry in
                     HStack {
                         Text(verbatim: entry.name).font(.callout)
                         Spacer()
@@ -254,6 +272,21 @@ struct YearlyOverviewView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+        } else if overview.topCategories == nil {
+            Text("Spending categories · \(unavailableValueText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func qualificationNotes(_ amounts: [Components.Schemas.QualifiedMoney]) -> some View {
+        ForEach(Array(amounts.enumerated()), id: \.offset) { _, amount in
+            if let disclosure = amount.partialDisclosure {
+                Label(disclosure, systemImage: "exclamationmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }

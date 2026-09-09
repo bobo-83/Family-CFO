@@ -69,12 +69,11 @@ extension HouseholdAPI {
     func spendingPlan() async throws -> Components.Schemas.SpendingPlanResponse? { nil }
     func serverVersion() async -> String? { nil }
     func yearly(year: Int?) async throws -> Components.Schemas.YearlyOverview {
-        Components.Schemas.YearlyOverview(
-            year: year ?? 0, months: [],
-            totalIncome: .init(amountMinor: 0, currency: "USD"),
-            totalSpending: .init(amountMinor: 0, currency: "USD"),
-            totalNet: .init(amountMinor: 0, currency: "USD"),
-            topCategories: [])
+        let zero = Components.Schemas.QualifiedMoney(
+            value: .init(amountMinor: 0, currency: "USD"), incompleteCount: 0)
+        return Components.Schemas.YearlyOverview(
+            year: year ?? 0, months: [], totalIncome: zero,
+            totalSpending: zero, totalNet: zero, topCategories: [])
     }
     func generateYearlyReview(year: Int?) async throws -> Components.Schemas.YearlyReview {
         throw APIError.server(503)
@@ -135,6 +134,8 @@ struct LiveHouseholdAPI: HouseholdAPI {
             throw APIError.unauthorized
         case .notFound:
             throw APIError.server(404)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -163,6 +164,8 @@ struct LiveHouseholdAPI: HouseholdAPI {
             throw APIError.unauthorized
         case .unprocessableContent:
             throw APIError.server(422)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

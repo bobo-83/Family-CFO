@@ -119,6 +119,8 @@ struct LiveBillsAPI: BillsAPI {
             return try response.body.json.suggestions
         case .unauthorized:
             throw APIError.unauthorized
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -357,6 +359,8 @@ struct LiveBillsAPI: BillsAPI {
             throw APIError.unauthorized
         case .notFound:
             throw APIError.server(404)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

@@ -169,6 +169,9 @@ struct BillsView: View {
                         .font(.system(.title, design: .rounded).weight(.semibold))
                     Text("due in the next \(timeline.windowDays) days")
                         .font(.caption).foregroundStyle(.secondary)
+                    if let note = timeline.dueTotal.partialDisclosure {
+                        Text(note).font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -179,14 +182,20 @@ struct BillsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Label(
-                timeline.covered
-                    ? "Covered — your cash clears everything due."
-                    : "Short — what's due exceeds your cash on hand.",
-                systemImage: timeline.covered ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-            )
-            .font(.caption.weight(.medium))
-            .foregroundStyle(timeline.covered ? .green : .orange)
+            if let covered = timeline.covered {
+                Label(
+                    covered
+                        ? "Covered — your cash clears everything due."
+                        : "Short — what's due exceeds your cash on hand.",
+                    systemImage: covered ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.caption.weight(.medium))
+                .foregroundStyle(covered ? .green : .orange)
+            } else {
+                Label("Coverage unavailable", systemImage: "questionmark.circle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -207,9 +216,12 @@ struct BillsView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(verbatim: item.amount.formattedExact)
+                Text(verbatim: item.amount?.formattedExact ?? unavailableValueText)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(item.status == .paid ? Color.secondary : Color.primary)
+                    .foregroundStyle(
+                        item.amount == nil || item.status == .unknown
+                            ? Color.secondary
+                            : item.status == .paid ? Color.secondary : Color.primary)
                 if let note = Self.statementNote(item) {
                     Label(note, systemImage: "doc.text.fill")
                         .font(.caption2.weight(.medium))
@@ -314,6 +326,8 @@ struct BillsView: View {
                 return String(localized: "Due \(due) · in \(days) days")
             default: return String(localized: "Due \(due)")
             }
+        case .unknown:
+            return String(localized: "Payment status unavailable")
         case .noDate:
             return item.kind == .creditCard
                 ? String(localized: "Current balance · due date unknown")

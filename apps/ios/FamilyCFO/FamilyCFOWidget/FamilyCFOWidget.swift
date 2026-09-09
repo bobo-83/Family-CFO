@@ -57,6 +57,16 @@ struct OverviewWidgetView: View {
                 .font(.system(family == .systemSmall ? .title2 : .title, design: .rounded).weight(.semibold))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
+                .accessibilityLabel(
+                    snapshot.netWorthPartialDisclosure.map {
+                        "\(snapshot.netWorthFormatted). \($0)"
+                    } ?? snapshot.netWorthFormatted)
+            if let note = snapshot.netWorthPartialDisclosure {
+                Text(note)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
 
             Spacer(minLength: 2)
 

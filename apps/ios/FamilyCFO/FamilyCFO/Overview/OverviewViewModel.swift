@@ -12,6 +12,8 @@ final class OverviewViewModel {
     private(set) var outlook: Components.Schemas.CashOutlookResponse?
     /// Left to spend this month (M113) — same "now" scoping as the outlook.
     private(set) var plan: Components.Schemas.SpendingPlanResponse?
+    private(set) var outlookErrorMessage: String?
+    private(set) var planErrorMessage: String?
     /// The box running version (M120) - nil until fetched or unreachable.
     private(set) var serverVersion: String?
     /// #4: goal names by id, for savings rows that fund (or could fund) one.
@@ -53,78 +55,192 @@ final class OverviewViewModel {
     private let goalsAPI: GoalsAPI?
     private let notifications: BillNotificationScheduler?
     private let snapshotStore: OverviewSnapshotStore?
+    private let ownerIdentity: @MainActor () -> String?
+    /// Identity of the API instance itself. The dynamic owner may change after
+    /// re-pairing; an old client must never be relabeled as the new session.
+    private let apiIdentity: String?
+    private let notificationScope: String
+
+    struct LoadOwner: Equatable {
+        let identity: String
+        let month: String
+        let generation: UInt64
+    }
+
+    private var generation: UInt64 = 0
+    private var currentOwner: LoadOwner?
+    private var syncGeneration: UInt64 = 0
+    private var activeSyncGeneration: UInt64?
+    private var outlookTask: Task<Components.Schemas.CashOutlookResponse?, Error>?
+    private var planTask: Task<Components.Schemas.SpendingPlanResponse?, Error>?
+    private var versionTask: Task<String?, Never>?
 
     init(
         api: HouseholdAPI,
         goalsAPI: GoalsAPI? = nil,
         notifications: BillNotificationScheduler? = BillNotificationScheduler(
             scheduler: SystemNotificationScheduler()),
-        snapshotStore: OverviewSnapshotStore? = OverviewSnapshotStore()
+        snapshotStore: OverviewSnapshotStore? = OverviewSnapshotStore(),
+        ownerIdentity: @escaping @MainActor () -> String? = { "standalone" },
+        apiIdentity: String? = nil,
+        notificationScope: String = UUID().uuidString
     ) {
         self.api = api
         self.goalsAPI = goalsAPI
         self.notifications = notifications
         self.snapshotStore = snapshotStore
+        self.ownerIdentity = ownerIdentity
+        self.apiIdentity = apiIdentity ?? ownerIdentity()
+        self.notificationScope = notificationScope
     }
 
-    /// `refreshable` and `task` both call this; the guard keeps a pull-to-
-    /// refresh during the first load from firing a second request.
-    func load() async {
-        // Bind to the month requested at call time; a result the user has already
-        // navigated away from is discarded rather than shown for the wrong month.
+    /// Latest owner wins even for two requests for the same month. Context is
+    /// authoritative and commits independently; current-only outlook/plan are
+    /// optional sections whose failures never turn a valid context into a page
+    /// error.
+    @discardableResult
+    func load() async -> LoadOwner? {
+        generation &+= 1
+        outlookTask?.cancel()
+        planTask?.cancel()
+        versionTask?.cancel()
+
         let requested = selectedMonth
+        guard let identity = ownerIdentity(), identity == apiIdentity else {
+            currentOwner = nil
+            isLoading = false
+            return nil
+        }
+        let owner = LoadOwner(identity: identity, month: requested, generation: generation)
+        currentOwner = owner
         let onCurrent = requested == MonthKey.current()
         isLoading = true
-        defer { if selectedMonth == requested { isLoading = false } }
-        do {
-            async let outlookLoad = onCurrent ? api.cashOutlook() : nil
-            async let planLoad = onCurrent ? api.spendingPlan() : nil
-            let loaded = try await api.context(month: onCurrent ? nil : requested)
-            let loadedOutlook = try await outlookLoad
-            let loadedPlan = try await planLoad
-            let version = await api.serverVersion()
-            guard selectedMonth == requested else { return }
-            serverVersion = version
-            context = loaded
-            outlook = loadedOutlook
-            plan = loadedPlan
-            errorMessage = nil
-            await resolveGoalNames()
-            // Reminders and the widget snapshot are "now" concepts — only refresh
-            // them from the live current month, never from a historical one.
-            if onCurrent {
-                if let notifications, let bills = loaded.upcomingBills {
-                    await notifications.refresh(from: bills)
-                }
-                if let snapshotStore {
-                    snapshotStore.save(OverviewSnapshot(context: loaded, now: Date()))
-                    WidgetRefresher.reloadOverview()
-                }
-            }
-        } catch {
-            guard selectedMonth == requested else { return }
-            errorMessage = ChatViewModel.describe(error)
+        outlookErrorMessage = nil
+        planErrorMessage = nil
+        if !onCurrent {
+            outlook = nil
+            plan = nil
         }
+        defer {
+            if owns(owner) { isLoading = false }
+        }
+
+        if onCurrent {
+            outlookTask = Task { try await api.cashOutlook() }
+            planTask = Task { try await api.spendingPlan() }
+        } else {
+            outlookTask = nil
+            planTask = nil
+        }
+        versionTask = Task { await api.serverVersion() }
+
+        let loaded: Components.Schemas.HouseholdContext
+        do {
+            loaded = try await api.context(month: onCurrent ? nil : requested)
+        } catch {
+            guard owns(owner), !Task.isCancelled else { return nil }
+            outlookTask?.cancel()
+            outlookTask = nil
+            planTask?.cancel()
+            planTask = nil
+            context = nil
+            outlook = nil
+            plan = nil
+            goalNames = [:]
+            outlookErrorMessage = nil
+            planErrorMessage = nil
+            errorMessage = ChatViewModel.describe(error)
+            if onCurrent, let snapshotStore {
+                guard owns(owner), !Task.isCancelled else { return nil }
+                snapshotStore.clear()
+                guard owns(owner), !Task.isCancelled else { return nil }
+                WidgetRefresher.reloadOverview()
+            }
+            return nil
+        }
+        guard owns(owner), !Task.isCancelled else { return nil }
+        context = loaded
+        errorMessage = nil
+
+        if let versionTask {
+            let version = await versionTask.value
+            guard owns(owner), !Task.isCancelled else { return nil }
+            serverVersion = version
+        }
+
+        if let outlookTask {
+            do {
+                let value = try await outlookTask.value
+                guard owns(owner), !Task.isCancelled else { return nil }
+                outlook = value
+            } catch {
+                guard owns(owner), !Task.isCancelled else { return nil }
+                outlook = nil
+                outlookErrorMessage = ChatViewModel.describe(error)
+            }
+        }
+        if let planTask {
+            do {
+                let value = try await planTask.value
+                guard owns(owner), !Task.isCancelled else { return nil }
+                plan = value
+            } catch {
+                guard owns(owner), !Task.isCancelled else { return nil }
+                plan = nil
+                planErrorMessage = ChatViewModel.describe(error)
+            }
+        }
+
+        await resolveGoalNames(for: loaded, owner: owner)
+        guard owns(owner), !Task.isCancelled else { return nil }
+
+        // Reminders and primitive caches are current-context side effects. The
+        // scheduler rechecks this owner after each of its own suspension points.
+        if onCurrent {
+            if let notifications, let bills = loaded.upcomingBills {
+                await notifications.refresh(
+                    from: bills,
+                    scope: "\(notificationScope).\(owner.generation)"
+                ) { [weak self] in
+                    await self?.owns(owner) == true
+                }
+                guard owns(owner), !Task.isCancelled else { return nil }
+            }
+            if let snapshotStore {
+                guard owns(owner), !Task.isCancelled else { return nil }
+                snapshotStore.save(OverviewSnapshot(context: loaded, now: Date()))
+                guard owns(owner), !Task.isCancelled else { return nil }
+                WidgetRefresher.reloadOverview()
+            }
+        }
+        return owns(owner) && !Task.isCancelled ? owner : nil
+    }
+
+    func owns(_ owner: LoadOwner) -> Bool {
+        currentOwner == owner && ownerIdentity() == owner.identity && selectedMonth == owner.month
     }
 
     /// Step the whole Overview to another month. Next is capped at the current
     /// month (there is no future to show).
-    func shiftMonth(_ delta: Int) async {
-        if delta > 0 && isCurrentMonth { return }  // no future
-        if delta < 0 && !canGoBack { return }  // no data before the earliest month
-        guard let month = MonthKey.shift(selectedMonth, by: delta) else { return }
+    @discardableResult
+    func shiftMonth(_ delta: Int) async -> LoadOwner? {
+        if delta > 0 && isCurrentMonth { return nil }  // no future
+        if delta < 0 && !canGoBack { return nil }  // no data before the earliest month
+        guard let month = MonthKey.shift(selectedMonth, by: delta) else { return nil }
         selectedMonth = month
-        await load()
+        return await load()
     }
 
     /// Reload the selected month — used after an in-place recategorize.
-    func reload() async { await load() }
+    @discardableResult
+    func reload() async -> LoadOwner? { await load() }
 
     /// Jump straight to a month ("yyyy-MM") — the Year view's drill-down.
-    func show(month: String) async {
-        guard month != selectedMonth else { return }
+    @discardableResult
+    func show(month: String) async -> LoadOwner? {
+        guard month != selectedMonth else { return nil }
         selectedMonth = min(month, MonthKey.current())
-        await load()
+        return await load()
     }
 
     /// #203: record a contribution the household knows about and the ledger
@@ -168,12 +284,18 @@ final class OverviewViewModel {
     /// #4: fetch goal names once per load, and only when a contribution
     /// actually references a goal. Best-effort — the names decorate the
     /// savings card, so their absence must never break the Overview.
-    private func resolveGoalNames() async {
-        let referenced = (context?.savingsContributions ?? [])
+    private func resolveGoalNames(
+        for context: Components.Schemas.HouseholdContext, owner: LoadOwner
+    ) async {
+        let referenced = context.savingsContributions.contributions
             .flatMap { [$0.goalId, $0.suggestedGoalId] }
             .compactMap { $0 }
-        guard !referenced.isEmpty, let goalsAPI else { return }
-        guard let goals = try? await goalsAPI.goals() else { return }
+        guard !referenced.isEmpty, let goalsAPI else {
+            guard owns(owner), !Task.isCancelled else { return }
+            goalNames = [:]
+            return
+        }
+        guard let goals = try? await goalsAPI.goals(), owns(owner), !Task.isCancelled else { return }
         goalNames = Dictionary(
             goals.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
@@ -192,18 +314,39 @@ final class OverviewViewModel {
 
     /// The slow path: fetch new statements from the banks, then recompute. Pull-to-
     /// refresh only recomputes what's stored; this is how new bank data arrives.
-    func syncNow() async {
-        guard !isSyncing else { return }
+    @discardableResult
+    func syncNow() async -> LoadOwner? {
+        guard !isSyncing, let identity = ownerIdentity(), identity == apiIdentity else {
+            return nil
+        }
+        let requestedMonth = selectedMonth
+        syncGeneration &+= 1
+        let syncOwner = syncGeneration
+        activeSyncGeneration = syncOwner
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            // Month/session changes make the result stale, but they must not
+            // strand the spinner. Only a newer sync may retain ownership.
+            if activeSyncGeneration == syncOwner {
+                activeSyncGeneration = nil
+                isSyncing = false
+            }
+        }
         syncResult = nil
         do {
             let totals = try await api.syncAll()
+            guard activeSyncGeneration == syncOwner, ownerIdentity() == identity,
+                selectedMonth == requestedMonth, !Task.isCancelled
+            else { return nil }
             syncResult = BillsViewModel.syncSummary(totals)
             errorMessage = nil
-            await load()
+            return await load()
         } catch {
+            guard activeSyncGeneration == syncOwner, ownerIdentity() == identity,
+                selectedMonth == requestedMonth, !Task.isCancelled
+            else { return nil }
             errorMessage = ChatViewModel.describe(error)
+            return nil
         }
     }
 
@@ -272,6 +415,7 @@ extension Components.Schemas.EmergencyFundSummary {
         case .gettingStarted: return String(localized: "Getting started")
         case .onTrack: return String(localized: "On track")
         case .fullyFunded: return String(localized: "Fully funded")
+        case .unavailable: return unavailableValueText
         }
     }
 
@@ -279,7 +423,9 @@ extension Components.Schemas.EmergencyFundSummary {
     /// server has no bills to size the fund against, in which case there is no
     /// honest denominator and the view shows no bar.
     var progressToRecommended: Double? {
-        guard status != .noBills, targetMonthsRecommended > 0, let months else { return nil }
+        guard status != .noBills, status != .unavailable,
+            targetMonthsRecommended > 0, let months
+        else { return nil }
         return min(max(months / targetMonthsRecommended, 0), 1)
     }
 }

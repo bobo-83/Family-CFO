@@ -7,6 +7,7 @@ import Observation
 @Observable
 final class BudgetsViewModel {
     private(set) var budgets: [Components.Schemas.Budget] = []
+    private(set) var summary: Components.Schemas.BudgetSummary?
     private(set) var categories: [Components.Schemas.Category] = []
     private(set) var isLoading = false
     var errorMessage: String?
@@ -15,23 +16,6 @@ final class BudgetsViewModel {
 
     init(api: BudgetsAPI) {
         self.api = api
-    }
-
-    /// The whole month's envelope picture (user request 2026-07-25): total
-    /// budgeted, total spent, burn percent — the phone/watch/web summary
-    /// strips all use this same arithmetic.
-    var summary: (limit: String, spent: String, percentUsed: Int)? {
-        guard let currency = budgets.first?.limit.currency else { return nil }
-        let limit = budgets.reduce(Int64(0)) { $0 + Int64($1.limit.amountMinor) }
-        guard limit > 0 else { return nil }
-        let spent = budgets.reduce(Int64(0)) { $0 + Int64($1.spent.amountMinor) }
-        func money(_ minor: Int64) -> String {
-            (Decimal(minor) / 100).formatted(.currency(code: currency).precision(.fractionLength(0)))
-        }
-        return (
-            money(limit), money(spent),
-            Int((Double(spent) / Double(limit) * 100).rounded())
-        )
     }
 
     /// Categories without an envelope yet — the add sheet's choices.
@@ -47,7 +31,9 @@ final class BudgetsViewModel {
         do {
             async let list = api.budgets()
             async let cats = api.categories()
-            budgets = try await list
+            let response = try await list
+            budgets = response.budgets
+            summary = response.summary
             categories = try await cats
             errorMessage = nil
         } catch {

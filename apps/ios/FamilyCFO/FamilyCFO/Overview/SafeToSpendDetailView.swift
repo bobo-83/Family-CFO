@@ -11,9 +11,19 @@ struct SafeToSpendDetailView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: safeToSpend.safeToSpend.formatted)
-                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                        .foregroundStyle(safeToSpend.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
+                    if let amount = safeToSpend.safeToSpend {
+                        Text(verbatim: amount.formatted)
+                            .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                            .foregroundStyle(amount.amountMinor >= 0 ? Color.primary : .red)
+                            .accessibilityLabel(amount.accessibilityDescription)
+                    } else {
+                        Text("Unavailable")
+                            .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        if let note = unavailableReason {
+                            Text(note).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     // M112 (ADR 0026): named for what it is — the zero-income
                     // worst case, not a spending allowance.
                     Text("stress test: if every commitment were called today, with no income counted")
@@ -57,6 +67,8 @@ struct SafeToSpendDetailView: View {
                         note: "Next charge due within the month",
                         items: (safeToSpend.subscriptionForecastItems ?? []).map { ($0.name, $0.amount) }
                     )
+                } else if safeToSpend.subscriptionDetection.isUnavailable {
+                    unavailableComponent("Recurring subscriptions", safeToSpend.subscriptionDetection)
                 }
                 // #5: when reserved, the committed contribution is inside
                 // committed_total, so it belongs among the subtracted rows.
@@ -66,6 +78,8 @@ struct SafeToSpendDetailView: View {
                         note: "Reserved like a bill",
                         items: items.map { ($0.name, $0.amount) }
                     )
+                } else if safeToSpend.savingsDetection.isUnavailable {
+                    unavailableComponent("Committed savings", safeToSpend.savingsDetection)
                 }
                 Divider()
                 totalRow("Safe to spend", safeToSpend.safeToSpend)
@@ -108,7 +122,7 @@ struct SafeToSpendDetailView: View {
 
             // Informational companion — the tagged accounts' vested shares are
             // shown beside the number, never added to it.
-            if let ready = safeToSpend.readyToSell?.value1 {
+            if let ready = safeToSpend.readyToSell {
                 Section {
                     LabeledContent {
                         Text(verbatim: ready.value.formatted)
@@ -187,9 +201,9 @@ struct SafeToSpendDetailView: View {
                 }
             }
 
-            if !safeToSpend.warnings.isEmpty {
+            if let warnings = safeToSpend.warnings, !warnings.isEmpty {
                 Section("Heads up") {
-                    ForEach(safeToSpend.warnings, id: \.self) { warning in
+                    ForEach(warnings, id: \.self) { warning in
                         Label(warning, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -221,16 +235,20 @@ struct SafeToSpendDetailView: View {
     }
 
     /// The full card balance being committed, when the household pays in full.
-    private var committedCards: Components.Schemas.Money? {
-        guard let cards = safeToSpend.creditCardPayments?.value1, cards.amountMinor > 0 else {
+    private var committedCards: Components.Schemas.QualifiedMoney? {
+        guard let cards = safeToSpend.creditCardPayments,
+            cards.amountMinor > 0 || cards.isPartial
+        else {
             return nil
         }
         return cards
     }
 
     /// Recurring subscriptions' next in-window charge (M109), reserved the bill way.
-    private var committedSubscriptions: Components.Schemas.Money? {
-        guard let subs = safeToSpend.subscriptionForecast?.value1, subs.amountMinor > 0 else {
+    private var committedSubscriptions: Components.Schemas.QualifiedMoney? {
+        guard let subs = safeToSpend.subscriptionForecast,
+            subs.amountMinor > 0 || subs.isPartial
+        else {
             return nil
         }
         return subs
@@ -240,6 +258,29 @@ struct SafeToSpendDetailView: View {
     /// subtracted among the committed rows — the server's `..._reserved` flag.
     private var committedSavings: CommittedSavingsPresentation {
         .init(safeToSpend)
+    }
+
+    private var unavailableReason: String? {
+        [safeToSpend.subscriptionDetection, safeToSpend.savingsDetection]
+            .compactMap(\.unavailableDisclosure)
+            .first
+    }
+
+    private func unavailableComponent(
+        _ label: LocalizedStringKey,
+        _ availability: Components.Schemas.ComputationAvailability
+    ) -> some View {
+        LabeledContent {
+            Text("Unavailable").foregroundStyle(.secondary)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                if let note = availability.unavailableDisclosure {
+                    Text(note).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     /// A calculation row that expands to show the items behind it, or a plain row
@@ -267,6 +308,37 @@ struct SafeToSpendDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func expandable(
+        _ label: LocalizedStringKey,
+        _ money: Components.Schemas.QualifiedMoney,
+        sign: Sign,
+        note: LocalizedStringKey,
+        items: [(String, Components.Schemas.Money)]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if items.isEmpty {
+                qualifiedComponentRow(label, money, sign: sign, note: note)
+            } else {
+                DisclosureGroup {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        LabeledContent(item.0) {
+                            Text(verbatim: item.1.formatted).foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .font(.subheadline)
+                    }
+                } label: {
+                    qualifiedComponentRow(label, money, sign: sign, note: note)
+                }
+            }
+            if let disclosure = money.partialDisclosure {
+                Text(disclosure).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private static func billLabel(_ bill: Components.Schemas.UpcomingBill) -> String {
         "\(bill.name) · \(due(bill))"
     }
@@ -289,17 +361,47 @@ struct SafeToSpendDetailView: View {
         }
     }
 
-    private func totalRow(
-        _ label: LocalizedStringKey, _ money: Components.Schemas.Money
+    private func qualifiedComponentRow(
+        _ label: LocalizedStringKey,
+        _ money: Components.Schemas.QualifiedMoney,
+        sign: Sign,
+        note: LocalizedStringKey
     ) -> some View {
         LabeledContent {
-            Text(verbatim: money.formatted)
-                .font(.headline)
+            Text(verbatim: (sign == .plus ? "" : "−") + money.formatted)
                 .monospacedDigit()
-                .foregroundStyle(money.amountMinor >= 0 ? Color.primary : .red)
+                .foregroundStyle(sign == .plus ? Color.primary : .secondary)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                Text(note).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func totalRow(
+        _ label: LocalizedStringKey,
+        _ money: Components.Schemas.QualifiedMoney?
+    ) -> some View {
+        LabeledContent {
+            if let money {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(verbatim: money.formatted)
+                        .font(.headline)
+                        .monospacedDigit()
+                        .foregroundStyle(money.amountMinor >= 0 ? Color.primary : .red)
+                    if let disclosure = money.partialDisclosure {
+                        Text(disclosure).font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Text("Unavailable").font(.headline).foregroundStyle(.secondary)
+            }
         } label: {
             Text(label).font(.headline)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private static func due(_ bill: Components.Schemas.UpcomingBill) -> String {
@@ -321,12 +423,14 @@ enum CommittedSavingsPresentation: Equatable {
     /// Nothing committed within the horizon — render nothing.
     case none
     /// Reserved off: shown beside Safe to Spend, not subtracted from it.
-    case informational(amount: Components.Schemas.Money, items: [Components.Schemas.NamedAmount])
+    case informational(amount: Components.Schemas.QualifiedMoney, items: [Components.Schemas.NamedAmount])
     /// Reserved on: subtracted like a bill, listed among the committed rows.
-    case reserved(amount: Components.Schemas.Money, items: [Components.Schemas.NamedAmount])
+    case reserved(amount: Components.Schemas.QualifiedMoney, items: [Components.Schemas.NamedAmount])
 
     init(_ safeToSpend: Components.Schemas.SafeToSpend) {
-        guard let amount = safeToSpend.committedSavings?.value1, amount.amountMinor > 0 else {
+        guard let amount = safeToSpend.committedSavings,
+            amount.amountMinor > 0 || amount.isPartial
+        else {
             self = .none
             return
         }

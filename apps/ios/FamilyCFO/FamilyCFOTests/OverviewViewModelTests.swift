@@ -1,7 +1,33 @@
 import Foundation
+import HTTPTypes
+import OpenAPIRuntime
 import Testing
 
 @testable import FamilyCFO
+
+func testQualified(
+    _ minor: Int64,
+    currency: String = "USD",
+    incompleteCount: Int = 0
+) -> Components.Schemas.QualifiedMoney {
+    .init(
+        value: .init(amountMinor: minor, currency: currency),
+        incompleteCount: incompleteCount)
+}
+
+func testAvailability(
+    _ status: Components.Schemas.ComputationAvailability.StatusPayload = .complete,
+    incompleteCount: Int = 0
+) -> Components.Schemas.ComputationAvailability {
+    .init(status: status, incompleteCount: incompleteCount)
+}
+
+func testSavingsSet(
+    _ contributions: [Components.Schemas.SavingsContribution] = [],
+    detection: Components.Schemas.ComputationAvailability = testAvailability()
+) -> Components.Schemas.SavingsContributionSet {
+    .init(contributions: contributions, detection: detection)
+}
 
 @MainActor
 final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
@@ -34,7 +60,7 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
     nonisolated func transactions(month: String?) async throws
         -> [Components.Schemas.Transaction]
     {
-        try await MainActor.run { txns }
+        await MainActor.run { txns }
     }
 
     nonisolated func syncAll() async throws -> SyncTotals {
@@ -46,13 +72,21 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
     }
 
     var outlook: Components.Schemas.CashOutlookResponse?
+    var outlookError: Error?
     nonisolated func cashOutlook() async throws -> Components.Schemas.CashOutlookResponse? {
-        try await MainActor.run { outlook }
+        try await MainActor.run {
+            if let outlookError { throw outlookError }
+            return outlook
+        }
     }
 
     var plan: Components.Schemas.SpendingPlanResponse?
+    var planError: Error?
     nonisolated func spendingPlan() async throws -> Components.Schemas.SpendingPlanResponse? {
-        try await MainActor.run { plan }
+        try await MainActor.run {
+            if let planError { throw planError }
+            return plan
+        }
     }
 
     /// #203 mutations. Kept separate from `error` so a test can fail the write
@@ -132,8 +166,9 @@ final class MockHouseholdAPI: HouseholdAPI, @unchecked Sendable {
             return monthlySpending
                 ?? .init(
                     month: month ?? "2026-07", monthLabel: "July 2026",
-                    categorizedTotal: .init(amountMinor: 0, currency: "USD"),
-                    uncategorized: .init(amountMinor: 0, currency: "USD"))
+                    categorizedTotal: testQualified(0),
+                    uncategorized: testQualified(0),
+                    total: testQualified(0))
         }
     }
 }
@@ -176,8 +211,9 @@ struct OutsideBaseCurrencyNoteTests {
     ) -> Components.Schemas.HouseholdContext {
         .init(
             householdId: "hh-1", displayName: "demo", currency: "USD",
-            netWorth: .init(amountMinor: -298_000_000, currency: "USD"),
-            emergencyFundMonths: 0, accountsOutsideBaseCurrency: outside)
+            netWorth: testQualified(-298_000_000),
+            emergencyFundMonths: 0, savingsContributions: testSavingsSet(),
+            accountsOutsideBaseCurrency: outside)
     }
 
     @Test func namesEachExcludedAccountInItsOwnCurrency() {
@@ -206,6 +242,115 @@ struct OutsideBaseCurrencyNoteTests {
     }
 }
 
+actor ControlledOverviewAPI: HouseholdAPI {
+    private var pendingContexts: [CheckedContinuation<Components.Schemas.HouseholdContext, Error>?] = []
+    private var pendingSync: CheckedContinuation<SyncTotals, Error>?
+    private(set) var requestedMonths: [String?] = []
+
+    func context(month: String?) async throws -> Components.Schemas.HouseholdContext {
+        requestedMonths.append(month)
+        return try await withCheckedThrowingContinuation { continuation in
+            pendingContexts.append(continuation)
+        }
+    }
+
+    func waitForContextRequests(_ count: Int) async {
+        while pendingContexts.count < count { await Task.yield() }
+    }
+
+    func resolveContext(
+        at index: Int, with value: Components.Schemas.HouseholdContext
+    ) {
+        guard pendingContexts.indices.contains(index), let continuation = pendingContexts[index]
+        else { return }
+        pendingContexts[index] = nil
+        continuation.resume(returning: value)
+    }
+
+    func rejectContext(at index: Int) {
+        guard pendingContexts.indices.contains(index), let continuation = pendingContexts[index]
+        else { return }
+        pendingContexts[index] = nil
+        continuation.resume(throwing: APIError.server(503))
+    }
+
+    func transactions(month: String?) async throws -> [Components.Schemas.Transaction] { [] }
+    func syncAll() async throws -> SyncTotals {
+        try await withCheckedThrowingContinuation { pendingSync = $0 }
+    }
+
+    func waitForSyncRequest() async {
+        while pendingSync == nil { await Task.yield() }
+    }
+
+    func resolveSync(_ totals: SyncTotals = SyncTotals()) {
+        let continuation = pendingSync
+        pendingSync = nil
+        continuation?.resume(returning: totals)
+    }
+    func spending(month: String?) async throws -> Components.Schemas.SpendingByCategory {
+        .init(
+            month: month ?? MonthKey.current(), monthLabel: "Current month",
+            categorizedTotal: testQualified(0), uncategorized: testQualified(0),
+            total: testQualified(0))
+    }
+}
+
+struct StaticBudgetsAPI: BudgetsAPI {
+    let response: Components.Schemas.BudgetListResponse
+
+    func budgets() async throws -> Components.Schemas.BudgetListResponse { response }
+    func categories() async throws -> [Components.Schemas.Category] { [] }
+    func createBudget(categoryID: String, limitMinor: Int64, currency: String) async throws {}
+    func updateBudget(id: String, limitMinor: Int64, currency: String) async throws {}
+    func deleteBudget(id: String) async throws {}
+}
+
+@MainActor
+struct BudgetSummaryOwnershipTests {
+    @Test func viewModelPreservesServerSummaryWithoutReducingBudgetRows() async {
+        let row = Components.Schemas.Budget(
+            id: "budget-1", categoryId: "category-1", categoryName: "Food",
+            limit: .init(amountMinor: 10_000, currency: "USD"),
+            spent: testQualified(2_000, incompleteCount: 1))
+        let serverSummary = Components.Schemas.BudgetSummary(
+            envelopeCount: 1, overCount: nil, warningCount: nil,
+            totalBudgeted: .init(amountMinor: 10_000, currency: "USD"),
+            totalSpent: testQualified(9_000, incompleteCount: 3))
+        let viewModel = BudgetsViewModel(
+            api: StaticBudgetsAPI(response: .init(budgets: [row], summary: serverSummary)))
+
+        await viewModel.load()
+
+        #expect(viewModel.budgets.first?.spent.amountMinor == 2_000)
+        #expect(viewModel.summary?.totalSpent.amountMinor == 9_000)
+        #expect(viewModel.summary?.totalSpent.incompleteCount == 3)
+        #expect(viewModel.summary?.overCount == nil)
+        #expect(BudgetsView.statusLine(row) == unavailableValueText)
+    }
+}
+
+@MainActor
+struct SpendingServerTotalTests {
+    @Test func partialZeroIsNotAnEmptySpendingMonth() {
+        let spending = Components.Schemas.SpendingByCategory(
+            month: "2026-08", monthLabel: "August 2026", categories: nil,
+            categorizedTotal: testQualified(0), uncategorized: testQualified(0),
+            total: testQualified(0, incompleteCount: 1))
+
+        #expect(!SpendingCard.isEmpty(spending))
+    }
+
+    @Test func emptyStateUsesServerTotalRatherThanAddingChildren() {
+        let spending = Components.Schemas.SpendingByCategory(
+            month: "2026-08", monthLabel: "August 2026", categories: [],
+            categorizedTotal: testQualified(0), uncategorized: testQualified(0),
+            total: testQualified(5_000))
+
+        #expect(!SpendingCard.isEmpty(spending))
+    }
+}
+
 @MainActor
 struct OverviewViewModelTests {
     private func money(_ minor: Int64) -> Components.Schemas.Money {
@@ -219,9 +364,9 @@ struct OverviewViewModelTests {
             householdId: "hh-1",
             displayName: "demo-household",
             currency: "USD",
-            netWorth: money(1_234_500),
+            netWorth: testQualified(1_234_500),
             emergencyFundMonths: 4.5,
-            savingsContributions: contributions
+            savingsContributions: testSavingsSet(contributions ?? [])
         )
     }
 
@@ -249,20 +394,21 @@ struct OverviewViewModelTests {
                     occurredOn: "2026-08-14", name: "Platinum Card",
                     amount: money(-1_228_241), kind: .creditCard)
             ],
-            endingCash: money(-485_100),
-            lowestBalance: money(-485_100),
+            endingCash: testQualified(-485_100),
+            lowestBalance: testQualified(-485_100),
             lowestDate: "2026-08-14",
-            expectedIncome: money(647_100),
-            obligations: money(2_764_900),
+            expectedIncome: testQualified(647_100),
+            incomeProjection: testAvailability(),
+            obligations: testQualified(2_764_900),
             horizonDays: 30,
-            dueSoon: money(825_400),
+            dueSoon: testQualified(825_400),
             dueSoonCovered: true,
             dueSoonWindowDays: 14)
         let viewModel = OverviewViewModel(api: api, notifications: nil)
 
         await viewModel.load()
 
-        #expect(viewModel.outlook?.lowestBalance.amountMinor == -485_100)
+        #expect(viewModel.outlook?.lowestBalance?.amountMinor == -485_100)
         #expect(viewModel.outlook?.dueSoonCovered == true)
     }
 
@@ -272,21 +418,22 @@ struct OverviewViewModelTests {
         api.context = context()
         api.plan = .init(
             month: "2026-07",
-            incomeReceived: money(401_000),
-            incomeProjected: money(324_000),
-            expectedIncome: money(725_100),
-            spent: money(1_284_000),
-            billsRemaining: money(3_800),
+            incomeReceived: testQualified(401_000),
+            incomeProjected: testQualified(324_000),
+            expectedIncome: testQualified(725_100),
+            incomeProjection: testAvailability(),
+            spent: testQualified(1_284_000),
+            billsRemaining: testQualified(3_800),
             accountObligations: money(438_400),
             plannedSavings: money(0),
-            leftToSpend: money(-1_001_100),
-            perDay: money(0),
+            leftToSpend: testQualified(-1_001_100),
+            perDay: testQualified(0),
             daysRemaining: 15)
         let viewModel = OverviewViewModel(api: api, notifications: nil)
 
         await viewModel.load()
 
-        #expect(viewModel.plan?.leftToSpend.amountMinor == -1_001_100)
+        #expect(viewModel.plan?.leftToSpend?.amountMinor == -1_001_100)
         #expect(viewModel.plan?.daysRemaining == 15)
     }
 
@@ -304,6 +451,23 @@ struct OverviewViewModelTests {
         #expect(!viewModel.isSyncing)
     }
 
+    @Test func changingMonthDuringSyncStillClearsSyncOwnership() async {
+        let api = ControlledOverviewAPI()
+        let viewModel = OverviewViewModel(api: api, notifications: nil, snapshotStore: nil)
+
+        let sync = Task { await viewModel.syncNow() }
+        await api.waitForSyncRequest()
+        let monthLoad = Task { await viewModel.show(month: "2026-01") }
+        await api.waitForContextRequests(1)
+
+        await api.resolveSync()
+        _ = await sync.value
+        #expect(!viewModel.isSyncing)
+
+        await api.resolveContext(at: 0, with: context())
+        _ = await monthLoad.value
+    }
+
     @Test func surfacesAFailureInsteadOfShowingStaleNumbers() async {
         let api = MockHouseholdAPI()
         api.error = APIError.unauthorized
@@ -315,11 +479,243 @@ struct OverviewViewModelTests {
         #expect(viewModel.errorMessage?.contains("pairing") == true)
     }
 
+    @Test func optionalFailureKeepsAuthoritativeContext() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        api.outlookError = APIError.server(503)
+        api.planError = APIError.server(503)
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: nil)
+
+        await viewModel.load()
+
+        #expect(viewModel.context?.householdId == "hh-1")
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.outlook == nil)
+        #expect(viewModel.plan == nil)
+        #expect(viewModel.outlookErrorMessage != nil)
+        #expect(viewModel.planErrorMessage != nil)
+    }
+
+    @Test func ownerValidCurrentFailureClearsDecisionsGoalNamesAndSnapshot() async {
+        let api = MockHouseholdAPI()
+        let goals = MockGoalsAPI()
+        goals.result = [
+            .init(
+                id: "goal-1", name: "College", _type: .college,
+                target: money(1_000_000), current: money(100_000), priority: 1)
+        ]
+        api.context = context(contributions: [
+            contribution(
+                "College", amount: 10_000, frequency: .monthly,
+                monthly: 10_000, occurrences: 2, goalID: "goal-1")
+        ])
+        api.outlook = .init(
+            startingCash: money(500_000), events: [], endingCash: testQualified(450_000),
+            lowestBalance: testQualified(400_000), lowestDate: "2026-09-10",
+            expectedIncome: testQualified(100_000), incomeProjection: testAvailability(),
+            obligations: testQualified(50_000), horizonDays: 30,
+            dueSoon: testQualified(25_000), dueSoonCovered: true, dueSoonWindowDays: 14)
+        api.plan = .init(
+            month: MonthKey.current(), incomeReceived: testQualified(100_000),
+            incomeProjected: testQualified(50_000), expectedIncome: testQualified(150_000),
+            incomeProjection: testAvailability(), spent: testQualified(40_000),
+            billsRemaining: testQualified(20_000), accountObligations: money(10_000),
+            plannedSavings: money(5_000), leftToSpend: testQualified(75_000),
+            perDay: testQualified(3_000), daysRemaining: 25)
+        let suite = "test.overview.failure.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        let viewModel = OverviewViewModel(
+            api: api, goalsAPI: goals, notifications: nil, snapshotStore: store)
+
+        await viewModel.load()
+        #expect(viewModel.context != nil)
+        #expect(viewModel.outlook != nil)
+        #expect(viewModel.plan != nil)
+        #expect(viewModel.goalNames["goal-1"] == "College")
+        #expect(store.load() != nil)
+
+        api.error = APIError.server(503)
+        await viewModel.load()
+
+        #expect(viewModel.context == nil)
+        #expect(viewModel.outlook == nil)
+        #expect(viewModel.plan == nil)
+        #expect(viewModel.goalNames.isEmpty)
+        #expect(viewModel.outlookErrorMessage == nil)
+        #expect(viewModel.planErrorMessage == nil)
+        #expect(viewModel.errorMessage != nil)
+        #expect(store.load() == nil)
+    }
+
+    @Test func historicalContextFailurePreservesCurrentSnapshot() async {
+        let api = MockHouseholdAPI()
+        api.context = context()
+        let suite = "test.overview.historical-failure.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: store)
+        await viewModel.load()
+        let currentSnapshot = try! #require(store.load())
+
+        api.error = APIError.server(503)
+        await viewModel.show(month: "2026-08")
+
+        #expect(viewModel.context == nil)
+        #expect(viewModel.errorMessage != nil)
+        #expect(store.load() == currentSnapshot)
+    }
+
+    @Test func staleContextFailureCannotClearNewerSuccessOrSnapshot() async {
+        let api = ControlledOverviewAPI()
+        let suite = "test.overview.stale-failure.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: store,
+            ownerIdentity: { "household-a:session-1" })
+
+        let older = Task { await viewModel.load() }
+        await api.waitForContextRequests(1)
+        let newer = Task { await viewModel.load() }
+        await api.waitForContextRequests(2)
+        await api.resolveContext(at: 1, with: context(netWorthMinor: 222))
+        _ = await newer.value
+        await api.rejectContext(at: 0)
+        _ = await older.value
+
+        #expect(viewModel.context?.netWorth.amountMinor == 222)
+        #expect(viewModel.errorMessage == nil)
+        #expect(store.load()?.netWorthMinor == 222)
+    }
+
+    @Test func newerSameMonthLoadWinsAndOwnsTheSnapshot() async {
+        let api = ControlledOverviewAPI()
+        let suite = "test.overview.owner.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        let identity = "household-a:session-1"
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: store,
+            ownerIdentity: { identity })
+
+        let older = Task { await viewModel.load() }
+        await api.waitForContextRequests(1)
+        let newer = Task { await viewModel.load() }
+        await api.waitForContextRequests(2)
+
+        await api.resolveContext(at: 1, with: context(netWorthMinor: 222))
+        _ = await newer.value
+        await api.resolveContext(at: 0, with: context(netWorthMinor: 111))
+        _ = await older.value
+
+        #expect(viewModel.context?.netWorth.amountMinor == 222)
+        #expect(store.load()?.netWorthMinor == 222)
+    }
+
+    @Test func cancelledLoadCannotCommit() async {
+        let api = ControlledOverviewAPI()
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: nil,
+            ownerIdentity: { "household-a:session-1" })
+        let load = Task { await viewModel.load() }
+        await api.waitForContextRequests(1)
+
+        load.cancel()
+        await api.resolveContext(at: 0, with: context(netWorthMinor: 111))
+        _ = await load.value
+
+        #expect(viewModel.context == nil)
+    }
+
+    @Test func sessionReplacementRejectsCompletionAndSnapshotSideEffect() async {
+        let api = ControlledOverviewAPI()
+        let suite = "test.overview.session.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        store.save(
+            OverviewSnapshot(
+                netWorthMinor: 999, currency: "USD", emergencyFundStatus: "On track",
+                emergencyFundMonths: 4, capturedAt: Date()))
+        var identity = "household-a:session-1"
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: store,
+            ownerIdentity: { identity })
+        let load = Task { await viewModel.load() }
+        await api.waitForContextRequests(1)
+
+        identity = "household-b:session-2"
+        await api.resolveContext(at: 0, with: context(netWorthMinor: 111))
+        _ = await load.value
+
+        #expect(viewModel.context == nil)
+        #expect(store.load()?.netWorthMinor == 999)
+    }
+
+    @Test func monthReplacementRejectsOldCurrentSideEffects() async {
+        let api = ControlledOverviewAPI()
+        let suite = "test.overview.month.\(UUID().uuidString)"
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        let store = OverviewSnapshotStore(suiteName: suite)
+        store.save(
+            OverviewSnapshot(
+                netWorthMinor: 999, currency: "USD", emergencyFundStatus: "On track",
+                emergencyFundMonths: 4, capturedAt: Date()))
+        let viewModel = OverviewViewModel(
+            api: api, notifications: nil, snapshotStore: store,
+            ownerIdentity: { "household-a:session-1" })
+
+        let current = Task { await viewModel.load() }
+        await api.waitForContextRequests(1)
+        let historical = Task { await viewModel.show(month: "2026-08") }
+        await api.waitForContextRequests(2)
+        await api.resolveContext(at: 1, with: context(netWorthMinor: 222))
+        _ = await historical.value
+        await api.resolveContext(at: 0, with: context(netWorthMinor: 111))
+        _ = await current.value
+
+        #expect(viewModel.context?.netWorth.amountMinor == 222)
+        #expect(store.load()?.netWorthMinor == 999)
+    }
+
+    private func context(netWorthMinor: Int64) -> Components.Schemas.HouseholdContext {
+        .init(
+            householdId: "hh-1", displayName: "demo-household", currency: "USD",
+            netWorth: testQualified(netWorthMinor), emergencyFundMonths: 4.5,
+            savingsContributions: testSavingsSet())
+    }
+
     /// Money is stored in minor units by contract (M2); rendering them raw
     /// would show a $12,345 net worth as "$1,234,500".
     @Test func moneyFormatsFromMinorUnits() {
         #expect(money(1_234_500).formatted == "$12,345")
         #expect(money(4_299).formattedExact == "$42.99")
+    }
+
+    @Test func qualifiedMoneyDisclosesPartialZeroAndPluralizesForVoiceOver() {
+        let exact = testQualified(0)
+        let singular = testQualified(0, incompleteCount: 1)
+        let plural = testQualified(4_299, incompleteCount: 2)
+
+        #expect(!exact.isPartial)
+        #expect(exact.partialDisclosure == nil)
+        #expect(singular.isPartial)
+        #expect(singular.partialDisclosure?.contains("1 stored amount") == true)
+        #expect(plural.partialDisclosure?.contains("2 stored amounts") == true)
+        #expect(singular.accessibilityDescription.contains(singular.formatted))
+        #expect(singular.accessibilityDescription.contains("Partial total"))
+    }
+
+    @Test func unavailableAvailabilityIsDistinctFromExactZero() {
+        let unavailable = testAvailability(.unavailable, incompleteCount: 2)
+        let complete = testAvailability()
+
+        #expect(unavailable.isUnavailable)
+        #expect(unavailable.unavailableDisclosure?.contains("2 stored amounts") == true)
+        #expect(!complete.isUnavailable)
+        #expect(complete.unavailableDisclosure == nil)
     }
 
     @Test func dueDescriptionReadsNaturally() {
@@ -383,6 +779,19 @@ struct OverviewViewModelTests {
         #expect(OverviewView.monthlyTotal([]) == nil)
     }
 
+    @Test func unavailableDetectionDoesNotTurnReadableRowsIntoAnExactTotal() {
+        let set = Components.Schemas.SavingsContributionSet(
+            contributions: [
+                contribution(
+                    "Declared 529", amount: 50_000, frequency: .monthly,
+                    monthly: 50_000, occurrences: 0, declared: true)
+            ],
+            detection: .init(status: .unavailable, incompleteCount: 1))
+
+        #expect(OverviewView.monthlyTotal(set) == nil)
+        #expect(set.contributions.count == 1)
+    }
+
     @Test func contributionRowsReadInPlainEnglish() {
         #expect(
             OverviewView.contributionDetail(
@@ -434,11 +843,12 @@ struct OverviewViewModelTests {
     ) -> Components.Schemas.SavingsRate {
         .init(
             percent: 12,
-            monthlyIncome: .init(amountMinor: 800_000, currency: "USD"),
-            averageMonthlySpending: .init(amountMinor: 500_000, currency: "USD"),
-            transfers: transfers.map { .init(amountMinor: $0, currency: "USD") },
+            monthlyIncome: testQualified(800_000),
+            averageMonthlySpending: testQualified(500_000),
+            transfers: transfers.map { testQualified($0) },
+            transferDetection: testAvailability(),
             payrollDeductions: payroll.map { .init(amountMinor: $0, currency: "USD") },
-            residual: residual.map { .init(amountMinor: $0, currency: "USD") },
+            residual: residual.map { testQualified($0) },
             payrollProfilePresent: payrollProfilePresent
         )
     }
@@ -704,7 +1114,7 @@ struct EmergencyFundPresentationTests {
             months: months,
             reserved: .init(amountMinor: 500_000, currency: "USD"),
             usingDesignations: false,
-            monthlyExpenses: .init(amountMinor: 100_000, currency: "USD"),
+            monthlyExpenses: testQualified(100_000),
             targetMonthsMin: 3,
             targetMonthsRecommended: recommended,
             status: status
@@ -825,6 +1235,37 @@ struct CategorySpendingDetailTests {
 }
 
 
+final class YearlyReviewConflictTransport: ClientTransport, @unchecked Sendable {
+    func send(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let payload = Data(
+            #"{"error":{"code":"sealed_amount_unreadable","message":"A required amount is unreadable."}}"#.utf8)
+        return (
+            HTTPResponse(status: .conflict, headerFields: [.contentType: "application/json"]),
+            HTTPBody(payload))
+    }
+}
+
+struct YearlyReviewAdapterTests {
+    @Test func typedConflictMapsToIncompleteData() async {
+        let client = Client(
+            serverURL: URL(string: "https://box.local")!,
+            transport: YearlyReviewConflictTransport())
+        let api = LiveHouseholdAPI(client: client)
+
+        do {
+            _ = try await api.generateYearlyReview(year: 2026)
+            Issue.record("expected typed 409 to throw incompleteData")
+        } catch {
+            #expect(error as? APIError == .incompleteData)
+        }
+    }
+}
+
 @MainActor
 struct YearlyOverviewViewModelTests {
     final class MockYearlyAPI: HouseholdAPI, @unchecked Sendable {
@@ -857,13 +1298,13 @@ struct YearlyOverviewViewModelTests {
             months: [
                 .init(
                     month: "\(year)-01",
-                    income: .init(amountMinor: 500_000, currency: "USD"),
-                    spending: .init(amountMinor: 300_000, currency: "USD"),
-                    net: .init(amountMinor: 200_000, currency: "USD"))
+                    income: testQualified(500_000),
+                    spending: testQualified(300_000),
+                    net: testQualified(200_000))
             ],
-            totalIncome: .init(amountMinor: 500_000, currency: "USD"),
-            totalSpending: .init(amountMinor: 300_000, currency: "USD"),
-            totalNet: .init(amountMinor: 200_000, currency: "USD"),
+            totalIncome: testQualified(500_000),
+            totalSpending: testQualified(300_000),
+            totalNet: testQualified(200_000),
             topCategories: [])
     }
 
@@ -939,7 +1380,7 @@ struct CashOutlookStatementTreatmentTests {
                     .init(
                         id: "card-1", kind: .creditCard, name: "Sapphire",
                         amount: .init(amountMinor: 128_450, currency: "USD"),
-                        dueDate: "2026-08-12", daysUntil: 4, source: "statement",
-                        statementId: nil, status: .dueSoon)))
+                        dueDate: "2026-08-12", daysUntil: 4, status: .dueSoon,
+                        source: "statement", statementId: nil)))
     }
 }

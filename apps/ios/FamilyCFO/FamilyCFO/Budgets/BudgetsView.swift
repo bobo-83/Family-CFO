@@ -21,26 +21,24 @@ struct BudgetsView: View {
             }
             if let summary = viewModel.summary {
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Budgeted \(summary.limit) a month")
-                                .font(.callout.weight(.semibold))
-                            Spacer()
-                            Text("\(summary.percentUsed)% used")
-                                .font(.callout)
-                                .monospacedDigit()
-                                .foregroundStyle(
-                                    summary.percentUsed >= 100
-                                        ? .red : summary.percentUsed >= 80 ? .orange : .secondary)
-                        }
-                        ProgressView(value: min(Double(summary.percentUsed) / 100, 1))
-                            .tint(
-                                summary.percentUsed >= 100
-                                    ? .red : summary.percentUsed >= 80 ? .orange : .green)
-                        Text("\(summary.spent) spent so far")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Budgeted \(summary.totalBudgeted.formatted) a month")
+                            .font(.callout.weight(.semibold))
+                        Text("\(summary.totalSpent.formatted) spent so far")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let disclosure = summary.totalSpent.partialDisclosure {
+                            partialNote(disclosure)
+                        }
+                        if let over = summary.overCount, let warning = summary.warningCount {
+                            Text("\(over) over · \(warning) warning")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            unavailableNote()
+                        }
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
             if viewModel.budgets.isEmpty && !viewModel.isLoading {
@@ -100,11 +98,19 @@ struct BudgetsView: View {
                     .font(.subheadline.weight(.medium))
                     .monospacedDigit()
             }
-            ProgressView(value: min(Double(budget.percentUsed), 100), total: 100)
-                .tint(Self.statusColor(budget.status))
-            Text(Self.statusLine(budget))
-                .font(.caption)
-                .foregroundStyle(budget.status == .over ? Color.red : Color.secondary)
+            if let percent = budget.percentUsed, let status = budget.status,
+                budget.remaining != nil {
+                ProgressView(value: min(Double(percent), 100), total: 100)
+                    .tint(Self.statusColor(status))
+                Text(Self.statusLine(budget))
+                    .font(.caption)
+                    .foregroundStyle(status == .over ? Color.red : Color.secondary)
+            } else {
+                unavailableNote()
+            }
+            if let disclosure = budget.spent.partialDisclosure {
+                partialNote(disclosure)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -114,21 +120,38 @@ struct BudgetsView: View {
         case .under: return .green
         case .warning: return .orange
         case .over: return .red
+        case ._empty_: return .secondary
         }
     }
 
     static func statusLine(_ budget: Components.Schemas.Budget) -> String {
-        switch budget.status {
+        guard let status = budget.status, let remaining = budget.remaining,
+            let percent = budget.percentUsed
+        else { return unavailableValueText }
+        switch status {
         case .over:
             let over = Components.Schemas.Money(
-                amountMinor: -budget.remaining.amountMinor, currency: budget.remaining.currency)
+                amountMinor: -remaining.amountMinor, currency: remaining.currency)
             return String(localized: "Over by \(over.formattedExact)")
         case .warning:
-            return String(
-                localized: "\(budget.remaining.formattedExact) left · \(budget.percentUsed)% used")
+            return String(localized: "\(remaining.formattedExact) left · \(percent)% used")
         case .under:
-            return String(localized: "\(budget.remaining.formattedExact) left this month")
+            return String(localized: "\(remaining.formattedExact) left this month")
+        case ._empty_:
+            return unavailableValueText
         }
+    }
+
+    private func partialNote(_ disclosure: String) -> some View {
+        Label(disclosure, systemImage: "exclamationmark.circle")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+    }
+
+    private func unavailableNote() -> some View {
+        Label(unavailableValueText, systemImage: "questionmark.circle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 }
 

@@ -15,13 +15,20 @@ final class MonthTransactionsCache {
     func reload(
         month: String,
         transactions: () async throws -> [Components.Schemas.Transaction],
-        categories: () async throws -> [Components.Schemas.Category]
+        categories: () async throws -> [Components.Schemas.Category],
+        stillCurrent: @MainActor () -> Bool = { true }
     ) async {
         do {
             async let txns = transactions()
             async let cats = categories()
-            byMonth[month] = try await txns
-            categoryList = try await cats
+            let loadedTransactions = try await txns
+            guard stillCurrent(), !Task.isCancelled else { return }
+            let loadedCategories = try await cats
+            guard stillCurrent(), !Task.isCancelled else { return }
+            // Commit the pair together only after both request results still
+            // belong to the same household/session, month, and generation.
+            byMonth[month] = loadedTransactions
+            categoryList = loadedCategories
         } catch {
             // Keep whatever we already had; the drill-down falls back if empty.
         }

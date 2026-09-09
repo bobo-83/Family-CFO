@@ -46,17 +46,31 @@ struct OverviewView: View {
             }
             .navigationTitle("Overview")
         }
-        .task {
-            if viewModel == nil, let api = model.household {
-                viewModel = OverviewViewModel(api: api, goalsAPI: model.goalsAPI)
+        .task(id: model.householdSessionIdentity) {
+            guard let identity = model.householdSessionIdentity, let api = model.household else {
+                viewModel = nil
+                yearlyModel = nil
+                return
             }
-            if yearlyModel == nil, let api = model.household {
-                yearlyModel = YearlyOverviewViewModel(api: api)
-            }
-            await viewModel?.load()
+            let categorize = model.categorize
+            let loadedViewModel = OverviewViewModel(
+                api: api, goalsAPI: model.goalsAPI,
+                ownerIdentity: { model.householdSessionIdentity }, apiIdentity: identity,
+                notificationScope: model.billNotificationScope)
+            viewModel = loadedViewModel
+            yearlyModel = YearlyOverviewViewModel(api: api)
+
+            guard let owner = await loadedViewModel.load(), loadedViewModel.owns(owner),
+                viewModel === loadedViewModel, model.householdSessionIdentity == identity
+            else { return }
             // Seed the shared freshness clock so every tab agrees (M103).
-            model.syncStatus.observe(viewModel?.context?.lastSyncedAt)
-            if let month = viewModel?.selectedMonth { await warmMonthCache(month) }
+            model.syncStatus.observe(loadedViewModel.context?.lastSyncedAt)
+            guard loadedViewModel.owns(owner), viewModel === loadedViewModel,
+                model.householdSessionIdentity == identity, let categorize
+            else { return }
+            await warmMonthCache(
+                owner.month, owner: owner, viewModel: loadedViewModel,
+                household: api, categorize: categorize)
         }
         // The household language rides along automatically: every live context
         // fetch seeds AppModel.householdLanguage inside LiveHouseholdAPI (#10).
@@ -65,12 +79,35 @@ struct OverviewView: View {
     /// Load the month's transactions + categories into the shared cache (M105) so
     /// spending drill-downs read from memory. This is the one explicit fetch —
     /// triggered by Overview loading or a pull-to-refresh, not by drilling in.
-    private func warmMonthCache(_ month: String) async {
-        guard let household = model.household, let categorize = model.categorize else { return }
+    private func warmMonthCache(
+        _ month: String,
+        owner: OverviewViewModel.LoadOwner,
+        viewModel: OverviewViewModel,
+        household: HouseholdAPI,
+        categorize: CategorizeAPI
+    ) async {
+        guard viewModel.owns(owner), self.viewModel === viewModel else { return }
         await model.monthTransactions.reload(
             month: month,
             transactions: { try await household.transactions(month: month) },
-            categories: { try await categorize.categories() })
+            categories: { try await categorize.categories() },
+            stillCurrent: {
+                viewModel.owns(owner) && self.viewModel === viewModel
+                    && model.householdSessionIdentity == owner.identity
+            })
+    }
+
+    private func warmOwnedMonthCache(
+        _ owner: OverviewViewModel.LoadOwner,
+        viewModel: OverviewViewModel
+    ) async {
+        guard viewModel.owns(owner), self.viewModel === viewModel,
+            model.householdSessionIdentity == owner.identity,
+            let household = model.household, let categorize = model.categorize
+        else { return }
+        await warmMonthCache(
+            owner.month, owner: owner, viewModel: viewModel,
+            household: household, categorize: categorize)
     }
 
     /// The Overview-wide month selector (M96): step the whole page back through
@@ -79,8 +116,8 @@ struct OverviewView: View {
         HStack {
             Button {
                 Task {
-                    await viewModel.shiftMonth(-1)
-                    await warmMonthCache(viewModel.selectedMonth)
+                    guard let owner = await viewModel.shiftMonth(-1) else { return }
+                    await warmOwnedMonthCache(owner, viewModel: viewModel)
                 }
             } label: {
                 Image(systemName: "chevron.left").font(.headline)
@@ -96,8 +133,8 @@ struct OverviewView: View {
             Spacer()
             Button {
                 Task {
-                    await viewModel.shiftMonth(1)
-                    await warmMonthCache(viewModel.selectedMonth)
+                    guard let owner = await viewModel.shiftMonth(1) else { return }
+                    await warmOwnedMonthCache(owner, viewModel: viewModel)
                 }
             } label: {
                 Image(systemName: "chevron.right").font(.headline)
@@ -115,8 +152,13 @@ struct OverviewView: View {
             } description: {
                 Text(errorMessage)
             } actions: {
-                Button("Retry") { Task { await viewModel.load() } }
-                    .buttonStyle(.borderedProminent)
+                Button("Retry") {
+                    Task {
+                        guard let owner = await viewModel.load() else { return }
+                        await warmOwnedMonthCache(owner, viewModel: viewModel)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
             }
         } else if let context = viewModel.context {
             ScrollView {
@@ -133,8 +175,8 @@ struct OverviewView: View {
                                 // Drill-down: jump the whole Overview to that month.
                                 viewMode = .month
                                 Task {
-                                    await viewModel.show(month: month)
-                                    await warmMonthCache(month)
+                                    guard let owner = await viewModel.show(month: month) else { return }
+                                    await warmOwnedMonthCache(owner, viewModel: viewModel)
                                 }
                             }
                         }
@@ -169,10 +211,14 @@ struct OverviewView: View {
                     // projection with paychecks counted.
                     if let outlook = viewModel.outlook {
                         cashOutlookCard(outlook)
+                    } else if viewModel.outlookErrorMessage != nil {
+                        sectionUnavailable("Cash outlook")
                     }
                     // M113 (ADR 0027): the month plan — income vs spent vs committed.
                     if let plan = viewModel.plan {
                         spendingPlanCard(plan)
+                    } else if viewModel.planErrorMessage != nil {
+                        sectionUnavailable("Spending plan")
                     }
                     if let sts = context.safeToSpend {
                         safeToSpendCard(sts, context.upcomingBills ?? [])
@@ -180,7 +226,8 @@ struct OverviewView: View {
                     // Spending-by-category sits high: it's the freshest result of
                     // the user's categorizing, and the thing they came to see.
                     if let spending = context.spendingByCategory,
-                        !(spending.categories ?? []).isEmpty,
+                        (!(spending.categories ?? []).isEmpty || spending.total.amountMinor != 0
+                            || spending.total.isPartial),
                         let api = model.household, let categorize = model.categorize {
                         SpendingCard(
                             spending: spending, api: api, categorizeAPI: categorize,
@@ -199,9 +246,9 @@ struct OverviewView: View {
                     // #203: the card shows even with nothing detected — a
                     // household whose destination never syncs has no other way
                     // to reach the declare action.
-                    if let contributions = context.savingsContributions,
-                        !contributions.isEmpty || viewModel.isCurrentMonth {
-                        savingsContributionsCard(contributions, viewModel)
+                    let contributionSet = context.savingsContributions
+                    if !contributionSet.contributions.isEmpty || viewModel.isCurrentMonth {
+                        savingsContributionsCard(contributionSet, viewModel)
                     }
                     if let budgets = context.budgetSummary, budgets.envelopeCount > 0 {
                         budgetCard(budgets)
@@ -219,10 +266,14 @@ struct OverviewView: View {
             // Pull-to-refresh runs the bank sync, same as every other tab, and
             // re-warms the drill-down cache (M105) so it reflects the new data.
             .refreshable {
-                await viewModel.syncNow()
+                guard let owner = await viewModel.syncNow(), viewModel.owns(owner),
+                    self.viewModel === viewModel
+                else { return }
                 model.syncStatus.markSynced()
+                guard viewModel.owns(owner), self.viewModel === viewModel else { return }
                 model.monthTransactions.invalidate()
-                await warmMonthCache(viewModel.selectedMonth)
+                guard viewModel.owns(owner), self.viewModel === viewModel else { return }
+                await warmOwnedMonthCache(owner, viewModel: viewModel)
             }
             .safeAreaInset(edge: .bottom) {
                 SyncStatusFooter(status: model.syncStatus)
@@ -293,82 +344,86 @@ struct OverviewView: View {
     /// check: a payment 15–30 days out (e.g. a big credit-card statement) fell
     /// outside the 14-day window, so the card could read "covered ✓" while the
     /// math below projected the balance thousands negative.
+    @ViewBuilder
     private func cashOutlookCard(_ outlook: Components.Schemas.CashOutlookResponse) -> some View {
-        NavigationLink {
-            CashOutlookDetailView(outlook: outlook)
-        } label: {
-            Card("Cash outlook", systemImage: "calendar.badge.clock") {
-                // ADR 0069: THE headline — will cash cover what's due, and by
-                // when must an RSU sale start (4 business days' notice) to
-                // close the gap. Front and center per user request 2026-07-26.
-                if let sellBy = outlook.sellByDate, let shortDay = outlook.firstShortfallDate {
-                    Label(
-                        Self.runwayHeadline(outlook) + BillsView.shortDate(sellBy),
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.red)
-                    Text(
-                        String(localized: "cash runs short \(BillsView.shortDate(shortDay))")
-                            + (outlook.shortfall.map {
-                                String(localized: " — raise at least \($0.value1.formatted)")
-                            } ?? "")
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.orange)
-                } else if outlook.lowestBalance.amountMinor < 0 {
-                    Label(
-                        "Your cash runs short over the next \(outlook.horizonDays) days",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.orange)
-                } else {
-                    Label(
-                        "Cash covers everything due in the next \(outlook.horizonDays) days",
-                        systemImage: "checkmark.circle.fill"
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.green)
+        if let lowest = outlook.lowestBalance, let ending = outlook.endingCash,
+            let expected = outlook.expectedIncome {
+            if lowest.isPartial || ending.isPartial || expected.isPartial {
+                Card("Cash outlook", systemImage: "calendar.badge.clock") {
+                    Text(verbatim: lowest.formatted)
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if let note = lowest.partialDisclosure { qualifiedStatus(note) }
+                    qualifiedLeaf("Expected paychecks", expected)
+                    qualifiedLeaf("In \(outlook.horizonDays) days", ending)
+                    qualifiedLeaf("Payments", outlook.obligations)
                 }
-                Text(verbatim: outlook.lowestBalance.formatted)
-                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                    .foregroundStyle(outlook.lowestBalance.amountMinor >= 0 ? Color.primary : .red)
-                Text(
-                    outlook.lowestDate.map {
-                        String(
-                            localized:
-                                "lowest your cash reaches in the next \(outlook.horizonDays) days")
-                            + " · \(BillsView.shortDate($0))"
+            } else {
+            NavigationLink {
+                CashOutlookDetailView(outlook: outlook)
+            } label: {
+                Card("Cash outlook", systemImage: "calendar.badge.clock") {
+                    if let sellBy = outlook.sellByDate, let shortDay = outlook.firstShortfallDate {
+                        Label(
+                            Self.runwayHeadline(outlook) + BillsView.shortDate(sellBy),
+                            systemImage: "exclamationmark.triangle.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.red)
+                        Text(
+                            String(localized: "cash runs short \(BillsView.shortDate(shortDay))")
+                                + (outlook.shortfall.map {
+                                    String(localized: " — raise at least \($0.formatted)")
+                                } ?? ""))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.orange)
+                    } else if lowest.amountMinor < 0 {
+                        Label(
+                            "Your cash runs short over the next \(outlook.horizonDays) days",
+                            systemImage: "exclamationmark.triangle.fill")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.orange)
+                    } else {
+                        Label(
+                            "Cash covers everything due in the next \(outlook.horizonDays) days",
+                            systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.green)
                     }
-                        ?? String(
-                            localized:
-                                "no payments or paydays expected in the next \(outlook.horizonDays) days"
-                        )
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                Text(
-                    String(
-                        localized: """
-                            \(outlook.startingCash.formatted) cash + \
-                            \(outlook.expectedIncome.formatted) expected paychecks − \
-                            \(outlook.obligations.formatted) payments \
-                            = \(outlook.endingCash.formatted)
-                            """)
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                HStack(spacing: 3) {
-                    Text("Tap for the day-by-day projection")
-                    Image(systemName: "chevron.right")
+                    Text(verbatim: lowest.formatted)
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                        .foregroundStyle(lowest.amountMinor >= 0 ? Color.primary : .red)
+                    Text(
+                        outlook.lowestDate.map {
+                            String(localized: "lowest your cash reaches in the next \(outlook.horizonDays) days")
+                                + " · \(BillsView.shortDate($0))"
+                        } ?? String(localized: "no payments or paydays expected in the next \(outlook.horizonDays) days"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(outlook.startingCash.formatted) cash + \(expected.formatted) expected paychecks − \(outlook.obligations.formatted) payments = \(ending.formatted)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Text("Tap for the day-by-day projection")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.tint)
                 }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.tint)
-                .padding(.top, 2)
+            }
+            .buttonStyle(.plain)
+            }
+        } else {
+            Card("Cash outlook", systemImage: "calendar.badge.clock") {
+                Text(verbatim: unavailableValueText)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if let disclosure = outlook.incomeProjection.unavailableDisclosure {
+                    qualifiedStatus(disclosure)
+                }
+                qualifiedLeaf("Payments", outlook.obligations)
+                qualifiedLeaf("Due soon", outlook.dueSoon)
             }
         }
-        .buttonStyle(.plain)
     }
 
     /// The runway verb, with the shortfall translated into shares when the
@@ -386,50 +441,62 @@ struct OverviewView: View {
     /// cash outlook's cash-timing view.
     private func spendingPlanCard(_ plan: Components.Schemas.SpendingPlanResponse) -> some View {
         Card("Left to spend this month", systemImage: "chart.pie") {
-            Text(verbatim: plan.leftToSpend.formatted)
-                .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                .foregroundStyle(plan.leftToSpend.amountMinor >= 0 ? Color.primary : .red)
-            if plan.leftToSpend.amountMinor >= 0 {
-                Text(
-                    String(
-                        localized: """
-                            about \(plan.perDay.formatted)/day for the remaining \
-                            \(plan.daysRemaining) days
-                            """)
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let left = plan.leftToSpend, let perDay = plan.perDay,
+                !left.isPartial, !perDay.isPartial {
+                Text(verbatim: left.formatted)
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                    .foregroundStyle(left.amountMinor >= 0 ? Color.primary : .red)
+                if left.amountMinor >= 0 {
+                    Text("about \(perDay.formatted)/day for the remaining \(plan.daysRemaining) days")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("this month's spending has outrun this month's income — the gap is drawing on cash you already had")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Text(Self.planEquation(plan))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let left = plan.leftToSpend {
+                Text(verbatim: left.formatted)
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                if let disclosure = left.partialDisclosure { qualifiedStatus(disclosure) }
+                if let perDay = plan.perDay {
+                    Text("about \(perDay.formatted)/day for the remaining \(plan.daysRemaining) days")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let disclosure = perDay.partialDisclosure { qualifiedStatus(disclosure) }
+                }
+                qualifiedLeaf("Income received", plan.incomeReceived)
+                qualifiedLeaf("Spent", plan.spent)
+                qualifiedLeaf("Bills still due", plan.billsRemaining)
             } else {
-                Text(
-                    String(
-                        localized: """
-                            this month's spending has outrun this month's income — \
-                            the gap is drawing on cash you already had
-                            """)
-                )
-                .font(.caption)
-                .foregroundStyle(.orange)
+                Text(verbatim: unavailableValueText)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if let disclosure = plan.incomeProjection.unavailableDisclosure {
+                    qualifiedStatus(disclosure)
+                }
+                qualifiedLeaf("Income received", plan.incomeReceived)
+                qualifiedLeaf("Spent", plan.spent)
+                qualifiedLeaf("Bills still due", plan.billsRemaining)
             }
-            Text(Self.planEquation(plan))
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
-    /// The plan's equation, built in plain string pieces — a single interpolated
-    /// expression here is too much for the type checker.
+    /// The plan's equation uses server-authored values only. A missing projection
+    /// makes the equation unavailable; it is never rebuilt from partial leaves.
     static func planEquation(_ plan: Components.Schemas.SpendingPlanResponse) -> String {
+        guard let expected = plan.expectedIncome, let projected = plan.incomeProjected else {
+            return unavailableValueText
+        }
         var parts: [String] = []
-        let income = plan.expectedIncome.formatted
-        let received = plan.incomeReceived.formatted
-        let toCome = plan.incomeProjected.formatted
-        parts.append(
-            String(localized: "\(income) expected income (\(received) received + \(toCome) to come)")
-        )
+        parts.append(String(localized: "\(expected.formatted) expected income (\(plan.incomeReceived.formatted) received + \(projected.formatted) to come)"))
         parts.append(String(localized: "\(plan.spent.formatted) spent"))
         parts.append(String(localized: "\(plan.billsRemaining.formatted) bills still due"))
-        parts.append(
-            String(localized: "\(plan.accountObligations.formatted) loan & lease payments"))
+        parts.append(String(localized: "\(plan.accountObligations.formatted) loan & lease payments"))
         if plan.plannedSavings.amountMinor > 0 {
             parts.append(String(localized: "\(plan.plannedSavings.formatted) planned savings"))
         }
@@ -439,79 +506,81 @@ struct OverviewView: View {
     /// M93, reframed by M112: the zero-income worst case. The cash outlook above
     /// answers "can I spend?"; this answers "what if every commitment were called
     /// today and no paycheck ever arrived?" — deliberately harsher.
+    @ViewBuilder
     private func safeToSpendCard(
         _ sts: Components.Schemas.SafeToSpend,
         _ upcomingBills: [Components.Schemas.UpcomingBill]
     ) -> some View {
-        NavigationLink {
-            SafeToSpendDetailView(safeToSpend: sts, upcomingBills: upcomingBills)
-        } label: {
-            Card("Stress test", systemImage: "shield.lefthalf.filled") {
-                Text(verbatim: sts.safeToSpend.formatted)
-                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-                    .foregroundStyle(sts.safeToSpend.amountMinor >= 0 ? Color.primary : .red)
-                Text(
-                    String(
-                        localized: """
-                            If every commitment were called today — full card balances, all \
-                            bills, the emergency fund held back — with no paycheck counted. \
-                            Deliberately worst-case; the cash outlook above counts income.
-                            """)
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                Text(
-                    String(
-                        localized: """
-                            \(sts.liquidBalance.formatted) liquid − \
-                            \(sts.emergencyFundReserved.formatted) emergency fund − \
-                            \(sts.billsDue.formatted) bills − \
-                            \(sts.minimumDebtPayments.formatted) min. debt
-                            """)
-                        + ((sts.creditCardPayments?.value1).map {
-                            String(localized: " − \($0.formatted) cards")
-                        } ?? "")
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                if sts.totalDebt.amountMinor > 0 {
-                    LabeledContent("Total debt", value: sts.totalDebt.formatted)
-                        .font(.subheadline)
-                        .foregroundStyle(.orange)
-                }
-                ForEach(sts.warnings, id: \.self) { warning in
-                    Label(warning, systemImage: "exclamationmark.triangle")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-                // Informational companion — never added to the stress-test number.
-                if let ready = sts.readyToSell?.value1 {
-                    Divider()
-                    Label {
-                        Text(
-                            String(
-                                localized: """
-                                    Ready to sell: \(ready.value.formatted) in vested RSUs — \
-                                    about \(ready.saleNoticeBusinessDays) business days \
-                                    to become cash
-                                    """)
-                        )
-                    } icon: {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
+        if let available = sts.safeToSpend, !available.isPartial {
+            NavigationLink {
+                SafeToSpendDetailView(safeToSpend: sts, upcomingBills: upcomingBills)
+            } label: {
+                Card("Stress test", systemImage: "shield.lefthalf.filled") {
+                    Text(verbatim: available.formatted)
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                        .foregroundStyle(available.amountMinor >= 0 ? Color.primary : .red)
+                    Text("If every commitment were called today — full card balances, all bills, the emergency fund held back — with no paycheck counted. Deliberately worst-case; the cash outlook above counts income.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(sts.liquidBalance.formatted) liquid − \(sts.emergencyFundReserved.formatted) emergency fund − \(sts.billsDue.formatted) bills − \(sts.minimumDebtPayments.formatted) min. debt")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if sts.totalDebt.amountMinor > 0 {
+                        LabeledContent("Total debt", value: sts.totalDebt.formatted)
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
                     }
-                    .font(.caption)
+                    ForEach(sts.warnings ?? [], id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    HStack(spacing: 3) {
+                        Text("Tap to see how this is calculated")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.tint)
+                }
+            }
+            .buttonStyle(.plain)
+        } else if let partial = sts.safeToSpend {
+            Card("Stress test", systemImage: "shield.lefthalf.filled") {
+                Text(verbatim: partial.formatted)
+                    .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(partial.accessibilityDescription)
+                if let disclosure = partial.partialDisclosure { qualifiedStatus(disclosure) }
+                LabeledContent("Liquid balance", value: sts.liquidBalance.formattedExact)
+                LabeledContent("Emergency fund", value: sts.emergencyFundReserved.formattedExact)
+                LabeledContent("Bills", value: sts.billsDue.formattedExact)
+                LabeledContent(
+                    "Minimum debt payments", value: sts.minimumDebtPayments.formattedExact)
+            }
+        } else {
+            Card("Stress test", systemImage: "shield.lefthalf.filled") {
+                Text(verbatim: unavailableValueText)
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(.secondary)
+                if let disclosure = sts.subscriptionDetection.unavailableDisclosure {
+                    qualifiedStatus(disclosure)
                 }
-                HStack(spacing: 3) {
-                    Text("Tap to see how this is calculated")
-                    Image(systemName: "chevron.right")
+                if let disclosure = sts.savingsDetection.unavailableDisclosure {
+                    qualifiedStatus(disclosure)
                 }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.tint)
-                .padding(.top, 2)
+                if let cards = sts.creditCardPayments {
+                    qualifiedLeaf("Credit card balances", cards)
+                }
+                if let subscriptions = sts.subscriptionForecast {
+                    qualifiedLeaf("Recurring subscriptions", subscriptions)
+                }
+                ForEach(sts.warnings ?? [], id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .buttonStyle(.plain)
     }
 
     private func netWorthCard(_ context: Components.Schemas.HouseholdContext) -> some View {
@@ -519,6 +588,10 @@ struct OverviewView: View {
             Text(verbatim: context.netWorth.formatted)
                 .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                 .contentTransition(.numericText())
+                .accessibilityLabel(context.netWorth.accessibilityDescription)
+            if let disclosure = context.netWorth.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
             if let history = context.netWorthHistory, history.count >= 2 {
                 sparkline(history)
                     .frame(height: 56)
@@ -603,6 +676,9 @@ struct OverviewView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let disclosure = fund.monthlyExpenses.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
         }
     }
 
@@ -615,22 +691,33 @@ struct OverviewView: View {
                 Divider()
                 stat("Spent", flow.spending.formatted, tint: .orange)
                 Divider()
-                stat(
-                    "Kept", flow.net.formatted,
-                    tint: flow.net.amountMinor >= 0 ? .green : .red)
+                if let net = flow.net {
+                    stat("Kept", net.formatted, tint: net.amountMinor >= 0 ? .green : .red)
+                } else {
+                    stat("Kept", unavailableValueText, tint: .secondary)
+                }
             }
             // Income is actual money in (net take-home). Show the W2 gross as a
             // labelled baseline for context — they differ because tax and 401(k)
             // are withheld before pay lands.
-            if let baseline = flow.incomeBaseline?.value1 {
+            if let baseline = flow.incomeBaseline {
                 Text("Actual take-home; \(baseline.formatted)/mo W-2 gross baseline")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let taxes = flow.taxes?.value1 {
+            if let taxes = flow.taxes {
                 Text("Taxes withheld: \(taxes.formatted)/mo (RSU & payroll), tracked separately")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let disclosure = taxes.partialDisclosure {
+                    qualifiedStatus(disclosure)
+                }
+            }
+            if let disclosure = flow.income.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
+            if let disclosure = flow.spending.partialDisclosure {
+                qualifiedStatus(disclosure)
             }
         }
     }
@@ -653,6 +740,15 @@ struct OverviewView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            if let disclosure = rate.monthlyIncome.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
+            if let disclosure = rate.averageMonthlySpending.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
+            if let disclosure = rate.transferDetection.unavailableDisclosure {
+                qualifiedStatus(disclosure)
+            }
             // #6: the observed saving, split across the three sources it came
             // from — transfers you made, payroll deductions, and what simply
             // stayed unspent — so the headline isn't a single opaque number.
@@ -709,10 +805,16 @@ struct OverviewView: View {
     /// #203 adds the household's own declarations, which need no detection.
     @ViewBuilder
     private func savingsContributionsCard(
-        _ contributions: [Components.Schemas.SavingsContribution],
+        _ contributionSet: Components.Schemas.SavingsContributionSet,
         _ viewModel: OverviewViewModel
     ) -> some View {
+        let contributions = contributionSet.contributions
         Card("What you're saving", systemImage: "arrow.down.to.line") {
+            if let disclosure = contributionSet.detection.unavailableDisclosure {
+                Label(disclosure, systemImage: "questionmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if contributions.isEmpty {
                 Text(
                     String(
@@ -778,7 +880,7 @@ struct OverviewView: View {
                     Divider()
                 }
             }
-            if let total = Self.monthlyTotal(contributions) {
+            if let total = Self.monthlyTotal(contributionSet) {
                 Divider()
                 Text("About \(total.formatted) a month")
                     .font(.subheadline.weight(.semibold))
@@ -943,6 +1045,16 @@ struct OverviewView: View {
         }
     }
 
+    /// Detection-unavailable means the readable rows are not known to be the
+    /// whole set. Keep showing those rows, but do not turn their local sum into
+    /// a household aggregate. The contract does not provide a qualified total.
+    static func monthlyTotal(
+        _ set: Components.Schemas.SavingsContributionSet
+    ) -> Components.Schemas.Money? {
+        guard !set.detection.isUnavailable else { return nil }
+        return monthlyTotal(set.contributions)
+    }
+
     /// Cadences differ, so only the server's monthly_equivalent can be summed —
     /// adding the raw amounts would call a yearly $6,000 a monthly $6,000.
     static func monthlyTotal(
@@ -962,15 +1074,20 @@ struct OverviewView: View {
             HStack {
                 stat("Budgets", "\(budgets.envelopeCount)", tint: .secondary)
                 Divider()
-                stat("Over", "\(budgets.overCount)", tint: budgets.overCount > 0 ? .red : .secondary)
+                stat(
+                    "Over", budgets.overCount.map(String.init) ?? unavailableValueText,
+                    tint: (budgets.overCount ?? 0) > 0 ? .red : .secondary)
                 Divider()
                 stat(
-                    "Warning", "\(budgets.warningCount)",
-                    tint: budgets.warningCount > 0 ? .orange : .secondary)
+                    "Warning", budgets.warningCount.map(String.init) ?? unavailableValueText,
+                    tint: (budgets.warningCount ?? 0) > 0 ? .orange : .secondary)
             }
             Text("\(budgets.totalSpent.formatted) spent of \(budgets.totalBudgeted.formatted)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let disclosure = budgets.totalSpent.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
             HStack(spacing: 3) {
                 Text("Tap to manage budgets")
                 Image(systemName: "chevron.right")
@@ -1053,6 +1170,32 @@ struct OverviewView: View {
         }
     }
 
+    private func sectionUnavailable(_ title: LocalizedStringKey) -> some View {
+        Card(title, systemImage: "questionmark.circle") {
+            Text(verbatim: unavailableValueText)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func qualifiedStatus(_ disclosure: String) -> some View {
+        Label(disclosure, systemImage: "exclamationmark.circle")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+    }
+
+    private func qualifiedLeaf(
+        _ label: LocalizedStringKey, _ amount: Components.Schemas.QualifiedMoney
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            LabeledContent(label, value: amount.formatted)
+            if let disclosure = amount.partialDisclosure {
+                qualifiedStatus(disclosure)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private func stat(_ label: LocalizedStringKey, _ value: String, tint: Color) -> some View {
         VStack(spacing: 2) {
             Text(verbatim: value)
@@ -1072,7 +1215,7 @@ extension Components.Schemas.EmergencyFundSummary {
         case .fullyFunded, .onTrack: return .green
         case .gettingStarted: return .orange
         case .noFund: return .red
-        case .noBills: return .secondary
+        case .noBills, .unavailable: return .secondary
         }
     }
 }

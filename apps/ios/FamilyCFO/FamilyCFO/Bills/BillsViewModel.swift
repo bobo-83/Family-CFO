@@ -35,33 +35,101 @@ final class BillsViewModel {
     var pendingCount: Int { billSuggestions.count + deposits.count }
 
     private let api: BillsAPI
+    private var loadGeneration: UInt64 = 0
+
+    private struct PrimaryLoad {
+        let bills: [Components.Schemas.Bill]
+        let obligations: [Components.Schemas.AccountObligation]
+        let categories: [Components.Schemas.Category]
+        let deposits: [Components.Schemas.IncomeAnalysisTransaction]
+        let timeline: Components.Schemas.PaymentTimelineResponse?
+        let credits: Components.Schemas.BillCreditsResponse?
+    }
+
+    private enum LoadResult<Value> {
+        case success(Value)
+        case failure(String)
+    }
 
     init(api: BillsAPI) {
         self.api = api
     }
 
     func load() async {
-        guard !isLoading else { return }
+        loadGeneration &+= 1
+        let owner = loadGeneration
         isLoading = true
-        defer { isLoading = false }
+
+        async let primaryResult = loadPrimary()
+        async let suggestionResult = loadSuggestions()
+
+        // Suggestions are optional. Commit the primary Bills state as soon as
+        // it completes rather than letting a slow suggestion request hold the
+        // whole screen in its previous generation.
+        let primary = await primaryResult
+        guard loadGeneration == owner, !Task.isCancelled else {
+            if loadGeneration == owner { isLoading = false }
+            return
+        }
+
+        let primarySucceeded: Bool
+        switch primary {
+        case .success(let loaded):
+            bills = loaded.bills
+            obligations = loaded.obligations
+            categories = loaded.categories
+            deposits = loaded.deposits
+            timeline = loaded.timeline
+            credits = loaded.credits
+            errorMessage = nil
+            primarySucceeded = true
+        case .failure(let message):
+            errorMessage = message
+            primarySucceeded = false
+        }
+        isLoading = false
+
+        // The optional queue still belongs to the same load generation. A
+        // stale completion cannot replace newer suggestions, and its failure
+        // cannot outrank an error from the primary data.
+        let suggestions = await suggestionResult
+        guard loadGeneration == owner, !Task.isCancelled else { return }
+        switch suggestions {
+        case .success(let loaded):
+            billSuggestions = loaded
+        case .failure(let message):
+            billSuggestions = []
+            if primarySucceeded { errorMessage = message }
+        }
+    }
+
+    private func loadPrimary() async -> LoadResult<PrimaryLoad> {
         do {
-            async let suggestions = api.billSuggestions()
             async let current = api.bills()
             async let obligated = api.obligations()
             async let cats = api.categories()
             async let dep = api.unclassifiedDeposits()
             async let line = api.paymentTimeline()
             async let creditData = api.billCredits()
-            billSuggestions = try await suggestions
-            bills = try await current
-            obligations = try await obligated
-            categories = try await cats
-            deposits = try await dep
-            timeline = try await line
-            credits = try await creditData
-            errorMessage = nil
+            let loaded = try await (current, obligated, cats, dep, line, creditData)
+            return .success(
+                PrimaryLoad(
+                    bills: loaded.0,
+                    obligations: loaded.1,
+                    categories: loaded.2,
+                    deposits: loaded.3,
+                    timeline: loaded.4,
+                    credits: loaded.5))
         } catch {
-            errorMessage = ChatViewModel.describe(error)
+            return .failure(ChatViewModel.describe(error))
+        }
+    }
+
+    private func loadSuggestions() async -> LoadResult<[Components.Schemas.BillSuggestion]> {
+        do {
+            return .success(try await api.billSuggestions())
+        } catch {
+            return .failure(ChatViewModel.describe(error))
         }
     }
 
@@ -95,6 +163,7 @@ final class BillsViewModel {
         let order: [(Components.Schemas.PaymentTimelineItem.StatusPayload, String)] = [
             (.overdue, String(localized: "Overdue")),
             (.dueSoon, String(localized: "Due soon")),
+            (.unknown, String(localized: "Payment status unavailable")),
             (.noDate, String(localized: "No due date yet")),
             (.paid, String(localized: "Paid this cycle")),
             (.upcoming, String(localized: "Upcoming")),

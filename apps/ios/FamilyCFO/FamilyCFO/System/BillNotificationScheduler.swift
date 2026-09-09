@@ -30,8 +30,12 @@ enum BillNotificationPlanner {
     /// exactly our stale reminders without touching anything else.
     static let idPrefix = "bill-reminder."
 
-    static func id(for bill: Components.Schemas.UpcomingBill) -> String {
-        idPrefix + bill.id
+    static func id(
+        for bill: Components.Schemas.UpcomingBill,
+        scope: String? = nil
+    ) -> String {
+        if let scope { return idPrefix + scope + "." + bill.id }
+        return idPrefix + bill.id
     }
 
     /// One reminder per upcoming bill, fired the morning before it's due (bills
@@ -40,7 +44,8 @@ enum BillNotificationPlanner {
     static func reminders(
         for bills: [Components.Schemas.UpcomingBill],
         calendar: Calendar = .current,
-        now: Date
+        now: Date,
+        scope: String? = nil
     ) -> [BillReminder] {
         bills.map { bill in
             // daysUntil is the server's own count; remind one day earlier, but
@@ -59,7 +64,7 @@ enum BillNotificationPlanner {
                 dueText = String(localized: "is due in \(bill.daysUntil) days")
             }
             return BillReminder(
-                id: id(for: bill),
+                id: id(for: bill, scope: scope),
                 title: String(localized: "Upcoming bill"),
                 body: String(
                     localized: "\(bill.name) (\(bill.amount.formattedExact)) \(dueText)."),
@@ -75,27 +80,58 @@ enum BillNotificationPlanner {
 struct BillNotificationScheduler {
     let scheduler: NotificationScheduling
 
-    func refresh(from bills: [Components.Schemas.UpcomingBill], now: Date = Date()) async {
-        guard await scheduler.authorized() else { return }
+    func refresh(
+        from bills: [Components.Schemas.UpcomingBill],
+        now: Date = Date(),
+        scope: String? = nil,
+        stillCurrent: @escaping @Sendable () async -> Bool = { true }
+    ) async {
+        guard await scheduler.authorized(), await stillCurrent(), !Task.isCancelled else { return }
 
-        let reminders = BillNotificationPlanner.reminders(for: bills, now: now)
+        let reminders = BillNotificationPlanner.reminders(for: bills, now: now, scope: scope)
         let wanted = Set(reminders.map(\.id))
 
         // Drop reminders for bills that are gone (paid, deleted, or now further
         // out than the window), so the phone never nags about a bill that's off
-        // the list.
+        // the list. Recheck ownership after every suspension: an authorization
+        // prompt or pending-request read can outlive sign-out/re-pairing.
         let existing = await scheduler.pending()
             .filter { $0.hasPrefix(BillNotificationPlanner.idPrefix) }
+        guard await stillCurrent(), !Task.isCancelled else { return }
         let stale = existing.subtracting(wanted)
         if !stale.isEmpty {
             await scheduler.cancel(ids: Array(stale))
+            guard await stillCurrent(), !Task.isCancelled else { return }
         }
 
         // Re-scheduling an existing identifier replaces it, so this is idempotent
         // — refreshing on every Overview load can't pile up duplicates.
         for reminder in reminders {
+            guard await stillCurrent(), !Task.isCancelled else { return }
             await scheduler.schedule(
                 id: reminder.id, title: reminder.title, body: reminder.body, at: reminder.fireDate)
+            guard await stillCurrent(), !Task.isCancelled else {
+                // Scheduling itself suspends. If the household/session changed in
+                // that window, remove the request we just installed before any
+                // old-household amount or bill name can fire.
+                await scheduler.cancel(ids: [reminder.id])
+                return
+            }
+        }
+    }
+
+    /// Remove reminders left by an outgoing session while preserving the new
+    /// session's namespace. A stale in-flight refresh rolls back its own final
+    /// schedule, so cleanup and replacement may safely overlap.
+    func clear(exceptScope: String? = nil) async {
+        let keepPrefix = exceptScope.map { BillNotificationPlanner.idPrefix + $0 + "." }
+        let stale = await scheduler.pending().filter { id in
+            guard id.hasPrefix(BillNotificationPlanner.idPrefix) else { return false }
+            guard let keepPrefix else { return true }
+            return !id.hasPrefix(keepPrefix)
+        }
+        if !stale.isEmpty {
+            await scheduler.cancel(ids: Array(stale))
         }
     }
 }

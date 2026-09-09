@@ -387,8 +387,8 @@ struct PaymentTimelineStatementTreatmentTests {
         .init(
             id: "card-1", kind: .creditCard, name: "Sapphire",
             amount: .init(amountMinor: 128_450, currency: "USD"),
-            dueDate: "2026-08-12", daysUntil: 4, source: source, statementId: nil,
-            status: .dueSoon)
+            dueDate: "2026-08-12", daysUntil: 4, status: .dueSoon,
+            source: source, statementId: nil)
     }
 
     @Test func onlyAStatementRowIsCalledExact() {

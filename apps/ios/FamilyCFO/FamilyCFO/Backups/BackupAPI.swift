@@ -286,6 +286,7 @@ struct LiveBackupAPI: BackupAPI {
             throw APIError.server(423)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
+        case .conflict: throw APIError.incompleteData
         case .undocumented(let s, _): throw APIError.server(s)
         }
     }

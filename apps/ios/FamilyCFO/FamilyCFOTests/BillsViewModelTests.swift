@@ -4,16 +4,20 @@ import Testing
 @testable import FamilyCFO
 
 @MainActor
-final class MockBillsAPI: BillsAPI, @unchecked Sendable {
+class MockBillsAPI: BillsAPI, @unchecked Sendable {
     var suggestions: [Components.Schemas.BillSuggestion] = []
     var deposits: [Components.Schemas.IncomeAnalysisTransaction] = []
     var actionError: Error?
+    var suggestionError: Error?
     private(set) var confirmed: [String] = []
     private(set) var dismissed: [String] = []
     private(set) var verdicts: [(id: String, verdict: String)] = []
 
     nonisolated func billSuggestions() async throws -> [Components.Schemas.BillSuggestion] {
-        try await MainActor.run { suggestions }
+        try await MainActor.run {
+            if let suggestionError { throw suggestionError }
+            return suggestions
+        }
     }
 
     nonisolated func confirmBill(_ suggestion: Components.Schemas.BillSuggestion) async throws {
@@ -193,6 +197,41 @@ final class MockBillsAPI: BillsAPI, @unchecked Sendable {
     }
 }
 
+actor DeferredCalls<Value: Sendable> {
+    private var nextID = 0
+    private var pending: [Int: CheckedContinuation<Value, Never>] = [:]
+
+    func next() async -> Value {
+        let id = nextID
+        nextID += 1
+        return await withCheckedContinuation { pending[id] = $0 }
+    }
+
+    func waitForCalls(_ count: Int) async {
+        while nextID < count { await Task.yield() }
+    }
+
+    func resolve(_ id: Int, with value: Value) {
+        pending.removeValue(forKey: id)?.resume(returning: value)
+    }
+}
+
+@MainActor
+final class ControlledBillsAPI: MockBillsAPI {
+    nonisolated let suggestionCalls = DeferredCalls<[Components.Schemas.BillSuggestion]>()
+    nonisolated let billCalls = DeferredCalls<[Components.Schemas.Bill]>()
+
+    override nonisolated func billSuggestions() async throws
+        -> [Components.Schemas.BillSuggestion]
+    {
+        await suggestionCalls.next()
+    }
+
+    override nonisolated func bills() async throws -> [Components.Schemas.Bill] {
+        await billCalls.next()
+    }
+}
+
 @MainActor
 struct BillsViewModelTests {
     private func suggestion(_ key: String, _ name: String) -> Components.Schemas.BillSuggestion {
@@ -217,6 +256,13 @@ struct BillsViewModelTests {
         )
     }
 
+    private func bill(_ id: String, _ name: String) -> Components.Schemas.Bill {
+        .init(
+            id: id, name: name,
+            amount: .init(amountMinor: 12_500, currency: "USD"),
+            frequency: .monthly, nextDueDate: "2026-09-15")
+    }
+
     private func loaded() async -> (BillsViewModel, MockBillsAPI) {
         let api = MockBillsAPI()
         api.suggestions = [suggestion("netflix", "Netflix"), suggestion("gym", "Gym")]
@@ -230,6 +276,86 @@ struct BillsViewModelTests {
         let (vm, _) = await loaded()
 
         #expect(vm.pendingCount == 4)  // 2 bills + 2 deposits
+    }
+
+    @Test func suggestionFailureKeepsFreshPrimaryDataAndClearsOnlyItsQueue() async {
+        let (vm, api) = await loaded()
+        api.currentBills = [bill("fresh-bill", "Power")]
+        api.obligs = [
+            .init(
+                accountId: "loan-1", name: "Mortgage",
+                amount: .init(amountMinor: 225_000, currency: "USD"),
+                kind: .mortgage, note: "Monthly payment", reserved: true)
+        ]
+        api.cats = [.init(id: "utilities", name: "Utilities")]
+        api.deposits = [deposit("fresh-deposit", "Payroll")]
+        api.timelineResponse = .init(
+            items: [], dueTotal: testQualified(0),
+            liquidBalance: .init(amountMinor: 500_000, currency: "USD"),
+            covered: true, windowDays: 14)
+        api.suggestionError = APIError.incompleteData
+
+        await vm.load()
+
+        #expect(vm.billSuggestions.isEmpty)
+        #expect(vm.bills.map(\.id) == ["fresh-bill"])
+        #expect(vm.obligations.map(\.accountId) == ["loan-1"])
+        #expect(vm.categories.map(\.id) == ["utilities"])
+        #expect(vm.deposits.map(\.transactionId) == ["fresh-deposit"])
+        #expect(vm.timeline?.windowDays == 14)
+        #expect(vm.errorMessage != nil)
+        #expect(!vm.isLoading)
+    }
+
+    @Test func primaryCommitsWhileSuggestionsRemainPending() async {
+        let api = ControlledBillsAPI()
+        let vm = BillsViewModel(api: api)
+
+        let load = Task { await vm.load() }
+        await api.billCalls.waitForCalls(1)
+        await api.suggestionCalls.waitForCalls(1)
+        await api.billCalls.resolve(0, with: [bill("primary", "Primary bill")])
+
+        // The suggestion continuation deliberately remains unresolved. Primary
+        // state must nevertheless settle without waiting for that optional call.
+        for _ in 0..<100 where vm.bills.isEmpty {
+            await Task.yield()
+        }
+        #expect(vm.bills.map(\.id) == ["primary"])
+        #expect(!vm.isLoading)
+        #expect(vm.billSuggestions.isEmpty)
+
+        await api.suggestionCalls.resolve(
+            0, with: [suggestion("later", "Later suggestion")])
+        _ = await load.value
+        #expect(vm.billSuggestions.map(\.merchantKey) == ["later"])
+    }
+
+    @Test func newestOverlappingLoadOwnsPrimaryAndSuggestionState() async {
+        let api = ControlledBillsAPI()
+        let vm = BillsViewModel(api: api)
+
+        let older = Task { await vm.load() }
+        await api.billCalls.waitForCalls(1)
+        await api.suggestionCalls.waitForCalls(1)
+        let newer = Task { await vm.load() }
+        await api.billCalls.waitForCalls(2)
+        await api.suggestionCalls.waitForCalls(2)
+
+        await api.billCalls.resolve(1, with: [bill("new", "New bill")])
+        await api.suggestionCalls.resolve(1, with: [suggestion("new", "New suggestion")])
+        _ = await newer.value
+        #expect(vm.bills.map(\.id) == ["new"])
+        #expect(vm.billSuggestions.map(\.merchantKey) == ["new"])
+        #expect(!vm.isLoading)
+
+        await api.billCalls.resolve(0, with: [bill("old", "Old bill")])
+        await api.suggestionCalls.resolve(0, with: [suggestion("old", "Old suggestion")])
+        _ = await older.value
+
+        #expect(vm.bills.map(\.id) == ["new"])
+        #expect(vm.billSuggestions.map(\.merchantKey) == ["new"])
+        #expect(!vm.isLoading)
     }
 
     @Test func confirmingABillCreatesItAndClearsItFromTheQueue() async {
@@ -507,7 +633,7 @@ struct BillCategoryTests {
                 Self.timelineItem("b2", "Water", status: .overdue),
                 Self.timelineItem("b3", "Mortgage", kind: .mortgage, status: .paid),
             ],
-            dueTotal: .init(amountMinor: 10_000, currency: "USD"),
+            dueTotal: testQualified(10_000),
             liquidBalance: .init(amountMinor: 50_000, currency: "USD"),
             covered: true, windowDays: 14)
         let vm = BillsViewModel(api: api)

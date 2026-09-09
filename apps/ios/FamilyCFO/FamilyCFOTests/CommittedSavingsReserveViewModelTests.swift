@@ -14,19 +14,22 @@ struct CommittedSavingsReserveViewModelTests {
                 emergencyFundReserved: .init(amountMinor: 0, currency: "USD"),
                 billsDue: .init(amountMinor: 0, currency: "USD"),
                 minimumDebtPayments: .init(amountMinor: 0, currency: "USD"),
-                committedTotal: .init(amountMinor: 0, currency: "USD"),
-                safeToSpend: .init(amountMinor: 100_000, currency: "USD"),
+                subscriptionDetection: testAvailability(),
+                committedTotal: testQualified(0),
+                safeToSpend: testQualified(100_000),
                 totalDebt: .init(amountMinor: 0, currency: "USD"),
                 warnings: [],
-                committedSavings: .init(value1: .init(amountMinor: 50_000, currency: "USD")),
+                committedSavings: testQualified(50_000),
+                savingsDetection: testAvailability(),
                 committedSavingsReserved: reserved)
         }
         return .init(
             householdId: "hh-1",
             displayName: "demo-household",
             currency: "USD",
-            netWorth: .init(amountMinor: 0, currency: "USD"),
+            netWorth: testQualified(0),
             emergencyFundMonths: 4.5,
+            savingsContributions: testSavingsSet(),
             safeToSpend: sts)
     }
 

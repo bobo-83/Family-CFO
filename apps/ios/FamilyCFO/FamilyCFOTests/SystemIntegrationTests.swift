@@ -49,11 +49,23 @@ struct BillNotificationPlannerTests {
         let b = bill("bill-42", "Gym", daysUntil: 3)
 
         #expect(BillNotificationPlanner.id(for: b) == "bill-reminder.bill-42")
+        #expect(
+            BillNotificationPlanner.id(for: b, scope: "session.7")
+                == "bill-reminder.session.7.bill-42")
     }
 }
 
 /// Fake notification center, so the scheduler's refresh logic — cancel stale,
 /// (re)schedule wanted — is tested without the OS.
+actor OwnershipChecks {
+    private var count = 0
+
+    func currentThroughThirdCheck() -> Bool {
+        count += 1
+        return count < 4
+    }
+}
+
 actor FakeNotificationScheduler: NotificationScheduling {
     var isAuthorized: Bool
     private(set) var scheduled: [String: String] = [:]  // id -> body
@@ -115,6 +127,33 @@ struct BillNotificationSchedulerTests {
         #expect(pending.isEmpty)
     }
 
+    @Test func rollsBackReminderScheduledAfterOwnershipIsLost() async {
+        let fake = FakeNotificationScheduler()
+        let ownership = OwnershipChecks()
+        let scheduler = BillNotificationScheduler(scheduler: fake)
+
+        await scheduler.refresh(from: [bill("a", daysUntil: 2)], scope: "old.1") {
+            await ownership.currentThroughThirdCheck()
+        }
+
+        let pending = await fake.pending()
+        let cancelled = await fake.cancelled
+        #expect(pending.isEmpty)
+        #expect(cancelled.contains("bill-reminder.old.1.a"))
+    }
+
+    @Test func clearingOutgoingSessionPreservesCurrentScope() async {
+        let fake = FakeNotificationScheduler(existing: [
+            "bill-reminder.old.4.a", "bill-reminder.current.2.a", "some-other-app-thing",
+        ])
+        let scheduler = BillNotificationScheduler(scheduler: fake)
+
+        await scheduler.clear(exceptScope: "current")
+
+        let pending = await fake.pending()
+        #expect(pending == ["bill-reminder.current.2.a", "some-other-app-thing"])
+    }
+
     /// It must not touch notifications that aren't ours, even when cancelling.
     @Test func leavesForeignPendingNotificationsAlone() async {
         let fake = FakeNotificationScheduler(existing: ["some-other-app-thing"])
@@ -155,6 +194,19 @@ struct AskCFOIntentTests {
     }
 }
 
+@MainActor
+struct MonthTransactionsCacheOwnershipTests {
+    @Test func staleOwnerCannotCommitEitherHalfOfTheCache() async {
+        let cache = MonthTransactionsCache()
+
+        await cache.reload(
+            month: "2026-08", transactions: { [] }, categories: { [] },
+            stillCurrent: { false })
+
+        #expect(cache.cached(month: "2026-08") == nil)
+    }
+}
+
 struct OverviewSnapshotStoreTests {
     // A unique suite per test so they don't collide in the shared defaults.
     private func store(_ suite: String) -> OverviewSnapshotStore {
@@ -185,5 +237,41 @@ struct OverviewSnapshotStoreTests {
 
     @Test func netWorthFormatsFromMinorUnits() {
         #expect(snapshot(1_234_500).netWorthFormatted == "$12,345")
+    }
+
+    @Test func oldPrimitiveSnapshotStillDecodesWithoutCompletenessField() throws {
+        let oldJSON = Data(
+            """
+            {"netWorthMinor":12345,"currency":"USD","emergencyFundStatus":"On track",\
+            "emergencyFundMonths":4.5,"capturedAt":0}
+            """.utf8)
+
+        let decoded = try JSONDecoder().decode(OverviewSnapshot.self, from: oldJSON)
+
+        #expect(decoded.netWorthMinor == 12_345)
+        #expect(decoded.netWorthIncompleteCount == nil)
+    }
+
+    @Test func freshUnavailableContextClearsStaleEmergencyDecision() {
+        let s = store("test.suite.unavailable.\(UUID().uuidString)")
+        s.save(snapshot(1_234_500))
+        let unavailableFund = Components.Schemas.EmergencyFundSummary(
+            reserved: .init(amountMinor: 500_000, currency: "USD"),
+            usingDesignations: false,
+            monthlyExpenses: testQualified(100_000, incompleteCount: 1),
+            targetMonthsMin: 3, targetMonthsRecommended: 6,
+            status: .unavailable)
+        let context = Components.Schemas.HouseholdContext(
+            householdId: "hh-1", displayName: "Household", currency: "USD",
+            netWorth: testQualified(1_000_000, incompleteCount: 1),
+            emergencyFund: unavailableFund,
+            savingsContributions: testSavingsSet())
+
+        s.save(OverviewSnapshot(context: context, now: Date()))
+        let loaded = s.load()
+
+        #expect(loaded?.netWorthIncompleteCount == 1)
+        #expect(loaded?.emergencyFundStatus == "Unavailable")
+        #expect(loaded?.emergencyFundMonths == nil)
     }
 }

@@ -52,9 +52,19 @@ struct IncomeView: View {
     private func content(_ analysis: Components.Schemas.IncomeAnalysisResponse) -> some View {
         List {
             Section("This year") {
-                LabeledContent("Annual income", value: analysis.rollup.annualIncome.formatted)
-                LabeledContent("Monthly average", value: analysis.rollup.monthlyAverage.formatted)
-                LabeledContent("Estimated gross", value: analysis.tax.grossIncome.formatted)
+                qualifiedContent("Annual income", analysis.rollup.annualIncome)
+                qualifiedContent("Monthly average", analysis.rollup.monthlyAverage)
+                if let tax = analysis.tax {
+                    LabeledContent("Estimated gross", value: tax.grossIncome.formatted)
+                } else {
+                    LabeledContent("Estimated gross", value: unavailableValueText)
+                        .foregroundStyle(.secondary)
+                }
+                if analysis.detection.isUnavailable,
+                   let note = analysis.detection.unavailableDisclosure
+                {
+                    Text(note).font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             if let warning = analysis.coverageWarning {
@@ -76,10 +86,13 @@ struct IncomeView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(verbatim: source.name)
                                 Text(
-                                    "\(source.totalAmount.formatted) · \(source.transactions.count) deposits · \(source.frequency)"
+                                    "\(source.totalAmount.formatted) · \(source.transactions.count) deposits · \(source.frequency ?? unavailableValueText)"
                                 )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                if let note = source.totalAmount.partialDisclosure {
+                                    Text(note).font(.caption2).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -129,6 +142,23 @@ struct IncomeView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             }
+        }
+    }
+
+    private func qualifiedContent(
+        _ label: LocalizedStringKey,
+        _ money: Components.Schemas.QualifiedMoney
+    ) -> some View {
+        LabeledContent {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(verbatim: money.formatted)
+                if let note = money.partialDisclosure {
+                    Text(note).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        } label: {
+            Text(label)
         }
     }
 

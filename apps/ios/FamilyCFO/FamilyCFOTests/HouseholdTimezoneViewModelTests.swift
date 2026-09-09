@@ -10,10 +10,11 @@ struct HouseholdTimezoneViewModelTests {
         .init(
             householdId: "hh-1",
             displayName: "demo-household",
-            timezone: timezone,
             currency: "USD",
-            netWorth: .init(amountMinor: 0, currency: "USD"),
-            emergencyFundMonths: 4.5
+            timezone: timezone,
+            netWorth: testQualified(0),
+            emergencyFundMonths: 4.5,
+            savingsContributions: testSavingsSet()
         )
     }
 
@@ -143,10 +144,11 @@ struct HouseholdTimezoneClearTests {
         .init(
             householdId: "hh-1",
             displayName: "demo-household",
-            timezone: timezone,
             currency: "USD",
-            netWorth: .init(amountMinor: 0, currency: "USD"),
-            emergencyFundMonths: 4.5
+            timezone: timezone,
+            netWorth: testQualified(0),
+            emergencyFundMonths: 4.5,
+            savingsContributions: testSavingsSet()
         )
     }
 
