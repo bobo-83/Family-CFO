@@ -27,6 +27,8 @@ from family_cfo_api import finance_service, repository
 from family_cfo_api.ai_runtime_selection import resolve_ai_config, select_tool_runtime
 from family_cfo_api.ai_study import month_bounds
 from family_cfo_api.explanation import format_money
+from family_cfo_api.household_crypto import SealedAmountUnreadableError
+from family_cfo_api.qualified_amounts import Qualified, SourceSet, union_sources
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +39,26 @@ _SUGGESTION_CAP = 4
 @dataclass(frozen=True, slots=True)
 class YearMonth:
     month: str
-    income_minor: int
-    spending_minor: int
-    net_minor: int
-    net_worth_eom_minor: int | None
+    income: Qualified[int]
+    spending: Qualified[int]
+    net: Qualified[int] | None
+    net_worth_eom: Qualified[int] | None
+
+
+@dataclass(frozen=True, slots=True)
+class YearOverview:
+    months: list[YearMonth]
+    top_categories: list[tuple[str, int]] | None
+    category_sources: SourceSet
+
+    @property
+    def incomplete_sources(self) -> SourceSet:
+        return union_sources(
+            self.category_sources,
+            *(month.income for month in self.months),
+            *(month.spending for month in self.months),
+            *(month.net_worth_eom for month in self.months if month.net_worth_eom is not None),
+        )
 
 
 def year_months(
@@ -62,7 +80,7 @@ def year_months(
 
 def build_year_overview(
     engine: Engine, household_id: str, currency: str, year: int, *, today: date
-) -> tuple[list[YearMonth], list[tuple[str, int]]]:
+) -> YearOverview:
     """(months, top_categories) — the year view's chart data.
 
     Month-end net worth is reconstructed from today's balances minus later
@@ -70,15 +88,22 @@ def build_year_overview(
     approach the debt history uses)."""
     months: list[YearMonth] = []
     category_totals: dict[str, int] = {}
+    category_source_sets: list[SourceSet] = []
     category_names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
     for month in year_months(engine, household_id, year, today=today):
         start, end = month_bounds(month)
         # Detected income deposits (ADR 0054), not the Income category alone —
         # households rarely hand-file paychecks. The hand-filed ones still
         # count via the category when detection recognized them as income.
-        income = max(
-            finance_service.income_received_between(engine, household_id, currency, start, end),
-            repository.sum_income(engine, household_id, start, end, currency),
+        received = finance_service.income_received_between(
+            engine, household_id, currency, start, end
+        )
+        categorized = repository.sum_income(
+            engine, household_id, start, end, currency
+        )
+        income = Qualified(
+            max(received.value, categorized.value),
+            union_sources(received, categorized),
         )
         spending = repository.sum_spending(engine, household_id, start, end, currency)
         eom = min(end, today)
@@ -86,18 +111,32 @@ def build_year_overview(
         months.append(
             YearMonth(
                 month=month,
-                income_minor=income,
-                spending_minor=spending,
-                net_minor=income - spending,
-                net_worth_eom_minor=net_worth,
+                income=income,
+                spending=spending,
+                net=(
+                    Qualified.complete(income.value - spending.value)
+                    if not union_sources(income, spending)
+                    else None
+                ),
+                net_worth_eom=net_worth,
             )
         )
-        by_category = repository.sum_spending_by_category(engine, household_id, start, end, currency)
-        for category_id, amount_minor in by_category.items():
+        category_result = repository.category_spending_totals(
+            engine, household_id, start, end, currency
+        )
+        category_source_sets.append(
+            category_result.categorized_total.incomplete_sources
+        )
+        for category_id, amount in category_result.by_category.items():
             name = category_names.get(category_id, "Other")
-            category_totals[name] = category_totals.get(name, 0) + amount_minor
-    top = sorted(category_totals.items(), key=lambda kv: kv[1], reverse=True)[:8]
-    return months, top
+            category_totals[name] = category_totals.get(name, 0) + amount.value
+    category_sources = union_sources(*category_source_sets)
+    top = (
+        sorted(category_totals.items(), key=lambda item: item[1], reverse=True)[:8]
+        if not category_sources
+        else None
+    )
+    return YearOverview(months, top, category_sources)
 
 
 def _deterministic_review(
@@ -106,17 +145,17 @@ def _deterministic_review(
     """The fallback narrative: correct, plain, and entirely computed."""
     if not months:
         return (f"No transaction data recorded for {year} yet.", [])
-    income = sum(m.income_minor for m in months)
-    spending = sum(m.spending_minor for m in months)
+    income = sum(m.income.value for m in months)
+    spending = sum(m.spending.value for m in months)
     net = income - spending
-    best = max(months, key=lambda m: m.net_minor)
-    worst = min(months, key=lambda m: m.net_minor)
+    best = max(months, key=lambda m: m.net.value if m.net is not None else 0)
+    worst = min(months, key=lambda m: m.net.value if m.net is not None else 0)
     money = lambda minor: format_money(Money(minor, currency))
     summary = (
         f"Across {len(months)} months of {year}, the household brought in "
         f"{money(income)} and spent {money(spending)}, keeping {money(net)}. "
-        f"The strongest month was {best.month} ({money(best.net_minor)} kept); "
-        f"the tightest was {worst.month} ({money(worst.net_minor)})."
+        f"The strongest month was {best.month} ({money(best.net.value)} kept); "
+        f"the tightest was {worst.month} ({money(worst.net.value)})."
     )
     suggestions = []
     if top:
@@ -139,13 +178,18 @@ def _grounded_facts(
     money = lambda minor: format_money(Money(minor, currency))
     lines = []
     for m in months:
+        assert m.net is not None
         lines.append(
-            f"{m.month}: income {money(m.income_minor)}, spending {money(m.spending_minor)}, "
-            f"kept {money(m.net_minor)}"
-            + (f", net worth {money(m.net_worth_eom_minor)}" if m.net_worth_eom_minor is not None else "")
+            f"{m.month}: income {money(m.income.value)}, spending {money(m.spending.value)}, "
+            f"kept {money(m.net.value)}"
+            + (
+                f", net worth {money(m.net_worth_eom.value)}"
+                if m.net_worth_eom is not None
+                else ""
+            )
         )
-    income = sum(m.income_minor for m in months)
-    spending = sum(m.spending_minor for m in months)
+    income = sum(m.income.value for m in months)
+    spending = sum(m.spending.value for m in months)
     lines.append(
         f"Year totals: income {money(income)}, spending {money(spending)}, kept {money(income - spending)}"
     )
@@ -187,7 +231,13 @@ def generate_review(
 ) -> dict:
     """Generate (and cache) the year review. Grounded or deterministic — the
     stored narrative never contains a number that isn't in the facts."""
-    months, top = build_year_overview(engine, household_id, currency, year, today=today)
+    overview = build_year_overview(engine, household_id, currency, year, today=today)
+    if overview.incomplete_sources:
+        # Narrative and ranking products are strict: readable-only facts must
+        # never be presented as a complete review or overwrite a prior cache.
+        raise SealedAmountUnreadableError(household_id)
+    months = overview.months
+    top = overview.top_categories or []
     summary, suggestions = _deterministic_review(months, top, currency, year)
     model_used: str | None = None
 

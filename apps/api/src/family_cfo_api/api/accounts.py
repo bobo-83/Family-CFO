@@ -969,7 +969,10 @@ def _statement_schema(record, names: dict[str, str]) -> CardStatement:
     "/accounts/card-statements",
     operation_id="listCardStatements",
     response_model=CardStatementListResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        409: {"description": "A statement amount cannot be decrypted", "model": ErrorResponse},
+    },
     summary="Credit-card statements, newest cycle first (#11)",
 )
 async def list_card_statements(
@@ -997,6 +1000,13 @@ async def list_card_statements(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Account not found", "model": ErrorResponse},
+        409: {
+            "description": (
+                "The existing statement cycle has an unreadable amount "
+                "(sealed_amount_unreadable)"
+            ),
+            "model": ErrorResponse,
+        },
         422: {"description": "Not a credit-card account", "model": ErrorResponse},
     },
     summary="Record the amount due for a card's cycle (#11)",
@@ -1056,6 +1066,7 @@ async def record_card_statement(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Statement not found", "model": ErrorResponse},
+        409: {"description": "A statement amount cannot be decrypted", "model": ErrorResponse},
     },
     summary="Mark a card's cycle paid, or clear the mark (#11)",
 )
@@ -1095,6 +1106,7 @@ async def mark_card_statement_paid(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Statement not found", "model": ErrorResponse},
+        409: {"description": "A statement amount cannot be decrypted", "model": ErrorResponse},
     },
     summary="Remove a recorded card statement (#11)",
 )
@@ -1280,6 +1292,7 @@ def _reconciliation_payload(engine, household_id: str, statement) -> StatementRe
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Statement not found", "model": ErrorResponse},
+        409: {"description": "A statement amount cannot be decrypted", "model": ErrorResponse},
     },
     summary="Store a statement's line items and reconcile them (#25)",
 )
@@ -1327,6 +1340,7 @@ async def replace_statement_lines(
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         404: {"description": "Statement not found", "model": ErrorResponse},
+        409: {"description": "A statement amount cannot be decrypted", "model": ErrorResponse},
     },
     summary="What the statement accounts for, and what it doesn't (#25)",
 )

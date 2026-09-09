@@ -30,6 +30,7 @@ from family_cfo_api.schemas import (
     TimelinePaidWith,
     TransactionListResponse,
     YearlyCreditTotal,
+    qualified_money,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -139,7 +140,11 @@ async def get_payment_timeline(
                 id=item.id,
                 kind=item.kind,
                 name=item.name,
-                amount=MoneySchema(amount_minor=item.amount_minor, currency=item.currency),
+                amount=(
+                    MoneySchema(amount_minor=item.amount_minor, currency=item.currency)
+                    if item.amount_minor is not None
+                    else None
+                ),
                 due_date=item.due_date,
                 days_until=(item.due_date - today).days if item.due_date else None,
                 status=item.status,
@@ -162,7 +167,7 @@ async def get_payment_timeline(
             )
             for item in timeline.items
         ],
-        due_total=MoneySchema(amount_minor=timeline.due_total_minor, currency=currency),
+        due_total=qualified_money(timeline.due_total, currency),
         liquid_balance=MoneySchema(amount_minor=timeline.liquid_minor, currency=currency),
         covered=timeline.covered,
         window_days=timeline.window_days,
@@ -176,6 +181,7 @@ async def get_payment_timeline(
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         404: {"description": "Bill not found", "model": ErrorResponse},
+        409: {"description": "A transaction amount cannot be decrypted", "model": ErrorResponse},
     },
     summary="Recent charges that could have paid this bill occurrence",
 )
@@ -324,7 +330,16 @@ async def unlink_bill_payment(
     "/bills/suggestions",
     operation_id="listBillSuggestions",
     response_model=BillSuggestionListResponse,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        409: {
+            "description": (
+                "A transaction amount required for bill suggestion detection is "
+                "unreadable (sealed_amount_unreadable)"
+            ),
+            "model": ErrorResponse,
+        },
+    },
     summary="Suggest bills detected from recurring account transactions",
 )
 async def list_bill_suggestions(

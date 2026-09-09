@@ -1,7 +1,13 @@
 import pytest
 
 from family_cfo_api import repository
+from family_cfo_api.qualified_amounts import Qualified
 from family_cfo_api.yearly_review import YearMonth, _deterministic_review, _parse_review
+
+
+def _qminor(value: dict) -> int:
+    assert value["incomplete_count"] == 0
+    return value["value"]["amount_minor"]
 
 
 @pytest.mark.anyio
@@ -16,8 +22,8 @@ async def test_yearly_overview_aggregates_months_and_totals(demo_client, demo_to
     assert body["months"], "the seeded demo has current-year transactions"
     first = body["months"][0]
     assert set(first) >= {"month", "income", "spending", "net"}
-    total_net = sum(m["net"]["amount_minor"] for m in body["months"])
-    assert body["total_net"]["amount_minor"] == total_net
+    total_net = sum(_qminor(m["net"]) for m in body["months"])
+    assert _qminor(body["total_net"]) == total_net
     assert body["review"] is None  # not generated yet
 
 
@@ -48,13 +54,25 @@ async def test_yearly_overview_for_an_empty_year(demo_client, demo_token) -> Non
     assert response.status_code == 200
     body = response.json()
     assert body["months"] == []
-    assert body["total_income"]["amount_minor"] == 0
+    assert _qminor(body["total_income"]) == 0
 
 
 def test_deterministic_review_names_best_and_worst_months() -> None:
     months = [
-        YearMonth("2026-01", 1_000_00, 400_00, 600_00, None),
-        YearMonth("2026-02", 1_000_00, 1_200_00, -200_00, None),
+        YearMonth(
+            "2026-01",
+            Qualified.complete(1_000_00),
+            Qualified.complete(400_00),
+            Qualified.complete(600_00),
+            None,
+        ),
+        YearMonth(
+            "2026-02",
+            Qualified.complete(1_000_00),
+            Qualified.complete(1_200_00),
+            Qualified.complete(-200_00),
+            None,
+        ),
     ]
     summary, suggestions = _deterministic_review(months, [("Groceries", 900_00)], "USD", 2026)
     assert "2026-01" in summary and "2026-02" in summary

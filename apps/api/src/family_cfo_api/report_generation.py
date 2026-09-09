@@ -181,53 +181,66 @@ def _build_report_content(
     period = compute_report_period(report_type, reference_date)
     previous = _previous_period(period)
 
+    # Read every strict input before any calculation history is written.
     current_transactions = repository.list_transactions_in_range(
         engine, household_id, period.start, period.end_exclusive
     )
     previous_transactions = repository.list_transactions_in_range(
         engine, household_id, previous.start, previous.end_exclusive
     )
+    income_sources = repository.list_income_sources(engine, household_id)
+    bills = repository.list_bills(engine, household_id)
+    goals = repository.list_goals(engine, household_id)
 
+    # Complete every deterministic calculation in memory before persistence.
     current_totals = _category_totals(current_transactions, currency)
     previous_totals = _category_totals(previous_transactions, currency)
-
     income_amounts = [
         RecurringAmount(income.name, Money(income.amount_minor, income.currency), income.frequency)
-        for income in repository.list_income_sources(engine, household_id)
+        for income in income_sources
     ]
     bill_amounts = [
         RecurringAmount(bill.name, Money(bill.amount_minor, bill.currency), bill.frequency)
-        for bill in repository.list_bills(engine, household_id)
+        for bill in bills
     ]
-
     cash_flow_result = calculate_cash_flow(
         income_amounts, bill_amounts, Money.zero(currency), currency
     )
-    cash_flow_calculation_id = _persist_calculation(engine, household_id, cash_flow_result)
-
     period_income = _scale_for_report_type(cash_flow_result.outputs["monthly_income"], report_type)
     period_bills = _scale_for_report_type(cash_flow_result.outputs["monthly_bills"], report_type)
     category_spend = [
         CategorySpend(category=cat, amount=amt) for cat, amt in current_totals.items()
     ]
-
     budget_result = calculate_budget_summary(period_income, period_bills, category_spend, currency)
-    budget_calculation_id = _persist_calculation(engine, household_id, budget_result)
-
     net_cash_flow = budget_result.outputs["remaining"]
     wins, risks, unusual_spending, recommended_actions = _wins_risks_unusual(
         current_totals, previous_totals, net_cash_flow, currency
     )
 
-    goal_progress: list[dict[str, Any]] = []
-    for goal in repository.list_goals(engine, household_id):
-        goal_input = GoalInput(
-            goal_id=goal.id,
-            name=goal.name,
-            target=Money(goal.target_minor, goal.currency),
-            current=Money(goal.current_minor, goal.currency),
+    goal_results: list[tuple[Any, CalculationResult]] = []
+    for goal in goals:
+        goal_result = calculate_goal_progress(
+            GoalInput(
+                goal_id=goal.id,
+                name=goal.name,
+                target=Money(goal.target_minor, goal.currency),
+                current=Money(goal.current_minor, goal.currency),
+            )
         )
-        goal_result = calculate_goal_progress(goal_input)
+        goal_results.append((goal, goal_result))
+        if (
+            goal_result.outputs["percent_complete"] is not None
+            and goal_result.outputs["percent_complete"] >= 100
+        ):
+            wins.append(f"Goal '{goal.name}' is fully funded.")
+
+    # Persist the already-computed results in deterministic dependency order.
+    cash_flow_calculation_id = _persist_calculation(
+        engine, household_id, cash_flow_result
+    )
+    budget_calculation_id = _persist_calculation(engine, household_id, budget_result)
+    goal_progress: list[dict[str, Any]] = []
+    for goal, goal_result in goal_results:
         goal_calculation_id = _persist_calculation(engine, household_id, goal_result)
         goal_progress.append(
             {
@@ -238,11 +251,6 @@ def _build_report_content(
                 "calculation_ref": f"financial_calculations:{goal_calculation_id}",
             }
         )
-        if (
-            goal_result.outputs["percent_complete"] is not None
-            and goal_result.outputs["percent_complete"] >= 100
-        ):
-            wins.append(f"Goal '{goal.name}' is fully funded.")
 
     calculation_refs = [
         f"financial_calculations:{cash_flow_calculation_id}",
@@ -261,22 +269,15 @@ def _build_report_content(
     )
 
 
-def generate_report(
+def _persist_report_content(
     engine: Engine,
     household_id: str,
     report_type: str,
+    content: ReportContent,
     explanation_adapter: ExplanationAdapter,
-    reference_date: date | None = None,
 ) -> repository.ReportRecord:
-    household = repository.get_household(engine, household_id)
-    if household is None:
-        raise ValueError(f"household {household_id} not found")
-
-    content = _build_report_content(
-        engine, household_id, household.base_currency, report_type, reference_date or date.today()
-    )
+    """Explain and store facts only after strict reads completed successfully."""
     period_end_inclusive = content.period.end_exclusive - timedelta(days=1)
-
     explanation_context = ReportExplanationContext(
         report_type=report_type,
         period_start=content.period.start.isoformat(),
@@ -288,7 +289,6 @@ def generate_report(
         recommended_actions=content.recommended_actions,
     )
     explanation = explanation_adapter.explain_report(explanation_context)
-
     summary = {
         "wins": content.wins,
         "risks": content.risks,
@@ -298,7 +298,6 @@ def generate_report(
         "net_cash_flow": content.net_cash_flow.to_dict(),
         "calculation_refs": content.calculation_refs,
     }
-
     return repository.upsert_report(
         engine,
         household_id=household_id,
@@ -311,6 +310,24 @@ def generate_report(
         calculation_version=REPORT_CALCULATION_VERSION,
         model_version=explanation.model_version,
         prompt_version=explanation.prompt_version,
+    )
+
+
+def generate_report(
+    engine: Engine,
+    household_id: str,
+    report_type: str,
+    explanation_adapter: ExplanationAdapter,
+    reference_date: date | None = None,
+) -> repository.ReportRecord:
+    household = repository.get_household(engine, household_id)
+    if household is None:
+        raise ValueError(f"household {household_id} not found")
+    content = _build_report_content(
+        engine, household_id, household.base_currency, report_type, reference_date or date.today()
+    )
+    return _persist_report_content(
+        engine, household_id, report_type, content, explanation_adapter
     )
 
 
@@ -344,15 +361,38 @@ def run_scheduled_reports_once(
         ):
             continue
 
-        explanation_adapter, runtime_client = select_explanation_adapter(engine, household_id)
+        runtime_client = None
         try:
-            generate_report(engine, household_id, report_type, explanation_adapter, reference)
+            household = repository.get_household(engine, household_id)
+            if household is None:
+                continue
+            content = _build_report_content(
+                engine,
+                household_id,
+                household.base_currency,
+                report_type,
+                reference,
+            )
+            # Runtime acquisition and narrative generation occur only after all
+            # strict monetary reads have succeeded for this household.
+            explanation_adapter, runtime_client = select_explanation_adapter(
+                engine, household_id
+            )
+            _persist_report_content(
+                engine, household_id, report_type, content, explanation_adapter
+            )
             generated += 1
         except household_crypto.HouseholdLockedError:
             # #181: a sealed+locked household is skipped; the rest still
             # report. The API runs it while its in-memory key session is open,
             # so this is a skip here rather than work that is lost (#115).
             logger.info("report skipped: household %s locked", household_id)
+        except household_crypto.SealedAmountUnreadableError:
+            logger.info(
+                "report deferred: incomplete data household_id=%s report_type=%s retryable=true",
+                household_id,
+                report_type,
+            )
         finally:
             if runtime_client is not None:
                 runtime_client.close()

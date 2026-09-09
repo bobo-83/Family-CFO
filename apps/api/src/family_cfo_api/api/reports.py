@@ -89,6 +89,13 @@ async def get_report(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Household not found", "model": ErrorResponse},
+        409: {
+            "description": (
+                "A transaction amount required for report generation is unreadable "
+                "(sealed_amount_unreadable)"
+            ),
+            "model": ErrorResponse,
+        },
     },
     summary="Generate (or regenerate) a weekly or monthly report",
 )

@@ -30,9 +30,14 @@ from family_cfo_financial_engine import (
 )
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service, repository
+from family_cfo_api import advisor_qualification, finance_service, repository
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.explanation import format_money
+from family_cfo_api.household_crypto import SealedAmountUnreadableError
+from family_cfo_api.qualified_amounts import Qualified, union_sources
+from family_cfo_api.schemas import ComputationAvailability as SchemaComputationAvailability
+from family_cfo_api.schemas import Money as SchemaMoney
+from family_cfo_api.schemas import QualifiedMoney as SchemaQualifiedMoney
 
 # Personality layer (M31): tone only. The grounding rules below are appended
 # verbatim in every tone — fun never loosens the numbers discipline.
@@ -122,7 +127,15 @@ GROUNDING_RULES = (
     "human-readable 'display' string: ALWAYS quote the display string and "
     "never read amount_minor as dollars — it is 100x smaller than it looks. If a tool reports \"error\": \"missing_input\", ask the "
     "user to supply that fact instead of guessing. If a tool reports "
-    "\"error\": \"invalid_arguments\", correct the arguments and try again. Keep "
+    "\"error\": \"invalid_arguments\", correct the arguments and try again. If a "
+    "tool reports \"error\": \"incomplete_data\", do not give the requested "
+    "spending, affordability, coverage, tax, budget-health, savings-cut, retirement, "
+    "purchase, or runway advice. Explain that some stored amounts could not be read "
+    "and need repair, then suggest retrying after repair; do NOT suggest signing in "
+    "again, which is only for a locked-household response. Qualified money contains "
+    "value, incomplete_count, and partial. A partial value may be quoted only while "
+    "saying stored amounts were omitted; incomplete_count is metadata, not money. "
+    "Never reconstruct a null or unavailable decision from component values. Keep "
     "the final answer to a few plain-language sentences. "
     "NEVER derive a spendable amount yourself by subtracting one tool's number "
     "from another's — arithmetic you perform is not grounded, and cash that is "
@@ -231,20 +244,72 @@ def _money_out(money: Money) -> dict[str, Any]:
     }
 
 
-def _serialize(value: Any) -> Any:
-    if isinstance(value, Money):
-        return _money_out(value)
+def _plain_money_out(money: Money | SchemaMoney) -> dict[str, Any]:
+    return _money_out(Money(money.amount_minor, money.currency))
+
+
+def _qualified_money_out(
+    money: Qualified[Any] | SchemaQualifiedMoney,
+    *,
+    currency: str | None = None,
+) -> dict[str, Any]:
+    """Serialize qualified money without exposing request-local source identity."""
+    if isinstance(money, SchemaQualifiedMoney):
+        value: Any = money.value
+        incomplete_count = money.incomplete_count
+    else:
+        value = money.value
+        incomplete_count = money.incomplete_count
+
+    if isinstance(value, (Money, SchemaMoney)):
+        value_out = _plain_money_out(value)
+    elif isinstance(value, int) and currency is not None:
+        value_out = _money_out(Money(value, currency))
+    else:
+        raise TypeError("qualified advisor money requires a Money value or explicit currency")
+    return {
+        "value": value_out,
+        "incomplete_count": incomplete_count,
+        "partial": incomplete_count > 0,
+    }
+
+
+def _availability_out(
+    value: Qualified[Any] | SchemaComputationAvailability,
+) -> dict[str, Any]:
+    if isinstance(value, SchemaComputationAvailability):
+        return {"status": value.status, "incomplete_count": value.incomplete_count}
+    return {
+        "status": "complete" if value.is_complete else "unavailable",
+        "incomplete_count": value.incomplete_count,
+    }
+
+
+def _serialize(value: Any, *, currency: str | None = None) -> Any:
+    if isinstance(value, SchemaQualifiedMoney):
+        return _qualified_money_out(value)
+    if isinstance(value, Qualified):
+        return _qualified_money_out(value, currency=currency)
+    if isinstance(value, (Money, SchemaMoney)):
+        return _plain_money_out(value)
+    if isinstance(value, SchemaComputationAvailability):
+        return _availability_out(value)
     if isinstance(value, dict):
-        return {key: _serialize(item) for key, item in value.items()}
+        return {key: _serialize(item, currency=currency) for key, item in value.items()}
     if isinstance(value, list):
-        return [_serialize(item) for item in value]
+        return [_serialize(item, currency=currency) for item in value]
     return value
 
 
-def _result_payload(result: CalculationResult, calculation_id: str) -> dict[str, Any]:
+def _result_payload(
+    result: CalculationResult | finance_service.CalculationAttempt,
+    calculation_id: str,
+    *,
+    currency: str | None = None,
+) -> dict[str, Any]:
     payload = {
         "outputs": {
-            key: _serialize(value)
+            key: _serialize(value, currency=currency)
             for key, value in result.outputs.items()
             if key != "excluded_accounts"
         },
@@ -259,8 +324,24 @@ def _result_payload(result: CalculationResult, calculation_id: str) -> dict[str,
         # `balance` is typed in the account's own currency, so it can be quoted
         # but never read as base-currency money. The warning itself stays
         # generic — see finance_service.foreign_currency_warning.
-        payload["excluded_accounts"] = _serialize(excluded)
+        payload["excluded_accounts"] = _serialize(excluded, currency=currency)
     return payload
+
+
+def _incomplete_data(
+    incomplete_count: int | None = None, **payload: Any
+) -> dict[str, Any]:
+    result = {
+        "error": "incomplete_data",
+        "detail": (
+            "Some stored amounts could not be read. Repair the stored data, then retry; "
+            "signing in again will not repair unreadable data."
+        ),
+        **payload,
+    }
+    if incomplete_count is not None:
+        result["incomplete_count"] = incomplete_count
+    return result
 
 
 # --- argument validation helpers -------------------------------------------
@@ -454,24 +535,37 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
     if err:
         return err
     if today is not None:
-        from family_cfo_financial_engine import Money as _Money
-
         from family_cfo_api import repository
         from family_cfo_api.api.budgets import _month_window
 
         _, end = _month_window(today)
-        minor = repository.net_worth_as_of(engine, household_id, end, currency)
+        snapshot = repository.net_worth_snapshot_as_of(
+            engine, household_id, end, currency
+        )
+        if snapshot is not None:
+            historical_net_worth = Qualified.complete(snapshot)
+            source_note = "Net worth from the snapshot at/near that month's end."
+        else:
+            historical_net_worth = finance_service.reconstruct_net_worth(
+                engine, household_id, end, currency
+            )
+            source_note = (
+                "No snapshot existed at that month's end, so net worth was reconstructed "
+                "from current balances and later transactions."
+            )
         return {
             "as_of_month": args.get("month"),
-            "net_worth": _money_out(_Money(minor, currency)),
-            # #152: a snapshot is a base-currency figure with no record of what
-            # it left out, so this is "unknown" (null), never an empty list.
+            "net_worth": _qualified_money_out(
+                historical_net_worth, currency=currency
+            ),
+            # #152: a historical figure has no record of what foreign accounts
+            # existed then, so this is "unknown" (null), never an empty list.
             "excluded_accounts": None,
             "note": (
-                "Net worth from the snapshot at/near that month's end. The asset breakdown "
-                "and spendability detail are only available for the current month, and "
-                "get_accounts lists TODAY's accounts — not the ones behind this figure, "
-                "which may have opened or closed since. Do not itemise this total. "
+                f"{source_note} The asset breakdown and spendability detail are only "
+                "available for the current month, and get_accounts lists TODAY's accounts "
+                "— not the ones behind this figure, which may have opened or closed since. "
+                "Do not itemise this total. "
                 f"The figure is in {currency} only; whether the household then held an "
                 "account in another currency is not recorded, so excluded_accounts is "
                 "unknown for a past month."
@@ -480,6 +574,9 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
 
     result, calc_id = finance_service.compute_net_worth_with_ref(engine, household_id, currency)
     payload = _result_payload(result, calc_id)
+    payload["outputs"]["net_worth"] = _qualified_money_out(
+        Qualified.complete(result.outputs["net_worth"])
+    )
 
     # M33: break assets into spendability categories so the model never treats
     # retirement or education money as available for a purchase.
@@ -513,15 +610,50 @@ def _get_net_worth(engine: Engine, household_id: str, currency: str, args: dict[
 
 
 def _get_emergency_fund(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    result, calc_id = finance_service.compute_emergency_fund_with_ref(
+    attempt, calc_id = finance_service.compute_emergency_fund_with_ref(
         engine, household_id, currency
     )
-    return _result_payload(result, calc_id)
+    payload = _result_payload(attempt, calc_id, currency=currency)
+    monthly_expenses = attempt.outputs["monthly_essential_expenses"]
+    if isinstance(monthly_expenses, Qualified):
+        payload["outputs"]["monthly_essential_expenses"] = _qualified_money_out(
+            monthly_expenses
+        )
+    else:
+        payload["outputs"]["monthly_essential_expenses"] = _qualified_money_out(
+            Qualified.complete(monthly_expenses)
+        )
+    return payload
 
 
 def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
-    result, calc_id = finance_service.compute_safe_to_spend(engine, household_id, currency)
-    payload = _result_payload(result, calc_id)
+    attempt, calc_id = finance_service.compute_safe_to_spend(engine, household_id, currency)
+    computed = attempt.response
+    assert isinstance(computed, finance_service.SafeToSpendComputation)
+    payload = _result_payload(attempt, calc_id, currency=currency)
+    for key in (
+        "credit_card_payments",
+        "subscription_forecast",
+        "committed_savings",
+        "committed_total",
+        "safe_to_spend",
+    ):
+        qualified = getattr(computed, key)
+        payload["outputs"][key] = (
+            _qualified_money_out(qualified, currency=currency)
+            if qualified is not None
+            else None
+        )
+    payload["outputs"]["subscription_detection"] = _availability_out(
+        computed.subscription_detection
+    )
+    payload["outputs"]["savings_detection"] = _availability_out(
+        computed.savings_detection
+    )
+    if not computed.subscription_detection.is_complete:
+        # Automatic subscription detection is all-or-nothing. A readable-only
+        # forecast is not stable enough to expose as a partial amount.
+        payload["outputs"]["subscription_forecast"] = None
     # Context, not spendable cash: the synced balances of accounts the user
     # tagged "vested RSUs, ready to sell". The advisor may mention them as one
     # sale away (~4 business days), never fold them into safe_to_spend.
@@ -538,11 +670,11 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
     # #5: committed savings due in the window. When the household reserves it,
     # it is already inside safe_to_spend; when not, it is context the advisor
     # may mention ("$500 is due to your 529 in 6 days") but must NOT deduct.
-    savings = result.outputs.get("committed_savings")
-    if savings is not None and not savings.is_zero():
-        reserved = bool(result.outputs.get("committed_savings_reserved"))
+    savings = computed.committed_savings
+    if savings is not None and savings.value != 0:
+        reserved = computed.committed_savings_reserved
         payload["committed_savings"] = {
-            "amount": _money_out(savings),
+            "amount": _qualified_money_out(savings, currency=currency),
             "reserved_in_safe_to_spend": reserved,
             "note": (
                 "Already subtracted from safe_to_spend at the household's request."
@@ -552,6 +684,11 @@ def _get_safe_to_spend(engine: Engine, household_id: str, currency: str, args: d
                 "in a tight month)."
             ),
         }
+    if computed.safe_to_spend is None:
+        return _incomplete_data(
+            len(attempt.incomplete_sources),
+            **payload,
+        )
     return payload
 
 
@@ -647,6 +784,11 @@ def _project_purchase_impact(
     price_minor, error = _money_arg(args, "price", minimum=0)
     if error:
         return error
+    incomplete_sources = advisor_qualification.purchase_impact_incomplete_sources(
+        engine, household_id, resolved_currency
+    )
+    if incomplete_sources:
+        return _incomplete_data(len(incomplete_sources))
     result, calc_id = finance_service.compute_purchase_impact(
         engine, household_id, resolved_currency, Money(price_minor, resolved_currency)
     )
@@ -756,12 +898,24 @@ def _grounded_retirement_inputs(
         essential = finance_service.monthly_essential_expenses(
             engine, household_id, resolved_currency
         )
-        annual_expenses = Money(essential.amount_minor * 12, essential.currency)
+        if not essential.is_complete:
+            return (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                _incomplete_data(essential.incomplete_count),
+            )
+        annual_expenses = Money(
+            essential.value.amount_minor * 12, essential.value.currency
+        )
         assumptions["annual_expenses_basis"] = (
             "12 × current monthly essentials (bills + debt minimums + daily needs)"
         )
         assumptions["annual_expenses"] = _money_out(annual_expenses)
-        assumptions["monthly_essentials"] = _money_out(essential)
+        assumptions["monthly_essentials"] = _money_out(essential.value)
 
     return (
         current_savings_minor,
@@ -1002,9 +1156,15 @@ def _search_records(household_id: str, args: dict[str, Any], settings: Settings)
     }
 
 
-def _schema_money_out(money) -> dict[str, Any]:
-    """schemas.Money → the same shape _money_out gives engine Money."""
-    return _money_out(Money(money.amount_minor, money.currency))
+def _schema_money_out(money: Any) -> dict[str, Any] | None:
+    """Serialize endpoint money exactly, preserving qualification and nullability."""
+    if money is None:
+        return None
+    if isinstance(money, SchemaQualifiedMoney):
+        return _qualified_money_out(money)
+    if isinstance(money, (Money, SchemaMoney)):
+        return _plain_money_out(money)
+    raise TypeError(f"unsupported advisor money type: {type(money).__name__}")
 
 
 def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
@@ -1024,16 +1184,23 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
         from family_cfo_api.api.budgets import _month_window
 
         start, end = _month_window(today)
-        categorized_minor = repository.sum_income(engine, household_id, start, end, currency)
+        categorized = repository.sum_income(engine, household_id, start, end, currency)
+        received = finance_service.income_received_between(
+            engine, household_id, currency, start, end
+        )
         deposits = finance_service.income_deposits_between(
             engine, household_id, currency, start, end
         )
         # Same rule as the Year chart (ADR 0066): detection OR categorization,
-        # whichever saw more — so the advisor never contradicts the chart.
-        minor = max(categorized_minor, sum(t.amount_minor for t in deposits))
+        # whichever saw more — and union both branches before selecting the
+        # readable maximum because an omitted value can change the winner.
+        income = Qualified(
+            max(categorized.value, received.value),
+            union_sources(categorized, received),
+        )
         return {
             "month": args.get("month"),
-            "income_received": _money_out(_Money(minor, currency)),
+            "income_received": _qualified_money_out(income, currency=currency),
             "deposits": [
                 {
                     "date": t.occurred_at.isoformat(),
@@ -1111,7 +1278,11 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
                 "frequency": source.frequency,
                 "typical_deposit": _schema_money_out(source.typical_amount),
                 "total_in_window": _schema_money_out(source.total_amount),
-                "deposit_count": len(source.transactions),
+                "deposit_count": (
+                    len(source.transactions)
+                    if source.total_amount.incomplete_count == 0
+                    else None
+                ),
             }
             for source in analysis.sources
         ],
@@ -1119,26 +1290,24 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
         "annual_income_detected": _schema_money_out(analysis.rollup.annual_income),
         "monthly_average_detected": _schema_money_out(analysis.rollup.monthly_average),
         "window_days": analysis.rollup.window_days,
-        # Grounded take-home = gross minus estimated tax (profile-based when a
-        # compensation profile is declared). THE figure for "what I take home".
-        "take_home": {
-            "annual": _money_out(
-                Money(
-                    tax.gross_income.amount_minor - tax.total_tax.amount_minor, currency
-                )
-            ),
-            "monthly": _money_out(
-                Money(
-                    round((tax.gross_income.amount_minor - tax.total_tax.amount_minor) / 12),
-                    currency,
-                )
-            ),
-            "basis": (
-                "declared gross minus estimated tax"
-                if analysis.profile is not None
-                else "deposit-estimated gross minus tax"
-            ),
-        },
+        "detection": _availability_out(analysis.detection),
+        # Reuse the endpoint's authoritative net-income output. Do not rebuild
+        # it from gross and tax components when transaction-derived tax is null.
+        "take_home": (
+            {
+                "annual": _schema_money_out(tax.net_income),
+                "monthly": _money_out(
+                    Money(round(tax.net_income.amount_minor / 12), tax.net_income.currency)
+                ),
+                "basis": (
+                    "declared gross minus estimated tax"
+                    if analysis.profile is not None
+                    else "deposit-estimated gross minus tax"
+                ),
+            }
+            if tax is not None and tax.net_income is not None
+            else None
+        ),
         "income_basis_note": (
             "annual_income_detected / monthly_average_detected are only the DETECTED "
             "recurring deposits and can badly UNDERCOUNT: irregular/RSU/bonus pay and a "
@@ -1147,23 +1316,24 @@ def _get_income_and_tax(engine: Engine, household_id: str, currency: str, args: 
             "gross and `take_home` for what the household earns and takes home; do NOT quote "
             "the detected deposit average as their income or pay."
         ),
-        "tax_estimate": {
-            "tax_year": tax.tax_year,
-            "filing_status": tax.filing_status,
-            "income_treated_as_take_home": tax.income_treated_as_net,
-            "state": tax.state,
-            "estimated_gross_income": _schema_money_out(tax.gross_income),
-            "federal_income_tax": _schema_money_out(tax.federal_income_tax),
-            "social_security_and_medicare": _schema_money_out(tax.fica_tax),
-            "state_income_tax": (
-                _schema_money_out(tax.state_income_tax)
-                if tax.state_income_tax is not None
-                else None
-            ),
-            "estimated_total_tax": _schema_money_out(tax.total_tax),
-            "effective_rate": tax.effective_rate,
-        },
-        "assumptions": list(tax.assumptions),
+        "tax_estimate": (
+            {
+                "tax_year": tax.tax_year,
+                "filing_status": tax.filing_status,
+                "income_treated_as_take_home": tax.income_treated_as_net,
+                "state": tax.state,
+                "estimated_gross_income": _schema_money_out(tax.gross_income),
+                "estimated_net_income": _schema_money_out(tax.net_income),
+                "federal_income_tax": _schema_money_out(tax.federal_income_tax),
+                "social_security_and_medicare": _schema_money_out(tax.fica_tax),
+                "state_income_tax": _schema_money_out(tax.state_income_tax),
+                "estimated_total_tax": _schema_money_out(tax.total_tax),
+                "effective_rate": tax.effective_rate,
+            }
+            if tax is not None
+            else None
+        ),
+        "assumptions": list(tax.assumptions) if tax is not None else [],
         "warnings": warnings,
     }
 
@@ -1225,12 +1395,16 @@ _MONTH_PARAM = {
 def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[str, Any]):
     """M64: per-category envelope progress. Defaults to the current month; a
     `month` (YYYY-MM) arg pulls a past month's budget vs actual."""
-    from family_cfo_api.api.budgets import budgets_with_progress
+    from family_cfo_api.api.budgets import assemble_budget_response
 
     today, err = _month_to_today(args)
     if err:
         return {"month_budgets": [], **err}
-    budgets = budgets_with_progress(engine, household_id, currency, today=today)
+    response = assemble_budget_response(
+        engine, household_id, currency, today=today
+    )
+    budgets = response.budgets
+    summary = response.summary
     return {
         "month_budgets": [
             {
@@ -1243,6 +1417,13 @@ def _get_budgets(engine: Engine, household_id: str, currency: str, args: dict[st
             }
             for budget in budgets
         ],
+        "summary": {
+            "envelope_count": summary.envelope_count,
+            "over_count": summary.over_count,
+            "warning_count": summary.warning_count,
+            "total_budgeted": _schema_money_out(summary.total_budgeted),
+            "total_spent": _schema_money_out(summary.total_spent),
+        },
     }
 
 
@@ -1269,6 +1450,7 @@ def _get_spending_by_category(engine: Engine, household_id: str, currency: str, 
         ],
         "categorized_total": _schema_money_out(result.categorized_total),
         "uncategorized": _schema_money_out(result.uncategorized),
+        "total": _schema_money_out(result.total),
     }
 
 
@@ -1277,33 +1459,29 @@ def _get_savings_contributions(
 ):
     """#201: recurring transfers into savings vehicles (529, retirement, HSA,
     brokerage, savings), detected from the ledger."""
-    from family_cfo_api import savings_detection
+    from family_cfo_api.api.household import _savings_contributions
 
-    found = savings_detection.detect_for_household(engine, household_id)
-    total_monthly = sum(savings_detection.monthly_equivalent_minor(c) for c in found)
+    found = _savings_contributions(engine, household_id)
+    goal_names = {goal.id: goal.name for goal in repository.list_goals(engine, household_id)}
     return {
         "contributions": [
             {
-                "destination": c.destination_name,
-                "destination_type": c.destination_type,
-                "amount": _schema_money_out(Money(c.amount_minor, c.currency)),
-                "frequency": c.frequency,
+                "destination": contribution.destination_name,
+                "destination_type": contribution.destination_type,
+                "amount": _schema_money_out(contribution.amount),
+                "frequency": contribution.frequency,
                 "monthly_equivalent": _schema_money_out(
-                    Money(savings_detection.monthly_equivalent_minor(c), c.currency)
+                    contribution.monthly_equivalent
                 ),
-                "times_seen": c.occurrences,
-                "last_seen": c.last_seen.isoformat(),
-                # #4: the goal this contribution funds, by name, so the model
-                # can say "your 529 transfer is filling the College fund".
-                "funds_goal": next(
-                    (g.name for g in repository.list_goals(engine, household_id)
-                     if g.id == c.goal_id),
-                    None,
-                ) if c.goal_id else None,
+                "times_seen": contribution.occurrences,
+                "last_seen": contribution.last_seen.isoformat(),
+                "declared": contribution.declared,
+                "inferred": contribution.inferred,
+                "funds_goal": goal_names.get(contribution.goal_id),
             }
-            for c in found
+            for contribution in found.contributions
         ],
-        "total_monthly_equivalent": _schema_money_out(Money(total_monthly, currency)),
+        "detection": _availability_out(found.detection),
         # The honesty requirement from #201: never let this read as "all the
         # saving this family does".
         "coverage_note": (
@@ -1332,10 +1510,14 @@ def _get_spending_insights(engine: Engine, household_id: str, currency: str, arg
         "month_to_date_spending": _schema_money_out(insights.this_month),
         "same_window_last_month": _schema_money_out(insights.last_month),
         "change_percent": insights.change_percent,
-        "top_merchants": [
-            {"merchant": m.merchant, "total": _schema_money_out(m.amount)}
-            for m in insights.top_merchants
-        ],
+        "top_merchants": (
+            [
+                {"merchant": m.merchant, "total": _schema_money_out(m.amount)}
+                for m in insights.top_merchants
+            ]
+            if insights.top_merchants is not None
+            else None
+        ),
     }
 
 
@@ -1777,7 +1959,13 @@ def build_executor(
         handler = _HANDLERS.get(name)
         if handler is None:
             return {"error": "unknown_tool", "name": name}
-        return handler(engine, household_id, currency, args)
+        try:
+            return handler(engine, household_id, currency, args)
+        except SealedAmountUnreadableError:
+            # Strict ranking/candidate tools have no honest partial product.
+            # Convert only the known corruption boundary; locked/database/
+            # cancellation and unexpected failures retain their own behavior.
+            return _incomplete_data()
 
     return execute
 
@@ -1846,7 +2034,9 @@ def _groundable(value: Any, *, drop_minor_units: bool) -> Any:
     if isinstance(value, dict):
         kept = {}
         for key, item in value.items():
-            if drop_minor_units and key.endswith("_minor"):
+            if drop_minor_units and (
+                key.endswith("_minor") or key == "incomplete_count"
+            ):
                 continue
             if key in _UNGROUNDED_TEXT_KEYS and isinstance(item, str):
                 continue

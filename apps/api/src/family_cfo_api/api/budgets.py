@@ -14,12 +14,19 @@ from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, repository, rights, undo_actions
 from family_cfo_api.deps import get_current_session, get_engine, require_right
+from family_cfo_api.qualified_amounts import (
+    CategorySpendingTotals,
+    Qualified,
+    union_sources,
+)
 from family_cfo_api.schemas import (
     Budget,
     BudgetCreateRequest,
     BudgetListResponse,
+    BudgetSummary,
     BudgetUpdateRequest,
     ErrorResponse,
+    qualified_money,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -36,43 +43,89 @@ def _month_window(today: date | None = None) -> tuple[date, date]:
 
 
 def budget_progress(
-    record: repository.BudgetRecord, spent_minor: int
+    record: repository.BudgetRecord, spent: Qualified[int]
 ) -> Budget:
-    """Envelope progress for the current month; raw percent drives the status."""
+    """Envelope progress; decisions exist only for a complete spent amount."""
     limit = record.limit_minor
-    percent = round(spent_minor / limit * 100) if limit > 0 else 0
-    if limit > 0 and spent_minor > limit:
-        status = "over"
-    elif limit > 0 and spent_minor >= limit * WARNING_THRESHOLD:
-        status = "warning"
-    else:
-        status = "under"
+    percent: int | None = None
+    status: str | None = None
+    remaining = None
+    if spent.is_complete:
+        percent = round(spent.value / limit * 100) if limit > 0 else 0
+        if limit > 0 and spent.value > limit:
+            status = "over"
+        elif limit > 0 and spent.value >= limit * WARNING_THRESHOLD:
+            status = "warning"
+        else:
+            status = "under"
+        remaining = qualified_money(Qualified.complete(limit - spent.value), record.currency)
     return Budget(
         id=record.id,
         category_id=record.category_id,
         category_name=record.category_name,
         limit=MoneySchema(amount_minor=limit, currency=record.currency),
-        spent=MoneySchema(amount_minor=spent_minor, currency=record.currency),
-        remaining=MoneySchema(amount_minor=limit - spent_minor, currency=record.currency),
+        spent=qualified_money(spent, record.currency),
+        remaining=remaining,
         percent_used=percent,
         status=status,
     )
 
 
 def budgets_with_progress(
-    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+    records: list[repository.BudgetRecord], totals: CategorySpendingTotals
 ) -> list[Budget]:
-    records = repository.list_budgets(engine, household_id)
-    if not records:
-        return []
-    start, end = _month_window(today)
-    spent_by_category = repository.sum_spending_by_category(
-        engine, household_id, start, end, currency
-    )
     return [
-        budget_progress(record, spent_by_category.get(record.category_id, 0))
+        budget_progress(record, totals.by_category.get(record.category_id, Qualified.complete(0)))
         for record in records
     ]
+
+
+def summarize_budgets(
+    budgets: list[Budget], totals: CategorySpendingTotals, currency: str
+) -> BudgetSummary:
+    category_ids = {budget.category_id for budget in budgets}
+    qualified_total = Qualified(
+        sum(
+            total.value
+            for category_id, total in totals.by_category.items()
+            if category_id in category_ids
+        ),
+        union_sources(
+            *(
+                total
+                for category_id, total in totals.by_category.items()
+                if category_id in category_ids
+            )
+        ),
+    )
+    statuses_complete = qualified_total.is_complete
+    return BudgetSummary(
+        envelope_count=len(budgets),
+        over_count=sum(1 for b in budgets if b.status == "over") if statuses_complete else None,
+        warning_count=(
+            sum(1 for b in budgets if b.status == "warning") if statuses_complete else None
+        ),
+        total_budgeted=MoneySchema(
+            amount_minor=sum(b.limit.amount_minor for b in budgets), currency=currency
+        ),
+        total_spent=qualified_money(qualified_total, currency),
+    )
+
+
+def assemble_budget_response(
+    engine: Engine, household_id: str, currency: str, *, today: date | None = None
+) -> BudgetListResponse:
+    """Build envelope rows and summary from one category-spending snapshot."""
+    records = repository.list_budgets(engine, household_id)
+    start, end = _month_window(today)
+    totals = repository.category_spending_totals(
+        engine, household_id, start, end, currency
+    )
+    budgets = budgets_with_progress(records, totals)
+    return BudgetListResponse(
+        budgets=budgets,
+        summary=summarize_budgets(budgets, totals, currency),
+    )
 
 
 def _household_currency(engine: Engine, household_id: str) -> str:
@@ -92,9 +145,7 @@ async def list_budgets(
     engine: Engine = Depends(get_engine),
 ) -> BudgetListResponse:
     currency = _household_currency(engine, session.household_id)
-    return BudgetListResponse(
-        budgets=budgets_with_progress(engine, session.household_id, currency)
-    )
+    return assemble_budget_response(engine, session.household_id, currency)
 
 
 @router.post(
@@ -145,9 +196,9 @@ async def create_budget(
     assert record is not None
     currency = _household_currency(engine, session.household_id)
     start, end = _month_window()
-    spent = repository.sum_spending_by_category(
+    spent = repository.category_spending_totals(
         engine, session.household_id, start, end, currency
-    ).get(record.category_id, 0)
+    ).by_category.get(record.category_id, Qualified.complete(0))
     return budget_progress(record, spent)
 
 
@@ -191,9 +242,9 @@ async def update_budget(
     )
     currency = _household_currency(engine, session.household_id)
     start, end = _month_window()
-    spent = repository.sum_spending_by_category(
+    spent = repository.category_spending_totals(
         engine, session.household_id, start, end, currency
-    ).get(record.category_id, 0)
+    ).by_category.get(record.category_id, Qualified.complete(0))
     return budget_progress(record, spent)
 
 

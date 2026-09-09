@@ -14,6 +14,7 @@ from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.logging import configure_logging
+from family_cfo_api.openapi_compat import make_swift_generator_compatible_openapi
 from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import ApiError, ErrorResponse
 
@@ -100,6 +101,16 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         enabled=settings.auth_rate_limit_enabled,
     )
     app.include_router(api_router)
+
+    generated_openapi = app.openapi
+
+    def swift_generator_compatible_openapi() -> dict[str, Any]:
+        return make_swift_generator_compatible_openapi(generated_openapi())
+
+    # Keep the development OpenAPI endpoint and contract/parity tooling on the
+    # same representation. FastAPI caches the dict returned by generated_openapi;
+    # the compatibility rewrite is idempotent and therefore safe on later calls.
+    app.openapi = swift_generator_compatible_openapi
 
     @app.exception_handler(household_crypto.HouseholdLockedError)
     async def locked_handler(request, exc: household_crypto.HouseholdLockedError):

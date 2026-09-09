@@ -3,6 +3,11 @@
 import pytest
 
 
+def _qminor(value: dict) -> int:
+    assert value["incomplete_count"] == 0
+    return value["value"]["amount_minor"]
+
+
 async def _context(demo_client, demo_token):
     response = await demo_client.get(
         "/api/v1/household", headers={"Authorization": f"Bearer {demo_token}"}
@@ -25,13 +30,11 @@ async def test_current_month_snapshots_and_past_month_is_historical(
     )
     assert resp.status_code == 200
     body = resp.json()
-    # A pre-snapshot past month has no live-only cards. emergency_fund_months is a
-    # required, non-nullable contract field, so a historical view sends 0 as filler
-    # (the emergency-fund *summary* card is what's actually omitted); the client
-    # decodes a plain Double and would fail on null.
+    # A pre-snapshot past month has no live-only cards. The breaking 0.159
+    # contract represents unavailable historical emergency coverage as null.
     assert body.get("safe_to_spend") is None
     assert body.get("emergency_fund") is None
-    assert body.get("emergency_fund_months") == 0.0
+    assert body.get("emergency_fund_months") is None
     assert "net_worth" in body  # net worth still comes from snapshots
 
 
@@ -54,22 +57,21 @@ async def test_context_includes_enriched_summary(demo_client, demo_token) -> Non
     # Cash flow = the month's actuals (Year-chart rule): income received minus
     # month-to-date spending, NOT the recurring-bill model (2026-07-25).
     cash_flow = body["monthly_cash_flow"]
-    assert cash_flow["income"]["amount_minor"] == 600_000
-    assert cash_flow["spending"]["amount_minor"] >= 0
-    assert (
-        cash_flow["net"]["amount_minor"]
-        == cash_flow["income"]["amount_minor"] - cash_flow["spending"]["amount_minor"]
+    assert _qminor(cash_flow["income"]) == 600_000
+    assert _qminor(cash_flow["spending"]) >= 0
+    assert _qminor(cash_flow["net"]) == (
+        _qminor(cash_flow["income"]) - _qminor(cash_flow["spending"])
     )
 
     # Emergency fund: no designations in fixtures → all-liquid fallback,
     # and the reported months must equal reserved / monthly expenses.
     fund = body["emergency_fund"]
     assert fund["using_designations"] is False
-    assert fund["monthly_expenses"]["amount_minor"] == 208_000
+    assert _qminor(fund["monthly_expenses"]) == 208_000
     assert fund["target_months_min"] == 3
     assert fund["target_months_recommended"] == 6
     assert fund["months"] == pytest.approx(fund["reserved"]["amount_minor"] / 208_000)
-    assert fund["gap_to_recommended"]["amount_minor"] == max(
+    assert _qminor(fund["gap_to_recommended"]) == max(
         0, 6 * 208_000 - fund["reserved"]["amount_minor"]
     )
     assert fund["status"] in {"no_fund", "getting_started", "on_track", "fully_funded"}
@@ -91,10 +93,10 @@ async def test_context_includes_enriched_summary(demo_client, demo_token) -> Non
         + sts["bills_due"]["amount_minor"]
         + sts["minimum_debt_payments"]["amount_minor"]
     )
-    assert sts["committed_total"]["amount_minor"] == committed
-    assert sts["safe_to_spend"]["amount_minor"] == liquid - committed
+    assert _qminor(sts["committed_total"]) == committed
+    assert _qminor(sts["safe_to_spend"]) == liquid - committed
     # Not the old, obligation-blind figure (liquid − emergency fund only).
-    assert sts["safe_to_spend"]["amount_minor"] != liquid - sts["emergency_fund_reserved"]["amount_minor"]
+    assert _qminor(sts["safe_to_spend"]) != liquid - sts["emergency_fund_reserved"]["amount_minor"]
 
 
 @pytest.mark.anyio
@@ -126,7 +128,7 @@ async def test_designation_drives_status_and_gap(demo_client, demo_token) -> Non
     assert fund["status"] == "getting_started"
     # M75: the gap is the LARGER of the months gap (5 * 208,000) and the gap
     # to the fixture's $18k emergency-fund goal (1,800,000 - 208,000).
-    assert fund["gap_to_recommended"]["amount_minor"] == 1_800_000 - 208_000
+    assert _qminor(fund["gap_to_recommended"]) == 1_800_000 - 208_000
 
 
 @pytest.mark.anyio
@@ -152,7 +154,7 @@ async def test_fully_funded_has_zero_gap(demo_client, demo_token) -> None:
 
     fund = (await _context(demo_client, demo_token))["emergency_fund"]
     assert fund["status"] == "fully_funded"
-    assert fund["gap_to_recommended"]["amount_minor"] == 0
+    assert _qminor(fund["gap_to_recommended"]) == 0
     assert fund["months"] >= 6
 
 
@@ -219,7 +221,7 @@ async def test_ef_goal_overrides_rosy_months_status(
     # Months coverage alone (~74 months of a $15.49 bill) said fully_funded.
     assert fund["status"] == "getting_started"
     assert fund["goal_target"]["amount_minor"] == 9_000_000
-    assert fund["gap_to_recommended"]["amount_minor"] == 9_000_000 - 115_411
+    assert _qminor(fund["gap_to_recommended"]) == 9_000_000 - 115_411
 
 
 @pytest.mark.anyio
@@ -281,12 +283,13 @@ async def test_context_reports_spending_by_category(demo_client, demo_token) -> 
     if sbc is None:
         return
     assert "month_label" in sbc
-    cat_sum = sum(c["amount"]["amount_minor"] for c in sbc["categories"])
-    assert sbc["categorized_total"]["amount_minor"] == cat_sum
+    cat_sum = sum(_qminor(c["amount"]) for c in sbc["categories"])
+    assert _qminor(sbc["categorized_total"]) == cat_sum
     # Highest-first ordering.
-    amounts = [c["amount"]["amount_minor"] for c in sbc["categories"]]
+    amounts = [_qminor(c["amount"]) for c in sbc["categories"]]
     assert amounts == sorted(amounts, reverse=True)
-    assert sbc["uncategorized"]["amount_minor"] >= 0
+    assert _qminor(sbc["uncategorized"]) >= 0
+    assert _qminor(sbc["total"]) == cat_sum + _qminor(sbc["uncategorized"])
 
 
 @pytest.mark.anyio
@@ -333,7 +336,10 @@ async def test_overview_survives_a_foreign_currency_account_and_lists_it(
     body = await _context(demo_client, demo_token)
 
     # checking 500_000 + savings 1_500_000 - mortgage 300_000_000; EUR 4,000 absent.
-    assert body["net_worth"] == {"amount_minor": -298_000_000, "currency": "USD"}
+    assert body["net_worth"] == {
+        "value": {"amount_minor": -298_000_000, "currency": "USD"},
+        "incomplete_count": 0,
+    }
     assert body["accounts_outside_base_currency"] == [
         {"name": "Euro Savings", "balance": {"amount_minor": 400_000, "currency": "EUR"}}
     ]
@@ -371,7 +377,7 @@ async def test_past_month_survives_a_foreign_account_and_marks_exclusions_unknow
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["net_worth"]["currency"] == "USD"
+    assert body["net_worth"]["value"]["currency"] == "USD"
     assert body["accounts_outside_base_currency"] is None
 
 
@@ -396,7 +402,10 @@ async def test_a_lower_case_currency_code_joins_its_own_household(
     assert balance.status_code in (200, 201), balance.text
 
     body = await _context(demo_client, demo_token)
-    assert body["net_worth"] == {"amount_minor": -298_000_000 + 100_000, "currency": "USD"}
+    assert body["net_worth"] == {
+        "value": {"amount_minor": -298_000_000 + 100_000, "currency": "USD"},
+        "incomplete_count": 0,
+    }
     assert body["accounts_outside_base_currency"] == []
     assert not any("held in" in w for w in body["safe_to_spend"]["warnings"])
 

@@ -14,7 +14,10 @@ def test_read_tool_returns_grounded_output_and_persists_calc(demo_engine: Engine
     result = _execute(demo_engine, "get_net_worth", {})
 
     assert "outputs" in result
-    assert result["outputs"]["net_worth"]["currency"] == "USD"
+    net_worth = result["outputs"]["net_worth"]
+    assert net_worth["value"]["currency"] == "USD"
+    assert net_worth["incomplete_count"] == 0
+    assert net_worth["partial"] is False
     assert result["calculation_ref"].startswith("financial_calculations:")
 
     with demo_engine.connect() as conn:
@@ -24,6 +27,92 @@ def test_read_tool_returns_grounded_output_and_persists_calc(demo_engine: Engine
             )
         ).all()
     assert len(rows) >= 1
+
+
+def test_qualified_money_serialization_preserves_partial_metadata_and_display() -> None:
+    from family_cfo_financial_engine import Money
+
+    from family_cfo_api.qualified_amounts import Qualified, UnreadableAmountSource
+
+    source = UnreadableAmountSource("household", "transactions", "row", "amount_minor")
+    result = ai_tools._qualified_money_out(
+        Qualified(Money(12_345, "USD"), frozenset({source}))
+    )
+
+    assert result == {
+        "value": {
+            "amount_minor": 12_345,
+            "currency": "USD",
+            "display": "USD 123.45",
+        },
+        "incomplete_count": 1,
+        "partial": True,
+    }
+    assert "row" not in str(result)
+    assert "transactions" not in str(result)
+
+
+def test_purchase_and_retirement_tools_gate_incomplete_inputs(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    from family_cfo_financial_engine import Money
+
+    from family_cfo_api import advisor_qualification, finance_service
+    from family_cfo_api.qualified_amounts import Qualified, UnreadableAmountSource
+
+    source = UnreadableAmountSource(
+        fixtures.DEMO_HOUSEHOLD_ID, "transactions", "private-row", "amount_minor"
+    )
+    sources = frozenset({source})
+    monkeypatch.setattr(
+        advisor_qualification,
+        "purchase_impact_incomplete_sources",
+        lambda *_args, **_kwargs: sources,
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("decision calculator must not run")
+
+    monkeypatch.setattr(finance_service, "compute_purchase_impact", forbidden)
+    purchase = _execute(demo_engine, "project_purchase_impact", {"price": 100})
+    assert purchase["error"] == "incomplete_data"
+    assert purchase["incomplete_count"] == 1
+    assert "sign in" not in purchase["detail"].lower()
+
+    monkeypatch.setattr(
+        finance_service,
+        "monthly_essential_expenses",
+        lambda *_args, **_kwargs: Qualified(
+            Money(50_000, "USD"), sources
+        ),
+    )
+    monkeypatch.setattr(finance_service, "compute_retirement_projection", forbidden)
+    retirement = _execute(
+        demo_engine,
+        "project_retirement",
+        {"current_age": 40, "retirement_age": 65},
+    )
+    assert retirement["error"] == "incomplete_data"
+    assert retirement["incomplete_count"] == 1
+
+
+def test_strict_savings_ranking_becomes_structured_incomplete_data(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    from family_cfo_api import household_crypto, savings
+
+    def unreadable(*_args, **_kwargs):
+        raise household_crypto.SealedAmountUnreadableError(
+            fixtures.DEMO_HOUSEHOLD_ID
+        )
+
+    monkeypatch.setattr(savings, "find_savings", unreadable)
+
+    result = _execute(demo_engine, "find_savings", {})
+
+    assert result["error"] == "incomplete_data"
+    assert "recurring_discretionary" not in result
+    assert "possible_waste" not in result
 
 
 def test_future_value_tool_computes_growth(demo_engine: Engine) -> None:
@@ -229,6 +318,16 @@ def _seed_accounts_for_inventory(engine: Engine):
     # M36: the demo savings account IS the emergency fund.
     savings = next(b for b in repository.list_account_balances(engine, hh) if b.name == "Savings")
     repository.update_account(engine, hh, savings.account_id, emergency_fund_percent=100.0)
+    repository.create_savings_contribution(
+        engine,
+        hh,
+        source_account_id=fixtures.DEMO_CHECKING_ACCOUNT_ID,
+        destination_account_id=savings.account_id,
+        amount_minor=25_000,
+        currency="USD",
+        frequency="monthly",
+        source="declared",
+    )
     return {"brokerage": brokerage, "loan": loan, "savings": savings}
 
 
@@ -363,6 +462,91 @@ def test_accounts_tool_marks_itself_current_only(demo_engine: Engine) -> None:
     assert "CURRENT balances only" in spec.description
     net_worth_spec = next(t for t in ai_tools.build_tools() if t.name == "get_net_worth")
     assert "cannot break down a past month" in net_worth_spec.description
+
+
+def test_historical_net_worth_reconstructs_when_snapshot_is_absent(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    from datetime import date
+
+    from family_cfo_api import finance_service, repository
+    from family_cfo_api.qualified_amounts import Qualified
+
+    reconstructed_as_of: list[date] = []
+    monkeypatch.setattr(
+        repository,
+        "net_worth_snapshot_as_of",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def reconstruct(_engine, _household_id, as_of, _currency):
+        reconstructed_as_of.append(as_of)
+        return Qualified.complete(12_345)
+
+    monkeypatch.setattr(finance_service, "reconstruct_net_worth", reconstruct)
+
+    result = _execute(demo_engine, "get_net_worth", {"month": "2026-01"})
+
+    assert reconstructed_as_of == [date(2026, 1, 31)]
+    assert result["net_worth"]["value"]["amount_minor"] == 12_345
+    assert result["net_worth"]["incomplete_count"] == 0
+    assert "No snapshot existed" in result["note"]
+
+
+def test_historical_net_worth_preserves_real_zero_snapshot(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    from family_cfo_api import finance_service, repository
+
+    monkeypatch.setattr(
+        repository,
+        "net_worth_snapshot_as_of",
+        lambda *_args, **_kwargs: 0,
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("a real zero snapshot must not trigger reconstruction")
+
+    monkeypatch.setattr(finance_service, "reconstruct_net_worth", forbidden)
+
+    result = _execute(demo_engine, "get_net_worth", {"month": "2026-01"})
+
+    assert result["net_worth"]["value"]["amount_minor"] == 0
+    assert result["net_worth"]["incomplete_count"] == 0
+    assert result["net_worth"]["partial"] is False
+    assert "from the snapshot" in result["note"]
+
+
+def test_historical_net_worth_preserves_unreadable_reconstruction_sources(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    from family_cfo_api import finance_service, repository
+    from family_cfo_api.qualified_amounts import Qualified, UnreadableAmountSource
+
+    source = UnreadableAmountSource(
+        fixtures.DEMO_HOUSEHOLD_ID,
+        "private-source-table",
+        "private-historical-row",
+        "amount_minor",
+    )
+    monkeypatch.setattr(
+        repository,
+        "net_worth_snapshot_as_of",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        finance_service,
+        "reconstruct_net_worth",
+        lambda *_args, **_kwargs: Qualified(54_321, frozenset({source})),
+    )
+
+    result = _execute(demo_engine, "get_net_worth", {"month": "2026-01"})
+
+    assert result["net_worth"]["value"]["amount_minor"] == 54_321
+    assert result["net_worth"]["incomplete_count"] == 1
+    assert result["net_worth"]["partial"] is True
+    assert "private-historical-row" not in str(result)
+    assert "private-source-table" not in str(result)
 
 
 def test_accounts_tool_routes_spending_and_debt_questions_elsewhere(demo_engine: Engine) -> None:
@@ -660,7 +844,15 @@ def test_grounding_filter_drops_minor_units_and_household_text() -> None:
     `<field>_minor` form and echoing the user's own figure is legitimate."""
     payload = {
         "outputs": {
-            "safe_to_spend": {"amount_minor": 250_000, "currency": "USD", "display": "$2,500.00"}
+            "safe_to_spend": {
+                "value": {
+                    "amount_minor": 250_000,
+                    "currency": "USD",
+                    "display": "$2,500.00",
+                },
+                "incomplete_count": 7,
+                "partial": True,
+            }
         },
         "vested_rsus_ready_to_sell_not_cash": [
             {"account": "Vested RSUs 9876", "value": {"amount_minor": 2_500_000, "display": "$25,000.00"}}
@@ -671,20 +863,51 @@ def test_grounding_filter_drops_minor_units_and_household_text() -> None:
 
     filtered = ai_tools._groundable(payload, drop_minor_units=True)
 
-    assert filtered["outputs"]["safe_to_spend"] == {"currency": "USD", "display": "$2,500.00"}
+    assert filtered["outputs"]["safe_to_spend"] == {
+        "value": {"currency": "USD", "display": "$2,500.00"},
+        "partial": True,
+    }
     rsu = filtered["vested_rsus_ready_to_sell_not_cash"][0]
     assert "account" not in rsu  # the name's digits are an identifier, not money
     assert rsu["value"] == {"display": "$25,000.00"}
     assert filtered["warnings"] == payload["warnings"]  # our own text still grounds
     assert filtered["months_of_runway"] == 6
     # Non-destructive: the caller's payload is untouched.
-    assert payload["outputs"]["safe_to_spend"]["amount_minor"] == 250_000
+    assert payload["outputs"]["safe_to_spend"]["value"]["amount_minor"] == 250_000
+    assert payload["outputs"]["safe_to_spend"]["incomplete_count"] == 7
 
     args = ai_tools._groundable(
         {"present_value_minor": 100_000, "query": "roof costs 9876"}, drop_minor_units=False
     )
     assert args["present_value_minor"] == 100_000
     assert "query" not in args  # a number the model typed is not a fact
+
+
+def test_incomplete_count_never_grounds_a_number_but_partial_money_does() -> None:
+    from family_cfo_ai_orchestrator import ToolCallingResult
+    from family_cfo_ai_orchestrator.tool_calling import ToolCallRecord
+
+    payload = {
+        "total": {
+            "value": {
+                "amount_minor": 12_345,
+                "currency": "USD",
+                "display": "USD 123.45",
+            },
+            "incomplete_count": 7,
+            "partial": True,
+        }
+    }
+    result = ToolCallingResult(
+        answer="x",
+        completed=True,
+        tool_calls=[
+            ToolCallRecord(name="get_spending_insights", arguments={}, result=payload)
+        ],
+    )
+
+    assert "7" not in ai_tools.grounded_values(result)
+    assert ai_tools.grounded_money(result)["123.45"] == {"USD"}
 
 
 def test_digits_in_an_account_name_are_not_a_quotable_figure(demo_engine: Engine) -> None:
@@ -806,7 +1029,8 @@ def test_income_and_tax_tool_reports_sources_and_estimate(demo_engine: Engine) -
 
     assert result["income_sources"][0]["name"] == "ACME CORP PAYROLL"
     assert result["income_sources"][0]["frequency"] == "biweekly"
-    assert result["annual_income_detected"]["amount_minor"] == 4 * 461_538
+    assert result["annual_income_detected"]["value"]["amount_minor"] == 4 * 461_538
+    assert result["annual_income_detected"]["incomplete_count"] == 0
     tax = result["tax_estimate"]
     assert tax["tax_year"] == 2026
     assert tax["estimated_total_tax"]["amount_minor"] > 0
@@ -843,7 +1067,7 @@ def test_income_tool_month_mode_lists_the_individual_deposits(demo_engine: Engin
         for d in deposits
     )
     # The aggregate equals (at least) the listed rows — chart-consistent (ADR 0066).
-    assert result["income_received"]["amount_minor"] >= sum(
+    assert result["income_received"]["value"]["amount_minor"] >= sum(
         d["amount"]["amount_minor"] for d in deposits
     )
     assert "deposits" in result["note"]
@@ -942,7 +1166,8 @@ def test_safe_to_spend_tool_is_grounded_and_nets_out_obligations(demo_engine: En
     result = _execute(demo_engine, "get_safe_to_spend", {})
 
     outputs = result["outputs"]
-    assert outputs["safe_to_spend"]["currency"] == "USD"
+    assert outputs["safe_to_spend"]["value"]["currency"] == "USD"
+    assert outputs["safe_to_spend"]["incomplete_count"] == 0
     assert outputs["bills_due"]["amount_minor"] > 0
     assert result["calculation_ref"].startswith("financial_calculations:")
 
@@ -950,7 +1175,7 @@ def test_safe_to_spend_tool_is_grounded_and_nets_out_obligations(demo_engine: En
     reserved = outputs["emergency_fund_reserved"]["amount_minor"]
     bills = outputs["bills_due"]["amount_minor"]
     debt = outputs["minimum_debt_payments"]["amount_minor"]
-    assert outputs["safe_to_spend"]["amount_minor"] == liquid - reserved - bills - debt
+    assert outputs["safe_to_spend"]["value"]["amount_minor"] == liquid - reserved - bills - debt
 
 
 def test_the_prompt_forbids_deriving_spendable_money_by_subtraction() -> None:
@@ -1220,9 +1445,13 @@ def test_net_worth_total_is_base_currency_only(demo_engine: Engine, foreign_curr
     # checking 500_000 + savings 1_500_000 - mortgage 300_000_000; the EUR 4,000
     # is neither added as-is nor converted.
     assert payload["outputs"]["net_worth"] == {
-        "amount_minor": -298_000_000,
-        "currency": "USD",
-        "display": "-USD 2,980,000.00",
+        "value": {
+            "amount_minor": -298_000_000,
+            "currency": "USD",
+            "display": "-USD 2,980,000.00",
+        },
+        "incomplete_count": 0,
+        "partial": False,
     }
     assert payload["asset_breakdown"]["liquid"]["amount_minor"] == 2_000_000
 
