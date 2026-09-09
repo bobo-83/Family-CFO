@@ -49,19 +49,20 @@ struct BudgetComplicationView: View {
             Text("Budget \(summaryLabel(snapshot))")
                 .privacySensitive()
         case .accessoryCorner:
-            Text(summaryLabel(snapshot))
-                .font(.system(.body, design: .rounded).weight(.semibold))
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-                .privacySensitive()
+            Image(systemName: "chart.pie.fill")
+                .foregroundStyle(summaryTint(snapshot))
                 .widgetLabel(summaryLabel(snapshot))
         default:
-            Text(summaryLabel(snapshot))
-                .font(.system(.body, design: .rounded).weight(.semibold))
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-                .privacySensitive()
-                .widgetLabel(summaryLabel(snapshot))
+            VStack(spacing: 1) {
+                Image(systemName: "chart.pie.fill")
+                    .foregroundStyle(summaryTint(snapshot))
+                if let spent = snapshot.budgetSpentMinor {
+                    Text(snapshot.compact(spent))
+                        .minimumScaleFactor(0.5)
+                        .privacySensitive()
+                }
+            }
+            .widgetLabel(summaryLabel(snapshot))
         }
     }
 

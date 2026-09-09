@@ -126,9 +126,8 @@ struct GlanceComplicationView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let income = snapshot.monthIncomeMinor, let spending = snapshot.monthSpendingMinor {
-                let peak = max(income, spending, 1)
-                barRow("In", income, peak, .green, snapshot)
-                barRow("Out", spending, peak, .orange, snapshot)
+                amountRow("In", income, snapshot)
+                amountRow("Out", spending, snapshot)
                 if let disclosure = partialDisclosure(snapshot.monthIncomeIncompleteCount ?? 0) {
                     Text("Income: \(disclosure)")
                         .font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
@@ -158,20 +157,13 @@ struct GlanceComplicationView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func barRow(
-        _ label: String, _ minor: Int64, _ peak: Int64, _ tint: Color,
-        _ snapshot: WatchFaceSnapshot
+    private func amountRow(
+        _ label: String, _ minor: Int64, _ snapshot: WatchFaceSnapshot
     ) -> some View {
         HStack(spacing: 4) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 24, alignment: .leading)
-            ProgressView(value: Double(minor) / Double(peak))
-                .tint(tint)
-            Text(snapshot.compact(minor))
-                .font(.caption2)
-                .privacySensitive()
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Spacer()
+            Text(snapshot.compact(minor)).font(.caption2).privacySensitive()
         }
     }
 
