@@ -43,9 +43,9 @@ def test_window_is_three_complete_months_excluding_current(demo_engine) -> None:
 
     rate = _savings_rate(demo_engine, _HH, "USD", today=date(2027, 4, 20))
     # 90,000 over 3 months -> 30,000/month average.
-    assert rate.average_monthly_spending.amount_minor == 30_000
+    assert rate.average_monthly_spending.value.amount_minor == 30_000
     # Demo recurring income is $6,000/month -> (600000-30000)/600000 = 95%.
-    assert rate.monthly_income.amount_minor == 600_000
+    assert rate.monthly_income.value.amount_minor == 600_000
     assert rate.percent == 95
 
 
@@ -55,7 +55,7 @@ def test_negative_rate_when_spending_exceeds_income(demo_engine) -> None:
     for month in (1, 2, 3):
         _spend(demo_engine, account_id, date(2027, month, 12), -900_000)
     rate = _savings_rate(demo_engine, _HH, "USD", today=date(2027, 4, 20))
-    assert rate.average_monthly_spending.amount_minor == 900_000
+    assert rate.average_monthly_spending.value.amount_minor == 900_000
     assert rate.percent == -50  # (600000-900000)/600000
 
 
@@ -92,10 +92,10 @@ def test_payroll_deductions_count_and_do_not_touch_the_residual(demo_engine) -> 
     assert rate.payroll_deductions.amount_minor == 2_500_00
     assert rate.payroll_profile_present is True
     # Residual is unchanged by payroll: take-home 600000 - spending 30000 = 570000.
-    assert rate.residual.amount_minor == 570_000
+    assert rate.residual.value.amount_minor == 570_000
     # gross = take-home 600000 + payroll 250000 = 850000; saved = 250000+570000.
-    assert rate.gross_income.amount_minor == 850_000
-    assert rate.total_saved.amount_minor == 820_000
+    assert rate.gross_income.value.amount_minor == 850_000
+    assert rate.total_saved.value.amount_minor == 820_000
     assert rate.percent == round(820_000 / 850_000 * 100)
 
 
@@ -123,12 +123,12 @@ async def test_declared_transfer_is_its_own_bucket_not_double_counted(
     )
     body = (await demo_client.get("/api/v1/household", headers=headers)).json()
     sr = body["savings_rate"]
-    assert sr["transfers"]["amount_minor"] == 500_00
+    assert sr["transfers"]["value"]["amount_minor"] == 500_00
     assert sr["declared_transfers_present"] is True
     # residual = take_home - spending - transfers: the $500 is not also here.
     assert (
-        sr["residual"]["amount_minor"]
-        == sr["monthly_income"]["amount_minor"]
-        - sr["average_monthly_spending"]["amount_minor"]
+        sr["residual"]["value"]["amount_minor"]
+        == sr["monthly_income"]["value"]["amount_minor"]
+        - sr["average_monthly_spending"]["value"]["amount_minor"]
         - 500_00
     )

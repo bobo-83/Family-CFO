@@ -121,6 +121,33 @@ def test_card_payment_is_placed_once_never_projected_twice(demo_engine: Engine) 
     assert card_events[0].amount_minor == -300_000
 
 
+def test_excluded_debits_remain_transfer_evidence(demo_engine: Engine) -> None:
+    checking = _checking(demo_engine)
+    savings = repository.create_account(
+        demo_engine, HH, name="Excluded Debit Savings", account_type="savings", currency="USD"
+    )
+    for months_back in range(1, 4):
+        when = add_months(TODAY - timedelta(days=5), -months_back)
+        repository.create_transaction(
+            demo_engine, HH, account_id=checking, occurred_at=when,
+            amount_minor=100_000, currency="USD", merchant="ACH credit",
+            description=None, import_source=None, import_id=None, review_state="reviewed",
+        )
+        debit_id = repository.create_transaction(
+            demo_engine, HH, account_id=savings.id, occurred_at=when,
+            amount_minor=-100_000, currency="USD", merchant="ACH debit",
+            description=None, import_source=None, import_id=None, review_state="reviewed",
+        )
+        assert repository.set_income_override(demo_engine, HH, debit_id, "exclude")
+
+    detection = finance_service.recurring_income_candidates(
+        demo_engine, HH, since=TODAY - timedelta(days=365)
+    )
+
+    assert detection.is_complete_for("USD")
+    assert all(candidate.name != "ACH credit" for candidate in detection.candidates)
+
+
 def test_transfers_are_not_counted_as_paydays(demo_engine: Engine) -> None:
     checking = _checking(demo_engine)
     savings = repository.create_account(

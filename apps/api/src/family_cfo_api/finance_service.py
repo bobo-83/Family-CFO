@@ -32,6 +32,14 @@ from family_cfo_financial_engine import (
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import audit, household_clock, repository, undo_actions
+from family_cfo_api.household_crypto import SealedAmountUnreadableError
+from family_cfo_api.qualified_amounts import (
+    Qualified,
+    QualifiedRows,
+    SourceSet,
+    UnreadableAmountSource,
+    union_sources,
+)
 
 LIQUID_ACCOUNT_TYPES = frozenset({"checking", "savings"})
 
@@ -317,6 +325,95 @@ def ignored_designation_warning(excluded: Sequence[ExcludedAccount], currency: s
     )
 
 
+QUALIFIED_ATTEMPT_VERSION = "qualified-attempt/1"
+INCOMPLETE_WARNING = (
+    "Some stored amounts could not be read; dependent decisions are unavailable until repaired."
+)
+
+
+@dataclass(slots=True)
+class CalculationAttempt:
+    """Application-owned envelope for complete and gated calculations."""
+
+    calculation_type: str
+    inputs: dict[str, Any]
+    assumptions: list[str]
+    warnings: list[str]
+    outputs: dict[str, Any]
+    incomplete_sources: SourceSet = frozenset()
+    engine_result: CalculationResult | None = None
+    response: Any = None
+
+    @classmethod
+    def complete(cls, result: CalculationResult) -> CalculationAttempt:
+        return cls(
+            calculation_type=result.calculation_type,
+            inputs=result.inputs,
+            assumptions=result.assumptions,
+            warnings=result.warnings,
+            outputs=result.outputs,
+            engine_result=result,
+        )
+
+    @property
+    def engine_invoked(self) -> bool:
+        return self.engine_result is not None
+
+    @property
+    def version(self) -> str:
+        return self.engine_result.version if self.engine_result is not None else QUALIFIED_ATTEMPT_VERSION
+
+
+def _persist_attempt(
+    engine: Engine,
+    household_id: str,
+    attempt: CalculationAttempt,
+) -> str:
+    inputs = dict(attempt.inputs)
+    if not attempt.engine_invoked:
+        inputs.update(
+            {
+                "attempt_schema": QUALIFIED_ATTEMPT_VERSION,
+                "engine_invoked": False,
+                "incomplete_amount_count": len(attempt.incomplete_sources),
+            }
+        )
+    return repository.record_calculation(
+        engine,
+        household_id=household_id,
+        calculation_type=attempt.calculation_type,
+        version=attempt.version,
+        inputs=inputs,
+        assumptions=attempt.assumptions,
+        warnings=attempt.warnings,
+        outputs=_serialize_outputs(attempt.outputs),
+    )
+
+
+def _persist_attempt_disclosing(
+    engine: Engine,
+    household_id: str,
+    attempt: CalculationAttempt,
+    currency: str,
+    excluded: Sequence[ExcludedAccount],
+    *,
+    warnings: Iterable[str | None] = (),
+) -> str:
+    for warning in (foreign_currency_warning(excluded, currency), *warnings):
+        if warning and warning not in attempt.warnings:
+            attempt.warnings.append(warning)
+    attempt.inputs["excluded_account_count"] = len(excluded)
+    attempt.inputs["excluded_currencies"] = sorted(
+        {account.balance.currency for account in excluded}
+    )
+    calculation_id = _persist_attempt(engine, household_id, attempt)
+    attempt.outputs["excluded_accounts"] = [
+        {"name": account.name, "type": account.account_type, "balance": account.balance}
+        for account in excluded
+    ]
+    return calculation_id
+
+
 def _persist_disclosing(
     engine: Engine,
     household_id: str,
@@ -593,18 +690,27 @@ def compute_net_worth(engine: Engine, household_id: str, currency: str) -> Calcu
 
 def reconstruct_net_worth(
     engine: Engine, household_id: str, as_of: date, currency: str
-) -> int:
+) -> Qualified[int]:
     """Net worth at the end of a past month, reconstructed from today's balances
     minus every transaction that has posted since. Approximate (it can't rewind
     market moves on investments), but far better than nothing for a month before
     daily net-worth snapshots existed. Returns the net-worth amount in minor units."""
     balances = repository.list_account_balances(engine, household_id)
-    later = repository.list_transactions(
-        engine, household_id, limit=1_000_000, start=as_of + timedelta(days=1)
+    later = repository.iter_transaction_amount_candidates(
+        engine, household_id, start=as_of + timedelta(days=1)
     )
+    base_account_ids = {b.account_id for b in balances if b.currency == currency}
     posted_since: dict[str, int] = {}
-    for txn in later:
-        posted_since[txn.account_id] = posted_since.get(txn.account_id, 0) + txn.amount_minor
+    sources: set[UnreadableAmountSource] = set()
+    for candidate in later:
+        account_id = candidate.metadata.account_id
+        if account_id not in base_account_ids:
+            continue
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            sources.add(candidate.incomplete_source)
+        else:
+            posted_since[account_id] = posted_since.get(account_id, 0) + candidate.amount
 
     engine_balances = [
         AccountBalance(
@@ -616,10 +722,14 @@ def reconstruct_net_worth(
         if b.currency == currency
     ]
     result = calculate_net_worth(engine_balances, currency)
-    return int(result.outputs["net_worth"].amount_minor)
+    return Qualified(
+        int(result.outputs["net_worth"].amount_minor), frozenset(sources)
+    )
 
 
-def reconstruct_debt_total(engine: Engine, household_id: str, as_of: date, currency: str) -> int:
+def reconstruct_debt_total(
+    engine: Engine, household_id: str, as_of: date, currency: str
+) -> Qualified[int]:
     """Total owed across all liability accounts at the end of a past date,
     reconstructed from today's balances minus the liability transactions posted
     since (mirrors reconstruct_net_worth). Approximate — a mortgage whose balance
@@ -628,22 +738,32 @@ def reconstruct_debt_total(engine: Engine, household_id: str, as_of: date, curre
     positive amount owed in minor units."""
     balances = repository.list_account_balances(engine, household_id)
     liability_ids = {
-        b.account_id for b in balances if b.account_type in repository.LIABILITY_ACCOUNT_TYPES
+        balance.account_id
+        for balance in balances
+        if balance.account_type in repository.LIABILITY_ACCOUNT_TYPES
+        and balance.currency.upper() == currency.upper()
     }
-    later = repository.list_transactions(
-        engine, household_id, limit=1_000_000, start=as_of + timedelta(days=1)
+    later = repository.iter_transaction_amount_candidates(
+        engine, household_id, start=as_of + timedelta(days=1)
     )
     posted_since: dict[str, int] = {}
-    for txn in later:
-        if txn.account_id in liability_ids:
-            posted_since[txn.account_id] = posted_since.get(txn.account_id, 0) + txn.amount_minor
+    sources: set[UnreadableAmountSource] = set()
+    for candidate in later:
+        account_id = candidate.metadata.account_id
+        if account_id not in liability_ids:
+            continue
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            sources.add(candidate.incomplete_source)
+        else:
+            posted_since[account_id] = posted_since.get(account_id, 0) + candidate.amount
 
     total_owed = 0
     for b in balances:
         if b.account_type in repository.LIABILITY_ACCOUNT_TYPES and b.currency == currency:
             reconstructed = b.balance_minor - posted_since.get(b.account_id, 0)
             total_owed += max(0, -reconstructed)  # a liability is a negative balance
-    return total_owed
+    return Qualified(total_owed, frozenset(sources))
 
 
 @dataclass(frozen=True, slots=True)
@@ -675,7 +795,16 @@ def debt_history(
             # Month-end, except the current (partial) month uses today.
             as_of = today if cursor == current_month_start else add_months(cursor, 1) - timedelta(days=1)
             owed = reconstruct_debt_total(engine, household_id, as_of, currency)
-            points.append(DebtHistoryPoint(f"{cursor.year}-{cursor.month:02d}", Money(owed, currency)))
+            # Debt-history is an unstable historical product and has no partial
+            # wire shape in Item 2. Keep its documented strict boundary until a
+            # later contract explicitly qualifies it.
+            if not owed.is_complete:
+                raise SealedAmountUnreadableError(household_id)
+            points.append(
+                DebtHistoryPoint(
+                    f"{cursor.year}-{cursor.month:02d}", Money(owed.value, currency)
+                )
+            )
             cursor = add_months(cursor, 1)
     average_minor = (
         round(sum(p.total_owed.amount_minor for p in points) / len(points)) if points else 0
@@ -706,7 +835,7 @@ def compute_net_worth_with_ref(
 
 def compute_emergency_fund(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> CalculationResult:
+) -> CalculationAttempt:
     result, _calculation_id = compute_emergency_fund_with_ref(
         engine, household_id, currency, today=today
     )
@@ -715,23 +844,39 @@ def compute_emergency_fund(
 
 def compute_emergency_fund_with_ref(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> tuple[CalculationResult, str]:
+) -> tuple[CalculationAttempt, str]:
     inputs = emergency_fund_inputs(engine, household_id, currency)
     # #152 review: the denominator has account-derived inputs of its own (the
     # liability minimums), so a foreign loan left out of it is disclosed too.
     expenses, denominator_excluded = monthly_essential_expenses_with_exclusions(
         engine, household_id, currency, today=today
     )
-    result = calculate_emergency_fund_months(inputs.fund, expenses)
-    calculation_id = _persist_disclosing(
+    if expenses.is_complete:
+        attempt = CalculationAttempt.complete(
+            calculate_emergency_fund_months(inputs.fund, expenses.value)
+        )
+    else:
+        attempt = CalculationAttempt(
+            calculation_type="emergency_fund",
+            inputs={"incomplete_amount_count": expenses.incomplete_count},
+            assumptions=[],
+            warnings=[INCOMPLETE_WARNING],
+            outputs={
+                "liquid_balance": inputs.fund,
+                "monthly_essential_expenses": expenses,
+                "emergency_fund_months": None,
+            },
+            incomplete_sources=expenses.incomplete_sources,
+        )
+    calculation_id = _persist_attempt_disclosing(
         engine,
         household_id,
-        result,
+        attempt,
         currency,
         _merge_excluded(inputs.excluded_accounts, denominator_excluded),
         warnings=inputs.warnings,
     )
-    return result, calculation_id
+    return attempt, calculation_id
 
 
 logger = logging.getLogger(__name__)
@@ -826,63 +971,162 @@ def recurring_liability_obligations(
 # --- Recurring income detection (shared) & the 30-day cash outlook (M112) ----
 
 
-def recurring_income_candidates(
-    engine: Engine, household_id: str, *, since: date
-) -> tuple[list, list, set[str], set[str]]:
-    """The income-analysis detection pipeline (M61–M63), reusable: inflows with
-    internal transfers dropped, user overrides applied, grouped into recurring
-    sources. Returns (transactions, candidates, included_ids, excluded_ids) —
-    the single source for both the income analysis and the cash outlook."""
-    from family_cfo_api import income_detection
+@dataclass(frozen=True, slots=True)
+class RecurringIncomeCandidates:
+    transactions: list[Any]
+    candidates: list[Any]
+    included_ids: set[str]
+    excluded_ids: set[str]
+    incomplete_by_currency: tuple[tuple[str, SourceSet], ...] = ()
+    incomplete_by_transaction: tuple[tuple[str, SourceSet], ...] = ()
 
-    def _to_txn(row: tuple) -> income_detection.IncomeTransaction:
-        txn_id, occurred_at, amount_minor, currency, merchant, description, account_name, inst = row
-        return income_detection.IncomeTransaction(
-            id=txn_id,
-            occurred_at=occurred_at,
-            amount_minor=amount_minor,
-            currency=currency,
-            merchant=merchant,
-            description=description,
-            account_name=account_name,
-            institution=inst,
+    @property
+    def incomplete_sources(self) -> SourceSet:
+        return union_sources(*(sources for _, sources in self.incomplete_by_currency))
+
+    @property
+    def detection_complete(self) -> bool:
+        return not self.incomplete_sources
+
+    def sources_for_currency(self, currency: str) -> SourceSet:
+        return next(
+            (sources for key, sources in self.incomplete_by_currency if key == currency),
+            frozenset(),
         )
 
-    transactions = [
-        _to_txn(row)
-        for row in repository.list_income_detection_transactions(engine, household_id, since=since)
-    ]
+    def sources_for_transactions(self, transaction_ids: set[str]) -> SourceSet:
+        return union_sources(
+            *(
+                sources
+                for transaction_id, sources in self.incomplete_by_transaction
+                if transaction_id in transaction_ids
+            )
+        )
+
+    def is_complete_for(self, currency: str) -> bool:
+        return not self.sources_for_currency(currency)
+
+
+def recurring_income_candidates(
+    engine: Engine, household_id: str, *, since: date
+) -> RecurringIncomeCandidates:
+    """Metadata-preserving recurring-income pipeline.
+
+    Cadence, clustering, median, and transfer exclusion run independently by
+    currency, and only when every candidate that could affect that currency is
+    readable. Income verdicts do not suppress debit-side transfer evidence.
+    """
+    from family_cfo_api import income_detection
+
+    def _to_txn(candidate) -> income_detection.IncomeTransaction:
+        row = candidate.metadata
+        assert candidate.amount is not None
+        return income_detection.IncomeTransaction(
+            id=row.id,
+            occurred_at=row.occurred_at,
+            amount_minor=candidate.amount,
+            currency=row.currency,
+            merchant=row.merchant,
+            description=row.description,
+            account_name=row.account_name,
+            institution=row.institution,
+        )
+
     overrides = repository.list_income_overrides(engine, household_id)
     excluded_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "exclude"}
     included_ids = {txn_id for txn_id, verdict in overrides.items() if verdict == "include"}
+    sources_by_currency: dict[str, set[UnreadableAmountSource]] = {}
+    sources_by_transaction: dict[str, set[UnreadableAmountSource]] = {}
+    transactions: list[Any] = []
 
-    # ADR 0053/0054: a deposit the user filed under the Income category counts as
-    # income — an explicit signal that beats the transfer heuristic AND detection's
-    # checking-only scope, so RSU/ESPP deposits that land in a brokerage are seen.
-    # An explicit "exclude" override still wins (the user changed their mind).
-    seen = {t.id for t in transactions}
-    for row in repository.list_income_categorized_transactions(engine, household_id, since=since):
-        if row[0] not in excluded_ids:
-            included_ids.add(row[0])
-            if row[0] not in seen:
-                transactions.append(_to_txn(row))
-                seen.add(row[0])
+    def _add_source(currency: str, transaction_id: str, source: UnreadableAmountSource) -> None:
+        sources_by_currency.setdefault(currency, set()).add(source)
+        sources_by_transaction.setdefault(transaction_id, set()).add(source)
 
-    # M63: internal transfers (the household's own money changing accounts) are
-    # not income. An explicit "include" verdict overrides.
-    outflows_by_amount: dict[int, list[date]] = {}
-    for occurred_at, amount_minor in repository.list_household_outflows(
+    checking = repository.list_income_detection_candidates(engine, household_id, since=since)
+    categorized = repository.list_income_categorized_candidates(engine, household_id, since=since)
+    categorized_ids = {candidate.metadata.id for candidate in categorized}
+    seen: set[str] = set()
+    for candidate in [*checking, *categorized]:
+        txn_id = candidate.metadata.id
+        if txn_id in seen:
+            continue
+        seen.add(txn_id)
+        if txn_id in excluded_ids:
+            # An explicit exclusion is stable even when its amount is unreadable.
+            # Keep readable rows for the restore UI, but never let an excluded
+            # unreadable row make the inference pipeline incomplete.
+            if candidate.amount is not None:
+                transactions.append(_to_txn(candidate))
+            continue
+        if txn_id in categorized_ids:
+            included_ids.add(txn_id)
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            _add_source(
+                candidate.metadata.currency, txn_id, candidate.incomplete_source
+            )
+        else:
+            transactions.append(_to_txn(candidate))
+
+    outflows_by_currency: dict[str, dict[int, list[date]]] = {}
+    outflow_candidates = repository.list_household_outflow_candidates(
         engine, household_id, since=since
-    ):
-        outflows_by_amount.setdefault(amount_minor, []).append(occurred_at)
-    transactions = [
-        t
-        for t in transactions
-        if t.id in included_ids
-        or not income_detection.is_internal_transfer(t, outflows_by_amount)
-    ]
-    candidates = income_detection.detect_income_sources(transactions, excluded_ids=excluded_ids)
-    return transactions, candidates, included_ids, excluded_ids
+    )
+    for candidate in outflow_candidates:
+        txn_id = candidate.metadata.id
+        currency = candidate.metadata.currency
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            _add_source(currency, txn_id, candidate.incomplete_source)
+        else:
+            outflows_by_currency.setdefault(currency, {}).setdefault(
+                candidate.amount, []
+            ).append(candidate.metadata.occurred_at)
+
+    filtered_transactions: list[Any] = []
+    candidates: list[Any] = []
+    currencies = {transaction.currency for transaction in transactions}
+    for currency in currencies:
+        currency_transactions = [
+            transaction for transaction in transactions if transaction.currency == currency
+        ]
+        if sources_by_currency.get(currency):
+            # A readable-only rerun is not a stability proof. Preserve readable
+            # evidence and explicit inclusions, but suppress inferred sources.
+            filtered_transactions.extend(currency_transactions)
+            continue
+        filtered = [
+            transaction
+            for transaction in currency_transactions
+            if transaction.id in included_ids
+            or not income_detection.is_internal_transfer(
+                transaction, outflows_by_currency.get(currency, {})
+            )
+        ]
+        filtered_transactions.extend(filtered)
+        candidates.extend(
+            income_detection.detect_income_sources(filtered, excluded_ids=excluded_ids)
+        )
+
+    return RecurringIncomeCandidates(
+        filtered_transactions,
+        candidates,
+        included_ids,
+        excluded_ids,
+        tuple(
+            sorted(
+                (currency, frozenset(sources))
+                for currency, sources in sources_by_currency.items()
+            )
+        ),
+        tuple(
+            sorted(
+                (transaction_id, frozenset(sources))
+                for transaction_id, sources in sources_by_transaction.items()
+            )
+        ),
+    )
 
 
 CASH_OUTLOOK_HORIZON_DAYS = 30
@@ -908,12 +1152,21 @@ class OutlookEvent:
 class CashOutlook:
     starting_cash_minor: int
     events: list[OutlookEvent]  # date order; same-day outflows before inflows
-    ending_cash_minor: int
-    lowest_minor: int
+    ending_cash_minor: int | None
+    lowest_minor: int | None
     lowest_date: date | None
-    expected_income_minor: int
-    obligations_minor: int
+    expected_income: Qualified[int] | None
+    income_projection: Qualified[None]
+    obligations: Qualified[int]
     horizon_days: int
+
+    @property
+    def expected_income_minor(self) -> int:
+        return self.expected_income.value if self.expected_income is not None else 0
+
+    @property
+    def obligations_minor(self) -> int:
+        return self.obligations.value
     # ADR 0069: the RSU sell-by runway. First day the projected balance goes
     # negative, and the last day to start an RSU sale with the household's
     # required notice (4 business days: trade + settle + transfer). None when
@@ -973,12 +1226,20 @@ def cash_outlook(
         bill.id: bill.frequency for bill in repository.list_bills(engine, household_id)
     }
     events: list[OutlookEvent] = []
+    obligation_sources: set[UnreadableAmountSource] = set()
     for item in timeline.items:
         if item.due_date is None:
-            continue  # undated card: nothing to place on the calendar
+            # An unreadable possible payment leaves even an undated obligation's
+            # membership uncertain. It cannot become a calendar event, but its
+            # provenance must still invalidate the obligation subtotal/runway.
+            obligation_sources.update(item.incomplete_sources)
+            continue  # undated item: nothing honest to place on the calendar
         # Overdue items claim cash immediately; everything else on its due date.
-        first = today if item.status == "overdue" else item.due_date
+        first = max(item.due_date, today)
         if first > horizon:
+            continue
+        if item.status == "unknown" or item.amount_minor is None:
+            obligation_sources.update(item.incomplete_sources)
             continue
         events.append(
             OutlookEvent(
@@ -1013,8 +1274,8 @@ def cash_outlook(
     # sighting. Detection needs 2–3 consistent sightings, so a brand-new job
     # won't project until it has history — honest, if conservative.
     since = today - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
-    _, candidates, _, _ = recurring_income_candidates(engine, household_id, since=since)
-    for candidate in candidates:
+    income_detection = recurring_income_candidates(engine, household_id, since=since)
+    for candidate in income_detection.candidates:
         if candidate.currency != currency or not candidate.transactions:
             continue
         payday = max(t.occurred_at for t in candidate.transactions)
@@ -1035,27 +1296,41 @@ def cash_outlook(
     events.sort(key=lambda e: (e.occurred_on, e.amount_minor >= 0))
 
     starting = timeline.liquid_minor
-    running = starting
-    lowest = starting
+    obligation_value = -sum(event.amount_minor for event in events if event.amount_minor < 0)
+    obligations = Qualified(obligation_value, frozenset(obligation_sources))
+    income_sources = income_detection.sources_for_currency(currency)
+    income_projection = Qualified(None, income_sources)
+    expected_income = (
+        Qualified.complete(sum(event.amount_minor for event in events if event.amount_minor > 0))
+        if not income_sources
+        else None
+    )
+    dependency_sources = union_sources(obligations, income_projection)
+    running: int | None = None
+    lowest: int | None = None
     lowest_date: date | None = None
     first_shortfall: date | None = None
-    for event in events:
-        running += event.amount_minor
-        if running < lowest:
-            lowest = running
-            lowest_date = event.occurred_on
-        if running < 0 and first_shortfall is None:
-            first_shortfall = event.occurred_on
-    if starting < 0 and first_shortfall is None:
-        first_shortfall = today
+    if not dependency_sources:
+        running = starting
+        lowest = starting
+        for event in events:
+            running += event.amount_minor
+            if running < lowest:
+                lowest = running
+                lowest_date = event.occurred_on
+            if running < 0 and first_shortfall is None:
+                first_shortfall = event.occurred_on
+        if starting < 0 and first_shortfall is None:
+            first_shortfall = today
     return CashOutlook(
         starting_cash_minor=starting,
         events=events,
         ending_cash_minor=running,
         lowest_minor=lowest,
         lowest_date=lowest_date,
-        expected_income_minor=sum(e.amount_minor for e in events if e.amount_minor > 0),
-        obligations_minor=-sum(e.amount_minor for e in events if e.amount_minor < 0),
+        expected_income=expected_income,
+        income_projection=income_projection,
+        obligations=obligations,
         horizon_days=horizon_days,
         first_shortfall_date=first_shortfall,
         sell_by_date=(
@@ -1075,54 +1350,102 @@ class SpendingPlan:
     spent and what's still committed = left to spend this month."""
 
     month: str  # "YYYY-MM"
-    income_received_minor: int  # income deposits that landed this month
-    income_projected_minor: int  # paydays still expected before month end
-    expected_income_minor: int  # received + projected
-    spent_minor: int  # month-to-date spending (bills paid, card charges, the lot)
-    bills_remaining_minor: int  # bills due (unpaid) through month end
+    income_received: Qualified[int]
+    income_projected: Qualified[int] | None
+    income_projection: Qualified[None]
+    expected_income: Qualified[int] | None
+    spent: Qualified[int]
+    bills_remaining: Qualified[int]
     account_obligations_minor: int  # mortgage/loan/lease payments for the month
     planned_savings_minor: int  # goals' declared monthly contributions (M118)
-    left_minor: int
-    per_day_minor: int  # a pace, not a rule: left / days remaining (0 when negative)
+    left: Qualified[int] | None
+    per_day: Qualified[int] | None
     days_remaining: int  # including today
 
+    # Compatibility views for existing complete-only service consumers. The API
+    # never uses these; its qualified/null shape is assembled from the fields above.
+    @property
+    def income_received_minor(self) -> int:
+        return self.income_received.value
 
-def income_deposits_between(
+    @property
+    def income_projected_minor(self) -> int:
+        return self.income_projected.value if self.income_projected is not None else 0
+
+    @property
+    def expected_income_minor(self) -> int:
+        return self.expected_income.value if self.expected_income is not None else 0
+
+    @property
+    def spent_minor(self) -> int:
+        return self.spent.value
+
+    @property
+    def bills_remaining_minor(self) -> int:
+        return self.bills_remaining.value
+
+    @property
+    def left_minor(self) -> int:
+        return self.left.value if self.left is not None else 0
+
+    @property
+    def per_day_minor(self) -> int:
+        return self.per_day.value if self.per_day is not None else 0
+
+
+def qualified_income_deposits_between(
     engine: Engine, household_id: str, currency: str, start: date, end: date
-) -> list:
+) -> QualifiedRows[Any]:
     """The individual deposits behind ``income_received_between`` — who paid,
     into which account, when — oldest first. The advisor needs the rows, not
     just the sum, to answer "what made up my income that month?" (user report
     2026-07-25: the month tool only knew the aggregate)."""
     since = min(start, date.today()) - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
-    transactions, candidates, included_ids, excluded_ids = recurring_income_candidates(
-        engine, household_id, since=since
-    )
-    counted = {t.id for c in candidates for t in c.transactions} | included_ids
-    return sorted(
+    detection = recurring_income_candidates(engine, household_id, since=since)
+    counted = {
+        transaction.id
+        for candidate in detection.candidates
+        for transaction in candidate.transactions
+    } | detection.included_ids
+    rows = sorted(
         (
             t
-            for t in transactions
+            for t in detection.transactions
             if start <= t.occurred_at <= end
             and t.currency == currency
             and t.id in counted
-            and t.id not in excluded_ids
+            and t.id not in detection.excluded_ids
         ),
         key=lambda t: t.occurred_at,
+    )
+    return QualifiedRows(tuple(rows), detection.sources_for_currency(currency))
+
+
+def income_deposits_between(
+    engine: Engine, household_id: str, currency: str, start: date, end: date
+) -> list[Any]:
+    """Compatibility projection for Item 3 advisor work; drops no values."""
+    return list(
+        qualified_income_deposits_between(
+            engine, household_id, currency, start, end
+        ).rows
     )
 
 
 def income_received_between(
     engine: Engine, household_id: str, currency: str, start: date, end: date
-) -> int:
+) -> Qualified[int]:
     """Actual income landed in [start, end] (minor units): the deposits the
     income analysis counts (ADR 0054 — detection, not categorization, is how
     this product knows pay). The Income-category sum alone reads 0 for a
     household that never hand-files paychecks (M-yearly bug: the year view
     showed USD 0 income against 53 payroll deposits)."""
-    return sum(
-        t.amount_minor
-        for t in income_deposits_between(engine, household_id, currency, start, end)
+    deposits = qualified_income_deposits_between(
+        engine, household_id, currency, start, end
+    )
+    return Qualified(
+        sum(transaction.amount_minor for transaction in deposits.rows),
+        deposits.incomplete_sources,
     )
 
 
@@ -1159,27 +1482,33 @@ def spending_plan(
 
     # --- Income: received this month + projected through month end.
     since = today - timedelta(days=_INCOME_DETECTION_WINDOW_DAYS)
-    transactions, candidates, included_ids, excluded_ids = recurring_income_candidates(
+    income_detection = recurring_income_candidates(
         engine, household_id, since=since
     )
-    counted_ids = {t.id for c in candidates for t in c.transactions} | included_ids
-    received = sum(
+    counted_ids = {
+        transaction.id
+        for candidate in income_detection.candidates
+        for transaction in candidate.transactions
+    } | income_detection.included_ids
+    received_value = sum(
         t.amount_minor
-        for t in transactions
+        for t in income_detection.transactions
         if month_start <= t.occurred_at <= today
         and t.currency == currency
         and t.id in counted_ids
-        and t.id not in excluded_ids
+        and t.id not in income_detection.excluded_ids
     )
-    projected = 0
-    for candidate in candidates:
+    income_sources = income_detection.sources_for_currency(currency)
+    received = Qualified(received_value, income_sources)
+    projected_value = 0
+    for candidate in income_detection.candidates:
         if candidate.currency != currency or not candidate.transactions:
             continue
         payday = max(t.occurred_at for t in candidate.transactions)
         while payday <= today:
             payday = _step(payday, candidate.frequency)
         while payday <= month_end:
-            projected += candidate.typical_amount_minor
+            projected_value += candidate.typical_amount_minor
             payday = _step(payday, candidate.frequency)
 
     # --- Already out: month-to-date spending (see docstring for what counts).
@@ -1190,14 +1519,25 @@ def spending_plan(
         engine, household_id, currency,
         today=today, window_days=max((month_end - today).days, 0),
     )
-    bills_remaining = sum(
+    bills_remaining_value = sum(
         item.amount_minor
         for item in timeline.items
         if item.kind == "bill"
         and item.status in ("overdue", "due_soon", "upcoming")
         and item.due_date is not None
         and item.due_date <= month_end
+        and item.amount_minor is not None
     )
+    bills_remaining_sources = union_sources(
+        *(
+            item.incomplete_sources
+            for item in timeline.items
+            if item.kind == "bill"
+            and item.due_date is not None
+            and item.due_date <= month_end
+        )
+    )
+    bills_remaining = Qualified(bills_remaining_value, bills_remaining_sources)
     # ...plus the month's account-based payments (never in sum_spending).
     account_obligations = sum(
         obligation.amount_minor
@@ -1213,20 +1553,38 @@ def spending_plan(
         if goal.currency == currency
     )
 
-    expected_income = received + projected
-    left = expected_income - spent - bills_remaining - account_obligations - planned_savings
+    projected = Qualified.complete(projected_value) if not income_sources else None
+    income_projection = Qualified(None, income_sources)
+    expected_income = (
+        Qualified.complete(received.value + projected.value)
+        if received.is_complete and projected is not None
+        else None
+    )
+    dependency_sources = union_sources(received, income_projection, spent, bills_remaining)
+    left = per_day = None
     days_remaining = (month_end - today).days + 1
+    if not dependency_sources and expected_income is not None:
+        left_value = (
+            expected_income.value
+            - spent.value
+            - bills_remaining.value
+            - account_obligations
+            - planned_savings
+        )
+        left = Qualified.complete(left_value)
+        per_day = Qualified.complete(left_value // days_remaining if left_value > 0 else 0)
     return SpendingPlan(
         month=f"{today.year}-{today.month:02d}",
-        income_received_minor=received,
-        income_projected_minor=projected,
-        expected_income_minor=expected_income,
-        spent_minor=spent,
-        bills_remaining_minor=bills_remaining,
+        income_received=received,
+        income_projected=projected,
+        income_projection=income_projection,
+        expected_income=expected_income,
+        spent=spent,
+        bills_remaining=bills_remaining,
         account_obligations_minor=account_obligations,
         planned_savings_minor=planned_savings,
-        left_minor=left,
-        per_day_minor=left // days_remaining if left > 0 else 0,
+        left=left,
+        per_day=per_day,
         days_remaining=days_remaining,
     )
 
@@ -1276,7 +1634,7 @@ class PaymentTimelineItem:
     id: str  # bill id, or liability account id
     kind: str  # "bill" | "credit_card" | "mortgage" | "loan" | "lease"
     name: str
-    amount_minor: int  # expected: bill estimate / card balance / minimum payment
+    amount_minor: int | None  # unreadable statement-backed amount is absent
     currency: str
     due_date: date | None  # None = we couldn't infer one ("no_date")
     status: str  # "overdue" | "due_soon" | "upcoming" | "paid" | "no_date"
@@ -1286,15 +1644,20 @@ class PaymentTimelineItem:
     # The UI and the advisor must not present an estimate as an exact amount.
     source: str = "estimate"
     statement_id: str | None = None
+    incomplete_sources: SourceSet = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
 class PaymentTimeline:
     items: list[PaymentTimelineItem]
-    due_total_minor: int  # overdue + due-soon, the "what needs paying now" number
+    due_total: Qualified[int]  # overdue + due-soon, the "what needs paying now" number
     liquid_minor: int
-    covered: bool
+    covered: bool | None
     window_days: int
+
+    @property
+    def due_total_minor(self) -> int:
+        return self.due_total.value
 
 
 def _keys_match(a: str, b: str) -> bool:
@@ -1402,7 +1765,10 @@ def _account_payments(
     return payments
 
 
-_TIMELINE_STATUS_ORDER = {"overdue": 0, "due_soon": 1, "no_date": 2, "paid": 3, "upcoming": 4}
+_TIMELINE_STATUS_ORDER = {
+    "overdue": 0, "due_soon": 1, "unknown": 2,
+    "no_date": 3, "paid": 4, "upcoming": 5,
+}
 
 
 def payment_timeline(
@@ -1423,16 +1789,61 @@ def payment_timeline(
     """
     today = today or household_clock.today_for_household(engine, household_id)
     lookback_start = today - timedelta(days=_TIMELINE_LOOKBACK_DAYS)
-    transactions = repository.list_transactions(
-        engine, household_id, limit=100_000, start=lookback_start, end=today
+    candidates = repository.iter_transaction_amount_candidates(
+        engine, household_id, start=lookback_start, end=today
     )
     by_account: dict[str, list[repository.TransactionRecord]] = {}
     outflows: list[repository.TransactionRecord] = []
-    for txn in transactions:
+    unreadable = []
+    for candidate in candidates:
+        metadata = candidate.metadata
+        if candidate.amount is None:
+            unreadable.append(candidate)
+            continue
+        txn = repository.TransactionRecord(
+            id=metadata.id,
+            account_id=metadata.account_id,
+            occurred_at=metadata.occurred_at,
+            amount_minor=candidate.amount,
+            currency=metadata.currency,
+            merchant=metadata.merchant,
+            category=metadata.category,
+            description=metadata.description,
+            category_id=metadata.category_id,
+        )
         by_account.setdefault(txn.account_id, []).append(txn)
         if txn.amount_minor < 0:
             outflows.append(txn)
-    outflows.sort(key=lambda t: t.occurred_at, reverse=True)
+    outflows.sort(key=lambda transaction: transaction.occurred_at, reverse=True)
+
+    def _potential_bill_sources(
+        bill: repository.RecurringRecord, window_start: date, window_end: date
+    ) -> SourceSet:
+        from family_cfo_api import bill_detection
+
+        bill_key = bill_detection.normalize_merchant(bill.name)
+        sources: set[UnreadableAmountSource] = set()
+        for candidate in unreadable:
+            row = candidate.metadata
+            if not (window_start <= row.occurred_at <= window_end):
+                continue
+            candidate_key = bill_detection.normalize_merchant(
+                row.merchant
+            ) or bill_detection.normalize_merchant(row.description)
+            if _keys_match(bill_key, candidate_key):
+                assert candidate.incomplete_source is not None
+                sources.add(candidate.incomplete_source)
+        return frozenset(sources)
+
+    def _potential_account_payment_sources(account_id: str) -> SourceSet:
+        sources: set[UnreadableAmountSource] = set()
+        for candidate in unreadable:
+            row = candidate.metadata
+            label = (row.merchant or row.description or "").lower()
+            if row.account_id == account_id and any(word in label for word in _PAYMENT_LABEL_WORDS):
+                assert candidate.incomplete_source is not None
+                sources.add(candidate.incomplete_source)
+        return frozenset(sources)
 
     horizon = today + timedelta(days=window_days)
     items: list[PaymentTimelineItem] = []
@@ -1442,24 +1853,48 @@ def payment_timeline(
         for link in repository.list_bill_payment_links(engine, household_id)
     }
 
-    def _linked_payment(bill_id: str, due: date) -> TimelinePayment | None:
-        """The user's explicit receipt for this occurrence, if they linked one.
-        The linked transaction may predate the timeline's lookback window, so
-        it is fetched directly rather than from the preloaded list."""
+    def _linked_payment(
+        bill_id: str, due: date
+    ) -> tuple[TimelinePayment | None, SourceSet, bool]:
+        """Return a linked receipt, unreadable source, and whether a link exists."""
         link = links.get((bill_id, due))
         if link is None:
-            return None
-        txn = repository.get_transaction(engine, household_id, link.transaction_id)
-        if txn is None:
-            return None
-        return TimelinePayment(
-            transaction_id=txn.id,
-            occurred_at=txn.occurred_at,
-            amount_minor=abs(txn.amount_minor),
-            label=txn.merchant or txn.description or "Payment",
-            source="linked",
-            link_id=link.id,
+            return None, frozenset(), False
+        candidate = repository.get_transaction_amount_candidate(
+            engine, household_id, link.transaction_id
         )
+        if candidate is None:
+            return None, frozenset(), True
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            return None, frozenset({candidate.incomplete_source}), True
+        row = candidate.metadata
+        return (
+            TimelinePayment(
+                transaction_id=row.id,
+                occurred_at=row.occurred_at,
+                amount_minor=abs(candidate.amount),
+                label=row.merchant or row.description or "Payment",
+                source="linked",
+                link_id=link.id,
+            ),
+            frozenset(),
+            True,
+        )
+
+    def _resolve_bill_payment(
+        bill: repository.RecurringRecord,
+        due: date,
+        window_start: date,
+        window_end: date,
+    ) -> tuple[TimelinePayment | None, SourceSet]:
+        linked, linked_sources, link_exists = _linked_payment(bill.id, due)
+        if link_exists:
+            return linked, linked_sources
+        matched = _find_bill_payment(bill, outflows, window_start, window_end)
+        if matched is not None:
+            return matched, frozenset()
+        return None, _potential_bill_sources(bill, window_start, window_end)
 
     # --- Bills: the stored due date is authoritative; match the actual charge.
     for bill in repository.list_bills(engine, household_id):
@@ -1473,26 +1908,33 @@ def payment_timeline(
         # across a whole cycle would let last month's charge mark tomorrow's as
         # paid, a false checkmark (ADR 0024).
         paid: TimelinePayment | None = None
+        incomplete_sources: SourceSet = frozenset()
         status: str
         due: date | None
         if prev_due >= today - timedelta(days=grace):
             # A due date just passed: paid near it, or genuinely overdue.
-            paid = _linked_payment(bill.id, prev_due) or _find_bill_payment(
-                bill, outflows, prev_due - timedelta(days=5),
+            paid, incomplete_sources = _resolve_bill_payment(
+                bill,
+                prev_due,
+                prev_due - timedelta(days=5),
                 min(prev_due + timedelta(days=grace), today),
             )
             if paid is not None:
                 status, due = "paid", next_due
+            elif incomplete_sources:
+                status, due = "unknown", prev_due
             else:
                 status, due = "overdue", prev_due
         else:
             # Otherwise the question is the upcoming occurrence — possibly
             # already settled early by autopay.
-            paid = _linked_payment(bill.id, next_due) or _find_bill_payment(
-                bill, outflows, next_due - timedelta(days=5), today
+            paid, incomplete_sources = _resolve_bill_payment(
+                bill, next_due, next_due - timedelta(days=5), today
             )
             if paid is not None:
                 status, due = "paid", next_due
+            elif incomplete_sources:
+                status, due = "unknown", next_due
             elif next_due <= horizon:
                 status, due = "due_soon", next_due
             else:
@@ -1502,6 +1944,7 @@ def payment_timeline(
                 id=bill.id, kind="bill", name=bill.name,
                 amount_minor=bill.amount_minor, currency=currency,
                 due_date=due, status=status, paid=paid,
+                incomplete_sources=incomplete_sources,
             )
         )
 
@@ -1511,41 +1954,54 @@ def payment_timeline(
     # #11: the newest UNPAID statement per card. It carries the exact amount and
     # a real due date, so it replaces the balance estimate entirely — showing
     # both would list the same money twice.
-    statements_by_account: dict[str, repository.CardStatementRecord] = {}
-    for statement in repository.list_card_statements(engine, household_id):
-        if statement.currency != currency or statement.paid_at is not None:
-            continue
-        statements_by_account.setdefault(statement.account_id, statement)
+    statements_by_account = {
+        candidate.metadata.account_id: candidate
+        for candidate in repository.list_authoritative_statement_balance_candidates(
+            engine, household_id, currency=currency
+        )
+    }
 
     for account in repository.list_liability_accounts(engine, household_id):
         if account.currency != currency or account.account_type != "credit_card":
             continue
         payments = _account_payments(by_account.get(account.id, []))
-        statement = statements_by_account.get(account.id)
-        if statement is not None:
+        statement_candidate = statements_by_account.get(account.id)
+        if statement_candidate is not None:
+            statement = statement_candidate.metadata
             # A payment clearing the card for roughly the statement amount marks
             # the cycle paid — same tolerance idea as bill matching, since a
             # credit or a rounding adjustment shifts the exact figure.
-            match = _statement_payment(
-                payments, statement.statement_balance_minor, statement.due_date
-            )
-            status = (
-                "paid"
-                if match is not None
-                else _status_for(statement.due_date, today=today, horizon=horizon)
-            )
+            account_sources = _potential_account_payment_sources(account.id)
+            if statement_candidate.amount is None:
+                match = None
+                status = "unknown"
+                incomplete_sources = statement_candidate.incomplete_sources
+            else:
+                match = _statement_payment(
+                    payments, statement_candidate.amount, statement.due_date
+                )
+                if match is not None:
+                    status = "paid"
+                    incomplete_sources = frozenset()
+                elif account_sources:
+                    status = "unknown"
+                    incomplete_sources = account_sources
+                else:
+                    status = _status_for(statement.due_date, today=today, horizon=horizon)
+                    incomplete_sources = frozenset()
             items.append(
                 PaymentTimelineItem(
                     id=account.id,
                     kind="credit_card",
                     name=account.name,
-                    amount_minor=statement.statement_balance_minor,
+                    amount_minor=statement_candidate.amount,
                     currency=currency,
                     due_date=statement.due_date,
                     status=status,
                     paid=match,
                     source="statement",
                     statement_id=statement.id,
+                    incomplete_sources=incomplete_sources,
                 )
             )
             continue
@@ -1559,6 +2015,7 @@ def payment_timeline(
                 account.id, "credit_card", account.name, owed, currency,
                 payments, today=today, horizon=horizon,
                 stored_due_date=account.next_payment_due_date,
+                incomplete_sources=_potential_account_payment_sources(account.id),
             )
         )
 
@@ -1574,6 +2031,7 @@ def payment_timeline(
                 obligation.amount_minor, currency, payments,
                 today=today, horizon=horizon,
                 stored_due_date=obligation.next_payment_due_date,
+                incomplete_sources=_potential_account_payment_sources(obligation.account_id),
             )
         )
 
@@ -1581,17 +2039,29 @@ def payment_timeline(
         key=lambda i: (_TIMELINE_STATUS_ORDER.get(i.status, 9), i.due_date or date.max)
     )
 
-    due_total = sum(i.amount_minor for i in items if i.status in ("overdue", "due_soon"))
+    due_total_value = sum(
+        item.amount_minor
+        for item in items
+        if item.status in ("overdue", "due_soon") and item.amount_minor is not None
+    )
+    due_sources = union_sources(
+        *(
+            item.incomplete_sources
+            for item in items
+            if item.due_date is None or item.due_date <= horizon
+        )
+    )
+    due_total = Qualified(due_total_value, due_sources)
     liquid = sum(
-        b.balance_minor
-        for b in balances.values()
-        if b.account_type in LIQUID_ACCOUNT_TYPES and b.currency == currency
+        balance.balance_minor
+        for balance in balances.values()
+        if balance.account_type in LIQUID_ACCOUNT_TYPES and balance.currency == currency
     )
     return PaymentTimeline(
         items=items,
-        due_total_minor=due_total,
+        due_total=due_total,
         liquid_minor=liquid,
-        covered=liquid >= due_total,
+        covered=liquid >= due_total_value if due_total.is_complete else None,
         window_days=window_days,
     )
 
@@ -1639,6 +2109,7 @@ def _liability_item(
     today: date,
     horizon: date,
     stored_due_date: date | None = None,
+    incomplete_sources: SourceSet = frozenset(),
 ) -> PaymentTimelineItem:
     """A card/loan/lease timeline entry.
 
@@ -1659,10 +2130,14 @@ def _liability_item(
     else:
         return PaymentTimelineItem(
             id=account_id, kind=kind, name=name, amount_minor=amount_minor,
-            currency=currency, due_date=None, status="no_date", paid=None,
+            currency=currency, due_date=None,
+            status="unknown" if incomplete_sources else "no_date", paid=None,
+            incomplete_sources=incomplete_sources,
         )
     recently_paid = last is not None and (today - last.occurred_at).days <= 31
-    if next_due <= horizon:
+    if incomplete_sources:
+        status = "unknown"
+    elif next_due <= horizon:
         status = "due_soon"
     elif recently_paid:
         status = "paid"
@@ -1672,6 +2147,7 @@ def _liability_item(
         id=account_id, kind=kind, name=name, amount_minor=amount_minor,
         currency=currency, due_date=next_due, status=status,
         paid=last if status == "paid" else None,
+        incomplete_sources=incomplete_sources,
     )
 
 
@@ -1681,6 +2157,13 @@ class SubscriptionForecastItem:
     amount_minor: int
     currency: str
     next_charge: date
+
+
+@dataclass(frozen=True, slots=True)
+class SubscriptionForecast:
+    items: list[SubscriptionForecastItem]
+    total: Qualified[Money] | None
+    detection: Qualified[None]
 
 
 def _subscriptions_category_id(engine: Engine, household_id: str) -> str | None:
@@ -1697,7 +2180,7 @@ def subscription_forecast(
     *,
     today: date | None = None,
     horizon_days: int = SAFE_TO_SPEND_HORIZON_DAYS,
-) -> tuple[list[SubscriptionForecastItem], Money]:
+) -> SubscriptionForecast:
     """Recurring charges in the 'Subscriptions' category whose NEXT occurrence lands
     within the horizon and isn't yet paid this cycle (M109, ADR 0020). Reserved the
     'bill way': only the upcoming in-window charge, never a monthly total, so a
@@ -1707,21 +2190,36 @@ def subscription_forecast(
     today = today or household_clock.today_for_household(engine, household_id)
     category_id = _subscriptions_category_id(engine, household_id)
     if category_id is None:
-        return [], Money.zero(currency)
+        return SubscriptionForecast(
+            [], Qualified.complete(Money.zero(currency)), Qualified.complete(None)
+        )
 
     since = today - timedelta(days=bill_detection.LOOKBACK_DAYS)
+    amount_candidates = list(
+        repository.iter_transaction_amount_candidates(
+            engine,
+            household_id,
+            start=since,
+            end=today,
+            currency=currency,
+            category_id=category_id,
+        )
+    )
+    sources = union_sources(
+        *(candidate.incomplete_sources for candidate in amount_candidates)
+    )
+    if sources:
+        return SubscriptionForecast([], None, Qualified(None, sources))
     detection = [
         bill_detection.DetectionTransaction(
-            occurred_at=txn.occurred_at,
-            amount_minor=txn.amount_minor,
-            currency=txn.currency,
-            merchant=txn.merchant,
-            description=txn.description,
+            occurred_at=candidate.metadata.occurred_at,
+            amount_minor=candidate.amount,
+            currency=candidate.metadata.currency,
+            merchant=candidate.metadata.merchant,
+            description=candidate.metadata.description,
         )
-        for txn in repository.list_transactions(
-            engine, household_id, limit=100_000, start=since, end=today
-        )
-        if txn.category_id == category_id and txn.currency == currency and txn.amount_minor < 0
+        for candidate in amount_candidates
+        if candidate.amount is not None and candidate.amount < 0
     ]
 
     # A subscription already tracked as a Bill is reserved via bills_due — exclude
@@ -1749,12 +2247,19 @@ def subscription_forecast(
             )
             total += Money(candidate.amount_minor, candidate.currency)
     items.sort(key=lambda item: item.next_charge)
-    return items, total
+    return SubscriptionForecast(items, Qualified.complete(total), Qualified.complete(None))
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedSavingsForecast:
+    total: Qualified[Money]
+    items: list[tuple[str, Money, date]]
+    detection: Qualified[None]
 
 
 def committed_savings_in_window(
     engine, household_id: str, currency: str, *, today: date, horizon_days: int
-):
+) -> CommittedSavingsForecast:
     """#5: DECLARED savings contributions whose next occurrence lands within the
     horizon — money the household has committed to setting aside. Detected-only
     candidates are excluded: only what the family confirmed counts as committed
@@ -1762,11 +2267,9 @@ def committed_savings_in_window(
     (name, amount, next_date)."""
     from family_cfo_api import savings_detection
 
-    try:
-        found = savings_detection.detect_for_household(engine, household_id, today=today)
-    except Exception:
-        logger.exception("committed-savings detection failed household=%s", household_id)
-        return Money.zero(currency), []
+    found = savings_detection.qualified_detect_for_household(
+        engine, household_id, today=today
+    )
 
     horizon = today + timedelta(days=horizon_days)
     # Cadences that fire at least once inside a ~monthly horizon. A declared
@@ -1777,7 +2280,7 @@ def committed_savings_in_window(
     at_least_monthly = {"weekly", "biweekly", "semimonthly", "monthly"}
     total = Money.zero(currency)
     items: list[tuple[str, Money, date]] = []
-    for c in found:
+    for c in found.value:
         # Only the household's own word counts as committed (#203 durability).
         if not c.declared or c.currency != currency:
             continue
@@ -1795,7 +2298,31 @@ def committed_savings_in_window(
         due = c.next_expected if anchored and c.next_expected else horizon
         items.append((c.destination_name, amount, due))
     items.sort(key=lambda it: it[2])
-    return total, items
+    return CommittedSavingsForecast(
+        total=Qualified.complete(total),
+        items=items,
+        detection=Qualified(None, found.incomplete_sources),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SafeToSpendComputation:
+    liquid_balance: Money
+    emergency_fund_reserved: Money
+    bills_due: Money
+    minimum_debt_payments: Money
+    credit_card_payments: Qualified[int] | None
+    credit_card_items: tuple[tuple[str, Money], ...]
+    subscription_forecast: Qualified[int] | None
+    subscription_forecast_items: tuple[SubscriptionForecastItem, ...]
+    subscription_detection: Qualified[None]
+    committed_savings: Qualified[int] | None
+    committed_savings_items: tuple[tuple[str, Money, date], ...]
+    savings_detection: Qualified[None]
+    committed_total: Qualified[int] | None
+    safe_to_spend: Qualified[int] | None
+    total_debt: Money
+    committed_savings_reserved: bool
 
 
 def compute_safe_to_spend(
@@ -1805,7 +2332,7 @@ def compute_safe_to_spend(
     *,
     horizon_days: int = SAFE_TO_SPEND_HORIZON_DAYS,
     today: date | None = None,
-) -> tuple[CalculationResult, str]:
+) -> tuple[CalculationAttempt, str]:
     """What the family can actually spend today, net of everything already owed.
 
     The advisor used to answer "how much can I spend?" by subtracting the
@@ -1813,6 +2340,7 @@ def compute_safe_to_spend(
     ignored every bill about to land and every minimum debt payment due, which
     overstated the answer by precisely the amount the family owed.
     """
+    resolved_today = today or household_clock.today_for_household(engine, household_id)
     balances = repository.list_account_balances(engine, household_id)
     # #152: every loop below already filters on `currency`; the partition exists
     # so the figure can DISCLOSE the out-of-base accounts it would have counted.
@@ -1822,6 +2350,7 @@ def compute_safe_to_spend(
     # that would have reserved its payment knows it was left out.
     excluded = {a.account_id: a for a in partition.excluded_accounts}
     balance_by_id = {b.account_id: b.balance_minor for b in balances}
+    account_name_by_id = {b.account_id: b.name for b in balances}
     liquid_balance = Money.zero(currency)
     for balance in balances:
         if balance.account_type in LIQUID_ACCOUNT_TYPES and balance.currency == currency:
@@ -1836,15 +2365,18 @@ def compute_safe_to_spend(
 
     bills_due = Money.zero(currency)
     for bill in upcoming_bills(
-        engine, household_id, currency, today=today, window_days=horizon_days
+        engine, household_id, currency, today=resolved_today, window_days=horizon_days
     ):
         if bill.amount.currency == currency:
             bills_due += bill.amount
 
     # M109 (ADR 0020): recurring subscriptions' next in-window charge — reserved the
     # 'bill way' so an already-paid charge is never double-counted.
-    _, subscription_forecast_total = subscription_forecast(
-        engine, household_id, currency, today=today, horizon_days=horizon_days
+    subscription = subscription_forecast(
+        engine, household_id, currency, today=resolved_today, horizon_days=horizon_days
+    )
+    subscription_forecast_total = (
+        subscription.total.value if subscription.total is not None else Money.zero(currency)
     )
 
     # Every liability the household carries, as a positive amount. Not subtracted
@@ -1932,28 +2464,33 @@ def compute_safe_to_spend(
     # minimum, and treat those cards as modeled so they aren't warned as unrecorded.
     household = repository.get_household(engine, household_id)
     credit_card_payments = Money.zero(currency)
+    credit_card_items: list[tuple[str, Money]] = []
+    credit_card_sources: set[UnreadableAmountSource] = set()
     # #11: an uploaded statement is a PRECISE claim — the amount actually due on
     # a known date — so it REPLACES the running-balance estimate for that card
     # rather than adding to it. Counting both would charge the household twice
     # for the same money, since the statement balance is part of the balance.
-    resolved_today = today or household_clock.today_for_household(engine, household_id)
     statement_horizon = resolved_today + timedelta(days=horizon_days)
-    card_statement_due: dict[str, Money] = {}
-    for statement in repository.list_card_statements(engine, household_id):
-        if (
-            statement.paid_at is not None
-            or statement.currency != currency
-            or statement.due_date > statement_horizon
-        ):
-            continue
-        # Newest cycle wins per card; the list is due-date descending.
-        card_statement_due.setdefault(
-            statement.account_id, Money(statement.statement_balance_minor, currency)
-        )
-
-    for account_id, amount in card_statement_due.items():
-        credit_card_payments += amount
+    statement_candidates = repository.list_authoritative_statement_balance_candidates(
+        engine,
+        household_id,
+        currency=currency,
+        due_on_or_before=statement_horizon,
+    )
+    statement_account_ids: set[str] = set()
+    for candidate in statement_candidates:
+        account_id = candidate.metadata.account_id
+        statement_account_ids.add(account_id)
         modeled_ids.add(account_id)
+        if candidate.amount is None:
+            assert candidate.incomplete_source is not None
+            credit_card_sources.add(candidate.incomplete_source)
+            continue
+        amount = Money(candidate.amount, currency)
+        credit_card_payments += amount
+        credit_card_items.append(
+            (account_name_by_id.get(account_id, "Credit card"), amount)
+        )
 
     if household is not None and household.credit_cards_paid_in_full:
         for balance in balances:
@@ -1962,9 +2499,11 @@ def compute_safe_to_spend(
                 and balance.currency == currency
                 and balance.balance_minor < 0
                 # Already counted precisely from its statement.
-                and balance.account_id not in card_statement_due
+                and balance.account_id not in statement_account_ids
             ):
-                credit_card_payments += Money(-balance.balance_minor, balance.currency)
+                amount = Money(-balance.balance_minor, balance.currency)
+                credit_card_payments += amount
+                credit_card_items.append((balance.name, amount))
                 modeled_ids.add(balance.account_id)
 
     # A liability with no recorded minimum payment contributes nothing to the
@@ -1982,40 +2521,127 @@ def compute_safe_to_spend(
 
     # #5: committed savings due in this window — reserved only if the household
     # asked; otherwise the caller surfaces it beside the figure.
-    committed_savings_total, _ = committed_savings_in_window(
+    committed_savings = committed_savings_in_window(
         engine, household_id, currency, today=resolved_today, horizon_days=horizon_days
     )
+    committed_savings_total = committed_savings.total.value
     reserve_savings = bool(household is not None and household.reserve_committed_savings)
 
-    result = calculate_safe_to_spend(
-        SafeToSpendInputs(
-            liquid_balance=liquid_balance,
-            emergency_fund_reserved=reserved,
-            bills_due=bills_due,
-            minimum_debt_payments=minimum_debt_payments,
-            credit_card_payments=credit_card_payments,
-            subscription_forecast=subscription_forecast_total,
-            horizon_days=horizon_days,
-            total_debt=total_debt,
-            unmodeled_debt_count=unmodeled,
-            unmodeled_debt_total=unmodeled_total,
-            committed_savings=committed_savings_total,
-            reserve_savings=reserve_savings,
+    credit_card_qualified = Qualified(
+        credit_card_payments.amount_minor, frozenset(credit_card_sources)
+    )
+    credit_card_public = (
+        credit_card_qualified
+        if statement_account_ids or credit_card_payments.amount_minor > 0
+        else None
+    )
+    # Automatic subscription forecasting is all-or-nothing. Union the amount
+    # and detection source sets so the public field and status cannot disagree.
+    subscription_sources = union_sources(subscription.total, subscription.detection)
+    subscription_detection = Qualified(None, subscription_sources)
+    subscription_public = (
+        Qualified.complete(subscription_forecast_total.amount_minor)
+        if not subscription_sources
+        and subscription.total is not None
+        and subscription_forecast_total.amount_minor > 0
+        else None
+    )
+    committed_public = (
+        Qualified.complete(committed_savings_total.amount_minor)
+        if committed_savings_total.amount_minor > 0
+        else None
+    )
+    decision_sources = union_sources(credit_card_qualified, subscription_detection)
+
+    if not decision_sources:
+        result = calculate_safe_to_spend(
+            SafeToSpendInputs(
+                liquid_balance=liquid_balance,
+                emergency_fund_reserved=reserved,
+                bills_due=bills_due,
+                minimum_debt_payments=minimum_debt_payments,
+                credit_card_payments=credit_card_payments,
+                subscription_forecast=subscription_forecast_total,
+                horizon_days=horizon_days,
+                total_debt=total_debt,
+                unmodeled_debt_count=unmodeled,
+                unmodeled_debt_total=unmodeled_total,
+                committed_savings=committed_savings_total,
+                reserve_savings=reserve_savings,
+            )
         )
+        result.outputs["committed_savings_reserved"] = reserve_savings
+        attempt = CalculationAttempt.complete(result)
+        committed_total = Qualified.complete(
+            result.outputs["committed_total"].amount_minor
+        )
+        safe_value = Qualified.complete(
+            result.outputs["safe_to_spend"].amount_minor
+        )
+    else:
+        attempt = CalculationAttempt(
+            calculation_type="safe_to_spend",
+            inputs={"incomplete_amount_count": len(decision_sources)},
+            assumptions=[],
+            warnings=[INCOMPLETE_WARNING],
+            outputs={
+                "liquid_balance": liquid_balance,
+                "emergency_fund_reserved": reserved,
+                "bills_due": bills_due,
+                "minimum_debt_payments": minimum_debt_payments,
+                "credit_card_payments": credit_card_qualified,
+                "subscription_forecast": subscription_public,
+                "committed_savings": committed_public,
+                "committed_total": None,
+                "safe_to_spend": None,
+                "total_debt": total_debt,
+                "committed_savings_reserved": reserve_savings,
+            },
+            incomplete_sources=decision_sources,
+        )
+        committed_total = None
+        safe_value = None
+
+    attempt.response = SafeToSpendComputation(
+        liquid_balance=liquid_balance,
+        emergency_fund_reserved=reserved,
+        bills_due=bills_due,
+        minimum_debt_payments=minimum_debt_payments,
+        credit_card_payments=credit_card_public,
+        credit_card_items=tuple(credit_card_items),
+        subscription_forecast=subscription_public,
+        subscription_forecast_items=tuple(subscription.items),
+        subscription_detection=subscription_detection,
+        committed_savings=committed_public,
+        committed_savings_items=tuple(committed_savings.items),
+        savings_detection=committed_savings.detection,
+        committed_total=committed_total,
+        safe_to_spend=safe_value,
+        total_debt=total_debt,
+        committed_savings_reserved=reserve_savings,
     )
-    # committed_savings itself is a Money output (serializes cleanly for the
-    # advisor). The drill-down items carry dates, so they stay OUT of outputs
-    # and the API layer recomputes them via committed_savings_in_window.
-    result.outputs["committed_savings_reserved"] = reserve_savings
-    calculation_id = _persist_disclosing(
-        engine, household_id, result, currency, list(excluded.values()), warnings=fund.warnings
+    calculation_id = _persist_attempt_disclosing(
+        engine,
+        household_id,
+        attempt,
+        currency,
+        list(excluded.values()),
+        warnings=fund.warnings,
     )
-    return result, calculation_id
+    return attempt, calculation_id
 
 
 def compute_purchase_impact(
     engine: Engine, household_id: str, currency: str, price: Money
 ) -> tuple[CalculationResult, str]:
+    monthly_expenses, denominator_excluded = monthly_essential_expenses_with_exclusions(
+        engine, household_id, currency
+    )
+    if not monthly_expenses.is_complete:
+        # A recommendation-shaped purchase decision has no honest partial form.
+        # Keep this gate inside the service so direct callers cannot bypass it.
+        raise SealedAmountUnreadableError(household_id)
+
     # #152: the same partition net worth uses — a foreign account is left out of
     # the before/after net worth AND the liquid balance, and disclosed once.
     partition = partition_balances_by_currency(
@@ -2072,8 +2698,10 @@ def compute_purchase_impact(
             price=price,
             net_worth_before=net_worth_result.outputs["net_worth"],
             liquid_balance_before=liquid_balance,
-            monthly_essential_expenses=cash_flow_result.outputs["monthly_bills"],
-            discretionary_cash_flow=cash_flow_result.outputs["discretionary_cash_flow"],
+            monthly_essential_expenses=monthly_expenses.value,
+            discretionary_cash_flow=(
+                cash_flow_result.outputs["monthly_income"] - monthly_expenses.value
+            ),
             liability_total=net_worth_result.outputs["liability_total"],
             top_goal=top_goal,
         )
@@ -2083,7 +2711,7 @@ def compute_purchase_impact(
         household_id,
         result,
         currency,
-        partition.excluded_accounts,
+        _merge_excluded(partition.excluded_accounts, denominator_excluded),
         warnings=(top_goal_warning,),
     )
     return result, calculation_id
@@ -2328,15 +2956,19 @@ def autofile_taxes(
 
 def monthly_taxes_total(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> Money:
-    """Tax withheld, averaged over the trailing 12 complete months to a monthly
-    figure (like income) — lumpy RSU withholdings spread into a fair run-rate."""
+) -> Qualified[Money]:
+    """Qualified trailing tax-withholding monthly average."""
     today = today or household_clock.today_for_household(engine, household_id)
     this_month_start = today.replace(day=1)
     window_start = add_months(this_month_start, -INCOME_TRAILING_MONTHS)
     window_end = this_month_start - timedelta(days=1)
-    total = repository.sum_taxes(engine, household_id, window_start, window_end, currency)
-    return Money(total // INCOME_TRAILING_MONTHS, currency)
+    total = repository.sum_taxes(
+        engine, household_id, window_start, window_end, currency
+    )
+    return Qualified(
+        Money(total.value // INCOME_TRAILING_MONTHS, currency),
+        total.incomplete_sources,
+    )
 
 
 def autofile_all(
@@ -2507,7 +3139,7 @@ INCOME_TRAILING_MONTHS = 12
 
 def monthly_income_total(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> Money:
+) -> Qualified[Money]:
     """This year's income = actual money landing in the household's accounts.
 
     Two sources, both "money in": any confirmed recurring income sources, plus the
@@ -2530,9 +3162,11 @@ def monthly_income_total(
     this_month_start = today.replace(day=1)
     window_start = add_months(this_month_start, -INCOME_TRAILING_MONTHS)
     window_end = this_month_start - timedelta(days=1)
-    trailing = repository.sum_income(engine, household_id, window_start, window_end, currency)
-    total += Money(trailing // INCOME_TRAILING_MONTHS, currency)
-    return total
+    trailing = repository.sum_income(
+        engine, household_id, window_start, window_end, currency
+    )
+    total += Money(trailing.value // INCOME_TRAILING_MONTHS, currency)
+    return Qualified(total, trailing.incomplete_sources)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2553,13 +3187,14 @@ class ObservedSavingsRate:
     """
 
     percent: int | None
-    gross_monthly_minor: int
-    take_home_monthly_minor: int
-    spending_monthly_minor: int
-    transfers_monthly_minor: int
+    gross_monthly: Qualified[int] | None
+    take_home_monthly: Qualified[int]
+    spending_monthly: Qualified[int]
+    transfers_monthly: Qualified[int] | None
+    transfer_detection: Qualified[None]
     payroll_monthly_minor: int
-    residual_monthly_minor: int
-    total_saved_monthly_minor: int
+    residual_monthly: Qualified[int] | None
+    total_saved_monthly: Qualified[int] | None
     # Which sources contributed real numbers, for the honesty note.
     has_payroll_profile: bool
     has_declared_transfers: bool
@@ -2575,10 +3210,16 @@ def observed_savings_rate(
     window_start = add_months(this_month_start, -3)
     window_end = this_month_start - timedelta(days=1)
 
-    take_home = monthly_income_total(engine, household_id, currency, today=today).amount_minor
-    spending = round(
-        repository.sum_spending(engine, household_id, window_start, window_end, currency) / 3
+    take_home_money = monthly_income_total(
+        engine, household_id, currency, today=today
     )
+    take_home = Qualified(
+        take_home_money.value.amount_minor, take_home_money.incomplete_sources
+    )
+    spending_total = repository.sum_spending(
+        engine, household_id, window_start, window_end, currency
+    )
+    spending = spending_total.map(lambda value: round(value / 3))
 
     # Payroll deductions: pre-tax retirement + HSA across earners, monthlyised.
     profiles = repository.list_income_profiles(engine, household_id)
@@ -2588,36 +3229,48 @@ def observed_savings_rate(
     ) // 12
 
     # Declared transfers only — a detected guess is not "what the household does".
-    transfers = 0
-    try:
-        for c in savings_detection.detect_for_household(engine, household_id, today=today):
-            if c.declared and c.currency == currency:
-                transfers += savings_detection.monthly_equivalent_minor(c)
-    except Exception:
-        logger.exception("savings-rate transfer sum failed household=%s", household_id)
+    detection = savings_detection.qualified_detect_for_household(
+        engine, household_id, today=today
+    )
+    transfers_value = sum(
+        savings_detection.monthly_equivalent_minor(c)
+        for c in detection.value
+        if c.declared and c.currency == currency
+    )
+    transfers = (
+        Qualified.complete(transfers_value) if detection.is_complete else None
+    )
 
     # Residual: unspent take-home that didn't move to a named contribution.
     # Transfers are excluded from spending, so subtract them here to avoid
     # double-counting them as both a transfer and unspent cash.
-    residual = take_home - spending - transfers
-    total_saved = payroll + take_home - spending
-    gross = take_home + payroll
-    percent = None if gross <= 0 else round(total_saved / gross * 100)
+    dependency_sources = union_sources(take_home, spending, detection)
+    gross = residual = total_saved = None
+    percent = None
+    if not dependency_sources:
+        gross_value = take_home.value + payroll
+        residual_value = take_home.value - spending.value - transfers_value
+        total_saved_value = payroll + take_home.value - spending.value
+        gross = Qualified.complete(gross_value)
+        residual = Qualified.complete(residual_value)
+        total_saved = Qualified.complete(total_saved_value)
+        percent = None if gross_value <= 0 else round(total_saved_value / gross_value * 100)
 
     return ObservedSavingsRate(
         percent=percent,
-        gross_monthly_minor=gross,
-        take_home_monthly_minor=take_home,
-        spending_monthly_minor=spending,
-        transfers_monthly_minor=transfers,
+        gross_monthly=gross,
+        take_home_monthly=take_home,
+        spending_monthly=spending,
+        transfers_monthly=transfers,
+        transfer_detection=Qualified(None, detection.incomplete_sources),
         payroll_monthly_minor=payroll,
-        residual_monthly_minor=residual,
-        total_saved_monthly_minor=total_saved,
+        residual_monthly=residual,
+        total_saved_monthly=total_saved,
         has_payroll_profile=any(
             p.retirement_contribution_annual_minor or p.hsa_contribution_annual_minor
             for p in profiles
         ),
-        has_declared_transfers=transfers > 0,
+        has_declared_transfers=transfers_value > 0,
     )
 
 
@@ -2729,7 +3382,7 @@ def _monthly_debt_minimums_with_exclusions(
 
 def monthly_essential_expenses(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> Money:
+) -> Qualified[Money]:
     expenses, _excluded = monthly_essential_expenses_with_exclusions(
         engine, household_id, currency, today=today
     )
@@ -2738,7 +3391,7 @@ def monthly_essential_expenses(
 
 def monthly_essential_expenses_with_exclusions(
     engine: Engine, household_id: str, currency: str, *, today: date | None = None
-) -> tuple[Money, list[ExcludedAccount]]:
+) -> tuple[Qualified[Money], list[ExcludedAccount]]:
     """The realistic monthly cash a household must cover if income stopped — the
     emergency-fund coverage denominator (ADR 0039) — and the out-of-base
     liabilities it left out (#152 review).
@@ -2763,17 +3416,27 @@ def monthly_essential_expenses_with_exclusions(
         engine, household_id, currency
     )
 
-    spending_3mo = repository.sum_spending(engine, household_id, window_start, window_end, currency)
-    avg_spending_minor = max(0, round(spending_3mo / 3))
+    spending_3mo = repository.sum_spending(
+        engine, household_id, window_start, window_end, currency
+    )
+    avg_spending_minor = max(0, round(spending_3mo.value / 3))
     # Average spending already contains the bill-categorized payments; keep only the
     # part above the recurring bills so housing/utilities aren't counted twice.
     spending_above_bills = Money(max(0, avg_spending_minor - bills.amount_minor), currency)
 
-    return bills + debt_minimums + spending_above_bills, excluded
+    return Qualified(
+        bills + debt_minimums + spending_above_bills,
+        spending_3mo.incomplete_sources,
+    ), excluded
 
 
 def _serialize_outputs(outputs: dict[str, Any]) -> dict[str, Any]:
     def serialize(value: Any) -> Any:
+        if isinstance(value, Qualified):
+            return {
+                "value": serialize(value.value),
+                "incomplete_count": value.incomplete_count,
+            }
         if isinstance(value, Money):
             return value.to_dict()
         if isinstance(value, dict):

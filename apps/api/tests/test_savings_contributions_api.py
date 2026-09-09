@@ -49,7 +49,7 @@ async def test_declared_contribution_appears_in_household_context(demo_client, d
     context = await demo_client.get("/api/v1/household", headers=auth_headers)
     assert context.status_code == 200, context.text
     declared = [
-        c for c in context.json()["savings_contributions"] if c.get("declared")
+        c for c in context.json()["savings_contributions"]["contributions"] if c.get("declared")
     ]
     assert any(c["destination_name"] == "Kid 529" for c in declared)
 
@@ -79,7 +79,7 @@ async def test_deleting_stops_the_tracking(demo_client, demo_token):
     context = await demo_client.get("/api/v1/household", headers=auth_headers)
     assert not [
         c
-        for c in context.json()["savings_contributions"]
+        for c in context.json()["savings_contributions"]["contributions"]
         if c.get("contribution_id") == contribution_id
     ]
 
@@ -115,7 +115,7 @@ async def test_deleting_is_undoable(demo_client, demo_token):
     context = await demo_client.get("/api/v1/household", headers=auth_headers)
     assert [
         c
-        for c in context.json()["savings_contributions"]
+        for c in context.json()["savings_contributions"]["contributions"]
         if c.get("contribution_id") == contribution_id
     ]
 
@@ -167,7 +167,7 @@ async def test_linking_a_contribution_to_a_goal(demo_client, demo_token):
     context = await demo_client.get("/api/v1/household", headers=auth_headers)
     mine = next(
         c
-        for c in context.json()["savings_contributions"]
+        for c in context.json()["savings_contributions"]["contributions"]
         if c.get("contribution_id") == contribution_id
     )
     assert mine["suggested_goal_id"] == goal_id
@@ -193,7 +193,7 @@ async def test_linking_a_contribution_to_a_goal(demo_client, demo_token):
     context = await demo_client.get("/api/v1/household", headers=auth_headers)
     mine = next(
         c
-        for c in context.json()["savings_contributions"]
+        for c in context.json()["savings_contributions"]["contributions"]
         if c.get("contribution_id") == contribution_id
     )
     assert mine["goal_id"] == goal_id
@@ -284,10 +284,10 @@ async def test_committed_savings_shows_beside_safe_to_spend(demo_client, demo_to
     s2s = context["safe_to_spend"]
     assert s2s is not None
     # Informational by default: an amount and a drill-down, NOT reserved.
-    assert s2s["committed_savings"]["amount_minor"] == 500_00
+    assert s2s["committed_savings"]["value"]["amount_minor"] == 500_00
     assert s2s["committed_savings_reserved"] is False
     assert s2s["committed_savings_items"], "expected a labelled committed-savings line"
-    baseline_committed = s2s["committed_total"]["amount_minor"]
+    baseline_committed = s2s["committed_total"]["value"]["amount_minor"]
 
     # Flip the household to reserve it: safe-to-spend shrinks by exactly $500.
     await demo_client.patch(
@@ -296,8 +296,8 @@ async def test_committed_savings_shows_beside_safe_to_spend(demo_client, demo_to
     context = (await demo_client.get("/api/v1/household", headers=headers)).json()
     s2s2 = context["safe_to_spend"]
     assert s2s2["committed_savings_reserved"] is True
-    assert s2s2["committed_total"]["amount_minor"] == baseline_committed + 500_00
+    assert s2s2["committed_total"]["value"]["amount_minor"] == baseline_committed + 500_00
     assert (
-        s2s2["safe_to_spend"]["amount_minor"]
-        == s2s["safe_to_spend"]["amount_minor"] - 500_00
+        s2s2["safe_to_spend"]["value"]["amount_minor"]
+        == s2s["safe_to_spend"]["value"]["amount_minor"] - 500_00
     )

@@ -203,7 +203,7 @@ def test_transactions_accounts_and_names_are_sealed(_master_key, demo_engine) ->
         __import__("datetime").date.today() + __import__("datetime").timedelta(days=1),
         "USD",
     )
-    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 4200 for m in spends)
+    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 4200 for m in spends.value)
 
     # At rest, every one of those strings is ciphertext.
     with demo_engine.connect() as conn:
@@ -558,9 +558,9 @@ def test_amounts_are_sealed_and_aggregations_still_add_up(_master_key, demo_engi
     # Reads decrypt to ints; aggregations respect the sign rules.
     txn = repository.get_transaction(demo_engine, hh, txn_id)
     assert txn.amount_minor == -7300
-    assert repository.sum_spending(demo_engine, hh, today, today, "USD") == baseline + 10000
+    assert repository.sum_spending(demo_engine, hh, today, today, "USD").value == baseline.value + 10000
     spends = repository.top_spending_merchants(demo_engine, hh, today, today, "USD")
-    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 10000 for m in spends)
+    assert any(m.merchant == "Corner Coffee Shop" and m.amount_minor == 10000 for m in spends.value)
 
     # Dedupe equality happens post-decrypt.
     assert repository.transaction_exists(demo_engine, hh, account.id, today, -7300) is True

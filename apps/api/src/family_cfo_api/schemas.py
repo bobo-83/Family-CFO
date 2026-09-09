@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from family_cfo_api.qualified_amounts import Qualified as InternalQualified
 
 HouseholdRole = Literal["owner", "adult", "viewer", "child"]
 AccountType = Literal[
@@ -66,6 +68,39 @@ class Money(BaseModel):
         # totals began excluding out-of-base balances, was left out of its own
         # household's figures. Normalised here, at every money ingress.
         return value.upper()
+
+
+class QualifiedMoney(BaseModel):
+    value: Money
+    incomplete_count: int = Field(ge=0)
+
+
+class ComputationAvailability(BaseModel):
+    status: Literal["complete", "unavailable"]
+    incomplete_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ComputationAvailability":
+        if self.status == "complete" and self.incomplete_count != 0:
+            raise ValueError("complete computation must have incomplete_count 0")
+        if self.status == "unavailable" and self.incomplete_count == 0:
+            raise ValueError("unavailable computation requires a positive incomplete_count")
+        return self
+
+
+def qualified_money(value: InternalQualified[int], currency: str) -> QualifiedMoney:
+    """The only public projection of request-local unreadable provenance."""
+    return QualifiedMoney(
+        value=Money(amount_minor=value.value, currency=currency),
+        incomplete_count=value.incomplete_count,
+    )
+
+
+def computation_availability(value: InternalQualified[Any]) -> ComputationAvailability:
+    return ComputationAvailability(
+        status="complete" if value.is_complete else "unavailable",
+        incomplete_count=value.incomplete_count,
+    )
 
 
 class SessionInfo(BaseModel):
@@ -175,28 +210,30 @@ class EmergencyFundSummary(BaseModel):
     months: float | None = None
     reserved: Money
     using_designations: bool
-    monthly_expenses: Money
+    monthly_expenses: QualifiedMoney
     target_months_min: float
     target_months_recommended: float
-    gap_to_recommended: Money | None = None
+    gap_to_recommended: QualifiedMoney | None = None
     # M75: the household's own emergency_fund goal target, when one exists —
     # the status is the more conservative of months-coverage and goal progress.
     goal_target: Money | None = None
-    status: Literal["no_bills", "no_fund", "getting_started", "on_track", "fully_funded"]
+    status: Literal[
+        "no_bills", "no_fund", "getting_started", "on_track", "fully_funded", "unavailable"
+    ]
 
 
 class MonthlyCashFlow(BaseModel):
-    income: Money
+    income: QualifiedMoney
     # Month-to-date spending (the Year chart's rule) — the recurring-bill model
     # this used to carry understated outflow badly (user report 2026-07-25).
-    spending: Money
-    net: Money
+    spending: QualifiedMoney
+    net: QualifiedMoney | None
     # Monthly gross from the W2 / compensation profile, when one exists. Shown as a
     # baseline next to actual income (which is net money-in) — not added to it.
     income_baseline: Money | None = None
     # Tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, out of the
     # discretionary spending breakdown. None/absent when the household has no taxes filed.
-    taxes: Money | None = None
+    taxes: QualifiedMoney | None = None
 
 
 class AssetCategoryTotal(BaseModel):
@@ -247,15 +284,16 @@ class SavingsRate(BaseModel):
     residual view still reconciles; the breakdown fields are additive."""
 
     percent: int | None = None
-    monthly_income: Money
-    average_monthly_spending: Money
+    monthly_income: QualifiedMoney
+    average_monthly_spending: QualifiedMoney
     # #6 breakdown — each a monthly figure. total_saved = transfers + payroll +
     # residual; gross_income = take-home + payroll.
-    gross_income: Money | None = None
-    transfers: Money | None = None
+    gross_income: QualifiedMoney | None = None
+    transfers: QualifiedMoney | None = None
+    transfer_detection: ComputationAvailability
     payroll_deductions: Money | None = None
-    residual: Money | None = None
-    total_saved: Money | None = None
+    residual: QualifiedMoney | None = None
+    total_saved: QualifiedMoney | None = None
     # Honesty: which sources the figure actually covers. When
     # payroll_profile_present is false, payroll saving is invisible and the
     # rate understates — the UI must say so.
@@ -296,6 +334,11 @@ class SavingsContribution(BaseModel):
     suggested_goal_id: str | None = None
 
 
+class SavingsContributionSet(BaseModel):
+    contributions: list[SavingsContribution]
+    detection: ComputationAvailability
+
+
 class SavingsContributionCreateRequest(BaseModel):
     """#203: declare a recurring contribution the app cannot see — the common
     case when the destination account (a 529, a retirement plan) never syncs."""
@@ -331,14 +374,15 @@ class Budget(BaseModel):
     category_id: str
     category_name: str
     limit: Money
-    spent: Money
-    remaining: Money
-    percent_used: int
-    status: BudgetStatus
+    spent: QualifiedMoney
+    remaining: QualifiedMoney | None
+    percent_used: int | None
+    status: BudgetStatus | None
 
 
 class BudgetListResponse(BaseModel):
     budgets: list[Budget]
+    summary: "BudgetSummary"
 
 
 class BudgetCreateRequest(BaseModel):
@@ -354,19 +398,19 @@ class BudgetSummary(BaseModel):
     """M46: envelope health for the Overview alert card."""
 
     envelope_count: int
-    over_count: int
-    warning_count: int
+    over_count: int | None
+    warning_count: int | None
     total_budgeted: Money
-    total_spent: Money
+    total_spent: QualifiedMoney
 
 
 class SpendingInsights(BaseModel):
     """M42: month-to-date spending vs the same period last month, plus top merchants."""
 
-    this_month: Money
-    last_month: Money
+    this_month: QualifiedMoney
+    last_month: QualifiedMoney
     change_percent: int | None = None
-    top_merchants: list[MerchantSpend] = Field(default_factory=list)
+    top_merchants: list[MerchantSpend] | None = None
 
 
 class CategorySpend(BaseModel):
@@ -374,7 +418,7 @@ class CategorySpend(BaseModel):
 
     category_id: str
     category_name: str
-    amount: Money
+    amount: QualifiedMoney
 
 
 class SpendingByCategory(BaseModel):
@@ -385,8 +429,9 @@ class SpendingByCategory(BaseModel):
     month: str
     month_label: str
     categories: list[CategorySpend] = Field(default_factory=list)
-    categorized_total: Money
-    uncategorized: Money
+    categorized_total: QualifiedMoney
+    uncategorized: QualifiedMoney
+    total: QualifiedMoney
 
 
 class LiquidAccountBalance(BaseModel):
@@ -424,12 +469,13 @@ class SafeToSpend(BaseModel):
     bills_due: Money
     minimum_debt_payments: Money
     # M96: full credit-card balances when the household pays in full monthly; 0 otherwise.
-    credit_card_payments: Money | None = None
+    credit_card_payments: QualifiedMoney | None = None
     # M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the
     # 'bill way' (never a monthly total, so already-paid charges aren't double-counted).
-    subscription_forecast: Money | None = None
-    committed_total: Money
-    safe_to_spend: Money
+    subscription_forecast: QualifiedMoney | None = None
+    subscription_detection: ComputationAvailability
+    committed_total: QualifiedMoney | None
+    safe_to_spend: QualifiedMoney | None
     total_debt: Money
     warnings: list[str] = Field(default_factory=list)
     # M96: the checking/savings accounts that add up to liquid_balance, so the
@@ -452,7 +498,8 @@ class SafeToSpend(BaseModel):
     # committed_savings_reserved says whether it was SUBTRACTED (the household's
     # choice) or is shown beside the figure. Amount and drill-down are always
     # present; when reserved it is also inside committed_total.
-    committed_savings: Money | None = None
+    committed_savings: QualifiedMoney | None = None
+    savings_detection: ComputationAvailability
     committed_savings_items: list[NamedAmount] = Field(default_factory=list)
     committed_savings_reserved: bool = False
     # M109: the recurring subscriptions behind subscription_forecast — the next
@@ -483,7 +530,7 @@ class HouseholdContext(BaseModel):
     reserve_committed_savings: bool = False
     # #41: the household's IANA zone; null means the box's default.
     timezone: str | None = None
-    net_worth: Money
+    net_worth: QualifiedMoney
     emergency_fund_months: float | None
     # M38: enriched overview summary (additive).
     emergency_fund: EmergencyFundSummary | None = None
@@ -496,7 +543,7 @@ class HouseholdContext(BaseModel):
     spending_insights: SpendingInsights | None = None
     savings_rate: SavingsRate | None = None
     # #201: detected recurring saving, newest-largest first. Transfers only.
-    savings_contributions: list[SavingsContribution] = Field(default_factory=list)
+    savings_contributions: SavingsContributionSet
     budget_summary: BudgetSummary | None = None
     safe_to_spend: SafeToSpend | None = None
     spending_by_category: SpendingByCategory | None = None
@@ -555,7 +602,7 @@ class Transaction(BaseModel):
     counterparty: str | None = None
     # M97: NULL normally; 'flagged' (detected exact duplicate), 'dismissed' (a
     # legitimate repeat the user kept), or 'disputed' (contesting with the bank).
-    duplicate_state: str | None = None
+    duplicate_state: Literal["flagged", "dismissed", "disputed"] | None = None
     # M97: the bank/aggregator's reference for this record — the distinguisher
     # between two otherwise-identical duplicate legs, shown in the Review queue.
     external_id: str | None = None
@@ -626,7 +673,7 @@ class GoalFunding(BaseModel):
     retirement goals especially. UIs must word it that way."""
 
     monthly_equivalent: Money
-    funded_by: list[GoalFundingSource] = Field(default_factory=list)
+    funded_by: list[GoalFundingSource]
     projected_completion: date | None = None
     # unfunded | funded_no_date | on_track | behind
     status: str
@@ -703,7 +750,9 @@ class BillListResponse(BaseModel):
 
 
 TimelineItemKind = Literal["bill", "credit_card", "mortgage", "loan", "lease"]
-TimelineItemStatus = Literal["overdue", "due_soon", "upcoming", "paid", "no_date"]
+TimelineItemStatus = Literal[
+    "overdue", "due_soon", "upcoming", "paid", "no_date", "unknown"
+]
 
 
 class TimelinePaidWith(BaseModel):
@@ -726,7 +775,7 @@ class PaymentTimelineItem(BaseModel):
     name: str
     # Expected amount: a bill's estimate (variable utilities show their typical
     # amount), a card's pay-in-full balance, a loan/lease's monthly payment.
-    amount: Money
+    amount: Money | None
     due_date: date | None = None  # None = couldn't infer one (status "no_date")
     days_until: int | None = None
     status: TimelineItemStatus
@@ -757,9 +806,9 @@ class BillPaymentLink(BaseModel):
 class PaymentTimelineResponse(BaseModel):
     items: list[PaymentTimelineItem]
     # The bill-paying headline: what's due in the window vs the cash on hand.
-    due_total: Money
+    due_total: QualifiedMoney
     liquid_balance: Money
-    covered: bool
+    covered: bool | None
     window_days: int
 
 
@@ -786,22 +835,23 @@ class CashOutlookResponse(BaseModel):
 
     starting_cash: Money
     events: list[OutlookEvent]
-    ending_cash: Money
-    lowest_balance: Money
+    ending_cash: QualifiedMoney | None
+    lowest_balance: QualifiedMoney | None
     lowest_date: date | None = None
-    expected_income: Money
-    obligations: Money
+    expected_income: QualifiedMoney | None
+    income_projection: ComputationAvailability
+    obligations: QualifiedMoney
     horizon_days: int
     # The Bills tab's due-vs-cash headline (14-day window), repeated here so the
     # Overview shows the SAME figures as Bills (ADR 0025 vocabulary parity).
-    due_soon: Money
-    due_soon_covered: bool
+    due_soon: QualifiedMoney
+    due_soon_covered: bool | None
     due_soon_window_days: int
     # ADR 0069: the RSU sell-by runway — first projected shortfall day, the
     # deepest gap to raise, and the last day to start a sale with 4 business
     # days of notice. All absent while the horizon stays covered.
     first_shortfall_date: date | None = None
-    shortfall: Money | None = None
+    shortfall: QualifiedMoney | None = None
     sell_by_date: date | None = None
     # sell_rsus when the compensation profile declares RSU income, move_cash
     # otherwise — the deadline is the same, the instruction isn't (2026-07-26).
@@ -818,16 +868,17 @@ class SpendingPlanResponse(BaseModel):
     cash outlook's cash-timing view."""
 
     month: str  # "YYYY-MM"
-    income_received: Money
-    income_projected: Money
-    expected_income: Money
-    spent: Money
-    bills_remaining: Money
+    income_received: QualifiedMoney
+    income_projected: QualifiedMoney | None
+    expected_income: QualifiedMoney | None
+    income_projection: ComputationAvailability
+    spent: QualifiedMoney
+    bills_remaining: QualifiedMoney
     account_obligations: Money
     # M118: goals' declared monthly contributions, reserved by the plan.
     planned_savings: Money
-    left_to_spend: Money
-    per_day: Money  # a pace, not a rule; zero when left_to_spend is negative
+    left_to_spend: QualifiedMoney | None
+    per_day: QualifiedMoney | None  # unavailable when a dependency is incomplete
     days_remaining: int
 
 
@@ -895,17 +946,17 @@ class IncomeSourceAnalysis(BaseModel):
     name: str
     # Detected cadence, or "irregular" for the manually-added group — wider
     # than RecurringFrequency on purpose.
-    frequency: str
+    frequency: str | None
     manually_added: bool
-    typical_amount: Money
-    total_amount: Money
+    typical_amount: QualifiedMoney | None
+    total_amount: QualifiedMoney
     transactions: list[IncomeAnalysisTransaction]
 
 
 class IncomeRollup(BaseModel):
-    annual_income: Money
-    monthly_average: Money
-    transaction_count: int
+    annual_income: QualifiedMoney
+    monthly_average: QualifiedMoney
+    transaction_count: int | None
     window_days: int
     # M63: how far back the synced history actually goes.
     coverage_start: date | None = None
@@ -914,7 +965,7 @@ class IncomeRollup(BaseModel):
 
 class TaxEstimate(BaseModel):
     tax_year: int
-    filing_status: str
+    filing_status: Literal["single", "married_joint", "head_of_household"]
     income_treated_as_net: bool
     # M65: USPS state code; state_income_tax is None when the state is unset
     # or not modeled (an assumption line says which).
@@ -1296,11 +1347,12 @@ class IncomeAnalysisResponse(BaseModel):
     sources: list[IncomeSourceAnalysis]
     other_inflows: list[IncomeAnalysisTransaction]
     rollup: IncomeRollup
+    detection: ComputationAvailability
     # M63: set when the synced history does not span the full window.
     coverage_warning: str | None = None
     # M73: declared compensation; when present it is the tax authority.
     profile: IncomeProfile | None = None
-    tax: TaxEstimate
+    tax: TaxEstimate | None
 
 
 class IncomeOverrideRequest(BaseModel):
@@ -1443,10 +1495,10 @@ class YearMonthSummary(BaseModel):
     """One month of the Overview's year view (M-yearly)."""
 
     month: str
-    income: Money
-    spending: Money
-    net: Money
-    net_worth_eom: Money | None = None
+    income: QualifiedMoney
+    spending: QualifiedMoney
+    net: QualifiedMoney | None
+    net_worth_eom: QualifiedMoney | None = None
 
 
 class YearlyReview(BaseModel):
@@ -1463,10 +1515,10 @@ class YearlyOverview(BaseModel):
 
     year: int
     months: list[YearMonthSummary]
-    total_income: Money
-    total_spending: Money
-    total_net: Money
-    top_categories: list[NamedAmount]
+    total_income: QualifiedMoney
+    total_spending: QualifiedMoney
+    total_net: QualifiedMoney | None
+    top_categories: list[NamedAmount] | None
     review: YearlyReview | None = None
 
 
@@ -1669,7 +1721,7 @@ class DocumentExtraction(BaseModel):
     text: str
     structured_fields: dict[str, Any]
     confidence: float = Field(ge=0, le=1)
-    warnings: list[str] = Field(default_factory=list)
+    warnings: list[str]
     created_at: datetime
 
 
@@ -1746,7 +1798,7 @@ class BackupConfig(BaseModel):
     """M98: the Synology SMB target off-box backups upload to, and the cadence.
     The password is never returned — `has_password` says whether one is stored.
     `latest` is the most recent job so the UI can show status + failure reason."""
-    frequency: str = "daily"
+    frequency: Literal["every_15min", "hourly", "every_6h", "daily", "weekly", "off"] = "daily"
     smb_host: str | None = None
     smb_share: str | None = None
     smb_folder: str | None = None
