@@ -280,6 +280,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				FC0000000000000000000031 /* FamilyCFOTests */,
+				FC0000000000000000000036 /* FamilyCFOWatchShared */,
 			);
 			name = FamilyCFOTests;
 			packageProductDependencies = (

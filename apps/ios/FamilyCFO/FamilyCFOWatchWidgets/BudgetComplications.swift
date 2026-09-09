@@ -1,19 +1,16 @@
 import SwiftUI
 import WidgetKit
 
-/// Budget complications (ADR 0067 v9): the small slots ring how much of the
-/// whole monthly budget is burned; the rectangular slot charts the budgets
-/// closest to their caps. Same contract as the glance widget — cached
-/// snapshot only, no network, amounts privacy-sensitive.
-
+/// Budget complications use server-owned summary primitives and per-envelope
+/// percentages. They never rebuild aggregate budget arithmetic from slices.
 struct BudgetComplicationView: View {
     @Environment(\.widgetFamily) private var family
     let entry: GlanceEntry
 
     var body: some View {
         Group {
-            if let snapshot = entry.snapshot, let fraction = snapshot.budgetFraction {
-                slot(snapshot, fraction)
+            if let snapshot = entry.snapshot, snapshot.budgetSpentMinor != nil {
+                slot(snapshot)
             } else {
                 Image(systemName: "chart.pie")
                     .widgetLabel("Open Family CFO")
@@ -22,54 +19,54 @@ struct BudgetComplicationView: View {
         .containerBackground(for: .widget) { Color.clear }
     }
 
-    private func tint(_ fraction: Double) -> Color {
-        if fraction >= 1 { return .red }
-        if fraction >= 0.8 { return .orange }
+    private func summaryTint(_ snapshot: WatchFaceSnapshot) -> Color {
+        guard let over = snapshot.budgetOverCount,
+              let warning = snapshot.budgetWarningCount
+        else { return .secondary }
+        if over > 0 { return .red }
+        if warning > 0 { return .orange }
         return .green
     }
 
-    private func percent(_ fraction: Double) -> String {
-        "\(Int((fraction * 100).rounded()))%"
+    private func summaryLabel(_ snapshot: WatchFaceSnapshot) -> String {
+        if let count = snapshot.budgetSpentIncompleteCount, count > 0 {
+            if count == 1 {
+                return String(
+                    localized: "Partial total—1 stored amount could not be read and was left out.")
+            }
+            return String(
+                localized: "Partial total—\(count) stored amounts could not be read and were left out.")
+        }
+        return snapshot.budgetStatusLabel ?? String(localized: "Unavailable")
     }
 
     @ViewBuilder
-    private func slot(_ snapshot: WatchFaceSnapshot, _ fraction: Double) -> some View {
+    private func slot(_ snapshot: WatchFaceSnapshot) -> some View {
         switch family {
         case .accessoryRectangular:
             budgetChart(snapshot)
         case .accessoryInline:
-            Text("Budget \(percent(fraction)) used")
+            Text("Budget \(summaryLabel(snapshot))")
                 .privacySensitive()
         case .accessoryCorner:
-            Text(percent(fraction))
+            Text(summaryLabel(snapshot))
                 .font(.system(.body, design: .rounded).weight(.semibold))
                 .minimumScaleFactor(0.5)
+                .lineLimit(1)
                 .privacySensitive()
-                .widgetLabel {
-                    Gauge(value: min(fraction, 1)) { Text("Budget") }
-                        .tint(tint(fraction))
-                }
-        default:  // circular: the budget ring
-            Gauge(value: min(fraction, 1)) {
-                Text("Bdgt")
-            } currentValueLabel: {
-                Text(percent(fraction))
-                    .minimumScaleFactor(0.5)
-                    .privacySensitive()
-            }
-            .gaugeStyle(.accessoryCircular)
-            .tint(tint(fraction))
-            .widgetLabel {
-                Text("Budget \(percent(fraction)) used")
-                    .privacySensitive()
-            }
+                .widgetLabel(summaryLabel(snapshot))
+        default:
+            Text(summaryLabel(snapshot))
+                .font(.system(.body, design: .rounded).weight(.semibold))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .privacySensitive()
+                .widgetLabel(summaryLabel(snapshot))
         }
     }
 
-    /// EVERY budget as a vertical column (user request 2026-07-25 — three
-    /// horizontal rows hid the rest): fill height = usage, tinted like the
-    /// rows were, most at-risk first (the snapshot pre-sorts). The overall
-    /// percent anchors the right edge.
+    /// Each column uses the server's nullable per-envelope percentage. Missing
+    /// decisions stay neutral and do not become empty/success bars.
     private func budgetChart(_ snapshot: WatchFaceSnapshot) -> some View {
         HStack(alignment: .bottom, spacing: 3) {
             ForEach(snapshot.budgets ?? [], id: \.name) { slice in
@@ -78,15 +75,22 @@ struct BudgetComplicationView: View {
                         ZStack(alignment: .bottom) {
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(Color.gray.opacity(0.25))
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(tint(slice.fraction))
-                                .frame(
-                                    height: max(
-                                        3, geometry.size.height * min(slice.fraction, 1)))
+                            if let fraction = slice.fraction {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(
+                                        fraction >= 1 ? Color.red
+                                            : fraction >= 0.8 ? Color.orange : Color.green)
+                                    .frame(
+                                        height: max(
+                                            3, geometry.size.height * min(fraction, 1)))
+                            } else {
+                                Image(systemName: "questionmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
                         }
                     }
-                    // The category's own icon (same mapping as the phone's
-                    // picker) says which budget each column is.
                     Image(systemName: CategoryIcon.symbol(for: slice.name))
                         .font(.system(size: 12))
                         .minimumScaleFactor(0.7)
@@ -94,12 +98,9 @@ struct BudgetComplicationView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            // With many columns the percent has no room and wraps into
-            // noise (real face, 2026-07-25) — the ring slot carries it anyway.
-            if (snapshot.budgets?.count ?? 0) <= 6, let fraction = snapshot.budgetFraction {
-                Text(percent(fraction))
+            if (snapshot.budgets?.count ?? 0) <= 6 {
+                Text(summaryLabel(snapshot))
                     .font(.caption2)
-                    .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .privacySensitive()
             }
@@ -116,7 +117,7 @@ struct FamilyCFOWatchBudgetsWidget: Widget {
             BudgetComplicationView(entry: entry)
         }
         .configurationDisplayName("Budgets")
-        .description("How much of this month's budgets is used, from your own box.")
+        .description("Your server-calculated monthly budget status, from your own box.")
         .supportedFamilies([
             .accessoryCircular, .accessoryCorner, .accessoryInline, .accessoryRectangular,
         ])

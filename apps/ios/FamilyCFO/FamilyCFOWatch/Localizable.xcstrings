@@ -134,6 +134,326 @@
           }
         }
       }
+    },
+    "Partial total—1 stored amount could not be read and was left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Partial total—%lld stored amounts could not be read and were left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Unavailable because 1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable because %lld stored amounts could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng"
+          }
+        }
+      }
+    },
+    "%@ of %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ iš %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ trên %@"
+          }
+        }
+      }
+    },
+    "%@ spent so far": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iki šiol išleista %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã chi %@ đến nay"
+          }
+        }
+      }
+    },
+    "%lld near limit": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld arti limito"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld gần chạm giới hạn"
+          }
+        }
+      }
+    },
+    "%lld over budget": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld virš biudžeto"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld vượt ngân sách"
+          }
+        }
+      }
+    },
+    "%lld%%": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
+          }
+        }
+      }
+    },
+    "Budget health unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biudžeto būklė nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xác định tình trạng ngân sách"
+          }
+        }
+      }
+    },
+    "Budgeted %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biudžete numatyta %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã lập ngân sách %@"
+          }
+        }
+      }
+    },
+    "Budgets": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biudžetai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngân sách"
+          }
+        }
+      }
+    },
+    "No budgets yet — set them on the phone or web.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biudžetų dar nėra — nustatykite juos telefone arba žiniatinklyje."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có ngân sách — hãy thiết lập trên điện thoại hoặc web."
+          }
+        }
+      }
+    },
+    "On track": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viskas pagal planą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đúng tiến độ"
+          }
+        }
+      }
+    },
+    "Left to spend": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liko išleisti"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn để chi tiêu"
+          }
+        }
+      }
+    },
+    "Safe to spend": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugu išleisti"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An toàn để chi tiêu"
+          }
+        }
+      }
+    },
+    "Net worth": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grynoji vertė"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giá trị ròng"
+          }
+        }
+      }
+    },
+    "Unavailable—1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama — nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng — không thể đọc 1 khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable—%lld stored amounts could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama — nepavyko perskaityti %lld išsaugotų sumų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng — không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

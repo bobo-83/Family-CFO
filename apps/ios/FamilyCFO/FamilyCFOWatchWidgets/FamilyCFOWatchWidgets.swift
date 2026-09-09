@@ -59,13 +59,21 @@ struct GlanceComplicationView: View {
     }
 
     @ViewBuilder
-    private func slot(_ snapshot: WatchFaceSnapshot, _ headline: (label: String, amountMinor: Int64)) -> some View {
+    private func slot(
+        _ snapshot: WatchFaceSnapshot,
+        _ headline: (label: String, amountMinor: Int64, incompleteCount: Int)
+    ) -> some View {
         switch family {
         case .accessoryRectangular:
             monthDetail(snapshot, headline)
         case .accessoryInline:
-            Text("\(snapshot.compact(headline.amountMinor)) left")
-                .privacySensitive()
+            if let disclosure = partialDisclosure(headline.incompleteCount) {
+                Text("\(snapshot.compact(headline.amountMinor)). \(disclosure)")
+                    .privacySensitive()
+            } else {
+                Text("\(snapshot.compact(headline.amountMinor)) left")
+                    .privacySensitive()
+            }
         case .accessoryCorner:
             // The cash pile sits in the corner; the amount rides the arc.
             if let signal = snapshot.cashSignal {
@@ -75,12 +83,7 @@ struct GlanceComplicationView: View {
                             .privacySensitive()
                     }
             } else {
-                Text(snapshot.compact(headline.amountMinor))
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .privacySensitive()
-                    .widgetLabel(headline.label)
+                compactHeadline(snapshot, headline)
             }
         default:  // circular: the cash meter (ADR 0067 v8) — 1..5 bills, torn = red
             if let signal = snapshot.cashSignal {
@@ -90,25 +93,50 @@ struct GlanceComplicationView: View {
                             .privacySensitive()
                     }
             } else {
-                Text(snapshot.compact(headline.amountMinor))
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .privacySensitive()
-                    .widgetLabel(headline.label)
+                compactHeadline(snapshot, headline)
             }
         }
+    }
+
+    private func compactHeadline(
+        _ snapshot: WatchFaceSnapshot,
+        _ headline: (label: String, amountMinor: Int64, incompleteCount: Int)
+    ) -> some View {
+        VStack(spacing: 0) {
+            Text(snapshot.compact(headline.amountMinor))
+                .font(.system(.body, design: .rounded).weight(.semibold))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .privacySensitive()
+            if headline.incompleteCount > 0 {
+                Label("\(headline.incompleteCount)", systemImage: "exclamationmark.circle")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .widgetLabel(accessibilityHeadline(snapshot, headline))
     }
 
     /// The month at a glance for the big slot: In and Out bars scaled against
     /// each other, then the number the family acts on.
     @ViewBuilder
-    private func monthDetail(_ snapshot: WatchFaceSnapshot, _ headline: (label: String, amountMinor: Int64)) -> some View {
+    private func monthDetail(
+        _ snapshot: WatchFaceSnapshot,
+        _ headline: (label: String, amountMinor: Int64, incompleteCount: Int)
+    ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let income = snapshot.monthIncomeMinor, let spending = snapshot.monthSpendingMinor {
                 let peak = max(income, spending, 1)
                 barRow("In", income, peak, .green, snapshot)
                 barRow("Out", spending, peak, .orange, snapshot)
+                if let disclosure = partialDisclosure(snapshot.monthIncomeIncompleteCount ?? 0) {
+                    Text("Income: \(disclosure)")
+                        .font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
+                }
+                if let disclosure = partialDisclosure(snapshot.monthSpendingIncompleteCount ?? 0) {
+                    Text("Spending: \(disclosure)")
+                        .font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
+                }
             }
             HStack {
                 Text(headline.label)
@@ -119,8 +147,15 @@ struct GlanceComplicationView: View {
                     .font(.caption.weight(.semibold))
                     .privacySensitive()
             }
+            if let disclosure = partialDisclosure(headline.incompleteCount) {
+                Text(disclosure)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func barRow(
@@ -138,6 +173,26 @@ struct GlanceComplicationView: View {
                 .font(.caption2)
                 .privacySensitive()
         }
+    }
+
+    private func partialDisclosure(_ count: Int) -> String? {
+        guard count > 0 else { return nil }
+        if count == 1 {
+            return String(localized: "Partial total—1 stored amount could not be read and was left out.")
+        }
+        return String(
+            localized: "Partial total—\(count) stored amounts could not be read and were left out.")
+    }
+
+    private func accessibilityHeadline(
+        _ snapshot: WatchFaceSnapshot,
+        _ headline: (label: String, amountMinor: Int64, incompleteCount: Int)
+    ) -> String {
+        let amount = snapshot.formatted(headline.amountMinor)
+        guard let disclosure = partialDisclosure(headline.incompleteCount) else {
+            return String(localized: "\(headline.label), \(amount)")
+        }
+        return String(localized: "\(headline.label), \(amount). \(disclosure)")
     }
 
     private var empty: some View {

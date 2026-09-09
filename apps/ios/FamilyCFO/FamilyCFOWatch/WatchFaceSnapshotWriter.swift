@@ -8,21 +8,43 @@ extension WatchFaceSnapshot {
         budgets.map {
             BudgetSlice(
                 name: $0.categoryName,
-                limitMinor: Int64($0.limit.amountMinor),
-                spentMinor: Int64($0.spent.amountMinor))
+                limitMinor: $0.limit.amountMinor,
+                spentMinor: $0.spent.amountMinor,
+                spentIncompleteCount: $0.spent.incompleteCount,
+                percentUsed: $0.percentUsed)
         }
-        .sorted { $0.fraction > $1.fraction }
+        .sorted {
+            switch ($0.percentUsed, $1.percentUsed) {
+            case let (lhs?, rhs?): lhs > rhs
+            case (_?, nil): true
+            case (nil, _?): false
+            case (nil, nil): $0.name < $1.name
+            }
+        }
     }
 
-    /// The Budgets PAGE also refreshes the complications' budget slices
-    /// (user report 2026-07-25: the page said 196% while the face ring still
-    /// showed a 101% cached before new transactions synced — only the Glance
-    /// page used to write the cache). Read-modify-write so the glance
-    /// numbers a Glance load cached stay untouched.
-    static func refreshBudgetCache(_ budgets: [Components.Schemas.Budget]) {
+    /// Refresh the cache from the full server response. Summary values are
+    /// copied directly; the widget must not recreate aggregate arithmetic from
+    /// category slices. A fresh nil decision overwrites any stale exact value.
+    static func refreshBudgetCache(_ response: Components.Schemas.BudgetListResponse) {
         let store = WatchFaceSnapshotStore()
-        guard var snapshot = store.load() else { return }
-        snapshot.budgets = slices(from: budgets)
+        var snapshot = store.load() ?? WatchFaceSnapshot(
+            leftToSpendMinor: nil,
+            safeToSpendMinor: nil,
+            lowestBalanceMinor: nil,
+            netWorthMinor: nil,
+            monthIncomeMinor: nil,
+            monthSpendingMinor: nil,
+            expectedIncomeMinor: nil,
+            currency: response.summary.totalBudgeted.currency,
+            capturedAt: Date(),
+            budgets: nil)
+        snapshot.budgets = slices(from: response.budgets)
+        snapshot.budgetedMinor = response.summary.totalBudgeted.amountMinor
+        snapshot.budgetSpentMinor = response.summary.totalSpent.amountMinor
+        snapshot.budgetSpentIncompleteCount = response.summary.totalSpent.incompleteCount
+        snapshot.budgetOverCount = response.summary.overCount
+        snapshot.budgetWarningCount = response.summary.warningCount
         snapshot.capturedAt = Date()
         store.save(snapshot)
         WidgetCenter.shared.reloadAllTimelines()
