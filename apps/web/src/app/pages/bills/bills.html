@@ -15,12 +15,15 @@
   <mat-card
     appearance="outlined"
     class="timeline-headline"
-    [class.timeline-headline--short]="!headline.covered"
+    [class.timeline-headline--short]="headline.covered === false"
   >
   <mat-card-content>
     <div class="timeline-headline__figures">
       <div>
-        <div class="timeline-headline__amount">{{ formatMoney(headline.due_total) }}</div>
+        <div class="timeline-headline__amount">{{ formatQualifiedMoney(headline.due_total) }}</div>
+        @if (partialMoneyNote(headline.due_total); as note) {
+          <div class="qualified-note" role="status">{{ note }}</div>
+        }
         <div class="timeline-headline__label" i18n="Bill timeline figure|Caption under the total that falls due inside the lookahead window">{headline.window_days, plural, =1 {due in the next day} other {due in the next {{ headline.window_days }} days}}</div>
       </div>
       <div class="timeline-headline__cash">
@@ -30,13 +33,17 @@
         <div class="timeline-headline__label" i18n="Bill timeline figure|Caption under the liquid balance">cash on hand</div>
       </div>
     </div>
-    <div class="timeline-headline__verdict">
-      @if (headline.covered) {
-        <ng-container i18n="Bill timeline verdict|Cash on hand covers everything that is due">✓ Covered — your cash clears everything due.</ng-container>
-      } @else {
-        <ng-container i18n="Bill timeline verdict|What is due exceeds the cash on hand">⚠ Short — what’s due exceeds your cash on hand.</ng-container>
-      }
-    </div>
+    @if (headline.covered !== null) {
+      <div class="timeline-headline__verdict">
+        @if (headline.covered) {
+          <ng-container i18n="Bill timeline verdict|Cash on hand covers everything that is due">✓ Covered — your cash clears everything due.</ng-container>
+        } @else {
+          <ng-container i18n="Bill timeline verdict|What is due exceeds the cash on hand">⚠ Short — what’s due exceeds your cash on hand.</ng-container>
+        }
+      </div>
+    } @else {
+      <div class="qualified-note" role="status">{{ unavailableLabel }}</div>
+    }
     </mat-card-content>
   </mat-card>
 
@@ -51,6 +58,10 @@
     } @else if (section.status === 'no_date') {
       <p class="page-hint" i18n="Section hint|Explains why some accounts have no due date yet">
         No payment seen on this account yet, so its due day can't be inferred.
+      </p>
+    } @else if (section.status === 'unknown') {
+      <p class="qualified-note" role="status" i18n="Section hint|Explains why a payment timeline item is unavailable">
+        Its amount or payment status could not be determined from unreadable stored data.
       </p>
     }
     <mat-card appearance="outlined" class="page-card">
@@ -73,8 +84,12 @@
                 </div>
               </div>
               <div class="bill-list__amount">
-                {{ formatMoney(item.amount) }}
-                @if (item.source === 'statement') {
+                @if (item.amount; as amount) {
+                  {{ formatMoney(amount) }}
+                } @else {
+                  <span class="qualified-note">{{ unavailableLabel }}</span>
+                }
+                @if (item.source === 'statement' && item.amount) {
                   <!-- #11: an exact figure the issuer billed — never shown for estimates. -->
                   <span
                     class="from-statement"

@@ -4,10 +4,11 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { authMock } from '../../shared/testing-auth';
 import { Bills } from './bills';
+import { qualifyApiFixture } from '../../shared/testing-qualified-fixtures';
 
 function response(data: unknown, error?: unknown) {
   return {
-    data,
+    data: qualifyApiFixture(data),
     error,
     request: new Request('http://localhost/'),
     response: new Response(),
@@ -743,5 +744,46 @@ describe('Bills', () => {
     expect(host.textContent).toContain('2026-06');
     // The bill's own row carries its credit total too.
     expect(host.textContent).toContain('USD 211.15 in credits');
+  });
+
+  it('renders partial due totals and unknown items without a coverage verdict', async () => {
+    const apiMock = {
+      listBillSuggestions: vi.fn().mockResolvedValue(response({ suggestions: [] })),
+      listBills: vi.fn().mockResolvedValue(response({ bills: [] })),
+      getPaymentTimeline: vi.fn().mockResolvedValue(response({
+        items: [{
+          id: 'statement-1',
+          kind: 'credit_card',
+          name: 'Unreadable card statement',
+          amount: null,
+          due_date: '2026-09-15',
+          days_until: 7,
+          status: 'unknown',
+          source: 'statement',
+          statement_id: 'statement-1',
+        }],
+        due_total: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        liquid_balance: { amount_minor: 50_000, currency: 'USD' },
+        covered: null,
+        window_days: 14,
+      })),
+    };
+    configure(apiMock, 'viewer');
+
+    const fixture = TestBed.createComponent(Bills);
+    await stabilize(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
+    expect(text).toContain('Partial total—1 stored amount');
+    expect(text).toContain('Needs attention');
+    expect(text).toContain('Unavailable');
+    expect(text).not.toContain('✓ Covered');
+    expect(text).not.toContain('⚠ Short');
+    expect(host.querySelector('.timeline-list__check')).toBeNull();
+    expect(host.querySelector('.from-statement')).toBeNull();
   });
 });

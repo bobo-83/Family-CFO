@@ -8,10 +8,11 @@ import { Overview } from './overview';
 import { HouseholdCurrencyService } from '../../core/household-currency.service';
 import { clearAuthState, setAuthState } from '../../core/token-store';
 import { TIMEZONE_BOX_DEFAULT } from '../../shared/timezones';
+import { qualifyApiFixture } from '../../shared/testing-qualified-fixtures';
 
 function response(data: unknown, error?: unknown) {
   return {
-    data,
+    data: qualifyApiFixture(data),
     error,
     request: new Request('http://localhost/'),
     response: new Response(),
@@ -294,7 +295,7 @@ describe('Overview', () => {
   });
 
   // #201: detected recurring saving, below the savings-rate line it qualifies.
-  it('renders detected savings contributions with a normalised monthly total', async () => {
+  it('renders detected savings contributions without recomputing a client total', async () => {
     apiMock.getHouseholdContext.mockResolvedValue(
       response({
         household_id: 'h1',
@@ -346,8 +347,7 @@ describe('Overview', () => {
     expect(text).toContain('USD 1,200.00 quarterly · seen 3 times');
     // Singular reads naturally, and "annual" is spoken as "yearly".
     expect(text).toContain('USD 1,200.00 yearly · seen 1 time');
-    // 500 + 400 + 100 monthly-equivalent — never the raw 500 + 1200 + 1200.
-    expect(text).toContain('About USD 1,000.00 a month');
+    expect(text).not.toContain('About USD 1,000.00 a month');
     expect(text).toContain(
       "Detected from transfers between your accounts. Payroll deductions like a 401(k) don't appear here.",
     );
@@ -1106,11 +1106,11 @@ describe('Overview', () => {
     // Verdict tracks the 30-day projection: a positive lowest point => positive.
     expect(text).toContain('Cash covers everything due in the next 30 days');
     expect(text).toContain('USD 9,149.76'); // the lowest point
-    // Day-by-day rows carry the running balance beside each event.
+    // Event rows come from the server; the client no longer reconstructs running balances.
     const rows = host.querySelectorAll('.outlook-card__table tr');
     expect(rows.length).toBe(2);
     expect(rows[0].textContent).toContain('Costco Visa');
-    expect(rows[0].textContent).toContain('USD 9,149.76');
+    expect(rows[0].textContent).not.toContain('USD 9,149.76');
     // Safe-to-spend is reframed as the stress test, not a spending allowance.
     expect(text).not.toContain('Safe to spend');
   });
@@ -1807,6 +1807,299 @@ describe('Overview #156: accounts outside the base currency', () => {
 
 
 // --- #158 review: a delayed Overview response must not cross a session switch ---
+
+describe('Overview qualified aggregate presentation', () => {
+  function yearOverview(year: number) {
+    return {
+      year,
+      months: [],
+      total_income: {
+        value: { amount_minor: 0, currency: 'USD' },
+        incomplete_count: 0,
+      },
+      total_spending: {
+        value: { amount_minor: 0, currency: 'USD' },
+        incomplete_count: 0,
+      },
+      total_net: {
+        value: { amount_minor: 0, currency: 'USD' },
+        incomplete_count: 0,
+      },
+      top_categories: [],
+      review: null,
+    };
+  }
+
+  function configureQualified(apiMock: Record<string, unknown>) {
+    TestBed.configureTestingModule({
+      imports: [Overview],
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: apiMock },
+        { provide: AuthService, useValue: authMock('viewer') },
+      ],
+    });
+  }
+
+  async function stabilizeQualified(fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) {
+    for (let i = 0; i < 3; i++) {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  it('keeps current-page siblings and partial zero leaves without decision styling', async () => {
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockResolvedValue(response({
+        household_id: 'h1',
+        display_name: 'Readable household',
+        currency: 'USD',
+        net_worth: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 2,
+        },
+        emergency_fund_months: null,
+        monthly_cash_flow: {
+          income: {
+            value: { amount_minor: 0, currency: 'USD' },
+            incomplete_count: 1,
+          },
+          spending: {
+            value: { amount_minor: 25_000, currency: 'USD' },
+            incomplete_count: 0,
+          },
+          net: null,
+        },
+        savings_contributions: {
+          contributions: [],
+          detection: { status: 'unavailable', incomplete_count: 1 },
+        },
+        spending_by_category: {
+          month: '2026-09',
+          month_label: 'September 2026',
+          categories: [],
+          categorized_total: {
+            value: { amount_minor: 0, currency: 'USD' },
+            incomplete_count: 0,
+          },
+          uncategorized: {
+            value: { amount_minor: 0, currency: 'USD' },
+            incomplete_count: 2,
+          },
+          total: {
+            value: { amount_minor: 0, currency: 'USD' },
+            incomplete_count: 2,
+          },
+        },
+      })),
+      updateHousehold: vi.fn(),
+      getCashOutlook: vi.fn().mockResolvedValue(response({
+        starting_cash: { amount_minor: 100_000, currency: 'USD' },
+        events: [{
+          occurred_on: '2026-09-10',
+          name: 'Readable bill',
+          amount: { amount_minor: -10_000, currency: 'USD' },
+          kind: 'payment',
+        }],
+        ending_cash: null,
+        lowest_balance: null,
+        lowest_date: null,
+        expected_income: null,
+        income_projection: { status: 'unavailable', incomplete_count: 1 },
+        obligations: {
+          value: { amount_minor: 10_000, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        horizon_days: 30,
+        due_soon: {
+          value: { amount_minor: 10_000, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        due_soon_covered: null,
+        due_soon_window_days: 14,
+      })),
+      getSpendingPlan: vi.fn().mockResolvedValue(response({
+        month: '2026-09',
+        income_received: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        income_projected: null,
+        expected_income: null,
+        income_projection: { status: 'unavailable', incomplete_count: 1 },
+        spent: {
+          value: { amount_minor: 25_000, currency: 'USD' },
+          incomplete_count: 0,
+        },
+        bills_remaining: {
+          value: { amount_minor: 10_000, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        account_obligations: { amount_minor: 0, currency: 'USD' },
+        planned_savings: { amount_minor: 0, currency: 'USD' },
+        left_to_spend: null,
+        per_day: null,
+        days_remaining: 20,
+      })),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
+    };
+    configureQualified(apiMock);
+    const fixture = TestBed.createComponent(Overview);
+    await stabilizeQualified(fixture);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
+    expect(text).toContain('Readable household');
+    expect(text).toContain('USD 0.00');
+    expect(text).toContain('Partial total—2 stored amounts');
+    expect(text).toContain('Spending by category');
+    expect(text).toContain('Readable bill');
+    expect(text).toContain('Left to spend this month');
+    expect(text).toContain('Unavailable');
+    expect(host.querySelector('.outlook-card__balance')).toBeNull();
+    expect(text).not.toContain('No income sources recorded yet.');
+    expect(text).not.toContain('Nothing detected.');
+    expect(host.querySelector('.overview__value--positive')).toBeNull();
+  });
+
+  it('shows partial yearly leaves while suppressing net and ranking decisions', async () => {
+    const apiMock = {
+      getHouseholdContext: vi.fn().mockResolvedValue(response({
+        household_id: 'h1',
+        display_name: 'Readable household',
+        currency: 'USD',
+        net_worth: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 0,
+        },
+        emergency_fund_months: null,
+        savings_contributions: {
+          contributions: [],
+          detection: { status: 'complete', incomplete_count: 0 },
+        },
+      })),
+      updateHousehold: vi.fn(),
+      getCashOutlook: vi.fn().mockResolvedValue(response(null)),
+      getSpendingPlan: vi.fn().mockResolvedValue(response(null)),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
+      getYearlyOverview: vi.fn().mockResolvedValue(response({
+        year: 2026,
+        months: [{
+          month: '2026-09',
+          income: {
+            value: { amount_minor: 0, currency: 'USD' },
+            incomplete_count: 1,
+          },
+          spending: {
+            value: { amount_minor: 50_000, currency: 'USD' },
+            incomplete_count: 0,
+          },
+          net: null,
+          net_worth_eom: null,
+        }],
+        total_income: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        total_spending: {
+          value: { amount_minor: 50_000, currency: 'USD' },
+          incomplete_count: 0,
+        },
+        total_net: null,
+        top_categories: null,
+        review: null,
+      })),
+    };
+    configureQualified(apiMock);
+    const fixture = TestBed.createComponent(Overview);
+    await stabilizeQualified(fixture);
+    const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+    buttons.find((button) => button.textContent?.trim() === 'Year')!.click();
+    await stabilizeQualified(fixture);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('In USD 0.00');
+    expect(text).toContain('Kept Unavailable');
+    expect(text).toContain('Partial total—1 stored amount');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.yearly__chart')?.getAttribute('role')).toBe('group');
+    const partialMonth = (fixture.nativeElement as HTMLElement).querySelector('.yearly__partial');
+    expect(partialMonth?.textContent).toContain('Partial data');
+    expect(partialMonth?.closest('button')?.textContent).toContain('Partial data');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.yearly__focus')).toBeNull();
+    expect(text).not.toContain('Where it went');
+  });
+
+  it('keeps the newest year when yearly requests complete in reverse order', async () => {
+    clearAuthState();
+    let resolve2025!: (value: unknown) => void;
+    let resolve2026!: (value: unknown) => void;
+    const apiMock = {
+      getYearlyOverview: vi.fn((year: number) => new Promise((resolve) => {
+        if (year === 2025) resolve2025 = resolve;
+        else resolve2026 = resolve;
+      })),
+    };
+    configureQualified(apiMock);
+    const component = TestBed.createComponent(Overview).componentInstance;
+
+    const older = component['loadYear'](2025);
+    const newer = component['loadYear'](2026);
+    resolve2026(response(yearOverview(2026)));
+    await newer;
+    resolve2025(response(yearOverview(2025)));
+    await older;
+
+    expect(component['yearData']()?.year).toBe(2026);
+    expect(component['yearLoading']()).toBe(false);
+  });
+
+  it('does not attach a completed review to a newly selected year', async () => {
+    clearAuthState();
+    let resolveReview!: (value: unknown) => void;
+    const apiMock = {
+      getYearlyOverview: vi.fn((year: number) => Promise.resolve(response(yearOverview(year)))),
+      generateYearlyReview: vi.fn().mockReturnValue(new Promise((resolve) => (resolveReview = resolve))),
+    };
+    configureQualified(apiMock);
+    const component = TestBed.createComponent(Overview).componentInstance;
+    component['yearData'].set(yearOverview(2025) as never);
+
+    const generating = component['generateYearReview']();
+    await component['loadYear'](2026);
+    resolveReview(response({
+      summary: 'Review of 2025',
+      suggestions: [],
+      months_covered: 12,
+      model: null,
+      generated_at: '2026-09-09T00:00:00Z',
+    }));
+    await generating;
+
+    expect(apiMock.generateYearlyReview).toHaveBeenCalledWith(2025);
+    expect(component['yearData']()?.year).toBe(2026);
+    expect(component['yearData']()?.review).toBeNull();
+  });
+
+  it('ignores a yearly response completed after the household session changes', async () => {
+    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    let resolveYear!: (value: unknown) => void;
+    const apiMock = {
+      getYearlyOverview: vi.fn().mockReturnValue(new Promise((resolve) => (resolveYear = resolve))),
+    };
+    configureQualified(apiMock);
+    const component = TestBed.createComponent(Overview).componentInstance;
+
+    const loading = component['loadYear'](2025);
+    clearAuthState();
+    setAuthState({ accessToken: 'token-b', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    resolveYear(response(yearOverview(2025)));
+    await loading;
+
+    expect(component['yearData']()).toBeNull();
+    clearAuthState();
+  });
+});
 
 describe('Overview #156: seeding the currency across a session switch', () => {
   afterEach(() => clearAuthState());

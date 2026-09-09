@@ -15,7 +15,6 @@ import type {
   HouseholdContext,
   Money,
   NetWorthPoint,
-  OutlookEvent as OutlookEventDto,
   RecurringFrequency,
   SavingsContribution,
   SavingsRate,
@@ -27,6 +26,12 @@ import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT } from '../../shared/timezones';
 import { formatMoney } from '../../shared/format-money';
+import {
+  availabilityNote,
+  formatQualifiedMoney,
+  partialMoneyNote,
+  unavailableLabel,
+} from '../../shared/qualified-money';
 
 const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
   no_bills: $localize`:Emergency fund status|No bills recorded so coverage cannot be measured:Add bills to measure`,
@@ -34,6 +39,7 @@ const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
   getting_started: $localize`:Emergency fund status|Some months of cover saved:Getting started`,
   on_track: $localize`:Emergency fund status|Close to the target months of cover:On track`,
   fully_funded: $localize`:Emergency fund status|Target months of cover reached:Fully funded`,
+  unavailable: $localize`:Emergency fund status|Coverage cannot be calculated from unreadable stored data:Unavailable`,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -114,6 +120,8 @@ export class Overview {
   protected readonly yearError = signal<string | null>(null);
   /** The month clicked in the chart — its numbers show in the detail strip. */
   protected readonly yearFocusMonth = signal<string | null>(null);
+  private yearLoadGeneration = 0;
+  private yearReviewGeneration = 0;
 
   protected toggleYearMode(on: boolean): void {
     this.yearMode.set(on);
@@ -123,15 +131,25 @@ export class Overview {
   }
 
   protected async loadYear(year?: number): Promise<void> {
+    const generation = ++this.yearLoadGeneration;
+    const requestedIn = householdSessionKey();
+    ++this.yearReviewGeneration;
+    this.yearGenerating.set(false);
     this.yearLoading.set(true);
     this.yearError.set(null);
     this.yearFocusMonth.set(null);
     const { data, error } = await this.api.getYearlyOverview(year);
+    if (generation !== this.yearLoadGeneration || requestedIn !== householdSessionKey()) {
+      return;
+    }
     this.yearLoading.set(false);
     if (error || !data) {
       this.yearError.set(
         apiErrorMessage(error, $localize`:Error message|The yearly overview could not be loaded:Failed to load the year.`),
       );
+      return;
+    }
+    if (year !== undefined && data.year !== year) {
       return;
     }
     this.yearData.set(data);
@@ -142,13 +160,28 @@ export class Overview {
     void this.loadYear(current + delta);
   }
 
+  protected yearReviewAvailable(year: YearlyOverview): boolean {
+    return year.total_net !== null && year.top_categories !== null;
+  }
+
   protected async generateYearReview(): Promise<void> {
-    if (this.yearGenerating()) {
+    const overview = this.yearData();
+    if (this.yearGenerating() || !overview) {
       return;
     }
+    const generation = ++this.yearReviewGeneration;
+    const requestedIn = householdSessionKey();
+    const requestedYear = overview.year;
     this.yearGenerating.set(true);
     this.yearError.set(null);
-    const { data, error } = await this.api.generateYearlyReview(this.yearData()?.year);
+    const { data, error } = await this.api.generateYearlyReview(requestedYear);
+    if (
+      generation !== this.yearReviewGeneration ||
+      requestedIn !== householdSessionKey() ||
+      this.yearData()?.year !== requestedYear
+    ) {
+      return;
+    }
     this.yearGenerating.set(false);
     if (error || !data) {
       this.yearError.set(
@@ -156,10 +189,7 @@ export class Overview {
       );
       return;
     }
-    const overview = this.yearData();
-    if (overview) {
-      this.yearData.set({ ...overview, review: data });
-    }
+    this.yearData.set({ ...overview, review: data });
   }
 
   /** Bar height (0-100) against the year's largest monthly flow. */
@@ -170,7 +200,10 @@ export class Overview {
     }
     const peak = Math.max(
       1,
-      ...overview.months.flatMap((m) => [m.income.amount_minor, m.spending.amount_minor]),
+      ...overview.months.flatMap((m) => [
+        m.income.value.amount_minor,
+        m.spending.value.amount_minor,
+      ]),
     );
     return Math.round((Math.max(0, minor) / peak) * 100);
   }
@@ -333,23 +366,11 @@ export class Overview {
     },
   });
 
-  /** Running balance after each outlook event, for the day-by-day table. */
-  protected outlookRows(): { event: OutlookEventDto; balance: Money }[] {
-    const data = this.outlook.value();
-    if (!data) {
-      return [];
-    }
-    let running = data.starting_cash.amount_minor;
-    return data.events.map((event) => {
-      running += event.amount.amount_minor;
-      return {
-        event,
-        balance: { amount_minor: running, currency: data.starting_cash.currency },
-      };
-    });
-  }
-
   protected readonly formatMoney = formatMoney;
+  protected readonly availabilityNote = availabilityNote;
+  protected readonly formatQualifiedMoney = formatQualifiedMoney;
+  protected readonly partialMoneyNote = partialMoneyNote;
+  protected readonly unavailableLabel = unavailableLabel;
 
   /**
    * ADR 0069 headline verb. M-rsu-grants: with grants and a live quote the
@@ -416,21 +437,6 @@ export class Overview {
   }
 
   /**
-   * Cadences differ, so only the server's monthly_equivalent can be summed —
-   * adding the raw amounts would call a yearly USD 1,200 a monthly USD 1,200.
-   * Null when nothing was detected: the section is hidden, never zeroed.
-   */
-  protected savingsMonthlyTotal(contributions: SavingsContribution[]): Money | null {
-    if (!contributions || contributions.length === 0) {
-      return null;
-    }
-    return {
-      amount_minor: contributions.reduce((sum, c) => sum + c.monthly_equivalent.amount_minor, 0),
-      currency: contributions[0].monthly_equivalent.currency,
-    };
-  }
-
-  /**
    * #6: the savings rate as observed saving from three sources — declared
    * transfers, pre-tax payroll (401(k)/HSA), and residual (take-home left
    * unspent and unmoved) — instead of a single income-minus-spending figure.
@@ -438,10 +444,10 @@ export class Overview {
    */
   protected savingsSources(rate: SavingsRate): { label: string; amount: Money }[] {
     const sources: { label: string; amount: Money }[] = [];
-    if (rate.transfers && rate.transfers.amount_minor !== 0) {
+    if (rate.transfers && rate.transfers.value.amount_minor !== 0) {
       sources.push({
         label: $localize`:Savings rate source|Money saved by moving it between accounts:transfers`,
-        amount: rate.transfers,
+        amount: rate.transfers.value,
       });
     }
     if (rate.payroll_deductions && rate.payroll_deductions.amount_minor !== 0) {
@@ -450,10 +456,10 @@ export class Overview {
         amount: rate.payroll_deductions,
       });
     }
-    if (rate.residual && rate.residual.amount_minor !== 0) {
+    if (rate.residual && rate.residual.value.amount_minor !== 0) {
       sources.push({
         label: $localize`:Savings rate source|Take-home pay left unspent and unmoved:residual`,
-        amount: rate.residual,
+        amount: rate.residual.value,
       });
     }
     return sources;
@@ -467,7 +473,7 @@ export class Overview {
    * offers the declaration instead of disappearing.
    */
   protected savingsRows(context: HouseholdContext): SavingsContribution[] {
-    return context.savings_contributions ?? [];
+    return context.savings_contributions?.contributions ?? [];
   }
 
   protected readonly cadences = Object.keys(FREQUENCY_LABELS) as RecurringFrequency[];
@@ -600,7 +606,7 @@ export class Overview {
 
   /** Goal names only matter once a row is linked or carries a suggestion. */
   private readonly needsGoalNames = computed(() => {
-    const rows = this.household.value()?.savings_contributions ?? [];
+    const rows = this.household.value()?.savings_contributions?.contributions ?? [];
     return rows.some((c) => c.goal_id || c.suggested_goal_id);
   });
 

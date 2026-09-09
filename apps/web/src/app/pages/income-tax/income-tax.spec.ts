@@ -4,10 +4,11 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { authMock } from '../../shared/testing-auth';
 import { IncomeTax } from './income-tax';
+import { qualifyApiFixture } from '../../shared/testing-qualified-fixtures';
 
 function response(data: unknown, error?: unknown) {
   return {
-    data,
+    data: qualifyApiFixture(data),
     error,
     request: new Request('http://localhost/'),
     response: new Response(),
@@ -601,5 +602,55 @@ describe('IncomeTax', () => {
     fixture.detectChanges();
 
     expect(apiMock.setIncomeOverride).toHaveBeenCalledWith('s2', 'exclude');
+  });
+
+  it('keeps readable income evidence while detection and transaction-based tax are unavailable', async () => {
+    const partial = analysis({
+      sources: [{
+        source_key: 'acme corp payroll',
+        name: 'ACME CORP PAYROLL',
+        frequency: null,
+        manually_added: false,
+        typical_amount: null,
+        total_amount: {
+          value: { amount_minor: 0, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        transactions: [txn('t1', 'ACME CORP PAYROLL', 461_538)],
+      }],
+      rollup: {
+        annual_income: {
+          value: { amount_minor: 461_538, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        monthly_average: {
+          value: { amount_minor: 38_462, currency: 'USD' },
+          incomplete_count: 1,
+        },
+        transaction_count: null,
+        window_days: 365,
+      },
+      detection: { status: 'unavailable', incomplete_count: 1 },
+      tax: null,
+    });
+    const apiMock = {
+      getIncomeAnalysis: vi.fn().mockResolvedValue(response(partial)),
+    };
+    configure(apiMock, 'viewer');
+
+    const fixture = TestBed.createComponent(IncomeTax);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
+    expect(text).toContain('ACME CORP PAYROLL');
+    expect(text).toContain('USD 0.00 total');
+    expect(text).toContain('Partial total—1 stored amount');
+    expect(text).toContain('Unavailable cadence and typical amount');
+    expect(text).toContain('Estimated tax');
+    expect(text).toContain('Unavailable');
+    expect(host.querySelector('.tax-card__figures')).toBeNull();
   });
 });

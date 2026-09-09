@@ -22,17 +22,26 @@
   <section class="income-rollup">
     <div class="income-rollup__item">
       <span class="income-rollup__label" i18n="Income rollup label|Total income over the analysed window">Income, last {{ data.rollup.window_days }} days</span>
-      <span class="income-rollup__value">{{ formatMoney(data.rollup.annual_income) }}</span>
+      <span class="income-rollup__value">{{ formatQualifiedMoney(data.rollup.annual_income) }}</span>
+      @if (partialMoneyNote(data.rollup.annual_income); as note) {
+        <span class="qualified-note" role="status">{{ note }}</span>
+      }
     </div>
     <div class="income-rollup__item">
       <span class="income-rollup__label" i18n="Income rollup label|Average income per month">Monthly average</span>
-      <span class="income-rollup__value">{{ formatMoney(data.rollup.monthly_average) }}</span>
+      <span class="income-rollup__value">{{ formatQualifiedMoney(data.rollup.monthly_average) }}</span>
+      @if (partialMoneyNote(data.rollup.monthly_average); as note) {
+        <span class="qualified-note" role="status">{{ note }}</span>
+      }
     </div>
     <div class="income-rollup__item">
       <span class="income-rollup__label" i18n="Income rollup label|How many deposits went into the total">Deposits counted</span>
-      <span class="income-rollup__value">{{ data.rollup.transaction_count }}</span>
+      <span class="income-rollup__value">{{ data.rollup.transaction_count ?? '—' }}</span>
     </div>
   </section>
+  @if (availabilityNote(data.detection); as note) {
+    <p class="qualified-note" role="status">{{ note }}</p>
+  }
 
   <h2 i18n="Section heading|Declared pay for each earner in the household">Compensation profile</h2>
   <p class="page-hint" i18n="Section intro|Asks for gross pay so the tax estimate uses declared numbers instead of guessing from deposits">
@@ -404,7 +413,7 @@
   }
 
   <h2 i18n="Section heading|Recurring deposits the scan classified as income">Detected income sources</h2>
-  @if (data.sources.length === 0) {
+  @if (data.sources.length === 0 && data.detection.status === 'complete') {
     <p class="page-empty" i18n="Empty state|No recurring deposits were found yet">
       No recurring deposits found yet. If your paychecks land in a checking
       account, they will appear after the next bank sync — or add deposits
@@ -415,11 +424,23 @@
     <details class="income-source" [open]="data.sources.length === 1">
       <summary class="income-source__summary">
         <span class="income-source__name">{{ source.name }}</span>
-        <span class="income-source__meta" i18n="Income source summary|How often this source pays, the typical amount, and the totals seen">
-          {{ source.frequency }} · typical {{ formatMoney(source.typical_amount) }} ·
-          {{ source.transactions.length }} deposits ·
-          {{ formatMoney(source.total_amount) }} total
+        <span class="income-source__meta">
+          @if (source.frequency && source.typical_amount) {
+            <ng-container i18n="Income source summary|How often this source pays, the typical amount, and the totals seen">
+              {{ source.frequency }} · typical {{ formatQualifiedMoney(source.typical_amount) }} ·
+              {{ source.transactions.length }} deposits ·
+              {{ formatQualifiedMoney(source.total_amount) }} total
+            </ng-container>
+          } @else {
+            <ng-container i18n="Income source summary|The source total is readable but cadence or typical amount is unavailable">
+              {{ source.transactions.length }} readable deposits ·
+              {{ formatQualifiedMoney(source.total_amount) }} total · Unavailable cadence and typical amount
+            </ng-container>
+          }
         </span>
+        @if (partialMoneyNote(source.total_amount); as note) {
+          <span class="qualified-note" role="status">{{ note }}</span>
+        }
       </summary>
       <ul class="income-txns">
         @for (txn of source.transactions; track txn.transaction_id) {
@@ -611,7 +632,8 @@
     </details>
   }
 
-  <h2 i18n="Section heading|Estimated tax for the given tax year">Estimated tax for {{ data.tax.tax_year }}</h2>
+  @if (data.tax; as tax) {
+  <h2 i18n="Section heading|Estimated tax for the given tax year">Estimated tax for {{ tax.tax_year }}</h2>
   @if (data.coverage_warning; as warning) {
     <p class="coverage-warning" role="alert">⚠️ {{ warning }}</p>
   }
@@ -651,34 +673,40 @@
     }
 
     <dl class="tax-card__figures">
-      @if (data.tax.net_income; as net) {
+      @if (tax.net_income; as net) {
         <div><dt i18n="Tax figure label|Income actually deposited, after tax">Take-home income (deposits)</dt><dd>{{ formatMoney(net) }}</dd></div>
       }
-      <div><dt i18n="Tax figure label|Pre-tax income the estimate is built on">Estimated gross income</dt><dd>{{ formatMoney(data.tax.gross_income) }}</dd></div>
-      <div><dt i18n="Tax figure label|The flat deduction subtracted before tax is worked out">Standard deduction</dt><dd>−{{ formatMoney(data.tax.standard_deduction) }}</dd></div>
-      <div><dt i18n="Tax figure label|Income tax owed to the federal government">Federal income tax</dt><dd>{{ formatMoney(data.tax.federal_income_tax) }}</dd></div>
-      <div><dt i18n="Tax figure label|US payroll taxes funding social security and medicare">Social Security &amp; Medicare</dt><dd>{{ formatMoney(data.tax.fica_tax) }}</dd></div>
-      @if (data.tax.state_income_tax; as stateTax) {
+      <div><dt i18n="Tax figure label|Pre-tax income the estimate is built on">Estimated gross income</dt><dd>{{ formatMoney(tax.gross_income) }}</dd></div>
+      <div><dt i18n="Tax figure label|The flat deduction subtracted before tax is worked out">Standard deduction</dt><dd>−{{ formatMoney(tax.standard_deduction) }}</dd></div>
+      <div><dt i18n="Tax figure label|Income tax owed to the federal government">Federal income tax</dt><dd>{{ formatMoney(tax.federal_income_tax) }}</dd></div>
+      <div><dt i18n="Tax figure label|US payroll taxes funding social security and medicare">Social Security &amp; Medicare</dt><dd>{{ formatMoney(tax.fica_tax) }}</dd></div>
+      @if (tax.state_income_tax; as stateTax) {
         <div>
-          <dt i18n="Tax figure label|Income tax owed to the named state">State income tax ({{ data.tax.state }})</dt>
+          <dt i18n="Tax figure label|Income tax owed to the named state">State income tax ({{ tax.state }})</dt>
           <dd>{{ formatMoney(stateTax) }}</dd>
         </div>
       }
       <div class="tax-card__total">
         <dt i18n="Tax figure label|Everything owed across federal, payroll and state tax">Estimated total tax</dt>
-        <dd>{{ formatMoney(data.tax.total_tax) }}</dd>
+        <dd>{{ formatMoney(tax.total_tax) }}</dd>
       </div>
-      <div><dt i18n="Tax figure label|Total tax as a share of gross income">Effective rate</dt><dd>{{ data.tax.effective_rate | percent: '1.1-1' }}</dd></div>
+      <div><dt i18n="Tax figure label|Total tax as a share of gross income">Effective rate</dt><dd>{{ tax.effective_rate | percent: '1.1-1' }}</dd></div>
     </dl>
 
     <details class="tax-card__assumptions">
       <summary i18n="Section heading|Opens the list of assumptions the tax estimate rests on">Assumptions behind this estimate</summary>
       <ul>
-        @for (assumption of data.tax.assumptions; track assumption) {
+        @for (assumption of tax.assumptions; track assumption) {
           <li>{{ assumption }}</li>
         }
       </ul>
     </details>
     </mat-card-content>
   </mat-card>
+  } @else {
+    <h2 i18n="Section heading|Tax estimate is unavailable">Estimated tax</h2>
+    <p class="qualified-note" role="status">
+      {{ unavailableLabel }}
+    </p>
+  }
 }
