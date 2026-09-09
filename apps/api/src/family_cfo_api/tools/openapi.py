@@ -9,8 +9,12 @@ from typing import Any
 import yaml
 
 from family_cfo_api.main import create_app
+from family_cfo_api.openapi_compat import SWIFT_GENERATOR_NULLABLE_COMPONENTS
 
 HTTP_METHODS = {"delete", "get", "patch", "post", "put"}
+# Enforce nullability symmetrically inside the coordinated Item 2 response
+# families while retaining the historical one-way rule for legacy components.
+STRICT_NULLABILITY_COMPONENTS = SWIFT_GENERATOR_NULLABLE_COMPONENTS
 REPO_ROOT = Path(__file__).resolve().parents[5]
 SHARED_OPENAPI = REPO_ROOT / "shared" / "openapi" / "family-cfo.v1.yaml"
 
@@ -57,6 +61,237 @@ def _schema_ref_name(schema: dict[str, Any]) -> str | None:
     return ref.rsplit("/", maxsplit=1)[-1]
 
 
+def _allows_null(
+    schema: dict[str, Any],
+    spec: dict[str, Any],
+    visited: set[str] | None = None,
+) -> bool:
+    schema_type = schema.get("type")
+    if schema_type == "null" or (
+        isinstance(schema_type, list) and "null" in schema_type
+    ):
+        return True
+
+    ref_name = _schema_ref_name(schema)
+    if ref_name:
+        visited = visited or set()
+        if ref_name in visited:
+            return False
+        visited.add(ref_name)
+        if _allows_null(_component(spec, ref_name), spec, visited):
+            return True
+
+    return any(
+        isinstance(option, dict) and _allows_null(option, spec, set(visited or ()))
+        for keyword in ("anyOf", "oneOf")
+        for option in schema.get(keyword, [])
+    )
+
+
+def _without_null(schema: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalize OpenAPI's equivalent nullable spellings for comparison."""
+    normalized = dict(schema)
+    schema_type = normalized.get("type")
+    if isinstance(schema_type, list):
+        non_null = [item for item in schema_type if item != "null"]
+        normalized["type"] = non_null[0] if len(non_null) == 1 else non_null
+    for keyword in ("anyOf", "oneOf"):
+        if keyword not in normalized:
+            continue
+        options = [
+            option
+            for option in normalized[keyword]
+            if not (isinstance(option, dict) and option.get("type") == "null")
+        ]
+        if len(options) == 1:
+            preserved = {
+                key: value
+                for key, value in normalized.items()
+                if key not in {keyword, "type"}
+            }
+            preserved.update(options[0])
+            normalized = preserved
+        else:
+            normalized[keyword] = options
+    all_of = normalized.get("allOf")
+    if isinstance(all_of, list) and len(all_of) == 1:
+        preserved = {
+            key: value for key, value in normalized.items() if key != "allOf"
+        }
+        preserved.update(all_of[0])
+        normalized = preserved
+    return normalized
+
+
+def _component(
+    spec: dict[str, Any], name: str
+) -> dict[str, Any]:
+    return spec.get("components", {}).get("schemas", {}).get(name, {})
+
+
+def _compare_schema_recursive(
+    generated_spec: dict[str, Any],
+    shared_spec: dict[str, Any],
+    generated_schema: dict[str, Any],
+    shared_schema: dict[str, Any],
+    location: str,
+    visited: set[tuple[str, str]],
+) -> list[str]:
+    errors: list[str] = []
+    # The shared contract is authoritative in both directions: generated
+    # responses must neither remove promised nullability nor introduce null
+    # where clients were promised a concrete value.
+    generated_nullable = _allows_null(generated_schema, generated_spec)
+    shared_nullable = _allows_null(shared_schema, shared_spec)
+    current_component = location.rsplit(" -> ", maxsplit=1)[-1]
+    current_component = current_component.split(".", maxsplit=1)[0].removesuffix("[]")
+    if shared_nullable and not generated_nullable:
+        errors.append(f"{location}: generated schema is missing contract nullability")
+    elif (
+        generated_nullable
+        and not shared_nullable
+        and current_component in STRICT_NULLABILITY_COMPONENTS
+    ):
+        errors.append(
+            f"{location}: generated schema adds nullability absent from the contract"
+        )
+
+    generated_schema = _without_null(generated_schema)
+    shared_schema = _without_null(shared_schema)
+    generated_ref = _schema_ref_name(generated_schema)
+    shared_ref = _schema_ref_name(shared_schema)
+    if generated_ref and shared_ref:
+        if generated_ref != shared_ref:
+            errors.append(
+                f"{location}: expected schema {shared_ref}, generated {generated_ref}"
+            )
+            return errors
+        pair = (generated_ref, shared_ref)
+        if pair in visited:
+            return errors
+        visited.add(pair)
+        return errors + _compare_schema_recursive(
+            generated_spec,
+            shared_spec,
+            _component(generated_spec, generated_ref),
+            _component(shared_spec, shared_ref),
+            f"{location} -> {shared_ref}",
+            visited,
+        )
+    if generated_ref:
+        marker = (generated_ref, f"inline:{location}")
+        if marker in visited:
+            return errors
+        visited.add(marker)
+        return errors + _compare_schema_recursive(
+            generated_spec,
+            shared_spec,
+            _component(generated_spec, generated_ref),
+            shared_schema,
+            f"{location} -> {generated_ref}",
+            visited,
+        )
+    if shared_ref:
+        marker = (f"inline:{location}", shared_ref)
+        if marker in visited:
+            return errors
+        visited.add(marker)
+        return errors + _compare_schema_recursive(
+            generated_spec,
+            shared_spec,
+            generated_schema,
+            _component(shared_spec, shared_ref),
+            f"{location} -> {shared_ref}",
+            visited,
+        )
+
+    generated_type = generated_schema.get("type")
+    shared_type = shared_schema.get("type")
+    if (
+        generated_type is not None
+        and shared_type is not None
+        and generated_type != shared_type
+    ):
+        errors.append(
+            f"{location}: expected type {shared_type}, generated {generated_type}"
+        )
+
+    # Some hand-authored 3.1 schemas redundantly include null in enum as well
+    # as the type union; nullability is compared separately above.
+    generated_enum = set(generated_schema.get("enum", [])) - {None}
+    shared_enum = set(shared_schema.get("enum", [])) - {None}
+    if generated_enum != shared_enum:
+        errors.append(
+            f"{location}: expected enum {sorted(shared_enum, key=repr)!r}, "
+            f"generated {sorted(generated_enum, key=repr)!r}"
+        )
+
+    generated_required = set(generated_schema.get("required", []))
+    shared_required = set(shared_schema.get("required", []))
+    missing_required = shared_required - generated_required
+    if missing_required:
+        errors.append(
+            f"{location}: generated schema is missing required "
+            f"{sorted(missing_required)!r}"
+        )
+
+    generated_properties = generated_schema.get("properties", {})
+    shared_properties = shared_schema.get("properties", {})
+    missing_properties = set(shared_properties) - set(generated_properties)
+    if missing_properties:
+        errors.append(
+            f"{location}: generated schema is missing properties "
+            f"{sorted(missing_properties)!r}"
+        )
+    for field in sorted(set(generated_properties) & set(shared_properties)):
+        errors.extend(
+            _compare_schema_recursive(
+                generated_spec,
+                shared_spec,
+                generated_properties[field],
+                shared_properties[field],
+                f"{location}.{field}",
+                visited,
+            )
+        )
+
+    if "items" in generated_schema or "items" in shared_schema:
+        errors.extend(
+            _compare_schema_recursive(
+                generated_spec,
+                shared_spec,
+                generated_schema.get("items", {}),
+                shared_schema.get("items", {}),
+                f"{location}[]",
+                visited,
+            )
+        )
+
+    for keyword in ("anyOf", "oneOf", "allOf"):
+        generated_options = generated_schema.get(keyword, [])
+        shared_options = shared_schema.get(keyword, [])
+        if len(generated_options) != len(shared_options):
+            errors.append(
+                f"{location}: {keyword} option count differs "
+                f"({len(shared_options)} expected, {len(generated_options)} generated)"
+            )
+            continue
+        for index, (generated_option, shared_option) in enumerate(
+            zip(generated_options, shared_options, strict=True)
+        ):
+            errors.extend(
+                _compare_schema_recursive(
+                    generated_spec,
+                    shared_spec,
+                    generated_option,
+                    shared_option,
+                    f"{location}.{keyword}[{index}]",
+                    visited,
+                )
+            )
+    return errors
+
+
 def _compare_response_schema(
     generated_spec: dict[str, Any],
     shared_spec: dict[str, Any],
@@ -64,31 +299,14 @@ def _compare_response_schema(
     shared_schema: dict[str, Any],
     location: str,
 ) -> list[str]:
-    errors: list[str] = []
-    generated_ref = _schema_ref_name(generated_schema)
-    shared_ref = _schema_ref_name(shared_schema)
-
-    if generated_ref != shared_ref:
-        errors.append(f"{location}: expected schema {shared_ref}, generated {generated_ref}")
-        return errors
-
-    if not shared_ref:
-        return errors
-
-    generated_component = generated_spec["components"]["schemas"].get(generated_ref, {})
-    shared_component = shared_spec["components"]["schemas"].get(shared_ref, {})
-
-    for field in shared_component.get("required", []):
-        if field not in generated_component.get("required", []):
-            errors.append(f"{location}: generated schema is missing required field {field}")
-
-    shared_properties = shared_component.get("properties", {})
-    generated_properties = generated_component.get("properties", {})
-    for field in shared_properties:
-        if field not in generated_properties:
-            errors.append(f"{location}: generated schema is missing property {field}")
-
-    return errors
+    return _compare_schema_recursive(
+        generated_spec,
+        shared_spec,
+        generated_schema,
+        shared_schema,
+        location,
+        set(),
+    )
 
 
 def check_implemented_routes(

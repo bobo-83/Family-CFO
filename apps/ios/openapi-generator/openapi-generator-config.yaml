@@ -5,3 +5,22 @@ generate:
   - client
 accessModifier: public
 namingStrategy: idiomatic
+# Nullable aliases keep OpenAPI 3.1 null validation exact while preserving the
+# existing generated Swift model types with generator 1.10.3.
+typeOverrides:
+  schemas:
+    NullableBudgetSummary: Components.Schemas.BudgetSummary
+    NullableEmergencyFundSummary: Components.Schemas.EmergencyFundSummary
+    NullableGoalProgress: Components.Schemas.GoalProgress
+    NullableIncomeProfile: Components.Schemas.IncomeProfile
+    NullableMoney: Components.Schemas.Money
+    NullableMonthlyCashFlow: Components.Schemas.MonthlyCashFlow
+    NullableQualifiedMoney: Components.Schemas.QualifiedMoney
+    NullableReadyToSellHoldings: Components.Schemas.ReadyToSellHoldings
+    NullableSafeToSpend: Components.Schemas.SafeToSpend
+    NullableSavingsRate: Components.Schemas.SavingsRate
+    NullableSpendingByCategory: Components.Schemas.SpendingByCategory
+    NullableSpendingInsights: Components.Schemas.SpendingInsights
+    NullableTaxEstimate: Components.Schemas.TaxEstimate
+    NullableTimelinePaidWith: Components.Schemas.TimelinePaidWith
+    NullableYearlyReview: Components.Schemas.YearlyReview
