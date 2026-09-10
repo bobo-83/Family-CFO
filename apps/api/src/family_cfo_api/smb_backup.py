@@ -137,6 +137,7 @@ class SmbReadProbeResult:
     readable_archive_count: int | None
     oldest_readable: SmbInventoryItem | None
     newest_readable: SmbInventoryItem | None
+    readable_filenames: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -409,7 +410,7 @@ def probe_inventory(
         current = inventory if inventory is not None else list_inventory(target)
         candidates = tuple(item for item in current.items if item.readable_candidate)
         if not candidates:
-            return SmbReadProbeResult("complete", 0, 0, None, None)
+            return SmbReadProbeResult("complete", 0, 0, None, None, ())
 
         results: dict[str, bool] = {}
         oldest: SmbInventoryItem | None = None
@@ -424,7 +425,7 @@ def probe_inventory(
             except Exception as exc:  # noqa: BLE001 - unavailable is an explicit probe state
                 code, _ = _classify(exc)
                 logger.warning("smb probe failed error_type=%s code=%s", type(exc).__name__, code)
-                return SmbReadProbeResult("unavailable", 0, None, None, None)
+                return SmbReadProbeResult("unavailable", 0, None, None, None, ())
             while len(results) < limit and (oldest is None or newest is None):
                 order = oldest_order if choose_oldest else newest_order
                 endpoint = oldest if choose_oldest else newest
@@ -465,7 +466,17 @@ def probe_inventory(
             status = "partial"
         else:
             status = "unavailable"
-        return SmbReadProbeResult(status, len(results), readable_count, oldest, newest)
+        readable_filenames = tuple(
+            item.filename for item in candidates if results.get(item.filename) is True
+        )
+        return SmbReadProbeResult(
+            status,
+            len(results),
+            readable_count,
+            oldest,
+            newest,
+            readable_filenames,
+        )
 
 
 def query_capacity(target: SmbTarget) -> SmbCapacity:

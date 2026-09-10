@@ -820,6 +820,8 @@ def _offbox_snapshot(
     probe = smb_backup.probe_inventory(
         target, smb_backup.SmbInventory(ordered_raw, raw.protected_entries)
     )
+    readable_keys = frozenset(probe.readable_filenames)
+    read_qualified = tuple(item for item in qualified if item.archive_key in readable_keys)
     oldest = item_by_key.get(probe.oldest_readable.filename) if probe.oldest_readable else None
     newest = item_by_key.get(probe.newest_readable.filename) if probe.newest_readable else None
     metadata, protected, unknown, incompatible = _diagnostics(items, len(raw.protected_entries))
@@ -839,7 +841,7 @@ def _offbox_snapshot(
         policy=stored.offbox_retention,
         activated_at=stored.retention_activated_at,
         review_required=stored.retention_review_required,
-        qualified=qualified,
+        qualified=read_qualified,
         probe_complete=probe_complete,
         protected_count=protected,
         events=events,
@@ -859,7 +861,7 @@ def _offbox_snapshot(
     status, reasons, reason = _status_and_reasons(
         configured=True,
         inventory_available=True,
-        qualified=qualified,
+        qualified=read_qualified,
         protected_count=protected,
         metadata_count=metadata,
         incompatible_count=incompatible,

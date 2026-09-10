@@ -273,6 +273,90 @@ def test_newest_invariant_reports_unsatisfied_logical_cap(
     assert repository.get_backup_settings(demo_file_engine).updated_at == current.updated_at
 
 
+def test_unreadable_outer_target_cannot_report_met_or_healthy(
+    demo_file_engine: Engine, demo_file_settings, monkeypatch
+) -> None:
+    as_of = datetime(2027, 1, 10, 12, tzinfo=UTC)
+    current = _activate(demo_file_engine)
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    repository.update_and_activate_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+            "offbox_retention_mode": "tiered",
+            "offbox_keep_all_days": 7,
+            "offbox_daily_until_days": 30,
+            "offbox_weekly_until_days": 90,
+        },
+        expected_updated_at=current.updated_at,
+    )
+    target_job = _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=90) + timedelta(hours=1),
+    )
+    newer_job = _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=1),
+    )
+    remote = smb_backup.SmbInventory(
+        tuple(
+            smb_backup.SmbInventoryItem(
+                filename=f"{job.id}.v{APP_VERSION}.enc",
+                job_id=job.id,
+                app_version=APP_VERSION,
+                size_bytes=job.size_bytes or 0,
+                modified_at=int(job.started_at.timestamp()),
+            )
+            for job in (newer_job, target_job)
+        ),
+        (),
+    )
+    monkeypatch.setattr(smb_backup, "list_inventory", lambda target: remote)
+
+    def probe(target, inventory):
+        newer = next(item for item in inventory.items if item.job_id == newer_job.id)
+        target_item = next(item for item in inventory.items if item.job_id == target_job.id)
+        assert target_item.filename != newer.filename
+        # This is the bounded-probe edge: the oldest target fails, then the
+        # newer readable archive supplies both readable endpoints.
+        return smb_backup.SmbReadProbeResult(
+            "complete",
+            2,
+            1,
+            newer,
+            newer,
+            (newer.filename,),
+        )
+
+    monkeypatch.setattr(smb_backup, "probe_inventory", probe)
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(
+            20_000_000_000, 10_000_000_000, 10_000_000_000
+        ),
+    )
+
+    snapshot = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+
+    assert snapshot.offbox.probe_status == "complete"
+    assert snapshot.offbox.probed_archive_count == 2
+    assert snapshot.offbox.readable_archive_count == 1
+    expected_newer = as_of - timedelta(days=1)
+    assert snapshot.offbox.oldest_readable_at == expected_newer
+    assert snapshot.offbox.newest_readable_at == expected_newer
+    assert snapshot.offbox.coverage_status == "incomplete"
+    assert snapshot.offbox.status == "degraded"
+    assert "coverage_incomplete" in snapshot.offbox.reason_codes
+
+
 def test_remote_status_preserves_unavailable_and_timestamp_fallback_states(
     demo_file_engine: Engine, demo_file_settings, monkeypatch
 ) -> None:
@@ -308,7 +392,12 @@ def test_remote_status_preserves_unavailable_and_timestamp_fallback_states(
         smb_backup,
         "probe_inventory",
         lambda target, inventory: smb_backup.SmbReadProbeResult(
-            "complete", 1, 1, inventory.items[0], inventory.items[0]
+            "complete",
+            1,
+            1,
+            inventory.items[0],
+            inventory.items[0],
+            (inventory.items[0].filename,),
         ),
     )
     monkeypatch.setattr(

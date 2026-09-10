@@ -123,6 +123,45 @@ def test_bounded_probe_alternates_oldest_and_newest(monkeypatch: pytest.MonkeyPa
     assert result.readable_archive_count is None
     assert result.oldest_readable == items[-1]
     assert result.newest_readable == items[0]
+    assert result.readable_filenames == (items[0].filename, items[-1].filename)
+
+
+def test_probe_result_identifies_only_successfully_read_archives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_session_stubs(monkeypatch)
+    newer = smb_backup.SmbInventoryItem(
+        filename=f"{_JOB_B}.enc",
+        job_id=_JOB_B,
+        app_version=None,
+        size_bytes=10,
+        modified_at=2,
+    )
+    outer_target = smb_backup.SmbInventoryItem(
+        filename=f"{_JOB_A}.enc",
+        job_id=_JOB_A,
+        app_version=None,
+        size_bytes=10,
+        modified_at=1,
+    )
+
+    def open_file(path: str, mode: str) -> _RemoteHandle:
+        filename = path.rsplit("\\", 1)[-1]
+        return _RemoteHandle(b"" if filename == outer_target.filename else b"x")
+
+    monkeypatch.setattr(smb_backup.smbclient, "open_file", open_file)
+
+    result = smb_backup.probe_inventory(
+        _TARGET,
+        smb_backup.SmbInventory((newer, outer_target), ()),
+    )
+
+    assert result.status == "complete"
+    assert result.probed_archive_count == 2
+    assert result.readable_archive_count == 1
+    assert result.oldest_readable == newer
+    assert result.newest_readable == newer
+    assert result.readable_filenames == (newer.filename,)
 
 
 def test_delete_requires_successful_read_probe(monkeypatch: pytest.MonkeyPatch) -> None:
