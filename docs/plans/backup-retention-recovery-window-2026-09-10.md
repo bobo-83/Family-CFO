@@ -725,7 +725,15 @@ Acquire the same global lock before touching an archive. Restore captures and re
 - [x] WI-5 — Recovery API/OpenAPI and compatibility contract (`dfdb820d`, `0a9f73af`)
 - [x] WI-6 — Web configuration and disclosure (`23f26775`)
 - [x] WI-7 — iOS parity on macOS (`25105493`)
-- [ ] WI-8 — Operator docs and CI implementation complete; PR CI, supported-NAS check, deployment, and live rollout verification remain pending
+- [ ] WI-8 — Operator docs and local final-integration matrix complete; PR CI, supported-NAS check, deployment, and live rollout verification remain pending
+
+Final-integration evidence recorded on 2026-09-10 from macOS/Xcode 26.6:
+
+- API coverage/lint/runtime OpenAPI: 1,225 passed and two intentionally environment-gated PostgreSQL tests skipped in the ordinary run; coverage and lint gates passed.
+- Disposable PostgreSQL 17: the required migration/bootstrap and real advisory-lock conflict/connection-loss tests both passed with loud required mode enabled. This local subset does not prove the combined WI-3 cross-dialect case matrix or the separate PR-CI checkbox, so both remain open.
+- Backup service: 14 passed. Web: generated client clean, 361 tests passed, source extraction succeeded, and the catalog/all-locale build gate passed for English, Lithuanian, and Vietnamese.
+- Contract/version/client compatibility and Swift generation drift checks passed. The complete iOS simulator suite passed 495 tests across 80 suites.
+- Supported-NAS behavior, deployment/live verification, release, issue closure, and later legacy-input removal remain external work and are not advanced here.
 
 ## Execution index
 
