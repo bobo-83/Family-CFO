@@ -9,6 +9,7 @@ from typing import Self
 import pytest
 
 from family_cfo_api import smb_backup
+from family_cfo_api.backup_operation_lock import BackupOperationLockLostError
 
 _JOB_A = "00000000-0000-4000-8000-000000000001"
 _JOB_B = "00000000-0000-4000-8000-000000000002"
@@ -161,6 +162,55 @@ def test_upload_uses_partial_then_same_share_rename(
     assert opened[0][1] == "xb"
     assert renamed[0][0].endswith(filename + ".partial")
     assert renamed[0][1].endswith(filename)
+
+
+def test_upload_checks_operation_ownership_before_promotion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_session_stubs(monkeypatch)
+    source = tmp_path / "archive.enc"
+    source.write_bytes(b"ciphertext")
+    removed: list[str] = []
+    renamed: list[tuple[str, str]] = []
+    monkeypatch.setattr(smb_backup.smbclient, "makedirs", lambda *args, **kwargs: None)
+    existence_checks = iter((False, False, True))
+    monkeypatch.setattr(smb_backup.smbclient.path, "exists", lambda path: next(existence_checks))
+    monkeypatch.setattr(smb_backup.smbclient, "open_file", lambda path, mode: _RemoteHandle())
+    monkeypatch.setattr(smb_backup.smbclient, "remove", removed.append)
+    monkeypatch.setattr(smb_backup.smbclient, "rename", lambda src, dst: renamed.append((src, dst)))
+
+    with pytest.raises(BackupOperationLockLostError):
+        smb_backup.upload(
+            _TARGET,
+            str(source),
+            f"{_JOB_A}.enc",
+            assert_mutation_owned=lambda: (_ for _ in ()).throw(
+                BackupOperationLockLostError("lost")
+            ),
+        )
+
+    assert renamed == []
+    assert removed and removed[0].endswith(".partial")
+
+
+def test_delete_checks_operation_ownership_immediately_before_remove(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_session_stubs(monkeypatch)
+    removed: list[str] = []
+    monkeypatch.setattr(smb_backup.smbclient, "open_file", lambda path, mode: _RemoteHandle(b"x"))
+    monkeypatch.setattr(smb_backup.smbclient, "remove", removed.append)
+
+    with pytest.raises(BackupOperationLockLostError):
+        smb_backup.delete(
+            _TARGET,
+            f"{_JOB_A}.enc",
+            assert_mutation_owned=lambda: (_ for _ in ()).throw(
+                BackupOperationLockLostError("lost")
+            ),
+        )
+
+    assert removed == []
 
 
 def test_upload_failure_cleans_owned_partial_and_raises_redacted_error(

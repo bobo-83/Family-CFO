@@ -7,6 +7,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import fixtures, repository, security, smb_backup
+from family_cfo_api.backup_operation_lock import acquire_backup_operation_lock
 
 NEWCOMER_EMAIL = "newcomer@example.com"
 NEWCOMER_PASSWORD = "newcomer-password-123"
@@ -59,6 +60,23 @@ async def test_create_backup_requires_authentication(demo_file_client) -> None:
     response = await demo_file_client.post("/api/v1/backups")
 
     assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_manual_backup_returns_conflict_while_global_operation_is_owned(
+    demo_file_client, demo_file_token, demo_file_engine: Engine
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    lease = acquire_backup_operation_lock(demo_file_engine)
+    try:
+        response = await demo_file_client.post("/api/v1/backups", headers=headers)
+    finally:
+        lease.release()
+    assert response.status_code == 409
+
+    # A lock conflict must release its anti-hammer reservation.
+    retry = await demo_file_client.post("/api/v1/backups", headers=headers)
+    assert retry.status_code == 201
 
 
 @pytest.mark.anyio

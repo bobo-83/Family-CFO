@@ -5427,9 +5427,11 @@ def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
     )
 
 
-def create_backup_job(engine: Engine) -> BackupJobRecord:
+def create_backup_job(
+    engine: Engine, *, started_at: datetime | None = None
+) -> BackupJobRecord:
     backup_job_id = new_id()
-    now = utcnow()
+    now = _backup_input_utc(started_at or utcnow(), "started_at")
     with engine.begin() as conn:
         conn.execute(
             insert(models.backup_jobs).values(
@@ -5496,8 +5498,89 @@ def update_backup_job(
         )
 
 
+def complete_backup_job_local(
+    engine: Engine,
+    backup_job_id: str,
+    *,
+    storage_path: str,
+    size_bytes: int,
+    remote_status: str,
+    app_version: str,
+    schema_revision: str | None,
+) -> None:
+    """Certify the promoted local archive before any best-effort remote work."""
+    values: dict[str, Any] = {
+        "status": "completed",
+        "storage_path": storage_path,
+        "size_bytes": size_bytes,
+        "error_message": None,
+        "remote_status": remote_status,
+        "remote_error": None,
+        "app_version": app_version,
+        "schema_revision": schema_revision,
+        "completed_at": utcnow(),
+    }
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status == "running",
+            )
+            .values(**values)
+        )
+        if result.rowcount != 1:
+            raise RuntimeError("backup job was not running at local completion")
+
+
+def update_backup_job_remote_result(
+    engine: Engine,
+    backup_job_id: str,
+    *,
+    remote_status: str,
+    remote_error: str | None,
+) -> None:
+    """Update only remote outcome; never rewrite local completion time/state."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status == "completed",
+            )
+            .values(remote_status=remote_status, remote_error=remote_error)
+        )
+
+
+def fail_backup_job_if_running(
+    engine: Engine, backup_job_id: str, *, reason: str
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status.in_(("pending", "running")),
+            )
+            .values(status="failed", error_message=reason, completed_at=utcnow())
+        )
+    return result.rowcount == 1
+
+
 def get_backup_job(engine: Engine, backup_job_id: str) -> BackupJobRecord | None:
     query = select(models.backup_jobs).where(models.backup_jobs.c.id == backup_job_id)
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _backup_job_record_from_row(row) if row is not None else None
+
+
+def latest_completed_backup_job(engine: Engine) -> BackupJobRecord | None:
+    query = (
+        select(models.backup_jobs)
+        .where(models.backup_jobs.c.status == "completed")
+        .order_by(models.backup_jobs.c.completed_at.desc(), models.backup_jobs.c.id.asc())
+        .limit(1)
+    )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
     return _backup_job_record_from_row(row) if row is not None else None
@@ -5508,6 +5591,75 @@ def list_backup_jobs(engine: Engine) -> list[BackupJobRecord]:
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
     return [_backup_job_record_from_row(row) for row in rows]
+
+
+def mark_interrupted_backup_jobs(
+    engine: Engine,
+    *,
+    older_than: datetime | None = None,
+    exclude_ids: tuple[str, ...] = (),
+) -> list[str]:
+    """Fail rows that cannot have a conforming lock owner; return changed IDs."""
+    query = select(models.backup_jobs.c.id).where(models.backup_jobs.c.status == "running")
+    if older_than is not None:
+        query = query.where(
+            models.backup_jobs.c.started_at < _backup_input_utc(older_than, "older_than")
+        )
+    if exclude_ids:
+        query = query.where(models.backup_jobs.c.id.not_in(exclude_ids))
+    with engine.begin() as conn:
+        ids = [row[0] for row in conn.execute(query).all()]
+        if ids:
+            conn.execute(
+                update(models.backup_jobs)
+                .where(
+                    models.backup_jobs.c.id.in_(ids),
+                    models.backup_jobs.c.status == "running",
+                )
+                .values(
+                    status="failed",
+                    error_message="interrupted",
+                    completed_at=utcnow(),
+                )
+            )
+    return ids
+
+
+def restore_backup_job_after_restore(
+    engine: Engine,
+    captured: BackupJobRecord,
+) -> BackupJobRecord:
+    """Reconcile the restore source row after its own snapshot rolled it backward."""
+    values = {
+        "status": "completed",
+        "storage_path": captured.storage_path,
+        "size_bytes": captured.size_bytes,
+        "error_message": None,
+        "remote_status": captured.remote_status,
+        "remote_error": captured.remote_error,
+        "app_version": captured.app_version,
+        "schema_revision": captured.schema_revision,
+        "started_at": captured.started_at,
+        "completed_at": captured.completed_at or utcnow(),
+        "pruned_at": None,
+        "prune_reason": None,
+        "created_at": captured.created_at,
+    }
+    with engine.begin() as conn:
+        exists = conn.execute(
+            select(models.backup_jobs.c.id).where(models.backup_jobs.c.id == captured.id)
+        ).first()
+        if exists is None:
+            conn.execute(insert(models.backup_jobs).values(id=captured.id, **values))
+        else:
+            conn.execute(
+                update(models.backup_jobs)
+                .where(models.backup_jobs.c.id == captured.id)
+                .values(**values)
+            )
+    restored = get_backup_job(engine, captured.id)
+    assert restored is not None
+    return restored
 
 
 def delete_backup_job(engine: Engine, backup_job_id: str) -> None:

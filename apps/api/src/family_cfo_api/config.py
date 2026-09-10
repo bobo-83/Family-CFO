@@ -68,6 +68,8 @@ class Settings:
     import_staging_dir: str = DEFAULT_IMPORT_STAGING_DIR
     backup_dir: str = DEFAULT_BACKUP_DIR
     backup_retention_count: int = DEFAULT_BACKUP_RETENTION_COUNT
+    # ADR 0077: positive bound for database dump/restore and supported SMB I/O.
+    backup_io_timeout_seconds: int = 3600
     # #192: off-box (Synology) backups deleted when older than this many days —
     # the erasure horizon for a deleted household. 0 = keep forever (the
     # previous behavior); on-box copies keep their count-based retention.
@@ -167,6 +169,9 @@ class Settings:
             ),
             import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
             backup_dir=os.getenv("FAMILY_CFO_BACKUP_DIR", cls.backup_dir),
+            backup_io_timeout_seconds=_env_positive_int(
+                "FAMILY_CFO_BACKUP_IO_TIMEOUT_SECONDS", cls.backup_io_timeout_seconds
+            ),
             # ADR 0077: bootstrap-only for one compatibility release. Invalid
             # values must never prevent the durable singleton from materializing.
             offbox_backup_retention_days=_env_nonnegative_int(

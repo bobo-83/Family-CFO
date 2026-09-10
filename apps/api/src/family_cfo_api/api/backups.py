@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from datetime import UTC, datetime
+from functools import partial
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
@@ -26,33 +29,6 @@ from family_cfo_api.schemas import (
 
 router = APIRouter(tags=["Backups"])
 logger = logging.getLogger(__name__)
-
-
-def _smb_target(
-    household: repository.HouseholdRecord | None,
-    settings: Settings,
-    *,
-    password_override: str | None = None,
-) -> smb_backup.SmbTarget | None:
-    """Build the SMB target from stored config, decrypting the password — or use a
-    just-entered password (for a pre-save test). None when not fully configured."""
-    if household is None:
-        return None
-    if not (household.backup_smb_host and household.backup_smb_share and household.backup_smb_username):
-        return None
-    password = password_override
-    if password is None:
-        if not household.backup_smb_password_encrypted:
-            return None
-        password = banksync.decrypt_credential(settings, household.backup_smb_password_encrypted)
-    return smb_backup.SmbTarget(
-        host=household.backup_smb_host,
-        share=household.backup_smb_share,
-        folder=household.backup_smb_folder,
-        username=household.backup_smb_username,
-        password=password,
-        domain=household.backup_smb_domain,
-    )
 
 
 def _restore_boundary(
@@ -145,22 +121,43 @@ async def list_backups(
 # #181: minimum gap between on-demand backups per household — whole-box work
 # (pg_dump + SMB push) that a stuck client or loop must not hammer.
 _BACKUP_COOLDOWN_SECONDS = 60
-_last_manual_backup: dict[str, float] = {}
+_last_manual_backup: float | None = None
+_manual_backup_cooldown_lock = threading.Lock()
 
 
 def reset_backup_cooldown_for_tests() -> None:
-    _last_manual_backup.clear()
+    global _last_manual_backup
+    with _manual_backup_cooldown_lock:
+        _last_manual_backup = None
 
 
-def _backup_retry_after(household_id: str) -> int | None:
+def _reserve_backup_cooldown() -> tuple[int | None, float | None]:
     import time
 
+    global _last_manual_backup
     now = time.monotonic()
-    last = _last_manual_backup.get(household_id)
-    if last is not None and now - last < _BACKUP_COOLDOWN_SECONDS:
-        return int(_BACKUP_COOLDOWN_SECONDS - (now - last)) + 1
-    _last_manual_backup[household_id] = now
-    return None
+    with _manual_backup_cooldown_lock:
+        if _last_manual_backup is not None and now - _last_manual_backup < _BACKUP_COOLDOWN_SECONDS:
+            retry = int(_BACKUP_COOLDOWN_SECONDS - (now - _last_manual_backup)) + 1
+            return retry, None
+        _last_manual_backup = now
+        return None, now
+
+
+def _release_backup_cooldown(reservation: float | None) -> None:
+    global _last_manual_backup
+    if reservation is None:
+        return
+    with _manual_backup_cooldown_lock:
+        if _last_manual_backup == reservation:
+            _last_manual_backup = None
+
+
+async def _run_sync(function, /, *args, **kwargs):
+    """The worker thread—not the request waiter—owns any mutation lease."""
+    return await anyio.to_thread.run_sync(
+        partial(function, *args, **kwargs), abandon_on_cancel=False
+    )
 
 
 @router.post(
@@ -180,9 +177,9 @@ async def create_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupJob:
-    # #181: an on-demand backup is whole-box work (pg_dump + SMB push) — a
-    # per-household cooldown keeps one household from hammering it.
-    retry_after = _backup_retry_after(session.household_id)
+    # The anti-hammer rule is box-global; correctness exclusion is the
+    # cross-process BackupOperationLock inside the synchronous lifecycle.
+    retry_after, reservation = _reserve_backup_cooldown()
     if retry_after is not None:
         raise HTTPException(
             status_code=429,
@@ -192,17 +189,18 @@ async def create_backup(
             ),
             headers={"Retry-After": str(retry_after)},
         )
-    household = repository.get_household(engine, session.household_id)
-    backup_job_id = backup_processing.run_backup_once(
-        engine,
-        database_url=settings.database_url,
-        staging_dir=settings.import_staging_dir,
-        backup_dir=settings.backup_dir,
-        encryption_key=settings.backup_encryption_key,
-        retention_count=settings.backup_retention_count,
-        smb_target=_smb_target(household, settings),
-        max_bytes=household.backup_max_bytes if household else None,
-    )
+
+    def run() -> str:
+        config = backup_processing.build_backup_execution_config(engine, settings)
+        return backup_processing.run_backup_once(engine, config)
+
+    try:
+        backup_job_id = await _run_sync(run)
+    except backup_processing.BackupOperationBusyError as exc:
+        _release_backup_cooldown(reservation)
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
     audit.write_audit(
         engine,
         session.household_id,
@@ -245,8 +243,8 @@ async def restore_remote_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
-    household = repository.get_household(engine, session.household_id)
-    target = _smb_target(household, settings)
+    config = backup_processing.build_backup_execution_config(engine, settings)
+    target = config.smb_target
     if target is None:
         raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
     # Guard against path traversal — only a bare filename from the share.
@@ -259,7 +257,7 @@ async def restore_remote_backup(
     # from the archive's mtime on the share — the file is uploaded immediately
     # after the dump. A share that won't list leaves it unknown, not zero.
     snapshot_at: datetime | None = None
-    for item in smb_backup.list_backups(target):
+    for item in await _run_sync(smb_backup.list_backups, target):
         if item["filename"] == filename:
             snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
             break
@@ -268,19 +266,23 @@ async def restore_remote_backup(
     )
 
     try:
-        ciphertext = smb_backup.download(target, filename)
+        ciphertext = await _run_sync(smb_backup.download, target, filename)
     except Exception as exc:
         raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
 
     try:
-        backup_processing.restore_from_bytes(
+        await _run_sync(
+            backup_processing.restore_from_bytes,
+            engine,
             ciphertext,
-            database_url=settings.database_url,
-            staging_dir=settings.import_staging_dir,
-            encryption_key=settings.backup_encryption_key,
+            config,
         )
     except backup_processing.BackupCompatibilityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except backup_processing.BackupOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
     except (ValueError, backup_processing.BackupConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -339,16 +341,14 @@ async def restore_backup(
     )
 
     try:
-        backup_processing.restore_backup(
-            engine,
-            backup_id,
-            database_url=settings.database_url,
-            staging_dir=settings.import_staging_dir,
-            backup_dir=settings.backup_dir,
-            encryption_key=settings.backup_encryption_key,
-        )
+        config = backup_processing.build_backup_execution_config(engine, settings)
+        await _run_sync(backup_processing.restore_backup, engine, backup_id, config)
     except backup_processing.BackupCompatibilityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except backup_processing.BackupOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -385,18 +385,21 @@ async def get_backup_config(
     session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
 ) -> BackupConfig:
-    household = repository.get_household(engine, session.household_id)
+    stored = repository.get_backup_settings(engine)
     jobs = repository.list_backup_jobs(engine)
     latest = next((j for j in jobs if j.status in ("completed", "failed")), None)
+    shared_max = (
+        stored.local_max_bytes if stored.local_max_bytes == stored.offbox_max_bytes else None
+    )
     return BackupConfig(
-        frequency=household.backup_frequency if household else "daily",
-        smb_host=household.backup_smb_host if household else None,
-        smb_share=household.backup_smb_share if household else None,
-        smb_folder=household.backup_smb_folder if household else None,
-        smb_username=household.backup_smb_username if household else None,
-        smb_domain=household.backup_smb_domain if household else None,
-        has_password=bool(household and household.backup_smb_password_encrypted),
-        max_bytes=household.backup_max_bytes if household else None,
+        frequency=stored.frequency,
+        smb_host=stored.smb_host,
+        smb_share=stored.smb_share,
+        smb_folder=stored.smb_folder,
+        smb_username=stored.smb_username,
+        smb_domain=stored.smb_domain,
+        has_password=bool(stored.smb_password_encrypted),
+        max_bytes=shared_max,
         latest=_to_schema(latest) if latest else None,
     )
 
@@ -425,19 +428,22 @@ async def update_backup_config(
         if payload.smb_password
         else None
     )
-    repository.set_backup_config(
-        engine,
-        session.household_id,
-        frequency=payload.frequency,
-        smb_host=payload.smb_host,
-        smb_share=payload.smb_share,
-        smb_folder=payload.smb_folder,
-        smb_username=payload.smb_username,
-        smb_password_encrypted=encrypted,
-        smb_domain=payload.smb_domain,
-        update_password=update_password,
-        max_bytes=payload.max_bytes,
-    )
+    # This legacy response shape updates the global singleton without exposing
+    # WI-5 policy/status fields. Its shared max alias deliberately updates both.
+    repository.get_backup_settings(engine, settings=settings)
+    patch = {
+        "frequency": payload.frequency,
+        "smb_host": payload.smb_host,
+        "smb_share": payload.smb_share,
+        "smb_folder": payload.smb_folder,
+        "smb_username": payload.smb_username,
+        "smb_domain": payload.smb_domain,
+        "local_max_bytes": payload.max_bytes,
+        "offbox_max_bytes": payload.max_bytes,
+    }
+    if update_password:
+        patch["smb_password_encrypted"] = encrypted or ""
+    repository.update_backup_settings(engine, patch, expected_updated_at=None)
     audit.write_audit(
         engine,
         session.household_id,
@@ -470,13 +476,13 @@ async def check_backup_destination(
     # was left blank (re-testing a saved target).
     password = payload.smb_password
     if password is None:
-        household = repository.get_household(engine, session.household_id)
-        if household and household.backup_smb_password_encrypted:
-            password = banksync.decrypt_credential(
-                settings, household.backup_smb_password_encrypted)
+        stored = repository.get_backup_settings(engine, settings=settings)
+        if stored.smb_password_encrypted:
+            password = banksync.decrypt_credential(settings, stored.smb_password_encrypted)
     if not password:
         return BackupDestinationCheckResponse(
-            writable=False, reason="Enter the Synology password to test the connection.")
+            writable=False, reason="Enter the Synology password to test the connection."
+        )
     target = smb_backup.SmbTarget(
         host=payload.smb_host,
         share=payload.smb_share,
@@ -484,8 +490,9 @@ async def check_backup_destination(
         username=payload.smb_username,
         password=password,
         domain=payload.smb_domain,
+        io_timeout_seconds=settings.backup_io_timeout_seconds,
     )
-    ok, reason = smb_backup.verify(target)
+    ok, reason = await _run_sync(smb_backup.verify, target)
     return BackupDestinationCheckResponse(writable=ok, reason=reason)
 
 
@@ -504,9 +511,12 @@ async def list_remote_backups(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> RemoteBackupListResponse:
-    household = repository.get_household(engine, session.household_id)
-    target = _smb_target(household, settings)
-    items = smb_backup.list_backups(target) if target is not None else []
+    config = backup_processing.build_backup_execution_config(engine, settings)
+    target = config.smb_target
+    try:
+        items = await _run_sync(smb_backup.list_backups, target) if target is not None else []
+    except smb_backup.SmbInventoryError as exc:
+        raise HTTPException(status_code=503, detail=exc.reason) from exc
     return RemoteBackupListResponse(
         backups=[
             RemoteBackup(
@@ -568,14 +578,23 @@ async def delete_backup(
     record = repository.get_backup_job(engine, backup_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Backup not found")
-    if record.storage_path:
-        full_path = os.path.join(settings.backup_dir, record.storage_path)
-        if os.path.exists(full_path):
-            os.remove(full_path)
-    repository.delete_backup_job(engine, backup_id)
+    config = backup_processing.build_backup_execution_config(engine, settings)
+    try:
+        await _run_sync(backup_processing.delete_local_backup, engine, backup_id, config)
+    except backup_processing.BackupOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
+    except (ValueError, backup_processing.UnsafeBackupPathError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     audit.write_audit(
-        engine, session.household_id, session.user_id,
-        "backup.deleted", "backup_job", backup_id, "Deleted an on-box backup",
+        engine,
+        session.household_id,
+        session.user_id,
+        "backup.deleted",
+        "backup_job",
+        backup_id,
+        "Deleted an on-box backup",
     )
     return Response(status_code=204)
 
@@ -597,20 +616,28 @@ async def delete_remote_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
-    household = repository.get_household(engine, session.household_id)
-    target = _smb_target(household, settings)
+    config = backup_processing.build_backup_execution_config(engine, settings)
+    target = config.smb_target
     if target is None:
         raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
     filename = os.path.basename(payload.filename)
     if filename != payload.filename or not filename.endswith(".enc"):
         raise HTTPException(status_code=400, detail="Invalid backup filename")
     try:
-        smb_backup.delete(target, filename)
+        await _run_sync(backup_processing.delete_remote_backup, engine, filename, config)
+    except backup_processing.BackupOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         return BackupDestinationCheckResponse(writable=False, reason=smb_backup._friendly(exc))
     audit.write_audit(
-        engine, session.household_id, session.user_id,
-        "backup.deleted_remote", "backup_file", os.path.splitext(filename)[0][:36],
+        engine,
+        session.household_id,
+        session.user_id,
+        "backup.deleted_remote",
+        "backup_file",
+        os.path.splitext(filename)[0][:36],
         f"Deleted {filename} from Synology",
     )
     return BackupDestinationCheckResponse(writable=True, reason=None)

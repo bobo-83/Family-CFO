@@ -129,9 +129,7 @@ def main() -> None:
         # syncs.
         from family_cfo_api import banksync, finance_service
 
-        households = banksync.sync_due_connections(
-            engine, settings, households=worker_households()
-        )
+        households = banksync.sync_due_connections(engine, settings, households=worker_households())
         # M96: auto-file what was just imported (transfers, income, taxes, known
         # merchants) so a nightly sync doesn't leave the Categorize queue full.
         for household_id in households:
@@ -163,11 +161,18 @@ def main() -> None:
         # ADR 0040: distill one month of history into advisor memories while idle.
         ai_study.run_study_tick(engine, settings, households=worker_households())
 
-    def run_daily_backup() -> None:
-        # M98/M101: fires every few minutes; each household backs up once its cadence
-        # has elapsed. The logic lives in backup_processing so it's importable and
-        # unit-tested (M108/ADR 0019) rather than a bare closure.
-        backup_processing.run_due_backups(engine, settings)
+    def run_backup_lifecycle() -> None:
+        """One box-global cadence decision plus independent locked maintenance."""
+        try:
+            backup_processing.run_due_backups(engine, settings)
+        except Exception:
+            logger.exception("scheduled backup pass failed")
+        # Maintenance is deliberately independent of cadence and backup success:
+        # it still runs when frequency is off, a backup is not due, or creation fails.
+        try:
+            backup_processing.run_backup_maintenance(engine, settings)
+        except Exception:
+            logger.exception("backup maintenance pass failed")
 
     def prune_stale_auth_state() -> None:
         # Issue #48/#3: sweep dead auth sessions and long-revoked devices so
@@ -231,8 +236,8 @@ def main() -> None:
     )
     scheduler.add_job(
         Job(
-            name="run-daily-backup",
-            func=run_daily_backup,
+            name="run-backup-lifecycle",
+            func=run_backup_lifecycle,
             interval_seconds=BACKUP_INTERVAL_SECONDS,
         )
     )

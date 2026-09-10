@@ -19,14 +19,8 @@ from family_cfo_api.config import Settings
 
 
 def _run_backup(engine: Engine, settings: Settings) -> repository.BackupJobRecord:
-    backup_job_id = backup_processing.run_backup_once(
-        engine,
-        database_url=settings.database_url,
-        staging_dir=settings.import_staging_dir,
-        backup_dir=settings.backup_dir,
-        encryption_key=settings.backup_encryption_key,
-        retention_count=settings.backup_retention_count,
-    )
+    config = backup_processing.build_backup_execution_config(engine, settings)
+    backup_job_id = backup_processing.run_backup_once(engine, config)
     record = repository.get_backup_job(engine, backup_job_id)
     assert record is not None
     return record
@@ -49,32 +43,32 @@ def test_backup_seals_manifest_and_labels_job(
     assert manifest["app_version"] == APP_VERSION
 
 
-def test_restore_refuses_newer_app_version(demo_file_settings: Settings) -> None:
+def test_restore_refuses_newer_app_version(
+    demo_file_engine: Engine, demo_file_settings: Settings
+) -> None:
     manifest = {"app_version": "999.0.0", "schema_revision": None}
     archive = build_archive(b"dump", b"", manifest=manifest)
     ciphertext = encrypt(demo_file_settings.backup_encryption_key, archive)
 
     with pytest.raises(backup_processing.BackupCompatibilityError, match="999.0.0"):
-        backup_processing.restore_from_bytes(
-            ciphertext,
-            database_url=demo_file_settings.database_url,
-            staging_dir=demo_file_settings.import_staging_dir,
-            encryption_key=demo_file_settings.backup_encryption_key,
+        config = backup_processing.build_backup_execution_config(
+            demo_file_engine, demo_file_settings
         )
+        backup_processing.restore_from_bytes(demo_file_engine, ciphertext, config)
 
 
-def test_restore_refuses_unknown_schema_revision(demo_file_settings: Settings) -> None:
+def test_restore_refuses_unknown_schema_revision(
+    demo_file_engine: Engine, demo_file_settings: Settings
+) -> None:
     manifest = {"app_version": APP_VERSION, "schema_revision": "9999_from_the_future"}
     archive = build_archive(b"dump", b"", manifest=manifest)
     ciphertext = encrypt(demo_file_settings.backup_encryption_key, archive)
 
     with pytest.raises(backup_processing.BackupCompatibilityError, match="9999_from_the_future"):
-        backup_processing.restore_from_bytes(
-            ciphertext,
-            database_url=demo_file_settings.database_url,
-            staging_dir=demo_file_settings.import_staging_dir,
-            encryption_key=demo_file_settings.backup_encryption_key,
+        config = backup_processing.build_backup_execution_config(
+            demo_file_engine, demo_file_settings
         )
+        backup_processing.restore_from_bytes(demo_file_engine, ciphertext, config)
 
 
 def test_restore_round_trip_still_works_with_manifest(
@@ -84,14 +78,8 @@ def test_restore_round_trip_still_works_with_manifest(
     manifest names this build's own version/revision → guard passes, no
     migration attempted)."""
     record = _run_backup(demo_file_engine, demo_file_settings)
-    backup_processing.restore_backup(
-        demo_file_engine,
-        record.id,
-        database_url=demo_file_settings.database_url,
-        staging_dir=demo_file_settings.import_staging_dir,
-        backup_dir=demo_file_settings.backup_dir,
-        encryption_key=demo_file_settings.backup_encryption_key,
-    )
+    config = backup_processing.build_backup_execution_config(demo_file_engine, demo_file_settings)
+    backup_processing.restore_backup(demo_file_engine, record.id, config)
 
 
 def test_app_version_from_filename() -> None:

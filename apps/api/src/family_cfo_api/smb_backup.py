@@ -11,13 +11,15 @@ import logging
 import re
 import stat
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 import smbclient
 from smbprotocol.exceptions import SMBOSError, SMBResponseException
+
+from family_cfo_api.backup_operation_lock import BackupOperationLockLostError
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,7 @@ class SmbTarget:
     username: str
     password: str
     domain: str | None = None
+    io_timeout_seconds: int = 60
 
 
 class SmbClientGate:
@@ -154,7 +157,14 @@ def _open(target: SmbTarget) -> None:
     username = target.username
     if target.domain and "\\" not in username:
         username = f"{target.domain}\\{username}"
-    smbclient.register_session(target.host, username=username, password=target.password)
+    if target.io_timeout_seconds <= 0:
+        raise ValueError("SMB I/O timeout must be positive")
+    smbclient.register_session(
+        target.host,
+        username=username,
+        password=target.password,
+        connection_timeout=target.io_timeout_seconds,
+    )
 
 
 def _classify(exc: Exception) -> tuple[str, str]:
@@ -238,7 +248,13 @@ def verify(target: SmbTarget) -> tuple[bool, str | None]:
             _safe_reset()
 
 
-def upload(target: SmbTarget, local_path: str, filename: str) -> None:
+def upload(
+    target: SmbTarget,
+    local_path: str,
+    filename: str,
+    *,
+    assert_mutation_owned: Callable[[], None] | None = None,
+) -> None:
     """Atomically upload a recognized archive through a same-share partial file."""
     _require_archive_name(filename)
     with SMB_CLIENT_GATE.hold():
@@ -261,6 +277,8 @@ def upload(target: SmbTarget, local_path: str, filename: str) -> None:
                 created_partial = True
                 while chunk := src.read(_COPY_CHUNK_BYTES):
                     dst.write(chunk)
+            if assert_mutation_owned is not None:
+                assert_mutation_owned()
             smbclient.rename(partial_path, final_path)
             partial_path = None
         except Exception as exc:
@@ -275,7 +293,7 @@ def upload(target: SmbTarget, local_path: str, filename: str) -> None:
                         type(cleanup_exc).__name__,
                         code,
                     )
-            if isinstance(exc, SmbStorageError):
+            if isinstance(exc, (SmbStorageError, BackupOperationLockLostError)):
                 raise
             code, reason = _classify(exc)
             logger.warning("smb upload failed error_type=%s code=%s", type(exc).__name__, code)
@@ -465,6 +483,50 @@ def query_capacity(target: SmbTarget) -> SmbCapacity:
             _safe_reset()
 
 
+def delete_stale_partials(
+    target: SmbTarget,
+    *,
+    older_than: int,
+    assert_mutation_owned: Callable[[], None] | None = None,
+) -> int:
+    """Remove only old, top-level Family CFO partials during locked maintenance."""
+    with SMB_CLIENT_GATE.hold():
+        try:
+            _open(target)
+            base = _unc_base(target)
+            removed = 0
+            for entry in smbclient.scandir(base):
+                name = entry.name
+                final_name = name.removesuffix(".partial")
+                if (
+                    not name.endswith(".enc.partial")
+                    or _parse_archive_name(final_name) is None
+                    or "\\" in name
+                    or "/" in name
+                ):
+                    continue
+                info = entry.stat()
+                if not stat.S_ISREG(info.st_mode) or int(info.st_mtime) >= older_than:
+                    continue
+                if assert_mutation_owned is not None:
+                    assert_mutation_owned()
+                smbclient.remove(base + "\\" + name)
+                removed += 1
+            return removed
+        except Exception as exc:
+            if isinstance(exc, BackupOperationLockLostError):
+                raise
+            code, reason = _classify(exc)
+            logger.warning(
+                "smb partial cleanup failed error_type=%s code=%s",
+                type(exc).__name__,
+                code,
+            )
+            raise SmbStorageError(code, reason) from None
+        finally:
+            _safe_reset()
+
+
 def download(target: SmbTarget, filename: str) -> bytes:
     """Read one recognized archive back from the share for restore."""
     _require_archive_name(filename)
@@ -475,7 +537,7 @@ def download(target: SmbTarget, filename: str) -> bytes:
             with smbclient.open_file(path, mode="rb") as handle:
                 return handle.read()
         except Exception as exc:
-            if isinstance(exc, SmbStorageError):
+            if isinstance(exc, (SmbStorageError, BackupOperationLockLostError)):
                 raise
             code, reason = _classify(exc)
             logger.warning("smb download failed error_type=%s code=%s", type(exc).__name__, code)
@@ -484,7 +546,12 @@ def download(target: SmbTarget, filename: str) -> bytes:
             _safe_reset()
 
 
-def delete(target: SmbTarget, filename: str) -> None:
+def delete(
+    target: SmbTarget,
+    filename: str,
+    *,
+    assert_mutation_owned: Callable[[], None] | None = None,
+) -> None:
     """Read-probe and remove one recognized archive from the share."""
     _require_archive_name(filename)
     with SMB_CLIENT_GATE.hold():
@@ -495,9 +562,11 @@ def delete(target: SmbTarget, filename: str) -> None:
                     "archive_read_probe_failed",
                     "The backup could not be read, so it was not deleted.",
                 )
+            if assert_mutation_owned is not None:
+                assert_mutation_owned()
             smbclient.remove(_unc_base(target) + "\\" + filename)
         except Exception as exc:
-            if isinstance(exc, SmbStorageError):
+            if isinstance(exc, (SmbStorageError, BackupOperationLockLostError)):
                 raise
             code, reason = _classify(exc)
             logger.warning("smb delete failed error_type=%s code=%s", type(exc).__name__, code)
